@@ -79,6 +79,7 @@ using HMACCtxPointer = ncrypto::HMACCtxPointer;
 using CipherCtxPointer = ncrypto::CipherCtxPointer;
 using DsaPointer = ncrypto::DSAPointer;
 using DsaSigPointer = ncrypto::DSASigPointer;
+using OsslLibCtxPointer = ncrypto::OsslLibCtxPointer;
 
 using ClearErrorOnReturn = ncrypto::ClearErrorOnReturn;
 using MarkPopErrorOnReturn = ncrypto::MarkPopErrorOnReturn;
