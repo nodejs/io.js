@@ -104,8 +104,8 @@ void ScientificModifier::getParameters(Parameters& output) const {
     output.obj = nullptr;
 }
 
-bool ScientificModifier::semanticallyEquivalent(const Modifier& other) const {
-    auto* _other = dynamic_cast<const ScientificModifier*>(&other);
+bool ScientificModifier::strictEquals(const Modifier& other) const {
+    const auto* _other = dynamic_cast<const ScientificModifier*>(&other);
     if (_other == nullptr) {
         return false;
     }

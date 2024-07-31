@@ -82,7 +82,6 @@
     'v8_toolset_for_shell%': 'target',
 
     'host_os%': '<(OS)',
-    'werror%': '-Werror',
     # For a shared library build, results in "libv8-<(soname_version).so".
     'soname_version%': '',
 
@@ -133,17 +132,38 @@
       '<(V8_ROOT)',
       '<(V8_ROOT)/include',
     ],
+    'cflags!': ['-Wall', '-Wextra'],
     'conditions': [
-      ['clang', {
-        'cflags': [ '-Werror', '-Wno-unknown-pragmas' ],
-      },{
-        'cflags!': [ '-Wall', '-Wextra' ],
-        'cflags': [ '-Wno-return-type' ],
+      ['clang==0 and OS!="win"', {
+        'cflags': [
+          # In deps/v8/BUILD.gn: if (!is_clang && !is_win) { cflags += [...] }
+          '-Wno-strict-overflow',
+          '-Wno-return-type',
+          '-Wno-int-in-bool-context',
+          '-Wno-deprecated',
+          '-Wno-stringop-overflow',
+          '-Wno-stringop-overread',
+          '-Wno-restrict',
+          '-Wno-array-bounds',
+          '-Wno-nonnull',
+          '-Wno-dangling-pointer',
+          # On by default in Clang and V8 requires it at least for arm64.
+          '-flax-vector-conversions',
+        ],
       }],
-      ['clang or OS!="win"', {
-        'cflags': [ '-Wno-invalid-offsetof' ],
+      ['clang==1 or OS!="win"', {
+        'cflags_cc': [
+          # In deps/v8/BUILD.gn: if (is_clang || !is_win) { cflags += [...] }
+          '-Wno-invalid-offsetof',
+        ],
         'xcode_settings': {
-          'WARNING_CFLAGS': ['-Wno-invalid-offsetof']
+          # -Wno-invalid-offsetof
+          'GCC_WARN_ABOUT_INVALID_OFFSETOF_MACRO': 'NO',
+        },
+        'msvs_settings': {
+          'VCCLCompilerTool': {
+            'AdditionalOptions': ['-Wno-invalid-offsetof'],
+          },
         },
       }],
       ['v8_target_arch=="arm"', {
@@ -430,9 +450,6 @@
           ['_toolset=="target"', {
             'conditions': [
               ['v8_target_arch==target_arch', {
-                'cflags': [
-                  '-Wno-error=array-bounds',  # Workaround https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56273
-                ],
                 'conditions': [
                   ['v8_target_arch=="mips64el"', {
                     'cflags': ['-EL'],
@@ -523,21 +540,14 @@
         'defines': [
           'WIN32',
           'NOMINMAX',  # Refs: https://chromium-review.googlesource.com/c/v8/v8/+/1456620
-          '_WIN32_WINNT=0x0602',  # Windows 8
+          '_WIN32_WINNT=0x0A00',  # Windows 10
+          '_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS',
         ],
         # 4351: VS 2005 and later are warning us that they've fixed a bug
         #       present in VS 2003 and earlier.
         'msvs_disabled_warnings': [4351],
         'msvs_configuration_attributes': {
           'CharacterSet': '1',
-        },
-      }],
-      ['OS=="win" and v8_target_arch=="ia32"', {
-        'msvs_settings': {
-          'VCCLCompilerTool': {
-            # Ensure no surprising artifacts from 80bit double math with x86.
-            'AdditionalOptions': ['/arch:SSE2'],
-          },
         },
       }],
       ['OS=="win" and v8_enable_prof==1', {
@@ -693,13 +703,7 @@
     'configurations': {
       'Debug': {
         'defines': [
-          'ENABLE_DISASSEMBLER',
-          'V8_ENABLE_CHECKS',
-          'OBJECT_PRINT',
           'DEBUG',
-          'V8_TRACE_MAPS',
-          'V8_ENABLE_ALLOCATION_TIMEOUT',
-          'V8_ENABLE_FORCE_SLOW_PATH',
         ],
         'conditions': [
           ['OS=="linux" and v8_enable_backtrace==1', {
@@ -944,13 +948,5 @@
       4724,  # https://crbug.com/v8/7771
       4800,  # Forcing value to bool.
     ],
-    # Relevant only for x86.
-    # Refs: https://github.com/nodejs/node/pull/25852
-    # Refs: https://docs.microsoft.com/en-us/cpp/build/reference/safeseh-image-has-safe-exception-handlers
-    'msvs_settings': {
-      'VCLinkerTool': {
-        'ImageHasSafeExceptionHandlers': 'false',
-      },
-    },
   },  # target_defaults
 }

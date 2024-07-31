@@ -8,6 +8,29 @@
 #include "src/compiler/globals.h"
 
 namespace v8 {
+
+// Local handles should be trivially copyable so that the contained value can be
+// efficiently passed by value in a register. This is important for two
+// reasons: better performance and a simpler ABI for generated code and fast
+// API calls.
+ASSERT_TRIVIALLY_COPYABLE(api_internal::IndirectHandleBase);
+#ifdef V8_ENABLE_DIRECT_LOCAL
+ASSERT_TRIVIALLY_COPYABLE(api_internal::DirectHandleBase);
+#endif
+ASSERT_TRIVIALLY_COPYABLE(LocalBase<Object>);
+
+#if !(defined(V8_ENABLE_LOCAL_OFF_STACK_CHECK) && V8_HAS_ATTRIBUTE_TRIVIAL_ABI)
+// Direct local handles should be trivially copyable, for the same reasons as
+// above. In debug builds, however, where we want to check that such handles are
+// stack-allocated, we define a non-default copy constructor and destructor.
+// This makes them non-trivially copyable. We only do it in builds where we can
+// declare them as "trivial ABI", which guarantees that they can be efficiently
+// passed by value in a register.
+ASSERT_TRIVIALLY_COPYABLE(Local<Object>);
+ASSERT_TRIVIALLY_COPYABLE(internal::LocalUnchecked<Object>);
+ASSERT_TRIVIALLY_COPYABLE(MaybeLocal<Object>);
+#endif
+
 namespace internal {
 namespace compiler {
 namespace fast_api_call {
@@ -326,16 +349,13 @@ Node* FastApiCallBuilder::Build(const FastApiCallFunctionVector& c_functions,
         static_cast<int>(offsetof(v8::FastApiCallbackOptions, fallback)),
         __ Int32Constant(0));
 
-    Node* data_stack_slot = __ StackSlot(sizeof(uintptr_t), alignof(uintptr_t));
-    __ Store(StoreRepresentation(MachineType::PointerRepresentation(),
-                                 kNoWriteBarrier),
-             data_stack_slot, 0, __ BitcastTaggedToWord(data_argument));
+    Node* data_argument_to_pass = __ AdaptLocalArgument(data_argument);
 
     __ Store(StoreRepresentation(MachineType::PointerRepresentation(),
                                  kNoWriteBarrier),
              stack_slot,
              static_cast<int>(offsetof(v8::FastApiCallbackOptions, data)),
-             data_stack_slot);
+             data_argument_to_pass);
 
     initialize_options_(stack_slot);
 

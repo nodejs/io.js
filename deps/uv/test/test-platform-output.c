@@ -44,37 +44,37 @@ TEST_IMPL(platform_output) {
   int err;
 
   err = uv_get_process_title(buffer, sizeof(buffer));
-  ASSERT(err == 0);
+  ASSERT_OK(err);
   printf("uv_get_process_title: %s\n", buffer);
 
   size = sizeof(buffer);
   err = uv_cwd(buffer, &size);
-  ASSERT(err == 0);
+  ASSERT_OK(err);
   printf("uv_cwd: %s\n", buffer);
 
   err = uv_resident_set_memory(&rss);
 #if defined(__MSYS__)
-  ASSERT(err == UV_ENOSYS);
+  ASSERT_EQ(err, UV_ENOSYS);
 #else
-  ASSERT(err == 0);
+  ASSERT_OK(err);
   printf("uv_resident_set_memory: %llu\n", (unsigned long long) rss);
 #endif
 
   err = uv_uptime(&uptime);
 #if defined(__PASE__)
-  ASSERT(err == UV_ENOSYS);
+  ASSERT_EQ(err, UV_ENOSYS);
 #else
-  ASSERT(err == 0);
-  ASSERT(uptime > 0);
+  ASSERT_OK(err);
+  ASSERT_GT(uptime, 0);
   printf("uv_uptime: %f\n", uptime);
 #endif
 
   err = uv_getrusage(&rusage);
-  ASSERT(err == 0);
-  ASSERT(rusage.ru_utime.tv_sec >= 0);
-  ASSERT(rusage.ru_utime.tv_usec >= 0);
-  ASSERT(rusage.ru_stime.tv_sec >= 0);
-  ASSERT(rusage.ru_stime.tv_usec >= 0);
+  ASSERT_OK(err);
+  ASSERT_GE(rusage.ru_utime.tv_sec, 0);
+  ASSERT_GE(rusage.ru_utime.tv_usec, 0);
+  ASSERT_GE(rusage.ru_stime.tv_sec, 0);
+  ASSERT_GE(rusage.ru_stime.tv_usec, 0);
   printf("uv_getrusage:\n");
   printf("  user: %llu sec %llu microsec\n",
          (unsigned long long) rusage.ru_utime.tv_sec,
@@ -92,9 +92,9 @@ TEST_IMPL(platform_output) {
 
   err = uv_cpu_info(&cpus, &count);
 #if defined(__CYGWIN__) || defined(__MSYS__)
-  ASSERT(err == UV_ENOSYS);
+  ASSERT_EQ(err, UV_ENOSYS);
 #else
-  ASSERT(err == 0);
+  ASSERT_OK(err);
 
   printf("uv_cpu_info:\n");
   for (i = 0; i < count; i++) {
@@ -113,7 +113,7 @@ TEST_IMPL(platform_output) {
   uv_free_cpu_info(cpus, count);
 
   err = uv_interface_addresses(&interfaces, &count);
-  ASSERT(err == 0);
+  ASSERT_OK(err);
 
   printf("uv_interface_addresses:\n");
   for (i = 0; i < count; i++) {
@@ -149,7 +149,7 @@ TEST_IMPL(platform_output) {
   uv_free_interface_addresses(interfaces, count);
 
   err = uv_os_get_passwd(&pwd);
-  ASSERT_EQ(err, 0);
+  ASSERT_OK(err);
 
   err = uv_os_get_group(&grp, pwd.gid);
 #if defined(_WIN32)
@@ -159,7 +159,7 @@ TEST_IMPL(platform_output) {
   (void) member;
   grp.groupname = "ENOTSUP";
 #else
-  ASSERT_EQ(err, 0);
+  ASSERT_OK(err);
   ASSERT_EQ(pwd.gid, grp.gid);
 #endif
 
@@ -183,14 +183,14 @@ TEST_IMPL(platform_output) {
 #endif
 
   pid = uv_os_getpid();
-  ASSERT(pid > 0);
+  ASSERT_GT(pid, 0);
   printf("uv_os_getpid: %d\n", (int) pid);
   ppid = uv_os_getppid();
-  ASSERT(ppid > 0);
+  ASSERT_GT(ppid, 0);
   printf("uv_os_getppid: %d\n", (int) ppid);
 
   err = uv_os_uname(&uname);
-  ASSERT(err == 0);
+  ASSERT_OK(err);
   printf("uv_os_uname:\n");
   printf("  sysname: %s\n", uname.sysname);
   printf("  release: %s\n", uname.release);

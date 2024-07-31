@@ -6,6 +6,7 @@
 #define V8_HEAP_FACTORY_BASE_INL_H_
 
 #include "src/heap/factory-base.h"
+#include "src/heap/local-heap-inl.h"
 #include "src/numbers/conversions.h"
 #include "src/objects/heap-number.h"
 #include "src/objects/map.h"
@@ -17,12 +18,20 @@
 namespace v8 {
 namespace internal {
 
-#define ROOT_ACCESSOR(Type, name, CamelName)  \
-  template <typename Impl>                    \
-  Handle<Type> FactoryBase<Impl>::name() {    \
-    return read_only_roots().name##_handle(); \
+#define RO_ROOT_ACCESSOR(Type, name, CamelName) \
+  template <typename Impl>                      \
+  Handle<Type> FactoryBase<Impl>::name() {      \
+    return read_only_roots().name##_handle();   \
   }
-READ_ONLY_ROOT_LIST(ROOT_ACCESSOR)
+READ_ONLY_ROOT_LIST(RO_ROOT_ACCESSOR)
+#undef ROOT_ACCESSOR
+
+#define MUTABLE_ROOT_ACCESSOR(Type, name, CamelName)     \
+  template <typename Impl>                               \
+  Handle<Type> FactoryBase<Impl>::name() {               \
+    return handle(isolate()->heap()->name(), isolate()); \
+  }
+MUTABLE_ROOT_LIST(MUTABLE_ROOT_ACCESSOR)
 #undef ROOT_ACCESSOR
 
 template <typename Impl>
@@ -86,7 +95,7 @@ template <typename Impl>
 template <AllocationType allocation>
 Handle<HeapNumber> FactoryBase<Impl>::NewHeapNumber(double value) {
   Handle<HeapNumber> heap_number = NewHeapNumber<allocation>();
-  heap_number->set_value(value, kRelaxedStore);
+  heap_number->set_value(value);
   return heap_number;
 }
 
@@ -94,7 +103,7 @@ template <typename Impl>
 template <AllocationType allocation>
 Handle<HeapNumber> FactoryBase<Impl>::NewHeapNumberFromBits(uint64_t bits) {
   Handle<HeapNumber> heap_number = NewHeapNumber<allocation>();
-  heap_number->set_value_as_bits(bits, kRelaxedStore);
+  heap_number->set_value_as_bits(bits);
   return heap_number;
 }
 

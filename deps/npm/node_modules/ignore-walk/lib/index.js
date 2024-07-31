@@ -22,6 +22,7 @@ class Walker extends EE {
     this.result = this.parent ? this.parent.result : new Set()
     this.entries = null
     this.sawError = false
+    this.exact = opts.exact
   }
 
   sort (a, b) {
@@ -84,7 +85,7 @@ class Walker extends EE {
       .filter(e => this.isIgnoreFile(e))
 
     let igCount = newIg.length
-    const then = _ => {
+    const then = () => {
       if (--igCount === 0) {
         this.filterEntries()
       }
@@ -140,7 +141,7 @@ class Walker extends EE {
     if (entryCount === 0) {
       this.emit('done', this.result)
     } else {
-      const then = _ => {
+      const then = () => {
         if (--entryCount === 0) {
           this.emit('done', this.result)
         }
@@ -164,7 +165,7 @@ class Walker extends EE {
     } else {
       // is a directory
       if (dir) {
-        this.walker(entry, { isSymbolicLink }, then)
+        this.walker(entry, { isSymbolicLink, exact: file || this.filterEntry(entry + '/') }, then)
       } else {
         then()
       }
@@ -208,15 +209,19 @@ class Walker extends EE {
     new Walker(this.walkerOpt(entry, opts)).on('done', then).start()
   }
 
-  filterEntry (entry, partial) {
+  filterEntry (entry, partial, entryBasename) {
     let included = true
 
     // this = /a/b/c
     // entry = d
     // parent /a/b sees c/d
     if (this.parent && this.parent.filterEntry) {
-      var pt = this.basename + '/' + entry
-      included = this.parent.filterEntry(pt, partial)
+      const parentEntry = this.basename + '/' + entry
+      const parentBasename = entryBasename || entry
+      included = this.parent.filterEntry(parentEntry, partial, parentBasename)
+      if (!included && !this.exact) {
+        return false
+      }
     }
 
     this.ignoreFiles.forEach(f => {
@@ -226,17 +231,28 @@ class Walker extends EE {
           // so if it's negated, and already included, no need to check
           // likewise if it's neither negated nor included
           if (rule.negate !== included) {
+            const isRelativeRule = entryBasename && rule.globParts.some(part =>
+              part.length <= (part.slice(-1)[0] ? 1 : 2)
+            )
+
             // first, match against /foo/bar
             // then, against foo/bar
             // then, in the case of partials, match with a /
+            //   then, if also the rule is relative, match against basename
             const match = rule.match('/' + entry) ||
               rule.match(entry) ||
-              (!!partial && (
+              !!partial && (
                 rule.match('/' + entry + '/') ||
-                rule.match(entry + '/'))) ||
-              (!!partial && rule.negate && (
-                rule.match('/' + entry, true) ||
-                rule.match(entry, true)))
+                rule.match(entry + '/') ||
+                rule.negate && (
+                  rule.match('/' + entry, true) ||
+                  rule.match(entry, true)) ||
+                isRelativeRule && (
+                  rule.match('/' + entryBasename + '/') ||
+                  rule.match(entryBasename + '/') ||
+                  rule.negate && (
+                    rule.match('/' + entryBasename, true) ||
+                    rule.match(entryBasename, true))))
 
             if (match) {
               included = rule.negate

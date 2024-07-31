@@ -124,9 +124,10 @@ ModuleResult DecodeWasmModule(
 }
 
 ModuleResult DecodeWasmModuleForDisassembler(
-    base::Vector<const uint8_t> wire_bytes) {
+    base::Vector<const uint8_t> wire_bytes, ITracer* tracer) {
   constexpr bool kNoValidateFunctions = false;
-  ModuleDecoderImpl decoder{WasmFeatures::All(), wire_bytes, kWasmOrigin};
+  ModuleDecoderImpl decoder{WasmFeatures::All(), wire_bytes, kWasmOrigin,
+                            kDoNotPopulateExplicitRecGroups, tracer};
   return decoder.DecodeModule(kNoValidateFunctions);
 }
 
@@ -415,6 +416,8 @@ class ValidateFunctionsTask : public JobTask {
   void Run(JobDelegate* delegate) override {
     TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.wasm.detailed"),
                  "wasm.ValidateFunctionsTask");
+
+    Zone zone(GetWasmEngine()->allocator(), ZONE_NAME);
     do {
       // Get the index of the next function to validate.
       // {fetch_add} might overrun {after_last_function_} by a bit. Since the
@@ -429,7 +432,8 @@ class ValidateFunctionsTask : public JobTask {
       } while ((filter_ && !filter_(func_index)) ||
                module_->function_was_validated(func_index));
 
-      if (!ValidateFunction(func_index)) {
+      zone.Reset();
+      if (!ValidateFunction(func_index, &zone)) {
         // No need to validate any more functions.
         next_function_.store(after_last_function_, std::memory_order_relaxed);
         return;
@@ -443,15 +447,17 @@ class ValidateFunctionsTask : public JobTask {
   }
 
  private:
-  bool ValidateFunction(int func_index) {
+  bool ValidateFunction(int func_index, Zone* zone) {
     WasmFeatures unused_detected_features;
     const WasmFunction& function = module_->functions[func_index];
     DCHECK_LT(0, function.code.offset());
+    bool is_shared = module_->types[function.sig_index].is_shared;
     FunctionBody body{function.sig, function.code.offset(),
                       wire_bytes_.begin() + function.code.offset(),
-                      wire_bytes_.begin() + function.code.end_offset()};
+                      wire_bytes_.begin() + function.code.end_offset(),
+                      is_shared};
     DecodeResult validation_result = ValidateFunctionBody(
-        enabled_features_, module_, &unused_detected_features, body);
+        zone, enabled_features_, module_, &unused_detected_features, body);
     if (V8_UNLIKELY(validation_result.failed())) {
       SetError(func_index, std::move(validation_result).error());
       return false;

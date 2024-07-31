@@ -2087,6 +2087,7 @@ TEST_F(InstructionSelectorTest, LoadAndWord64ShiftRight32) {
   }
 }
 
+#if V8_ENABLE_WEBASSEMBLY
 // -----------------------------------------------------------------------------
 // SIMD.
 
@@ -2137,7 +2138,6 @@ TEST_F(InstructionSelectorTest, SIMDSplatZero) {
   }
 }
 
-#if V8_ENABLE_WEBASSEMBLY
 struct ArchShuffle {
   uint8_t shuffle[kSimd128Size];
   ArchOpcode arch_opcode;

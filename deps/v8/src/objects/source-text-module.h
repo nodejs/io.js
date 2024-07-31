@@ -86,7 +86,7 @@ class SourceTextModule
 
   V8_EXPORT_PRIVATE
   std::vector<std::tuple<Handle<SourceTextModule>, Handle<JSMessageObject>>>
-  GetStalledTopLevelAwaitMessage(Isolate* isolate);
+  GetStalledTopLevelAwaitMessages(Isolate* isolate);
 
  private:
   friend class Factory;
@@ -215,7 +215,8 @@ class SourceTextModule
       Handle<JSPromise> capability);
 
   static V8_WARN_UNUSED_RESULT MaybeHandle<Object> ExecuteModule(
-      Isolate* isolate, Handle<SourceTextModule> module);
+      Isolate* isolate, Handle<SourceTextModule> module,
+      MaybeHandle<Object>* exception_out);
 
   // Implementation of spec ExecuteAsyncModule. Return Nothing if the execution
   // is been terminated.
@@ -287,12 +288,12 @@ class ModuleRequest
 
   template <typename IsolateT>
   static Handle<ModuleRequest> New(IsolateT* isolate, Handle<String> specifier,
-                                   Handle<FixedArray> import_assertions,
+                                   Handle<FixedArray> import_attributes,
                                    int position);
 
-  // The number of entries in the import_assertions FixedArray that are used for
-  // a single assertion.
-  static const size_t kAssertionEntrySize = 3;
+  // The number of entries in the import_attributes FixedArray that are used for
+  // a single attribute.
+  static const size_t kAttributeEntrySize = 3;
 
   using BodyDescriptor = StructBodyDescriptor;
 

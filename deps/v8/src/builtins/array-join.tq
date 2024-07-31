@@ -158,7 +158,7 @@ macro StoreAndGrowFixedArray<T: type>(
       const newLength: intptr = CalculateNewElementsCapacity(length);
       dcheck(index < newLength);
       const newfixedArray: FixedArray =
-          ExtractFixedArray(fixedArray, 0, length, newLength);
+          ExtractFixedArray(fixedArray, 0, length, newLength, TheHole);
       newfixedArray.objects[index] = element;
       return newfixedArray;
     }
@@ -443,6 +443,8 @@ transitioning ArrayJoin<JSTypedArray>(
   if (IsElementsKindGreaterThan(kind, ElementsKind::UINT32_ELEMENTS)) {
     if (kind == ElementsKind::INT32_ELEMENTS) {
       loadFn = LoadJoinTypedElement<typed_array::Int32Elements>;
+    } else if (kind == ElementsKind::FLOAT16_ELEMENTS) {
+      loadFn = LoadJoinTypedElement<typed_array::Float16Elements>;
     } else if (kind == ElementsKind::FLOAT32_ELEMENTS) {
       loadFn = LoadJoinTypedElement<typed_array::Float32Elements>;
     } else if (kind == ElementsKind::FLOAT64_ELEMENTS) {
@@ -465,6 +467,8 @@ transitioning ArrayJoin<JSTypedArray>(
       loadFn = LoadJoinTypedElement<typed_array::Uint32Elements>;
     } else if (kind == ElementsKind::RAB_GSAB_INT32_ELEMENTS) {
       loadFn = LoadJoinTypedElement<typed_array::Int32Elements>;
+    } else if (kind == ElementsKind::RAB_GSAB_FLOAT16_ELEMENTS) {
+      loadFn = LoadJoinTypedElement<typed_array::Float16Elements>;
     } else if (kind == ElementsKind::RAB_GSAB_FLOAT32_ELEMENTS) {
       loadFn = LoadJoinTypedElement<typed_array::Float32Elements>;
     } else if (kind == ElementsKind::RAB_GSAB_FLOAT64_ELEMENTS) {

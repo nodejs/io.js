@@ -1,0 +1,167 @@
+# Copyright 2016 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   https://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+package(features = [
+    "header_modules",
+    "layering_check",
+    "parse_headers",
+])
+
+licenses(["notice"])
+
+### libraries
+
+cc_library(
+    name = "civil_time",
+    srcs = ["src/civil_time_detail.cc"],
+    hdrs = [
+        "include/cctz/civil_time.h",
+    ],
+    textual_hdrs = ["include/cctz/civil_time_detail.h"],
+    visibility = ["//visibility:public"],
+    deps = ["//absl/base:config"],
+)
+
+cc_library(
+    name = "time_zone",
+    srcs = [
+        "src/time_zone_fixed.cc",
+        "src/time_zone_fixed.h",
+        "src/time_zone_format.cc",
+        "src/time_zone_if.cc",
+        "src/time_zone_if.h",
+        "src/time_zone_impl.cc",
+        "src/time_zone_impl.h",
+        "src/time_zone_info.cc",
+        "src/time_zone_info.h",
+        "src/time_zone_libc.cc",
+        "src/time_zone_libc.h",
+        "src/time_zone_lookup.cc",
+        "src/time_zone_posix.cc",
+        "src/time_zone_posix.h",
+        "src/tzfile.h",
+        "src/zone_info_source.cc",
+    ],
+    hdrs = [
+        "include/cctz/time_zone.h",
+        "include/cctz/zone_info_source.h",
+    ],
+    linkopts = select({
+        "@platforms//os:osx": ["-Wl,-framework,CoreFoundation"],
+        "@platforms//os:ios": ["-Wl,-framework,CoreFoundation"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":civil_time",
+        "//absl/base:config",
+    ] + select(
+        {
+            "//conditions:default": [],
+        },
+    ),
+)
+
+### tests
+
+test_suite(
+    name = "all_tests",
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "civil_time_test",
+    size = "small",
+    srcs = ["src/civil_time_test.cc"],
+    deps = [
+        ":civil_time",
+        "//absl/base:config",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "time_zone_format_test",
+    size = "small",
+    srcs = ["src/time_zone_format_test.cc"],
+    data = [":zoneinfo"],
+    env = {"TZDIR": "absl/time/internal/cctz/testdata/zoneinfo"},
+    tags = [
+        "no_test_android_arm",
+        "no_test_android_arm64",
+        "no_test_android_x86",
+        "no_test_wasm",
+    ],
+    deps = [
+        ":civil_time",
+        ":time_zone",
+        "//absl/base:config",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "time_zone_lookup_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = ["src/time_zone_lookup_test.cc"],
+    data = [":zoneinfo"],
+    env = {"TZDIR": "absl/time/internal/cctz/testdata/zoneinfo"},
+    tags = [
+        "no_test_android_arm",
+        "no_test_android_arm64",
+        "no_test_android_x86",
+        "no_test_wasm",
+    ],
+    deps = [
+        ":civil_time",
+        ":time_zone",
+        "//absl/base:config",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+### benchmarks
+
+cc_test(
+    name = "cctz_benchmark",
+    srcs = [
+        "src/cctz_benchmark.cc",
+        "src/time_zone_if.h",
+        "src/time_zone_impl.h",
+        "src/time_zone_info.h",
+        "src/tzfile.h",
+    ],
+    linkstatic = 1,
+    tags = ["benchmark"],
+    deps = [
+        ":civil_time",
+        ":time_zone",
+        "//absl/base:config",
+        "@com_github_google_benchmark//:benchmark_main",
+    ],
+)
+
+filegroup(
+    name = "zoneinfo",
+    srcs = glob(["testdata/zoneinfo/**"]),
+    visibility = ["//absl/time:__subpackages__"],
+)
+
+### examples
+
+### binaries

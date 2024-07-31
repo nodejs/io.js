@@ -1,0 +1,20 @@
+name: Update release links
+
+on:
+  workflow_dispatch:
+  release:
+    types: [released]
+
+permissions:
+  contents: read
+
+jobs:
+  update-release-links:
+    if: github.repository == 'nodejs/node'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger update-links workflow on nodejs/release-cloudflare-worker
+        run: |
+          gh workflow run update-links.yml --repo nodejs/release-cloudflare-worker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_USER_TOKEN }}

@@ -16,6 +16,7 @@ import lldb
 #####################
 # Helper functions. #
 #####################
+
 def current_thread(debugger):
   return debugger.GetSelectedTarget().GetProcess().GetSelectedThread()
 
@@ -49,6 +50,25 @@ def ptr_arg_cmd(debugger, name, param, cmd, print_error=True):
   return no_arg_cmd(debugger, cmd.format(param), print_error)
 
 
+def print_handle(debugger, command_name, param, print_func):
+  value = current_frame(debugger).EvaluateExpression(param)
+  result = print_func(value)
+  if not result[0]:
+    print("{} cannot print a value of type {}".format(command_name,
+                                                      value.type.name))
+  return result
+
+
+def print_direct(debugger, command_name, value):
+  CMD = "_v8_internal_Print_Object((v8::internal::Address*)({}))"
+  return ptr_arg_cmd(debugger, command_name, value, CMD.format(value))
+
+
+def print_indirect(debugger, command_name, value):
+  CMD = "_v8_internal_Print_Object(*(v8::internal::Object**)({}))"
+  return ptr_arg_cmd(debugger, command_name, value, CMD.format(value))
+
+
 V8_LLDB_COMMANDS = []
 
 
@@ -56,10 +76,10 @@ def lldbCommand(fn):
   V8_LLDB_COMMANDS.append(fn.__name__)
   return fn
 
+
 #####################
 # lldb commands.    #
 #####################
-
 
 @lldbCommand
 def job(debugger, param, *args):
@@ -69,38 +89,48 @@ def job(debugger, param, *args):
 
 @lldbCommand
 def jh(debugger, param, *args):
-  """Print v8::internal::Handle value"""
-  V8_PRINT_CMD = "_v8_internal_Print_Object(*(v8::internal::Object**)({}.%s))"
-  ptr_arg_cmd(debugger, 'jh', param, V8_PRINT_CMD % "location_")
+  """Print v8::internal::(Maybe)?(Direct|Indirect)?Handle value"""
 
+  def print_func(value):
+    # Indirect handles contain a location_.
+    field = value.GetValueForExpressionPath(".location_")
+    if field.IsValid():
+      return print_indirect(debugger, 'jh', field.value)
+    # Direct handles contain a obj_.
+    field = value.GetValueForExpressionPath(".obj_")
+    if field.IsValid():
+      return print_indirect(debugger, 'jh', field.value)
+    # We don't know how to print this...
+    return (False, None, "")
 
-def get_address_from_local(value):
-  # After https://crrev.com/c/4335544, v8::MaybeLocal contains a local_.
-  field = value.GetValueForExpressionPath(".local_")
-  if field.IsValid():
-    value = field
-  # After https://crrev.com/c/4335544, v8::Local contains a location_.
-  field = value.GetValueForExpressionPath(".location_")
-  if field.IsValid():
-    return field.value
-  # Before https://crrev.com/c/4335544, v8::Local contained a val_.
-  field = value.GetValueForExpressionPath(".val_")
-  if field.IsValid():
-    return field.value
-  # We don't know how to print this...
-  return None
+  return print_handle(debugger, 'jh', param, print_func)
 
 
 @lldbCommand
 def jlh(debugger, param, *args):
-  """Print v8::Local handle value"""
-  V8_PRINT_CMD = "_v8_internal_Print_Object(*(v8::internal::Address**)({0}))"
-  value = current_frame(debugger).EvaluateExpression(param)
-  indirect_pointer = get_address_from_local(value)
-  if indirect_pointer is not None:
-    ptr_arg_cmd(debugger, 'jlh', param, V8_PRINT_CMD.format(indirect_pointer))
-  else:
-    print("Failed to print value of type {}".format(value.type.name))
+  """Print v8::(Maybe)?Local value"""
+
+  def print_func(value):
+    # After https://crrev.com/c/4335544, v8::MaybeLocal contains a local_.
+    field = value.GetValueForExpressionPath(".local_")
+    if field.IsValid():
+      value = field
+    # After https://crrev.com/c/4335544, v8::Local contains a location_.
+    field = value.GetValueForExpressionPath(".location_")
+    if field.IsValid():
+      return print_indirect(debugger, 'jlh', field.value)
+    # Before https://crrev.com/c/4335544, v8::Local contained a val_.
+    field = value.GetValueForExpressionPath(".val_")
+    if field.IsValid():
+      return print_indirect(debugger, 'jlh', field.value)
+    # With v8_enable_direct_local=true, v8::Local contains a ptr_.
+    field = value.GetValueForExpressionPath(".ptr_")
+    if field.IsValid():
+      return print_direct(debugger, 'jlh', field.value)
+    # We don't know how to print this...
+    return (False, None, "")
+
+  return print_handle(debugger, 'jlh', param, print_func)
 
 
 @lldbCommand

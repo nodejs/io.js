@@ -16,6 +16,3 @@ fun:*v8*internal*UnsafeDirectApiCall*
 fun:*v8*internal*UnsafeDirectGetterCall*
 fun:*v8*internal*UnsafeGenericFunctionCall*
 fun:*v8*internal*UnsafeProfilingApiCall*
-
-# Bug chromium:1394654: New -fsanitize=alignment fails for PointerTOC in ICU.
-src:*/third_party/icu/*

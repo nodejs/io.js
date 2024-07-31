@@ -34,6 +34,6 @@ assert.throws(() => {
     code: 'ERR_INVALID_ARG_TYPE',
     name: 'TypeError',
     message: 'The "chunk" argument must be of type string or an instance of ' +
-              `Buffer or Uint8Array.${common.invalidArgTypeHelper(value)}`
+              `Buffer, TypedArray, or DataView.${common.invalidArgTypeHelper(value)}`
   });
 });

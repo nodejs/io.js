@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npmrc">npmrc</h1>
+<h1 id="----npmrc----1082">
+    <span>npmrc</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">The npm config files</span>
 </header>
 
@@ -155,10 +163,10 @@ user and global npmrc files.</p>
 <h3 id="files">Files</h3>
 <p>The four relevant files are:</p>
 <ul>
-<li>per-project config file (/path/to/my/project/.npmrc)</li>
-<li>per-user config file (~/.npmrc)</li>
-<li>global config file ($PREFIX/etc/npmrc)</li>
-<li>npm builtin config file (/path/to/npm/npmrc)</li>
+<li>per-project config file (<code>/path/to/my/project/.npmrc</code>)</li>
+<li>per-user config file (<code>~/.npmrc</code>)</li>
+<li>global config file (<code>$PREFIX/etc/npmrc</code>)</li>
+<li>npm builtin config file (<code>/path/to/npm/npmrc</code>)</li>
 </ul>
 <p>All npm config files are an ini-formatted list of <code>key = value</code> parameters.
 Environment variables can be replaced using <code>${VARIABLE_NAME}</code>. For

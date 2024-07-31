@@ -69,15 +69,12 @@ PipelineStatisticsBase::PipelineStatisticsBase(
 
 PipelineStatisticsBase::~PipelineStatisticsBase() {
   CompilationStatistics::BasicStats diff;
-  if (InPhaseKind()) EndPhaseKind(&diff);
   total_stats_.End(this, &diff);
   compilation_stats_->RecordTotalStats(diff);
 }
 
 void PipelineStatisticsBase::BeginPhaseKind(const char* phase_kind_name) {
   DCHECK(!InPhase());
-  CompilationStatistics::BasicStats diff;
-  if (InPhaseKind()) EndPhaseKind(&diff);
   phase_kind_name_ = phase_kind_name;
   phase_kind_stats_.Begin(this);
 }
@@ -113,7 +110,12 @@ TurbofanPipelineStatistics::TurbofanPipelineStatistics(
   }
 }
 
+TurbofanPipelineStatistics::~TurbofanPipelineStatistics() {
+  if (Base::InPhaseKind()) EndPhaseKind();
+}
+
 void TurbofanPipelineStatistics::BeginPhaseKind(const char* name) {
+  if (Base::InPhaseKind()) EndPhaseKind();
   Base::BeginPhaseKind(name);
   TRACE_EVENT_BEGIN1(kTraceCategory, name, "kind",
                      CodeKindToString(code_kind()));

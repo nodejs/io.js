@@ -41,7 +41,7 @@ static size_t mtu_probes[] = {
     1492 - 48, /* PPPoE */
 };
 
-static size_t mtu_probeslen = sizeof(mtu_probes) / sizeof(mtu_probes[0]);
+#define NGTCP2_MTU_PROBESLEN ngtcp2_arraylen(mtu_probes)
 
 int ngtcp2_pmtud_new(ngtcp2_pmtud **ppmtud, size_t max_udp_payload_size,
                      size_t hard_max_udp_payload_size, int64_t tx_pkt_num,
@@ -61,7 +61,7 @@ int ngtcp2_pmtud_new(ngtcp2_pmtud **ppmtud, size_t max_udp_payload_size,
   pmtud->hard_max_udp_payload_size = hard_max_udp_payload_size;
   pmtud->min_fail_udp_payload_size = SIZE_MAX;
 
-  for (; pmtud->mtu_idx < mtu_probeslen; ++pmtud->mtu_idx) {
+  for (; pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN; ++pmtud->mtu_idx) {
     if (mtu_probes[pmtud->mtu_idx] > pmtud->hard_max_udp_payload_size) {
       continue;
     }
@@ -84,7 +84,7 @@ void ngtcp2_pmtud_del(ngtcp2_pmtud *pmtud) {
 }
 
 size_t ngtcp2_pmtud_probelen(ngtcp2_pmtud *pmtud) {
-  assert(pmtud->mtu_idx < mtu_probeslen);
+  assert(pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN);
 
   return mtu_probes[pmtud->mtu_idx];
 }
@@ -107,13 +107,13 @@ int ngtcp2_pmtud_require_probe(ngtcp2_pmtud *pmtud) {
 }
 
 static void pmtud_next_probe(ngtcp2_pmtud *pmtud) {
-  assert(pmtud->mtu_idx < mtu_probeslen);
+  assert(pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN);
 
   ++pmtud->mtu_idx;
   pmtud->num_pkts_sent = 0;
   pmtud->expiry = UINT64_MAX;
 
-  for (; pmtud->mtu_idx < mtu_probeslen; ++pmtud->mtu_idx) {
+  for (; pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN; ++pmtud->mtu_idx) {
     if (mtu_probes[pmtud->mtu_idx] <= pmtud->max_udp_payload_size ||
         mtu_probes[pmtud->mtu_idx] > pmtud->hard_max_udp_payload_size) {
       continue;
@@ -129,7 +129,7 @@ void ngtcp2_pmtud_probe_success(ngtcp2_pmtud *pmtud, size_t payloadlen) {
   pmtud->max_udp_payload_size =
       ngtcp2_max(pmtud->max_udp_payload_size, payloadlen);
 
-  assert(pmtud->mtu_idx < mtu_probeslen);
+  assert(pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN);
 
   if (mtu_probes[pmtud->mtu_idx] > pmtud->max_udp_payload_size) {
     return;
@@ -156,5 +156,5 @@ void ngtcp2_pmtud_handle_expiry(ngtcp2_pmtud *pmtud, ngtcp2_tstamp ts) {
 }
 
 int ngtcp2_pmtud_finished(ngtcp2_pmtud *pmtud) {
-  return pmtud->mtu_idx >= mtu_probeslen;
+  return pmtud->mtu_idx >= NGTCP2_MTU_PROBESLEN;
 }

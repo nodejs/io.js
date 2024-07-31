@@ -75,6 +75,7 @@ class MemoryLowering final : public Reducer {
 
   MemoryLowering(
       JSGraph* jsgraph, Zone* zone, JSGraphAssembler* graph_assembler,
+      bool is_wasm,
       AllocationFolding allocation_folding =
           AllocationFolding::kDontAllocationFolding,
       WriteBarrierAssertFailedCallback callback = [](Node*, Node*, const char*,
@@ -134,6 +135,7 @@ class MemoryLowering final : public Reducer {
   CommonOperatorBuilder* common_;
   MachineOperatorBuilder* machine_;
   JSGraphAssembler* graph_assembler_;
+  bool is_wasm_;
   AllocationFolding allocation_folding_;
   WriteBarrierAssertFailedCallback write_barrier_assert_failed_;
   const char* function_debug_name_;

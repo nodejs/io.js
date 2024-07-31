@@ -54,7 +54,7 @@ UnicodeString select(const PluralRules &rules, const Formattable& obj, const Num
             }
         }
     }
-    return UnicodeString();
+    return {};
 }
 
 }  // namespace

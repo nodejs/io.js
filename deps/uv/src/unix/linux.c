@@ -37,12 +37,16 @@
 #include <errno.h>
 
 #include <fcntl.h>
+#include <ifaddrs.h>
+#include <net/ethernet.h>
 #include <net/if.h>
+#include <netpacket/packet.h>
 #include <sys/epoll.h>
 #include <sys/inotify.h>
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/prctl.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/sysinfo.h>
@@ -79,6 +83,8 @@
 #  define __NR_copy_file_range 379
 # elif defined(__arc__)
 #  define __NR_copy_file_range 285
+# elif defined(__riscv)
+#  define __NR_copy_file_range 285
 # endif
 #endif /* __NR_copy_file_range */
 
@@ -95,6 +101,8 @@
 #  define __NR_statx 383
 # elif defined(__s390__)
 #  define __NR_statx 379
+# elif defined(__riscv)
+#  define __NR_statx 291
 # endif
 #endif /* __NR_statx */
 
@@ -111,27 +119,10 @@
 #  define __NR_getrandom 359
 # elif defined(__s390__)
 #  define __NR_getrandom 349
+# elif defined(__riscv)
+#  define __NR_getrandom 278
 # endif
 #endif /* __NR_getrandom */
-
-#define HAVE_IFADDRS_H 1
-
-# if defined(__ANDROID_API__) && __ANDROID_API__ < 24
-# undef HAVE_IFADDRS_H
-#endif
-
-#ifdef __UCLIBC__
-# if __UCLIBC_MAJOR__ < 0 && __UCLIBC_MINOR__ < 9 && __UCLIBC_SUBLEVEL__ < 32
-#  undef HAVE_IFADDRS_H
-# endif
-#endif
-
-#ifdef HAVE_IFADDRS_H
-# include <ifaddrs.h>
-# include <sys/socket.h>
-# include <net/ethernet.h>
-# include <netpacket/packet.h>
-#endif /* HAVE_IFADDRS_H */
 
 enum {
   UV__IORING_SETUP_SQPOLL = 2u,
@@ -317,17 +308,64 @@ unsigned uv__kernel_version(void) {
   unsigned major;
   unsigned minor;
   unsigned patch;
+  char v_sig[256];
+  char* needle;
 
   version = atomic_load_explicit(&cached_version, memory_order_relaxed);
   if (version != 0)
     return version;
 
+  /* Check /proc/version_signature first as it's the way to get the mainline
+   * kernel version in Ubuntu. The format is:
+   *   Ubuntu ubuntu_kernel_version mainline_kernel_version
+   * For example:
+   *   Ubuntu 5.15.0-79.86-generic 5.15.111
+   */
+  if (0 == uv__slurp("/proc/version_signature", v_sig, sizeof(v_sig)))
+    if (3 == sscanf(v_sig, "Ubuntu %*s %u.%u.%u", &major, &minor, &patch))
+      goto calculate_version;
+
   if (-1 == uname(&u))
     return 0;
+
+  /* In Debian we need to check `version` instead of `release` to extract the
+   * mainline kernel version. This is an example of how it looks like:
+   *  #1 SMP Debian 5.10.46-4 (2021-08-03)
+   */
+  needle = strstr(u.version, "Debian ");
+  if (needle != NULL)
+    if (3 == sscanf(needle, "Debian %u.%u.%u", &major, &minor, &patch))
+      goto calculate_version;
 
   if (3 != sscanf(u.release, "%u.%u.%u", &major, &minor, &patch))
     return 0;
 
+  /* Handle it when the process runs under the UNAME26 personality:
+   *
+   * - kernels >= 3.x identify as 2.6.40+x
+   * - kernels >= 4.x identify as 2.6.60+x
+   *
+   * UNAME26 is a poorly conceived hack that doesn't let us distinguish
+   * between 4.x kernels and 5.x/6.x kernels so we conservatively assume
+   * that 2.6.60+x means 4.x.
+   *
+   * Fun fact of the day: it's technically possible to observe the actual
+   * kernel version for a brief moment because uname() first copies out the
+   * real release string before overwriting it with the backcompat string.
+   */
+  if (major == 2 && minor == 6) {
+    if (patch >= 60) {
+      major = 4;
+      minor = patch - 60;
+      patch = 0;
+    } else if (patch >= 40) {
+      major = 3;
+      minor = patch - 40;
+      patch = 0;
+    }
+  }
+
+calculate_version:
   version = major * 65536 + minor * 256 + patch;
   atomic_store_explicit(&cached_version, version, memory_order_relaxed);
 
@@ -422,6 +460,12 @@ int uv__io_uring_register(int fd, unsigned opcode, void* arg, unsigned nargs) {
 static int uv__use_io_uring(void) {
 #if defined(__ANDROID_API__)
   return 0;  /* Possibly available but blocked by seccomp. */
+#elif defined(__arm__) && __SIZEOF_POINTER__ == 4
+  /* See https://github.com/libuv/libuv/issues/4158. */
+  return 0;  /* All 32 bits kernels appear buggy. */
+#elif defined(__powerpc64__) || defined(__ppc64__)
+  /* See https://github.com/libuv/libuv/issues/4283. */
+  return 0; /* Random SIGSEGV in signal handler. */
 #else
   /* Ternary: unknown=0, yes=1, no=-1 */
   static _Atomic int use_io_uring;
@@ -431,13 +475,27 @@ static int uv__use_io_uring(void) {
   use = atomic_load_explicit(&use_io_uring, memory_order_relaxed);
 
   if (use == 0) {
+    /* Disable io_uring by default due to CVE-2024-22017. */
+    use = -1;
+
+    /* But users can still enable it if they so desire. */
     val = getenv("UV_USE_IO_URING");
-    use = val == NULL || atoi(val) ? 1 : -1;
+    if (val != NULL)
+      use = atoi(val) ? 1 : -1;
+
     atomic_store_explicit(&use_io_uring, use, memory_order_relaxed);
   }
 
   return use > 0;
 #endif
+}
+
+
+UV_EXTERN int uv__node_patch_is_using_io_uring(void) {
+  // This function exists only in the modified copy of libuv in the Node.js
+  // repository. Node.js checks if this function exists and, if it does, uses it
+  // to determine whether libuv is using io_uring or not.
+  return uv__use_io_uring();
 }
 
 
@@ -756,7 +814,9 @@ static void uv__iou_submit(struct uv__iou* iou) {
 int uv__iou_fs_close(uv_loop_t* loop, uv_fs_t* req) {
   struct uv__io_uring_sqe* sqe;
   struct uv__iou* iou;
+  int kv;
 
+  kv = uv__kernel_version();
   /* Work around a poorly understood bug in older kernels where closing a file
    * descriptor pointing to /foo/bar results in ETXTBSY errors when trying to
    * execve("/foo/bar") later on. The bug seems to have been fixed somewhere
@@ -764,9 +824,16 @@ int uv__iou_fs_close(uv_loop_t* loop, uv_fs_t* req) {
    * but good candidates are the several data race fixes. Interestingly, it
    * seems to manifest only when running under Docker so the possibility of
    * a Docker bug can't be completely ruled out either. Yay, computers.
+   * Also, disable on non-longterm versions between 5.16.0 (non-longterm) and
+   * 6.1.0 (longterm). Starting with longterm 6.1.x, the issue seems to be
+   * solved.
    */
-  if (uv__kernel_version() < /* 5.15.90 */ 0x050F5A)
+  if (kv < /* 5.15.90 */ 0x050F5A)
     return 0;
+
+  if (kv >= /* 5.16.0 */ 0x050A00 && kv < /* 6.1.0 */ 0x060100)
+    return 0;
+
 
   iou = &uv__get_internal_fields(loop)->iou;
 
@@ -1091,6 +1158,12 @@ static void uv__poll_io_uring(uv_loop_t* loop, struct uv__iou* iou) {
     uv__req_unregister(loop, req);
     iou->in_flight--;
 
+    /* If the op is not supported by the kernel retry using the thread pool */
+    if (e->res == -EOPNOTSUPP) {
+      uv__fs_post(loop, req);
+      continue;
+    }
+
     /* io_uring stores error codes as negative numbers, same as libuv. */
     req->result = e->res;
 
@@ -1364,40 +1437,19 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
      */
     SAVE_ERRNO(uv__update_time(loop));
 
-    if (nfds == 0) {
+    if (nfds == -1)
+      assert(errno == EINTR);
+    else if (nfds == 0)
+      /* Unlimited timeout should only return with events or signal. */
       assert(timeout != -1);
 
+    if (nfds == 0 || nfds == -1) {
       if (reset_timeout != 0) {
         timeout = user_timeout;
         reset_timeout = 0;
+      } else if (nfds == 0) {
+        return;
       }
-
-      if (timeout == -1)
-        continue;
-
-      if (timeout == 0)
-        break;
-
-      /* We may have been inside the system call for longer than |timeout|
-       * milliseconds so we need to update the timestamp to avoid drift.
-       */
-      goto update_timeout;
-    }
-
-    if (nfds == -1) {
-      if (errno != EINTR)
-        abort();
-
-      if (reset_timeout != 0) {
-        timeout = user_timeout;
-        reset_timeout = 0;
-      }
-
-      if (timeout == -1)
-        continue;
-
-      if (timeout == 0)
-        break;
 
       /* Interrupted by a signal. Update timeout and poll again. */
       goto update_timeout;
@@ -1509,13 +1561,13 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
       break;
     }
 
+update_timeout:
     if (timeout == 0)
       break;
 
     if (timeout == -1)
       continue;
 
-update_timeout:
     assert(timeout > 0);
 
     real_timeout -= (loop->time - base);
@@ -1718,7 +1770,8 @@ int uv_cpu_info(uv_cpu_info_t** ci, int* count) {
     return UV__ERR(errno);
   }
 
-  fgets(buf, sizeof(buf), fp);  /* Skip first line. */
+  if (NULL == fgets(buf, sizeof(buf), fp))
+    abort();
 
   for (;;) {
     memset(&t, 0, sizeof(t));
@@ -1729,7 +1782,8 @@ int uv_cpu_info(uv_cpu_info_t** ci, int* count) {
     if (n != 7)
       break;
 
-    fgets(buf, sizeof(buf), fp);  /* Skip rest of line. */
+    if (NULL == fgets(buf, sizeof(buf), fp))
+      abort();
 
     if (cpu >= ARRAY_SIZE(*cpus))
       continue;
@@ -1809,7 +1863,8 @@ nocpuinfo:
     if (fp == NULL)
       continue;
 
-    fscanf(fp, "%llu", &(*cpus)[cpu].freq);
+    if (1 != fscanf(fp, "%llu", &(*cpus)[cpu].freq))
+      abort();
     fclose(fp);
     fp = NULL;
   }
@@ -1855,7 +1910,6 @@ nocpuinfo:
 }
 
 
-#ifdef HAVE_IFADDRS_H
 static int uv__ifaddr_exclude(struct ifaddrs *ent, int exclude_type) {
   if (!((ent->ifa_flags & IFF_UP) && (ent->ifa_flags & IFF_RUNNING)))
     return 1;
@@ -1869,14 +1923,8 @@ static int uv__ifaddr_exclude(struct ifaddrs *ent, int exclude_type) {
     return exclude_type;
   return !exclude_type;
 }
-#endif
 
 int uv_interface_addresses(uv_interface_address_t** addresses, int* count) {
-#ifndef HAVE_IFADDRS_H
-  *count = 0;
-  *addresses = NULL;
-  return UV_ENOSYS;
-#else
   struct ifaddrs *addrs, *ent;
   uv_interface_address_t* address;
   int i;
@@ -1955,7 +2003,6 @@ int uv_interface_addresses(uv_interface_address_t** addresses, int* count) {
   freeifaddrs(addrs);
 
   return 0;
-#endif
 }
 
 

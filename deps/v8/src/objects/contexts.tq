@@ -14,6 +14,14 @@ extern class Context extends HeapObject {
   elements[length]: Object;
 }
 
+@cppObjectDefinition
+extern class ScriptContextTable extends HeapObject {
+  const capacity: Smi;
+  length: Smi;
+  names_to_context_index: NameToIndexHashTable;
+  objects[capacity]: Context;
+}
+
 extern class AwaitContext extends Context generates 'TNode<Context>';
 extern class BlockContext extends Context generates 'TNode<Context>';
 extern class CatchContext extends Context generates 'TNode<Context>';
@@ -121,6 +129,7 @@ extern enum ContextSlot extends intptr constexpr 'Context::Field' {
   REGEXP_LAST_MATCH_INFO_INDEX: Slot<NativeContext, RegExpMatchInfo>,
   INITIAL_STRING_ITERATOR_MAP_INDEX: Slot<NativeContext, Map>,
   INITIAL_ARRAY_ITERATOR_MAP_INDEX: Slot<NativeContext, Map>,
+  INITIAL_ITERATOR_PROTOTYPE_INDEX: Slot<NativeContext, JSObject>,
   SLOW_OBJECT_WITH_NULL_PROTOTYPE_MAP: Slot<NativeContext, Map>,
   STRICT_ARGUMENTS_MAP_INDEX: Slot<NativeContext, Map>,
   SLOPPY_ARGUMENTS_MAP_INDEX: Slot<NativeContext, Map>,
@@ -134,6 +143,7 @@ extern enum ContextSlot extends intptr constexpr 'Context::Field' {
   INT16_ARRAY_FUN_INDEX: Slot<NativeContext, JSFunction>,
   UINT32_ARRAY_FUN_INDEX: Slot<NativeContext, JSFunction>,
   INT32_ARRAY_FUN_INDEX: Slot<NativeContext, JSFunction>,
+  FLOAT16_ARRAY_FUN_INDEX: Slot<NativeContext, JSFunction>,
   FLOAT32_ARRAY_FUN_INDEX: Slot<NativeContext, JSFunction>,
   FLOAT64_ARRAY_FUN_INDEX: Slot<NativeContext, JSFunction>,
   UINT8_CLAMPED_ARRAY_FUN_INDEX: Slot<NativeContext, JSFunction>,
@@ -146,6 +156,7 @@ extern enum ContextSlot extends intptr constexpr 'Context::Field' {
   RAB_GSAB_INT16_ARRAY_MAP_INDEX: Slot<NativeContext, Map>,
   RAB_GSAB_UINT32_ARRAY_MAP_INDEX: Slot<NativeContext, Map>,
   RAB_GSAB_INT32_ARRAY_MAP_INDEX: Slot<NativeContext, Map>,
+  RAB_GSAB_FLOAT16_ARRAY_MAP_INDEX: Slot<NativeContext, Map>,
   RAB_GSAB_FLOAT32_ARRAY_MAP_INDEX: Slot<NativeContext, Map>,
   RAB_GSAB_FLOAT64_ARRAY_MAP_INDEX: Slot<NativeContext, Map>,
   RAB_GSAB_UINT8_CLAMPED_ARRAY_MAP_INDEX: Slot<NativeContext, Map>,
@@ -165,6 +176,7 @@ extern enum ContextSlot extends intptr constexpr 'Context::Field' {
   PROMISE_HOOK_AFTER_FUNCTION_INDEX: Slot<NativeContext, Undefined|Callable>,
   PROMISE_HOOK_RESOLVE_FUNCTION_INDEX: Slot<NativeContext, Undefined|Callable>,
 
+  // @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
   CONTINUATION_PRESERVED_EMBEDDER_DATA_INDEX: Slot<NativeContext, HeapObject>,
 
   BOUND_FUNCTION_WITH_CONSTRUCTOR_MAP_INDEX: Slot<NativeContext, Map>,
@@ -172,7 +184,11 @@ extern enum ContextSlot extends intptr constexpr 'Context::Field' {
 
   WRAPPED_FUNCTION_MAP_INDEX: Slot<NativeContext, Map>,
 
+  @sameEnumValueAs(MIN_CONTEXT_SLOTS)
+  CONST_TRACKING_LET_SIDE_DATA_INDEX: Slot<Context, HeapObject>,
+
   MIN_CONTEXT_SLOTS,
+  MIN_CONTEXT_EXTENDED_SLOTS,
   ...
 }
 
@@ -204,6 +220,97 @@ macro StoreContextElement(c: Context, i: Smi, o: Object): void {
 @export
 macro StoreContextElement(c: Context, i: constexpr int32, o: Object): void {
   c.elements[i] = o;
+}
+
+@export
+macro StoreContextElementAndUpdateSideData(
+    c: Context, i: intptr, o: Object): void {
+  UpdateConstTrackingLetSideData(c, i, o);
+  c.elements[i] = o;
+}
+
+@export
+macro StoreContextElementAndUpdateSideData(
+    c: Context, i: constexpr int32, o: Object): void {
+  UpdateConstTrackingLetSideData(c, i, o);
+  c.elements[i] = o;
+}
+
+builtin StoreCurrentScriptContextSlotBaseline(o: Object, i: Smi): JSAny {
+  const context = internal::LoadContextFromBaseline();
+  const index = SmiUntag(i);
+  UpdateConstTrackingLetSideData(context, index, o);
+  context.elements[index] = o;
+  return Undefined;
+}
+
+builtin StoreScriptContextSlotBaseline(
+    c: Object, o: Object, i: Smi, d: TaggedIndex): JSAny {
+  let context = UnsafeCast<Context>(c);
+  let depth = TaggedIndexToIntPtr(d);
+  while (depth > 0) {
+    --depth;
+    context =
+        UnsafeCast<Context>(context.elements[ContextSlot::PREVIOUS_INDEX]);
+  }
+
+  const index = SmiUntag(i);
+  UpdateConstTrackingLetSideData(context, index, o);
+  context.elements[index] = o;
+  return Undefined;
+}
+
+namespace runtime {
+extern runtime InvalidateDependentCodeForConstTrackingLet(Context, Object):
+    JSAny;
+}  // namespace runtime
+
+macro UpdateConstTrackingLetSideData(
+    c: Context, index: intptr, newValue: Object): void {
+  const scriptContext = Cast<ScriptContext>(c) otherwise unreachable;
+
+  const sideDataIndex = index - ContextSlot::MIN_CONTEXT_EXTENDED_SLOTS;
+  const sideData: Object = *ContextSlot(
+      scriptContext, ContextSlot::CONST_TRACKING_LET_SIDE_DATA_INDEX);
+
+  const sideDataFixedArray: FixedArray =
+      Cast<FixedArray>(sideData) otherwise return;
+  if (sideDataFixedArray.length == 0) {
+    // No side data (maybe the const tracking let flag is not on).
+    return;
+  }
+
+  const oldValue = c.elements[index];
+  if (oldValue == TheHole) {
+    // Setting the initial value.
+    dcheck(sideDataFixedArray.objects[sideDataIndex] == Undefined);
+    sideDataFixedArray.objects[sideDataIndex] =
+        kConstTrackingLetCellConstMarker;
+    return;
+  }
+  if (TaggedEqual(oldValue, newValue)) {
+    return;
+  }
+  // From now on, we know the value is no longer a constant. If there's a
+  // DependentCode, invalidate it.
+  const data = sideDataFixedArray.objects[sideDataIndex];
+  typeswitch (data) {
+    case (_s: Smi): {
+      // The value is not constant after this write, but it also was not used as
+      // a constant (there's no code to invalidate). No action needed here; the
+      // side data will be updated below.
+    }
+    case (cell: ConstTrackingLetCell): {
+      runtime::InvalidateDependentCodeForConstTrackingLet(c, cell);
+    }
+    case (Object): {
+      // If this is reached, there's a code path which initializes or assigns a
+      // top-level `let` variable but doesn't update the side data.
+      unreachable;
+    }
+  }
+  sideDataFixedArray.objects[sideDataIndex] =
+      kConstTrackingLetCellNonConstMarker;
 }
 
 // A dummy used instead of a context constant for runtime calls that don't need

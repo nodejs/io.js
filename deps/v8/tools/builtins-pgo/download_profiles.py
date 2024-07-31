@@ -11,6 +11,7 @@ See argparse documentation for usage details.
 """
 
 import argparse
+import contextlib
 import os
 import pathlib
 import re
@@ -79,6 +80,12 @@ def parse_args(cmd_args):
       default=DEPOT_TOOLS_DEFAULT_PATH,
   )
 
+  parser.add_argument(
+      '--force',
+      help=('force download, overwriting existing profiles'),
+      action='store_true',
+  )
+
   return parser.parse_args(cmd_args)
 
 
@@ -89,7 +96,8 @@ def import_gsutil(args):
     print(f'{file} does not exist; check --depot-tools path.', file=sys.stderr)
     sys.exit(3)
 
-  sys.path.append(abs_depot_tools_path)
+  # Put this path at the beginning of the PATH to give it priority.
+  sys.path.insert(0, abs_depot_tools_path)
   globals()['gcs_download'] = __import__('download_from_google_storage')
 
 
@@ -108,14 +116,45 @@ def retrieve_version(args):
   return version
 
 
+def download_profiles(version_path, requested_version, args):
+  if args.force:
+    return True
+
+  if not version_path.is_file():
+    return True
+
+  with open(version_path) as version_file:
+    profiles_version = version_file.read()
+
+  if profiles_version != requested_version:
+    return True
+
+  print('Profiles already downloaded, use --force to overwrite.')
+  return False
+
+
+@contextlib.contextmanager
+def ensure_profiles(version, args):
+  version_path = PGO_PROFILE_DIR / 'profiles_version'
+  require_profiles = download_profiles(version_path, version, args)
+  yield require_profiles
+  if require_profiles:
+    with open(version_path, 'w') as version_file:
+      version_file.write(version)
+
+
 def perform_action(version, args):
   path = f'{PGO_PROFILE_BUCKET}/by-version/{version}'
 
   if args.action == 'download':
-    cmd = ['cp', '-R', f'gs://{path}/*.profile', str(PGO_PROFILE_DIR)]
-    failure_hint = f'https://storage.googleapis.com/{path} does not exist.'
-    call_gsutil(cmd, failure_hint)
-    return
+    with ensure_profiles(version, args) as require_profiles:
+      if not require_profiles:
+        return
+
+      cmd = ['cp', '-R', f'gs://{path}/*.profile', str(PGO_PROFILE_DIR)]
+      failure_hint = f'https://storage.googleapis.com/{path} does not exist.'
+      call_gsutil(cmd, failure_hint)
+      return
 
   if args.action == 'validate':
     meta_json = f'{path}/meta.json'

@@ -109,6 +109,16 @@ enum encoding ParseEncoding(const char* encoding,
   return default_encoding;
 }
 
+enum encoding ParseEncoding(Isolate* isolate,
+                            Local<Value> encoding_v,
+                            Local<Value> encoding_id,
+                            enum encoding default_encoding) {
+  if (encoding_id->IsUint32()) {
+    return static_cast<enum encoding>(encoding_id.As<v8::Uint32>()->Value());
+  }
+
+  return ParseEncoding(isolate, encoding_v, default_encoding);
+}
 
 enum encoding ParseEncoding(Isolate* isolate,
                             Local<Value> encoding_v,

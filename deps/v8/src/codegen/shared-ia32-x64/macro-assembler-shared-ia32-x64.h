@@ -747,66 +747,40 @@ class V8_EXPORT_PRIVATE SharedMacroAssembler : public SharedMacroAssemblerBase {
     }
   }
 
-  void I32x4TruncF64x2UZero(XMMRegister dst, XMMRegister src, Register tmp,
-                            XMMRegister scratch) {
-    // TODO(zhin): call this from I32x4TruncSatF64x2UZero.
-    ASM_CODE_COMMENT(this);
-    if (dst != src && !CpuFeatures::IsSupported(AVX)) {
-      movaps(dst, src);
-      src = dst;
-    }
-    // Same as I32x4TruncSatF64x2UZero but without the saturation.
-    Roundpd(dst, src, kRoundToZero);
-    // Add to special double where significant bits == uint32.
-    Addpd(dst, dst,
-          ExternalReferenceAsOperand(
-              ExternalReference::address_of_wasm_double_2_power_52(), tmp));
-    // Extract low 32 bits of each double's significand, zero top lanes.
-    // dst = [dst[0], dst[2], 0, 0]
-    Shufps(dst, dst, scratch, 0x88);
-  }
-
-  void I32x4TruncF32x4U(XMMRegister dst, XMMRegister src, Register scratch,
-                        XMMRegister tmp) {
-    ASM_CODE_COMMENT(this);
-    Operand int32_overflow_op = ExternalReferenceAsOperand(
-        ExternalReference::address_of_wasm_int32_overflow_as_float(), scratch);
+  void I32x4TruncF32x4U(XMMRegister dst, XMMRegister src, XMMRegister scratch1,
+                        XMMRegister scratch2) {
+    // NAN->0, negative->0.
+    Pxor(scratch1, scratch1);
     if (CpuFeatures::IsSupported(AVX)) {
-      CpuFeatureScope avx_scope(this, AVX);
-      vcmpltps(tmp, src, int32_overflow_op);
+      CpuFeatureScope scope(this, AVX);
+      vmaxps(dst, src, scratch1);
     } else {
-      movaps(tmp, src);
-      cmpltps(tmp, int32_overflow_op);
+      if (dst != src) movaps(dst, src);
+      maxps(dst, scratch1);
     }
-    // In tmp, lanes < INT32_MAX are left alone, other lanes are zeroed.
-    Pand(tmp, src);
-    // tmp = src with all the valid conversions
-    if (dst != src) {
-      Movaps(dst, src);
+    // scratch: float representation of max_signed.
+    Pcmpeqd(scratch1, scratch1);
+    Psrld(scratch1, uint8_t{1});   // 0x7fffffff
+    Cvtdq2ps(scratch1, scratch1);  // 0x4f000000
+    // scratch2: convert (src-max_signed).
+    // Set positive overflow lanes to 0x7FFFFFFF.
+    // Set negative lanes to 0.
+    if (CpuFeatures::IsSupported(AVX)) {
+      CpuFeatureScope scope(this, AVX);
+      vsubps(scratch2, dst, scratch1);
+    } else {
+      movaps(scratch2, dst);
+      subps(scratch2, scratch1);
     }
-    // In dst, lanes < INT32_MAX are zeroed, other lanes left alone.
-    Pxor(dst, tmp);
-    // tmp contains only lanes which can be converted correctly (<INT32_MAX)
-    Cvttps2dq(tmp, tmp);
-    // Bit-trick follows:
-    // All integers from INT32_MAX to UINT32_MAX that are representable as
-    // floats lie between [0x4f00'0000,0x4f80'0000).
-    // The bit representation of the integers is actually shifted right by 8.
-    // For example given 2147483904.0f (which fits in UINT32_MAX):
-    //
-    // 01001111 000000000 000000000 000000001 (float 0x4f00'0001)
-    //          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    //          these are exactly the top 24 bits of the int representation
-    //          but needs the top bit to be flipped
-    // 10000000 000000000 000000001 000000000 (int 0x8000'0100)
-    //
-    // So what needs to be done is to flip bit 23, which is the lowest bit of
-    // the exponent, which means multiply by 2 (or addps to itself).
-    Addps(dst, dst, dst);
-    // Then shift to get the bit representation of the int.
-    Pslld(dst, uint8_t{8});
-    // Merge the converted lanes and bit shifted lanes.
-    Paddd(dst, tmp);
+    Cmpleps(scratch1, scratch2);
+    Cvttps2dq(scratch2, scratch2);
+    Pxor(scratch2, scratch1);
+    Pxor(scratch1, scratch1);
+    Pmaxsd(scratch2, scratch1);
+    // Convert to int. Overflow lanes above max_signed will be 0x80000000.
+    Cvttps2dq(dst, dst);
+    // Add (src-max_signed) for overflow lanes.
+    Paddd(dst, scratch2);
   }
 
   void I32x4ExtAddPairwiseI16x8S(XMMRegister dst, XMMRegister src,

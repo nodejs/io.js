@@ -999,6 +999,10 @@ int EVP_PKEY_CTX_set_rsa_pss_keygen_md_name(EVP_PKEY_CTX *ctx,
  */
 int EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, const EVP_MD *md)
 {
+    /* If key type not RSA return error */
+    if (!EVP_PKEY_CTX_is_a(ctx, "RSA"))
+        return -1;
+
     return EVP_PKEY_CTX_ctrl(ctx, EVP_PKEY_RSA, EVP_PKEY_OP_TYPE_CRYPT,
                              EVP_PKEY_CTRL_RSA_OAEP_MD, 0, (void *)(md));
 }
@@ -1026,6 +1030,10 @@ int EVP_PKEY_CTX_get_rsa_oaep_md_name(EVP_PKEY_CTX *ctx, char *name,
  */
 int EVP_PKEY_CTX_get_rsa_oaep_md(EVP_PKEY_CTX *ctx, const EVP_MD **md)
 {
+    /* If key type not RSA return error */
+    if (!EVP_PKEY_CTX_is_a(ctx, "RSA"))
+        return -1;
+
     return EVP_PKEY_CTX_ctrl(ctx, EVP_PKEY_RSA, EVP_PKEY_OP_TYPE_CRYPT,
                              EVP_PKEY_CTRL_GET_RSA_OAEP_MD, 0, (void *)md);
 }

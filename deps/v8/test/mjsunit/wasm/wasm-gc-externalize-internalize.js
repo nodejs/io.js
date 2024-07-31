@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
 "use strict";
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
@@ -31,7 +30,7 @@ let instance = (() => {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
@@ -43,7 +42,6 @@ let instance = (() => {
       kExprBlock, kWasmVoid,
         kExprLocalGet, 0,
         kExprBrOnNull, 0,
-        kGCPrefix, kExprRefAsStruct,
         kGCPrefix, kExprRefCast, struct,
         kGCPrefix, kExprStructGet, struct, 0, // value
         kExprI32Const, 0, // isNull
@@ -62,9 +60,8 @@ let instance = (() => {
       kExprRefIsNull,
       kExprBlock, kWasmVoid,
         kExprLocalGet, 0,
-        kGCPrefix, kExprExternInternalize,
+        kGCPrefix, kExprAnyConvertExtern,
         kExprBrOnNull, 0,
-        kGCPrefix, kExprRefAsStruct,
         kGCPrefix, kExprRefCast, struct,
         kGCPrefix, kExprStructGet, struct, 0, // value
         kExprI32Const, 0, // isNull
@@ -79,15 +76,15 @@ let instance = (() => {
     builder.addFunction('i31_producer', makeSig([kWasmI32], [kWasmEqRef]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprI31New])
+      kGCPrefix, kExprRefI31])
     .exportFunc();
 
     builder.addFunction('i31_externalize',
                         makeSig([kWasmI32], [kWasmExternRef]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprI31New,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprRefI31,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
@@ -99,7 +96,7 @@ let instance = (() => {
       kExprBlock, kWasmVoid,
         kExprLocalGet, 0,
         kExprBrOnNull, 0,
-        kGCPrefix, kExprRefAsI31,
+        kGCPrefix, kExprRefCast, kI31RefCode,
         kGCPrefix, kExprI31GetS, // value
         kExprI32Const, 0, // isNull
         kExprReturn,
@@ -117,9 +114,9 @@ let instance = (() => {
       kExprRefIsNull,
       kExprBlock, kWasmVoid,
         kExprLocalGet, 0,
-        kGCPrefix, kExprExternInternalize,
+        kGCPrefix, kExprAnyConvertExtern,
         kExprBrOnNull, 0,
-        kGCPrefix, kExprRefAsI31,
+        kGCPrefix, kExprRefCast, kI31RefCode,
         kGCPrefix, kExprI31GetS, // value
         kExprI32Const, 0, // isNull
         kExprReturn,
@@ -143,7 +140,7 @@ let instance = (() => {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprArrayNewFixed, array, 1,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
@@ -155,7 +152,6 @@ let instance = (() => {
       kExprBlock, kWasmVoid,
         kExprLocalGet, 0,
         kExprBrOnNull, 0,
-        kGCPrefix, kExprRefAsArray,
         kGCPrefix, kExprRefCast, array,
         kExprI32Const, 0,
         kGCPrefix, kExprArrayGet, array, // value
@@ -175,9 +171,8 @@ let instance = (() => {
       kExprRefIsNull,
       kExprBlock, kWasmVoid,
         kExprLocalGet, 0,
-        kGCPrefix, kExprExternInternalize,
+        kGCPrefix, kExprAnyConvertExtern,
         kExprBrOnNull, 0,
-        kGCPrefix, kExprRefAsArray,
         kGCPrefix, kExprRefCast, array,
         kExprI32Const, 0,
         kGCPrefix, kExprArrayGet, array, // value

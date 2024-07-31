@@ -41,9 +41,9 @@ if [ $? -ne 0 ]; then
   fi
   no_node_dir
 fi
-NPM_CLI_JS="$CLI_BASEDIR/node_modules/npm/bin/npm-cli.js"
+NPM_PREFIX_JS="$CLI_BASEDIR/node_modules/npm/bin/npm-prefix.js"
 NPX_CLI_JS="$CLI_BASEDIR/node_modules/npm/bin/npx-cli.js"
-NPM_PREFIX=`"$NODE_EXE" "$NPM_CLI_JS" prefix -g`
+NPM_PREFIX=`"$NODE_EXE" "$NPM_PREFIX_JS"`
 if [ $? -ne 0 ]; then
   no_node_dir
 fi

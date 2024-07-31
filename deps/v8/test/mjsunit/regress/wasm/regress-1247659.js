@@ -6,7 +6,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 const builder = new WasmModuleBuilder();
 builder.addMemory(16, 17);
-builder.addGlobal(kWasmI32, 1, wasmI32Const(10));
+builder.addGlobal(kWasmI32, true, false, wasmI32Const(10));
 // Generate function 1 (out of 3).
 builder.addFunction('load', kSig_i_v)
     .addBody([

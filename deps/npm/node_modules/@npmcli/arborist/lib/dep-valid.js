@@ -6,7 +6,7 @@
 
 const semver = require('semver')
 const npa = require('npm-package-arg')
-const { relative } = require('path')
+const { relative } = require('node:path')
 const fromPath = require('./from-path.js')
 
 const depValid = (child, requested, requestor) => {
@@ -124,7 +124,7 @@ const linkValid = (child, requested, requestor) => {
   return isLink && relative(child.realpath, requested.fetchSpec) === ''
 }
 
-const tarballValid = (child, requested, requestor) => {
+const tarballValid = (child, requested) => {
   if (child.isLink) {
     return false
   }

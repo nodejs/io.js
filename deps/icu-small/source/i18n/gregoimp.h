@@ -14,6 +14,7 @@
 #ifndef GREGOIMP_H
 #define GREGOIMP_H
 #include "unicode/utypes.h"
+#include "unicode/calendar.h"
 #if !UCONFIG_NO_FORMATTING
 
 #include "unicode/ures.h"
@@ -49,7 +50,7 @@ class ClockMath {
      * @param denominator a divisor which must be != 0
      * @return the floor of the quotient
      */
-    static int64_t floorDivide(int64_t numerator, int64_t denominator);
+    static int64_t floorDivideInt64(int64_t numerator, int64_t denominator);
 
     /**
      * Divide two numbers, returning the floor of the quotient.
@@ -77,7 +78,25 @@ class ClockMath {
      * |denominator|)</code>.
      * @return the floor of the quotient
      */
-    static int32_t floorDivide(double numerator, int32_t denominator,
+    static int32_t floorDivide(int32_t numerator, int32_t denominator,
+                               int32_t* remainder);
+
+    /**
+     * Divide two numbers, returning the floor of the quotient and
+     * the modulus remainder.  Unlike the built-in division, this is
+     * mathematically well-behaved.  E.g., <code>-1/4</code> => 0 and
+     * <code>-1%4</code> => -1, but <code>floorDivide(-1,4)</code> =>
+     * -1 with <code>remainder</code> => 3.  NOTE: If numerator is
+     * too large, the returned quotient may overflow.
+     * @param numerator the numerator
+     * @param denominator a divisor which must be != 0
+     * @param remainder output parameter to receive the
+     * remainder. Unlike <code>numerator % denominator</code>, this
+     * will always be non-negative, in the half-open range <code>[0,
+     * |denominator|)</code>.
+     * @return the floor of the quotient
+     */
+    static double floorDivide(double numerator, int32_t denominator,
                                int32_t* remainder);
 
     /**
@@ -178,31 +197,31 @@ class Grego {
      * @param dom 1-based day of month
      * @return the day number, with day 0 == Jan 1 1970
      */
-    static double fieldsToDay(int32_t year, int32_t month, int32_t dom);
+    static int64_t fieldsToDay(int32_t year, int32_t month, int32_t dom);
     
     /**
      * Convert a 1970-epoch day number to proleptic Gregorian year,
      * month, day-of-month, and day-of-week.
-     * @param day 1970-epoch day (integral value)
+     * @param day 1970-epoch day
      * @param year output parameter to receive year
      * @param month output parameter to receive month (0-based, 0==Jan)
      * @param dom output parameter to receive day-of-month (1-based)
      * @param dow output parameter to receive day-of-week (1-based, 1==Sun)
      * @param doy output parameter to receive day-of-year (1-based)
      */
-    static void dayToFields(double day, int32_t& year, int32_t& month,
+    static void dayToFields(int32_t day, int32_t& year, int32_t& month,
                             int32_t& dom, int32_t& dow, int32_t& doy);
 
     /**
      * Convert a 1970-epoch day number to proleptic Gregorian year,
      * month, day-of-month, and day-of-week.
-     * @param day 1970-epoch day (integral value)
+     * @param day 1970-epoch day
      * @param year output parameter to receive year
      * @param month output parameter to receive month (0-based, 0==Jan)
      * @param dom output parameter to receive day-of-month (1-based)
      * @param dow output parameter to receive day-of-week (1-based, 1==Sun)
      */
-    static inline void dayToFields(double day, int32_t& year, int32_t& month,
+    static inline void dayToFields(int32_t day, int32_t& year, int32_t& month,
                                    int32_t& dom, int32_t& dow);
 
     /**
@@ -221,10 +240,10 @@ class Grego {
 
     /**
      * Return the day of week on the 1970-epoch day
-     * @param day the 1970-epoch day (integral value)
+     * @param day the 1970-epoch day
      * @return the day of week
      */
-    static int32_t dayOfWeek(double day);
+    static int32_t dayOfWeek(int32_t day);
 
     /**
      * Returns the ordinal number for the specified day of week within the month.
@@ -283,7 +302,7 @@ Grego::previousMonthLength(int y, int m) {
   return (m > 0) ? monthLength(y, m-1) : 31;
 }
 
-inline void Grego::dayToFields(double day, int32_t& year, int32_t& month,
+inline void Grego::dayToFields(int32_t day, int32_t& year, int32_t& month,
                                int32_t& dom, int32_t& dow) {
   int32_t doy_unused;
   dayToFields(day,year,month,dom,dow,doy_unused);
@@ -291,7 +310,7 @@ inline void Grego::dayToFields(double day, int32_t& year, int32_t& month,
 
 inline double Grego::julianDayToMillis(int32_t julian)
 {
-  return (julian - kEpochStartAsJulianDay) * kOneDay;
+  return (static_cast<double>(julian) - kEpochStartAsJulianDay) * kOneDay;
 }
 
 inline int32_t Grego::millisToJulianDay(double millis) {
@@ -300,9 +319,49 @@ inline int32_t Grego::millisToJulianDay(double millis) {
 
 inline int32_t Grego::gregorianShift(int32_t eyear) {
   int64_t y = (int64_t)eyear-1;
-  int32_t gregShift = static_cast<int32_t>(ClockMath::floorDivide(y, (int64_t)400) - ClockMath::floorDivide(y, (int64_t)100) + 2);
-  return gregShift;
+  int64_t gregShift = ClockMath::floorDivideInt64(y, 400LL) - ClockMath::floorDivideInt64(y, 100LL) + 2;
+  return static_cast<int32_t>(gregShift);
 }
+
+#define IMPL_SYSTEM_DEFAULT_CENTURY(T, U) \
+  /** \
+   * The system maintains a static default century start date and Year.  They \
+   * are initialized the first time they are used.  Once the system default \
+   * century date and year are set, they do not change \
+   */ \
+  namespace { \
+  static UDate           gSystemDefaultCenturyStart       = DBL_MIN; \
+  static int32_t         gSystemDefaultCenturyStartYear   = -1; \
+  static icu::UInitOnce  gSystemDefaultCenturyInit        {}; \
+  static void U_CALLCONV \
+  initializeSystemDefaultCentury() { \
+      UErrorCode status = U_ZERO_ERROR; \
+      T calendar(U, status); \
+      /* initialize systemDefaultCentury and systemDefaultCenturyYear based */ \
+      /* on the current time.  They'll be set to 80 years before */ \
+      /* the current time. */ \
+      if (U_FAILURE(status)) { \
+          return; \
+      } \
+      calendar.setTime(Calendar::getNow(), status); \
+      calendar.add(UCAL_YEAR, -80, status); \
+      gSystemDefaultCenturyStart = calendar.getTime(status); \
+      gSystemDefaultCenturyStartYear = calendar.get(UCAL_YEAR, status); \
+      /* We have no recourse upon failure unless we want to propagate the */ \
+      /* failure out. */ \
+  } \
+  }  /* namespace */ \
+  UDate T::defaultCenturyStart() const { \
+      /* lazy-evaluate systemDefaultCenturyStart */ \
+      umtx_initOnce(gSystemDefaultCenturyInit, &initializeSystemDefaultCentury); \
+      return gSystemDefaultCenturyStart; \
+  }   \
+  int32_t T::defaultCenturyStartYear() const { \
+      /* lazy-evaluate systemDefaultCenturyStart */ \
+      umtx_initOnce(gSystemDefaultCenturyInit, &initializeSystemDefaultCentury); \
+      return gSystemDefaultCenturyStartYear; \
+  } \
+  UBool T::haveDefaultCentury() const { return true; }
 
 U_NAMESPACE_END
 

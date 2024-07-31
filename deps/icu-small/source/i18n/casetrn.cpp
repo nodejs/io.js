@@ -91,7 +91,7 @@ UOBJECT_DEFINE_ABSTRACT_RTTI_IMPLEMENTATION(CaseMapTransliterator)
  * Constructs a transliterator.
  */
 CaseMapTransliterator::CaseMapTransliterator(const UnicodeString &id, UCaseMapFull *map) : 
-    Transliterator(id, 0),
+    Transliterator(id, nullptr),
     fMap(map)
 {
     // TODO test incremental mode with context-sensitive text (e.g. greek sigma)

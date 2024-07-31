@@ -90,8 +90,9 @@ class Deserializer : public SerializerDeserializer {
   const std::vector<Handle<AccessorInfo>>& accessor_infos() const {
     return accessor_infos_;
   }
-  const std::vector<Handle<CallHandlerInfo>>& call_handler_infos() const {
-    return call_handler_infos_;
+  const std::vector<Handle<FunctionTemplateInfo>>& function_template_infos()
+      const {
+    return function_template_infos_;
   }
   const std::vector<Handle<Script>>& new_scripts() const {
     return new_scripts_;
@@ -145,6 +146,7 @@ class Deserializer : public SerializerDeserializer {
   struct ReferenceDescriptor {
     HeapObjectReferenceType type;
     bool is_indirect_pointer;
+    bool is_protected_pointer;
   };
 
   void VisitRootPointers(Root root, const char* description,
@@ -161,8 +163,7 @@ class Deserializer : public SerializerDeserializer {
                        Handle<HeapObject> heap_object,
                        ReferenceDescriptor descr);
 
-  inline int WriteExternalPointer(ExternalPointerSlot dest, Address value,
-                                  ExternalPointerTag tag);
+  inline int WriteExternalPointer(ExternalPointerSlot dest, Address value);
   inline int WriteIndirectPointer(IndirectPointerSlot dest,
                                   Tagged<HeapObject> value);
 
@@ -220,6 +221,11 @@ class Deserializer : public SerializerDeserializer {
   template <typename SlotAccessor>
   int ReadIndirectPointerPrefix(uint8_t data, SlotAccessor slot_accessor);
   template <typename SlotAccessor>
+  int ReadInitializeSelfIndirectPointer(uint8_t data,
+                                        SlotAccessor slot_accessor);
+  template <typename SlotAccessor>
+  int ReadProtectedPointerPrefix(uint8_t data, SlotAccessor slot_accessor);
+  template <typename SlotAccessor>
   int ReadRootArrayConstants(uint8_t data, SlotAccessor slot_accessor);
   template <typename SlotAccessor>
   int ReadHotObject(uint8_t data, SlotAccessor slot_accessor);
@@ -234,8 +240,8 @@ class Deserializer : public SerializerDeserializer {
   // A helper function for reading external pointer tags.
   ExternalPointerTag ReadExternalPointerTag();
 
-  Handle<HeapObject> ReadObject(SnapshotSpace space_number);
-  Handle<HeapObject> ReadMetaMap();
+  Handle<HeapObject> ReadObject(SnapshotSpace space);
+  Handle<HeapObject> ReadMetaMap(SnapshotSpace space);
 
   ReferenceDescriptor GetAndResetNextReferenceDescriptor();
 
@@ -266,7 +272,7 @@ class Deserializer : public SerializerDeserializer {
   std::vector<Handle<AllocationSite>> new_allocation_sites_;
   std::vector<Handle<InstructionStream>> new_code_objects_;
   std::vector<Handle<AccessorInfo>> accessor_infos_;
-  std::vector<Handle<CallHandlerInfo>> call_handler_infos_;
+  std::vector<Handle<FunctionTemplateInfo>> function_template_infos_;
   std::vector<Handle<Script>> new_scripts_;
   std::vector<std::shared_ptr<BackingStore>> backing_stores_;
 
@@ -285,12 +291,12 @@ class Deserializer : public SerializerDeserializer {
   // The vector is cleared when there are no more unresolved forward refs.
   struct UnresolvedForwardRef {
     UnresolvedForwardRef(Handle<HeapObject> object, int offset,
-                         HeapObjectReferenceType ref_type)
-        : object(object), offset(offset), ref_type(ref_type) {}
+                         ReferenceDescriptor descr)
+        : object(object), offset(offset), descr(descr) {}
 
     Handle<HeapObject> object;
     int offset;
-    HeapObjectReferenceType ref_type;
+    ReferenceDescriptor descr;
   };
   std::vector<UnresolvedForwardRef> unresolved_forward_refs_;
   int num_unresolved_forward_refs_ = 0;
@@ -299,6 +305,7 @@ class Deserializer : public SerializerDeserializer {
 
   bool next_reference_is_weak_ = false;
   bool next_reference_is_indirect_pointer_ = false;
+  bool next_reference_is_protected_pointer = false;
 
   // TODO(6593): generalize rehashing, and remove this flag.
   const bool should_rehash_;

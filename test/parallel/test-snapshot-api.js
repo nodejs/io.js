@@ -6,7 +6,7 @@ require('../common');
 const assert = require('assert');
 const tmpdir = require('../common/tmpdir');
 const fixtures = require('../common/fixtures');
-const { spawnSyncAndExitWithoutError } = require('../common/child_process');
+const { spawnSyncAndAssert, spawnSyncAndExitWithoutError } = require('../common/child_process');
 const fs = require('fs');
 
 const v8 = require('v8');
@@ -41,7 +41,7 @@ const entry = fixtures.path('snapshot', 'v8-startup-snapshot-api.js');
 }
 
 {
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     'book1',

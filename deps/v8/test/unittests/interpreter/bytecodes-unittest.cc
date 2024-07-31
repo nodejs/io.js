@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/interpreter/bytecodes.h"
+
 #include <vector>
 
 #include "src/init/v8.h"
-
+#include "src/interpreter/bytecode-flags.h"
 #include "src/interpreter/bytecode-register.h"
-#include "src/interpreter/bytecodes.h"
 #include "test/unittests/test-utils.h"
 
 namespace v8 {
@@ -360,6 +361,19 @@ TEST(ImplicitRegisterUse, SampleBytecodes) {
   CHECK(Bytecodes::WritesAccumulator(Bytecode::kAdd));
   CHECK_EQ(Bytecodes::GetImplicitRegisterUse(Bytecode::kAdd),
            ImplicitRegisterUse::kReadWriteAccumulator);
+}
+
+TEST(TypeOfLiteral, OnlyUndefinedGreaterThanU) {
+#define CHECK_LITERAL(Name, name)                     \
+  if (TestTypeOfFlags::LiteralFlag::k##Name ==        \
+      TestTypeOfFlags::LiteralFlag::kUndefined) {     \
+    CHECK_GT(strcmp(#name, "u"), 0);                  \
+  } else if (TestTypeOfFlags::LiteralFlag::k##Name != \
+             TestTypeOfFlags::LiteralFlag::kOther) {  \
+    CHECK_LT(strcmp(#name, "u"), 0);                  \
+  }
+  TYPEOF_LITERAL_LIST(CHECK_LITERAL);
+#undef CHECK_LITERAL
 }
 
 }  // namespace interpreter

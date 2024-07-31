@@ -38,6 +38,7 @@ struct TypeswitchCase {
 struct EnumEntry {
   Identifier* name;
   base::Optional<TypeExpression*> type;
+  base::Optional<std::string> alias_entry;
 };
 
 class BuildFlags : public base::ContextualClass<BuildFlags> {
@@ -57,6 +58,11 @@ class BuildFlags : public base::ContextualClass<BuildFlags> {
 #else
     build_flags_["V8_ENABLE_JAVASCRIPT_PROMISE_HOOKS"] = false;
 #endif
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+    build_flags_["V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA"] = true;
+#else
+    build_flags_["V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA"] = false;
+#endif
     build_flags_["TRUE_FOR_TESTING"] = true;
     build_flags_["FALSE_FOR_TESTING"] = false;
 #ifdef V8_SCRIPTORMODULE_LEGACY_LIFETIME
@@ -70,8 +76,6 @@ class BuildFlags : public base::ContextualClass<BuildFlags> {
     build_flags_["V8_ENABLE_WEBASSEMBLY"] = false;
 #endif
     build_flags_["V8_ENABLE_SANDBOX"] = V8_ENABLE_SANDBOX_BOOL;
-    build_flags_["V8_CODE_POINTER_SANDBOXING"] =
-        V8_CODE_POINTER_SANDBOXING_BOOL;
     build_flags_["DEBUG"] = DEBUG_BOOL;
   }
   static bool GetFlag(const std::string& name, const char* production) {
@@ -363,7 +367,7 @@ Expression* MakeCall(IdentifierExpression* callee,
   for (auto* statement : otherwise) {
     if (auto* e = ExpressionStatement::DynamicCast(statement)) {
       if (auto* id = IdentifierExpression::DynamicCast(e->expression)) {
-        if (id->generic_arguments.size() != 0) {
+        if (!id->generic_arguments.empty()) {
           ReportError("An otherwise label cannot have generic parameters");
         }
         labels.push_back(id->name);
@@ -619,7 +623,7 @@ namespace {
 bool HasAnnotation(ParseResultIterator* child_results, const char* annotation,
                    const char* declaration) {
   auto annotations = child_results->NextAs<std::vector<Annotation>>();
-  if (annotations.size()) {
+  if (!annotations.empty()) {
     if (annotations.size() > 1 || annotations[0].name->value != annotation) {
       Error(declaration, " declarations only support a single ", annotation,
             " annotation");
@@ -660,36 +664,6 @@ base::Optional<ParseResult> MakeTorqueMacroDeclaration(
     if (!body) ReportError("A non-generic declaration needs a body.");
   } else {
     if (export_to_csa) ReportError("Cannot export generics to CSA.");
-    result =
-        MakeNode<GenericCallableDeclaration>(generic_parameters, declaration);
-  }
-  return ParseResult{result};
-}
-
-base::Optional<ParseResult> MakeTorqueBuiltinDeclaration(
-    ParseResultIterator* child_results) {
-  const bool has_custom_interface_descriptor = HasAnnotation(
-      child_results, ANNOTATION_CUSTOM_INTERFACE_DESCRIPTOR, "builtin");
-  auto transitioning = child_results->NextAs<bool>();
-  auto javascript_linkage = child_results->NextAs<bool>();
-  auto name = child_results->NextAs<Identifier*>();
-  if (!IsUpperCamelCase(name->value)) {
-    NamingConventionError("Builtin", name, "UpperCamelCase");
-  }
-
-  auto generic_parameters = child_results->NextAs<GenericParameters>();
-  LintGenericParameters(generic_parameters);
-
-  auto args = child_results->NextAs<ParameterList>();
-  auto return_type = child_results->NextAs<TypeExpression*>();
-  auto body = child_results->NextAs<base::Optional<Statement*>>();
-  CallableDeclaration* declaration = MakeNode<TorqueBuiltinDeclaration>(
-      transitioning, javascript_linkage, name, args, return_type,
-      has_custom_interface_descriptor, body);
-  Declaration* result = declaration;
-  if (generic_parameters.empty()) {
-    if (!body) ReportError("A non-generic declaration needs a body.");
-  } else {
     result =
         MakeNode<GenericCallableDeclaration>(generic_parameters, declaration);
   }
@@ -920,7 +894,7 @@ base::Optional<ParseResult> YieldIntegerLiteral(
   std::string value = child_results->matched_input().ToString();
   // Consume a leading minus.
   bool negative = false;
-  if (value.size() > 0 && value[0] == '-') {
+  if (!value.empty() && value[0] == '-') {
     negative = true;
     value = value.substr(1);
   }
@@ -957,6 +931,46 @@ int GetAnnotationValue(const AnnotationSet& annotations, const char* name,
   return opt_value.has_value() ? *opt_value : default_value;
 }
 
+base::Optional<ParseResult> MakeTorqueBuiltinDeclaration(
+    ParseResultIterator* child_results) {
+  AnnotationSet annotations(
+      child_results, {ANNOTATION_CUSTOM_INTERFACE_DESCRIPTOR}, {ANNOTATION_IF});
+  const bool has_custom_interface_descriptor =
+      annotations.Contains(ANNOTATION_CUSTOM_INTERFACE_DESCRIPTOR);
+  auto transitioning = child_results->NextAs<bool>();
+  auto javascript_linkage = child_results->NextAs<bool>();
+  auto name = child_results->NextAs<Identifier*>();
+  if (!IsUpperCamelCase(name->value)) {
+    NamingConventionError("Builtin", name, "UpperCamelCase");
+  }
+
+  auto generic_parameters = child_results->NextAs<GenericParameters>();
+  LintGenericParameters(generic_parameters);
+
+  auto args = child_results->NextAs<ParameterList>();
+  auto return_type = child_results->NextAs<TypeExpression*>();
+  auto body = child_results->NextAs<base::Optional<Statement*>>();
+  CallableDeclaration* declaration = MakeNode<TorqueBuiltinDeclaration>(
+      transitioning, javascript_linkage, name, args, return_type,
+      has_custom_interface_descriptor, body);
+  Declaration* result = declaration;
+  if (generic_parameters.empty()) {
+    if (!body) ReportError("A non-generic declaration needs a body.");
+  } else {
+    result =
+        MakeNode<GenericCallableDeclaration>(generic_parameters, declaration);
+  }
+  std::vector<Declaration*> results;
+  if (base::Optional<std::string> condition =
+          annotations.GetStringParam(ANNOTATION_IF)) {
+    if (!BuildFlags::GetFlag(*condition, ANNOTATION_IF)) {
+      return ParseResult{std::move(results)};
+    }
+  }
+  results.push_back(result);
+  return ParseResult{std::move(results)};
+}
+
 InstanceTypeConstraints MakeInstanceTypeConstraints(
     const AnnotationSet& annotations) {
   InstanceTypeConstraints result;
@@ -986,7 +1000,8 @@ base::Optional<ParseResult> MakeClassDeclaration(
        ANNOTATION_GENERATE_UNIQUE_MAP, ANNOTATION_GENERATE_FACTORY_FUNCTION,
        ANNOTATION_HIGHEST_INSTANCE_TYPE_WITHIN_PARENT,
        ANNOTATION_LOWEST_INSTANCE_TYPE_WITHIN_PARENT,
-       ANNOTATION_CPP_OBJECT_DEFINITION},
+       ANNOTATION_CPP_OBJECT_DEFINITION,
+       ANNOTATION_CPP_OBJECT_LAYOUT_DEFINITION},
       {ANNOTATION_RESERVE_BITS_IN_INSTANCE_TYPE,
        ANNOTATION_INSTANCE_TYPE_VALUE});
   ClassFlags flags = ClassFlag::kNone;
@@ -1033,6 +1048,9 @@ base::Optional<ParseResult> MakeClassDeclaration(
   }
   if (annotations.Contains(ANNOTATION_CPP_OBJECT_DEFINITION)) {
     flags |= ClassFlag::kCppObjectDefinition;
+  }
+  if (annotations.Contains(ANNOTATION_CPP_OBJECT_LAYOUT_DEFINITION)) {
+    flags |= ClassFlag::kCppObjectLayoutDefinition;
   }
 
   auto is_extern = child_results->NextAs<bool>();
@@ -1520,8 +1538,12 @@ base::Optional<ParseResult> MakeEnumDeclaration(
       const std::string entry_name = entry.name->value;
       const std::string entry_constexpr_type =
           CONSTEXPR_TYPE_PREFIX + entry_name;
-      enum_description.entries.push_back(constexpr_generates +
-                                         "::" + entry_name);
+      std::string alias_entry;
+      if (entry.alias_entry) {
+        alias_entry = constexpr_generates + "::" + *entry.alias_entry;
+      }
+      enum_description.entries.emplace_back(
+          constexpr_generates + "::" + entry_name, alias_entry);
 
       entry_decls.push_back(MakeNode<AbstractTypeDeclaration>(
           MakeNode<Identifier>(entry_constexpr_type),
@@ -2044,9 +2066,14 @@ base::Optional<ParseResult> MakeNameAndType(
 }
 
 base::Optional<ParseResult> MakeEnumEntry(ParseResultIterator* child_results) {
+  AnnotationSet annotations(child_results, {}, {ANNOTATION_SAME_ENUM_VALUE_AS});
+  std::vector<ConditionalAnnotation> conditions;
+  base::Optional<std::string> alias_entry =
+      annotations.GetStringParam(ANNOTATION_SAME_ENUM_VALUE_AS);
+
   auto name = child_results->NextAs<Identifier*>();
   auto type = child_results->NextAs<base::Optional<TypeExpression*>>();
-  return ParseResult{EnumEntry{name, type}};
+  return ParseResult{EnumEntry{name, type, alias_entry}};
 }
 
 base::Optional<ParseResult> MakeNameAndExpression(
@@ -2690,7 +2717,8 @@ struct TorqueGrammar : Grammar {
       Optional<TypeExpression*>(Sequence({Token(":"), &type}));
 
   // Result: EnumEntry
-  Symbol enumEntry = {Rule({&name, optionalTypeSpecifier}, MakeEnumEntry)};
+  Symbol enumEntry = {
+      Rule({annotations, &name, optionalTypeSpecifier}, MakeEnumEntry)};
 
   // Result: Statement*
   Symbol varDeclaration = {
@@ -2845,7 +2873,7 @@ struct TorqueGrammar : Grammar {
             CheckIf(Token("javascript")), Token("builtin"), &name,
             TryOrDefault<GenericParameters>(&genericParameters),
             &parameterListAllowVararg, &returnType, &optionalBody},
-           AsSingletonVector<Declaration*, MakeTorqueBuiltinDeclaration>()),
+           MakeTorqueBuiltinDeclaration),
       Rule({CheckIf(Token("transitioning")), &name,
             &genericSpecializationTypeList, &parameterListAllowVararg,
             &returnType, optionalLabelList, &block},

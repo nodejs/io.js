@@ -335,7 +335,7 @@ class NodeBase {
     DCHECK(!AsChild()->IsInUse());
   }
 
-  Tagged<Object> object() const { return Object(object_); }
+  Tagged<Object> object() const { return Tagged<Object>(object_); }
   FullObjectSlot location() { return FullObjectSlot(&object_); }
   Handle<Object> handle() { return Handle<Object>(&object_); }
   Address raw_object() const { return object_; }
@@ -548,7 +548,7 @@ class GlobalHandles::Node final : public NodeBase<GlobalHandles::Node> {
     }
 
     // Zap with something dangerous.
-    location().store(Object(0xCA11));
+    location().store(Tagged<Object>(0xCA11));
 
     pending_phantom_callbacks->push_back(std::make_pair(
         this,
@@ -640,7 +640,7 @@ Handle<Object> GlobalHandles::CopyGlobal(Address* location) {
       Node::FromLocation(location)->global_handles();
 #ifdef VERIFY_HEAP
   if (v8_flags.verify_heap) {
-    Object::ObjectVerify(Object(*location), global_handles->isolate());
+    Object::ObjectVerify(Tagged<Object>(*location), global_handles->isolate());
   }
 #endif  // VERIFY_HEAP
   return global_handles->Create(*location);
@@ -700,7 +700,7 @@ V8_INLINE bool GlobalHandles::ResetWeakNodeIfDead(
       node->ResetPhantomHandle();
       break;
     case WeaknessType::kCallback:
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case WeaknessType::kCallbackWithTwoEmbedderFields:
       node->CollectPhantomCallbackData(&pending_phantom_callbacks_);
       break;
@@ -1031,7 +1031,7 @@ void EternalHandles::IterateYoungRoots(RootVisitor* visitor) {
 void EternalHandles::PostGarbageCollectionProcessing() {
   size_t last = 0;
   for (int index : young_node_indices_) {
-    if (ObjectInYoungGeneration(Object(*GetLocation(index)))) {
+    if (ObjectInYoungGeneration(Tagged<Object>(*GetLocation(index)))) {
       young_node_indices_[last++] = index;
     }
   }
@@ -1042,7 +1042,7 @@ void EternalHandles::PostGarbageCollectionProcessing() {
 void EternalHandles::Create(Isolate* isolate, Tagged<Object> object,
                             int* index) {
   DCHECK_EQ(kInvalidIndex, *index);
-  if (object == Object()) return;
+  if (object == Tagged<Object>()) return;
   Tagged<Object> the_hole = ReadOnlyRoots(isolate).the_hole_value();
   DCHECK_NE(the_hole, object);
   int block = size_ >> kShift;

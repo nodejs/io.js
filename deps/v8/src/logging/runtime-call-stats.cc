@@ -294,13 +294,11 @@ WorkerThreadRuntimeCallStats::~WorkerThreadRuntimeCallStats() {
 
 base::Thread::LocalStorageKey WorkerThreadRuntimeCallStats::GetKey() {
   base::MutexGuard lock(&mutex_);
-  DCHECK(TracingFlags::is_runtime_stats_enabled());
   if (!tls_key_) tls_key_ = base::Thread::CreateThreadLocalKey();
   return *tls_key_;
 }
 
 RuntimeCallStats* WorkerThreadRuntimeCallStats::NewTable() {
-  DCHECK(TracingFlags::is_runtime_stats_enabled());
   // Never create a new worker table on the isolate's main thread.
   DCHECK_NE(ThreadId::Current(), isolate_thread_id_);
   std::unique_ptr<RuntimeCallStats> new_table =
@@ -329,6 +327,7 @@ WorkerThreadRuntimeCallStatsScope::WorkerThreadRuntimeCallStatsScope(
   table_ = reinterpret_cast<RuntimeCallStats*>(
       base::Thread::GetThreadLocal(worker_stats->GetKey()));
   if (table_ == nullptr) {
+    if (V8_UNLIKELY(!TracingFlags::is_runtime_stats_enabled())) return;
     table_ = worker_stats->NewTable();
     base::Thread::SetThreadLocal(worker_stats->GetKey(), table_);
   }

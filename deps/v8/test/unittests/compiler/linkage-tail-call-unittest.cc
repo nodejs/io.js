@@ -38,7 +38,8 @@ class LinkageTailCall : public TestWithZone {
       if (locations->GetReturn(i).IsCallerFrameSlot()) stack_returns++;
     }
     return zone()->New<CallDescriptor>(
-        CallDescriptor::kCallCodeObject, MachineType::AnyTagged(),
+        CallDescriptor::kCallCodeObject, kDefaultCodeEntrypointTag,
+        MachineType::AnyTagged(),
         LinkageLocation::ForAnyRegister(MachineType::Pointer()),
         locations,  // location_sig
         stack_arguments,

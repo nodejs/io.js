@@ -12,7 +12,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
     [kWasmF64, 'f64', 1/7, wasmF64Const(1 / 7)]
   ];
   for (let [type, name, value, bytes] of globals) {
-    builder.addGlobal(type, false, bytes).exportAs(name);
+    builder.addGlobal(type, false, false, bytes).exportAs(name);
   }
   var instance = builder.instantiate();
 
@@ -27,13 +27,13 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
 (function canExportI64Global() {
   var builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI64, false).exportAs('g');
+  builder.addGlobal(kWasmI64, false, false).exportAs('g');
   builder.instantiate();
 })();
 
 (function canExportAndImportI64() {
   var builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI64, false).exportAs('g');
+  builder.addGlobal(kWasmI64, false, false).exportAs('g');
   let g = builder.instantiate().exports.g;
 
   builder = new WasmModuleBuilder();
@@ -49,7 +49,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
     [kWasmF64, 'f64', 1/7, wasmF64Const(1 / 7)]
   ];
   for (let [index, [type, name, value, bytes]] of globals.entries()) {
-    builder.addGlobal(type, true, bytes).exportAs(name);
+    builder.addGlobal(type, true, false, bytes).exportAs(name);
     builder.addFunction("get " + name, makeSig([], [type]))
       .addBody([kExprGlobalGet, index])
       .exportFunc();
@@ -76,7 +76,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
 (function exportImportedMutableGlobal() {
   let builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI32, true).exportAs('g1');
+  builder.addGlobal(kWasmI32, true, false).exportAs('g1');
   let g1 = builder.instantiate().exports.g1;
 
   builder = new WasmModuleBuilder();

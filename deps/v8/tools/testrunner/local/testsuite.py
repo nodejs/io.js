@@ -26,7 +26,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-import imp
+import importlib.machinery
 import itertools
 import os
 
@@ -34,7 +34,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from . import statusfile
-from . import utils
 from .variants import ALL_VARIANTS, ALL_VARIANT_FLAGS
 
 
@@ -201,14 +200,17 @@ class JSTestLoader(GenericTestLoader):
 
 
 class TestGenerator(object):
-  def __init__(self, test_count_estimate, slow_tests, fast_tests):
+  def __init__(
+      self, test_count_estimate, heavy_tests, slow_tests, remaining_tests):
     self.test_count_estimate = test_count_estimate
+    self.heavy_tests = heavy_tests
     self.slow_tests = slow_tests
-    self.fast_tests = fast_tests
+    self.remaining_tests = remaining_tests
     self._rebuild_iterator()
 
   def _rebuild_iterator(self):
-    self._iterator = itertools.chain(self.slow_tests, self.fast_tests)
+    self._iterator = itertools.chain(
+        self.heavy_tests, self.slow_tests, self.remaining_tests)
 
   def __iter__(self):
     return self
@@ -221,10 +223,12 @@ class TestGenerator(object):
 
   def merge(self, test_generator):
     self.test_count_estimate += test_generator.test_count_estimate
+    self.heavy_tests = itertools.chain(
+      self.heavy_tests, test_generator.heavy_tests)
     self.slow_tests = itertools.chain(
       self.slow_tests, test_generator.slow_tests)
-    self.fast_tests = itertools.chain(
-      self.fast_tests, test_generator.fast_tests)
+    self.remaining_tests = itertools.chain(
+      self.remaining_tests, test_generator.remaining_tests)
     self._rebuild_iterator()
 
 
@@ -232,11 +236,12 @@ class TestGenerator(object):
 def _load_testsuite_module(name, root):
   f = None
   try:
-    (f, pathname, description) = imp.find_module("testcfg", [root])
-    yield imp.load_module(name + "_testcfg", f, pathname, description)
+    yield importlib.machinery.SourceFileLoader(
+        name + "_testcfg", f"{root}/testcfg.py").load_module()
   finally:
     if f:
       f.close()
+
 
 class TestSuite(object):
   @staticmethod
@@ -285,9 +290,16 @@ class TestSuite(object):
       self.status_file(), statusfile_variables)
 
     test_count = self.__calculate_test_count()
-    slow_tests = (test for test in self.ListTests() if test.is_slow)
-    fast_tests = (test for test in self.ListTests() if not test.is_slow)
-    return TestGenerator(test_count, slow_tests, fast_tests)
+    heavy_tests = (
+        test for test in self.ListTests()
+        if test.is_heavy)
+    slow_tests = (
+        test for test in self.ListTests()
+        if not test.is_heavy and test.is_slow)
+    remaining_tests = (
+        test for test in self.ListTests()
+        if not test.is_heavy and not test.is_slow)
+    return TestGenerator(test_count, heavy_tests, slow_tests, remaining_tests)
 
   def get_variants_gen(self, variants):
     return self._variants_gen_class()(variants)

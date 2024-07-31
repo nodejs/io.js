@@ -1,0 +1,81 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("cares_gn_build") {
+  config("cares_config") {
+    include_dirs = [ "include" ]
+    if (!is_component_build) {
+      defines = [ "CARES_STATICLIB" ]
+    }
+  }
+
+  gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                            [ rebase_path("cares.gyp") ],
+                            "scope",
+                            [ "cares.gyp" ])
+
+  component(target_name) {
+    forward_variables_from(invoker, "*")
+    public_configs = [ ":cares_config" ]
+    if (is_component_build) {
+      defines = [ "CARES_BUILDING_LIBRARY" ]
+    } else {
+      defines = []
+    }
+    if (is_win) {
+      defines += [ "CARES_PULL_WS2TCPIP_H=1" ]
+    }
+    if (is_posix) {
+      defines += [
+        "_DARWIN_USE_64_BIT_INODE=1",
+        "_LARGEFILE_SOURCE",
+        "_FILE_OFFSET_BITS=64",
+        "_GNU_SOURCE",
+        "HAVE_CONFIG_H",
+      ]
+    }
+
+    include_dirs = [ "src/lib" ]
+    if (is_win) {
+      include_dirs += [ "config/win32" ]
+    } else if (is_linux) {
+      include_dirs += [ "config/linux" ]
+    } else if (is_mac) {
+      include_dirs += [ "config/darwin" ]
+    }
+
+    if (is_win) {
+      libs = [
+        "ws2_32.lib",
+        "iphlpapi.lib",
+      ]
+    }
+
+    sources = gypi_values.cares_sources_common
+    if (is_win) {
+      sources += gypi_values.cares_sources_win
+    }
+    if (is_linux) {
+      sources += [ "config/linux/ares_config.h" ]
+    }
+    if (is_mac) {
+      sources += gypi_values.cares_sources_mac
+    }
+
+    if (is_clang) {
+      if (is_win) {
+        cflags_c = [
+          "-Wno-macro-redefined",
+        ]
+      } else {
+        cflags_c = [
+          "-Wno-implicit-fallthrough",
+          "-Wno-unreachable-code",
+        ]
+      }
+    }
+  }
+}

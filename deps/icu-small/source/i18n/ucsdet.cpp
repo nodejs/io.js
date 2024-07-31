@@ -32,7 +32,7 @@ U_CAPI UCharsetDetector * U_EXPORT2
 ucsdet_open(UErrorCode   *status)
 {
     if(U_FAILURE(*status)) {
-        return 0;
+        return nullptr;
     }
 
     CharsetDetector* csd = new CharsetDetector(*status);

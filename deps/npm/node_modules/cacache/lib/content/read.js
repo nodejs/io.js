@@ -13,18 +13,20 @@ async function read (cache, integrity, opts = {}) {
   const { size } = opts
   const { stat, cpath, sri } = await withContentSri(cache, integrity, async (cpath, sri) => {
     // get size
-    const stat = await fs.stat(cpath)
+    const stat = size ? { size } : await fs.stat(cpath)
     return { stat, cpath, sri }
   })
-  if (typeof size === 'number' && stat.size !== size) {
-    throw sizeError(size, stat.size)
-  }
 
   if (stat.size > MAX_SINGLE_READ_SIZE) {
     return readPipeline(cpath, stat.size, sri, new Pipeline()).concat()
   }
 
   const data = await fs.readFile(cpath, { encoding: null })
+
+  if (stat.size !== data.length) {
+    throw sizeError(stat.size, data.length)
+  }
+
   if (!ssri.checkData(data, sri)) {
     throw integrityError(sri, cpath)
   }
@@ -55,13 +57,10 @@ function readStream (cache, integrity, opts = {}) {
   // Set all this up to run on the stream and then just return the stream
   Promise.resolve().then(async () => {
     const { stat, cpath, sri } = await withContentSri(cache, integrity, async (cpath, sri) => {
-      // just stat to ensure it exists
-      const stat = await fs.stat(cpath)
+      // get size
+      const stat = size ? { size } : await fs.stat(cpath)
       return { stat, cpath, sri }
     })
-    if (typeof size === 'number' && size !== stat.size) {
-      return stream.emit('error', sizeError(size, stat.size))
-    }
 
     return readPipeline(cpath, stat.size, sri, stream)
   }).catch(err => stream.emit('error', err))
@@ -72,7 +71,7 @@ function readStream (cache, integrity, opts = {}) {
 module.exports.copy = copy
 
 function copy (cache, integrity, dest) {
-  return withContentSri(cache, integrity, (cpath, sri) => {
+  return withContentSri(cache, integrity, (cpath) => {
     return fs.copyFile(cpath, dest)
   })
 }

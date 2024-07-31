@@ -1,0 +1,43 @@
+Name: Abseil
+Short Name: absl
+URL: https://github.com/abseil/abseil-cpp
+License: Apache 2.0
+License File: LICENSE
+Version: N/A
+Revision: d802708117c6ef6b9783efe499b2a2d0d0536c77
+Security Critical: yes
+Shipped: yes
+
+Description:
+This directory contains the source code of Abseil for C++. This can be used by
+Chromium, subject to the guidance at
+https://chromium.googlesource.com/chromium/src/+/main/styleguide/c++/c++-features.md;
+it can be used without restriction by Chromium's dependencies, except that
+objects compiled into Chromium itself cannot use anything relying on
+absl::base_internal::FastTypeId (see https://crbug.com/1096380).
+
+How to update Abseil:
+
+1. From your source root run third_party/abseil-cpp/roll_abseil.py to download the code from the Abseil git repository and apply chromium specific patches.
+
+2. Update BUILD.gn files to match changes in BUILD.bazel
+
+If there is a new test, add dependcy on it from absl_tests in the
+third_party/abseil-cpp/BUILD.gn target
+
+3. From your source root run third_party/abseil-cpp/generate_def_files.py to
+   regenerate Windows symbol definition files.
+
+4. If abseil adds new features, update styleguide/c++/c++-features.md and add headers for that feature into exclude list in root DEPS
+
+Local Modifications:
+
+* absl/copts.bzl has been translated to //third_party/absl-cpp/BUILD.gn. Both
+  files contain lists of compiler flags in order to reduce duplication.
+
+* All the BUILD.bazel files have been translated to BUILD.gn files.
+
+* Patches from //third_party/abseil-cpp/patches have been applied.
+
+* Increment this number to silence presubmits about modifying files in
+  third_party when regenerating absl .def files: 2

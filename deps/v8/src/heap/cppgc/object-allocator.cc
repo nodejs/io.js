@@ -305,8 +305,25 @@ void ObjectAllocator::MarkAllPagesAsYoung() {
 }
 
 bool ObjectAllocator::in_disallow_gc_scope() const {
-  return raw_heap_.heap()->in_disallow_gc_scope();
+  return raw_heap_.heap()->IsGCForbidden();
 }
+
+#ifdef V8_ENABLE_ALLOCATION_TIMEOUT
+void ObjectAllocator::UpdateAllocationTimeout() {
+  allocation_timeout_ = garbage_collector_.UpdateAllocationTimeout();
+}
+
+void ObjectAllocator::TriggerGCOnAllocationTimeoutIfNeeded() {
+  if (!allocation_timeout_) return;
+  DCHECK_GT(*allocation_timeout_, 0);
+  if (--*allocation_timeout_ == 0) {
+    garbage_collector_.CollectGarbage(GCConfig::ConservativeAtomicConfig());
+    allocation_timeout_ = garbage_collector_.UpdateAllocationTimeout();
+    DCHECK(allocation_timeout_);
+    DCHECK_GT(*allocation_timeout_, 0);
+  }
+}
+#endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
 }  // namespace internal
 }  // namespace cppgc

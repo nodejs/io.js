@@ -592,7 +592,7 @@ function TestCallRefFromParam(numParams, jsFunc, mode) {
 
   let body = [];
   for (let i = 1; i <= numParams; ++i) {
-    body.push(kExprLocalGet, ...wasmSignedLeb(i));
+    body.push(kExprLocalGet, ...wasmUnsignedLeb(i));
   }
   body.push(kExprLocalGet, 0, kExprCallRef, sigId);
 

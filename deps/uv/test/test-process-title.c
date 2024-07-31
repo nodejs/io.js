@@ -29,15 +29,15 @@ static void set_title(const char* title) {
   int err;
 
   err = uv_get_process_title(buffer, sizeof(buffer));
-  ASSERT(err == 0);
+  ASSERT_OK(err);
 
   err = uv_set_process_title(title);
-  ASSERT(err == 0);
+  ASSERT_OK(err);
 
   err = uv_get_process_title(buffer, sizeof(buffer));
-  ASSERT(err == 0);
+  ASSERT_OK(err);
 
-  ASSERT(strcmp(buffer, title) == 0);
+  ASSERT_OK(strcmp(buffer, title));
 }
 
 
@@ -47,15 +47,15 @@ static void uv_get_process_title_edge_cases(void) {
 
   /* Test a NULL buffer */
   r = uv_get_process_title(NULL, 100);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   /* Test size of zero */
   r = uv_get_process_title(buffer, 0);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   /* Test for insufficient buffer size */
   r = uv_get_process_title(buffer, 1);
-  ASSERT(r == UV_ENOBUFS);
+  ASSERT_EQ(r, UV_ENOBUFS);
 }
 
 
@@ -77,8 +77,8 @@ TEST_IMPL(process_title) {
 
 
 static void exit_cb(uv_process_t* process, int64_t status, int signo) {
-  ASSERT(status == 0);
-  ASSERT(signo == 0);
+  ASSERT_OK(status);
+  ASSERT_OK(signo);
   uv_close((uv_handle_t*) process, NULL);
 }
 
@@ -97,7 +97,7 @@ TEST_IMPL(process_title_big_argv) {
 #endif
 
   exepath_size = sizeof(exepath) - 1;
-  ASSERT(0 == uv_exepath(exepath, &exepath_size));
+  ASSERT_OK(uv_exepath(exepath, &exepath_size));
   exepath[exepath_size] = '\0';
 
   memset(jumbo, 'x', sizeof(jumbo) - 1);
@@ -117,8 +117,8 @@ TEST_IMPL(process_title_big_argv) {
   options.args = args;
   options.exit_cb = exit_cb;
 
-  ASSERT(0 == uv_spawn(uv_default_loop(), &process, &options));
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_spawn(uv_default_loop(), &process, &options));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -131,5 +131,5 @@ void process_title_big_argv(void) {
 
   /* Return value deliberately ignored. */
   uv_get_process_title(buf, sizeof(buf));
-  ASSERT(0 != strcmp(buf, "fail"));
+  ASSERT_NE(0, strcmp(buf, "fail"));
 }

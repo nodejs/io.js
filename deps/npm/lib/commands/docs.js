@@ -1,4 +1,5 @@
 const PackageUrlCmd = require('../package-url-cmd.js')
+
 class Docs extends PackageUrlCmd {
   static description = 'Open documentation for a package in a web browser'
   static name = 'docs'
@@ -16,4 +17,5 @@ class Docs extends PackageUrlCmd {
     return `https://www.npmjs.com/package/${mani.name}`
   }
 }
+
 module.exports = Docs

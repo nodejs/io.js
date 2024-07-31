@@ -25,14 +25,15 @@ bool CheckObjectComparisonAllowed(Address a, Address b) {
   if (!HAS_STRONG_HEAP_OBJECT_TAG(a) || !HAS_STRONG_HEAP_OBJECT_TAG(b)) {
     return true;
   }
-  HeapObject obj_a = HeapObject::unchecked_cast(Object(a));
-  HeapObject obj_b = HeapObject::unchecked_cast(Object(b));
-  // This check might fail when we try to compare InstructionStream object with
-  // non-InstructionStream object. The main legitimate case when such "mixed"
-  // comparison could happen is comparing two AbstractCode objects. If that's
-  // the case one must use AbstractCode's == operator instead of Object's one or
-  // SafeEquals().
+  Tagged<HeapObject> obj_a = HeapObject::unchecked_cast(Tagged<Object>(a));
+  Tagged<HeapObject> obj_b = HeapObject::unchecked_cast(Tagged<Object>(b));
+  // This check might fail when we try to compare objects in different pointer
+  // compression cages (e.g. the one used by code space or trusted space) with
+  // each other. The main legitimate case when such "mixed" comparison could
+  // happen is comparing two AbstractCode objects. If that's the case one must
+  // use AbstractCode's == operator instead of Object's one or SafeEquals().
   CHECK_EQ(IsCodeSpaceObject(obj_a), IsCodeSpaceObject(obj_b));
+  CHECK_EQ(IsTrustedSpaceObject(obj_a), IsTrustedSpaceObject(obj_b));
   return true;
 }
 #endif  // V8_EXTERNAL_CODE_SPACE

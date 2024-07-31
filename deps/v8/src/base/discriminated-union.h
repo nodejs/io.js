@@ -63,7 +63,7 @@ class DiscriminatedUnion {
     // TODO(leszeks): Support unions with repeated types.
     DCHECK_EQ(tag, static_cast<Tag>(index));
     tag_ = static_cast<uint8_t>(index);
-    new (&data_) T(std::forward<T>(data));
+    new (data_) T(std::forward<T>(data));
   }
 
   // Construct with known type.
@@ -73,7 +73,7 @@ class DiscriminatedUnion {
     static_assert(index < sizeof...(Ts));
     static_assert(index < std::numeric_limits<uint8_t>::max());
     tag_ = static_cast<uint8_t>(index);
-    new (&data_) T(std::forward<T>(data));
+    new (data_) T(std::forward<T>(data));
   }
 
   constexpr Tag tag() const { return static_cast<Tag>(tag_); }
@@ -83,7 +83,7 @@ class DiscriminatedUnion {
   constexpr const auto& get() const {
     using T = nth_type_t<static_cast<size_t>(tag), Ts...>;
     DCHECK_EQ(tag, this->tag());
-    return reinterpret_cast<const T&>(data_);
+    return *reinterpret_cast<const T*>(data_);
   }
 
   // Get union member by tag.
@@ -91,21 +91,21 @@ class DiscriminatedUnion {
   constexpr auto& get() {
     using T = nth_type_t<static_cast<size_t>(tag), Ts...>;
     DCHECK_EQ(tag, this->tag());
-    return reinterpret_cast<T&>(data_);
+    return *reinterpret_cast<T*>(data_);
   }
 
   // Get union member by type.
   template <typename T>
   constexpr const auto& get() const {
     DCHECK_EQ(static_cast<Tag>(index_of_type_v<T, Ts...>), this->tag());
-    return reinterpret_cast<const T&>(data_);
+    return *reinterpret_cast<const T*>(data_);
   }
 
   // Get union member by type.
   template <typename T>
   constexpr auto& get() {
     DCHECK_EQ(static_cast<Tag>(index_of_type_v<T, Ts...>), this->tag());
-    return reinterpret_cast<T&>(data_);
+    return *reinterpret_cast<T*>(data_);
   }
 
  private:

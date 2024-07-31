@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="workspaces">workspaces</h1>
+<h1 id="----workspaces----1082">
+    <span>workspaces</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Working with workspaces</span>
 </header>
 
@@ -147,11 +155,11 @@ npm command-line interface
 
 <div id="_content"><h3 id="description">Description</h3>
 <p><strong>Workspaces</strong> is a generic term that refers to the set of features in the
-npm cli that provides support to managing multiple packages from your local
+npm cli that provides support for managing multiple packages from your local
 file system from within a singular top-level, root package.</p>
 <p>This set of features makes up for a much more streamlined workflow handling
-linked packages from the local file system. Automating the linking process
-as part of <code>npm install</code> and avoiding manually having to use <code>npm link</code> in
+linked packages from the local file system. It automates the linking process
+as part of <code>npm install</code> and removes the need to manually use <code>npm link</code> in
 order to add references to packages that should be symlinked into the current
 <code>node_modules</code> folder.</p>
 <p>We also refer to these packages being auto-symlinked during <code>npm install</code> as a
@@ -221,7 +229,7 @@ workspace:</p>
 <p>Note: other installing commands such as <code>uninstall</code>, <code>ci</code>, etc will also
 respect the provided <code>workspace</code> configuration.</p>
 <h3 id="using-workspaces">Using workspaces</h3>
-<p>Given the <a href="https://nodejs.org/dist/latest-v14.x/docs/api/modules.html#modules_all_together">specifities of how Node.js handles module resolution</a> it's possible to consume any defined workspace
+<p>Given the <a href="https://nodejs.org/dist/latest-v14.x/docs/api/modules.html#modules_all_together">specifics of how Node.js handles module resolution</a> it's possible to consume any defined workspace
 by its declared <code>package.json</code> <code>name</code>. Continuing from the example defined
 above, let's also create a Node.js script that will require the workspace <code>a</code>
 example module, e.g:</p>

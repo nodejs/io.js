@@ -15,9 +15,11 @@ include_rules = [
   "+src/compiler/turboshaft/wasm-turboshaft-compiler.h",
   "+src/compiler/wasm-compiler-definitions.h",
   "+src/compiler/wasm-compiler.h",
+  "-src/flags/flags-impl.h",
   "-src/heap",
-  "+src/heap/basic-memory-chunk.h",
+  "+src/heap/memory-chunk-metadata.h",
   "+src/heap/code-range.h",
+  "+src/heap/trusted-range.h",
   "+src/heap/combined-heap.h",
   "+src/heap/factory.h",
   "+src/heap/factory-inl.h",
@@ -36,8 +38,9 @@ include_rules = [
   "+src/heap/local-heap-inl.h",
   "+src/heap/pretenuring-handler-inl.h",
   # TODO(v8:10496): Don't expose memory chunk outside of heap/.
+  "+src/heap/mutable-page.h",
+  "+src/heap/mutable-page-inl.h",
   "+src/heap/memory-chunk.h",
-  "+src/heap/memory-chunk-inl.h",
   "+src/heap/paged-spaces-inl.h",
   "+src/heap/parked-scope-inl.h",
   "+src/heap/parked-scope.h",
@@ -105,6 +108,12 @@ specific_include_rules = {
   ],
   "external-pointer-table\.cc": [
     "+src/heap/read-only-spaces.h",
+  ],
+  # keep the includes to a minimum since this header will be included via write barriers.
+  "memory-chunk-header\.h": [
+    "-src",
+    "+src/base/build_config.h",
+    "+src/flags/flags.h",
   ],
   "script\.h": [
     "+src/heap/factory.h",

@@ -353,7 +353,7 @@ void LinuxPerfJitLogger::LogWriteDebugInfo(Tagged<Code> code,
   PerfJitCodeDebugInfo debug_info;
   uint32_t size = sizeof(debug_info);
 
-  Tagged<ByteArray> source_position_table =
+  Tagged<TrustedByteArray> source_position_table =
       code->SourcePositionTable(isolate_, raw_shared);
   // Compute the entry count and get the names of all scripts.
   // Avoid additional work if the script name is repeated. Multiple script

@@ -1,0 +1,32 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("simdutf_gn_build") {
+  config("simdutf_config") {
+    include_dirs = [ "." ]
+  }
+
+  gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                            [ rebase_path("simdutf.gyp") ],
+                            "scope",
+                            [ "simdutf.gyp" ])
+
+  source_set(target_name) {
+    forward_variables_from(invoker, "*")
+    public_configs = [ ":simdutf_config" ]
+    sources = gypi_values.simdutf_sources
+    if (is_clang || !is_win) {
+      cflags_cc = [
+        "-Wno-#pragma-messages",
+        "-Wno-ambiguous-reversed-operator",
+        "-Wno-unreachable-code-break",
+        "-Wno-unused-const-variable",
+        "-Wno-unused-function",
+        "-Wno-c++98-compat-extra-semi",
+      ]
+    }
+  }
+}

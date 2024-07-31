@@ -22,7 +22,6 @@ EXTRA_FLAGS = [
     (0.1, '--maglev'),
     (0.1, '--maglev-future'),
     (0.25, '--minor-ms'),
-    (0.1, '--concurrent-minor-ms-marking'),
     (0.2, '--no-analyze-environment-liveness'),
     # TODO(machenbach): Enable when it doesn't collide with crashing on missing
     # simd features.
@@ -55,7 +54,7 @@ EXTRA_FLAGS = [
     (0.2, '--turboshaft'),
     (0.1, '--turbo-instruction-scheduling'),
     (0.1, '--turbo-stress-instruction-scheduling'),
-    (0.1, '--turbo-force-mid-tier-regalloc'),
+    (0.1, '--stress-wasm-memory-moving'),
 ]
 
 MIN_DEOPT = 1

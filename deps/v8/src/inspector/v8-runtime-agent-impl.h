@@ -77,7 +77,6 @@ class V8RuntimeAgentImpl : public protocol::Runtime::Backend {
       Maybe<bool> awaitPromise, Maybe<bool> throwOnSideEffect,
       Maybe<double> timeout, Maybe<bool> disableBreaks, Maybe<bool> replMode,
       Maybe<bool> allowUnsafeEvalBlockedByCSP, Maybe<String16> uniqueContextId,
-      Maybe<bool> generateWebDriverValue,
       Maybe<protocol::Runtime::SerializationOptions> serializationOptions,
       std::unique_ptr<EvaluateCallback>) override;
   void awaitPromise(const String16& promiseObjectId, Maybe<bool> returnByValue,
@@ -90,7 +89,7 @@ class V8RuntimeAgentImpl : public protocol::Runtime::Backend {
       Maybe<bool> generatePreview, Maybe<bool> userGesture,
       Maybe<bool> awaitPromise, Maybe<int> executionContextId,
       Maybe<String16> objectGroup, Maybe<bool> throwOnSideEffect,
-      Maybe<String16> uniqueContextId, Maybe<bool> generateWebDriverValue,
+      Maybe<String16> uniqueContextId,
       Maybe<protocol::Runtime::SerializationOptions> serializationOptions,
       std::unique_ptr<CallFunctionOnCallback>) override;
   Response releaseObject(const String16& objectId) override;

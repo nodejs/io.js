@@ -9,6 +9,8 @@ TypeError: foobar
 [90m    at *(node:internal*loader:*:*)[39m
 [90m    at *(node:internal*loader:*:*)[39m
 [90m    at *[39m
+[90m    at *[39m
+[90m    at *[39m
 [90m    at *[39m {
   bla: [33mtrue[39m
 }

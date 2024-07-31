@@ -30,7 +30,8 @@
 import hashlib
 md5er = hashlib.md5
 
-
+from contextlib import AbstractContextManager
+import io
 import json
 import multiprocessing
 import optparse
@@ -41,6 +42,7 @@ import re
 import subprocess
 from subprocess import PIPE
 import sys
+import time
 
 from testrunner.local import statusfile
 
@@ -82,6 +84,9 @@ FLAGS_NO_ALWAYS_OPT = re.compile("//\s*Flags:.*--no-?always-turbofan.*\n")
 TOOLS_PATH = dirname(abspath(__file__))
 DEPS_DEPOT_TOOLS_PATH = abspath(
     join(TOOLS_PATH, '..', 'third_party', 'depot_tools'))
+
+sys.path.append(DEPS_DEPOT_TOOLS_PATH)
+import rdb_wrapper
 
 
 def CppLintWorker(command):
@@ -808,24 +813,69 @@ def GetOptions():
   return result
 
 
+class TeeIO:
+
+  def __init__(self, source, dest):
+    self.source = source
+    self.dest = dest
+
+  def write(self, obj):
+    self.source.write(obj)
+    self.dest.write(obj)
+
+  def flush(self):
+    self.source.flush()
+    self.dest.flush()
+
+
+class TeeOutput(AbstractContextManager):
+
+  def __init__(self, new_target):
+    self._new_target = new_target
+    self.old_out = sys.stdout
+    self.old_err = sys.stderr
+
+  def __enter__(self):
+    sys.stdout = TeeIO(self.old_out, self._new_target)
+    sys.stderr = TeeIO(self.old_err, self._new_target)
+    return self._new_target
+
+  def __exit__(self, exctype, excinst, exctb):
+    sys.stdout = self.old_out
+    sys.stderr = self.old_err
+
+
 def run_checks(checks, workspace):
   failures = []
 
-  def run(check_function, named_object=None):
+  def capture_output(check_function):
+    start_time = time.time()
+    with TeeOutput(io.StringIO()) as f:
+      success = check_function(workspace)
+      return (rdb_wrapper.STATUS_PASS if success else rdb_wrapper.STATUS_FAIL,
+              None if success else f.getvalue()[-1024:],
+              time.time() - start_time)
+
+  def run(check_function, named_object=None, sink=None):
     name = (named_object or check_function).__name__
     print('__________________')
     print(f'Running {name}...')
-    if check_function(workspace):
+    status, output, duration = capture_output(check_function)
+    if status == rdb_wrapper.STATUS_PASS:
       print(f'{name} SUCCEDED')
-      return
-    failures.append(name)
-    print(f'!!! {name} FAILED')
-
-  for check in checks:
-    if callable(check):
-      run(check)
     else:
-      run(check.RunOnPath, check.__class__)
+      failures.append(name)
+      print(f'!!! {name} FAILED')
+    if sink:
+      sink.report(name, status, duration, output)
+
+  with rdb_wrapper.client('v8:full_presubmit/') as sink:
+    for check in checks:
+      if callable(check):
+        run(check, sink=sink)
+      else:
+        run(check.RunOnPath, check.__class__, sink=sink)
+
   return '\n'.join(failures)
 
 

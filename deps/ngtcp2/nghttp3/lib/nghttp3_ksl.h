@@ -108,7 +108,7 @@ struct nghttp3_ksl_blk {
   };
 };
 
-nghttp3_objalloc_def(ksl_blk, nghttp3_ksl_blk, oplent);
+nghttp3_objalloc_decl(ksl_blk, nghttp3_ksl_blk, oplent);
 
 /*
  * nghttp3_ksl_compar is a function type which returns nonzero if key
@@ -265,12 +265,14 @@ void nghttp3_ksl_clear(nghttp3_ksl *ksl);
 #define nghttp3_ksl_nth_node(KSL, BLK, N)                                      \
   ((nghttp3_ksl_node *)(void *)((BLK)->nodes + (KSL)->nodelen * (N)))
 
+#ifndef WIN32
 /*
  * nghttp3_ksl_print prints its internal state in stderr.  It assumes
  * that the key is of type int64_t.  This function should be used for
  * the debugging purpose only.
  */
 void nghttp3_ksl_print(nghttp3_ksl *ksl);
+#endif /* !WIN32 */
 
 /*
  * nghttp3_ksl_it_init initializes |it|.

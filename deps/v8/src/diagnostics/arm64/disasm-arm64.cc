@@ -1250,7 +1250,7 @@ void DisassemblingDecoder::VisitFPCompare(Instruction* instr) {
     case FCMP_s_zero:
     case FCMP_d_zero:
       form = form_zero;
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case FCMP_s:
     case FCMP_d:
       mnemonic = "fcmp";
@@ -4263,7 +4263,7 @@ int DisassemblingDecoder::SubstituteShiftField(Instruction* instr,
   switch (format[1]) {
     case 'D': {  // NDP.
       DCHECK(instr->ShiftDP() != ROR);
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     }
     case 'L': {  // NLo.
       if (instr->ImmDPShift() != 0) {

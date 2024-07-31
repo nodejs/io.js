@@ -20,6 +20,7 @@
 #if !UCONFIG_NO_FORMATTING
 
 #include "taiwncal.h"
+#include "gregoimp.h"
 #include "unicode/gregocal.h"
 #include "umutex.h"
 #include <float.h>
@@ -30,7 +31,7 @@ UOBJECT_DEFINE_RTTI_IMPLEMENTATION(TaiwanCalendar)
 
 static const int32_t kTaiwanEraStart = 1911;  // 1911 (Gregorian)
 
-static const int32_t kGregorianEpoch = 1970; 
+static const int32_t kGregorianEpoch = 1970;
 
 TaiwanCalendar::TaiwanCalendar(const Locale& aLocale, UErrorCode& success)
 :   GregorianCalendar(aLocale, success)
@@ -63,24 +64,37 @@ const char *TaiwanCalendar::getType() const
     return "roc";
 }
 
-int32_t TaiwanCalendar::handleGetExtendedYear()
+int32_t TaiwanCalendar::handleGetExtendedYear(UErrorCode& status)
 {
+    if (U_FAILURE(status)) {
+        return 0;
+    }
+
     // EXTENDED_YEAR in TaiwanCalendar is a Gregorian year
     // The default value of EXTENDED_YEAR is 1970 (Minguo 59)
-    int32_t year = kGregorianEpoch;
-
     if (newerField(UCAL_EXTENDED_YEAR, UCAL_YEAR) == UCAL_EXTENDED_YEAR
         && newerField(UCAL_EXTENDED_YEAR, UCAL_ERA) == UCAL_EXTENDED_YEAR) {
-        year = internalGet(UCAL_EXTENDED_YEAR, kGregorianEpoch);
-    } else {
-        int32_t era = internalGet(UCAL_ERA, MINGUO);
-        if(era == MINGUO) {
-            year =     internalGet(UCAL_YEAR, 1) + kTaiwanEraStart;
-        } else if(era == BEFORE_MINGUO) {
-            year = 1 - internalGet(UCAL_YEAR, 1) + kTaiwanEraStart;
-        }
+        return internalGet(UCAL_EXTENDED_YEAR, kGregorianEpoch);
     }
-    return year;
+    int32_t era = internalGet(UCAL_ERA, MINGUO);
+    int32_t year = internalGet(UCAL_YEAR, 1);
+    switch (era) {
+        case MINGUO:
+            if (uprv_add32_overflow(year, kTaiwanEraStart, &year)) {
+                status = U_ILLEGAL_ARGUMENT_ERROR;
+                return 0;
+            }
+            return year;
+        case BEFORE_MINGUO:
+            if (uprv_add32_overflow(1 + kTaiwanEraStart, -year, &year)) {
+                status = U_ILLEGAL_ARGUMENT_ERROR;
+                return 0;
+            }
+            return year;
+        default:
+            status = U_ILLEGAL_ARGUMENT_ERROR;
+            return 0;
+    }
 }
 
 void TaiwanCalendar::handleComputeFields(int32_t julianDay, UErrorCode& status)
@@ -98,85 +112,16 @@ void TaiwanCalendar::handleComputeFields(int32_t julianDay, UErrorCode& status)
 
 int32_t TaiwanCalendar::handleGetLimit(UCalendarDateFields field, ELimitType limitType) const
 {
-    if(field == UCAL_ERA) {
-        if(limitType == UCAL_LIMIT_MINIMUM || limitType == UCAL_LIMIT_GREATEST_MINIMUM) {
-            return BEFORE_MINGUO;
-        } else {
-            return MINGUO;
-        }
-    } else {
+    if(field != UCAL_ERA) {
         return GregorianCalendar::handleGetLimit(field,limitType);
     }
-}
-
-#if 0
-void TaiwanCalendar::timeToFields(UDate theTime, UBool quick, UErrorCode& status)
-{
-    //Calendar::timeToFields(theTime, quick, status);
-
-    int32_t era = internalGet(UCAL_ERA);
-    int32_t year = internalGet(UCAL_YEAR);
-
-    if(era == GregorianCalendar::BC) {
-        year = 1-year;
-        era = TaiwanCalendar::MINGUO;
-    } else if(era == GregorianCalendar::AD) {
-        era = TaiwanCalendar::MINGUO;
-    } else {
-        status = U_INTERNAL_PROGRAM_ERROR;
+    if (limitType == UCAL_LIMIT_MINIMUM || limitType == UCAL_LIMIT_GREATEST_MINIMUM) {
+        return BEFORE_MINGUO;
     }
-
-    year = year - kTaiwanEraStart;
-
-    internalSet(UCAL_ERA, era);
-    internalSet(UCAL_YEAR, year);
-}
-#endif
-
-/**
- * The system maintains a static default century start date and Year.  They are
- * initialized the first time they are used.  Once the system default century date 
- * and year are set, they do not change.
- */
-static UDate           gSystemDefaultCenturyStart       = DBL_MIN;
-static int32_t         gSystemDefaultCenturyStartYear   = -1;
-static icu::UInitOnce  gSystemDefaultCenturyInit        {};
-
-UBool TaiwanCalendar::haveDefaultCentury() const
-{
-    return true;
+    return MINGUO;
 }
 
-static void U_CALLCONV initializeSystemDefaultCentury()
-{
-    // initialize systemDefaultCentury and systemDefaultCenturyYear based
-    // on the current time.  They'll be set to 80 years before
-    // the current time.
-    UErrorCode status = U_ZERO_ERROR;
-    TaiwanCalendar calendar(Locale("@calendar=roc"),status);
-    if (U_SUCCESS(status))
-    {
-        calendar.setTime(Calendar::getNow(), status);
-        calendar.add(UCAL_YEAR, -80, status);
-
-        gSystemDefaultCenturyStart = calendar.getTime(status);
-        gSystemDefaultCenturyStartYear = calendar.get(UCAL_YEAR, status);
-    }
-    // We have no recourse upon failure unless we want to propagate the failure
-    // out.
-}
-
-UDate TaiwanCalendar::defaultCenturyStart() const {
-    // lazy-evaluate systemDefaultCenturyStart
-    umtx_initOnce(gSystemDefaultCenturyInit, &initializeSystemDefaultCentury);
-    return gSystemDefaultCenturyStart;
-}
-
-int32_t TaiwanCalendar::defaultCenturyStartYear() const {
-    // lazy-evaluate systemDefaultCenturyStartYear
-    umtx_initOnce(gSystemDefaultCenturyInit, &initializeSystemDefaultCentury);
-    return gSystemDefaultCenturyStartYear;
-}
+IMPL_SYSTEM_DEFAULT_CENTURY(TaiwanCalendar, "@calendar=roc")
 
 U_NAMESPACE_END
 

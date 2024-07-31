@@ -54,7 +54,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   let builder = new WasmModuleBuilder();
   let fun1 = new WebAssembly.Function({parameters:[], results:["i32"]}, _ => 7);
   let fun2 = new WebAssembly.Function({parameters:[], results:["i32"]}, _ => 9);
-  builder.addGlobal(kWasmAnyFunc, true).exportAs("f");
+  builder.addGlobal(kWasmAnyFunc, true, false).exportAs("f");
   builder.addFunction('get_global', kSig_a_v)
       .addBody([
         kExprGlobalGet, 0,

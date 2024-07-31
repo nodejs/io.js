@@ -28,7 +28,6 @@
  */
 
 #include "locmap.h"
-#include "bytesinkutil.h"
 #include "charstr.h"
 #include "cstring.h"
 #include "cmemory.h"
@@ -48,6 +47,8 @@
  * Windows LCIDs are defined at https://msdn.microsoft.com/en-us/library/cc233965.aspx
  * [MS-LCID] Windows Language Code Identifier (LCID) Reference
  */
+
+namespace {
 
 /*
 ////////////////////////////////////////////////
@@ -87,7 +88,7 @@ typedef struct ILcidPosixMap
  * @param posixID posix ID of the language_TERRITORY such as 'de_CH'
  */
 #define ILCID_POSIX_ELEMENT_ARRAY(hostID, languageID, posixID) \
-static const ILcidPosixElement locmap_ ## languageID [] = { \
+constexpr ILcidPosixElement locmap_ ## languageID [] = { \
     {LANGUAGE_LCID(hostID), #languageID},     /* parent locale */ \
     {hostID, #posixID}, \
 };
@@ -97,7 +98,7 @@ static const ILcidPosixElement locmap_ ## languageID [] = { \
  * @param id the POSIX ID, either a language or language_TERRITORY
  */
 #define ILCID_POSIX_SUBTABLE(id) \
-static const ILcidPosixElement locmap_ ## id [] =
+constexpr ILcidPosixElement locmap_ ## id [] =
 
 
 /**
@@ -796,7 +797,7 @@ ILCID_POSIX_SUBTABLE(zh) {
 ILCID_POSIX_ELEMENT_ARRAY(0x0435, zu, zu_ZA)
 
 /* This must be static and grouped by LCID. */
-static const ILcidPosixMap gPosixIDmap[] = {
+constexpr ILcidPosixMap gPosixIDmap[] = {
     ILCID_POSIX_MAP(af),    /*  af  Afrikaans                 0x36 */
     ILCID_POSIX_MAP(am),    /*  am  Amharic                   0x5e */
     ILCID_POSIX_MAP(ar),    /*  ar  Arabic                    0x01 */
@@ -945,14 +946,14 @@ static const ILcidPosixMap gPosixIDmap[] = {
     ILCID_POSIX_MAP(zu),    /*  zu  Zulu                      0x35 */
 };
 
-static const uint32_t gLocaleCount = UPRV_LENGTHOF(gPosixIDmap);
+constexpr uint32_t gLocaleCount = UPRV_LENGTHOF(gPosixIDmap);
 
 /**
  * Do not call this function. It is called by hostID.
  * The function is not private because this struct must stay as a C struct,
  * and this is an internal class.
  */
-static int32_t
+int32_t
 idCmp(const char* id1, const char* id2)
 {
     int32_t diffIdx = 0;
@@ -972,9 +973,10 @@ idCmp(const char* id1, const char* id2)
  *               no equivalent Windows LCID.
  * @return the LCID
  */
-static uint32_t
-getHostID(const ILcidPosixMap *this_0, const char* posixID, UErrorCode* status)
+uint32_t
+getHostID(const ILcidPosixMap *this_0, const char* posixID, UErrorCode& status)
 {
+    if (U_FAILURE(status)) { return locmap_root->hostID; }
     int32_t bestIdx = 0;
     int32_t bestIdxDiff = 0;
     int32_t posixIDlen = (int32_t)uprv_strlen(posixID);
@@ -996,16 +998,16 @@ getHostID(const ILcidPosixMap *this_0, const char* posixID, UErrorCode* status)
     if ((posixID[bestIdxDiff] == '_' || posixID[bestIdxDiff] == '@')
         && this_0->regionMaps[bestIdx].posixID[bestIdxDiff] == 0)
     {
-        *status = U_USING_FALLBACK_WARNING;
+        status = U_USING_FALLBACK_WARNING;
         return this_0->regionMaps[bestIdx].hostID;
     }
 
     /*no match found */
-    *status = U_ILLEGAL_ARGUMENT_ERROR;
-    return this_0->regionMaps->hostID;
+    status = U_ILLEGAL_ARGUMENT_ERROR;
+    return locmap_root->hostID;
 }
 
-static const char*
+const char*
 getPosixID(const ILcidPosixMap *this_0, uint32_t hostID)
 {
     uint32_t i;
@@ -1035,18 +1037,20 @@ getPosixID(const ILcidPosixMap *this_0, uint32_t hostID)
  * quz -> qu
  * prs -> fa
  */
-#define FIX_LANGUAGE_ID_TAG(buffer, len) \
-    if (len >= 3) { \
-        if (buffer[0] == 'q' && buffer[1] == 'u' && buffer[2] == 'z') {\
-            buffer[2] = 0; \
-            uprv_strcat(buffer, buffer+3); \
-        } else if (buffer[0] == 'p' && buffer[1] == 'r' && buffer[2] == 's') {\
-            buffer[0] = 'f'; buffer[1] = 'a'; buffer[2] = 0; \
-            uprv_strcat(buffer, buffer+3); \
-        } \
+void FIX_LANGUAGE_ID_TAG(char* buffer, int32_t len) {
+    if (len >= 3) {
+        if (buffer[0] == 'q' && buffer[1] == 'u' && buffer[2] == 'z') {
+            buffer[2] = 0;
+            uprv_strcat(buffer, buffer+3);
+        } else if (buffer[0] == 'p' && buffer[1] == 'r' && buffer[2] == 's') {
+            buffer[0] = 'f'; buffer[1] = 'a'; buffer[2] = 0;
+            uprv_strcat(buffer, buffer+3);
+        }
     }
-
+}
 #endif
+
+}  // namespace
 
 U_CAPI int32_t
 uprv_convertToPosix(uint32_t hostid, char *posixID, int32_t posixIDCapacity, UErrorCode* status)
@@ -1147,7 +1151,7 @@ uprv_convertToPosix(uint32_t hostid, char *posixID, int32_t posixIDCapacity, UEr
 
     /* no match found */
     *status = U_ILLEGAL_ARGUMENT_ERROR;
-    return -1;
+    return 0;
 }
 
 /*
@@ -1170,17 +1174,13 @@ uprv_convertToLCIDPlatform(const char* localeID, UErrorCode* status)
     // conversion functionality when available.
 #if U_PLATFORM_HAS_WIN32_API && UCONFIG_USE_WINDOWS_LCID_MAPPING_API
     int32_t len;
-    char baseName[ULOC_FULLNAME_CAPACITY] = {};
+    icu::CharString baseName;
     const char * mylocaleID = localeID;
 
     // Check any for keywords.
     if (uprv_strchr(localeID, '@'))
     {
-        icu::CharString collVal;
-        {
-            icu::CharStringByteSink sink(&collVal);
-            ulocimp_getKeywordValue(localeID, "collation", sink, status);
-        }
+        icu::CharString collVal = ulocimp_getKeywordValue(localeID, "collation", *status);
         if (U_SUCCESS(*status) && !collVal.isEmpty())
         {
             // If it contains the keyword collation, return 0 so that the LCID lookup table will be used.
@@ -1189,19 +1189,16 @@ uprv_convertToLCIDPlatform(const char* localeID, UErrorCode* status)
         else
         {
             // If the locale ID contains keywords other than collation, just use the base name.
-            len = uloc_getBaseName(localeID, baseName, UPRV_LENGTHOF(baseName) - 1, status);
-
-            if (U_SUCCESS(*status) && len > 0)
+            baseName = ulocimp_getBaseName(localeID, *status);
+            if (U_SUCCESS(*status) && !baseName.isEmpty())
             {
-                baseName[len] = 0;
-                mylocaleID = baseName;
+                mylocaleID = baseName.data();
             }
         }
     }
 
-    char asciiBCP47Tag[LOCALE_NAME_MAX_LENGTH] = {};
     // this will change it from de_DE@collation=phonebook to de-DE-u-co-phonebk form
-    (void)uloc_toLanguageTag(mylocaleID, asciiBCP47Tag, UPRV_LENGTHOF(asciiBCP47Tag), false, status);
+    icu::CharString asciiBCP47Tag = ulocimp_toLanguageTag(mylocaleID, false, *status);
 
     if (U_SUCCESS(*status))
     {
@@ -1249,6 +1246,14 @@ uprv_convertToLCIDPlatform(const char* localeID, UErrorCode* status)
 U_CAPI uint32_t
 uprv_convertToLCID(const char *langID, const char* posixID, UErrorCode* status)
 {
+    if (U_FAILURE(*status) ||
+            langID == nullptr ||
+            posixID == nullptr ||
+            uprv_strlen(langID) < 2 ||
+            uprv_strlen(posixID) < 2) {
+        return locmap_root->hostID;
+    }
+
     // This function does the table lookup when native platform name->lcid conversion isn't available,
     // or for locales that don't follow patterns the platform expects.
     uint32_t   low    = 0;
@@ -1261,11 +1266,6 @@ uprv_convertToLCID(const char *langID, const char* posixID, UErrorCode* status)
     uint32_t   fallbackValue = (uint32_t)-1;
     UErrorCode myStatus;
     uint32_t   idx;
-
-    /* Check for incomplete id. */
-    if (!langID || !posixID || uprv_strlen(langID) < 2 || uprv_strlen(posixID) < 2) {
-        return 0;
-    }
 
     /*Binary search for the map entry for normal cases */
 
@@ -1284,7 +1284,7 @@ uprv_convertToLCID(const char *langID, const char* posixID, UErrorCode* status)
             low = mid;
         }
         else /*we found it*/{
-            return getHostID(&gPosixIDmap[mid], posixID, status);
+            return getHostID(&gPosixIDmap[mid], posixID, *status);
         }
         oldmid = mid;
     }
@@ -1295,7 +1295,7 @@ uprv_convertToLCID(const char *langID, const char* posixID, UErrorCode* status)
      */
     for (idx = 0; idx < gLocaleCount; idx++ ) {
         myStatus = U_ZERO_ERROR;
-        value = getHostID(&gPosixIDmap[idx], posixID, &myStatus);
+        value = getHostID(&gPosixIDmap[idx], posixID, myStatus);
         if (myStatus == U_ZERO_ERROR) {
             return value;
         }
@@ -1311,5 +1311,5 @@ uprv_convertToLCID(const char *langID, const char* posixID, UErrorCode* status)
 
     /* no match found */
     *status = U_ILLEGAL_ARGUMENT_ERROR;
-    return 0;   /* return international (root) */
+    return locmap_root->hostID;   /* return international (root) */
 }

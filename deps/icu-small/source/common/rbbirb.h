@@ -159,9 +159,6 @@ public:
     UBool                         fChainRules;       // True for chained Unicode TR style rules.
                                                      // False for traditional regexp rules.
 
-    UBool                         fLBCMNoChain;      // True:  suppress chaining of rules on
-                                                     //   chars with LineBreak property == CM.
-
     UBool                         fLookAheadHardBreak;  // True:  Look ahead matches cause an
                                                      // immediate break, no continuing for the
                                                      // longest match.

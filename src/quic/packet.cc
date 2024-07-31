@@ -13,6 +13,8 @@
 #include <string>
 #include "bindingdata.h"
 #include "cid.h"
+#include "defs.h"
+#include "ncrypto.h"
 #include "tokens.h"
 
 namespace node {
@@ -28,6 +30,19 @@ static constexpr size_t kRandlen = NGTCP2_MIN_STATELESS_RESET_RANDLEN * 5;
 static constexpr size_t kMinStatelessResetLen = 41;
 static constexpr size_t kMaxFreeList = 100;
 }  // namespace
+
+std::string PathDescriptor::ToString() const {
+  DebugIndentScope indent;
+  auto prefix = indent.Prefix();
+  std::string res = "{";
+  res += prefix + "version: " + std::to_string(version);
+  res += prefix + "dcid: " + dcid.ToString();
+  res += prefix + "scid: " + scid.ToString();
+  res += prefix + "local address: " + local_address.ToString();
+  res += prefix + "remote address: " + remote_address.ToString();
+  res += indent.Close();
+  return res;
+}
 
 struct Packet::Data final : public MemoryRetainer {
   MaybeStackBuffer<uint8_t, kDefaultMaxPacketLength> data_;
@@ -63,10 +78,6 @@ const SocketAddress& Packet::destination() const {
   return destination_;
 }
 
-bool Packet::is_sending() const {
-  return !!handle_;
-}
-
 size_t Packet::length() const {
   return data_ ? data_->length() : 0;
 }
@@ -99,22 +110,21 @@ Local<FunctionTemplate> Packet::GetConstructorTemplate(Environment* env) {
   return tmpl;
 }
 
-BaseObjectPtr<Packet> Packet::Create(Environment* env,
-                                     Listener* listener,
-                                     const SocketAddress& destination,
-                                     size_t length,
-                                     const char* diagnostic_label) {
-  auto& binding = BindingData::Get(env);
-  if (binding.packet_freelist.empty()) {
+Packet* Packet::Create(Environment* env,
+                       Listener* listener,
+                       const SocketAddress& destination,
+                       size_t length,
+                       const char* diagnostic_label) {
+  if (BindingData::Get(env).packet_freelist.empty()) {
     Local<Object> obj;
     if (UNLIKELY(!GetConstructorTemplate(env)
                       ->InstanceTemplate()
                       ->NewInstance(env->context())
                       .ToLocal(&obj))) {
-      return BaseObjectPtr<Packet>();
+      return nullptr;
     }
 
-    return MakeBaseObject<Packet>(
+    return new Packet(
         env, listener, obj, destination, length, diagnostic_label);
   }
 
@@ -124,7 +134,7 @@ BaseObjectPtr<Packet> Packet::Create(Environment* env,
                       destination);
 }
 
-BaseObjectPtr<Packet> Packet::Clone() const {
+Packet* Packet::Clone() const {
   auto& binding = BindingData::Get(env());
   if (binding.packet_freelist.empty()) {
     Local<Object> obj;
@@ -132,28 +142,30 @@ BaseObjectPtr<Packet> Packet::Clone() const {
                       ->InstanceTemplate()
                       ->NewInstance(env()->context())
                       .ToLocal(&obj))) {
-      return BaseObjectPtr<Packet>();
+      return nullptr;
     }
 
-    return MakeBaseObject<Packet>(env(), listener_, obj, destination_, data_);
+    return new Packet(env(), listener_, obj, destination_, data_);
   }
 
   return FromFreeList(env(), data_, listener_, destination_);
 }
 
-BaseObjectPtr<Packet> Packet::FromFreeList(Environment* env,
-                                           std::shared_ptr<Data> data,
-                                           Listener* listener,
-                                           const SocketAddress& destination) {
+Packet* Packet::FromFreeList(Environment* env,
+                             std::shared_ptr<Data> data,
+                             Listener* listener,
+                             const SocketAddress& destination) {
   auto& binding = BindingData::Get(env);
-  auto obj = binding.packet_freelist.back();
+  if (binding.packet_freelist.empty()) return nullptr;
+  Packet* packet = binding.packet_freelist.back();
   binding.packet_freelist.pop_back();
-  DCHECK_EQ(env, obj->env());
-  auto packet = static_cast<Packet*>(obj.get());
+  CHECK_NOT_NULL(packet);
+  CHECK_EQ(env, packet->env());
+  Debug(packet, "Reusing packet from freelist");
   packet->data_ = std::move(data);
   packet->destination_ = destination;
   packet->listener_ = listener;
-  return BaseObjectPtr<Packet>(packet);
+  return packet;
 }
 
 Packet::Packet(Environment* env,
@@ -164,7 +176,10 @@ Packet::Packet(Environment* env,
     : ReqWrap<uv_udp_send_t>(env, object, AsyncWrap::PROVIDER_QUIC_PACKET),
       listener_(listener),
       destination_(destination),
-      data_(std::move(data)) {}
+      data_(std::move(data)) {
+  ClearWeak();
+  Debug(this, "Created a new packet");
+}
 
 Packet::Packet(Environment* env,
                Listener* listener,
@@ -178,41 +193,22 @@ Packet::Packet(Environment* env,
              destination,
              std::make_shared<Data>(length, diagnostic_label)) {}
 
-int Packet::Send(uv_udp_t* handle, BaseObjectPtr<BaseObject> ref) {
-  if (is_sending()) return UV_EALREADY;
-  if (data_ == nullptr) return UV_EINVAL;
-  DCHECK(!is_sending());
-  handle_ = std::move(ref);
-  uv_buf_t buf = *this;
-  return Dispatch(
-      uv_udp_send,
-      handle,
-      &buf,
-      1,
-      destination().data(),
-      uv_udp_send_cb{[](uv_udp_send_t* req, int status) {
-        auto ptr = static_cast<Packet*>(ReqWrap<uv_udp_send_t>::from_req(req));
-        ptr->Done(status);
-        // Do not try accessing ptr after this. We don't know if it
-        // was freelisted or destroyed. Either way, done means done.
-      }});
-}
-
 void Packet::Done(int status) {
+  Debug(this, "Packet is done with status %d", status);
   if (listener_ != nullptr) {
     listener_->PacketDone(status);
   }
-  listener_ = nullptr;
-  handle_.reset();
-  data_.reset();
-  Reset();
 
   // As a performance optimization, we add this packet to a freelist
   // rather than deleting it but only if the freelist isn't too
   // big, we don't want to accumulate these things forever.
   auto& binding = BindingData::Get(env());
   if (binding.packet_freelist.size() < kMaxFreeList) {
-    binding.packet_freelist.emplace_back(this);
+    Debug(this, "Returning packet to freelist");
+    listener_ = nullptr;
+    data_.reset();
+    Reset();
+    binding.packet_freelist.push_back(this);
   } else {
     delete this;
   }
@@ -226,14 +222,12 @@ std::string Packet::ToString() const {
 void Packet::MemoryInfo(MemoryTracker* tracker) const {
   tracker->TrackField("destination", destination_);
   tracker->TrackField("data", data_);
-  tracker->TrackField("handle", handle_);
 }
 
-BaseObjectPtr<Packet> Packet::CreateRetryPacket(
-    Environment* env,
-    Listener* listener,
-    const PathDescriptor& path_descriptor,
-    const TokenSecret& token_secret) {
+Packet* Packet::CreateRetryPacket(Environment* env,
+                                  Listener* listener,
+                                  const PathDescriptor& path_descriptor,
+                                  const TokenSecret& token_secret) {
   auto& random = CID::Factory::random();
   CID cid = random.Generate();
   RetryToken token(path_descriptor.version,
@@ -241,7 +235,7 @@ BaseObjectPtr<Packet> Packet::CreateRetryPacket(
                    cid,
                    path_descriptor.dcid,
                    token_secret);
-  if (!token) return BaseObjectPtr<Packet>();
+  if (!token) return nullptr;
 
   const ngtcp2_vec& vec = token;
 
@@ -250,7 +244,7 @@ BaseObjectPtr<Packet> Packet::CreateRetryPacket(
 
   auto packet =
       Create(env, listener, path_descriptor.remote_address, pktlen, "retry");
-  if (!packet) return BaseObjectPtr<Packet>();
+  if (packet == nullptr) return nullptr;
 
   ngtcp2_vec dest = *packet;
 
@@ -264,33 +258,33 @@ BaseObjectPtr<Packet> Packet::CreateRetryPacket(
                                              vec.len);
   if (nwrite <= 0) {
     packet->Done(UV_ECANCELED);
-    return BaseObjectPtr<Packet>();
+    return nullptr;
   }
   packet->Truncate(static_cast<size_t>(nwrite));
   return packet;
 }
 
-BaseObjectPtr<Packet> Packet::CreateConnectionClosePacket(
-    Environment* env,
-    Listener* listener,
-    const SocketAddress& destination,
-    ngtcp2_conn* conn,
-    const QuicError& error) {
+Packet* Packet::CreateConnectionClosePacket(Environment* env,
+                                            Listener* listener,
+                                            const SocketAddress& destination,
+                                            ngtcp2_conn* conn,
+                                            const QuicError& error) {
   auto packet = Create(
       env, listener, destination, kDefaultMaxPacketLength, "connection close");
+  if (packet == nullptr) return nullptr;
   ngtcp2_vec vec = *packet;
 
   ssize_t nwrite = ngtcp2_conn_write_connection_close(
       conn, nullptr, nullptr, vec.base, vec.len, error, uv_hrtime());
   if (nwrite < 0) {
     packet->Done(UV_ECANCELED);
-    return BaseObjectPtr<Packet>();
+    return nullptr;
   }
   packet->Truncate(static_cast<size_t>(nwrite));
   return packet;
 }
 
-BaseObjectPtr<Packet> Packet::CreateImmediateConnectionClosePacket(
+Packet* Packet::CreateImmediateConnectionClosePacket(
     Environment* env,
     Listener* listener,
     const PathDescriptor& path_descriptor,
@@ -300,6 +294,7 @@ BaseObjectPtr<Packet> Packet::CreateImmediateConnectionClosePacket(
                        path_descriptor.remote_address,
                        kDefaultMaxPacketLength,
                        "immediate connection close (endpoint)");
+  if (packet == nullptr) return nullptr;
   ngtcp2_vec vec = *packet;
   ssize_t nwrite = ngtcp2_crypto_write_connection_close(
       vec.base,
@@ -314,13 +309,13 @@ BaseObjectPtr<Packet> Packet::CreateImmediateConnectionClosePacket(
       0);
   if (nwrite <= 0) {
     packet->Done(UV_ECANCELED);
-    return BaseObjectPtr<Packet>();
+    return nullptr;
   }
   packet->Truncate(static_cast<size_t>(nwrite));
   return packet;
 }
 
-BaseObjectPtr<Packet> Packet::CreateStatelessResetPacket(
+Packet* Packet::CreateStatelessResetPacket(
     Environment* env,
     Listener* listener,
     const PathDescriptor& path_descriptor,
@@ -333,31 +328,32 @@ BaseObjectPtr<Packet> Packet::CreateStatelessResetPacket(
   // QUIC spec. The reason is that packets less than 41 bytes may allow an
   // observer to reliably determine that it's a stateless reset.
   size_t pktlen = source_len - 1;
-  if (pktlen < kMinStatelessResetLen) return BaseObjectPtr<Packet>();
+  if (pktlen < kMinStatelessResetLen) return nullptr;
 
   StatelessResetToken token(token_secret, path_descriptor.dcid);
   uint8_t random[kRandlen];
-  CHECK(crypto::CSPRNG(random, kRandlen).is_ok());
+  CHECK(ncrypto::CSPRNG(random, kRandlen));
 
   auto packet = Create(env,
                        listener,
                        path_descriptor.remote_address,
                        kDefaultMaxPacketLength,
                        "stateless reset");
+  if (packet == nullptr) return nullptr;
   ngtcp2_vec vec = *packet;
 
   ssize_t nwrite = ngtcp2_pkt_write_stateless_reset(
       vec.base, pktlen, token, random, kRandlen);
   if (nwrite <= static_cast<ssize_t>(kMinStatelessResetLen)) {
     packet->Done(UV_ECANCELED);
-    return BaseObjectPtr<Packet>();
+    return nullptr;
   }
 
   packet->Truncate(static_cast<size_t>(nwrite));
   return packet;
 }
 
-BaseObjectPtr<Packet> Packet::CreateVersionNegotiationPacket(
+Packet* Packet::CreateVersionNegotiationPacket(
     Environment* env,
     Listener* listener,
     const PathDescriptor& path_descriptor) {
@@ -393,6 +389,7 @@ BaseObjectPtr<Packet> Packet::CreateVersionNegotiationPacket(
                        path_descriptor.remote_address,
                        kDefaultMaxPacketLength,
                        "version negotiation");
+  if (packet == nullptr) return nullptr;
   ngtcp2_vec vec = *packet;
 
   ssize_t nwrite =
@@ -407,7 +404,7 @@ BaseObjectPtr<Packet> Packet::CreateVersionNegotiationPacket(
                                            arraysize(sv));
   if (nwrite <= 0) {
     packet->Done(UV_ECANCELED);
-    return BaseObjectPtr<Packet>();
+    return nullptr;
   }
   packet->Truncate(static_cast<size_t>(nwrite));
   return packet;

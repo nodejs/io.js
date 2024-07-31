@@ -1,13 +1,14 @@
 'use strict'
 
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 const { parser, arrayDelimiter } = require('@npmcli/query')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
-const log = require('proc-log')
+const { log } = require('proc-log')
 const { minimatch } = require('minimatch')
 const npa = require('npm-package-arg')
 const pacote = require('pacote')
 const semver = require('semver')
+const fetch = require('npm-registry-fetch')
 
 // handle results for parsed query asts, results are stored in a map that has a
 // key that points to each ast selector node and stores the resulting array of
@@ -18,6 +19,7 @@ class Results {
   #initialItems
   #inventory
   #outdatedCache = new Map()
+  #vulnCache
   #pendingCombinator
   #results = new Map()
   #targetNode
@@ -26,6 +28,7 @@ class Results {
     this.#currentAstSelector = opts.rootAstNode.nodes[0]
     this.#inventory = opts.inventory
     this.#initialItems = opts.initialItems
+    this.#vulnCache = opts.vulnCache
     this.#targetNode = opts.targetNode
 
     this.currentResults = this.#initialItems
@@ -211,6 +214,7 @@ class Results {
         inventory: this.#inventory,
         rootAstNode: this.currentAstNode.nestedNode,
         targetNode: item,
+        vulnCache: this.#vulnCache,
       })
       if (res.size > 0) {
         found.push(item)
@@ -239,6 +243,7 @@ class Results {
       inventory: this.#inventory,
       rootAstNode: this.currentAstNode.nestedNode,
       targetNode: this.currentAstNode,
+      vulnCache: this.#vulnCache,
     })
     return [...res]
   }
@@ -252,7 +257,12 @@ class Results {
       for (const edge of node.edgesOut.values()) {
         if (edge.missing) {
           const pkg = { name: edge.name, version: edge.spec }
-          res.push(new this.#targetNode.constructor({ pkg }))
+          const item = new this.#targetNode.constructor({ pkg })
+          item.queryContext = {
+            missing: true,
+          }
+          item.edgesIn = new Set([edge])
+          res.push(item)
         }
       }
       return res
@@ -266,6 +276,7 @@ class Results {
       inventory: this.#inventory,
       rootAstNode: this.currentAstNode.nestedNode,
       targetNode: this.currentAstNode,
+      vulnCache: this.#vulnCache,
     })
     const internalSelector = new Set(res)
     return this.initialItems.filter(node =>
@@ -432,6 +443,75 @@ class Results {
     return this.initialItems.filter(node => node.target.edgesIn.size > 1)
   }
 
+  async vulnPseudo () {
+    if (!this.initialItems.length) {
+      return this.initialItems
+    }
+    if (!this.#vulnCache) {
+      const packages = {}
+      // We have to map the items twice, once to get the request, and a second time to filter out the results of that request
+      this.initialItems.map((node) => {
+        if (node.isProjectRoot || node.package.private) {
+          return
+        }
+        if (!packages[node.name]) {
+          packages[node.name] = []
+        }
+        if (!packages[node.name].includes(node.version)) {
+          packages[node.name].push(node.version)
+        }
+      })
+      const res = await fetch('/-/npm/v1/security/advisories/bulk', {
+        ...this.flatOptions,
+        registry: this.flatOptions.auditRegistry || this.flatOptions.registry,
+        method: 'POST',
+        gzip: true,
+        body: packages,
+      })
+      this.#vulnCache = await res.json()
+    }
+    const advisories = this.#vulnCache
+    const { vulns } = this.currentAstNode
+    return this.initialItems.filter(item => {
+      const vulnerable = advisories[item.name]?.filter(advisory => {
+        // This could be for another version of this package elsewhere in the tree
+        if (!semver.intersects(advisory.vulnerable_versions, item.version)) {
+          return false
+        }
+        if (!vulns) {
+          return true
+        }
+        // vulns are OR with each other, if any one matches we're done
+        for (const vuln of vulns) {
+          if (vuln.severity && !vuln.severity.includes('*')) {
+            if (!vuln.severity.includes(advisory.severity)) {
+              continue
+            }
+          }
+
+          if (vuln?.cwe) {
+            // * is special, it means "has a cwe"
+            if (vuln.cwe.includes('*')) {
+              if (!advisory.cwe.length) {
+                continue
+              }
+            } else if (!vuln.cwe.every(cwe => advisory.cwe.includes(`CWE-${cwe}`))) {
+              continue
+            }
+          }
+          return true
+        }
+      })
+      if (vulnerable?.length) {
+        item.queryContext = {
+          advisories: vulnerable,
+        }
+        return true
+      }
+      return false
+    })
+  }
+
   async outdatedPseudo () {
     const { outdatedKind = 'any' } = this.currentAstNode
 
@@ -442,6 +522,11 @@ class Results {
     const initialResults = await Promise.all(this.initialItems.map(async (node) => {
       // the root can't be outdated, skip it
       if (node.isProjectRoot) {
+        return false
+      }
+
+      // private packages can't be published, skip them
+      if (node.package.private) {
         return false
       }
 
@@ -565,27 +650,27 @@ class Results {
 // operators for attribute selectors
 const attributeOperators = {
   // attribute value is equivalent
-  '=' ({ attr, value, insensitive }) {
+  '=' ({ attr, value }) {
     return attr === value
   },
   // attribute value contains word
-  '~=' ({ attr, value, insensitive }) {
+  '~=' ({ attr, value }) {
     return (attr.match(/\w+/g) || []).includes(value)
   },
   // attribute value contains string
-  '*=' ({ attr, value, insensitive }) {
+  '*=' ({ attr, value }) {
     return attr.includes(value)
   },
   // attribute value is equal or starts with
-  '|=' ({ attr, value, insensitive }) {
+  '|=' ({ attr, value }) {
     return attr.startsWith(`${value}-`)
   },
   // attribute value starts with
-  '^=' ({ attr, value, insensitive }) {
+  '^=' ({ attr, value }) {
     return attr.startsWith(value)
   },
   // attribute value ends with
-  '$=' ({ attr, value, insensitive }) {
+  '$=' ({ attr, value }) {
     return attr.endsWith(value)
   },
 }
@@ -839,8 +924,6 @@ const retrieveNodesFromParsedAst = async (opts) => {
   return results.collect(rootAstNode)
 }
 
-// We are keeping this async in the event that we do add async operators, we
-// won't have to have a breaking change on this function signature.
 const querySelectorAll = async (targetNode, query, flatOptions) => {
   // This never changes ever we just pass it around. But we can't scope it to
   // this whole file if we ever want to support concurrent calls to this

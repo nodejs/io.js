@@ -51,7 +51,7 @@ class V8ConsoleMessage {
   static std::unique_ptr<V8ConsoleMessage> createForConsoleAPI(
       v8::Local<v8::Context> v8Context, int contextId, int groupId,
       V8InspectorImpl* inspector, double timestamp, ConsoleAPIType,
-      const std::vector<v8::Local<v8::Value>>& arguments,
+      v8::MemorySpan<const v8::Local<v8::Value>> arguments,
       const String16& consoleContext, std::unique_ptr<V8StackTraceImpl>);
 
   static std::unique_ptr<V8ConsoleMessage> createForException(

@@ -42,7 +42,9 @@
 #include "unicode/utypes.h"
 #include "unicode/ustring.h"
 #include "uassert.h"
+#include "uinvchar.h"
 #include "ustr_imp.h"
+#include "util.h"
 
 #ifdef U_DEBUG_TZ
 # include <stdio.h>
@@ -75,7 +77,6 @@ static char gStrBuf[256];
 #include "unicode/gregocal.h"
 #include "unicode/ures.h"
 #include "unicode/tzfmt.h"
-#include "unicode/numfmt.h"
 #include "gregoimp.h"
 #include "uresimp.h" // struct UResourceBundle
 #include "olsontz.h"
@@ -159,17 +160,17 @@ static UBool U_CALLCONV timeZone_cleanup()
 
     LEN_SYSTEM_ZONES = 0;
     uprv_free(MAP_SYSTEM_ZONES);
-    MAP_SYSTEM_ZONES = 0;
+    MAP_SYSTEM_ZONES = nullptr;
     gSystemZonesInitOnce.reset();
 
     LEN_CANONICAL_SYSTEM_ZONES = 0;
     uprv_free(MAP_CANONICAL_SYSTEM_ZONES);
-    MAP_CANONICAL_SYSTEM_ZONES = 0;
+    MAP_CANONICAL_SYSTEM_ZONES = nullptr;
     gCanonicalZonesInitOnce.reset();
 
     LEN_CANONICAL_SYSTEM_LOCATION_ZONES = 0;
     uprv_free(MAP_CANONICAL_SYSTEM_LOCATION_ZONES);
-    MAP_CANONICAL_SYSTEM_LOCATION_ZONES = 0;
+    MAP_CANONICAL_SYSTEM_LOCATION_ZONES = nullptr;
     gCanonicalLocationZonesInitOnce.reset();
 
     return true;
@@ -282,7 +283,7 @@ static UResourceBundle* openOlsonResource(const UnicodeString& id,
     char buf[128];
     id.extract(0, sizeof(buf)-1, buf, sizeof(buf), "");
 #endif
-    UResourceBundle *top = ures_openDirect(0, kZONEINFO, &ec);
+    UResourceBundle *top = ures_openDirect(nullptr, kZONEINFO, &ec);
     U_DEBUG_TZ_MSG(("pre: res sz=%d\n", ures_getSize(&res)));
     /* &res = */ getZoneByName(top, id, &res, ec);
     // Dereference if this is an alias.  Docs say result should be 1
@@ -391,7 +392,7 @@ createSystemTimeZone(const UnicodeString& id, UErrorCode& ec) {
     if (U_FAILURE(ec)) {
         return nullptr;
     }
-    TimeZone* z = 0;
+    TimeZone* z = nullptr;
     StackUResourceBundle res;
     U_DEBUG_TZ_MSG(("pre-err=%s\n", u_errorName(ec)));
     UResourceBundle *top = openOlsonResource(id, res.ref(), ec);
@@ -625,7 +626,7 @@ TimeZone::setDefault(const TimeZone& zone)
 static void U_CALLCONV initMap(USystemTimeZoneType type, UErrorCode& ec) {
     ucln_i18n_registerCleanup(UCLN_I18N_TIMEZONE, timeZone_cleanup);
 
-    UResourceBundle *res = ures_openDirect(0, kZONEINFO, &ec);
+    UResourceBundle *res = ures_openDirect(nullptr, kZONEINFO, &ec);
     res = ures_getByKey(res, kNAMES, res, &ec); // dereference Zones section
     if (U_SUCCESS(ec)) {
         int32_t size = ures_getSize(res);
@@ -732,6 +733,11 @@ void TimeZone::getOffset(UDate date, UBool local, int32_t& rawOffset,
         int32_t year, month, dom, dow, millis;
         double day = ClockMath::floorDivide(date, U_MILLIS_PER_DAY, &millis);
 
+        // out of the range
+        if (day < INT32_MIN || day > INT32_MAX) {
+            ec = U_ILLEGAL_ARGUMENT_ERROR;
+            return;
+        }
         Grego::dayToFields(day, year, month, dom, dow);
 
         dstOffset = getOffset(GregorianCalendar::AD, year, month, dom,
@@ -773,7 +779,7 @@ private:
     UBool getID(int32_t i, UErrorCode& ec) {
         int32_t idLen = 0;
         const char16_t* id = nullptr;
-        UResourceBundle *top = ures_openDirect(0, kZONEINFO, &ec);
+        UResourceBundle *top = ures_openDirect(nullptr, kZONEINFO, &ec);
         top = ures_getByKey(top, kNAMES, top, &ec); // dereference Zones section
         id = ures_getStringByIndex(top, i, &idLen, &ec);
         if(U_FAILURE(ec)) {
@@ -849,7 +855,7 @@ public:
             }
 
             // Walk through the base map
-            UResourceBundle *res = ures_openDirect(0, kZONEINFO, &ec);
+            UResourceBundle *res = ures_openDirect(nullptr, kZONEINFO, &ec);
             res = ures_getByKey(res, kNAMES, res, &ec); // dereference Zones section
             for (int32_t i = 0; i < baseLen; i++) {
                 int32_t zidx = baseMap[i];
@@ -964,7 +970,7 @@ public:
             ++pos;
             return &unistr;
         }
-        return 0;
+        return nullptr;
     }
 
     virtual void reset(UErrorCode& /*status*/) override {
@@ -1369,123 +1375,94 @@ TimeZone::getCustomID(const UnicodeString& id, UnicodeString& normalized, UError
 UBool
 TimeZone::parseCustomID(const UnicodeString& id, int32_t& sign,
                         int32_t& hour, int32_t& min, int32_t& sec) {
-    static const int32_t         kParseFailed = -99999;
-
-    NumberFormat* numberFormat = 0;
-    UnicodeString idUppercase = id;
-    idUppercase.toUpper("");
-
-    if (id.length() > GMT_ID_LENGTH &&
-        idUppercase.startsWith(GMT_ID, GMT_ID_LENGTH))
-    {
-        ParsePosition pos(GMT_ID_LENGTH);
-        sign = 1;
-        hour = 0;
-        min = 0;
-        sec = 0;
-
-        if (id[pos.getIndex()] == MINUS /*'-'*/) {
-            sign = -1;
-        } else if (id[pos.getIndex()] != PLUS /*'+'*/) {
-            return false;
-        }
-        pos.setIndex(pos.getIndex() + 1);
-
-        UErrorCode success = U_ZERO_ERROR;
-        numberFormat = NumberFormat::createInstance(success);
-        if(U_FAILURE(success)){
-            return false;
-        }
-        numberFormat->setParseIntegerOnly(true);
-        //numberFormat->setLenient(true); // TODO: May need to set this, depends on latest timezone parsing
-
-        // Look for either hh:mm, hhmm, or hh
-        int32_t start = pos.getIndex();
-        Formattable n(kParseFailed);
-        numberFormat->parse(id, n, pos);
-        if (pos.getIndex() == start) {
-            delete numberFormat;
-            return false;
-        }
-        hour = n.getLong();
-
-        if (pos.getIndex() < id.length()) {
-            if (pos.getIndex() - start > 2
-                || id[pos.getIndex()] != COLON) {
-                delete numberFormat;
-                return false;
-            }
-            // hh:mm
-            pos.setIndex(pos.getIndex() + 1);
-            int32_t oldPos = pos.getIndex();
-            n.setLong(kParseFailed);
-            numberFormat->parse(id, n, pos);
-            if ((pos.getIndex() - oldPos) != 2) {
-                // must be 2 digits
-                delete numberFormat;
-                return false;
-            }
-            min = n.getLong();
-            if (pos.getIndex() < id.length()) {
-                if (id[pos.getIndex()] != COLON) {
-                    delete numberFormat;
-                    return false;
-                }
-                // [:ss]
-                pos.setIndex(pos.getIndex() + 1);
-                oldPos = pos.getIndex();
-                n.setLong(kParseFailed);
-                numberFormat->parse(id, n, pos);
-                if (pos.getIndex() != id.length()
-                        || (pos.getIndex() - oldPos) != 2) {
-                    delete numberFormat;
-                    return false;
-                }
-                sec = n.getLong();
-            }
-        } else {
-            // Supported formats are below -
-            //
-            // HHmmss
-            // Hmmss
-            // HHmm
-            // Hmm
-            // HH
-            // H
-
-            int32_t length = pos.getIndex() - start;
-            if (length <= 0 || 6 < length) {
-                // invalid length
-                delete numberFormat;
-                return false;
-            }
-            switch (length) {
-                case 1:
-                case 2:
-                    // already set to hour
-                    break;
-                case 3:
-                case 4:
-                    min = hour % 100;
-                    hour /= 100;
-                    break;
-                case 5:
-                case 6:
-                    sec = hour % 100;
-                    min = (hour/100) % 100;
-                    hour /= 10000;
-                    break;
-            }
-        }
-
-        delete numberFormat;
-
-        if (hour > kMAX_CUSTOM_HOUR || min > kMAX_CUSTOM_MIN || sec > kMAX_CUSTOM_SEC) {
-            return false;
-        }
-        return true;
+    if (id.length() < GMT_ID_LENGTH) {
+      return false;
     }
-    return false;
+    if (0 != u_strncasecmp(id.getBuffer(), GMT_ID, GMT_ID_LENGTH, 0)) {
+        return false;
+    }
+    sign = 1;
+    hour = 0;
+    min = 0;
+    sec = 0;
+
+    if (id[GMT_ID_LENGTH] == MINUS /*'-'*/) {
+        sign = -1;
+    } else if (id[GMT_ID_LENGTH] != PLUS /*'+'*/) {
+        return false;
+    }
+
+    int32_t start = GMT_ID_LENGTH + 1;
+    int32_t pos = start;
+    hour = ICU_Utility::parseNumber(id, pos, 10);
+    if (pos == id.length()) {
+        // Handle the following cases
+        // HHmmss
+        // Hmmss
+        // HHmm
+        // Hmm
+        // HH
+        // H
+
+        // Get all digits
+        // Should be 1 to 6 digits.
+        int32_t length = pos - start;
+        switch (length) {
+            case 1:  // H
+            case 2:  // HH
+                // already set to hour
+                break;
+            case 3:  // Hmm
+            case 4:  // HHmm
+                min = hour % 100;
+                hour /= 100;
+                break;
+            case 5:  // Hmmss
+            case 6:  // HHmmss
+                sec = hour % 100;
+                min = (hour/100) % 100;
+                hour /= 10000;
+                break;
+            default:
+                // invalid range
+                return false;
+        }
+    } else {
+        // Handle the following cases
+        // HH:mm:ss
+        // H:mm:ss
+        // HH:mm
+        // H:mm
+        if (pos - start < 1 || pos - start > 2 || id[pos] != COLON) {
+            return false;
+        }
+        pos++; // skip : after H or HH
+        if (id.length() == pos) {
+            return false;
+        }
+        start = pos;
+        min = ICU_Utility::parseNumber(id, pos, 10);
+        if (pos - start != 2) {
+            return false;
+        }
+        if (id.length() > pos) {
+            if (id[pos] != COLON) {
+                return false;
+            }
+            pos++; // skip : after mm
+            start = pos;
+            sec = ICU_Utility::parseNumber(id, pos, 10);
+            if (pos - start != 2 || id.length() > pos) {
+                return false;
+            }
+        }
+    }
+    if (hour > kMAX_CUSTOM_HOUR ||
+        min > kMAX_CUSTOM_MIN ||
+        sec > kMAX_CUSTOM_SEC) {
+        return false;
+    }
+    return true;
 }
 
 UnicodeString&
@@ -1589,6 +1566,22 @@ TimeZone::getCanonicalID(const UnicodeString& id, UnicodeString& canonicalID, UB
         }
     }
     return canonicalID;
+}
+
+UnicodeString&
+TimeZone::getIanaID(const UnicodeString& id, UnicodeString& ianaID, UErrorCode& status)
+{
+    ianaID.remove();
+    if (U_FAILURE(status)) {
+        return ianaID;
+    }
+    if (id.compare(ConstChar16Ptr(UNKNOWN_ZONE_ID), UNKNOWN_ZONE_ID_LENGTH) == 0) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        ianaID.setToBogus();
+    } else {
+        ZoneMeta::getIanaID(id, ianaID, status);
+    }
+    return ianaID;
 }
 
 UnicodeString&

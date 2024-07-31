@@ -352,8 +352,10 @@ void BlockAssessments::CheckReferenceMap(const ReferenceMap* reference_map) {
   }
 }
 
-bool BlockAssessments::IsStaleReferenceStackSlot(InstructionOperand op) {
+bool BlockAssessments::IsStaleReferenceStackSlot(InstructionOperand op,
+                                                 base::Optional<int> vreg) {
   if (!op.IsStackSlot()) return false;
+  if (vreg.has_value() && !sequence_->IsReference(*vreg)) return false;
 
   const LocationOperand* loc_op = LocationOperand::cast(&op);
   return CanBeTaggedOrCompressedPointer(loc_op->representation()) &&
@@ -386,7 +388,7 @@ BlockAssessments* RegisterAllocatorVerifier::CreateForBlock(
   RpoNumber current_block_id = block->rpo_number();
 
   BlockAssessments* ret =
-      zone()->New<BlockAssessments>(zone(), spill_slot_delta());
+      zone()->New<BlockAssessments>(zone(), spill_slot_delta(), sequence_);
   if (block->PredecessorCount() == 0) {
     // TODO(mtrofin): the following check should hold, however, in certain
     // unit tests it is invalidated by the last block. Investigate and
@@ -394,7 +396,7 @@ BlockAssessments* RegisterAllocatorVerifier::CreateForBlock(
     // CHECK_EQ(0, current_block_id.ToInt());
     // The phi size test below is because we can, technically, have phi
     // instructions with one argument. Some tests expose that, too.
-  } else if (block->PredecessorCount() == 1 && block->phis().size() == 0) {
+  } else if (block->PredecessorCount() == 1 && block->phis().empty()) {
     const BlockAssessments* prev_block = assessments_[block->predecessors()[0]];
     ret->CopyFrom(prev_block);
   } else {
@@ -455,7 +457,7 @@ void RegisterAllocatorVerifier::ValidatePendingAssessment(
     worklist.pop();
 
     const InstructionBlock* origin = current_assessment->origin();
-    CHECK(origin->PredecessorCount() > 1 || origin->phis().size() > 0);
+    CHECK(origin->PredecessorCount() > 1 || !origin->phis().empty());
 
     // Check if the virtual register is a phi first, instead of relying on
     // the incoming assessments. In particular, this handles the case
@@ -530,7 +532,7 @@ void RegisterAllocatorVerifier::ValidateUse(
   Assessment* assessment = iterator->second;
 
   // The operand shouldn't be a stale reference stack slot.
-  CHECK(!current_assessments->IsStaleReferenceStackSlot(op));
+  CHECK(!current_assessments->IsStaleReferenceStackSlot(op, virtual_register));
 
   switch (assessment->kind()) {
     case Final:
@@ -610,7 +612,7 @@ void RegisterAllocatorVerifier::VerifyGapMoves() {
       CHECK(found_op != block_assessments->map().end());
       // This block is a jump back to the loop header, ensure that the op hasn't
       // become a stale reference during the blocks in the loop.
-      CHECK(!block_assessments->IsStaleReferenceStackSlot(op));
+      CHECK(!block_assessments->IsStaleReferenceStackSlot(op, vreg));
       switch (found_op->second->kind()) {
         case Final:
           CHECK_EQ(FinalAssessment::cast(found_op->second)->virtual_register(),

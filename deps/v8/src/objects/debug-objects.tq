@@ -34,21 +34,26 @@ extern class DebugInfo extends Struct {
   shared: SharedFunctionInfo;
   // Bit field containing various information collected for debugging.
   debugger_hints: SmiTagged<DebuggerHints>;
-  // The original uninstrumented bytecode array for functions with break
-  // points - the instrumented bytecode is held in the shared function info.
-  @cppAcquireLoad
-  @cppReleaseStore
-  original_bytecode_array: Undefined|BytecodeArray;
-  // The debug instrumented bytecode array for functions with break points
-  // - also pointed to by the shared function info.
-  @cppAcquireLoad
-  @cppReleaseStore
-  debug_bytecode_array: Undefined|BytecodeArray;
   // Fixed array holding status information for each active break point.
   break_points: FixedArray;
   // A bitfield that lists uses of the current instance.
   @cppRelaxedLoad @cppRelaxedStore flags: SmiTagged<DebugInfoFlags>;
   coverage_info: CoverageInfo|Undefined;
+  // The original uninstrumented bytecode array for functions with break
+  // points - the instrumented bytecode is held in the shared function info.
+  // Can contain Smi::zero() if cleared.
+  @ifnot(V8_ENABLE_SANDBOX)
+      @cppAcquireLoad @cppReleaseStore original_bytecode_array: Smi
+      |BytecodeArray;
+  @if(V8_ENABLE_SANDBOX) original_bytecode_array:
+      IndirectPointer<BytecodeArray>;
+  // The debug instrumented bytecode array for functions with break points
+  // - also pointed to by the shared function info.
+  // Can contain Smi::zero() if cleared.
+  @ifnot(V8_ENABLE_SANDBOX)
+      @cppAcquireLoad @cppReleaseStore debug_bytecode_array: Smi|BytecodeArray;
+  @if(V8_ENABLE_SANDBOX) debug_bytecode_array:
+      IndirectPointer<BytecodeArray>;
 }
 
 @export

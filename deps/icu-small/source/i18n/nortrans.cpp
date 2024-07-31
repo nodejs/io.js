@@ -75,7 +75,7 @@ Transliterator* NormalizationTransliterator::_create(const UnicodeString& ID,
  */
 NormalizationTransliterator::NormalizationTransliterator(const UnicodeString& id,
                                                          const Normalizer2 &norm2) :
-    Transliterator(id, 0), fNorm2(norm2) {}
+    Transliterator(id, nullptr), fNorm2(norm2) {}
 
 /**
  * Destructor.

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -122,7 +122,7 @@ ECX_KEY *ossl_ecx_key_dup(const ECX_KEY *key, int selection)
     }
 
     ret->libctx = key->libctx;
-    ret->haspubkey = key->haspubkey;
+    ret->haspubkey = 0;
     ret->keylen = key->keylen;
     ret->type = key->type;
     ret->references = 1;
@@ -133,8 +133,11 @@ ECX_KEY *ossl_ecx_key_dup(const ECX_KEY *key, int selection)
             goto err;
     }
 
-    if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0)
+    if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0
+        && key->haspubkey == 1) {
         memcpy(ret->pubkey, key->pubkey, sizeof(ret->pubkey));
+        ret->haspubkey = 1;
+    }
 
     if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0
         && key->privkey != NULL) {

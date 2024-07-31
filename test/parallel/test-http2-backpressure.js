@@ -7,7 +7,7 @@ if (!common.hasCrypto)
   common.skip('missing crypto');
 const assert = require('assert');
 const http2 = require('http2');
-const makeDuplexPair = require('../common/duplexpair');
+const { duplexPair } = require('stream');
 
 {
   let req;
@@ -28,7 +28,7 @@ const makeDuplexPair = require('../common/duplexpair');
     assert.strictEqual(stream.write('A'.repeat(40)), false);
   }));
 
-  const { clientSide, serverSide } = makeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
   server.emit('connection', serverSide);
 
   const client = http2.connect('http://localhost:80', {

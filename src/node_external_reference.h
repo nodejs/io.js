@@ -15,6 +15,13 @@ using CFunctionCallbackWithOneByteString =
 using CFunctionCallback = void (*)(v8::Local<v8::Value> receiver);
 using CFunctionCallbackReturnDouble =
     double (*)(v8::Local<v8::Object> receiver);
+using CFunctionCallbackReturnInt32 =
+    int32_t (*)(v8::Local<v8::Object> receiver,
+                const v8::FastOneByteString& input,
+                // NOLINTNEXTLINE(runtime/references) This is V8 api.
+                v8::FastApiCallbackOptions& options);
+using CFunctionCallbackValueReturnDouble =
+    double (*)(v8::Local<v8::Value> receiver);
 using CFunctionCallbackWithInt64 = void (*)(v8::Local<v8::Object> receiver,
                                             int64_t);
 using CFunctionCallbackWithBool = void (*)(v8::Local<v8::Object> receiver,
@@ -25,8 +32,29 @@ using CFunctionCallbackWithStrings =
     bool (*)(v8::Local<v8::Value>,
              const v8::FastOneByteString& input,
              const v8::FastOneByteString& base);
+using CFunctionCallbackWithTwoUint8Arrays =
+    int32_t (*)(v8::Local<v8::Value>,
+                const v8::FastApiTypedArray<uint8_t>&,
+                const v8::FastApiTypedArray<uint8_t>&);
+using CFunctionCallbackWithTwoUint8ArraysFallback =
+    bool (*)(v8::Local<v8::Value>,
+             const v8::FastApiTypedArray<uint8_t>&,
+             const v8::FastApiTypedArray<uint8_t>&,
+             v8::FastApiCallbackOptions&);
+using CFunctionCallbackWithUint8ArrayUint32Int64Bool =
+    int32_t (*)(v8::Local<v8::Value>,
+                const v8::FastApiTypedArray<uint8_t>&,
+                uint32_t,
+                int64_t,
+                bool);
 using CFunctionWithUint32 = uint32_t (*)(v8::Local<v8::Value>,
                                          const uint32_t input);
+using CFunctionWithDoubleReturnDouble = double (*)(v8::Local<v8::Value>,
+                                                   const double);
+using CFunctionWithInt64Fallback = void (*)(v8::Local<v8::Value>,
+                                            const int64_t,
+                                            v8::FastApiCallbackOptions&);
+using CFunctionWithBool = void (*)(v8::Local<v8::Value>, bool);
 
 // This class manages the external references from the V8 heap
 // to the C++ addresses in Node.js.
@@ -38,27 +66,34 @@ class ExternalReferenceRegistry {
   V(CFunctionCallback)                                                         \
   V(CFunctionCallbackWithOneByteString)                                        \
   V(CFunctionCallbackReturnDouble)                                             \
+  V(CFunctionCallbackReturnInt32)                                              \
+  V(CFunctionCallbackValueReturnDouble)                                        \
   V(CFunctionCallbackWithInt64)                                                \
   V(CFunctionCallbackWithBool)                                                 \
   V(CFunctionCallbackWithString)                                               \
   V(CFunctionCallbackWithStrings)                                              \
+  V(CFunctionCallbackWithTwoUint8Arrays)                                       \
+  V(CFunctionCallbackWithTwoUint8ArraysFallback)                               \
+  V(CFunctionCallbackWithUint8ArrayUint32Int64Bool)                            \
   V(CFunctionWithUint32)                                                       \
+  V(CFunctionWithDoubleReturnDouble)                                           \
+  V(CFunctionWithInt64Fallback)                                                \
+  V(CFunctionWithBool)                                                         \
   V(const v8::CFunctionInfo*)                                                  \
   V(v8::FunctionCallback)                                                      \
-  V(v8::AccessorGetterCallback)                                                \
-  V(v8::AccessorSetterCallback)                                                \
   V(v8::AccessorNameGetterCallback)                                            \
   V(v8::AccessorNameSetterCallback)                                            \
-  V(v8::GenericNamedPropertyDefinerCallback)                                   \
-  V(v8::GenericNamedPropertyDeleterCallback)                                   \
-  V(v8::GenericNamedPropertyEnumeratorCallback)                                \
-  V(v8::GenericNamedPropertyQueryCallback)                                     \
-  V(v8::GenericNamedPropertySetterCallback)                                    \
-  V(v8::IndexedPropertySetterCallback)                                         \
-  V(v8::IndexedPropertyDefinerCallback)                                        \
-  V(v8::IndexedPropertyDeleterCallback)                                        \
-  V(v8::IndexedPropertyQueryCallback)                                          \
-  V(v8::IndexedPropertyDescriptorCallback)                                     \
+  V(v8::NamedPropertyGetterCallback)                                           \
+  V(v8::NamedPropertyDefinerCallback)                                          \
+  V(v8::NamedPropertyDeleterCallback)                                          \
+  V(v8::NamedPropertyEnumeratorCallback)                                       \
+  V(v8::NamedPropertyQueryCallback)                                            \
+  V(v8::NamedPropertySetterCallback)                                           \
+  V(v8::IndexedPropertyGetterCallbackV2)                                       \
+  V(v8::IndexedPropertySetterCallbackV2)                                       \
+  V(v8::IndexedPropertyDefinerCallbackV2)                                      \
+  V(v8::IndexedPropertyDeleterCallbackV2)                                      \
+  V(v8::IndexedPropertyQueryCallbackV2)                                        \
   V(const v8::String::ExternalStringResourceBase*)
 
 #define V(ExternalReferenceType)                                               \
@@ -97,19 +132,23 @@ class ExternalReferenceRegistry {
   V(fs_event_wrap)                                                             \
   V(handle_wrap)                                                               \
   V(heap_utils)                                                                \
+  V(internal_only_v8)                                                          \
   V(messaging)                                                                 \
   V(mksnapshot)                                                                \
   V(module_wrap)                                                               \
+  V(modules)                                                                   \
   V(options)                                                                   \
   V(os)                                                                        \
   V(performance)                                                               \
   V(permission)                                                                \
   V(process_methods)                                                           \
   V(process_object)                                                            \
+  V(process_wrap)                                                              \
   V(report)                                                                    \
   V(task_queue)                                                                \
   V(tcp_wrap)                                                                  \
   V(tty_wrap)                                                                  \
+  V(udp_wrap)                                                                  \
   V(url)                                                                       \
   V(util)                                                                      \
   V(pipe_wrap)                                                                 \
@@ -118,6 +157,7 @@ class ExternalReferenceRegistry {
   V(string_decoder)                                                            \
   V(stream_wrap)                                                               \
   V(signal_wrap)                                                               \
+  V(spawn_sync)                                                                \
   V(trace_events)                                                              \
   V(timers)                                                                    \
   V(types)                                                                     \
@@ -147,11 +187,18 @@ class ExternalReferenceRegistry {
 #define EXTERNAL_REFERENCE_BINDING_LIST_CRYPTO(V)
 #endif  // HAVE_OPENSSL
 
+#if HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
+#define EXTERNAL_REFERENCE_BINDING_LIST_QUIC(V) V(quic)
+#else
+#define EXTERNAL_REFERENCE_BINDING_LIST_QUIC(V)
+#endif
+
 #define EXTERNAL_REFERENCE_BINDING_LIST(V)                                     \
   EXTERNAL_REFERENCE_BINDING_LIST_BASE(V)                                      \
   EXTERNAL_REFERENCE_BINDING_LIST_INSPECTOR(V)                                 \
   EXTERNAL_REFERENCE_BINDING_LIST_I18N(V)                                      \
-  EXTERNAL_REFERENCE_BINDING_LIST_CRYPTO(V)
+  EXTERNAL_REFERENCE_BINDING_LIST_CRYPTO(V)                                    \
+  EXTERNAL_REFERENCE_BINDING_LIST_QUIC(V)
 
 }  // namespace node
 

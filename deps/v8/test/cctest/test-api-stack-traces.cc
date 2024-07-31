@@ -164,8 +164,7 @@ TEST(StackTrace) {
   const char* source = "function foo() { FAIL.FAIL; }; foo();";
   v8::Local<v8::String> src = v8_str(source);
   v8::Local<v8::String> origin = v8_str("stack-trace-test");
-  v8::ScriptCompiler::Source script_source(src,
-                                           v8::ScriptOrigin(isolate, origin));
+  v8::ScriptCompiler::Source script_source(src, v8::ScriptOrigin(origin));
   CHECK(v8::ScriptCompiler::CompileUnboundScript(context->GetIsolate(),
                                                  &script_source)
             .ToLocalChecked()
@@ -359,7 +358,7 @@ THREADED_TEST(CaptureStackTrace) {
 
   v8::Local<v8::String> overview_src = v8_str(overview_source);
   v8::ScriptCompiler::Source script_source(overview_src,
-                                           v8::ScriptOrigin(isolate, origin));
+                                           v8::ScriptOrigin(origin));
   v8::Local<Value> overview_result(
       v8::ScriptCompiler::CompileUnboundScript(isolate, &script_source)
           .ToLocalChecked()
@@ -371,7 +370,7 @@ THREADED_TEST(CaptureStackTrace) {
 
   v8::Local<v8::String> detailed_src = v8_str(detailed_source);
   // Make the script using a non-zero line and column offset.
-  v8::ScriptOrigin detailed_origin(isolate, origin, 3, 5);
+  v8::ScriptOrigin detailed_origin(origin, 3, 5);
   v8::ScriptCompiler::Source script_source2(detailed_src, detailed_origin);
   v8::Local<v8::UnboundScript> detailed_script(
       v8::ScriptCompiler::CompileUnboundScript(isolate, &script_source2)
@@ -385,7 +384,7 @@ THREADED_TEST(CaptureStackTrace) {
   v8::Local<v8::String> function_name_src =
       v8::String::NewFromUtf8Literal(isolate, function_name_source);
   v8::ScriptCompiler::Source script_source3(function_name_src,
-                                            v8::ScriptOrigin(isolate, origin));
+                                            v8::ScriptOrigin(origin));
   v8::Local<Value> function_name_result(
       v8::ScriptCompiler::CompileUnboundScript(isolate, &script_source3)
           .ToLocalChecked()

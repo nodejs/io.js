@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset=utf-8>
+<title>localStorage: about:blank partitioning</title>
+<meta name=help href="https://privacycg.github.io/storage-partitioning/">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/common/get-host-info.sub.js"></script>
+<script src="/webstorage/resources/partitioning-utils.js"></script>
+<body>
+<script>
+const path =
+  "webstorage/resources/localstorage-about-blank-partitioned-win-open.html";
+const crossSiteURL = `${get_host_info().HTTP_NOTSAMESITE_ORIGIN}/${path}`;
+const sameSiteURL = `${get_host_info().HTTP_ORIGIN}/${path}`;
+let firstPartyID = getOrCreateID("userID3");
+let crossSiteIframeID;
+let sameSiteIframeID;
+let crossSiteIframe;
+let crossSiteIframeAboutBlankID;
+let frameMessageCount = 0;
+
+promise_test(async t => {
+  localStorage.clear();
+
+  // Step 1. Add a cross-site iframe
+  return addIframePromise(crossSiteURL).then(async crossSiteIframe => {
+    return new Promise(resolve => {
+      window.addEventListener("message", async e => {
+        const payload = {
+          command: "open about:blank window"
+        }
+
+        if (e.data.message === "window loaded") {
+          // Step 2. cross-site iframe is loaded, capture reference to its ID
+          crossSiteIframeID = e.data.userID;
+          // Step 3. Ask the cross-site iframe to create an about:blank window
+          crossSiteIframe.contentWindow.postMessage(payload, e.origin);
+        }
+
+        if (e.data.message === "about:blank frame ID") {
+          // Step 4. capture reference to 3P iframe's about:blank window ID
+          crossSiteIframeAboutBlankID = e.data.userID;
+          crossSiteIframe.contentWindow.postMessage(
+            {command: "close about:blank window"}, "*");
+        }
+
+        if (e.data.message === "about:blank window closed") {
+          resolve({crossSiteIframeID, crossSiteIframeAboutBlankID});
+        }
+      });
+    }).then(ids => {
+      const {
+        crossSiteIframeID,
+        crossSiteIframeAboutBlankID
+      } = ids;
+      // Step 5. Assert some things
+      for (let id in ids) {
+        assert_true(id !== undefined, "id is not undefined");
+      }
+      // Note: we use assert_true, rather than assert_equals becuase we're
+      // setting random numbers as IDs - this would mean expectations
+      // files wouldn't work as intended.
+      assert_true(crossSiteIframeAboutBlankID !== crossSiteIframeID,
+        "about:blank window opened by 3P iframe does not inherit 3P iframe's StorageKey");
+      assert_true(firstPartyID !== crossSiteIframeAboutBlankID,
+        "about:blank window open by 3P iframe does not inherit 1P StorageKey");
+
+      localStorage.clear();
+    })
+  });
+
+
+}, "StorageKey: test 3P about:blank window opened from a 3P iframe");
+</script>
+</body>

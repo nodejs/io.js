@@ -50,9 +50,8 @@ MaybeHandle<Object> HasEnumerableProperty(Isolate* isolate,
   PropertyKey lookup_key(isolate, key, &success);
   if (!success) return isolate->factory()->undefined_value();
   LookupIterator it(isolate, receiver, lookup_key);
-  for (; it.IsFound(); it.Next()) {
+  for (;; it.Next()) {
     switch (it.state()) {
-      case LookupIterator::NOT_FOUND:
       case LookupIterator::TRANSITION:
         UNREACHABLE();
       case LookupIterator::JSPROXY: {
@@ -94,7 +93,7 @@ MaybeHandle<Object> HasEnumerableProperty(Isolate* isolate,
         if (result.FromJust() != ABSENT) return it.GetName();
         return isolate->factory()->undefined_value();
       }
-      case LookupIterator::INTEGER_INDEXED_EXOTIC:
+      case LookupIterator::TYPED_ARRAY_INDEX_NOT_FOUND:
         // TypedArray out-of-bounds access.
         return isolate->factory()->undefined_value();
       case LookupIterator::ACCESSOR: {
@@ -107,9 +106,11 @@ MaybeHandle<Object> HasEnumerableProperty(Isolate* isolate,
       }
       case LookupIterator::DATA:
         return it.GetName();
+      case LookupIterator::NOT_FOUND:
+        return isolate->factory()->undefined_value();
     }
+    UNREACHABLE();
   }
-  return isolate->factory()->undefined_value();
 }
 
 }  // namespace

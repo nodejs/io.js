@@ -1,0 +1,75 @@
+import("../../node.gni")
+import("$node_v8_path/gni/v8.gni")
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("inspector_gn_build") {
+  group(target_name) {
+    forward_variables_from(invoker, "*")
+    deps = [
+      ":node_protocol_generated_sources",
+      ":v8_inspector_compress_protocol_json",
+    ]
+  }
+
+  node_gen_dir = get_label_info("../..", "target_gen_dir")
+  protocol_tool_path = "../../tools/inspector_protocol"
+
+  gypi_values = exec_script(
+      "../../tools/gypi_to_gn.py",
+      [ rebase_path("node_inspector.gypi"),
+        "--replace=<(SHARED_INTERMEDIATE_DIR)=$node_gen_dir",
+        "--replace=<(protocol_tool_path)=$protocol_tool_path" ],
+      "scope",
+      [ "node_inspector.gypi" ])
+
+  action("node_protocol_generated_sources") {
+    script = "$protocol_tool_path/code_generator.py"
+
+    deps = [ ":node_protocol_json" ]
+
+    outputs = gypi_values.node_inspector_generated_sources
+    inputs = gypi_values.node_protocol_files + [
+      "node_protocol_config.json",
+      "$node_gen_dir/src/node_protocol.json",
+    ]
+
+    args = [
+      "--jinja_dir",
+      # jinja is in third_party.
+      rebase_path("//third_party/", root_build_dir),
+      "--output_base",
+      rebase_path("$node_gen_dir/src", root_build_dir),
+      "--config",
+      rebase_path("node_protocol_config.json", root_build_dir),
+    ]
+  }
+
+  action("v8_inspector_compress_protocol_json") {
+    script = "../../tools/compress_json.py"
+    deps = [ ":concatenate_protocols" ]
+    inputs = [ "$target_gen_dir/concatenated_protocol.json" ]
+    outputs = [ "$target_gen_dir/v8_inspector_protocol_json.h" ]
+    args = rebase_path(inputs + outputs, root_build_dir)
+  }
+
+  action("concatenate_protocols") {
+    script = "$protocol_tool_path/concatenate_protocols.py"
+    deps = [ ":node_protocol_json" ]
+    inputs = [
+      "$node_gen_dir/src/js_protocol.json",
+      "$node_gen_dir/src/node_protocol.json",
+    ]
+    outputs = [
+      "$target_gen_dir/concatenated_protocol.json",
+    ]
+    args = rebase_path(inputs + outputs, root_build_dir)
+  }
+
+  action_foreach("node_protocol_json") {
+    script = "$node_v8_path/third_party/inspector_protocol/convert_protocol_to_json.py"
+    sources = [ "node_protocol.pdl", v8_inspector_js_protocol ]
+    outputs = [ "$node_gen_dir/src/{{source_name_part}}.json" ]
+    args = [ "{{source}}" ] + rebase_path(outputs, root_build_dir)
+  }
+}

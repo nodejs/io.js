@@ -187,12 +187,13 @@ class TypesTest : public TestWithNativeContextAndZone {
       } else if (type.IsOtherNumberConstant()) {
         CHECK(IsHeapNumber(*value));
         CHECK(Object::Number(*value) == type.AsOtherNumberConstant()->Value());
-      } else if (type.IsBitset()) {
-        CHECK(type.IsSingleton());
-      } else {
+      } else if (type.IsRange()) {
         CHECK(type.IsRange());
         double v = Object::Number(*value);
         CHECK(v == type.AsRange()->Min() && v == type.AsRange()->Max());
+      } else {
+        CHECK(type.IsSingleton() || type.Is(Type::Hole()) ||
+              type.Is(Type::String()));
       }
     }
 
@@ -211,7 +212,7 @@ class TypesTest : public TestWithNativeContextAndZone {
           CHECK(Equal(type1, type2) ==
                 ((type1.AsRange()->Min() == type2.AsRange()->Min()) &&
                  (type1.AsRange()->Max() == type2.AsRange()->Max())));
-        } else {
+        } else if (type1.IsSingleton() || type2.IsSingleton()) {
           CHECK(Equal(type1, type2) == (*value1 == *value2));
         }
       }
@@ -314,7 +315,9 @@ class TypesTest : public TestWithNativeContextAndZone {
     CHECK(T.Constant(s2).Is(T.InternalizedString));
 
     // Typing of special constants
-    CHECK(T.Constant(fac->the_hole_value()).Equals(T.TheHole));
+    CHECK(T.Constant(fac->the_hole_value()).Equals(T.Hole));
+    CHECK(T.Constant(fac->property_cell_hole_value()).Equals(T.Hole));
+    CHECK(T.Constant(fac->hash_table_hole_value()).Equals(T.Hole));
     CHECK(T.Constant(fac->null_value()).Equals(T.Null));
     CHECK(T.Constant(fac->undefined_value()).Equals(T.Undefined));
     CHECK(T.Constant(fac->minus_zero_value()).Equals(T.MinusZero));
@@ -595,7 +598,7 @@ class TypesTest : public TestWithNativeContextAndZone {
               Equal(const_type1, const_type2) ==
               ((const_type1.AsRange()->Min() == const_type2.AsRange()->Min()) &&
                (const_type1.AsRange()->Max() == const_type2.AsRange()->Max())));
-        } else {
+        } else if (const_type1.IsSingleton() && const_type2.IsSingleton()) {
           CHECK(const_type1.Is(const_type2) == (*value1 == *value2));
         }
       }
@@ -735,7 +738,7 @@ class TypesTest : public TestWithNativeContextAndZone {
               Equal(const_type1, const_type2) ==
               ((const_type1.AsRange()->Min() == const_type2.AsRange()->Min()) &&
                (const_type1.AsRange()->Max() == const_type2.AsRange()->Max())));
-        } else {
+        } else if (const_type1.IsSingleton() && const_type2.IsSingleton()) {
           CHECK(const_type1.Maybe(const_type2) == (*value1 == *value2));
         }
       }

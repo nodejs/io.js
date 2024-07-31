@@ -24,7 +24,7 @@ bool SeriesMatcher::match(StringSegment& segment, ParsedNumber& result, UErrorCo
 
     int32_t initialOffset = segment.getOffset();
     bool maybeMore = true;
-    for (auto* it = begin(); it < end();) {
+    for (const auto* it = begin(); it < end();) {
         const NumberParseMatcher* matcher = *it;
         int matcherOffset = segment.getOffset();
         if (segment.length() != 0) {
@@ -64,7 +64,7 @@ bool SeriesMatcher::match(StringSegment& segment, ParsedNumber& result, UErrorCo
 bool SeriesMatcher::smokeTest(const StringSegment& segment) const {
     // NOTE: The range-based for loop calls the virtual begin() and end() methods.
     // NOTE: We only want the first element. Use the for loop for boundary checking.
-    for (auto& matcher : *this) {
+    for (const auto& matcher : *this) {
         // SeriesMatchers are never allowed to start with a Flexible matcher.
         U_ASSERT(!matcher->isFlexible());
         return matcher->smokeTest(segment);
@@ -74,7 +74,7 @@ bool SeriesMatcher::smokeTest(const StringSegment& segment) const {
 
 void SeriesMatcher::postProcess(ParsedNumber& result) const {
     // NOTE: The range-based for loop calls the virtual begin() and end() methods.
-    for (auto* matcher : *this) {
+    for (const auto* matcher : *this) {
         matcher->postProcess(result);
     }
 }

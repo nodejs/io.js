@@ -1,46 +1,93 @@
-const assert = require('assert')
+const assert = require('node:assert')
 const {
   ResponseStatusCodeError
 } = require('../core/errors')
-const { toUSVString } = require('../core/util')
+
+const { chunksDecode } = require('./readable')
+const CHUNK_LIMIT = 128 * 1024
 
 async function getResolveErrorBodyCallback ({ callback, body, contentType, statusCode, statusMessage, headers }) {
   assert(body)
 
   let chunks = []
-  let limit = 0
+  let length = 0
 
-  for await (const chunk of body) {
-    chunks.push(chunk)
-    limit += chunk.length
-    if (limit > 128 * 1024) {
-      chunks = null
-      break
+  try {
+    for await (const chunk of body) {
+      chunks.push(chunk)
+      length += chunk.length
+      if (length > CHUNK_LIMIT) {
+        chunks = []
+        length = 0
+        break
+      }
     }
+  } catch {
+    chunks = []
+    length = 0
+    // Do nothing....
   }
 
-  if (statusCode === 204 || !contentType || !chunks) {
-    process.nextTick(callback, new ResponseStatusCodeError(`Response status code ${statusCode}${statusMessage ? `: ${statusMessage}` : ''}`, statusCode, headers))
+  const message = `Response status code ${statusCode}${statusMessage ? `: ${statusMessage}` : ''}`
+
+  if (statusCode === 204 || !contentType || !length) {
+    queueMicrotask(() => callback(new ResponseStatusCodeError(message, statusCode, headers)))
     return
   }
 
+  const stackTraceLimit = Error.stackTraceLimit
+  Error.stackTraceLimit = 0
+  let payload
+
   try {
-    if (contentType.startsWith('application/json')) {
-      const payload = JSON.parse(toUSVString(Buffer.concat(chunks)))
-      process.nextTick(callback, new ResponseStatusCodeError(`Response status code ${statusCode}${statusMessage ? `: ${statusMessage}` : ''}`, statusCode, headers, payload))
-      return
+    if (isContentTypeApplicationJson(contentType)) {
+      payload = JSON.parse(chunksDecode(chunks, length))
+    } else if (isContentTypeText(contentType)) {
+      payload = chunksDecode(chunks, length)
     }
-
-    if (contentType.startsWith('text/')) {
-      const payload = toUSVString(Buffer.concat(chunks))
-      process.nextTick(callback, new ResponseStatusCodeError(`Response status code ${statusCode}${statusMessage ? `: ${statusMessage}` : ''}`, statusCode, headers, payload))
-      return
-    }
-  } catch (err) {
-    // Process in a fallback if error
+  } catch {
+    // process in a callback to avoid throwing in the microtask queue
+  } finally {
+    Error.stackTraceLimit = stackTraceLimit
   }
-
-  process.nextTick(callback, new ResponseStatusCodeError(`Response status code ${statusCode}${statusMessage ? `: ${statusMessage}` : ''}`, statusCode, headers))
+  queueMicrotask(() => callback(new ResponseStatusCodeError(message, statusCode, headers, payload)))
 }
 
-module.exports = { getResolveErrorBodyCallback }
+const isContentTypeApplicationJson = (contentType) => {
+  return (
+    contentType.length > 15 &&
+    contentType[11] === '/' &&
+    contentType[0] === 'a' &&
+    contentType[1] === 'p' &&
+    contentType[2] === 'p' &&
+    contentType[3] === 'l' &&
+    contentType[4] === 'i' &&
+    contentType[5] === 'c' &&
+    contentType[6] === 'a' &&
+    contentType[7] === 't' &&
+    contentType[8] === 'i' &&
+    contentType[9] === 'o' &&
+    contentType[10] === 'n' &&
+    contentType[12] === 'j' &&
+    contentType[13] === 's' &&
+    contentType[14] === 'o' &&
+    contentType[15] === 'n'
+  )
+}
+
+const isContentTypeText = (contentType) => {
+  return (
+    contentType.length > 4 &&
+    contentType[4] === '/' &&
+    contentType[0] === 't' &&
+    contentType[1] === 'e' &&
+    contentType[2] === 'x' &&
+    contentType[3] === 't'
+  )
+}
+
+module.exports = {
+  getResolveErrorBodyCallback,
+  isContentTypeApplicationJson,
+  isContentTypeText
+}

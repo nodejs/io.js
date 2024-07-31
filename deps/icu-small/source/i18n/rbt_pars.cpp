@@ -142,9 +142,9 @@ public:
 
     const Hashtable* variableNames; // alias
 
-    ParseData(const TransliterationRuleData* data = 0,
-              const UVector* variablesVector = 0,
-              const Hashtable* variableNames = 0);
+    ParseData(const TransliterationRuleData* data = nullptr,
+              const UVector* variablesVector = nullptr,
+              const Hashtable* variableNames = nullptr);
 
     virtual ~ParseData();
 
@@ -196,7 +196,7 @@ const UnicodeFunctor* ParseData::lookupMatcher(UChar32 ch) const {
     if (i >= 0 && i < variablesVector->size()) {
         int32_t j = ch - data->variablesBase;
         set = (j < variablesVector->size()) ?
-            (UnicodeFunctor*) variablesVector->elementAt(j) : 0;
+            (UnicodeFunctor*) variablesVector->elementAt(j) : nullptr;
     }
     return set;
 }
@@ -913,7 +913,7 @@ void TransliteratorParser::parseRules(const UnicodeString& rule,
         delete (UnicodeFunctor*)variablesVector.orphanElementAt(0);
     }
     variableNames.removeAll();
-    parseData = new ParseData(0, &variablesVector, &variableNames);
+    parseData = new ParseData(nullptr, &variablesVector, &variableNames);
     if (parseData == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         return;
@@ -1109,7 +1109,7 @@ void TransliteratorParser::parseRules(const UnicodeString& rule,
             TransliterationRuleData* data = (TransliterationRuleData*)dataVector.elementAt(i);
             data->variablesLength = variablesVector.size();
             if (data->variablesLength == 0) {
-                data->variables = 0;
+                data->variables = nullptr;
             } else {
                 data->variables = (UnicodeFunctor**)uprv_malloc(data->variablesLength * sizeof(UnicodeFunctor*));
                 // nullptr pointer check

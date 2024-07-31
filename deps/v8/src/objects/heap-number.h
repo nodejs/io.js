@@ -6,6 +6,7 @@
 #define V8_OBJECTS_HEAP_NUMBER_H_
 
 #include "src/objects/primitive-heap-object.h"
+#include "src/objects/tagged-field.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -13,36 +14,24 @@
 namespace v8 {
 namespace internal {
 
-#include "torque-generated/src/objects/heap-number-tq.inc"
+namespace maglev {
+class MaglevGraphBuilder;
+class StoreDoubleField;
+}  // namespace maglev
+
+namespace compiler {
+class GraphAssembler;
+}  // namespace compiler
 
 // The HeapNumber class describes heap allocated numbers that cannot be
 // represented in a Smi (small integer).
-class HeapNumber
-    : public TorqueGeneratedHeapNumber<HeapNumber, PrimitiveHeapObject> {
+V8_OBJECT class HeapNumber : public PrimitiveHeapObject {
  public:
-  // Since the value is read from the compiler, and it can't be done
-  // atomically, we signal both to TSAN and ourselves that this is a
-  // relaxed load and store.
-  inline uint64_t value_as_bits(RelaxedLoadTag) const;
-  inline void set_value_as_bits(uint64_t bits, RelaxedStoreTag);
+  inline double value() const;
+  inline void set_value(double value);
 
-  inline int get_exponent();
-  inline int get_sign();
-
-  // Layout description.
-  // IEEE doubles are two 32 bit words.  The first is just mantissa, the second
-  // is a mixture of sign, exponent and mantissa. The offsets of two 32 bit
-  // words within double numbers are endian dependent and they are set
-  // accordingly.
-#if defined(V8_TARGET_LITTLE_ENDIAN)
-  static const int kMantissaOffset = kValueOffset;
-  static const int kExponentOffset = kValueOffset + 4;
-#elif defined(V8_TARGET_BIG_ENDIAN)
-  static const int kMantissaOffset = kValueOffset + 4;
-  static const int kExponentOffset = kValueOffset;
-#else
-#error Unknown byte ordering
-#endif
+  inline uint64_t value_as_bits() const;
+  inline void set_value_as_bits(uint64_t bits);
 
   static const uint32_t kSignMask = 0x80000000u;
   static const uint32_t kExponentMask = 0x7ff00000u;
@@ -56,13 +45,27 @@ class HeapNumber
   static const int kMantissaBitsInTopWord = 20;
   static const int kNonMantissaBitsInTopWord = 12;
 
+  DECL_CAST(HeapNumber)
   DECL_PRINTER(HeapNumber)
+  DECL_VERIFIER(HeapNumber)
   V8_EXPORT_PRIVATE void HeapNumberShortPrint(std::ostream& os);
 
   class BodyDescriptor;
 
-  TQ_OBJECT_CONSTRUCTORS(HeapNumber)
-};
+ private:
+  friend struct OffsetsForDebug;
+  friend class CodeStubAssembler;
+  friend class AccessorAssembler;
+  friend class maglev::MaglevAssembler;
+  friend class maglev::MaglevGraphBuilder;
+  friend class maglev::StoreDoubleField;
+  friend class compiler::AccessBuilder;
+  friend class compiler::GraphAssembler;
+  friend class TorqueGeneratedHeapNumberAsserts;
+  friend AllocationAlignment HeapObject::RequiredAlignment(Tagged<Map> map);
+
+  UnalignedDoubleMember value_;
+} V8_OBJECT_END;
 
 }  // namespace internal
 }  // namespace v8

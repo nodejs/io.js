@@ -643,16 +643,17 @@ static std::string THIS("this");
 
 class FunctionAnalyzer {
  public:
-  FunctionAnalyzer(clang::MangleContext* ctx, clang::CXXRecordDecl* object_decl,
-                   clang::CXXRecordDecl* maybe_object_decl,
+  FunctionAnalyzer(clang::MangleContext* ctx,
+                   clang::CXXRecordDecl* heap_object_decl,
                    clang::CXXRecordDecl* smi_decl,
+                   clang::CXXRecordDecl* tagged_index_decl,
                    clang::ClassTemplateDecl* tagged_decl,
                    clang::CXXRecordDecl* no_gc_mole_decl,
                    clang::DiagnosticsEngine& d, clang::SourceManager& sm)
       : ctx_(ctx),
-        object_decl_(object_decl),
-        maybe_object_decl_(maybe_object_decl),
+        heap_object_decl_(heap_object_decl),
         smi_decl_(smi_decl),
+        tagged_index_decl_(tagged_index_decl),
         tagged_decl_(tagged_decl),
         no_gc_mole_decl_(no_gc_mole_decl),
         d_(d),
@@ -1187,6 +1188,17 @@ class FunctionAnalyzer {
 
   DECL_VISIT_STMT(DoStmt) {
     Block block(env, this);
+
+    // Special case `do { ... } while (false);`, which is known to only run
+    // once, and is used in our (D)CHECK macros.
+    if (auto* literal_cond =
+            llvm::dyn_cast<clang::CXXBoolLiteralExpr>(stmt->getCond())) {
+      if (literal_cond->getValue() == false) {
+        block.Loop(stmt->getBody(), stmt->getCond());
+        return block.out();
+      }
+    }
+
     do {
       block.Loop(stmt->getBody(), stmt->getCond());
     } while (block.changed());
@@ -1249,32 +1261,6 @@ class FunctionAnalyzer {
     return (record == base) || record->isDerivedFrom(base);
   }
 
-  // Tagged<T> -> T
-  const clang::CXXRecordDecl* ExtractPointedToTypeIfTagged(
-      const clang::CXXRecordDecl* record) {
-    if (record == nullptr) return nullptr;
-    if (!InV8Namespace(record)) return nullptr;
-    auto* specialization =
-        llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(record);
-    if (!specialization) return record;
-    auto* template_decl =
-        specialization->getSpecializedTemplate()->getCanonicalDecl();
-    if (template_decl != tagged_decl_) return record;
-    auto& template_args = specialization->getTemplateArgs();
-    if (template_args.size() != 1) {
-      llvm::errs() << "v8::internal::Tagged<T> should have exactly one "
-                      "template argument\n";
-      specialization->dump(llvm::errs());
-      return nullptr;
-    }
-    if (template_args[0].getKind() != clang::TemplateArgument::Type) {
-      llvm::errs() << "v8::internal::Tagged<T>, T should be a type argument\n";
-      specialization->dump(llvm::errs());
-      return nullptr;
-    }
-    return template_args[0].getAsType()->getAsCXXRecordDecl();
-  }
-
   const clang::CXXRecordDecl* GetDefinitionOrNull(
       const clang::CXXRecordDecl* record) {
     if (record == nullptr) return nullptr;
@@ -1284,13 +1270,38 @@ class FunctionAnalyzer {
   }
 
   bool IsDerivedFromInternalPointer(const clang::CXXRecordDecl* record) {
-    record = ExtractPointedToTypeIfTagged(record);
+    if (record == nullptr) return false;
+    if (!InV8Namespace(record)) return false;
+    auto* specialization =
+        llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(record);
+    if (specialization) {
+      auto* template_decl =
+          specialization->getSpecializedTemplate()->getCanonicalDecl();
+      if (template_decl == tagged_decl_) {
+        auto& template_args = specialization->getTemplateArgs();
+        if (template_args.size() != 1) {
+          llvm::errs() << "v8::internal::Tagged<T> should have exactly one "
+                          "template argument\n";
+          specialization->dump(llvm::errs());
+          return false;
+        }
+        if (template_args[0].getKind() != clang::TemplateArgument::Type) {
+          llvm::errs()
+              << "v8::internal::Tagged<T>, T should be a type argument\n";
+          specialization->dump(llvm::errs());
+          return false;
+        }
+
+        auto* tagged_type_record =
+            template_args[0].getAsType()->getAsCXXRecordDecl();
+        return tagged_type_record != smi_decl_ &&
+               tagged_type_record != tagged_index_decl_;
+      }
+    }
+
     const clang::CXXRecordDecl* definition = GetDefinitionOrNull(record);
     if (!definition) return false;
-    if (IsDerivedFrom(record, object_decl_)) {
-      return !IsDerivedFrom(record, smi_decl_);
-    }
-    if (IsDerivedFrom(record, maybe_object_decl_)) {
+    if (IsDerivedFrom(record, heap_object_decl_)) {
       return true;
     }
     return false;
@@ -1299,7 +1310,8 @@ class FunctionAnalyzer {
   bool IsRawPointerType(const clang::PointerType* type) {
     const clang::CXXRecordDecl* record = type->getPointeeCXXRecordDecl();
     bool result = IsDerivedFromInternalPointer(record);
-    TRACE("is raw " << result << " " << record->getNameAsString());
+    TRACE("is raw " << result << " "
+                    << (record ? record->getNameAsString() : "nullptr"));
     return result;
   }
 
@@ -1395,7 +1407,7 @@ class FunctionAnalyzer {
   void LeaveBlock(Block* block) { block_ = block; }
 
   bool HasActiveGuard() {
-    for (const auto s : scopes_) {
+    for (const auto& s : scopes_) {
       if (s.IsBeforeGCCause()) return true;
     }
     return false;
@@ -1403,12 +1415,26 @@ class FunctionAnalyzer {
 
  private:
   void ReportUnsafe(const clang::Expr* expr, const std::string& msg) {
-    d_.Report(clang::FullSourceLoc(expr->getExprLoc(), sm_),
+    clang::SourceLocation error_loc =
+        clang::FullSourceLoc(expr->getExprLoc(), sm_);
+    d_.Report(error_loc,
               d_.getCustomDiagID(clang::DiagnosticsEngine::Warning, "%0"))
         << msg;
-    if (scopes_.empty()) return;
-    GCScope scope = scopes_[0];
-    if (!scope.gccause_location.isValid()) return;
+    // Find the relevant GC scope (see HasActiveGuard).
+    const GCScope* pscope = nullptr;
+    for (const auto& s : scopes_) {
+      if (!s.IsBeforeGCCause() && s.gccause_location.isValid()) {
+        pscope = &s;
+        break;
+      }
+    }
+    if (!pscope) {
+      d_.Report(error_loc,
+                d_.getCustomDiagID(clang::DiagnosticsEngine::Note,
+                                   "Could not find GC source location."));
+      return;
+    }
+    const GCScope& scope = *pscope;
     d_.Report(scope.gccause_location,
               d_.getCustomDiagID(clang::DiagnosticsEngine::Note,
                                  "Call might cause unexpected GC."));
@@ -1439,12 +1465,11 @@ class FunctionAnalyzer {
   }
 
   clang::MangleContext* ctx_;
-  clang::CXXRecordDecl* object_decl_;
-  clang::CXXRecordDecl* maybe_object_decl_;
+  clang::CXXRecordDecl* heap_object_decl_;
   clang::CXXRecordDecl* smi_decl_;
+  clang::CXXRecordDecl* tagged_index_decl_;
   clang::ClassTemplateDecl* tagged_decl_;
   clang::CXXRecordDecl* no_gc_mole_decl_;
-  clang::CXXRecordDecl* no_heap_access_decl_;
 
   clang::DiagnosticsEngine& d_;
   clang::SourceManager& sm_;
@@ -1521,43 +1546,49 @@ class ProblemsFinder : public clang::ASTConsumer,
     clang::CXXRecordDecl* no_gc_mole_decl =
         v8_internal.Resolve<clang::CXXRecordDecl>("DisableGCMole");
 
-    clang::CXXRecordDecl* object_decl =
-        v8_internal.Resolve<clang::CXXRecordDecl>("Object");
-
-    clang::CXXRecordDecl* maybe_object_decl =
-        v8_internal.Resolve<clang::CXXRecordDecl>("MaybeObject");
+    clang::CXXRecordDecl* heap_object_decl =
+        v8_internal.Resolve<clang::CXXRecordDecl>("HeapObject");
 
     clang::CXXRecordDecl* smi_decl =
         v8_internal.Resolve<clang::CXXRecordDecl>("Smi");
 
+    clang::CXXRecordDecl* tagged_index_decl =
+        v8_internal.Resolve<clang::CXXRecordDecl>("TaggedIndex");
+
     clang::ClassTemplateDecl* tagged_decl =
         v8_internal.Resolve<clang::ClassTemplateDecl>("Tagged");
 
-    if (object_decl != nullptr) object_decl = object_decl->getDefinition();
-
-    if (maybe_object_decl != nullptr) {
-      maybe_object_decl = maybe_object_decl->getDefinition();
+    if (heap_object_decl != nullptr) {
+      heap_object_decl = heap_object_decl->getDefinition();
     }
 
-    if (smi_decl != nullptr) smi_decl = smi_decl->getDefinition();
+    if (smi_decl != nullptr) {
+      smi_decl = smi_decl->getDefinition();
+    }
 
-    if (tagged_decl != nullptr) tagged_decl = tagged_decl->getCanonicalDecl();
+    if (tagged_index_decl != nullptr) {
+      tagged_index_decl = tagged_index_decl->getDefinition();
+    }
 
-    if (object_decl != nullptr && smi_decl != nullptr &&
-        maybe_object_decl != nullptr && tagged_decl != nullptr) {
+    if (tagged_decl != nullptr) {
+      tagged_decl = tagged_decl->getCanonicalDecl();
+    }
+
+    if (heap_object_decl != nullptr && smi_decl != nullptr &&
+        tagged_index_decl != nullptr && tagged_decl != nullptr) {
       function_analyzer_ = new FunctionAnalyzer(
-          clang::ItaniumMangleContext::create(ctx, d_), object_decl,
-          maybe_object_decl, smi_decl, tagged_decl, no_gc_mole_decl, d_, sm_);
+          clang::ItaniumMangleContext::create(ctx, d_), heap_object_decl,
+          smi_decl, tagged_index_decl, tagged_decl, no_gc_mole_decl, d_, sm_);
       TraverseDecl(ctx.getTranslationUnitDecl());
     } else if (g_verbose) {
-      if (object_decl == nullptr) {
-        llvm::errs() << "Failed to resolve v8::internal::Object\n";
-      }
-      if (maybe_object_decl == nullptr) {
-        llvm::errs() << "Failed to resolve v8::internal::MaybeObject\n";
+      if (heap_object_decl == nullptr) {
+        llvm::errs() << "Failed to resolve v8::internal::HeapObject\n";
       }
       if (smi_decl == nullptr) {
         llvm::errs() << "Failed to resolve v8::internal::Smi\n";
+      }
+      if (tagged_index_decl == nullptr) {
+        llvm::errs() << "Failed to resolve v8::internal::TaggedIndex\n";
       }
       if (tagged_decl == nullptr) {
         llvm::errs() << "Failed to resolve v8::internal::Tagged<T>\n";

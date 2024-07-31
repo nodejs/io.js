@@ -94,7 +94,7 @@ done
 # Generate the proposal tests.
 ###############################################################################
 
-repos='js-types tail-call memory64 extended-const multi-memory function-references gc'
+repos='exception-handling js-types tail-call memory64 extended-const multi-memory function-references gc'
 
 for repo in ${repos}; do
   echo "Process ${repo}"
@@ -103,7 +103,7 @@ for repo in ${repos}; do
   log_and_run git clone https://github.com/WebAssembly/${repo}
   # Compile the spec interpreter to generate the .js test cases later.
   log_and_run cd ${repo}/interpreter
-  log_and_run make clean opt
+  log_and_run make clean wasm
   log_and_run cd ../test/core
   log_and_run mkdir ${SPEC_TEST_DIR}/tests/proposals/${repo}
 

@@ -43,7 +43,7 @@ struct ctx {
 static void worker_async_cb(uv_async_t* handle) {
   struct ctx* ctx = container_of(handle, struct ctx, worker_async);
 
-  ASSERT(0 == uv_async_send(&ctx->main_async));
+  ASSERT_OK(uv_async_send(&ctx->main_async));
   ctx->worker_sent++;
   ctx->worker_seen++;
 
@@ -55,7 +55,7 @@ static void worker_async_cb(uv_async_t* handle) {
 static void main_async_cb(uv_async_t* handle) {
   struct ctx* ctx = container_of(handle, struct ctx, main_async);
 
-  ASSERT(0 == uv_async_send(&ctx->worker_async));
+  ASSERT_OK(uv_async_send(&ctx->worker_async));
   ctx->main_sent++;
   ctx->main_seen++;
 
@@ -66,8 +66,8 @@ static void main_async_cb(uv_async_t* handle) {
 
 static void worker(void* arg) {
   struct ctx* ctx = arg;
-  ASSERT(0 == uv_async_send(&ctx->main_async));
-  ASSERT(0 == uv_run(&ctx->loop, UV_RUN_DEFAULT));
+  ASSERT_OK(uv_async_send(&ctx->main_async));
+  ASSERT_OK(uv_run(&ctx->loop, UV_RUN_DEFAULT));
   uv_loop_close(&ctx->loop);
 }
 
@@ -85,29 +85,29 @@ static int test_async(int nthreads) {
   for (i = 0; i < nthreads; i++) {
     ctx = threads + i;
     ctx->nthreads = nthreads;
-    ASSERT(0 == uv_loop_init(&ctx->loop));
-    ASSERT(0 == uv_async_init(&ctx->loop, &ctx->worker_async, worker_async_cb));
-    ASSERT(0 == uv_async_init(uv_default_loop(),
-                              &ctx->main_async,
-                              main_async_cb));
-    ASSERT(0 == uv_thread_create(&ctx->thread, worker, ctx));
+    ASSERT_OK(uv_loop_init(&ctx->loop));
+    ASSERT_OK(uv_async_init(&ctx->loop, &ctx->worker_async, worker_async_cb));
+    ASSERT_OK(uv_async_init(uv_default_loop(),
+                            &ctx->main_async,
+                            main_async_cb));
+    ASSERT_OK(uv_thread_create(&ctx->thread, worker, ctx));
   }
 
   time = uv_hrtime();
 
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
 
   for (i = 0; i < nthreads; i++)
-    ASSERT(0 == uv_thread_join(&threads[i].thread));
+    ASSERT_OK(uv_thread_join(&threads[i].thread));
 
   time = uv_hrtime() - time;
 
   for (i = 0; i < nthreads; i++) {
     ctx = threads + i;
-    ASSERT(ctx->worker_sent == NUM_PINGS);
-    ASSERT(ctx->worker_seen == NUM_PINGS);
-    ASSERT(ctx->main_sent == (unsigned int) NUM_PINGS);
-    ASSERT(ctx->main_seen == (unsigned int) NUM_PINGS);
+    ASSERT_EQ(ctx->worker_sent, NUM_PINGS);
+    ASSERT_EQ(ctx->worker_seen, NUM_PINGS);
+    ASSERT_EQ(ctx->main_sent, (unsigned int) NUM_PINGS);
+    ASSERT_EQ(ctx->main_seen, (unsigned int) NUM_PINGS);
   }
 
   printf("async%d: %.2f sec (%s/sec)\n",

@@ -3,8 +3,11 @@
 // found in the LICENSE file.
 
 #include "src/api/api-inl.h"
+#include "src/base/logging.h"
 #include "src/base/strings.h"
+#include "src/common/globals.h"
 #include "src/objects/js-array-buffer-inl.h"
+#include "src/sandbox/sandbox.h"
 #include "test/cctest/heap/heap-utils.h"
 #include "test/cctest/test-api.h"
 #include "test/common/flag-utils.h"
@@ -409,7 +412,7 @@ THREADED_TEST(SkipArrayBufferDuringScavenge) {
   // Make sure the pointer looks like a heap object
   Local<v8::Object> tmp = v8::Object::New(isolate);
   uint8_t* store_ptr =
-      reinterpret_cast<uint8_t*>(*reinterpret_cast<uintptr_t*>(*tmp));
+      reinterpret_cast<uint8_t*>(i::ValueHelper::ValueAsAddress(*tmp));
   auto backing_store = v8::ArrayBuffer::NewBackingStore(
       store_ptr, 8, [](void*, size_t, void*) {}, nullptr);
 
@@ -452,8 +455,6 @@ THREADED_TEST(ArrayBuffer_NewBackingStore) {
 }
 
 THREADED_TEST(ArrayBuffer_NewResizableBackingStore) {
-  FLAG_SCOPE(harmony_rab_gsab);
-
   LocalContext env;
   v8::Isolate* isolate = env->GetIsolate();
   v8::HandleScope handle_scope(isolate);
@@ -828,8 +829,6 @@ TEST(BackingStore_ReallocateShared) {
 }
 
 TEST(ArrayBuffer_Resizable) {
-  FLAG_SCOPE(harmony_rab_gsab);
-
   LocalContext env;
   v8::Isolate* isolate = env->GetIsolate();
   v8::HandleScope handle_scope(isolate);
@@ -851,8 +850,6 @@ TEST(ArrayBuffer_Resizable) {
 }
 
 TEST(ArrayBuffer_FixedLength) {
-  FLAG_SCOPE(harmony_rab_gsab);
-
   LocalContext env;
   v8::Isolate* isolate = env->GetIsolate();
   v8::HandleScope handle_scope(isolate);
@@ -870,4 +867,31 @@ TEST(ArrayBuffer_FixedLength) {
   CHECK_EQ(32, sab->ByteLength());
   CHECK_EQ(32, sab->MaxByteLength());
   CHECK_EQ(sab->MaxByteLength(), sab->GetBackingStore()->MaxByteLength());
+}
+
+THREADED_TEST(ArrayBuffer_DataApiWithEmptyExternal) {
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope handle_scope(isolate);
+
+  Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(isolate, 0);
+  void* expected_data_ptr = V8_ENABLE_SANDBOX_BOOL
+                                ? v8::internal::EmptyBackingStoreBuffer()
+                                : nullptr;
+  CHECK_EQ(expected_data_ptr, ab->Data());
+  CHECK_EQ(0, ab->ByteLength());
+  CHECK_NULL(ab->GetBackingStore()->Data());
+  // Repeat test to make sure that accessing the backing store buffer hasn't
+  // changed what sandboxed AB's Data method returns.
+  CHECK_EQ(expected_data_ptr, ab->Data());
+  CHECK_EQ(0, ab->ByteLength());
+
+  void* buffer = CcTest::array_buffer_allocator()->Allocate(1);
+  std::unique_ptr<v8::BackingStore> backing_store =
+      v8::ArrayBuffer::NewBackingStore(buffer, 0,
+                                       v8::BackingStore::EmptyDeleter, nullptr);
+  Local<v8::ArrayBuffer> ab2 =
+      v8::ArrayBuffer::New(isolate, std::move(backing_store));
+  CHECK_EQ(buffer, ab2->Data());
+  CHECK_EQ(0, ab->ByteLength());
 }

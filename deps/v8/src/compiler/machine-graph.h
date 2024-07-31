@@ -63,6 +63,7 @@ class V8_EXPORT_PRIVATE MachineGraph : public NON_EXPORTED_BASE(ZoneObject) {
   Node* RelocatableInt32Constant(int32_t value, RelocInfo::Mode rmode);
   Node* RelocatableInt64Constant(int64_t value, RelocInfo::Mode rmode);
   Node* RelocatableIntPtrConstant(intptr_t value, RelocInfo::Mode rmode);
+  Node* RelocatableWasmBuiltinCallTarget(Builtin builtin);
 
   // Creates a Float32Constant node, usually canonicalized.
   Node* Float32Constant(float value);
@@ -74,7 +75,7 @@ class V8_EXPORT_PRIVATE MachineGraph : public NON_EXPORTED_BASE(ZoneObject) {
   Node* PointerConstant(intptr_t value);
   template <typename T>
   Node* PointerConstant(T* value) {
-    return PointerConstant(base::bit_cast<intptr_t>(value));
+    return PointerConstant(reinterpret_cast<intptr_t>(value));
   }
 
   // Creates an ExternalConstant node, usually canonicalized.

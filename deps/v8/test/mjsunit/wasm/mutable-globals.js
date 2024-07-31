@@ -218,7 +218,7 @@ function GlobalI32(value, mutable = false) {
 
 function GlobalI64(mutable = false) {
   let builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasm64, mutable).exportAs('i64');
+  builder.addGlobal(kWasm64, mutable, false).exportAs('i64');
   let module = new WebAssembly.Module(builder.toBuffer());
   let instance = new WebAssembly.Instance(module);
   return instance.exports.i64;

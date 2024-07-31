@@ -8,6 +8,9 @@
 * [Technical steering committee](#technical-steering-committee)
   * [TSC meetings](#tsc-meetings)
 * [Collaborator nominations](#collaborator-nominations)
+  * [Who can nominate Collaborators?](#who-can-nominate-collaborators)
+  * [Ideal Nominees](#ideal-nominees)
+  * [Nominating a new Collaborator](#nominating-a-new-collaborator)
   * [Onboarding](#onboarding)
 * [Consensus seeking process](#consensus-seeking-process)
 
@@ -68,7 +71,7 @@ The TSC can remove inactive collaborators or provide them with _emeritus_
 status. Emeriti may request that the TSC restore them to active status.
 
 A collaborator is automatically made emeritus (and removed from active
-collaborator status) if it has been more than 18 months since the collaborator
+collaborator status) if it has been more than 12 months since the collaborator
 has authored or approved a commit that has landed.
 
 ## Technical Steering Committee
@@ -124,11 +127,26 @@ the issue tracker is:
 
 ## Collaborator nominations
 
-Existing collaborators can nominate someone to become a collaborator. Nominees
-should have significant and valuable contributions across the Node.js
+### Who can nominate Collaborators?
+
+Existing Collaborators can nominate someone to become a Collaborator.
+
+### Ideal Nominees
+
+Nominees should have significant and valuable contributions across the Node.js
 organization.
 
-To nominate a new collaborator, open an issue in the [nodejs/node][] repository.
+Contributions can be:
+
+* Opening pull requests.
+* Comments and reviews.
+* Opening new issues.
+* Participation in other projects, teams, and working groups of the Node.js
+  organization.
+
+### Nominating a new Collaborator
+
+To nominate a new Collaborator, open an issue in the [nodejs/node][] repository.
 Provide a summary of the nominee's contributions. For example:
 
 * Commits in the [nodejs/node][] repository.
@@ -151,8 +169,9 @@ Provide a summary of the nominee's contributions. For example:
 Mention @nodejs/collaborators in the issue to notify other collaborators about
 the nomination.
 
-The nomination passes if no collaborators oppose it after one week. Otherwise,
-the nomination fails.
+The nomination passes if no collaborators oppose it after one week. In the case
+of an objection, the TSC is responsible for working with the individuals
+involved and finding a resolution.
 
 There are steps a nominator can take in advance to make a nomination as
 frictionless as possible. To request feedback from other collaborators in

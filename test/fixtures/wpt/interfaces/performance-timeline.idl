@@ -1,7 +1,7 @@
 // GENERATED CONTENT - DO NOT EDIT
 // Content was automatically extracted by Reffy into webref
 // (https://github.com/w3c/webref)
-// Source: Performance Timeline Level 2 (https://w3c.github.io/performance-timeline/)
+// Source: Performance Timeline (https://w3c.github.io/performance-timeline/)
 
 partial interface Performance {
   PerformanceEntryList getEntries ();
@@ -10,19 +10,21 @@ partial interface Performance {
 };
 typedef sequence<PerformanceEntry> PerformanceEntryList;
 
-[Exposed=*]
+[Exposed=(Window,Worker)]
 interface PerformanceEntry {
+  readonly    attribute unsigned long long  id;
   readonly    attribute DOMString           name;
   readonly    attribute DOMString           entryType;
   readonly    attribute DOMHighResTimeStamp startTime;
   readonly    attribute DOMHighResTimeStamp duration;
+  readonly    attribute unsigned long long  navigationId;
   [Default] object toJSON();
 };
 
 callback PerformanceObserverCallback = undefined (PerformanceObserverEntryList entries,
                                              PerformanceObserver observer,
                                              optional PerformanceObserverCallbackOptions options = {});
-[Exposed=*]
+[Exposed=(Window,Worker)]
 interface PerformanceObserver {
   constructor(PerformanceObserverCallback callback);
   undefined observe (optional PerformanceObserverInit options = {});
@@ -41,7 +43,7 @@ dictionary PerformanceObserverInit {
   boolean buffered;
 };
 
-[Exposed=*]
+[Exposed=(Window,Worker)]
 interface PerformanceObserverEntryList {
   PerformanceEntryList getEntries();
   PerformanceEntryList getEntriesByType (DOMString type);

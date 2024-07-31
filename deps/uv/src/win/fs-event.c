@@ -114,7 +114,7 @@ static int uv__split_path(const WCHAR* filename, WCHAR** dir,
       }
     }
 
-    *file = wcsdup(filename);
+    *file = _wcsdup(filename);
   } else {
     if (dir) {
       *dir = (WCHAR*)uv__malloc((i + 2) * sizeof(WCHAR));
@@ -157,7 +157,8 @@ int uv_fs_event_start(uv_fs_event_t* handle,
                       uv_fs_event_cb cb,
                       const char* path,
                       unsigned int flags) {
-  int name_size, is_path_dir, size;
+  int is_path_dir;
+  size_t size;
   DWORD attr, last_error;
   WCHAR* dir = NULL, *dir_to_watch, *pathw = NULL;
   DWORD short_path_buffer_len;
@@ -176,23 +177,9 @@ int uv_fs_event_start(uv_fs_event_t* handle,
 
   uv__handle_start(handle);
 
-  /* Convert name to UTF16. */
-
-  name_size = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0) *
-              sizeof(WCHAR);
-  pathw = (WCHAR*)uv__malloc(name_size);
-  if (!pathw) {
-    uv_fatal_error(ERROR_OUTOFMEMORY, "uv__malloc");
-  }
-
-  if (!MultiByteToWideChar(CP_UTF8,
-                           0,
-                           path,
-                           -1,
-                           pathw,
-                           name_size / sizeof(WCHAR))) {
-    return uv_translate_sys_error(GetLastError());
-  }
+  last_error = uv__convert_utf8_to_utf16(path, &pathw);
+  if (last_error)
+    goto error_uv;
 
   /* Determine whether path is a file or a directory. */
   attr = GetFileAttributesW(pathw);
@@ -333,6 +320,9 @@ short_path_done:
   return 0;
 
 error:
+  last_error = uv_translate_sys_error(last_error);
+
+error_uv:
   if (handle->path) {
     uv__free(handle->path);
     handle->path = NULL;
@@ -365,7 +355,7 @@ error:
 
   uv__free(short_path);
 
-  return uv_translate_sys_error(last_error);
+  return last_error;
 }
 
 

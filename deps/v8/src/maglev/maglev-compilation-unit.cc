@@ -34,7 +34,13 @@ MaglevCompilationUnit::MaglevCompilationUnit(
       feedback_(feedback_vector),
       register_count_(bytecode_->register_count()),
       parameter_count_(bytecode_->parameter_count()),
-      inlining_depth_(caller == nullptr ? 0 : caller->inlining_depth_ + 1) {}
+      inlining_depth_(caller == nullptr ? 0 : caller->inlining_depth_ + 1) {
+  // Check that the parameter count in the bytecode and in the shared function
+  // info are consistent.
+  SBXCHECK_EQ(
+      bytecode_->parameter_count(),
+      shared_function_info.internal_formal_parameter_count_with_receiver());
+}
 
 MaglevCompilationUnit::MaglevCompilationUnit(
     MaglevCompilationInfo* info, const MaglevCompilationUnit* caller,

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
-
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 (function TestNullDereferences() {
@@ -89,6 +87,13 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
     .exportFunc();
 
   builder.addFunction(
+      "arrayFill",
+      makeSig([wasmRefNullType(array), kWasmI64], []))
+    .addBody([kExprLocalGet, 0, kExprI32Const, 0, kExprLocalGet, 1,
+              kExprI32Const, 10, kGCPrefix, kExprArrayFill, array])
+    .exportFunc();
+
+  builder.addFunction(
       "callFuncRef", makeSig([wasmRefNullType(sig), kWasmI32], [kWasmI32]))
     .addBody([kExprLocalGet, 1, kExprLocalGet, 0, kExprCallRef, sig])
     .exportFunc();
@@ -159,6 +164,8 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   assertTraps(kTrapNullDereference, () => instance.exports.arrayLen(null));
   assertTraps(kTrapNullDereference,
               () => instance.exports.arrayCopy(null, null));
+  assertTraps(kTrapNullDereference,
+              () => instance.exports.arrayFill(null, 42n));
   assertTraps(kTrapNullDereference,
               () => instance.exports.callFuncRef(null, 42));
   assertTraps(kTrapNullDereference,

@@ -3,6 +3,7 @@
 #include "crypto/crypto_util.h"
 #include "env-inl.h"
 #include "memory_tracker-inl.h"
+#include "ncrypto.h"
 #include "threadpoolwork-inl.h"
 #include "v8.h"
 
@@ -60,7 +61,7 @@ bool RandomBytesTraits::DeriveBits(
     Environment* env,
     const RandomBytesConfig& params,
     ByteSource* unused) {
-  return CSPRNG(params.buffer, params.size).is_ok();
+  return ncrypto::CSPRNG(params.buffer, params.size);
 }
 
 void RandomPrimeConfig::MemoryInfo(MemoryTracker* tracker) const {
@@ -75,10 +76,10 @@ Maybe<bool> RandomPrimeTraits::EncodeOutput(
   size_t size = BN_num_bytes(params.prime.get());
   std::shared_ptr<BackingStore> store =
       ArrayBuffer::NewBackingStore(env->isolate(), size);
-  BN_bn2binpad(
-      params.prime.get(),
-      reinterpret_cast<unsigned char*>(store->Data()),
-      size);
+  CHECK_EQ(static_cast<int>(size),
+           BN_bn2binpad(params.prime.get(),
+                        reinterpret_cast<unsigned char*>(store->Data()),
+                        size));
   *result = ArrayBuffer::New(env->isolate(), store);
   return Just(true);
 }
@@ -154,7 +155,7 @@ bool RandomPrimeTraits::DeriveBits(Environment* env,
                                    ByteSource* unused) {
   // BN_generate_prime_ex() calls RAND_bytes_ex() internally.
   // Make sure the CSPRNG is properly seeded.
-  CHECK(CSPRNG(nullptr, 0).is_ok());
+  CHECK(ncrypto::CSPRNG(nullptr, 0));
 
   if (BN_generate_prime_ex(
           params.prime.get(),

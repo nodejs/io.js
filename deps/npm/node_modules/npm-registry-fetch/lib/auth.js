@@ -4,8 +4,8 @@ const npa = require('npm-package-arg')
 const { URL } = require('url')
 
 // Find the longest registry key that is used for some kind of auth
-// in the options.
-const regKeyFromURI = (uri, opts) => {
+// in the options.  Returns the registry key and the auth config.
+const regFromURI = (uri, opts) => {
   const parsed = new URL(uri)
   // try to find a config key indicating we have auth for this registry
   // can be one of :_authToken, :_auth, :_password and :username, or
@@ -14,23 +14,40 @@ const regKeyFromURI = (uri, opts) => {
   // stopping when we reach '//'.
   let regKey = `//${parsed.host}${parsed.pathname}`
   while (regKey.length > '//'.length) {
+    const authKey = hasAuth(regKey, opts)
     // got some auth for this URI
-    if (hasAuth(regKey, opts)) {
-      return regKey
+    if (authKey) {
+      return { regKey, authKey }
     }
 
     // can be either //host/some/path/:_auth or //host/some/path:_auth
     // walk up by removing EITHER what's after the slash OR the slash itself
     regKey = regKey.replace(/([^/]+|\/)$/, '')
   }
+  return { regKey: false, authKey: null }
 }
 
-const hasAuth = (regKey, opts) => (
-  opts[`${regKey}:_authToken`] ||
-  opts[`${regKey}:_auth`] ||
-  opts[`${regKey}:username`] && opts[`${regKey}:_password`] ||
-  opts[`${regKey}:certfile`] && opts[`${regKey}:keyfile`]
-)
+// Not only do we want to know if there is auth, but if we are calling `npm
+// logout` we want to know what config value specifically provided it.  This is
+// so we can look up where the config came from to delete it (i.e. user vs
+// project)
+const hasAuth = (regKey, opts) => {
+  if (opts[`${regKey}:_authToken`]) {
+    return '_authToken'
+  }
+  if (opts[`${regKey}:_auth`]) {
+    return '_auth'
+  }
+  if (opts[`${regKey}:username`] && opts[`${regKey}:_password`]) {
+    // 'password' can be inferred to also be present
+    return 'username'
+  }
+  if (opts[`${regKey}:certfile`] && opts[`${regKey}:keyfile`]) {
+    // 'keyfile' can be inferred to also be present
+    return 'certfile'
+  }
+  return false
+}
 
 const sameHost = (a, b) => {
   const parsedA = new URL(a)
@@ -63,11 +80,14 @@ const getAuth = (uri, opts = {}) => {
   if (!uri) {
     throw new Error('URI is required')
   }
-  const regKey = regKeyFromURI(uri, forceAuth || opts)
+  const { regKey, authKey } = regFromURI(uri, forceAuth || opts)
 
   // we are only allowed to use what's in forceAuth if specified
   if (forceAuth && !regKey) {
     return new Auth({
+      // if we force auth we don't want to refer back to anything in config
+      regKey: false,
+      authKey: null,
       scopeAuthKey: null,
       token: forceAuth._authToken || forceAuth.token,
       username: forceAuth.username,
@@ -88,8 +108,8 @@ const getAuth = (uri, opts = {}) => {
       // registry where we logged in, but the same auth SHOULD be sent
       // to that artifact host, then we track where it was coming in from,
       // and warn the user if we get a 4xx error on it.
-      const scopeAuthKey = regKeyFromURI(registry, opts)
-      return new Auth({ scopeAuthKey })
+      const { regKey: scopeAuthKey, authKey: _authKey } = regFromURI(registry, opts)
+      return new Auth({ scopeAuthKey, regKey: scopeAuthKey, authKey: _authKey })
     }
   }
 
@@ -104,6 +124,8 @@ const getAuth = (uri, opts = {}) => {
 
   return new Auth({
     scopeAuthKey: null,
+    regKey,
+    authKey,
     token,
     auth,
     username,
@@ -114,8 +136,22 @@ const getAuth = (uri, opts = {}) => {
 }
 
 class Auth {
-  constructor ({ token, auth, username, password, scopeAuthKey, certfile, keyfile }) {
+  constructor ({
+    token,
+    auth,
+    username,
+    password,
+    scopeAuthKey,
+    certfile,
+    keyfile,
+    regKey,
+    authKey,
+  }) {
+    // same as regKey but only present for scoped auth. Should have been named scopeRegKey
     this.scopeAuthKey = scopeAuthKey
+    // `${regKey}:${authKey}` will get you back to the auth config that gave us auth
+    this.regKey = regKey
+    this.authKey = authKey
     this.token = null
     this.auth = null
     this.isBasicAuth = false

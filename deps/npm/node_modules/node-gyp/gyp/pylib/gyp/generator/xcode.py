@@ -439,7 +439,7 @@ sys.exit(subprocess.call(sys.argv[1:]))" """
         # it opens the project file, which will result in unnecessary diffs.
         # TODO(mark): This is evil because it relies on internal knowledge of
         # PBXProject._other_pbxprojects.
-        for other_pbxproject in self.project._other_pbxprojects.keys():
+        for other_pbxproject in self.project._other_pbxprojects:
             self.project.AddOrGetProjectReference(other_pbxproject)
 
         self.project.SortRemoteProductReferences()
@@ -1118,10 +1118,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
                     for concrete_output_index, concrete_output in enumerate(
                         concrete_outputs
                     ):
-                        if concrete_output_index == 0:
-                            bol = ""
-                        else:
-                            bol = "    "
+                        bol = "" if concrete_output_index == 0 else "    "
                         makefile.write(f"{bol}{concrete_output} \\\n")
 
                         concrete_output_dir = posixpath.dirname(concrete_output)

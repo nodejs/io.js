@@ -18,6 +18,10 @@ namespace v8 {
 namespace internal {
 
 void StartupDeserializer::DeserializeIntoIsolate() {
+  TRACE_EVENT0("v8", "V8.DeserializeIsolate");
+  RCS_SCOPE(isolate(), RuntimeCallCounterId::kDeserializeIsolate);
+  base::ElapsedTimer timer;
+  if (V8_UNLIKELY(v8_flags.profile_deserialization)) timer.Start();
   NestedTimedHistogramScope histogram_timer(
       isolate()->counters()->snapshot_deserialize_isolate());
   HandleScope scope(isolate());
@@ -45,7 +49,7 @@ void StartupDeserializer::DeserializeIntoIsolate() {
     for (Handle<AccessorInfo> info : accessor_infos()) {
       RestoreExternalReferenceRedirector(isolate(), *info);
     }
-    for (Handle<CallHandlerInfo> info : call_handler_infos()) {
+    for (Handle<FunctionTemplateInfo> info : function_template_infos()) {
       RestoreExternalReferenceRedirector(isolate(), *info);
     }
 
@@ -76,6 +80,14 @@ void StartupDeserializer::DeserializeIntoIsolate() {
     // Hash seed was initialized in ReadOnlyDeserializer.
     Rehash();
   }
+
+  if (V8_UNLIKELY(v8_flags.profile_deserialization)) {
+    // ATTENTION: The Memory.json benchmark greps for this exact output. Do not
+    // change it without also updating Memory.json.
+    const int bytes = source()->length();
+    const double ms = timer.Elapsed().InMillisecondsF();
+    PrintF("[Deserializing isolate (%d bytes) took %0.3f ms]\n", bytes, ms);
+  }
 }
 
 void StartupDeserializer::LogNewMapEvents() {
@@ -85,7 +97,7 @@ void StartupDeserializer::LogNewMapEvents() {
 void StartupDeserializer::FlushICache() {
   DCHECK(!deserializing_user_code());
   // The entire isolate is newly deserialized. Simply flush all code pages.
-  for (Page* p : *isolate()->heap()->code_space()) {
+  for (PageMetadata* p : *isolate()->heap()->code_space()) {
     FlushInstructionCache(p->area_start(), p->area_end() - p->area_start());
   }
 }

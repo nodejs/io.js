@@ -4,7 +4,7 @@
 // may change when node-tap is updated.
 
 const t = require('tap')
-const { utimesSync } = require('fs')
+const { utimesSync } = require('node:fs')
 const mockNpm = require('../../fixtures/mock-npm.js')
 const { cleanCwd } = require('../../fixtures/clean-snapshot')
 
@@ -100,7 +100,7 @@ const mockLs = async (t, { mocks, config, ...opts } = {}) => {
     command: 'ls',
     mocks: {
       path: {
-        ...require('path'),
+        ...require('node:path'),
         sep: '/',
       },
       ...mocks,

@@ -12,6 +12,7 @@ on:
       - tools/gyp/**
       - tools/test.py
       - .github/workflows/coverage-linux.yml
+      - codecov.yml
   push:
     branches:
       - main
@@ -24,14 +25,18 @@ on:
       - tools/gyp/**
       - tools/test.py
       - .github/workflows/coverage-linux.yml
+      - codecov.yml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.12'
   FLAKY_TESTS: keep_retrying
+  CC: sccache clang
+  CXX: sccache clang++
+  SCCACHE_GHA_ENABLED: 'true'
 
 permissions:
   contents: read
@@ -39,35 +44,40 @@ permissions:
 jobs:
   coverage-linux:
     if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
         with:
           persist-credentials: false
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1  # v4.7.0
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@89e9040de88b577a072e3760aaf59f585da083af  # v0.0.5
+        with:
+          version: v0.8.0
       - name: Environment Information
         run: npx envinfo
       - name: Install gcovr
-        run: pip install gcovr==4.2
+        run: pip install gcovr==7.2
       - name: Build
-        run: make build-ci -j2 V=1 CONFIG_FLAGS="--error-on-warn --coverage"
+        run: make build-ci -j4 V=1 CONFIG_FLAGS="--error-on-warn --coverage"
       # TODO(bcoe): fix the couple tests that fail with the inspector enabled.
       # The cause is most likely coverage's use of the inspector.
       - name: Test
-        run: NODE_V8_COVERAGE=coverage/tmp make test-cov -j2 V=1 TEST_CI_ARGS="-p dots --node-args='--test-reporter=spec' --measure-flakiness 9" || exit 0
+        run: NODE_V8_COVERAGE=coverage/tmp make test-cov -j4 V=1 TEST_CI_ARGS="-p dots --node-args='--test-reporter=spec' --measure-flakiness 9" || exit 0
       - name: Report JS
         run: npx c8 report --check-coverage
         env:
           NODE_OPTIONS: --max-old-space-size=8192
       - name: Report C++
-        run: cd out && gcovr --gcov-exclude='.*\b(deps|usr|out|obj|cctest|embedding)\b' -v -r Release/obj.target --xml -o ../coverage/coverage-cxx.xml --root=$(cd ../ && pwd)
+        run: gcovr --object-directory=out -v --filter src --xml -o ./coverage/coverage-cxx.xml --root=./ --gcov-executable="llvm-cov-18 gcov"
       # Clean temporary output from gcov and c8, so that it's not uploaded:
       - name: Clean tmp
         run: rm -rf coverage/tmp && rm -rf out
       - name: Upload
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d  # v3.1.4
+        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673  # v4.5.0
         with:
           directory: ./coverage
+          token: ${{ secrets.CODECOV_TOKEN }}

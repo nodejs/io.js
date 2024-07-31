@@ -18,8 +18,8 @@
 #include "decNumber.h"
 #include "charstr.h"
 
-U_NAMESPACE_BEGIN namespace number {
-namespace impl {
+U_NAMESPACE_BEGIN
+namespace number::impl {
 
 /**
  * A wrapper around LocalizedNumberFormatter implementing the Format interface, enabling improved
@@ -97,8 +97,7 @@ class U_I18N_API LocalizedNumberFormatterAsFormat : public Format {
     Locale fLocale;
 };
 
-} // namespace impl
-} // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 #endif // __NUMBER_ASFORMAT_H__

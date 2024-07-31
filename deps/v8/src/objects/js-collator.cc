@@ -421,14 +421,14 @@ MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, Handle<Map> map,
 
   std::unique_ptr<icu::Collator> icu_collator(
       icu::Collator::createInstance(icu_locale, status));
-  if (U_FAILURE(status) || icu_collator.get() == nullptr) {
+  if (U_FAILURE(status) || icu_collator == nullptr) {
     status = U_ZERO_ERROR;
     // Remove extensions and try again.
     icu::Locale no_extension_locale(icu_locale.getBaseName());
     icu_collator.reset(
         icu::Collator::createInstance(no_extension_locale, status));
 
-    if (U_FAILURE(status) || icu_collator.get() == nullptr) {
+    if (U_FAILURE(status) || icu_collator == nullptr) {
       THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
                       JSCollator);
     }
@@ -519,15 +519,24 @@ MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, Handle<Map> map,
 
   // 27.Let ignorePunctuation be ? GetOption(options,
   // "ignorePunctuation", "boolean", undefined, false).
-  bool ignore_punctuation;
+  bool ignore_punctuation = false;
   Maybe<bool> found_ignore_punctuation = GetBoolOption(
       isolate, options, "ignorePunctuation", service, &ignore_punctuation);
   MAYBE_RETURN(found_ignore_punctuation, MaybeHandle<JSCollator>());
 
   // 28. Set collator.[[IgnorePunctuation]] to ignorePunctuation.
-  if (found_ignore_punctuation.FromJust() && ignore_punctuation) {
+
+  // Note: The following implementation does not strictly follow the spec text
+  // due to https://github.com/tc39/ecma402/issues/832
+  // If the ignorePunctuation is not defined, instead of fall back
+  // to default false, we just depend on ICU to default based on the
+  // built in locale collation rule, which in "th" locale that is true
+  // but false on other locales.
+  if (found_ignore_punctuation.FromJust()) {
     status = U_ZERO_ERROR;
-    icu_collator->setAttribute(UCOL_ALTERNATE_HANDLING, UCOL_SHIFTED, status);
+    icu_collator->setAttribute(
+        UCOL_ALTERNATE_HANDLING,
+        ignore_punctuation ? UCOL_SHIFTED : UCOL_NON_IGNORABLE, status);
     DCHECK(U_SUCCESS(status));
   }
 
@@ -558,6 +567,7 @@ class CollatorAvailableLocales {
     const icu::Locale* icu_available_locales =
         icu::Collator::getAvailableLocales(num_locales);
     std::vector<std::string> locales;
+    locales.reserve(num_locales);
     for (int32_t i = 0; i < num_locales; ++i) {
       locales.push_back(
           Intl::ToLanguageTag(icu_available_locales[i]).FromJust());

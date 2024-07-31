@@ -26,7 +26,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
+#include "ares_private.h"
 
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
@@ -38,8 +38,6 @@
 #  include <arpa/inet.h>
 #endif
 
-#include "ares_nameser.h"
-
 #ifdef HAVE_STRINGS_H
 #  include <strings.h>
 #endif
@@ -48,55 +46,63 @@
 #  include <limits.h>
 #endif
 
-#include "ares.h"
-#include "ares_dns.h"
 #include "ares_inet_net_pton.h"
-#include "ares_private.h"
 
 int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
                           struct hostent **host, struct ares_addr6ttl *addrttls,
                           int *naddrttls)
 {
   struct ares_addrinfo ai;
-  char *question_hostname = NULL;
-  int status;
-  int req_naddrttls = 0;
+  char                *question_hostname = NULL;
+  ares_status_t        status;
+  size_t               req_naddrttls = 0;
+  ares_dns_record_t   *dnsrec        = NULL;
 
-  if (naddrttls)
-    {
-      req_naddrttls = *naddrttls;
-      *naddrttls = 0;
-    }
+  if (alen < 0) {
+    return ARES_EBADRESP;
+  }
+
+  if (naddrttls) {
+    req_naddrttls = (size_t)*naddrttls;
+    *naddrttls    = 0;
+  }
 
   memset(&ai, 0, sizeof(ai));
 
-  status = ares__parse_into_addrinfo(abuf, alen, 0, 0, &ai);
-  if (status != ARES_SUCCESS && status != ARES_ENODATA)
-    {
-      goto fail;
-    }
+  status = ares_dns_parse(abuf, (size_t)alen, 0, &dnsrec);
+  if (status != ARES_SUCCESS) {
+    goto fail;
+  }
 
-  if (host != NULL)
-    {
-      status = ares__addrinfo2hostent(&ai, AF_INET6, host);
-      if (status != ARES_SUCCESS && status != ARES_ENODATA)
-        {
-          goto fail;
-        }
-    }
+  status = ares__parse_into_addrinfo(dnsrec, 0, 0, &ai);
+  if (status != ARES_SUCCESS && status != ARES_ENODATA) {
+    goto fail;
+  }
 
-  if (addrttls != NULL && req_naddrttls)
-   {
-     ares__addrinfo2addrttl(&ai, AF_INET6, req_naddrttls, NULL,
-                            addrttls, naddrttls);
-   }
+  if (host != NULL) {
+    status = ares__addrinfo2hostent(&ai, AF_INET6, host);
+    if (status != ARES_SUCCESS && status != ARES_ENODATA) {
+      goto fail; /* LCOV_EXCL_LINE: DefensiveCoding */
+    }
+  }
+
+  if (addrttls != NULL && req_naddrttls) {
+    size_t temp_naddrttls = 0;
+    ares__addrinfo2addrttl(&ai, AF_INET6, req_naddrttls, NULL, addrttls,
+                           &temp_naddrttls);
+    *naddrttls = (int)temp_naddrttls;
+  }
 
 fail:
   ares__freeaddrinfo_cnames(ai.cnames);
   ares__freeaddrinfo_nodes(ai.nodes);
   ares_free(question_hostname);
   ares_free(ai.name);
+  ares_dns_record_destroy(dnsrec);
 
-  return status;
+  if (status == ARES_EBADNAME) {
+    status = ARES_EBADRESP;
+  }
+
+  return (int)status;
 }
-

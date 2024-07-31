@@ -98,19 +98,21 @@ Reduction WasmTyper::Reduce(Node* node) {
         break;
       }
 
-      Type input_type =
+      Type first_input_type =
           NodeProperties::GetType(NodeProperties::GetValueInput(node, 0));
-      if (!input_type.IsWasm()) return NoChange();
-      computed_type = {wasm::kWasmBottom, input_type.AsWasm().module};
-      for (int i = 0; i < node->op()->ValueInputCount(); i++) {
+      if (!first_input_type.IsWasm()) return NoChange();
+      computed_type = first_input_type.AsWasm();
+      for (int i = 1; i < node->op()->ValueInputCount(); i++) {
         Node* input = NodeProperties::GetValueInput(node, i);
-        TypeInModule input_type = NodeProperties::GetType(input).AsWasm();
+        Type input_type = NodeProperties::GetType(input);
+        if (!input_type.IsWasm()) return NoChange();
+        TypeInModule wasm_type = input_type.AsWasm();
         if (computed_type.type.is_bottom()) {
           // We have not found a non-bottom branch yet.
-          computed_type = input_type;
-        } else if (!input_type.type.is_bottom()) {
+          computed_type = wasm_type;
+        } else if (!wasm_type.type.is_bottom()) {
           // We do not want union of types from unreachable branches.
-          computed_type = wasm::Union(computed_type, input_type);
+          computed_type = wasm::Union(computed_type, wasm_type);
         }
       }
       TRACE(

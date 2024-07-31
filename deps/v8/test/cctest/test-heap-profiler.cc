@@ -30,6 +30,7 @@
 #include <ctype.h>
 
 #include <memory>
+#include <vector>
 
 #include "include/v8-function.h"
 #include "include/v8-json.h"
@@ -55,7 +56,7 @@
 using i::AllocationTraceNode;
 using i::AllocationTraceTree;
 using i::AllocationTracker;
-using i::SourceLocation;
+using i::EntrySourceLocation;
 using i::heap::GrowNewSpaceToMaximumCapacity;
 using v8::base::ArrayVector;
 using v8::base::Optional;
@@ -161,18 +162,18 @@ static const v8::HeapGraphNode* GetRootChild(const v8::HeapSnapshot* snapshot,
   return GetChildByName(snapshot->GetRoot(), name);
 }
 
-static Optional<SourceLocation> GetLocation(const v8::HeapSnapshot* s,
-                                            const v8::HeapGraphNode* node) {
+static Optional<EntrySourceLocation> GetLocation(
+    const v8::HeapSnapshot* s, const v8::HeapGraphNode* node) {
   const i::HeapSnapshot* snapshot = reinterpret_cast<const i::HeapSnapshot*>(s);
-  const std::vector<SourceLocation>& locations = snapshot->locations();
+  const std::vector<EntrySourceLocation>& locations = snapshot->locations();
   const i::HeapEntry* entry = reinterpret_cast<const i::HeapEntry*>(node);
   for (const auto& loc : locations) {
     if (loc.entry_index == entry->index()) {
-      return Optional<SourceLocation>(loc);
+      return Optional<EntrySourceLocation>(loc);
     }
   }
 
-  return Optional<SourceLocation>();
+  return Optional<EntrySourceLocation>();
 }
 
 static const v8::HeapGraphNode* GetProperty(v8::Isolate* isolate,
@@ -302,7 +303,7 @@ TEST(HeapSnapshotLocations) {
       GetProperty(env->GetIsolate(), global, v8::HeapGraphEdge::kProperty, "x");
   CHECK(x);
 
-  Optional<SourceLocation> x_loc = GetLocation(snapshot, x);
+  Optional<EntrySourceLocation> x_loc = GetLocation(snapshot, x);
   CHECK(x_loc);
   CHECK_EQ(0, x_loc->line);
   CHECK_EQ(31, x_loc->col);
@@ -311,7 +312,7 @@ TEST(HeapSnapshotLocations) {
       GetProperty(env->GetIsolate(), global, v8::HeapGraphEdge::kProperty, "g");
   CHECK(x);
 
-  Optional<SourceLocation> g_loc = GetLocation(snapshot, g);
+  Optional<EntrySourceLocation> g_loc = GetLocation(snapshot, g);
   CHECK(g_loc);
   CHECK_EQ(1, g_loc->line);
   CHECK_EQ(15, g_loc->col);
@@ -320,7 +321,7 @@ TEST(HeapSnapshotLocations) {
       GetProperty(env->GetIsolate(), global, v8::HeapGraphEdge::kProperty, "o");
   CHECK(x);
 
-  Optional<SourceLocation> o_loc = GetLocation(snapshot, o);
+  Optional<EntrySourceLocation> o_loc = GetLocation(snapshot, o);
   CHECK(o_loc);
   CHECK_EQ(2, o_loc->line);
   CHECK_EQ(0, o_loc->col);
@@ -1265,8 +1266,9 @@ TEST(HeapSnapshotObjectsStats) {
       CcTest::heap());
 
   LocalContext env;
-  v8::HandleScope scope(env->GetIsolate());
-  v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+  v8::HeapProfiler* heap_profiler = isolate->GetHeapProfiler();
 
   heap_profiler->StartTrackingHeapObjects();
   // We have to call GC 6 times. In other case the garbage will be
@@ -1293,7 +1295,7 @@ TEST(HeapSnapshotObjectsStats) {
 
   {
     v8::SnapshotObjectId additional_string_id;
-    v8::HandleScope inner_scope_1(env->GetIsolate());
+    v8::HandleScope inner_scope_1(isolate);
     v8_str("string1");
     {
       // Single chunk of data with one new entry expected in update.
@@ -1313,12 +1315,12 @@ TEST(HeapSnapshotObjectsStats) {
     CHECK_EQ(additional_string_id, last_id);
 
     {
-      v8::HandleScope inner_scope_2(env->GetIsolate());
+      v8::HandleScope inner_scope_2(isolate);
       v8_str("string2");
 
       uint32_t entries_size;
       {
-        v8::HandleScope inner_scope_3(env->GetIsolate());
+        v8::HandleScope inner_scope_3(isolate);
         v8_str("string3");
         v8_str("string4");
 
@@ -1367,10 +1369,12 @@ TEST(HeapSnapshotObjectsStats) {
     CHECK_EQ(2, stats_update.first_interval_index());
   }
 
-  v8::Local<v8::Array> array = v8::Array::New(env->GetIsolate());
-  CHECK_EQ(0u, array->Length());
+  // With conservative stack scanning disabled and with direct locals, a
+  // v8::Local<v8::Array> here would be reclaimed by GetHeapStatsUpdate.
+  v8::Persistent<v8::Array> array(isolate, v8::Array::New(isolate));
+  CHECK_EQ(0u, array.Get(isolate)->Length());
   // Force array's buffer allocation.
-  array->Set(env.local(), 2, v8_num(7)).FromJust();
+  array.Get(isolate)->Set(env.local(), 2, v8_num(7)).FromJust();
 
   uint32_t entries_size;
   {
@@ -1385,7 +1389,7 @@ TEST(HeapSnapshotObjectsStats) {
   }
 
   for (int i = 0; i < 100; ++i)
-    array->Set(env.local(), i, v8_num(i)).FromJust();
+    array.Get(isolate)->Set(env.local(), i, v8_num(i)).FromJust();
 
   {
     // Single chunk of data with 1 entry expected in update.
@@ -1846,7 +1850,8 @@ TEST(NativeSnapshotObjectIdMoving) {
     auto local = v8::Local<v8::String>::New(isolate, wrapper);
     i::Handle<i::String> internal = i::Handle<i::String>::cast(
         v8::Utils::OpenHandle(*v8::Local<v8::String>::Cast(local)));
-    i::heap::ForceEvacuationCandidate(i::Page::FromHeapObject(*internal));
+    i::heap::ForceEvacuationCandidate(
+        i::PageMetadata::FromHeapObject(*internal));
   }
   i::heap::InvokeMajorGC(CcTest::heap());
 
@@ -1959,10 +1964,6 @@ TEST(GlobalObjectFields) {
   const v8::HeapSnapshot* snapshot = heap_profiler->TakeHeapSnapshot();
   CHECK(ValidateSnapshot(snapshot));
   const v8::HeapGraphNode* global = GetGlobalObject(snapshot);
-  const v8::HeapGraphNode* native_context =
-      GetProperty(env->GetIsolate(), global, v8::HeapGraphEdge::kInternal,
-                  "native_context");
-  CHECK(native_context);
   const v8::HeapGraphNode* global_proxy = GetProperty(
       env->GetIsolate(), global, v8::HeapGraphEdge::kInternal, "global_proxy");
   CHECK(global_proxy);
@@ -2061,10 +2062,16 @@ TEST(GetHeapValueForDeletedObject) {
     CHECK(heap_profiler->FindObjectById(prop->GetId())->IsObject());
   }
   CompileRun("delete a.p;");
-  CHECK(heap_profiler->FindObjectById(prop->GetId()).IsEmpty());
+  {
+    // Exclude the stack during object finding, so that conservative stack
+    // scanning may not accidentally mark the object as reachable.
+    i::Heap* heap = reinterpret_cast<i::Isolate*>(env->GetIsolate())->heap();
+    i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
+    CHECK(heap_profiler->FindObjectById(prop->GetId()).IsEmpty());
+  }
 }
 
-static int StringCmp(const char* ref, i::String act) {
+static int StringCmp(const char* ref, i::Tagged<i::String> act) {
   std::unique_ptr<char[]> s_act = act->ToCString();
   int result = strcmp(ref, s_act.get());
   if (result != 0)
@@ -3171,13 +3178,17 @@ TEST(HeapSnapshotScriptContext) {
   const v8::HeapSnapshot* snapshot = heap_profiler->TakeHeapSnapshot();
   CHECK(ValidateSnapshot(snapshot));
   const v8::HeapGraphNode* global = GetGlobalObject(snapshot);
+  const v8::HeapGraphNode* global_map = GetProperty(
+      env->GetIsolate(), global, v8::HeapGraphEdge::kInternal, "map");
+  const v8::HeapGraphNode* map_map = GetProperty(
+      env->GetIsolate(), global_map, v8::HeapGraphEdge::kInternal, "map");
   const v8::HeapGraphNode* native_context =
-      GetProperty(env->GetIsolate(), global, v8::HeapGraphEdge::kInternal,
+      GetProperty(env->GetIsolate(), map_map, v8::HeapGraphEdge::kInternal,
                   "native_context");
-  CHECK(native_context);
   const v8::HeapGraphNode* script_context_table =
       GetProperty(env->GetIsolate(), native_context,
                   v8::HeapGraphEdge::kInternal, "script_context_table");
+
   CHECK(script_context_table);
   bool found_foo = false;
   for (int i = 0, count = script_context_table->GetChildrenCount(); i < count;
@@ -3927,6 +3938,10 @@ TEST(SamplingHeapProfilerPretenuredInlineAllocations) {
   // Suppress randomness to avoid flakiness in tests.
   i::v8_flags.sampling_heap_profiler_suppress_randomness = true;
 
+  // Disable loop unrolling to have a more predictable number of allocations
+  // (loop unrolling could cause allocation folding).
+  i::v8_flags.turboshaft_loop_unrolling = false;
+
   GrowNewSpaceToMaximumCapacity(CcTest::heap());
 
   v8::base::ScopedVector<char> source(1024);
@@ -4064,6 +4079,67 @@ TEST(SamplingHeapProfilerSampleDuringDeopt) {
   heap_profiler->StopSamplingHeapProfiler();
 }
 
+namespace {
+class TestQueryObjectPredicate : public v8::QueryObjectPredicate {
+ public:
+  TestQueryObjectPredicate(v8::Local<v8::Context> context,
+                           v8::Local<v8::Symbol> symbol)
+      : context_(context), symbol_(symbol) {}
+
+  bool Filter(v8::Local<v8::Object> object) override {
+    return object->HasOwnProperty(context_, symbol_).FromMaybe(false);
+  }
+
+ private:
+  v8::Local<v8::Context> context_;
+  v8::Local<v8::Symbol> symbol_;
+};
+
+class IncludeAllQueryObjectPredicate : public v8::QueryObjectPredicate {
+ public:
+  IncludeAllQueryObjectPredicate() {}
+  bool Filter(v8::Local<v8::Object> object) override { return true; }
+};
+}  // anonymous namespace
+
+TEST(QueryObjects) {
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+  v8::Local<v8::Context> context = env.local();
+
+  v8::Local<v8::Symbol> sym =
+      v8::Symbol::New(isolate, v8_str("query_object_test"));
+  context->Global()->Set(context, v8_str("test_symbol"), sym).Check();
+  v8::Local<v8::Value> arr = CompileRun(R"(
+      const arr = [];
+      for (let i = 0; i < 10; ++i) {
+        arr.push({[test_symbol]: true});
+      }
+      arr;
+    )");
+  context->Global()->Set(context, v8_str("arr"), arr).Check();
+  v8::HeapProfiler* heap_profiler = isolate->GetHeapProfiler();
+
+  {
+    TestQueryObjectPredicate predicate(context, sym);
+    std::vector<v8::Global<v8::Object>> out;
+    heap_profiler->QueryObjects(context, &predicate, &out);
+
+    CHECK_EQ(out.size(), 10);
+    for (size_t i = 0; i < out.size(); ++i) {
+      CHECK(out[i].Get(isolate)->HasOwnProperty(context, sym).FromMaybe(false));
+    }
+  }
+
+  {
+    IncludeAllQueryObjectPredicate predicate;
+    std::vector<v8::Global<v8::Object>> out;
+    heap_profiler->QueryObjects(context, &predicate, &out);
+    CHECK_GE(out.size(), 10);
+  }
+}
+
 TEST(WeakReference) {
   v8::Isolate* isolate = CcTest::isolate();
   i::Isolate* i_isolate = CcTest::i_isolate();
@@ -4102,7 +4178,7 @@ TEST(WeakReference) {
 
   // Manually inlined version of FeedbackVector::SetOptimizedCode (needed due
   // to the FOR_TESTING code kind).
-  fv->set_maybe_optimized_code(i::HeapObjectReference::Weak(*code));
+  fv->set_maybe_optimized_code(i::MakeWeak(code->wrapper()));
   fv->set_flags(
       i::FeedbackVector::MaybeHasTurbofanCodeBit::encode(true) |
       i::FeedbackVector::TieringStateBits::encode(i::TieringState::kNone));

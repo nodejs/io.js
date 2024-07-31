@@ -39,7 +39,7 @@ class AllocationResult final {
   bool IsFailure() const { return object_.is_null(); }
 
   template <typename T>
-  bool To(T* obj) const {
+  bool To(Tagged<T>* obj) const {
     if (IsFailure()) return false;
     *obj = T::cast(object_);
     return true;
@@ -64,7 +64,7 @@ class AllocationResult final {
   explicit AllocationResult(Tagged<HeapObject> heap_object)
       : object_(heap_object) {}
 
-  HeapObject object_;
+  Tagged<HeapObject> object_;
 };
 
 static_assert(sizeof(AllocationResult) == kSystemPointerSize);

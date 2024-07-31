@@ -1,8 +1,8 @@
 const fetch = require('npm-registry-fetch')
-const log = require('../utils/log-shim')
+const { log, output } = require('proc-log')
 const getIdentity = require('../utils/get-identity.js')
+const BaseCommand = require('../base-cmd.js')
 
-const BaseCommand = require('../base-command.js')
 class Stars extends BaseCommand {
   static description = 'View packages marked as favorites'
   static name = 'stars'
@@ -25,7 +25,7 @@ class Stars extends BaseCommand {
       }
 
       for (const row of rows) {
-        this.npm.output(row.value)
+        output.standard(row.value)
       }
     } catch (err) {
       if (err.code === 'ENEEDAUTH') {
@@ -35,4 +35,5 @@ class Stars extends BaseCommand {
     }
   }
 }
+
 module.exports = Stars

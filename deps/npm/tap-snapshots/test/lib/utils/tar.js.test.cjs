@@ -9,28 +9,38 @@ exports[`test/lib/utils/tar.js TAP should log tarball contents > must match snap
 
 
 package: my-cool-pkg@1.0.0
-=== Tarball Contents ===
+Tarball Contents
 
-4B   cat
-4B   chai
-4B   dog
+4B cat
+4B chai
+4B dog
 114B package.json
-=== Bundled Dependencies ===
+Bundled Dependencies
 
 bundle-dep
-=== Tarball Details ===
+Tarball Details
 
-name:          my-cool-pkg                             
-version:       1.0.0                                   
-filename:      my-cool-pkg-1.0.0.tgz                   
-package size:  271 B
+name: my-cool-pkg
+
+version: 1.0.0
+
+filename: my-cool-pkg-1.0.0.tgz
+
+package size: {size}
+
 unpacked size: 126 B
-shasum:        23e31c8ad422f96301c07730e61ff403b10306f1
-integrity:     sha512-/Lg5tEGQv5A5y[...]gq8T9D5+Wat1A==
-bundled deps:  1
+
+shasum: {sha}
+
+integrity: {integrity}
+
+bundled deps: 1
+
 bundled files: 0
-own files:     5
-total files:   5
+
+own files: 5
+
+total files: 5
 
 
 `
@@ -39,28 +49,38 @@ exports[`test/lib/utils/tar.js TAP should log tarball contents of a scoped packa
 
 
 package: @myscope/my-cool-pkg@1.0.0
-=== Tarball Contents ===
+Tarball Contents
 
-4B   cat
-4B   chai
-4B   dog
+4B cat
+4B chai
+4B dog
 123B package.json
-=== Bundled Dependencies ===
+Bundled Dependencies
 
 bundle-dep
-=== Tarball Details ===
+Tarball Details
 
-name:          @myscope/my-cool-pkg
-version:       1.0.0
-filename:      myscope-my-cool-pkg-1.0.0.tgz
-package size:  280 B
+name: @myscope/my-cool-pkg
+
+version: 1.0.0
+
+filename: myscope-my-cool-pkg-1.0.0.tgz
+
+package size: {size}
+
 unpacked size: 135 B
-shasum:        a4f63307f2211e8fde72cd39bc1176b4fe997b71
-integrity:     sha512-b+RavF8JiErJt[...]YpwkJc8ycaabA==
-bundled deps:  1                                       
-bundled files: 0                                       
-own files:     5                                       
-total files:   5                                       
+
+shasum: {sha}
+
+integrity: {integrity}
+
+bundled deps: 1
+
+bundled files: 0
+
+own files: 5
+
+total files: 5
 
 
 `

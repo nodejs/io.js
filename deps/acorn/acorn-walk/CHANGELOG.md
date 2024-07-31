@@ -1,3 +1,29 @@
+## 8.3.3 (2024-01-11)
+
+### Bug fixes
+
+Make acorn a dependency because acorn-walk uses the types from that package.
+
+## 8.3.2 (2024-01-11)
+
+### Bug fixes
+
+Add missing type for `findNodeBefore`.
+
+## 8.3.1 (2023-12-06)
+
+### Bug fixes
+
+Add `Function` and `Class` to the `AggregateType` type, so that they can be used in walkers without raising a type error.
+
+Visitor functions are now called in such a way that their `this` refers to the object they are part of.
+
+## 8.3.0 (2023-10-26)
+
+### New features
+
+Use a set of new, much more precise, TypeScript types.
+
 ## 8.2.0 (2021-09-06)
 
 ### New features

@@ -34,13 +34,14 @@
 #include "cstring.h"
 #include "patternprops.h"
 #include "uassert.h"
+#include "ulocimp.h"
 #include "uvectr32.h"
 
 U_NAMESPACE_BEGIN
 
 namespace {
 
-static const char16_t BEFORE[] = { 0x5b, 0x62, 0x65, 0x66, 0x6f, 0x72, 0x65, 0 };  // "[before"
+const char16_t BEFORE[] = { 0x5b, 0x62, 0x65, 0x66, 0x6f, 0x72, 0x65, 0 };  // "[before"
 const int32_t BEFORE_LENGTH = 7;
 
 }  // namespace
@@ -437,7 +438,7 @@ CollationRuleParser::parseString(int32_t i, UnicodeString &raw, UErrorCode &erro
 
 namespace {
 
-static const char *const positions[] = {
+const char* const positions[] = {
     "first tertiary ignorable",
     "last tertiary ignorable",
     "first secondary ignorable",
@@ -604,19 +605,16 @@ CollationRuleParser::parseSetting(UErrorCode &errorCode) {
             lang.appendInvariantChars(v, errorCode);
             if(errorCode == U_MEMORY_ALLOCATION_ERROR) { return; }
             // BCP 47 language tag -> ICU locale ID
-            char localeID[ULOC_FULLNAME_CAPACITY];
             int32_t parsedLength;
-            int32_t length = uloc_forLanguageTag(lang.data(), localeID, ULOC_FULLNAME_CAPACITY,
-                                                 &parsedLength, &errorCode);
-            if(U_FAILURE(errorCode) ||
-                    parsedLength != lang.length() || length >= ULOC_FULLNAME_CAPACITY) {
+            CharString localeID = ulocimp_forLanguageTag(lang.data(), -1, &parsedLength, errorCode);
+            if(U_FAILURE(errorCode) || parsedLength != lang.length()) {
                 errorCode = U_ZERO_ERROR;
                 setParseError("expected language tag in [import langTag]", errorCode);
                 return;
             }
             // localeID minus all keywords
             char baseID[ULOC_FULLNAME_CAPACITY];
-            length = uloc_getBaseName(localeID, baseID, ULOC_FULLNAME_CAPACITY, &errorCode);
+            int32_t length = uloc_getBaseName(localeID.data(), baseID, ULOC_FULLNAME_CAPACITY, &errorCode);
             if(U_FAILURE(errorCode) || length >= ULOC_KEYWORDS_CAPACITY) {
                 errorCode = U_ZERO_ERROR;
                 setParseError("expected language tag in [import langTag]", errorCode);
@@ -629,11 +627,8 @@ CollationRuleParser::parseSetting(UErrorCode &errorCode) {
                 uprv_memcpy(baseID, "und", 3);
             }
             // @collation=type, or length=0 if not specified
-            char collationType[ULOC_KEYWORDS_CAPACITY];
-            length = uloc_getKeywordValue(localeID, "collation",
-                                          collationType, ULOC_KEYWORDS_CAPACITY,
-                                          &errorCode);
-            if(U_FAILURE(errorCode) || length >= ULOC_KEYWORDS_CAPACITY) {
+            CharString collationType = ulocimp_getKeywordValue(localeID.data(), "collation", errorCode);
+            if(U_FAILURE(errorCode)) {
                 errorCode = U_ZERO_ERROR;
                 setParseError("expected language tag in [import langTag]", errorCode);
                 return;
@@ -642,7 +637,8 @@ CollationRuleParser::parseSetting(UErrorCode &errorCode) {
                 setParseError("[import langTag] is not supported", errorCode);
             } else {
                 UnicodeString importedRules;
-                importer->getRules(baseID, length > 0 ? collationType : "standard",
+                importer->getRules(baseID,
+                                   !collationType.isEmpty() ? collationType.data() : "standard",
                                    importedRules, errorReason, errorCode);
                 if(U_FAILURE(errorCode)) {
                     if(errorReason == nullptr) {

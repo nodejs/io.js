@@ -58,6 +58,18 @@ static unsigned CpuFeaturesImpliedByCompiler() {
 #if (defined CAN_USE_RVV_INSTRUCTIONS)
   answer |= 1u << RISCV_SIMD;
 #endif  // def CAN_USE_RVV_INSTRUCTIONS
+
+#if (defined CAN_USE_ZBA_INSTRUCTIONS)
+  answer |= 1u << ZBA;
+#endif  // def CAN_USE_ZBA_INSTRUCTIONS
+
+#if (defined CAN_USE_ZBB_INSTRUCTIONS)
+  answer |= 1u << ZBB;
+#endif  // def CAN_USE_ZBA_INSTRUCTIONS
+
+#if (defined CAN_USE_ZBS_INSTRUCTIONS)
+  answer |= 1u << ZBS;
+#endif  // def CAN_USE_ZBA_INSTRUCTIONS
   return answer;
 }
 
@@ -71,10 +83,12 @@ void CpuFeatures::ProbeImpl(bool cross_compile) {
   base::CPU cpu;
   if (cpu.has_fpu()) supported_ |= 1u << FPU;
   if (cpu.has_rvv()) supported_ |= 1u << RISCV_SIMD;
+#ifdef V8_COMPRESS_POINTERS
   if (cpu.riscv_mmu() == base::CPU::RV_MMU_MODE::kRiscvSV57) {
     FATAL("SV57 is not supported");
     UNIMPLEMENTED();
   }
+#endif
   // Set a static value on whether SIMD is supported.
   // This variable is only used for certain archs to query SupportWasmSimd128()
   // at runtime in builtins using an extern ref. Other callers should use
@@ -83,7 +97,9 @@ void CpuFeatures::ProbeImpl(bool cross_compile) {
 }
 
 void CpuFeatures::PrintTarget() {}
-void CpuFeatures::PrintFeatures() {}
+void CpuFeatures::PrintFeatures() {
+  printf("supports_wasm_simd_128=%d\n", CpuFeatures::SupportsWasmSimd128());
+}
 int ToNumber(Register reg) {
   DCHECK(reg.is_valid());
   const int kNumbers[] = {
@@ -315,7 +331,7 @@ int Assembler::target_at(int pos, bool is_internal) {
   DEBUG_PRINTF("target_at: %p (%d)\n\t",
                reinterpret_cast<Instr*>(buffer_start_ + pos), pos);
   Instr instr = instruction->InstructionBits();
-  disassembleInstr(instruction->InstructionBits());
+  disassembleInstr(buffer_start_ + pos);
 
   switch (instruction->InstructionOpcodeType()) {
     case BRANCH: {
@@ -489,13 +505,13 @@ bool Assembler::MustUseReg(RelocInfo::Mode rmode) {
   return !RelocInfo::IsNoInfo(rmode);
 }
 
-void Assembler::disassembleInstr(Instr instr) {
+void Assembler::disassembleInstr(uint8_t* pc) {
   if (!v8_flags.riscv_debug) return;
   disasm::NameConverter converter;
   disasm::Disassembler disasm(converter);
   base::EmbeddedVector<char, 128> disasm_buffer;
 
-  disasm.InstructionDecode(disasm_buffer, reinterpret_cast<uint8_t*>(&instr));
+  disasm.InstructionDecode(disasm_buffer, pc);
   DEBUG_PRINTF("%s\n", disasm_buffer.begin());
 }
 
@@ -575,7 +591,11 @@ void Assembler::target_at_put(int pos, int target_pos, bool is_internal,
           pos, target_pos + (InstructionStream::kHeaderSize - kHeapObjectTag));
     } break;
   }
-  disassembleInstr(instr);
+
+  disassembleInstr(buffer_start_ + pos);
+  if (instruction->InstructionOpcodeType() == AUIPC) {
+    disassembleInstr(buffer_start_ + pos + 4);
+  }
 }
 
 void Assembler::print(const Label* L) {
@@ -1067,26 +1087,21 @@ void Assembler::GeneralLi(Register rd, int64_t imm) {
 }
 
 void Assembler::li_ptr(Register rd, int64_t imm) {
-  base::CPU cpu;
-  if (cpu.riscv_mmu() != base::CPU::RV_MMU_MODE::kRiscvSV57) {
-    // Initialize rd with an address
-    // Pointers are 48 bits
-    // 6 fixed instructions are generated
-    DCHECK_EQ((imm & 0xfff0000000000000ll), 0);
-    int64_t a6 = imm & 0x3f;                      // bits 0:5. 6 bits
-    int64_t b11 = (imm >> 6) & 0x7ff;             // bits 6:11. 11 bits
-    int64_t high_31 = (imm >> 17) & 0x7fffffff;   // 31 bits
-    int64_t high_20 = ((high_31 + 0x800) >> 12);  // 19 bits
-    int64_t low_12 = high_31 & 0xfff;             // 12 bits
-    lui(rd, (int32_t)high_20);
-    addi(rd, rd, low_12);  // 31 bits in rd.
-    slli(rd, rd, 11);      // Space for next 11 bis
-    ori(rd, rd, b11);      // 11 bits are put in. 42 bit in rd
-    slli(rd, rd, 6);       // Space for next 6 bits
-    ori(rd, rd, a6);       // 6 bits are put in. 48 bis in rd
-  } else {
-    FATAL("SV57 is not supported");
-  }
+  // Initialize rd with an address
+  // Pointers are 48 bits
+  // 6 fixed instructions are generated
+  DCHECK_EQ((imm & 0xfff0000000000000ll), 0);
+  int64_t a6 = imm & 0x3f;                      // bits 0:5. 6 bits
+  int64_t b11 = (imm >> 6) & 0x7ff;             // bits 6:11. 11 bits
+  int64_t high_31 = (imm >> 17) & 0x7fffffff;   // 31 bits
+  int64_t high_20 = ((high_31 + 0x800) >> 12);  // 19 bits
+  int64_t low_12 = high_31 & 0xfff;             // 12 bits
+  lui(rd, (int32_t)high_20);
+  addi(rd, rd, low_12);  // 31 bits in rd.
+  slli(rd, rd, 11);      // Space for next 11 bis
+  ori(rd, rd, b11);      // 11 bits are put in. 42 bit in rd
+  slli(rd, rd, 6);       // Space for next 6 bits
+  ori(rd, rd, a6);       // 6 bits are put in. 48 bis in rd
 }
 
 void Assembler::li_constant(Register rd, int64_t imm) {
@@ -1323,18 +1338,23 @@ void Assembler::GrowBuffer() {
 
 void Assembler::db(uint8_t data) {
   if (!is_buffer_growth_blocked()) CheckBuffer();
-  DEBUG_PRINTF("%p(%x): constant 0x%x\n", pc_, pc_offset(), data);
+  DEBUG_PRINTF("%p(%d): constant 0x%x\n", pc_, pc_offset(), data);
   EmitHelper(data);
 }
 
 void Assembler::dd(uint32_t data) {
   if (!is_buffer_growth_blocked()) CheckBuffer();
-  DEBUG_PRINTF("%p(%x): constant 0x%x\n", pc_, pc_offset(), data);
+  DEBUG_PRINTF("%p(%d): constant 0x%x\n", pc_, pc_offset(), data);
   EmitHelper(data);
 }
 
 void Assembler::dq(uint64_t data) {
   if (!is_buffer_growth_blocked()) CheckBuffer();
+#if V8_TARGET_ARCH_RISCV64
+  DEBUG_PRINTF("%p(%d): constant 0x%lx\n", pc_, pc_offset(), data);
+#elif V8_TARGET_ARCH_RISCV32
+  DEBUG_PRINTF("%p(%d): constant 0x%llx\n", pc_, pc_offset(), data);
+#endif
   EmitHelper(data);
 }
 
@@ -1675,9 +1695,9 @@ void Assembler::emit(Instr x) {
   if (!is_buffer_growth_blocked()) {
     CheckBuffer();
   }
-  DEBUG_PRINTF("%p(%x): ", pc_, pc_offset());
-  disassembleInstr(x);
+  DEBUG_PRINTF("%p(%d): ", pc_, pc_offset());
   EmitHelper(x);
+  disassembleInstr(pc_ - sizeof(x));
   CheckTrampolinePoolQuick();
 }
 
@@ -1685,13 +1705,14 @@ void Assembler::emit(ShortInstr x) {
   if (!is_buffer_growth_blocked()) {
     CheckBuffer();
   }
-  DEBUG_PRINTF("%p(%x): ", pc_, pc_offset());
-  disassembleInstr(x);
+  DEBUG_PRINTF("%p(%d): ", pc_, pc_offset());
   EmitHelper(x);
+  disassembleInstr(pc_ - sizeof(x));
   CheckTrampolinePoolQuick();
 }
 
 void Assembler::emit(uint64_t data) {
+  DEBUG_PRINTF("%p(%d): ", pc_, pc_offset());
   if (!is_buffer_growth_blocked()) CheckBuffer();
   EmitHelper(data);
 }
@@ -2114,6 +2135,5 @@ int Assembler::GeneralLiCount(int64_t imm, bool is_get_temp_reg) {
   return count;
 }
 #endif
-
 }  // namespace internal
 }  // namespace v8

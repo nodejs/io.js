@@ -206,26 +206,12 @@ RUNTIME_FUNCTION(Runtime_TraceUpdateFeedback) {
 
   SealHandleScope shs(isolate);
   DCHECK_EQ(3, args.length());
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  Handle<FeedbackVector> vector = args.at<FeedbackVector>(0);
   int slot = args.smi_value_at(1);
   auto reason = String::cast(args[2]);
 
-  int slot_count = function->feedback_vector()->metadata()->slot_count();
-
-  StdoutStream os;
-  os << "[Feedback slot " << slot << "/" << slot_count << " in ";
-  ShortPrint(function->shared(), os);
-  os << " updated to ";
-  function->feedback_vector()->FeedbackSlotPrint(os, FeedbackSlot(slot));
-  os << " - ";
-
-  StringCharacterStream stream(reason);
-  while (stream.HasMore()) {
-    uint16_t character = stream.GetNext();
-    PrintF("%c", character);
-  }
-
-  os << "]" << std::endl;
+  FeedbackVector::TraceFeedbackChange(isolate, *vector, FeedbackSlot(slot),
+                                      reason->ToCString().get());
 
   return ReadOnlyRoots(isolate).undefined_value();
 }

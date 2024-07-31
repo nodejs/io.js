@@ -912,6 +912,61 @@ exports[`test/lib/utils/sbom-cyclonedx.js TAP single node - with license express
 }
 `
 
+exports[`test/lib/utils/sbom-cyclonedx.js TAP single node - with license object > must match snapshot 1`] = `
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:00000000-0000-0000-0000-000000000000",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2020-01-01T00:00:00.000Z",
+    "lifecycles": [
+      {
+        "phase": "build"
+      }
+    ],
+    "tools": [
+      {
+        "vendor": "npm",
+        "name": "cli",
+        "version": "10.0.0 "
+      }
+    ],
+    "component": {
+      "bom-ref": "root@1.0.0",
+      "type": "library",
+      "name": "root",
+      "version": "1.0.0",
+      "scope": "required",
+      "author": "Author",
+      "purl": "pkg:npm/root@1.0.0",
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": ""
+        }
+      ],
+      "externalReferences": [],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  },
+  "components": [],
+  "dependencies": [
+    {
+      "ref": "root@1.0.0",
+      "dependsOn": []
+    }
+  ]
+}
+`
+
 exports[`test/lib/utils/sbom-cyclonedx.js TAP single node - with repository url > must match snapshot 1`] = `
 {
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",

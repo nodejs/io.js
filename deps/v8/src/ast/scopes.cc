@@ -204,7 +204,7 @@ ClassScope::ClassScope(IsolateT* isolate, Zone* zone,
   // If the class variable is context-allocated and its index is
   // saved for deserialization, deserialize it.
   if (scope_info->HasSavedClassVariable()) {
-    String name;
+    Tagged<String> name;
     int index;
     std::tie(name, index) = scope_info->SavedClassVariable();
     DCHECK_EQ(scope_info->ContextLocalMode(index), VariableMode::kConst);
@@ -475,7 +475,7 @@ Scope* Scope::DeserializeScopeChain(IsolateT* isolate, Zone* zone,
       DCHECK_EQ(scope_info->ContextLocalMode(0), VariableMode::kVar);
       DCHECK_EQ(scope_info->ContextLocalInitFlag(0), kCreatedInitialized);
       DCHECK(scope_info->HasInlinedLocalNames());
-      String name = scope_info->ContextInlinedLocalName(0);
+      Tagged<String> name = scope_info->ContextInlinedLocalName(0);
       MaybeAssignedFlag maybe_assigned =
           scope_info->ContextLocalMaybeAssignedFlag(0);
       outer_scope =
@@ -491,7 +491,6 @@ Scope* Scope::DeserializeScopeChain(IsolateT* isolate, Zone* zone,
     if (cache_scope_found) {
       outer_scope->set_deserialized_scope_uses_external_cache();
     } else {
-      DCHECK(!cache_scope_found);
       cache_scope_found =
           outer_scope->is_declaration_scope() && !outer_scope->is_eval_scope();
     }
@@ -553,32 +552,35 @@ bool Scope::IsReparsedMemberInitializerScope() const {
 #endif
 
 DeclarationScope* Scope::AsDeclarationScope() {
-  DCHECK(is_declaration_scope());
+  // Here and below: if an attacker corrupts the in-sandox SFI::unique_id or
+  // fields of a Script object, we can get confused about which type of scope
+  // we're operating on. These CHECKs defend against that.
+  SBXCHECK(is_declaration_scope());
   return static_cast<DeclarationScope*>(this);
 }
 
 const DeclarationScope* Scope::AsDeclarationScope() const {
-  DCHECK(is_declaration_scope());
+  SBXCHECK(is_declaration_scope());
   return static_cast<const DeclarationScope*>(this);
 }
 
 ModuleScope* Scope::AsModuleScope() {
-  DCHECK(is_module_scope());
+  SBXCHECK(is_module_scope());
   return static_cast<ModuleScope*>(this);
 }
 
 const ModuleScope* Scope::AsModuleScope() const {
-  DCHECK(is_module_scope());
+  SBXCHECK(is_module_scope());
   return static_cast<const ModuleScope*>(this);
 }
 
 ClassScope* Scope::AsClassScope() {
-  DCHECK(is_class_scope());
+  SBXCHECK(is_class_scope());
   return static_cast<ClassScope*>(this);
 }
 
 const ClassScope* Scope::AsClassScope() const {
-  DCHECK(is_class_scope());
+  SBXCHECK(is_class_scope());
   return static_cast<const ClassScope*>(this);
 }
 
@@ -680,7 +682,7 @@ void DeclarationScope::HoistSloppyBlockFunctions(AstNodeFactory* factory) {
       DCHECK(is_being_lazily_parsed_);
       bool was_added;
       Variable* var = DeclareVariableName(name, VariableMode::kVar, &was_added);
-      if (sloppy_block_function->init() == Token::ASSIGN) {
+      if (sloppy_block_function->init() == Token::kAssign) {
         var->SetMaybeAssigned();
       }
     }
@@ -970,14 +972,19 @@ Variable* Scope::LookupInScopeInfo(const AstRawString* name, Scope* cache) {
   DCHECK(!cache->deserialized_scope_uses_external_cache());
   // The case where where the cache can be another scope is when the cache scope
   // is the last scope that doesn't use an external cache.
+  //
+  // The one exception to this is when looking up the home object, which may
+  // skip multiple scopes that don't use an external cache (e.g., several arrow
+  // functions).
   DCHECK_IMPLIES(
       cache != this,
-      cache->outer_scope()->deserialized_scope_uses_external_cache());
+      cache->outer_scope()->deserialized_scope_uses_external_cache() ||
+          cache->GetHomeObjectScope() == this);
   DCHECK_NULL(cache->variables_.Lookup(name));
   DisallowGarbageCollection no_gc;
 
-  String name_handle = *name->string();
-  ScopeInfo scope_info = *scope_info_;
+  Tagged<String> name_handle = *name->string();
+  Tagged<ScopeInfo> scope_info = *scope_info_;
   // The Scope is backed up by ScopeInfo. This means it cannot operate in a
   // heap-independent mode, and all strings must be internalized immediately. So
   // it's ok to get the Handle<String> here.
@@ -1073,14 +1080,15 @@ Variable* Scope::DeclareLocal(const AstRawString* name, VariableMode mode,
   DCHECK(!already_resolved_);
   // Private methods should be declared with ClassScope::DeclarePrivateName()
   DCHECK(!IsPrivateMethodOrAccessorVariableMode(mode));
-  // This function handles VariableMode::kVar, VariableMode::kLet, and
-  // VariableMode::kConst modes.  VariableMode::kDynamic variables are
-  // introduced during variable allocation, and VariableMode::kTemporary
-  // variables are allocated via NewTemporary().
+  // This function handles VariableMode::kVar, VariableMode::kLet,
+  // VariableMode::kConst, and VariableMode::kUsing modes.
+  // VariableMode::kDynamic variables are introduced during variable allocation,
+  // and VariableMode::kTemporary variables are allocated via NewTemporary().
   DCHECK(IsDeclaredVariableMode(mode));
   DCHECK_IMPLIES(GetDeclarationScope()->is_being_lazily_parsed(),
                  mode == VariableMode::kVar || mode == VariableMode::kLet ||
-                     mode == VariableMode::kConst);
+                     mode == VariableMode::kConst ||
+                     mode == VariableMode::kUsing);
   DCHECK(!GetDeclarationScope()->was_lazily_parsed());
   Variable* var =
       Declare(zone(), name, mode, kind, init_flag, kNotAssigned, was_added);
@@ -2282,7 +2290,33 @@ Variable* Scope::LookupSloppyEval(VariableProxy* proxy, Scope* scope,
 
 void Scope::ResolveVariable(VariableProxy* proxy) {
   DCHECK(!proxy->is_resolved());
-  Variable* var = Lookup<kParsedScope>(proxy, this, nullptr);
+  Variable* var;
+  if (V8_UNLIKELY(proxy->is_home_object())) {
+    // VariableProxies of the home object cannot be resolved like a normal
+    // variable. Consider the case of a super.property usage in heritage
+    // position:
+    //
+    //   class C extends super.foo { m() { super.bar(); } }
+    //
+    // The super.foo property access is logically nested under C's class scope,
+    // which also has a home object due to its own method m's usage of
+    // super.bar(). However, super.foo must resolve super in C's outer scope.
+    //
+    // Because of the above, start resolving home objects directly at the home
+    // object scope instead of the current scope.
+    Scope* scope = GetDeclarationScope()->GetHomeObjectScope();
+    DCHECK_NOT_NULL(scope);
+    if (scope->scope_info_.is_null()) {
+      var = Lookup<kParsedScope>(proxy, scope, nullptr);
+    } else {
+      Scope* entry_cache = scope->deserialized_scope_uses_external_cache()
+                               ? GetNonEvalDeclarationScope()
+                               : scope;
+      var = Lookup<kDeserializedScope>(proxy, scope, nullptr, entry_cache);
+    }
+  } else {
+    var = Lookup<kParsedScope>(proxy, this, nullptr);
+  }
   DCHECK_NOT_NULL(var);
   ResolveTo(proxy, var);
 }
@@ -2411,7 +2445,7 @@ bool Scope::MustAllocate(Variable* var) {
     var->set_is_used();
     if (inner_scope_calls_eval_ && !var->is_this()) var->SetMaybeAssigned();
   }
-  DCHECK(!var->has_forced_context_allocation() || var->is_used());
+  CHECK(!var->has_forced_context_allocation() || var->is_used());
   // Global variables do not need to be allocated.
   return !var->IsGlobalObjectProperty() && var->is_used();
 }
@@ -2750,48 +2784,6 @@ int Scope::ContextLocalCount() const {
       function != nullptr && function->IsContextSlot();
   return num_heap_slots() - ContextHeaderLength() -
          (is_function_var_in_context ? 1 : 0);
-}
-
-VariableProxy* Scope::NewHomeObjectVariableProxy(AstNodeFactory* factory,
-                                                 const AstRawString* name,
-                                                 int start_pos) {
-  // VariableProxies of the home object cannot be resolved like a normal
-  // variable. Consider the case of a super.property usage in heritage position:
-  //
-  //   class C extends super.foo { m() { super.bar(); } }
-  //
-  // The super.foo property access is logically nested under C's class scope,
-  // which also has a home object due to its own method m's usage of
-  // super.bar(). However, super.foo must resolve super in C's outer scope.
-  //
-  // Because of the above, home object VariableProxies are always made directly
-  // on the Scope that needs the home object instead of the innermost scope.
-  DCHECK(needs_home_object());
-  if (!scope_info_.is_null()) {
-    // This is a lazy compile, so the home object's context slot is already
-    // known.
-    Variable* home_object = variables_.Lookup(name);
-    if (home_object == nullptr) {
-      VariableLookupResult lookup_result;
-      int index = scope_info_->ContextSlotIndex(name->string(), &lookup_result);
-      DCHECK_GE(index, 0);
-      bool was_added;
-      home_object = variables_.Declare(zone(), this, name, lookup_result.mode,
-                                       NORMAL_VARIABLE, lookup_result.init_flag,
-                                       lookup_result.maybe_assigned_flag,
-                                       IsStaticFlag::kNotStatic, &was_added);
-      DCHECK(was_added);
-      home_object->AllocateTo(VariableLocation::CONTEXT, index);
-    }
-    return factory->NewVariableProxy(home_object, start_pos);
-  }
-  // This is not a lazy compile. Add the unresolved home object VariableProxy to
-  // the unresolved list of the home object scope, which is not necessarily the
-  // innermost scope.
-  VariableProxy* proxy =
-      factory->NewVariableProxy(name, NORMAL_VARIABLE, start_pos);
-  AddUnresolved(proxy);
-  return proxy;
 }
 
 bool IsComplementaryAccessorPair(VariableMode a, VariableMode b) {

@@ -137,7 +137,7 @@ def pad_tables(out: str) -> str:
     """ % {'single_wordlist_entry': single_wordlist_entry},
       r'static const struct PerfectKeywordHashTableEntry kPerfectKeywordHashTable[%d] = {\1 %s }'
       % (new_table_length, "".join(
-          [',{"",Token::IDENTIFIER}'] * table_padding_len)),
+          [',{"",Token::kIdentifier}'] * table_padding_len)),
       out,
       flags=re.MULTILINE | re.VERBOSE)
 
@@ -167,7 +167,7 @@ def return_token(out: str) -> str:
                     r'return kPerfectKeywordHashTable[key].value;', out)
 
   # Change the return value when the keyword is not found
-  out = checked_sub(r'return 0;', r'return Token::IDENTIFIER;', out)
+  out = checked_sub(r'return 0;', r'return Token::kIdentifier;', out)
 
   return out
 
@@ -177,11 +177,11 @@ def memcmp_to_while(out: str) -> str:
   # Careful, this replacement is quite flaky, because otherwise the regex is
   # unreadable.
   return checked_sub(
-      re.escape("if (*str == *s && !memcmp (str + 1, s + 1, len - 1))") + r"\s*"
-      + re.escape("return kPerfectKeywordHashTable[key].value;"),
+      re.escape("if (*str == *s && !memcmp (str + 1, s + 1, len - 1))") +
+      r"\s*" + re.escape("return kPerfectKeywordHashTable[key].value;"),
       """
       while(*s!=0) {
-        if (*s++ != *str++) return Token::IDENTIFIER;
+        if (*s++ != *str++) return Token::kIdentifier;
       }
       return kPerfectKeywordHashTable[key].value;
       """,

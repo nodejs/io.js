@@ -8,6 +8,7 @@
 #include <node_internals.h>
 #include <v8.h>
 #include <string>
+#include "defs.h"
 
 namespace node {
 namespace quic {
@@ -18,11 +19,11 @@ namespace quic {
 // the preferred address to be selected.
 class PreferredAddress final {
  public:
-  enum class Policy {
+  enum class Policy : uint32_t {
     // Ignore the server-advertised preferred address.
-    IGNORE_PREFERRED_ADDRESS,
+    IGNORE_PREFERRED,
     // Use the server-advertised preferred address.
-    USE_PREFERRED_ADDRESS,
+    USE_PREFERRED,
   };
 
   static v8::Maybe<Policy> tryGetPolicy(Environment* env,
@@ -30,17 +31,14 @@ class PreferredAddress final {
 
   // The QUIC_* constants are expected to be exported out to be used on
   // the JavaScript side of the API.
-  static constexpr uint32_t QUIC_PREFERRED_ADDRESS_USE =
-      static_cast<uint32_t>(Policy::USE_PREFERRED_ADDRESS);
-  static constexpr uint32_t QUIC_PREFERRED_ADDRESS_IGNORE =
-      static_cast<uint32_t>(Policy::IGNORE_PREFERRED_ADDRESS);
-  static constexpr uint32_t DEFAULT_PREFERRED_ADDRESS_POLICY =
-      static_cast<uint32_t>(Policy::USE_PREFERRED_ADDRESS);
+  static constexpr auto PREFERRED_ADDRESS_USE =
+      static_cast<uint32_t>(Policy::USE_PREFERRED);
+  static constexpr auto PREFERRED_ADDRESS_IGNORE =
+      static_cast<uint32_t>(Policy::IGNORE_PREFERRED);
+  static constexpr auto DEFAULT_PREFERRED_ADDRESS_POLICY =
+      static_cast<uint32_t>(Policy::USE_PREFERRED);
 
   static void Initialize(Environment* env, v8::Local<v8::Object> target);
-
-  static v8::Maybe<Policy> GetPolicy(Environment* env,
-                                     v8::Local<v8::Value> value);
 
   struct AddressInfo final {
     char host[NI_MAXHOST];
@@ -51,10 +49,7 @@ class PreferredAddress final {
 
   explicit PreferredAddress(ngtcp2_path* dest,
                             const ngtcp2_preferred_addr* paddr);
-  PreferredAddress(const PreferredAddress&) = delete;
-  PreferredAddress(PreferredAddress&&) = delete;
-  PreferredAddress& operator=(const PreferredAddress&) = delete;
-  PreferredAddress& operator=(PreferredAddress&&) = delete;
+  DISALLOW_COPY_AND_MOVE(PreferredAddress)
 
   void Use(const AddressInfo& address);
 

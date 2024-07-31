@@ -238,6 +238,7 @@ const assert = require('assert');
   });
   duplex.on('close', common.mustCall());
 }
+
 {
   // Check abort signal
   const controller = new AbortController();
@@ -254,4 +255,32 @@ const assert = require('assert');
   }));
   duplex.on('close', common.mustCall());
   controller.abort();
+}
+
+{
+  const duplex = new Duplex({
+    read() {},
+    write(chunk, enc, cb) { cb(); }
+  });
+
+  duplex.cork();
+  duplex.write('foo', common.mustCall((err) => {
+    assert.strictEqual(err.code, 'ERR_STREAM_DESTROYED');
+  }));
+  duplex.destroy();
+}
+
+{
+  // Check Symbol.asyncDispose
+  const duplex = new Duplex({
+    write(chunk, enc, cb) { cb(); },
+    read() {},
+  });
+  let count = 0;
+  duplex.on('error', common.mustCall((e) => {
+    assert.strictEqual(count++, 0); // Ensure not called twice
+    assert.strictEqual(e.name, 'AbortError');
+  }));
+  duplex.on('close', common.mustCall());
+  duplex[Symbol.asyncDispose]().then(common.mustCall());
 }

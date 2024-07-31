@@ -1,4 +1,4 @@
-const { relative } = require('path')
+const { relative } = require('node:path')
 
 const explainNode = (node, depth, chalk) =>
   printNode(node, chalk) +
@@ -6,63 +6,32 @@ const explainNode = (node, depth, chalk) =>
   explainLinksIn(node, depth, chalk)
 
 const colorType = (type, chalk) => {
-  const { red, yellow, cyan, magenta, blue, green, gray } = chalk
-  const style = type === 'extraneous' ? red
-    : type === 'dev' ? yellow
-    : type === 'optional' ? cyan
-    : type === 'peer' ? magenta
-    : type === 'bundled' ? blue
-    : type === 'workspace' ? green
-    : type === 'overridden' ? gray
+  const style = type === 'extraneous' ? chalk.red
+    : type === 'dev' ? chalk.blue
+    : type === 'optional' ? chalk.magenta
+    : type === 'peer' ? chalk.magentaBright
+    : type === 'bundled' ? chalk.underline.cyan
+    : type === 'workspace' ? chalk.blueBright
+    : type === 'overridden' ? chalk.dim
     : /* istanbul ignore next */ s => s
   return style(type)
 }
 
 const printNode = (node, chalk) => {
-  const {
-    name,
-    version,
-    location,
-    extraneous,
-    dev,
-    optional,
-    peer,
-    bundled,
-    isWorkspace,
-    overridden,
-  } = node
-  const { bold, dim, green } = chalk
   const extra = []
-  if (extraneous) {
-    extra.push(' ' + bold(colorType('extraneous', chalk)))
+
+  for (const meta of ['extraneous', 'dev', 'optional', 'peer', 'bundled', 'overridden']) {
+    if (node[meta]) {
+      extra.push(` ${colorType(meta, chalk)}`)
+    }
   }
 
-  if (dev) {
-    extra.push(' ' + bold(colorType('dev', chalk)))
-  }
-
-  if (optional) {
-    extra.push(' ' + bold(colorType('optional', chalk)))
-  }
-
-  if (peer) {
-    extra.push(' ' + bold(colorType('peer', chalk)))
-  }
-
-  if (bundled) {
-    extra.push(' ' + bold(colorType('bundled', chalk)))
-  }
-
-  if (overridden) {
-    extra.push(' ' + bold(colorType('overridden', chalk)))
-  }
-
-  const pkgid = isWorkspace
-    ? green(`${name}@${version}`)
-    : `${bold(name)}@${bold(version)}`
+  const pkgid = node.isWorkspace
+    ? chalk.blueBright(`${node.name}@${node.version}`)
+    : `${node.name}@${node.version}`
 
   return `${pkgid}${extra.join('')}` +
-    (location ? dim(`\n${location}`) : '')
+    (node.location ? chalk.dim(`\n${node.location}`) : '')
 }
 
 const explainLinksIn = ({ linksIn }, depth, chalk) => {
@@ -75,7 +44,7 @@ const explainLinksIn = ({ linksIn }, depth, chalk) => {
   return str.split('\n').join('\n  ')
 }
 
-const explainDependents = ({ name, dependents }, depth, chalk) => {
+const explainDependents = ({ dependents }, depth, chalk) => {
   if (!dependents || !dependents.length || depth <= 0) {
     return ''
   }
@@ -107,10 +76,9 @@ const explainDependents = ({ name, dependents }, depth, chalk) => {
 }
 
 const explainEdge = ({ name, type, bundled, from, spec, rawSpec, overridden }, depth, chalk) => {
-  const { bold } = chalk
   let dep = type === 'workspace'
-    ? bold(relative(from.location, spec.slice('file:'.length)))
-    : `${bold(name)}@"${bold(spec)}"`
+    ? chalk.bold(relative(from.location, spec.slice('file:'.length)))
+    : `${name}@"${spec}"`
   if (overridden) {
     dep = `${colorType('overridden', chalk)} ${dep} (was "${rawSpec}")`
   }

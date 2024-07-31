@@ -222,10 +222,14 @@ optimize(fun);
 fun(a);
 assertOptimized(fun);
 
-// returning undefined shouldn't phase us.
-delete a[0];
-fun(a);
-assertOptimized(fun);
+// Maglev and TF differs here: Maglev will not try to silence a holey nan
+// if it hasn't seen one.
+if (isTurboFanned(fun)) {
+  // returning undefined shouldn't phase us.
+  delete a[0];
+  fun(a);
+  assertOptimized(fun);
+}
 
 // but messing up the prototype chain will.
 a.__proto__ = [];

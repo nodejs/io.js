@@ -407,7 +407,7 @@ print(char16_t* src, int32_t srcLen,const char *tagStart,const char *tagEnd,  UE
     }
 
     buf = (char*) (uprv_malloc(bufCapacity));
-    if(buf==0){
+    if (buf == nullptr) {
         fprintf(stderr, "Could not allocate memory!!");
         exit(U_MEMORY_ALLOCATION_ERROR);
     }

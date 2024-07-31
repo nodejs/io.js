@@ -18,10 +18,9 @@ then only packages matching one of the supplied names are removed.
 Extraneous packages are those present in the `node_modules` folder that are
 not listed as any package's dependency list.
 
-If the `--production` flag is specified or the `NODE_ENV` environment
+If the `--omit=dev` flag is specified or the `NODE_ENV` environment
 variable is set to `production`, this command will remove the packages
-specified in your `devDependencies`. Setting `--no-production` will negate
-`NODE_ENV` being set to `production`.
+specified in your `devDependencies`.
 
 If the `--dry-run` flag is used then no changes will actually be made.
 
@@ -100,7 +99,8 @@ Not supported by all npm commands.
 
 #### `foreground-scripts`
 
-* Default: false
+* Default: `false` unless when using `npm pack` or `npm publish` where it
+  defaults to `true`
 * Type: Boolean
 
 Run all build scripts (ie, `preinstall`, `install`, and `postinstall`)

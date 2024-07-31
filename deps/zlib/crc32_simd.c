@@ -200,7 +200,8 @@ uint32_t ZLIB_INTERNAL crc32_avx512_simd_(  /* AVX512+PCLMUL */
     return _mm_extract_epi32(a1, 1);
 }
 
-#elif defined(CRC32_SIMD_SSE42_PCLMUL)
+#endif
+#if defined(CRC32_SIMD_SSE42_PCLMUL)
 
 /*
  * crc32_sse42_simd_(): compute the crc32 of the buffer, where the buffer

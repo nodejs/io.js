@@ -63,13 +63,10 @@ TARGET_TEST_F(CodeStubAssemblerTest, IntPtrMin) {
 namespace {
 
 void ExpectArrayListsEqual(Handle<ArrayList> array1, Handle<ArrayList> array2) {
-  // ArrayArrays are growable FixedArrays, and the FixedArray length is the
-  // capacity.
+  EXPECT_EQ(array1->capacity(), array2->capacity());
   EXPECT_EQ(array1->length(), array2->length());
-  // The actual used length is stored in the array itself.
-  EXPECT_EQ(array1->Length(), array2->Length());
-  for (int i = 0; i < array1->Length(); i++) {
-    EXPECT_EQ(array1->Get(i), array2->Get(i));
+  for (int i = 0; i < array1->length(); i++) {
+    EXPECT_EQ(array1->get(i), array2->get(i));
   }
 }
 
@@ -147,7 +144,7 @@ TARGET_TEST_F(CodeStubAssemblerTest, ArrayListElementsEquivalent) {
   for (int i = 0; i < 5; i++) {
     array1 = ArrayList::Add(i_isolate(), array1, Smi::FromInt(i));
   }
-  Handle<FixedArray> elements1 = ArrayList::Elements(i_isolate(), array1);
+  Handle<FixedArray> elements1 = ArrayList::ToFixedArray(i_isolate(), array1);
   compiler::FunctionTester ft(i_isolate(), allocate_arraylist_in_csa, 0);
   Handle<FixedArray> elements2 = ft.CallChecked<FixedArray>();
   EXPECT_EQ(elements1->length(), elements2->length());

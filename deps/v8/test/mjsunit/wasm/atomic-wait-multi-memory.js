@@ -14,7 +14,7 @@ for (let mem_idx of [mem0_idx, mem1_idx]) {
       .addBody([
         kExprLocalGet, 0,                                   // -
         kExprLocalGet, 1,                                   // -
-        kAtomicPrefix, kExprAtomicNotify, 0x40, mem_idx, 0  // -
+        kAtomicPrefix, kExprAtomicNotify, 0x42, mem_idx, 0  // -
       ])
       .exportFunc();
   builder.addFunction(`wait${mem_idx}`, kSig_i_iii)
@@ -26,7 +26,7 @@ for (let mem_idx of [mem0_idx, mem1_idx]) {
         kExprI64UConvertI32,                                 // -
         ...wasmI64Const(1e6),                                // -
         kExprI64Mul,                                         // -
-        kAtomicPrefix, kExprI32AtomicWait, 0x40, mem_idx, 0  // -
+        kAtomicPrefix, kExprI32AtomicWait, 0x42, mem_idx, 0  // -
       ])
       .exportFunc();
 }

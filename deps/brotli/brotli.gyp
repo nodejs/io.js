@@ -6,6 +6,7 @@
       'c/common/context.c',
       'c/common/dictionary.c',
       'c/common/platform.c',
+      'c/common/shared_dictionary.c',
       'c/common/transform.c',
 
       # Decoder
@@ -22,6 +23,7 @@
       'c/enc/brotli_bit_stream.c',
       'c/enc/cluster.c',
       'c/enc/command.c',
+      'c/enc/compound_dictionary.c',
       'c/enc/compress_fragment.c',
       'c/enc/compress_fragment_two_pass.c',
       'c/enc/dictionary_hash.c',

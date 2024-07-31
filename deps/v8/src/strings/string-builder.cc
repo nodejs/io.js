@@ -154,7 +154,7 @@ void FixedArrayBuilder::EnsureCapacity(Isolate* isolate, int elements) {
     } while (new_length < required_length);
     Handle<FixedArray> extended_array =
         isolate->factory()->NewFixedArrayWithHoles(new_length);
-    array_->CopyTo(0, *extended_array, 0, length_);
+    FixedArray::CopyElements(isolate, *extended_array, 0, *array_, 0, length_);
     array_ = extended_array;
   }
 }

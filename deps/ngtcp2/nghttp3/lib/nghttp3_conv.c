@@ -29,6 +29,7 @@
 #include <assert.h>
 
 #include "nghttp3_str.h"
+#include "nghttp3_unreachable.h"
 
 int64_t nghttp3_get_varint(size_t *plen, const uint8_t *p) {
   union {
@@ -38,7 +39,7 @@ int64_t nghttp3_get_varint(size_t *plen, const uint8_t *p) {
     uint64_t n64;
   } n;
 
-  *plen = 1u << (*p >> 6);
+  *plen = (size_t)(1u << (*p >> 6));
 
   switch (*plen) {
   case 1:
@@ -57,32 +58,23 @@ int64_t nghttp3_get_varint(size_t *plen, const uint8_t *p) {
     return (int64_t)nghttp3_ntohl64(n.n64);
   }
 
-  assert(0);
-  abort();
+  nghttp3_unreachable();
 }
 
 int64_t nghttp3_get_varint_fb(const uint8_t *p) { return *p & 0x3f; }
 
-size_t nghttp3_get_varint_len(const uint8_t *p) { return 1u << (*p >> 6); }
+size_t nghttp3_get_varintlen(const uint8_t *p) {
+  return (size_t)(1u << (*p >> 6));
+}
 
 uint8_t *nghttp3_put_uint64be(uint8_t *p, uint64_t n) {
   n = nghttp3_htonl64(n);
   return nghttp3_cpymem(p, (const uint8_t *)&n, sizeof(n));
 }
 
-uint8_t *nghttp3_put_uint48be(uint8_t *p, uint64_t n) {
-  n = nghttp3_htonl64(n);
-  return nghttp3_cpymem(p, ((const uint8_t *)&n) + 2, 6);
-}
-
 uint8_t *nghttp3_put_uint32be(uint8_t *p, uint32_t n) {
   n = htonl(n);
   return nghttp3_cpymem(p, (const uint8_t *)&n, sizeof(n));
-}
-
-uint8_t *nghttp3_put_uint24be(uint8_t *p, uint32_t n) {
-  n = htonl(n);
-  return nghttp3_cpymem(p, ((const uint8_t *)&n) + 1, 3);
 }
 
 uint8_t *nghttp3_put_uint16be(uint8_t *p, uint16_t n) {
@@ -112,7 +104,7 @@ uint8_t *nghttp3_put_varint(uint8_t *p, int64_t n) {
   return rv;
 }
 
-size_t nghttp3_put_varint_len(int64_t n) {
+size_t nghttp3_put_varintlen(int64_t n) {
   if (n < 64) {
     return 1;
   }
@@ -128,8 +120,4 @@ size_t nghttp3_put_varint_len(int64_t n) {
 
 uint64_t nghttp3_ord_stream_id(int64_t stream_id) {
   return (uint64_t)(stream_id >> 2) + 1;
-}
-
-uint8_t nghttp3_pri_to_uint8(const nghttp3_pri *pri) {
-  return (uint8_t)((uint32_t)pri->inc << 7 | pri->urgency);
 }

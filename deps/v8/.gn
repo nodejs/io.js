@@ -25,10 +25,6 @@ no_check_targets = [
 ]
 
 default_args = {
-  # Overwrite default args declared in the Fuchsia sdk
-  # Please maintain this in sync with Chromium version in src/.gn
-  fuchsia_target_api_level = 9
-
   # Disable rust dependencies.
   enable_rust = false
 }

@@ -5,7 +5,7 @@
 #include "src/builtins/builtins-async-gen.h"
 #include "src/builtins/builtins-utils-gen.h"
 #include "src/builtins/builtins.h"
-#include "src/codegen/code-stub-assembler.h"
+#include "src/codegen/code-stub-assembler-inl.h"
 #include "src/objects/js-generator.h"
 #include "src/objects/js-promise.h"
 #include "src/objects/objects-inl.h"
@@ -67,8 +67,8 @@ void AsyncFunctionBuiltinsAssembler::AsyncFunctionAwaitResumeClosure(
                                  SmiConstant(resume_mode));
 
   // Resume the {receiver} using our trampoline.
-  Callable callable = CodeFactory::ResumeGenerator(isolate());
-  CallStub(callable, context, sent_value, async_function_object);
+  CallBuiltin(Builtin::kResumeGeneratorTrampoline, context, sent_value,
+              async_function_object);
 
   // The resulting Promise is a throwaway, so it doesn't matter what it
   // resolves to. What is important is that we don't end up keeping the

@@ -222,7 +222,7 @@ MaybeHandle<Cell> SourceTextModule::ResolveExport(
     if (!ResolveImport(isolate, module, import_name, entry->module_request(),
                        new_loc, true, resolve_set)
              .ToHandle(&cell)) {
-      DCHECK(isolate->has_pending_exception());
+      DCHECK(isolate->has_exception());
       return MaybeHandle<Cell>();
     }
 
@@ -258,7 +258,7 @@ MaybeHandle<Cell> SourceTextModule::ResolveImport(
   MaybeHandle<Cell> result =
       Module::ResolveExport(isolate, requested_module, module_specifier, name,
                             loc, must_resolve, resolve_set);
-  DCHECK_IMPLIES(isolate->has_pending_exception(), result.is_null());
+  DCHECK_IMPLIES(isolate->has_exception(), result.is_null());
   return result;
 }
 
@@ -293,7 +293,7 @@ MaybeHandle<Cell> SourceTextModule::ResolveExportUsingStarExports(
                                             module_specifier, export_name),
                                         &loc);
         }
-      } else if (isolate->has_pending_exception()) {
+      } else if (isolate->has_exception()) {
         return MaybeHandle<Cell>();
       }
     }
@@ -333,13 +333,12 @@ bool SourceTextModule::PrepareInstantiate(
     Handle<String> specifier(module_request->specifier(), isolate);
     v8::Local<v8::Module> api_requested_module;
     if (callback) {
-      Handle<FixedArray> import_assertions(module_request->import_assertions(),
+      Handle<FixedArray> import_attributes(module_request->import_attributes(),
                                            isolate);
       if (!callback(context, v8::Utils::ToLocal(specifier),
-                    v8::Utils::FixedArrayToLocal(import_assertions),
+                    v8::Utils::FixedArrayToLocal(import_attributes),
                     v8::Utils::ToLocal(Handle<Module>::cast(module)))
                .ToLocal(&api_requested_module)) {
-        isolate->PromoteScheduledException();
         return false;
       }
     } else {
@@ -347,7 +346,6 @@ bool SourceTextModule::PrepareInstantiate(
                context, v8::Utils::ToLocal(specifier),
                v8::Utils::ToLocal(Handle<Module>::cast(module)))
                .ToLocal(&api_requested_module)) {
-        isolate->PromoteScheduledException();
         return false;
       }
     }
@@ -410,7 +408,7 @@ bool SourceTextModule::RunInitializationCode(Isolate* isolate,
       Execution::Call(isolate, function, receiver, 0, {});
   Handle<Object> generator;
   if (!maybe_generator.ToHandle(&generator)) {
-    DCHECK(isolate->has_pending_exception());
+    DCHECK(isolate->has_exception());
     return false;
   }
   DCHECK_EQ(*function, Handle<JSGeneratorObject>::cast(generator)->function());
@@ -686,15 +684,15 @@ MaybeHandle<JSObject> SourceTextModule::GetImportMeta(
 bool SourceTextModule::MaybeHandleEvaluationException(
     Isolate* isolate, ZoneForwardList<Handle<SourceTextModule>>* stack) {
   DisallowGarbageCollection no_gc;
-  Tagged<Object> pending_exception = isolate->pending_exception();
-  if (isolate->is_catchable_by_javascript(pending_exception)) {
+  Tagged<Object> exception = isolate->exception();
+  if (isolate->is_catchable_by_javascript(exception)) {
     //  a. For each Cyclic Module Record m in stack, do
     for (Handle<SourceTextModule>& descendant : *stack) {
       //   i. Assert: m.[[Status]] is "evaluating".
       CHECK_EQ(descendant->status(), kEvaluating);
       //  ii. Set m.[[Status]] to "evaluated".
       // iii. Set m.[[EvaluationError]] to result.
-      descendant->RecordError(isolate, pending_exception);
+      descendant->RecordError(isolate, exception);
     }
     return true;
   }
@@ -702,12 +700,12 @@ bool SourceTextModule::MaybeHandleEvaluationException(
   // would resume execution, and our API contract is to return an empty
   // handle. The module's status should be set to kErrored and the
   // exception field should be set to `null`.
-  RecordError(isolate, pending_exception);
+  RecordError(isolate, exception);
   for (Handle<SourceTextModule>& descendant : *stack) {
-    descendant->RecordError(isolate, pending_exception);
+    descendant->RecordError(isolate, exception);
   }
   CHECK_EQ(status(), kErrored);
-  CHECK_EQ(exception(), *isolate->factory()->null_value());
+  CHECK_EQ(this->exception(), *isolate->factory()->null_value());
   return false;
 }
 
@@ -729,14 +727,15 @@ MaybeHandle<Object> SourceTextModule::Evaluate(
 
   // 8. Let result be InnerModuleEvaluation(module, stack, 0).
   // 9. If result is an abrupt completion, then
-  Handle<Object> unused_result;
-  if (!InnerModuleEvaluation(isolate, module, &stack, &dfs_index)
-           .ToHandle(&unused_result)) {
+  v8::TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate));
+  try_catch.SetVerbose(false);
+  try_catch.SetCaptureMessage(false);
+  // TODO(verwaest): Return a bool from InnerModuleEvaluation instead?
+  if (InnerModuleEvaluation(isolate, module, &stack, &dfs_index).is_null()) {
     if (!module->MaybeHandleEvaluationException(isolate, &stack)) return {};
-    CHECK_EQ(module->exception(), isolate->pending_exception());
+    CHECK(try_catch.HasCaught());
     //  d. Perform ! Call(capability.[[Reject]], undefined,
     //                    «result.[[Value]]»).
-    isolate->clear_pending_exception();
     JSPromise::Reject(capability, handle(module->exception(), isolate));
   } else {
     // 10. Otherwise,
@@ -830,11 +829,10 @@ Maybe<bool> SourceTextModule::AsyncModuleExecutionFulfilled(
       //   a. Let _result_ be m.ExecuteModule().
       Handle<Object> unused_result;
       //   b. If _result_ is an abrupt completion,
-      if (!ExecuteModule(isolate, m).ToHandle(&unused_result)) {
+      MaybeHandle<Object> exception;
+      if (!ExecuteModule(isolate, m, &exception).ToHandle(&unused_result)) {
         //    1. Perform ! AsyncModuleExecutionRejected(m, result.[[Value]]).
-        Handle<Object> exception(isolate->pending_exception(), isolate);
-        isolate->clear_pending_exception();
-        AsyncModuleExecutionRejected(isolate, m, exception);
+        AsyncModuleExecutionRejected(isolate, m, exception.ToHandleChecked());
       } else {
         //   c. Otherwise,
         //    1. Set m.[[AsyncEvaluating]] to false.
@@ -981,7 +979,7 @@ Maybe<bool> SourceTextModule::ExecuteAsyncModule(
     // The evaluation of async module can not throwing a JavaScript observable
     // exception.
     DCHECK_IMPLIES(v8_flags.strict_termination_checks,
-                   isolate->is_execution_termination_pending());
+                   isolate->is_execution_terminating());
     return Nothing<bool>();
   }
 
@@ -1001,17 +999,13 @@ MaybeHandle<Object> SourceTextModule::InnerExecuteAsyncModule(
   Handle<JSFunction> resume(
       isolate->native_context()->async_module_evaluate_internal(), isolate);
   Handle<Object> result;
-  ASSIGN_RETURN_ON_EXCEPTION(
-      isolate, result,
-      Execution::TryCall(isolate, resume, async_function_object, 0, nullptr,
-                         Execution::MessageHandling::kKeepPending, nullptr,
-                         false),
-      Object);
-  return result;
+  return Execution::TryCall(isolate, resume, async_function_object, 0, nullptr,
+                            Execution::MessageHandling::kKeepPending, nullptr);
 }
 
 MaybeHandle<Object> SourceTextModule::ExecuteModule(
-    Isolate* isolate, Handle<SourceTextModule> module) {
+    Isolate* isolate, Handle<SourceTextModule> module,
+    MaybeHandle<Object>* exception_out) {
   // Synchronous modules have an associated JSGeneratorObject.
   Handle<JSGeneratorObject> generator(JSGeneratorObject::cast(module->code()),
                                       isolate);
@@ -1019,12 +1013,12 @@ MaybeHandle<Object> SourceTextModule::ExecuteModule(
       isolate->native_context()->generator_next_internal(), isolate);
   Handle<Object> result;
 
-  ASSIGN_RETURN_ON_EXCEPTION(
-      isolate, result,
-      Execution::TryCall(isolate, resume, generator, 0, nullptr,
-                         Execution::MessageHandling::kKeepPending, nullptr,
-                         false),
-      Object);
+  if (!Execution::TryCall(isolate, resume, generator, 0, nullptr,
+                          Execution::MessageHandling::kKeepPending,
+                          exception_out)
+           .ToHandle(&result)) {
+    return {};
+  }
   DCHECK(
       Object::BooleanValue(JSIteratorResult::cast(*result)->done(), isolate));
   return handle(JSIteratorResult::cast(*result)->value(), isolate);
@@ -1191,8 +1185,14 @@ MaybeHandle<Object> SourceTextModule::InnerModuleEvaluation(
     }
   } else {
     // 15. Otherwise, perform ? module.ExecuteModule().
-    ASSIGN_RETURN_ON_EXCEPTION(isolate, result, ExecuteModule(isolate, module),
-                               Object);
+    MaybeHandle<Object> exception;
+    Handle<Object> result;
+    if (!ExecuteModule(isolate, module, &exception).ToHandle(&result)) {
+      if (!isolate->is_execution_terminating()) {
+        isolate->Throw(*exception.ToHandleChecked());
+      }
+      return result;
+    }
   }
 
   CHECK(MaybeTransitionComponent(isolate, module, stack, kEvaluated));
@@ -1225,7 +1225,7 @@ void SourceTextModule::Reset(Isolate* isolate,
 }
 
 std::vector<std::tuple<Handle<SourceTextModule>, Handle<JSMessageObject>>>
-SourceTextModule::GetStalledTopLevelAwaitMessage(Isolate* isolate) {
+SourceTextModule::GetStalledTopLevelAwaitMessages(Isolate* isolate) {
   Zone zone(isolate->allocator(), ZONE_NAME);
   UnorderedModuleSet visited(&zone);
   std::vector<std::tuple<Handle<SourceTextModule>, Handle<JSMessageObject>>>

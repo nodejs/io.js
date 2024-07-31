@@ -1,0 +1,16 @@
+# Copyright 2020 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+config("fp16_config") {
+  include_dirs = [ "src/include" ]
+}
+
+source_set("fp16") {
+  public = [ "src/include/fp16.h" ]
+
+  configs -= [ "//build/config/compiler:chromium_code" ]
+  configs += [ "//build/config/compiler:no_chromium_code" ]
+
+  public_configs = [ ":fp16_config" ]
+}

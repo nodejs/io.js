@@ -1,22 +1,16 @@
 {
   "name": "http-proxy-agent",
-  "version": "5.0.0",
+  "version": "7.0.2",
   "description": "An HTTP(s) proxy `http.Agent` implementation for HTTP",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
-  "scripts": {
-    "prebuild": "rimraf dist",
-    "build": "tsc",
-    "test": "mocha",
-    "test-lint": "eslint src --ext .js,.ts",
-    "prepublishOnly": "npm run build"
-  },
   "repository": {
     "type": "git",
-    "url": "git://github.com/TooTallNate/node-http-proxy-agent.git"
+    "url": "https://github.com/TooTallNate/proxy-agents.git",
+    "directory": "packages/http-proxy-agent"
   },
   "keywords": [
     "http",
@@ -26,32 +20,28 @@
   ],
   "author": "Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/TooTallNate/node-http-proxy-agent/issues"
-  },
   "dependencies": {
-    "@tootallnate/once": "2",
-    "agent-base": "6",
-    "debug": "4"
+    "agent-base": "^7.1.0",
+    "debug": "^4.3.4"
   },
   "devDependencies": {
-    "@types/debug": "4",
-    "@types/node": "^12.19.2",
-    "@typescript-eslint/eslint-plugin": "1.6.0",
-    "@typescript-eslint/parser": "1.1.0",
-    "eslint": "5.16.0",
-    "eslint-config-airbnb": "17.1.0",
-    "eslint-config-prettier": "4.1.0",
-    "eslint-import-resolver-typescript": "1.1.1",
-    "eslint-plugin-import": "2.16.0",
-    "eslint-plugin-jsx-a11y": "6.2.1",
-    "eslint-plugin-react": "7.12.4",
-    "mocha": "^6.2.2",
-    "proxy": "1",
-    "rimraf": "^3.0.0",
-    "typescript": "^4.4.3"
+    "@types/debug": "^4.1.7",
+    "@types/jest": "^29.5.1",
+    "@types/node": "^14.18.45",
+    "async-listen": "^3.0.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.4",
+    "proxy": "2.1.1",
+    "tsconfig": "0.0.0"
   },
   "engines": {
-    "node": ">= 6"
+    "node": ">= 14"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --env node --verbose --bail",
+    "lint": "eslint . --ext .ts",
+    "pack": "node ../../scripts/pack.mjs"
   }
 }

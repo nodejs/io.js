@@ -559,6 +559,7 @@ test('mocks a constructor', (t) => {
   }
 
   class MockClazz {
+    // eslint-disable-next-line no-unused-private-class-members
     #privateValue;
 
     constructor(z) {

@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-prune">npm-prune</h1>
+<h1 id="----npm-prune----1082">
+    <span>npm-prune</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Remove extraneous packages</span>
 </header>
 
@@ -153,10 +161,9 @@ npm command-line interface
 then only packages matching one of the supplied names are removed.</p>
 <p>Extraneous packages are those present in the <code>node_modules</code> folder that are
 not listed as any package's dependency list.</p>
-<p>If the <code>--production</code> flag is specified or the <code>NODE_ENV</code> environment
+<p>If the <code>--omit=dev</code> flag is specified or the <code>NODE_ENV</code> environment
 variable is set to <code>production</code>, this command will remove the packages
-specified in your <code>devDependencies</code>. Setting <code>--no-production</code> will negate
-<code>NODE_ENV</code> being set to <code>production</code>.</p>
+specified in your <code>devDependencies</code>.</p>
 <p>If the <code>--dry-run</code> flag is used then no changes will actually be made.</p>
 <p>If the <code>--json</code> flag is used, then the changes <code>npm prune</code> made (or would
 have made with <code>--dry-run</code>) are printed as a JSON object.</p>
@@ -212,7 +219,8 @@ saving them to your <code>package.json</code>.</li>
 <p>Not supported by all npm commands.</p>
 <h4 id="foreground-scripts"><code>foreground-scripts</code></h4>
 <ul>
-<li>Default: false</li>
+<li>Default: <code>false</code> unless when using <code>npm pack</code> or <code>npm publish</code> where it
+defaults to <code>true</code></li>
 <li>Type: Boolean</li>
 </ul>
 <p>Run all build scripts (ie, <code>preinstall</code>, <code>install</code>, and <code>postinstall</code>)

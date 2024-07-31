@@ -27,12 +27,13 @@ RUNTIME_FUNCTION(Runtime_AtomicsNumWaitersForTesting) {
   Handle<JSArrayBuffer> array_buffer = sta->GetBuffer();
   size_t addr = (index << 2) + sta->byte_offset();
 
-  return FutexEmulation::NumWaitersForTesting(array_buffer, addr);
+  return Smi::FromInt(
+      FutexEmulation::NumWaitersForTesting(*array_buffer, addr));
 }
 
 RUNTIME_FUNCTION(Runtime_AtomicsNumAsyncWaitersForTesting) {
   DCHECK_EQ(0, args.length());
-  return FutexEmulation::NumAsyncWaitersForTesting(isolate);
+  return Smi::FromInt(FutexEmulation::NumAsyncWaitersForTesting(isolate));
 }
 
 RUNTIME_FUNCTION(Runtime_AtomicsNumUnresolvedAsyncPromisesForTesting) {
@@ -48,8 +49,8 @@ RUNTIME_FUNCTION(Runtime_AtomicsNumUnresolvedAsyncPromisesForTesting) {
   Handle<JSArrayBuffer> array_buffer = sta->GetBuffer();
   size_t addr = (index << 2) + sta->byte_offset();
 
-  return FutexEmulation::NumUnresolvedAsyncPromisesForTesting(array_buffer,
-                                                              addr);
+  return Smi::FromInt(FutexEmulation::NumUnresolvedAsyncPromisesForTesting(
+      *array_buffer, addr));
 }
 
 RUNTIME_FUNCTION(Runtime_SetAllowAtomicsWait) {

@@ -1,8 +1,0 @@
-## Benchmark-specific linter rules
-
-env:
-  node: true
-  es6: true
-
-rules:
-  prefer-arrow-callback: error

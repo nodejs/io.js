@@ -17,6 +17,7 @@
 /CONTRIBUTING.md @nodejs/tsc
 /doc/contributing/*.md @nodejs/tsc
 /GOVERNANCE.md @nodejs/tsc
+/SECURITY.md @nodejs/tsc
 /LICENSE @nodejs/tsc
 /onboarding.md @nodejs/tsc
 
@@ -59,6 +60,8 @@
 
 # tls/crypto
 
+/doc/api/crypto.md @nodejs/crypto
+/doc/api/webcrypto.md @nodejs/crypto
 /lib/crypto.js @nodejs/crypto
 /lib/internal/crypto/* @nodejs/crypto
 /lib/internal/tls/* @nodejs/crypto @nodejs/net
@@ -93,7 +96,6 @@
 /doc/api/packages.md @nodejs/loaders
 /lib/internal/bootstrap/realm.js @nodejs/loaders
 /lib/internal/modules/* @nodejs/loaders
-/lib/internal/process/esm_loader.js @nodejs/loaders
 /lib/internal/process/execution.js @nodejs/loaders
 /lib/module.js @nodejs/loaders
 /src/module_wrap* @nodejs/loaders @nodejs/vm
@@ -122,7 +124,7 @@
 
 # Startup
 
-/benchmark/misc/startup.js @nodejs/startup
+/benchmark/misc/startup-* @nodejs/startup
 /lib/internal/bootstrap/* @nodejs/startup
 /src/node_builtins* @nodejs/startup
 /src/node_realm* @nodejs/startup @nodejs/realm
@@ -171,8 +173,18 @@
 /.github/workflows/tools.yml @nodejs/security-wg
 /.github/workflows/update-openssl.yml @nodejs/security-wg
 /.github/workflows/update-v8.yml @nodejs/security-wg @nodejs/v8-update
+/deps @nodejs/security-wg
 /tools/dep_updaters/* @nodejs/security-wg
 
 # Web Standards
 /lib/internal/bootstrap/web/* @nodejs/web-standards
 /lib/internal/navigator.js @nodejs/web-standards
+/test/fixtures/wpt/ @nodejs/web-standards
+/test/wpt/ @nodejs/web-standards
+
+# TypeScript
+
+/deps/amaro/ @nodejs/typescript
+/doc/api/typescript.md @nodejs/typescript
+/test/fixtures/typescript/ @nodejs/typescript
+/tools/dep_updaters/update-amaro.sh @nodejs/typescript

@@ -18,13 +18,6 @@ constexpr char kTqObjectOverrideDecls[] =
   bool IsSuperclassOf(const TqObject* other) const override;
 )";
 
-constexpr char kObjectClassListDefinition[] = R"(
-const d::ClassList kObjectClassList {
-  sizeof(kObjectClassNames) / sizeof(const char*),
-  kObjectClassNames,
-};
-)";
-
 namespace {
 enum TypeStorage {
   kAsStoredInHeap,
@@ -148,16 +141,17 @@ class DebugFieldType {
       return "";
     }
     if (IsTagged()) {
-      if (storage == kAsStoredInHeap &&
-          TargetArchitecture::ArePointersCompressed()) {
-        return "v8::internal::TaggedValue";
-      }
       base::Optional<const ClassType*> field_class_type =
           name_and_type_.type->ClassSupertype();
-      return "v8::internal::" +
-             (field_class_type.has_value()
-                  ? (*field_class_type)->GetGeneratedTNodeTypeName()
-                  : "Object");
+      std::string result =
+          "v8::internal::" +
+          (field_class_type.has_value()
+               ? (*field_class_type)->GetGeneratedTNodeTypeName()
+               : "Object");
+      if (storage == kAsStoredInHeap) {
+        result = "v8::internal::TaggedMember<" + result + ">";
+      }
+      return result;
     }
     return name_and_type_.type->GetConstexprGeneratedTypeName();
   }
@@ -373,7 +367,6 @@ void GenerateGetPropsChunkForField(const Field& field,
                    << ".push_back(std::make_unique<StructProperty>(\""
                    << struct_field.name_and_type.name << "\", "
                    << struct_field_type.GetTypeString(kAsStoredInHeap) << ", "
-                   << struct_field_type.GetTypeString(kUncompressed) << ", "
                    << struct_field.offset_bytes << ", " << struct_field.num_bits
                    << ", " << struct_field.shift_bits << "));\n";
   }
@@ -401,7 +394,6 @@ void GenerateGetPropsChunkForField(const Field& field,
                    << "    result.push_back(std::make_unique<ObjectProperty>(\""
                    << field.name_and_type.name << "\", "
                    << debug_field_type.GetTypeString(kAsStoredInHeap) << ", "
-                   << debug_field_type.GetTypeString(kUncompressed) << ", "
                    << "address_ - i::kHeapObjectTag + std::get<1>(" << value
                    << "), "
                    << "std::get<2>(" << value << ")"
@@ -413,7 +405,6 @@ void GenerateGetPropsChunkForField(const Field& field,
   get_props_impl << "  result.push_back(std::make_unique<ObjectProperty>(\""
                  << field.name_and_type.name << "\", "
                  << debug_field_type.GetTypeString(kAsStoredInHeap) << ", "
-                 << debug_field_type.GetTypeString(kUncompressed) << ", "
                  << debug_field_type.GetAddressGetter() << "(), " << count_value
                  << ", " << debug_field_type.GetSize() << ", "
                  << struct_field_list << ", " << property_kind << "));\n";
@@ -452,11 +443,8 @@ void GenerateGetPropsChunkForField(const Field& field,
 // visitor:     A stream that is accumulating the definition of the class
 //              TqObjectVisitor. Each class Foo gets its own virtual method
 //              VisitFoo in TqObjectVisitor.
-// class_names: A stream that is accumulating a list of strings including fully-
-//              qualified names for every Torque-defined class type.
 void GenerateClassDebugReader(const ClassType& type, std::ostream& h_contents,
                               std::ostream& cc_contents, std::ostream& visitor,
-                              std::ostream& class_names,
                               std::unordered_set<const ClassType*>* done) {
   // Make sure each class only gets generated once.
   if (!done->insert(&type).second) return;
@@ -466,7 +454,7 @@ void GenerateClassDebugReader(const ClassType& type, std::ostream& h_contents,
   // been emitted yet, go handle it first.
   if (super_type != nullptr) {
     GenerateClassDebugReader(*super_type, h_contents, cc_contents, visitor,
-                             class_names, done);
+                             done);
   }
 
   // Classes with undefined layout don't grant any particular value here and may
@@ -505,8 +493,6 @@ void GenerateClassDebugReader(const ClassType& type, std::ostream& h_contents,
           << "* object) {\n";
   visitor << "    Visit" << super_name << "(object);\n";
   visitor << "  }\n";
-
-  class_names << "  \"v8::internal::" << name << "\",\n";
 
   std::stringstream get_props_impl;
 
@@ -574,21 +560,13 @@ void ImplementationVisitor::GenerateClassDebugReaders(
     visitor << " public:\n";
     visitor << "  virtual void VisitObject(const TqObject* object) {}\n";
 
-    std::stringstream class_names;
-
     std::unordered_set<const ClassType*> done;
     for (const ClassType* type : TypeOracle::GetClasses()) {
-      GenerateClassDebugReader(*type, h_contents, cc_contents, visitor,
-                               class_names, &done);
+      GenerateClassDebugReader(*type, h_contents, cc_contents, visitor, &done);
     }
 
     visitor << "};\n";
     h_contents << visitor.str();
-
-    cc_contents << "\nconst char* kObjectClassNames[] {\n";
-    cc_contents << class_names.str();
-    cc_contents << "};\n";
-    cc_contents << kObjectClassListDefinition;
   }
   WriteFile(output_directory + "/" + file_name + ".h", h_contents.str());
   WriteFile(output_directory + "/" + file_name + ".cc", cc_contents.str());

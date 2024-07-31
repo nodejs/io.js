@@ -179,7 +179,11 @@ int ossl_x509_algor_md_to_mgf1(X509_ALGOR **palg, const EVP_MD *mgf1md)
     *palg = X509_ALGOR_new();
     if (*palg == NULL)
         goto err;
-    X509_ALGOR_set0(*palg, OBJ_nid2obj(NID_mgf1), V_ASN1_SEQUENCE, stmp);
+    if (!X509_ALGOR_set0(*palg, OBJ_nid2obj(NID_mgf1), V_ASN1_SEQUENCE, stmp)) {
+        X509_ALGOR_free(*palg);
+        *palg = NULL;
+        goto err;
+    }
     stmp = NULL;
  err:
     ASN1_STRING_free(stmp);

@@ -11,6 +11,11 @@
 namespace v8 {
 namespace internal {
 
+class KeyedStoreMegamorphicGenerator {
+ public:
+  static void Generate(compiler::CodeAssemblerState* state);
+};
+
 class KeyedStoreGenericGenerator {
  public:
   static void Generate(compiler::CodeAssemblerState* state);

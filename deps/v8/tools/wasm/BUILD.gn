@@ -25,7 +25,10 @@ v8_executable("wami") {
     "../..:v8_libplatform",
   ]
 
-  sources = [ "module-inspector.cc" ]
+  sources = [
+    "mjsunit-module-disassembler-impl.h",
+    "module-inspector.cc",
+  ]
 
   defines = []
 

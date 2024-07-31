@@ -103,7 +103,7 @@ def NormjoinPathForceCMakeSource(base_path, rel_path):
   """
     if os.path.isabs(rel_path):
         return rel_path
-    if any([rel_path.startswith(var) for var in FULL_PATH_VARS]):
+    if any(rel_path.startswith(var) for var in FULL_PATH_VARS):
         return rel_path
     # TODO: do we need to check base_path for absolute variables as well?
     return os.path.join(
@@ -328,7 +328,7 @@ def WriteActions(target_name, actions, extra_sources, extra_deps, path_to_gyp, o
 
 def NormjoinRulePathForceCMakeSource(base_path, rel_path, rule_source):
     if rel_path.startswith(("${RULE_INPUT_PATH}", "${RULE_INPUT_DIRNAME}")):
-        if any([rule_source.startswith(var) for var in FULL_PATH_VARS]):
+        if any(rule_source.startswith(var) for var in FULL_PATH_VARS):
             return rel_path
     return NormjoinPathForceCMakeSource(base_path, rel_path)
 
@@ -929,10 +929,7 @@ def WriteTarget(
         product_prefix = spec.get("product_prefix", default_product_prefix)
         product_name = spec.get("product_name", default_product_name)
         product_ext = spec.get("product_extension")
-        if product_ext:
-            product_ext = "." + product_ext
-        else:
-            product_ext = default_product_ext
+        product_ext = "." + product_ext if product_ext else default_product_ext
 
         SetTargetProperty(output, cmake_target_name, "PREFIX", product_prefix)
         SetTargetProperty(

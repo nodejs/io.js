@@ -22,6 +22,7 @@ FuzzerSupport::FuzzerSupport(int* argc, char*** argv) {
   i::v8_flags.hard_abort = false;
 
   i::v8_flags.expose_gc = true;
+  i::v8_flags.fuzzing = true;
 
   // Allow changing flags in fuzzers.
   // TODO(12887): Refactor fuzzers to not change flags after initialization.
@@ -37,6 +38,18 @@ FuzzerSupport::FuzzerSupport(int* argc, char*** argv) {
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   v8::V8::SetFlagsFromCommandLine(argc, *argv, true);
+  for (int arg_idx = 1; arg_idx < *argc; ++arg_idx) {
+    const char* const arg = (*argv)[arg_idx];
+    if (arg[0] != '-' || arg[1] != '-') continue;
+    // Stop processing args at '--'.
+    if (arg[2] == '\0') break;
+    fprintf(stderr, "Unrecognized flag %s\n", arg);
+    // Move remaining flags down.
+    std::move(*argv + arg_idx + 1, *argv + *argc, *argv + arg_idx);
+    --*argc, --arg_idx;
+  }
+  i::FlagList::ResolveContradictionsWhenFuzzing();
+
   v8::V8::InitializeICUDefaultLocation((*argv)[0]);
   v8::V8::InitializeExternalStartupData((*argv)[0]);
   platform_ = v8::platform::NewDefaultPlatform();

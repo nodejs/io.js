@@ -249,7 +249,7 @@ class IncrementalStringBuilder {
     DestChar* start_;
     DestChar* cursor_;
 #ifdef DEBUG
-    String string_;
+    Tagged<String> string_;
 #endif
     DISALLOW_GARBAGE_COLLECTION(no_gc_)
   };

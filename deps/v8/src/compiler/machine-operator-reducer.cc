@@ -987,8 +987,10 @@ Reduction MachineOperatorReducer::Reduce(Node* node) {
     case IrOpcode::kBranch:
     case IrOpcode::kDeoptimizeIf:
     case IrOpcode::kDeoptimizeUnless:
+#if V8_ENABLE_WEBASSEMBLY
     case IrOpcode::kTrapIf:
     case IrOpcode::kTrapUnless:
+#endif
       return ReduceConditional(node);
     case IrOpcode::kInt64LessThan: {
       Int64BinopMatcher m(node);
@@ -2322,15 +2324,17 @@ struct BitfieldCheck {
 
   base::Optional<BitfieldCheck> TryCombine(const BitfieldCheck& other) {
     if (source != other.source ||
-        truncate_from_64_bit != other.truncate_from_64_bit)
+        truncate_from_64_bit != other.truncate_from_64_bit) {
       return {};
+    }
     uint32_t overlapping_bits = mask & other.mask;
     // It would be kind of strange to have any overlapping bits, but they can be
     // allowed as long as they don't require opposite values in the same
     // positions.
     if ((masked_value & overlapping_bits) !=
-        (other.masked_value & overlapping_bits))
+        (other.masked_value & overlapping_bits)) {
       return {};
+    }
     return BitfieldCheck{source, mask | other.mask,
                          masked_value | other.masked_value,
                          truncate_from_64_bit};
@@ -2887,6 +2891,7 @@ Reduction MachineOperatorReducer::SimplifyBranch(Node* node) {
         case IrOpcode::kBranch:
           SwapBranches(node);
           break;
+#if V8_ENABLE_WEBASSEMBLY
         case IrOpcode::kTrapIf: {
           const bool has_frame_state = node->op()->ValueInputCount() > 1;
           NodeProperties::ChangeOp(
@@ -2900,6 +2905,7 @@ Reduction MachineOperatorReducer::SimplifyBranch(Node* node) {
               node, common()->TrapIf(TrapIdOf(node->op()), has_frame_state));
           break;
         }
+#endif  // V8_ENABLE_WEBASSEMBLY
         case IrOpcode::kDeoptimizeIf: {
           DeoptimizeParameters p = DeoptimizeParametersOf(node->op());
           NodeProperties::ChangeOp(

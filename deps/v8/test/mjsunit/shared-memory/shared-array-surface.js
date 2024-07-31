@@ -64,24 +64,19 @@
 })();
 
 (function TestBounds() {
-  // Max SharedArray size is 2**14-2.
-  assertDoesNotThrow(() => {
-    new SharedArray(2 ** 14 - 2);
-  });
-
   assertThrows(
       () => {
-        new SharedArray(2 ** 14 - 1);
+        new SharedArray(2 ** 32);
       },
       RangeError,
-      'SharedArray length out of range (maximum of 2**14-2 allowed)');
+      'SharedArray length out of range');
 
   assertThrows(
       () => {
         new SharedArray(-1);
       },
       RangeError,
-      'SharedArray length out of range (maximum of 2**14-2 allowed)');
+      'SharedArray length out of range');
 })();
 
 (function TestOwnPropertyEnumeration() {

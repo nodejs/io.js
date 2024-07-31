@@ -11,7 +11,7 @@ const errorWithEAGAIN = (fd, buffer, offset, length, position, callback) => {
   callback(Object.assign(new Error(), { code: 'EAGAIN' }), 0, buffer);
 };
 
-describe('WriteStream EAGAIN', { concurrency: true }, () => {
+describe('WriteStream EAGAIN', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('_write', async () => {
     const mockWrite = mock.fn(fs.write);
     mockWrite.mock.mockImplementationOnce(errorWithEAGAIN);

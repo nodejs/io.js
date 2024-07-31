@@ -92,6 +92,7 @@
 #include "src/objects/templates-inl.h"
 #include "src/objects/torque-defined-classes-inl.h"
 #include "src/objects/transitions-inl.h"
+#include "src/objects/trusted-object-inl.h"
 #include "src/objects/turbofan-types-inl.h"
 #include "src/objects/turboshaft-types-inl.h"
 

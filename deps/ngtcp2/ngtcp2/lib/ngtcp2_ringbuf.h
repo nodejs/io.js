@@ -37,9 +37,9 @@ typedef struct ngtcp2_ringbuf {
   /* buf points to the underlying buffer. */
   uint8_t *buf;
   const ngtcp2_mem *mem;
-  /* nmemb is the number of elements that can be stored in this ring
-     buffer. */
-  size_t nmemb;
+  /* mask is the bit mask to cover all bits for the maximum number of
+     elements.  The maximum number of elements is mask + 1. */
+  size_t mask;
   /* size is the size of each element. */
   size_t size;
   /* first is the offset to the first element. */

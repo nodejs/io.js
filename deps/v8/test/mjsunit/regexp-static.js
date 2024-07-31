@@ -157,3 +157,8 @@ assertEquals("regexp", RegExp.$1, "RegExp.$1");
 // Check that calling with no argument is the same as calling with undefined.
 assertTrue(/^undefined$/.test());
 assertEquals(["undefined"], /^undefined$/.exec());
+
+assertThrows(
+    () => { RegExp.prototype.test.call("xyz", "foo"); },
+    TypeError,
+    'Method RegExp.prototype.test called on incompatible receiver xyz');

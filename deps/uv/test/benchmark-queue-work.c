@@ -40,7 +40,7 @@ static void work_cb(uv_work_t* req) {
 static void after_work_cb(uv_work_t* req, int status) {
   events++;
   if (!done)
-    ASSERT_EQ(0, uv_queue_work(req->loop, req, work_cb, after_work_cb));
+    ASSERT_OK(uv_queue_work(req->loop, req, work_cb, after_work_cb));
 }
 
 static void timer_cb(uv_timer_t* handle) { done = 1; }
@@ -55,11 +55,11 @@ BENCHMARK_IMPL(queue_work) {
   loop = uv_default_loop();
   timeout = 5000;
 
-  ASSERT_EQ(0, uv_timer_init(loop, &timer_handle));
-  ASSERT_EQ(0, uv_timer_start(&timer_handle, timer_cb, timeout, 0));
+  ASSERT_OK(uv_timer_init(loop, &timer_handle));
+  ASSERT_OK(uv_timer_start(&timer_handle, timer_cb, timeout, 0));
 
-  ASSERT_EQ(0, uv_queue_work(loop, &work, work_cb, after_work_cb));
-  ASSERT_EQ(0, uv_run(loop, UV_RUN_DEFAULT));
+  ASSERT_OK(uv_queue_work(loop, &work, work_cb, after_work_cb));
+  ASSERT_OK(uv_run(loop, UV_RUN_DEFAULT));
 
   printf("%s async jobs in %.1f seconds (%s/s)\n",
          fmt(&fmtbuf[0], events),

@@ -50,12 +50,14 @@ class PropertyArray
                                        SeqCstAccessTag tag);
 
   // Signature must be in sync with FixedArray::CopyElements().
-  inline void CopyElements(Isolate* isolate, int dst_index,
-                           Tagged<PropertyArray> src, int src_index, int len,
-                           WriteBarrierMode mode);
+  inline static void CopyElements(Isolate* isolate, Tagged<PropertyArray> dst,
+                                  int dst_index, Tagged<PropertyArray> src,
+                                  int src_index, int len,
+                                  WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   // Gives access to raw memory which stores the array's data.
   inline ObjectSlot data_start();
+  inline ObjectSlot RawFieldOfElementAt(int index);
 
   // Garbage collection support.
   static constexpr int SizeFor(int length) {

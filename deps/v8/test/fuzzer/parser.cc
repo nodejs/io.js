@@ -94,8 +94,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     info.pending_error_handler()->PrepareErrors(i_isolate,
                                                 info.ast_value_factory());
     info.pending_error_handler()->ReportErrors(i_isolate, script);
-
-    i_isolate->OptionalRescheduleException(true);
   }
   isolate->RequestGarbageCollectionForTesting(
       v8::Isolate::kFullGarbageCollection);

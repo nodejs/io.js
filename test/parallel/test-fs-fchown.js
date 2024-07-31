@@ -5,8 +5,8 @@ const assert = require('assert');
 const fs = require('fs');
 
 function testFd(input, errObj) {
-  assert.throws(() => fs.fchown(input), errObj);
-  assert.throws(() => fs.fchownSync(input), errObj);
+  assert.throws(() => fs.fchown(input, 0, 0, () => {}), errObj);
+  assert.throws(() => fs.fchownSync(input, 0, 0), errObj);
 }
 
 function testUid(input, errObj) {

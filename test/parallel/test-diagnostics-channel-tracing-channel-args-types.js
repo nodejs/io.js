@@ -24,7 +24,7 @@ assert.throws(() => (channel = dc.tracingChannel(0)), {
   code: 'ERR_INVALID_ARG_TYPE',
   name: 'TypeError',
   message:
-    /The "nameOrChannels" argument must be of type string or an instance of Channel or Object/,
+    /The "nameOrChannels" argument must be of type string or an instance of TracingChannel or Object/,
 });
 
 // tracingChannel creating without instance of Channel must throw error

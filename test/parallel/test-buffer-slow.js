@@ -30,14 +30,6 @@ for (const [key, value] of sb.entries()) {
 
 // Should work with edge cases
 assert.strictEqual(SlowBuffer(0).length, 0);
-try {
-  assert.strictEqual(
-    SlowBuffer(buffer.kMaxLength).length, buffer.kMaxLength);
-} catch (e) {
-  // Don't match on message as it is from the JavaScript engine. V8 and
-  // ChakraCore provide different messages.
-  assert.strictEqual(e.name, 'RangeError');
-}
 
 // Should throw with invalid length type
 const bufferInvalidTypeMsg = {

@@ -104,7 +104,7 @@ Handle<Object> UnicodeKeywordValue(Isolate* isolate, Handle<JSLocale> locale,
   UErrorCode status = U_ZERO_ERROR;
   std::string value =
       icu_locale->getUnicodeKeywordValue<std::string>(key, status);
-  if (status == U_ILLEGAL_ARGUMENT_ERROR || value == "") {
+  if (status == U_ILLEGAL_ARGUMENT_ERROR || value.empty()) {
     return isolate->factory()->undefined_value();
   }
   if (value == "yes") {
@@ -183,7 +183,7 @@ int32_t weekdayFromEDaysOfWeek(icu::Calendar::EDaysOfWeek eDaysOfWeek) {
 bool JSLocale::Is38AlphaNumList(const std::string& in) {
   std::string value = in;
   while (true) {
-    std::size_t found_dash = value.find("-");
+    std::size_t found_dash = value.find('-');
     if (found_dash == std::string::npos) {
       return IsAlphanum(value, 3, 8);
     }
@@ -208,7 +208,7 @@ bool JSLocale::StartsWithUnicodeLanguageId(const std::string& value) {
   while (std::getline(token_stream, token, '-')) {
     tokens.push_back(token);
   }
-  if (tokens.size() == 0) return false;
+  if (tokens.empty()) return false;
 
   // length >= 1
   if (!IsUnicodeLanguageSubtag(tokens[0])) return false;
@@ -729,7 +729,7 @@ MaybeHandle<JSObject> JSLocale::GetWeekInfo(Isolate* isolate,
     }
   }
   if (length != 2) {
-    wi = wi->ShrinkOrEmpty(isolate, wi, length);
+    wi = wi->RightTrimOrEmpty(isolate, wi, length);
   }
   Handle<JSArray> we = factory->NewJSArrayWithElements(wi);
 

@@ -1,9 +1,7 @@
 import Agent from './agent'
 import buildConnector from './connector';
-import Client from './client'
 import Dispatcher from './dispatcher'
 import { IncomingHttpHeaders } from './header'
-import Pool from './pool'
 
 export default ProxyAgent
 

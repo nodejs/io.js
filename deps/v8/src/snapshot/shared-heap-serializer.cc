@@ -88,7 +88,7 @@ bool SharedHeapSerializer::SerializeUsingSharedHeapObjectCache(
   // because the live isolate may have had new internalized strings that were
   // not present in the startup snapshot to be serialized.
   if (ShouldReconstructSharedHeapObjectCacheForTesting()) {
-    std::vector<Object>* existing_cache =
+    std::vector<Tagged<Object>>* existing_cache =
         isolate()->shared_space_isolate()->shared_heap_object_cache();
     const size_t existing_cache_size = existing_cache->size();
     // This is strictly < because the existing cache contains the terminating
@@ -201,7 +201,7 @@ bool SharedHeapSerializer::ShouldReconstructSharedHeapObjectCacheForTesting()
 }
 
 void SharedHeapSerializer::ReconstructSharedHeapObjectCacheForTesting() {
-  std::vector<Object>* cache =
+  std::vector<Tagged<Object>>* cache =
       isolate()->shared_space_isolate()->shared_heap_object_cache();
   // Don't reconstruct the final element, which is always undefined and marks
   // the end of the cache, since serializing the live Isolate may extend the

@@ -106,7 +106,8 @@ class JSDateTimeFormat
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> TimeZoneIdToString(
       Isolate* isolate, const icu::UnicodeString& id);
 
-  std::unique_ptr<icu::TimeZone> static CreateTimeZone(const char* timezone);
+  std::unique_ptr<icu::TimeZone> static CreateTimeZone(
+      Isolate* isolate, Handle<String> time_zone);
 
   V8_EXPORT_PRIVATE static std::string CanonicalizeTimeZoneID(
       const std::string& input);

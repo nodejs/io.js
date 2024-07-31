@@ -30,13 +30,10 @@ OperationTyper::OperationTyper(JSHeapBroker* broker, Zone* zone)
   signed32ish_ = Type::Union(Type::Signed32(), truncating_to_zero, zone);
   unsigned32ish_ = Type::Union(Type::Unsigned32(), truncating_to_zero, zone);
 
-  // TODO(chromium:1445008): when splitting the hole into different holes,
-  // figure which ones of them are falsish.
   falsish_ = Type::Union(
       Type::Undetectable(),
       Type::Union(Type::Union(singleton_false_, cache_->kZeroish, zone),
-                  Type::Union(singleton_empty_string_, Type::TheHole(), zone),
-                  zone),
+                  singleton_empty_string_, zone),
       zone);
   truish_ = Type::Union(
       singleton_true_,
@@ -256,7 +253,7 @@ Type OperationTyper::ConvertReceiver(Type type) {
     // ConvertReceiver maps null and undefined to the JSGlobalProxy of the
     // target function, and all other primitives are wrapped into a
     // JSPrimitiveWrapper.
-    type = Type::Union(type, Type::OtherObject(), zone());
+    type = Type::Union(type, Type::StringWrapperOrOtherObject(), zone());
   }
   return type;
 }
@@ -1323,8 +1320,8 @@ Type OperationTyper::CheckBounds(Type index, Type length) {
 }
 
 Type OperationTyper::CheckFloat64Hole(Type type) {
-  if (type.Maybe(Type::TheHole())) {
-    // Turn "the hole" into undefined.
+  if (type.Maybe(Type::Hole())) {
+    // Turn a "hole" into undefined.
     type = Type::Intersect(type, Type::Number(), zone());
     type = Type::Union(type, Type::Undefined(), zone());
   }
@@ -1340,8 +1337,8 @@ Type OperationTyper::TypeTypeGuard(const Operator* sigma_op, Type input) {
 }
 
 Type OperationTyper::ConvertTaggedHoleToUndefined(Type input) {
-  if (input.Maybe(Type::TheHole())) {
-    // Turn "the hole" into undefined.
+  if (input.Maybe(Type::Hole())) {
+    // Turn a "hole" into undefined.
     Type type = Type::Intersect(input, Type::NonInternal(), zone());
     return Type::Union(type, Type::Undefined(), zone());
   }

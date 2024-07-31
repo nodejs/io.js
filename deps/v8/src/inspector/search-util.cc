@@ -148,7 +148,7 @@ searchInTextByLinesImpl(V8InspectorSession* session, const String16& text,
       static_cast<V8InspectorSessionImpl*>(session)->inspector(), query,
       caseSensitive, isRegex);
   std::vector<std::pair<int, String16>> matches =
-      scriptRegexpMatchesByLines(*regex.get(), text);
+      scriptRegexpMatchesByLines(*regex, text);
 
   std::vector<std::unique_ptr<protocol::Debugger::SearchMatch>> result;
   result.reserve(matches.size());

@@ -44,7 +44,8 @@ npm config set key=value [key=value...]
 npm set key=value [key=value...]
 ```
 
-Sets each of the config keys to the value provided.
+Sets each of the config keys to the value provided. Modifies the user configuration
+file unless [`location`](/commands/npm-config#location) is passed.
 
 If value is omitted, the key will be removed from your config file entirely.
 

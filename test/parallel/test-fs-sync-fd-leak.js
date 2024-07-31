@@ -25,7 +25,6 @@ require('../common');
 const assert = require('assert');
 const fs = require('fs');
 const { internalBinding } = require('internal/test/binding');
-const { UV_EBADF } = internalBinding('uv');
 
 // Ensure that (read|write|append)FileSync() closes the file descriptor
 fs.openSync = function() {
@@ -42,20 +41,33 @@ fs.writeSync = function() {
   throw new Error('BAM');
 };
 
-internalBinding('fs').fstat = function(fd, bigint, _, ctx) {
-  ctx.errno = UV_EBADF;
-  ctx.syscall = 'fstat';
+// Internal fast paths are pure C++, can't error inside write
+internalBinding('fs').writeFileUtf8 = function() {
+  // Fake close
+  close_called++;
+  throw new Error('BAM');
+};
+
+internalBinding('fs').fstat = function() {
+  throw new Error('EBADF: bad file descriptor, fstat');
 };
 
 let close_called = 0;
 ensureThrows(function() {
-  fs.readFileSync('dummy');
-}, 'EBADF: bad file descriptor, fstat');
-ensureThrows(function() {
+  // Fast path: writeFileSync utf8
   fs.writeFileSync('dummy', 'xxx');
 }, 'BAM');
 ensureThrows(function() {
+  // Non-fast path
+  fs.writeFileSync('dummy', 'xxx', { encoding: 'base64' });
+}, 'BAM');
+ensureThrows(function() {
+  // Fast path: writeFileSync utf8
   fs.appendFileSync('dummy', 'xxx');
+}, 'BAM');
+ensureThrows(function() {
+  // Non-fast path
+  fs.appendFileSync('dummy', 'xxx', { encoding: 'base64' });
 }, 'BAM');
 
 function ensureThrows(cb, message) {

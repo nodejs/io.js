@@ -2284,7 +2284,7 @@ code is governed by a BSD-style license that can be found in the LICENSE file.
     Group.add('gc-custom', new Group('GC-Custom', /GC_Custom_.*/, "#0099C6"));
     Group.add('gc-background',
       new Group(
-        'GC-Background', /.*GC.*(BACKGROUND|Background).*/, "#00597c"));
+        'GC-Background', /GC_.*(BACKGROUND|Background).*/, "#00597c"));
     Group.add('gc',
       new Group('GC', /GC_.*|AllocateInTargetSpace|GC/, "#00799c"));
     Group.add('javascript',

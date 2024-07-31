@@ -16,7 +16,7 @@ on:
           - acorn
           - acorn-walk
           - ada
-          - base64
+          - amaro
           - brotli
           - c-ares
           - cjs-module-lexer
@@ -25,24 +25,28 @@ on:
           - eslint
           - github_reporter
           - googletest
+          - gyp-next
           - histogram
           - icu
-          - libuv
+          # - libuv
           - lint-md-dependencies
           - llhttp
           - minimatch
+          - nbytes
           - nghttp2
           - nghttp3
           - ngtcp2
           - postject
           - root-certificates
+          - simdjson
           - simdutf
+          - sqlite
           - undici
           - uvwasi
           - zlib
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.12'
 
 permissions:
   contents: read
@@ -79,11 +83,11 @@ jobs:
               cat temp-output
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
-          - id: base64
+          - id: amaro
             subsystem: deps
             label: dependencies
             run: |
-              ./tools/dep_updaters/update-base64.sh > temp-output
+              ./tools/dep_updaters/update-amaro.sh > temp-output
               cat temp-output
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
@@ -125,7 +129,7 @@ jobs:
               npm ci
               NEW_VERSION=$(npm outdated --parseable | cut -d: -f4 | xargs)
               if [ "$NEW_VERSION" != "" ]; then
-                echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+                echo "NEW_VERSION=new version" >> $GITHUB_ENV
                 rm -rf package-lock.json node_modules
                 # Include $NEW_VERSION to explicitly update the package.json
                 # entry for the dependency and also so that semver-major updates
@@ -157,6 +161,14 @@ jobs:
               cat temp-output
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
+          - id: gyp-next
+            subsystem: tools
+            label: tools
+            run: |
+              ./tools/dep_updaters/update-gyp-next.sh > temp-output
+              cat temp-output
+              tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
+              rm temp-output
           - id: histogram
             subsystem: deps
             label: dependencies
@@ -173,14 +185,17 @@ jobs:
               cat temp-output
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
-          - id: libuv
-            subsystem: deps
-            label: dependencies
-            run: |
-              ./tools/dep_updaters/update-libuv.sh > temp-output
-              cat temp-output
-              tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
-              rm temp-output
+          # libuv update was disabled because of Feb 14, 2024 security release
+          # modified the bundled version of libuv, we cannot automatically update
+          # libuv without potentially undoing those changes.
+          # - id: libuv
+          #   subsystem: deps
+          #   label: dependencies
+          #   run: |
+          #     ./tools/dep_updaters/update-libuv.sh > temp-output
+          #     cat temp-output
+          #     tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
+          #     rm temp-output
           - id: lint-md-dependencies
             subsystem: tools
             label: tools
@@ -212,6 +227,14 @@ jobs:
             label: dependencies
             run: |
               ./tools/dep_updaters/update-minimatch.sh > temp-output
+              cat temp-output
+              tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
+              rm temp-output
+          - id: nbytes
+            subsystem: deps
+            label: dependencies
+            run: |
+              ./tools/dep_updaters/update-nbytes.sh > temp-output
               cat temp-output
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
@@ -252,11 +275,27 @@ jobs:
             label: crypto, notable-change
             run: |
               node ./tools/dep_updaters/update-root-certs.mjs -v -f "$GITHUB_ENV"
+          - id: simdjson
+            subsystem: deps
+            label: dependencies
+            run: |
+              ./tools/dep_updaters/update-simdjson.sh > temp-output
+              cat temp-output
+              tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
+              rm temp-output
           - id: simdutf
             subsystem: deps
             label: dependencies
             run: |
               ./tools/dep_updaters/update-simdutf.sh > temp-output
+              cat temp-output
+              tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
+              rm temp-output
+          - id: sqlite
+            subsystem: deps
+            label: dependencies
+            run: |
+              ./tools/dep_updaters/update-sqlite.sh > temp-output
               cat temp-output
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
@@ -285,13 +324,13 @@ jobs:
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
         if: github.event_name == 'schedule' || inputs.id == 'all' || inputs.id == matrix.id
         with:
           persist-credentials: false
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         if: matrix.id == 'icu' && (github.event_name == 'schedule' || inputs.id == 'all' || inputs.id == matrix.id)
-        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1  # v4.7.0
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: ${{ matrix.run }}
@@ -302,7 +341,7 @@ jobs:
         if: env.COMMIT_MSG == '' && (github.event_name == 'schedule' || inputs.id == 'all' || inputs.id == matrix.id)
         run: |
           echo "COMMIT_MSG=${{ matrix.subsystem }}: update ${{ matrix.id }} to ${{ env.NEW_VERSION }}" >> "$GITHUB_ENV"
-      - uses: gr2m/create-or-update-pull-request-action@77596e3166f328b24613f7082ab30bf2d93079d5
+      - uses: gr2m/create-or-update-pull-request-action@86ec1766034c8173518f61d2075cc2a173fb8c97  # v1.9.4
         if: github.event_name == 'schedule' || inputs.id == 'all' || inputs.id == matrix.id
         # Creates a PR or update the Action's existing PR, or
         # no-op if the base branch is already up-to-date.

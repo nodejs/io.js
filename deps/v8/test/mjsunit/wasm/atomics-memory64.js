@@ -33,7 +33,7 @@ function WasmAtomicNotify(memory, offset, index, num) {
       kExprI64SConvertF64,
       kExprLocalGet, 1,
       kAtomicPrefix,
-      kExprAtomicNotify, /* alignment */ 0, ...wasmSignedLeb64(offset, 10)])
+      kExprAtomicNotify, /* alignment */ 2, ...wasmSignedLeb64(offset, 10)])
     .exportAs("main");
 
   let module = new WebAssembly.Module(builder.toBuffer());
@@ -54,7 +54,7 @@ function WasmI32AtomicWait(memory, offset, index, val, timeout) {
       kExprLocalGet, 2,
       kExprI64SConvertF64,
       kAtomicPrefix,
-      kExprI32AtomicWait, /* alignment */ 0, ...wasmSignedLeb64(offset, 10)])
+      kExprI32AtomicWait, /* alignment */ 2, ...wasmSignedLeb64(offset, 10)])
       .exportAs("main");
 
   let module = new WebAssembly.Module(builder.toBuffer());
@@ -87,7 +87,7 @@ function WasmI64AtomicWait(memory, offset, index, val_low,
       kExprLocalGet, 3,
       kExprI64SConvertF64,
       kAtomicPrefix,
-      kExprI64AtomicWait, /* alignment */ 0, ...wasmSignedLeb64(offset, 10)])
+      kExprI64AtomicWait, /* alignment */ 3, ...wasmSignedLeb64(offset, 10)])
       .exportAs("main");
 
   let module = new WebAssembly.Module(builder.toBuffer());

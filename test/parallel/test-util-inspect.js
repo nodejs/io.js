@@ -1462,7 +1462,7 @@ if (typeof Symbol !== 'undefined') {
 }
 
 {
-  const x = new function() {}; // eslint-disable-line new-parens
+  const x = new function() {}; // eslint-disable-line @stylistic/js/new-parens
   assert.strictEqual(util.inspect(x), '{}');
 }
 
@@ -2056,7 +2056,7 @@ assert.strictEqual(util.inspect('"\'${a}'), "'\"\\'${a}'");
 
 // Verify that classes are properly inspected.
 [
-  /* eslint-disable spaced-comment, no-multi-spaces, brace-style */
+  /* eslint-disable @stylistic/js/spaced-comment, @stylistic/js/no-multi-spaces, @stylistic/js/brace-style */
   // The whitespace is intentional.
   [class   { }, '[class (anonymous)]'],
   [class extends Error { log() {} }, '[class (anonymous) extends Error]'],
@@ -2064,14 +2064,14 @@ assert.strictEqual(util.inspect('"\'${a}'), "'\"\\'${a}'");
    '[class A]'],
   [class
   // Random { // comments /* */ are part of the toString() result
-  /* eslint-disable-next-line space-before-blocks */
+  /* eslint-disable-next-line @stylistic/js/space-before-blocks */
   äß/**/extends/*{*/TypeError{}, '[class äß extends TypeError]'],
   /* The whitespace and new line is intended! */
   // Foobar !!!
   [class X   extends /****/ Error
   // More comments
   {}, '[class X extends Error]'],
-  /* eslint-enable spaced-comment, no-multi-spaces, brace-style */
+  /* eslint-enable @stylistic/js/spaced-comment, @stylistic/js/no-multi-spaces, @stylistic/js/brace-style */
 ].forEach(([clazz, string]) => {
   const inspected = util.inspect(clazz);
   assert.strictEqual(inspected, string);
@@ -2111,7 +2111,7 @@ assert.strictEqual(util.inspect('"\'${a}'), "'\"\\'${a}'");
 
 // "class" properties should not be detected as "class".
 {
-  // eslint-disable-next-line space-before-function-paren
+  // eslint-disable-next-line @stylistic/js/space-before-function-paren
   let obj = { class () {} };
   assert.strictEqual(
     util.inspect(obj),
@@ -2920,7 +2920,7 @@ assert.strictEqual(
   try {
     const trace = require('trace_events').createTracing({ categories: ['fo'] });
     const actualDepth0 = util.inspect({ trace }, { depth: 0 });
-    assert.strictEqual(actualDepth0, '{ trace: [Tracing] }');
+    assert.strictEqual(actualDepth0, '{ trace: Tracing {} }');
     const actualDepth1 = util.inspect({ trace }, { depth: 1 });
     assert.strictEqual(
       actualDepth1,
@@ -3215,7 +3215,7 @@ assert.strictEqual(
     '[GeneratorFunction: generator] {\n' +
     '  [length]: 0,\n' +
     "  [name]: 'generator',\n" +
-    "  [prototype]: Object [Generator] { [Symbol(Symbol.toStringTag)]: 'Generator' },\n" + // eslint-disable-line max-len
+    "  [prototype]: Object [Generator] { [Symbol(Symbol.toStringTag)]: 'Generator' },\n" + // eslint-disable-line @stylistic/js/max-len
     "  [Symbol(Symbol.toStringTag)]: 'GeneratorFunction'\n" +
     '}'
   );

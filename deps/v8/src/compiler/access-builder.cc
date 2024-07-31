@@ -14,6 +14,7 @@
 #include "src/objects/objects-inl.h"
 #include "src/objects/ordered-hash-table.h"
 #include "src/objects/source-text-module.h"
+#include "src/objects/tagged-field.h"
 
 namespace v8 {
 namespace internal {
@@ -39,37 +40,56 @@ FieldAccess AccessBuilder::ForMap(WriteBarrierKind write_barrier) {
 
 // static
 FieldAccess AccessBuilder::ForHeapNumberValue() {
-  FieldAccess access = {
-      kTaggedBase,      HeapNumber::kValueOffset,   MaybeHandle<Name>(),
-      OptionalMapRef(), TypeCache::Get()->kFloat64, MachineType::Float64(),
-      kNoWriteBarrier,  "HeapNumberValue"};
+  FieldAccess access = {kTaggedBase,
+                        offsetof(HeapNumber, value_),
+                        MaybeHandle<Name>(),
+                        OptionalMapRef(),
+                        TypeCache::Get()->kFloat64,
+                        MachineType::Float64(),
+                        kNoWriteBarrier,
+                        "HeapNumberValue"};
   return access;
+}
+
+// static
+FieldAccess AccessBuilder::ForHeapNumberOrOddballOrHoleValue() {
+  STATIC_ASSERT_FIELD_OFFSETS_EQUAL(offsetof(HeapNumber, value_),
+                                    offsetof(Oddball, to_number_raw_));
+  STATIC_ASSERT_FIELD_OFFSETS_EQUAL(offsetof(HeapNumber, value_),
+                                    Hole::kRawNumericValueOffset);
+  return ForHeapNumberValue();
 }
 
 // static
 FieldAccess AccessBuilder::ForBigIntBitfield() {
-  FieldAccess access = {
-      kTaggedBase,      BigInt::kBitfieldOffset,  MaybeHandle<Name>(),
-      OptionalMapRef(), TypeCache::Get()->kInt32, MachineType::Uint32(),
-      kNoWriteBarrier,  "BigIntBitfield"};
+  FieldAccess access = {kTaggedBase,
+                        offsetof(BigInt, bitfield_),
+                        MaybeHandle<Name>(),
+                        OptionalMapRef(),
+                        TypeCache::Get()->kInt32,
+                        MachineType::Uint32(),
+                        kNoWriteBarrier,
+                        "BigIntBitfield"};
   return access;
 }
 
+#ifdef BIGINT_NEEDS_PADDING
 // static
 FieldAccess AccessBuilder::ForBigIntOptionalPadding() {
-  DCHECK_EQ(FIELD_SIZE(BigInt::kOptionalPaddingOffset), 4);
+  static_assert(arraysize(BigInt::padding_) == sizeof(uint32_t));
   FieldAccess access = {
-      kTaggedBase,      BigInt::kOptionalPaddingOffset, MaybeHandle<Name>(),
-      OptionalMapRef(), TypeCache::Get()->kInt32,       MachineType::Uint32(),
+      kTaggedBase,      offsetof(BigInt, padding_), MaybeHandle<Name>(),
+      OptionalMapRef(), TypeCache::Get()->kInt32,   MachineType::Uint32(),
       kNoWriteBarrier,  "BigIntOptionalPadding"};
   return access;
 }
+#endif
 
 // static
 FieldAccess AccessBuilder::ForBigIntLeastSignificantDigit64() {
   DCHECK_EQ(BigInt::SizeFor(1) - BigInt::SizeFor(0), 8);
   FieldAccess access = {
-      kTaggedBase,      BigInt::kDigitsOffset,          MaybeHandle<Name>(),
+      kTaggedBase,      OFFSET_OF_DATA_START(BigInt),   MaybeHandle<Name>(),
       OptionalMapRef(), TypeCache::Get()->kBigUint64,   MachineType::Uint64(),
       kNoWriteBarrier,  "BigIntLeastSignificantDigit64"};
   return access;
@@ -204,7 +224,7 @@ FieldAccess AccessBuilder::ForJSFunctionContext() {
   return access;
 }
 
-#ifdef V8_CODE_POINTER_SANDBOXING
+#ifdef V8_ENABLE_SANDBOX
 // static
 FieldAccess AccessBuilder::ForJSFunctionCode() {
   FieldAccess access = {kTaggedBase,
@@ -215,6 +235,7 @@ FieldAccess AccessBuilder::ForJSFunctionCode() {
                         MachineType::IndirectPointer(),
                         kIndirectPointerWriteBarrier,
                         "JSFunctionCode"};
+  access.indirect_pointer_tag = kCodeIndirectPointerTag;
   return access;
 }
 #else
@@ -592,6 +613,15 @@ FieldAccess AccessBuilder::ForJSIteratorResultValue() {
 }
 
 // static
+FieldAccess AccessBuilder::ForJSPrimitiveWrapperValue() {
+  FieldAccess access = {kTaggedBase,         JSPrimitiveWrapper::kValueOffset,
+                        MaybeHandle<Name>(), OptionalMapRef(),
+                        Type::NonInternal(), MachineType::AnyTagged(),
+                        kFullWriteBarrier,   "JSPrimitiveWrapperValue"};
+  return access;
+}
+
+// static
 FieldAccess AccessBuilder::ForJSRegExpData() {
   FieldAccess access = {kTaggedBase,         JSRegExp::kDataOffset,
                         MaybeHandle<Name>(), OptionalMapRef(),
@@ -637,6 +667,7 @@ FieldAccess AccessBuilder::ForFixedArrayLength() {
                         MachineType::TaggedSigned(),
                         kNoWriteBarrier,
                         "FixedArrayLength"};
+  access.is_immutable = true;
   return access;
 }
 
@@ -650,6 +681,7 @@ FieldAccess AccessBuilder::ForWeakFixedArrayLength() {
                         MachineType::TaggedSigned(),
                         kNoWriteBarrier,
                         "WeakFixedArrayLength"};
+  access.is_immutable = true;
   return access;
 }
 
@@ -747,6 +779,7 @@ FieldAccess AccessBuilder::ForMapInstanceType() {
       kTaggedBase,      Map::kInstanceTypeOffset,  Handle<Name>(),
       OptionalMapRef(), TypeCache::Get()->kUint16, MachineType::Uint16(),
       kNoWriteBarrier,  "MapInstanceType"};
+  access.is_immutable = true;
   return access;
 }
 
@@ -791,7 +824,7 @@ FieldAccess AccessBuilder::ForModuleRegularImports() {
 
 // static
 FieldAccess AccessBuilder::ForNameRawHashField() {
-  FieldAccess access = {kTaggedBase,        Name::kRawHashFieldOffset,
+  FieldAccess access = {kTaggedBase,        offsetof(Name, raw_hash_field_),
                         Handle<Name>(),     OptionalMapRef(),
                         Type::Unsigned32(), MachineType::Uint32(),
                         kNoWriteBarrier,    "NameRawHashField"};
@@ -810,58 +843,66 @@ FieldAccess AccessBuilder::ForFreeSpaceSize() {
 // static
 FieldAccess AccessBuilder::ForStringLength() {
   FieldAccess access = {kTaggedBase,
-                        String::kLengthOffset,
+                        offsetof(String, length_),
                         Handle<Name>(),
                         OptionalMapRef(),
                         TypeCache::Get()->kStringLengthType,
                         MachineType::Uint32(),
                         kNoWriteBarrier,
                         "StringLength"};
+  access.is_immutable = true;
   return access;
 }
 
 // static
 FieldAccess AccessBuilder::ForConsStringFirst() {
-  FieldAccess access = {kTaggedBase,          ConsString::kFirstOffset,
+  FieldAccess access = {kTaggedBase,          offsetof(ConsString, first_),
                         Handle<Name>(),       OptionalMapRef(),
                         Type::String(),       MachineType::TaggedPointer(),
                         kPointerWriteBarrier, "ConsStringFirst"};
+  // Not immutable since flattening can mutate.
+  access.is_immutable = false;
   return access;
 }
 
 // static
 FieldAccess AccessBuilder::ForConsStringSecond() {
-  FieldAccess access = {kTaggedBase,          ConsString::kSecondOffset,
+  FieldAccess access = {kTaggedBase,          offsetof(ConsString, second_),
                         Handle<Name>(),       OptionalMapRef(),
                         Type::String(),       MachineType::TaggedPointer(),
                         kPointerWriteBarrier, "ConsStringSecond"};
+  // Not immutable since flattening can mutate.
+  access.is_immutable = false;
   return access;
 }
 
 // static
 FieldAccess AccessBuilder::ForThinStringActual() {
-  FieldAccess access = {kTaggedBase,          ThinString::kActualOffset,
+  FieldAccess access = {kTaggedBase,          offsetof(ThinString, actual_),
                         Handle<Name>(),       OptionalMapRef(),
                         Type::String(),       MachineType::TaggedPointer(),
                         kPointerWriteBarrier, "ThinStringActual"};
+  access.is_immutable = true;
   return access;
 }
 
 // static
 FieldAccess AccessBuilder::ForSlicedStringOffset() {
-  FieldAccess access = {kTaggedBase,         SlicedString::kOffsetOffset,
+  FieldAccess access = {kTaggedBase,         offsetof(SlicedString, offset_),
                         Handle<Name>(),      OptionalMapRef(),
                         Type::SignedSmall(), MachineType::TaggedSigned(),
                         kNoWriteBarrier,     "SlicedStringOffset"};
+  access.is_immutable = true;
   return access;
 }
 
 // static
 FieldAccess AccessBuilder::ForSlicedStringParent() {
-  FieldAccess access = {kTaggedBase,          SlicedString::kParentOffset,
+  FieldAccess access = {kTaggedBase,          offsetof(SlicedString, parent_),
                         Handle<Name>(),       OptionalMapRef(),
                         Type::String(),       MachineType::TaggedPointer(),
                         kPointerWriteBarrier, "SlicedStringParent"};
+  access.is_immutable = true;
   return access;
 }
 
@@ -869,7 +910,7 @@ FieldAccess AccessBuilder::ForSlicedStringParent() {
 FieldAccess AccessBuilder::ForExternalStringResourceData() {
   FieldAccess access = {
       kTaggedBase,
-      ExternalString::kResourceDataOffset,
+      offsetof(ExternalString, resource_data_),
       Handle<Name>(),
       OptionalMapRef(),
       Type::ExternalPointer(),
@@ -885,7 +926,7 @@ FieldAccess AccessBuilder::ForExternalStringResourceData() {
 
 // static
 ElementAccess AccessBuilder::ForSeqOneByteStringCharacter() {
-  ElementAccess access = {kTaggedBase, SeqOneByteString::kHeaderSize,
+  ElementAccess access = {kTaggedBase, OFFSET_OF_DATA_START(SeqOneByteString),
                           TypeCache::Get()->kUint8, MachineType::Uint8(),
                           kNoWriteBarrier};
   return access;
@@ -893,19 +934,9 @@ ElementAccess AccessBuilder::ForSeqOneByteStringCharacter() {
 
 // static
 ElementAccess AccessBuilder::ForSeqTwoByteStringCharacter() {
-  ElementAccess access = {kTaggedBase, SeqTwoByteString::kHeaderSize,
+  ElementAccess access = {kTaggedBase, OFFSET_OF_DATA_START(SeqTwoByteString),
                           TypeCache::Get()->kUint16, MachineType::Uint16(),
                           kNoWriteBarrier};
-  return access;
-}
-
-// static
-FieldAccess AccessBuilder::ForJSGlobalProxyNativeContext() {
-  FieldAccess access = {
-      kTaggedBase,          JSGlobalProxy::kNativeContextOffset,
-      Handle<Name>(),       OptionalMapRef(),
-      Type::Internal(),     MachineType::TaggedPointer(),
-      kPointerWriteBarrier, "JSGlobalProxyNativeContext"};
   return access;
 }
 
@@ -1109,7 +1140,7 @@ ElementAccess AccessBuilder::ForFixedArrayElement(ElementsKind kind) {
       access.machine_type = MachineType::Float64();
       break;
     case HOLEY_DOUBLE_ELEMENTS:
-      access.type = Type::NumberOrTheHole();
+      access.type = Type::NumberOrHole();
       access.write_barrier_kind = kNoWriteBarrier;
       access.machine_type = MachineType::Float64();
       break;
@@ -1191,6 +1222,10 @@ ElementAccess AccessBuilder::ForTypedArrayElement(ExternalArrayType type,
       ElementAccess access = {taggedness, header_size, Type::Unsigned32(),
                               MachineType::Uint32(), kNoWriteBarrier};
       return access;
+    }
+    case kExternalFloat16Array: {
+      // TODO(v8:14012): support machine logic
+      UNIMPLEMENTED();
     }
     case kExternalFloat32Array: {
       ElementAccess access = {taggedness, header_size, Type::Number(),
@@ -1429,6 +1464,32 @@ FieldAccess AccessBuilder::ForFeedbackVectorClosureFeedbackCellArray() {
       kFullWriteBarrier, "FeedbackVectorClosureFeedbackCellArray"};
   return access;
 }
+
+#if V8_ENABLE_WEBASSEMBLY
+// static
+FieldAccess AccessBuilder::ForWasmArrayLength() {
+  return {compiler::kTaggedBase,
+          WasmArray::kLengthOffset,
+          MaybeHandle<Name>(),
+          compiler::OptionalMapRef(),
+          compiler::Type::OtherInternal(),
+          MachineType::Uint32(),
+          compiler::kNoWriteBarrier,
+          "WasmArrayLength"};
+}
+
+// static
+FieldAccess AccessBuilder::ForWasmDispatchTableLength() {
+  return {compiler::kTaggedBase,
+          WasmDispatchTable::kLengthOffset,
+          MaybeHandle<Name>{},
+          compiler::OptionalMapRef{},
+          compiler::Type::OtherInternal(),
+          MachineType::Uint32(),
+          compiler::kNoWriteBarrier,
+          "WasmDispatchTableLength"};
+}
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 }  // namespace compiler
 }  // namespace internal

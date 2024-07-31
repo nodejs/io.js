@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,shadowrealm
 // META: script=../resources/recording-streams.js
 // META: script=../resources/test-utils.js
 'use strict';

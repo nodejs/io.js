@@ -57,6 +57,7 @@ class V8_EXPORT_PRIVATE JSContextSpecialization final : public AdvancedReducer {
   Reduction ReduceParameter(Node* node);
   Reduction ReduceJSLoadContext(Node* node);
   Reduction ReduceJSStoreContext(Node* node);
+  Reduction ReduceJSStoreScriptContext(Node* node);
   Reduction ReduceJSGetImportMeta(Node* node);
 
   Reduction SimplifyJSStoreContext(Node* node, Node* new_context,

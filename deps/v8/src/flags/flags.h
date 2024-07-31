@@ -133,6 +133,10 @@ class V8_EXPORT_PRIVATE FlagList {
 
   static void PrintValues();
 
+  // Reset some contradictory flags provided on the command line during
+  // fuzzing.
+  static void ResolveContradictionsWhenFuzzing();
+
   // Set flags as consequence of being implied by another flag.
   static void EnforceFlagImplications();
 

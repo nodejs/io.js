@@ -34,7 +34,7 @@ UnifiedHeapTest::UnifiedHeapTest(
 void UnifiedHeapTest::CollectGarbageWithEmbedderStack(
     cppgc::Heap::SweepingType sweeping_type) {
   EmbedderStackStateScope stack_scope(
-      heap(), EmbedderStackStateScope::kExplicitInvocation,
+      heap(), EmbedderStackStateOrigin::kExplicitInvocation,
       StackState::kMayContainHeapPointers);
   InvokeMajorGC();
   if (sweeping_type == cppgc::Heap::SweepingType::kAtomic) {
@@ -45,7 +45,7 @@ void UnifiedHeapTest::CollectGarbageWithEmbedderStack(
 void UnifiedHeapTest::CollectGarbageWithoutEmbedderStack(
     cppgc::Heap::SweepingType sweeping_type) {
   EmbedderStackStateScope stack_scope(
-      heap(), EmbedderStackStateScope::kExplicitInvocation,
+      heap(), EmbedderStackStateOrigin::kExplicitInvocation,
       StackState::kNoHeapPointers);
   InvokeMajorGC();
   if (sweeping_type == cppgc::Heap::SweepingType::kAtomic) {
@@ -56,7 +56,7 @@ void UnifiedHeapTest::CollectGarbageWithoutEmbedderStack(
 void UnifiedHeapTest::CollectYoungGarbageWithEmbedderStack(
     cppgc::Heap::SweepingType sweeping_type) {
   EmbedderStackStateScope stack_scope(
-      heap(), EmbedderStackStateScope::kExplicitInvocation,
+      heap(), EmbedderStackStateOrigin::kExplicitInvocation,
       StackState::kMayContainHeapPointers);
   InvokeMinorGC();
   if (sweeping_type == cppgc::Heap::SweepingType::kAtomic) {
@@ -66,7 +66,7 @@ void UnifiedHeapTest::CollectYoungGarbageWithEmbedderStack(
 void UnifiedHeapTest::CollectYoungGarbageWithoutEmbedderStack(
     cppgc::Heap::SweepingType sweeping_type) {
   EmbedderStackStateScope stack_scope(
-      heap(), EmbedderStackStateScope::kExplicitInvocation,
+      heap(), EmbedderStackStateOrigin::kExplicitInvocation,
       StackState::kNoHeapPointers);
   InvokeMinorGC();
   if (sweeping_type == cppgc::Heap::SweepingType::kAtomic) {

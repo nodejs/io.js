@@ -53,7 +53,8 @@ const BasePage* BasePage::FromInnerAddress(const HeapBase* heap,
 }
 
 // static
-void BasePage::Destroy(BasePage* page) {
+void BasePage::Destroy(BasePage* page,
+                       FreeMemoryHandling free_memory_handling) {
   if (page->discarded_memory()) {
     page->space()
         .raw_heap()
@@ -64,7 +65,7 @@ void BasePage::Destroy(BasePage* page) {
   if (page->is_large()) {
     LargePage::Destroy(LargePage::From(page));
   } else {
-    NormalPage::Destroy(NormalPage::From(page));
+    NormalPage::Destroy(NormalPage::From(page), free_memory_handling);
   }
 }
 
@@ -191,14 +192,17 @@ NormalPage* NormalPage::TryCreate(PageBackend& page_backend,
 }
 
 // static
-void NormalPage::Destroy(NormalPage* page) {
+void NormalPage::Destroy(NormalPage* page,
+                         FreeMemoryHandling free_memory_handling) {
   DCHECK(page);
   const BaseSpace& space = page->space();
   DCHECK_EQ(space.end(), std::find(space.begin(), space.end(), page));
+  USE(space);
   page->~NormalPage();
   PageBackend* backend = page->heap().page_backend();
   page->heap().stats_collector()->NotifyFreedMemory(kPageSize);
-  backend->FreeNormalPageMemory(space.index(), reinterpret_cast<Address>(page));
+  backend->FreeNormalPageMemory(reinterpret_cast<Address>(page),
+                                free_memory_handling);
 }
 
 NormalPage::NormalPage(HeapBase& heap, BaseSpace& space)

@@ -23,6 +23,8 @@ class VMState {
   explicit inline VMState(Isolate* isolate);
   inline ~VMState();
 
+  Isolate* isolate() { return isolate_; }
+
  private:
   Isolate* const isolate_;
   StateTag const previous_tag_;

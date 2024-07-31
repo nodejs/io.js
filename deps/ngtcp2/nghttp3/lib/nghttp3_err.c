@@ -28,8 +28,6 @@ const char *nghttp3_strerror(int liberr) {
   switch (liberr) {
   case NGHTTP3_ERR_INVALID_ARGUMENT:
     return "ERR_INVALID_ARGUMENT";
-  case NGHTTP3_ERR_NOBUF:
-    return "ERR_NOBUF";
   case NGHTTP3_ERR_INVALID_STATE:
     return "ERR_INVALID_STATE";
   case NGHTTP3_ERR_WOULDBLOCK:
@@ -104,6 +102,9 @@ uint64_t nghttp3_err_infer_quic_app_error_code(int liberr) {
   case NGHTTP3_ERR_H3_INTERNAL_ERROR:
   case NGHTTP3_ERR_NOMEM:
   case NGHTTP3_ERR_CALLBACK_FAILURE:
+  case NGHTTP3_ERR_QPACK_FATAL:
+  case NGHTTP3_ERR_QPACK_HEADER_TOO_LARGE:
+  case NGHTTP3_ERR_STREAM_DATA_OVERFLOW:
     return NGHTTP3_H3_INTERNAL_ERROR;
   case NGHTTP3_ERR_H3_CLOSED_CRITICAL_STREAM:
     return NGHTTP3_H3_CLOSED_CRITICAL_STREAM;

@@ -129,6 +129,29 @@ class V8_EXPORT_PRIVATE BitVector : public ZoneObject {
     }
   }
 
+  // Disallow copy and copy-assignment.
+  BitVector(const BitVector&) = delete;
+  BitVector& operator=(const BitVector&) = delete;
+
+  BitVector(BitVector&& other) V8_NOEXCEPT { *this = std::move(other); }
+
+  BitVector& operator=(BitVector&& other) V8_NOEXCEPT {
+    length_ = other.length_;
+    data_ = other.data_;
+    if (other.is_inline()) {
+      data_begin_ = &data_.inline_;
+      data_end_ = data_begin_ + other.data_length();
+    } else {
+      data_begin_ = other.data_begin_;
+      data_end_ = other.data_end_;
+      // Reset other to inline.
+      other.length_ = 0;
+      other.data_begin_ = &other.data_.inline_;
+      other.data_end_ = other.data_begin_ + 1;
+    }
+    return *this;
+  }
+
   void CopyFrom(const BitVector& other) {
     DCHECK_EQ(other.length(), length());
     DCHECK_EQ(is_inline(), other.is_inline());
@@ -241,8 +264,6 @@ class V8_EXPORT_PRIVATE BitVector : public ZoneObject {
   void Print() const;
 #endif
 
-  MOVE_ONLY_NO_DEFAULT_CONSTRUCTOR(BitVector);
-
  private:
   union DataStorage {
     uintptr_t* ptr_;    // valid if >1 machine word is needed
@@ -282,6 +303,8 @@ class GrowableBitVector {
     if (V8_UNLIKELY(!InBitsRange(value))) Grow(value, zone);
     bits_.Add(value);
   }
+
+  bool IsEmpty() const { return bits_.IsEmpty(); }
 
   void Clear() { bits_.Clear(); }
 

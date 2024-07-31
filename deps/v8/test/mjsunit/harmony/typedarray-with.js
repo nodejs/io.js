@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-change-array-by-copy --harmony-rab-gsab
-// Flags: --allow-natives-syntax
+// Flags: --allow-natives-syntax --js-float16array
 
 "use strict";
 
@@ -50,7 +49,7 @@ function CheckWithShrunkOrDetached(orig, v, vNotEvil) {
   assertEquals(NormalizeValue(copy, 0), copy[0]);
   assertEquals(vNotEvil, copy[1]);
   for (let i = 2; i < copy.length; i++) {
-    if (copy instanceof Float32Array || copy instanceof Float64Array) {
+    if (copy instanceof Float32Array || copy instanceof Float64Array || copy instanceof Float16Array) {
       assertEquals(NaN, copy[i]);
     } else {
       assertEquals(0, copy[i]);

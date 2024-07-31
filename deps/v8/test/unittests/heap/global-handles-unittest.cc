@@ -208,7 +208,7 @@ TEST_F(GlobalHandlesTest, EternalHandles) {
               v8::Integer::New(v8_isolate, i))
         .FromJust();
     // Create with internal api
-    eternal_handles->Create(isolate, *v8::Utils::OpenHandle(*object),
+    eternal_handles->Create(isolate, *v8::Utils::OpenDirectHandle(*object),
                             &indices[i]);
     // Create with external api
     CHECK(eternals[i].IsEmpty());
@@ -594,15 +594,20 @@ TEST_F(GlobalHandlesTest, TotalSizeRegularNode) {
   v8::Isolate* isolate = v8_isolate();
   v8::HandleScope scope(isolate);
 
+  // This is not necessarily zero, if the implementation of tests uses global
+  // handles.
+  size_t initial_total = i_isolate()->global_handles()->TotalSize();
+  size_t initial_used = i_isolate()->global_handles()->UsedSize();
+
   v8::Global<v8::Object>* global = new Global<v8::Object>();
-  CHECK_EQ(i_isolate()->global_handles()->TotalSize(), 0);
-  CHECK_EQ(i_isolate()->global_handles()->UsedSize(), 0);
+  CHECK_EQ(i_isolate()->global_handles()->TotalSize(), initial_total);
+  CHECK_EQ(i_isolate()->global_handles()->UsedSize(), initial_used);
   ConstructJSObject(isolate, global);
-  CHECK_GT(i_isolate()->global_handles()->TotalSize(), 0);
-  CHECK_GT(i_isolate()->global_handles()->UsedSize(), 0);
+  CHECK_GE(i_isolate()->global_handles()->TotalSize(), initial_total);
+  CHECK_GT(i_isolate()->global_handles()->UsedSize(), initial_used);
   delete global;
-  CHECK_GT(i_isolate()->global_handles()->TotalSize(), 0);
-  CHECK_EQ(i_isolate()->global_handles()->UsedSize(), 0);
+  CHECK_GE(i_isolate()->global_handles()->TotalSize(), initial_total);
+  CHECK_EQ(i_isolate()->global_handles()->UsedSize(), initial_used);
 }
 
 TEST_F(GlobalHandlesTest, TotalSizeTracedNode) {

@@ -83,8 +83,6 @@ inline void* AlignedAlloc(size_t size, size_t alignment) {
   // posix_memalign is not exposed in some Android versions, so we fall back to
   // memalign. See http://code.google.com/p/android/issues/detail?id=35391.
   return memalign(alignment, size);
-#elif V8_OS_STARBOARD
-  return SbMemoryAllocateAligned(alignment, size);
 #else   // POSIX
   void* ptr;
   if (posix_memalign(&ptr, alignment, size)) ptr = nullptr;
@@ -95,8 +93,6 @@ inline void* AlignedAlloc(size_t size, size_t alignment) {
 inline void AlignedFree(void* ptr) {
 #if V8_OS_WIN
   _aligned_free(ptr);
-#elif V8_OS_STARBOARD
-  SbMemoryFreeAligned(ptr);
 #else
   // Using regular Free() is not correct in general. For most platforms,
   // including V8_LIBC_BIONIC, it is though.

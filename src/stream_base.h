@@ -244,6 +244,8 @@ class StreamResource {
   // `*bufs` and `*count` accordingly. This is a no-op by default.
   // Return 0 for success and a libuv error code for failures.
   virtual int DoTryWrite(uv_buf_t** bufs, size_t* count);
+  // Indicates whether this subclass overrides the DoTryWrite
+  virtual inline bool HasDoTryWrite() const { return false; }
   // Initiate a write of data.
   // Upon an immediate failure, a libuv error code is returned,
   // w->Done() will never be called and caller should free `bufs`.
@@ -411,6 +413,13 @@ class StreamBase : public StreamResource {
   EmitToJSStreamListener default_listener_;
 
   void SetWriteResult(const StreamWriteResult& res);
+  static void AddAccessor(v8::Isolate* isolate,
+                          v8::Local<v8::Signature> sig,
+                          enum v8::PropertyAttribute attributes,
+                          v8::Local<v8::FunctionTemplate> t,
+                          JSMethodFunction* getter,
+                          JSMethodFunction* setter,
+                          v8::Local<v8::String> str);
   static void AddMethod(v8::Isolate* isolate,
                         v8::Local<v8::Signature> sig,
                         enum v8::PropertyAttribute attributes,

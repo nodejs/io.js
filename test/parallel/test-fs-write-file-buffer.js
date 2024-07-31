@@ -21,7 +21,6 @@
 
 'use strict';
 require('../common');
-const util = require('util');
 const fs = require('fs');
 
 let data = [
@@ -50,5 +49,3 @@ tmpdir.refresh();
 
 const buf = Buffer.from(data, 'base64');
 fs.writeFileSync(tmpdir.resolve('test.jpg'), buf);
-
-util.log('Done!');

@@ -444,7 +444,7 @@ public:
      * @return    the locale of the object.
      * @stable ICU 2.0
      */
-    virtual const Locale& getLocale(void) const;
+    virtual const Locale& getLocale() const;
 
     /**
      * Applies the given pattern string to this message format.
@@ -850,7 +850,7 @@ public:
      *                  other classes have different class IDs.
      * @stable ICU 2.0
      */
-    virtual UClassID getDynamicClassID(void) const override;
+    virtual UClassID getDynamicClassID() const override;
 
     /**
      * Return the class ID for this class.  This is useful only for
@@ -863,7 +863,7 @@ public:
      * @return          The class ID for all objects of this class.
      * @stable ICU 2.0
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
 #ifndef U_HIDE_INTERNAL_API
     /**

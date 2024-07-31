@@ -94,7 +94,7 @@ Debugger paused in $main.
 > locals["$var2"] = i32 {42}
 > $var2 = i32 {42}
 
-Running test: testMemories
+Running test: testMemory
 Compile module.
 Set breakpoint in main.
 Instantiate module.
@@ -106,6 +106,22 @@ Debugger paused in $main.
 > memories[0] = Memory(1)
 > memories["$foo"] = Memory(1)
 > $foo = Memory(1)
+
+Running test: testMultipleMemories
+Compile module.
+Set breakpoint in main.
+Instantiate module.
+Call main.
+Debugger paused in $main.
+> memories = Memories
+> memories.length = undefined
+> Object.keys(memories) = Array(2)
+> memories[0] = Memory(1)
+> memories["$foo"] = Memory(1)
+> $foo = Memory(1)
+> memories[1] = Memory(7)
+> memories["$bar"] = Memory(7)
+> $bar = Memory(7)
 
 Running test: testTables
 Compile module.

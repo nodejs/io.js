@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2015-2023 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2015-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -15,7 +15,7 @@ use OpenSSL::Test qw/:DEFAULT srctop_file/;
 
 setup("test_req");
 
-plan tests => 46;
+plan tests => 49;
 
 require_ok(srctop_file('test', 'recipes', 'tconversion.pl'));
 
@@ -40,14 +40,19 @@ my @addext_args = ( "openssl", "req", "-new", "-out", "testreq.pem",
                     "-key",  srctop_file("test", "certs", "ee-key.pem"),
     "-config", srctop_file("test", "test.cnf"), @req_new );
 my $val = "subjectAltName=DNS:example.com";
+my $val1 = "subjectAltName=otherName:1.2.3.4;UTF8:test,email:info\@example.com";
 my $val2 = " " . $val;
 my $val3 = $val;
 $val3 =~ s/=/    =/;
 ok( run(app([@addext_args, "-addext", $val])));
+ok( run(app([@addext_args, "-addext", $val1])));
+$val1 =~ s/UTF8/XXXX/; # execute the error handling in do_othername
+ok(!run(app([@addext_args, "-addext", $val1])));
 ok(!run(app([@addext_args, "-addext", $val, "-addext", $val])));
 ok(!run(app([@addext_args, "-addext", $val, "-addext", $val2])));
 ok(!run(app([@addext_args, "-addext", $val, "-addext", $val3])));
 ok(!run(app([@addext_args, "-addext", $val2, "-addext", $val3])));
+ok(run(app([@addext_args, "-addext", "SXNetID=1:one, 2:two, 3:three"])));
 
 # If a CSR is provided with neither of -key or -CA/-CAkey, this should fail.
 ok(!run(app(["openssl", "req", "-x509",

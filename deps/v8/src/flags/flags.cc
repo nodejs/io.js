@@ -4,6 +4,8 @@
 
 #include "src/flags/flags.h"
 
+#include <algorithm>
+#include <array>
 #include <cctype>
 #include <cerrno>
 #include <cinttypes>
@@ -14,10 +16,10 @@
 #include <sstream>
 
 #include "src/base/functional.h"
-#include "src/base/logging.h"
+#include "src/base/lazy-instance.h"
 #include "src/base/platform/platform.h"
 #include "src/codegen/cpu-features.h"
-#include "src/logging/counters.h"
+#include "src/flags/flags-impl.h"
 #include "src/logging/tracing-flags.h"
 #include "src/tracing/tracing-category-observer.h"
 #include "src/utils/allocation.h"
@@ -47,410 +49,233 @@ static_assert(sizeof(FlagValues) % kMinimumOSPageSize == 0);
 #include "src/flags/flag-definitions.h"  // NOLINT(build/include)
 #undef FLAG_MODE_DEFINE_DEFAULTS
 
-namespace {
+char FlagHelpers::NormalizeChar(char ch) { return ch == '_' ? '-' : ch; }
 
-char NormalizeChar(char ch) { return ch == '_' ? '-' : ch; }
+int FlagHelpers::FlagNamesCmp(const char* a, const char* b) {
+  int i = 0;
+  char ac, bc;
+  do {
+    ac = NormalizeChar(a[i]);
+    bc = NormalizeChar(b[i]);
+    if (ac < bc) return -1;
+    if (ac > bc) return 1;
+    i++;
+  } while (ac != '\0');
+  DCHECK(bc == '\0');
+  return 0;
+}
 
-struct Flag;
-Flag* FindFlagByPointer(const void* ptr);
-Flag* FindFlagByName(const char* name);
-
-// Helper struct for printing normalized flag names.
-struct FlagName {
-  const char* name;
-  bool negated;
-
-  constexpr FlagName(const char* name, bool negated)
-      : name(name), negated(negated) {
-    DCHECK_NE('\0', name[0]);
-    DCHECK_NE('!', name[0]);
-  }
-
-  constexpr explicit FlagName(const char* name)
-      : FlagName(name[0] == '!' ? name + 1 : name, name[0] == '!') {}
-};
+bool FlagHelpers::EqualNames(const char* a, const char* b) {
+  return FlagNamesCmp(a, b) == 0;
+}
 
 std::ostream& operator<<(std::ostream& os, FlagName flag_name) {
   os << (flag_name.negated ? "--no-" : "--");
-  for (const char* p = flag_name.name; *p; ++p) os << NormalizeChar(*p);
+  for (const char* p = flag_name.name; *p; ++p) {
+    os << FlagHelpers::NormalizeChar(*p);
+  }
   return os;
 }
 
-// This structure represents a single entry in the flag system, with a pointer
-// to the actual flag, default value, comment, etc.  This is designed to be POD
-// initialized as to avoid requiring static constructors.
-struct Flag {
-  enum FlagType {
-    TYPE_BOOL,
-    TYPE_MAYBE_BOOL,
-    TYPE_INT,
-    TYPE_UINT,
-    TYPE_UINT64,
-    TYPE_FLOAT,
-    TYPE_SIZE_T,
-    TYPE_STRING,
-  };
-
-  enum class SetBy { kDefault, kWeakImplication, kImplication, kCommandLine };
-
-  constexpr bool IsAnyImplication(Flag::SetBy set_by) {
-    return set_by == SetBy::kWeakImplication || set_by == SetBy::kImplication;
+void Flag::set_string_value(const char* new_value, bool owns_new_value,
+                            SetBy set_by) {
+  DCHECK_EQ(TYPE_STRING, type_);
+  DCHECK_IMPLIES(owns_new_value, new_value != nullptr);
+  auto* flag_value = reinterpret_cast<FlagValue<const char*>*>(valptr_);
+  const char* old_value = *flag_value;
+  DCHECK_IMPLIES(owns_ptr_, old_value != nullptr);
+  bool change_flag = old_value
+                         ? !new_value || std::strcmp(old_value, new_value) != 0
+                         : !!new_value;
+  change_flag = CheckFlagChange(set_by, change_flag);
+  if (change_flag) {
+    if (owns_ptr_) DeleteArray(old_value);
+    *flag_value = new_value;
+    owns_ptr_ = owns_new_value;
+  } else {
+    if (owns_new_value) DeleteArray(new_value);
   }
+}
 
-  FlagType type_;       // What type of flag, bool, int, or string.
-  const char* name_;    // Name of the flag, ex "my_flag".
-  void* valptr_;        // Pointer to the global flag variable.
-  const void* defptr_;  // Pointer to the default value.
-  const char* cmt_;     // A comment about the flags purpose.
-  bool owns_ptr_;       // Does the flag own its string value?
-  SetBy set_by_ = SetBy::kDefault;
-  // Name of the flag implying this flag, if any.
-  const char* implied_by_ = nullptr;
-#ifdef DEBUG
-  // Pointer to the flag implying this flag, if any.
-  const Flag* implied_by_ptr_ = nullptr;
-#endif
-
-  FlagType type() const { return type_; }
-
-  const char* name() const { return name_; }
-
-  const char* comment() const { return cmt_; }
-
-  bool PointsTo(const void* ptr) const { return valptr_ == ptr; }
-
-#ifdef DEBUG
-  bool ImpliedBy(const void* ptr) const {
-    const Flag* current = this->implied_by_ptr_;
-    while (current != nullptr) {
-      if (current->PointsTo(ptr)) return true;
-      current = current->implied_by_ptr_;
-    }
+bool Flag::ShouldCheckFlagContradictions() {
+  if (v8_flags.allow_overwriting_for_next_flag) {
+    // Setting the flag manually to false before calling Reset() avoids this
+    // becoming re-entrant.
+    v8_flags.allow_overwriting_for_next_flag = false;
+    FindFlagByPointer(&v8_flags.allow_overwriting_for_next_flag)->Reset();
     return false;
   }
-#endif
+  return v8_flags.abort_on_contradictory_flags && !v8_flags.fuzzing;
+}
 
-  bool bool_variable() const { return GetValue<TYPE_BOOL, bool>(); }
-
-  void set_bool_variable(bool value, SetBy set_by) {
-    SetValue<TYPE_BOOL, bool>(value, set_by);
+bool Flag::CheckFlagChange(SetBy new_set_by, bool change_flag,
+                           const char* implied_by) {
+  if (new_set_by == SetBy::kWeakImplication &&
+      (set_by_ == SetBy::kImplication || set_by_ == SetBy::kCommandLine)) {
+    return false;
   }
-
-  base::Optional<bool> maybe_bool_variable() const {
-    return GetValue<TYPE_MAYBE_BOOL, base::Optional<bool>>();
-  }
-
-  void set_maybe_bool_variable(base::Optional<bool> value, SetBy set_by) {
-    SetValue<TYPE_MAYBE_BOOL, base::Optional<bool>>(value, set_by);
-  }
-
-  int int_variable() const { return GetValue<TYPE_INT, int>(); }
-
-  void set_int_variable(int value, SetBy set_by) {
-    SetValue<TYPE_INT, int>(value, set_by);
-  }
-
-  unsigned int uint_variable() const {
-    return GetValue<TYPE_UINT, unsigned int>();
-  }
-
-  void set_uint_variable(unsigned int value, SetBy set_by) {
-    SetValue<TYPE_UINT, unsigned int>(value, set_by);
-  }
-
-  uint64_t uint64_variable() const { return GetValue<TYPE_UINT64, uint64_t>(); }
-
-  void set_uint64_variable(uint64_t value, SetBy set_by) {
-    SetValue<TYPE_UINT64, uint64_t>(value, set_by);
-  }
-
-  double float_variable() const { return GetValue<TYPE_FLOAT, double>(); }
-
-  void set_float_variable(double value, SetBy set_by) {
-    SetValue<TYPE_FLOAT, double>(value, set_by);
-  }
-
-  size_t size_t_variable() const { return GetValue<TYPE_SIZE_T, size_t>(); }
-
-  void set_size_t_variable(size_t value, SetBy set_by) {
-    SetValue<TYPE_SIZE_T, size_t>(value, set_by);
-  }
-
-  const char* string_value() const {
-    return GetValue<TYPE_STRING, const char*>();
-  }
-
-  void set_string_value(const char* new_value, bool owns_new_value,
-                        SetBy set_by) {
-    DCHECK_EQ(TYPE_STRING, type_);
-    DCHECK_IMPLIES(owns_new_value, new_value != nullptr);
-    auto* flag_value = reinterpret_cast<FlagValue<const char*>*>(valptr_);
-    const char* old_value = *flag_value;
-    DCHECK_IMPLIES(owns_ptr_, old_value != nullptr);
-    bool change_flag =
-        old_value ? !new_value || std::strcmp(old_value, new_value) != 0
-                  : !!new_value;
-    change_flag = CheckFlagChange(set_by, change_flag);
-    if (change_flag) {
-      if (owns_ptr_) DeleteArray(old_value);
-      *flag_value = new_value;
-      owns_ptr_ = owns_new_value;
-    } else {
-      if (owns_new_value) DeleteArray(new_value);
-    }
-  }
-
-  template <typename T>
-  T GetDefaultValue() const {
-    return *reinterpret_cast<const T*>(defptr_);
-  }
-
-  bool bool_default() const {
-    DCHECK_EQ(TYPE_BOOL, type_);
-    return GetDefaultValue<bool>();
-  }
-
-  int int_default() const {
-    DCHECK_EQ(TYPE_INT, type_);
-    return GetDefaultValue<int>();
-  }
-
-  unsigned int uint_default() const {
-    DCHECK_EQ(TYPE_UINT, type_);
-    return GetDefaultValue<unsigned int>();
-  }
-
-  uint64_t uint64_default() const {
-    DCHECK_EQ(TYPE_UINT64, type_);
-    return GetDefaultValue<uint64_t>();
-  }
-
-  double float_default() const {
-    DCHECK_EQ(TYPE_FLOAT, type_);
-    return GetDefaultValue<double>();
-  }
-
-  size_t size_t_default() const {
-    DCHECK_EQ(TYPE_SIZE_T, type_);
-    return GetDefaultValue<size_t>();
-  }
-
-  const char* string_default() const {
-    DCHECK_EQ(TYPE_STRING, type_);
-    return GetDefaultValue<const char*>();
-  }
-
-  static bool ShouldCheckFlagContradictions() {
-    if (v8_flags.allow_overwriting_for_next_flag) {
-      // Setting the flag manually to false before calling Reset() avoids this
-      // becoming re-entrant.
-      v8_flags.allow_overwriting_for_next_flag = false;
-      FindFlagByPointer(&v8_flags.allow_overwriting_for_next_flag)->Reset();
-      return false;
-    }
-    return v8_flags.abort_on_contradictory_flags && !v8_flags.fuzzing;
-  }
-
-  // {change_flag} indicates if we're going to change the flag value.
-  // Returns an updated value for {change_flag}, which is changed to false if a
-  // weak implication is being ignored beause a flag is already set by a normal
-  // implication or from the command-line.
-  bool CheckFlagChange(SetBy new_set_by, bool change_flag,
-                       const char* implied_by = nullptr) {
-    if (new_set_by == SetBy::kWeakImplication &&
-        (set_by_ == SetBy::kImplication || set_by_ == SetBy::kCommandLine)) {
-      return false;
-    }
-    if (ShouldCheckFlagContradictions()) {
-      static constexpr const char kHint[] =
-          "If a test variant caused this, it might be necessary to specify "
-          "additional contradictory flags in "
-          "tools/testrunner/local/variants.py.";
-      struct FatalError : public std::ostringstream {
-        // MSVC complains about non-returning destructor; disable that.
-        MSVC_SUPPRESS_WARNING(4722)
-        ~FatalError() { FATAL("%s.\n%s", str().c_str(), kHint); }
-      };
-      // Readonly flags cannot change value.
-      if (change_flag && IsReadOnly()) {
-        // Exit instead of abort for certain testing situations.
-        if (v8_flags.exit_on_contradictory_flags) base::OS::ExitProcess(0);
-        if (implied_by == nullptr) {
-          FatalError{} << "Contradictory value for readonly flag "
-                       << FlagName{name()};
-        } else {
-          DCHECK(IsAnyImplication(new_set_by));
-          FatalError{} << "Contradictory value for readonly flag "
-                       << FlagName{name()} << " implied by " << implied_by;
-        }
-      }
-      // For bool flags, we only check for a conflict if the value actually
-      // changes. So specifying the same flag with the same value multiple times
-      // is allowed.
-      // For other flags, we disallow specifying them explicitly or in the
-      // presence of an implication even if the value is the same.
-      // This is to simplify the rules describing conflicts in variants.py: A
-      // repeated non-boolean flag is considered an error independently of its
-      // value.
-      bool is_bool_flag = type_ == TYPE_MAYBE_BOOL || type_ == TYPE_BOOL;
-      bool check_implications = change_flag;
-      bool check_command_line_flags = change_flag || !is_bool_flag;
-      switch (set_by_) {
-        case SetBy::kDefault:
-          break;
-        case SetBy::kWeakImplication:
-          if (new_set_by == SetBy::kWeakImplication && check_implications) {
-            FatalError{} << "Contradictory weak flag implications from "
-                         << FlagName{implied_by_} << " and "
-                         << FlagName{implied_by} << " for flag "
-                         << FlagName{name()};
-          }
-          break;
-        case SetBy::kImplication:
-          if (new_set_by == SetBy::kImplication && check_implications) {
-            FatalError{} << "Contradictory flag implications from "
-                         << FlagName{implied_by_} << " and "
-                         << FlagName{implied_by} << " for flag "
-                         << FlagName{name()};
-          }
-          break;
-        case SetBy::kCommandLine:
-          if (new_set_by == SetBy::kImplication && check_command_line_flags) {
-            // Exit instead of abort for certain testing situations.
-            if (v8_flags.exit_on_contradictory_flags) base::OS::ExitProcess(0);
-            if (is_bool_flag) {
-              FatalError{} << "Flag " << FlagName{name()}
-                           << ": value implied by " << FlagName{implied_by}
-                           << " conflicts with explicit specification";
-            } else {
-              FatalError{} << "Flag " << FlagName{name()} << " is implied by "
-                           << FlagName{implied_by}
-                           << " but also specified explicitly";
-            }
-          } else if (new_set_by == SetBy::kCommandLine &&
-                     check_command_line_flags) {
-            // Exit instead of abort for certain testing situations.
-            if (v8_flags.exit_on_contradictory_flags) base::OS::ExitProcess(0);
-            if (is_bool_flag) {
-              FatalError{} << "Command-line provided flag " << FlagName{name()}
-                           << " specified as both true and false";
-            } else {
-              FatalError{} << "Command-line provided flag " << FlagName{name()}
-                           << " specified multiple times";
-            }
-          }
-          break;
-      }
-    }
+  if (ShouldCheckFlagContradictions()) {
+    static constexpr const char kHint[] =
+        "If a test variant caused this, it might be necessary to specify "
+        "additional contradictory flags in "
+        "tools/testrunner/local/variants.py.";
+    struct FatalError : public std::ostringstream {
+      // MSVC complains about non-returning destructor; disable that.
+      MSVC_SUPPRESS_WARNING(4722)
+      ~FatalError() { FATAL("%s.\n%s", str().c_str(), kHint); }
+    };
+    // Readonly flags cannot change value.
     if (change_flag && IsReadOnly()) {
-      // Readonly flags must never change value.
-      return false;
-    }
-    set_by_ = new_set_by;
-    if (IsAnyImplication(new_set_by)) {
-      DCHECK_NOT_NULL(implied_by);
-      implied_by_ = implied_by;
-#ifdef DEBUG
-      // This only works when implied_by is a flag_name or !flag_name, but it
-      // can also be a condition e.g. flag_name > 3. Since this is only used for
-      // checks in DEBUG mode, we will just ignore the more complex conditions
-      // for now - that will just lead to a nullptr which won't be followed.
-      implied_by_ptr_ = static_cast<Flag*>(
-          FindFlagByName(implied_by[0] == '!' ? implied_by + 1 : implied_by));
-      DCHECK_NE(implied_by_ptr_, this);
-#endif
-    }
-    return change_flag;
-  }
-
-  bool IsReadOnly() const {
-    // See the FLAG_READONLY definition for FLAG_MODE_META.
-    return valptr_ == nullptr;
-  }
-
-  template <FlagType flag_type, typename T>
-  T GetValue() const {
-    DCHECK_EQ(flag_type, type_);
-    if (IsReadOnly()) return GetDefaultValue<T>();
-    return *reinterpret_cast<const FlagValue<T>*>(valptr_);
-  }
-
-  template <FlagType flag_type, typename T>
-  void SetValue(T new_value, SetBy set_by) {
-    DCHECK_EQ(flag_type, type_);
-    bool change_flag = GetValue<flag_type, T>() != new_value;
-    change_flag = CheckFlagChange(set_by, change_flag);
-    if (change_flag) {
-      DCHECK(!IsReadOnly());
-      *reinterpret_cast<FlagValue<T>*>(valptr_) = new_value;
-    }
-  }
-
-  // Compare this flag's current value against the default.
-  bool IsDefault() const {
-    switch (type_) {
-      case TYPE_BOOL:
-        return bool_variable() == bool_default();
-      case TYPE_MAYBE_BOOL:
-        return maybe_bool_variable().has_value() == false;
-      case TYPE_INT:
-        return int_variable() == int_default();
-      case TYPE_UINT:
-        return uint_variable() == uint_default();
-      case TYPE_UINT64:
-        return uint64_variable() == uint64_default();
-      case TYPE_FLOAT:
-        return float_variable() == float_default();
-      case TYPE_SIZE_T:
-        return size_t_variable() == size_t_default();
-      case TYPE_STRING: {
-        const char* str1 = string_value();
-        const char* str2 = string_default();
-        if (str2 == nullptr) return str1 == nullptr;
-        if (str1 == nullptr) return str2 == nullptr;
-        return strcmp(str1, str2) == 0;
+      // Exit instead of abort for certain testing situations.
+      if (v8_flags.exit_on_contradictory_flags) base::OS::ExitProcess(0);
+      if (implied_by == nullptr) {
+        FatalError{} << "Contradictory value for readonly flag "
+                     << FlagName{name()};
+      } else {
+        DCHECK(IsAnyImplication(new_set_by));
+        FatalError{} << "Contradictory value for readonly flag "
+                     << FlagName{name()} << " implied by " << implied_by;
       }
     }
-    UNREACHABLE();
-  }
-
-  void ReleaseDynamicAllocations() {
-    if (type_ != TYPE_STRING) return;
-    if (owns_ptr_) DeleteArray(string_value());
-  }
-
-  // Set a flag back to it's default value.
-  void Reset() {
-    switch (type_) {
-      case TYPE_BOOL:
-        set_bool_variable(bool_default(), SetBy::kDefault);
+    // For bool flags, we only check for a conflict if the value actually
+    // changes. So specifying the same flag with the same value multiple times
+    // is allowed.
+    // For other flags, we disallow specifying them explicitly or in the
+    // presence of an implication even if the value is the same.
+    // This is to simplify the rules describing conflicts in variants.py: A
+    // repeated non-boolean flag is considered an error independently of its
+    // value.
+    bool is_bool_flag = type_ == TYPE_MAYBE_BOOL || type_ == TYPE_BOOL;
+    bool check_implications = change_flag;
+    bool check_command_line_flags = change_flag || !is_bool_flag;
+    switch (set_by_) {
+      case SetBy::kDefault:
         break;
-      case TYPE_MAYBE_BOOL:
-        set_maybe_bool_variable(base::nullopt, SetBy::kDefault);
+      case SetBy::kWeakImplication:
+        if (new_set_by == SetBy::kWeakImplication && check_implications) {
+          FatalError{} << "Contradictory weak flag implications from "
+                       << FlagName{implied_by_} << " and "
+                       << FlagName{implied_by} << " for flag "
+                       << FlagName{name()};
+        }
         break;
-      case TYPE_INT:
-        set_int_variable(int_default(), SetBy::kDefault);
+      case SetBy::kImplication:
+        if (new_set_by == SetBy::kImplication && check_implications) {
+          FatalError{} << "Contradictory flag implications from "
+                       << FlagName{implied_by_} << " and "
+                       << FlagName{implied_by} << " for flag "
+                       << FlagName{name()};
+        }
         break;
-      case TYPE_UINT:
-        set_uint_variable(uint_default(), SetBy::kDefault);
-        break;
-      case TYPE_UINT64:
-        set_uint64_variable(uint64_default(), SetBy::kDefault);
-        break;
-      case TYPE_FLOAT:
-        set_float_variable(float_default(), SetBy::kDefault);
-        break;
-      case TYPE_SIZE_T:
-        set_size_t_variable(size_t_default(), SetBy::kDefault);
-        break;
-      case TYPE_STRING:
-        set_string_value(string_default(), false, SetBy::kDefault);
+      case SetBy::kCommandLine:
+        if (new_set_by == SetBy::kImplication && check_command_line_flags) {
+          // Exit instead of abort for certain testing situations.
+          if (v8_flags.exit_on_contradictory_flags) base::OS::ExitProcess(0);
+          if (is_bool_flag) {
+            FatalError{} << "Flag " << FlagName{name()} << ": value implied by "
+                         << FlagName{implied_by}
+                         << " conflicts with explicit specification";
+          } else {
+            FatalError{} << "Flag " << FlagName{name()} << " is implied by "
+                         << FlagName{implied_by}
+                         << " but also specified explicitly";
+          }
+        } else if (new_set_by == SetBy::kCommandLine &&
+                   check_command_line_flags) {
+          // Exit instead of abort for certain testing situations.
+          if (v8_flags.exit_on_contradictory_flags) base::OS::ExitProcess(0);
+          if (is_bool_flag) {
+            FatalError{} << "Command-line provided flag " << FlagName{name()}
+                         << " specified as both true and false";
+          } else {
+            FatalError{} << "Command-line provided flag " << FlagName{name()}
+                         << " specified multiple times";
+          }
+        }
         break;
     }
   }
+  if (change_flag && IsReadOnly()) {
+    // Readonly flags must never change value.
+    return false;
+  }
+  set_by_ = new_set_by;
+  if (IsAnyImplication(new_set_by)) {
+    DCHECK_NOT_NULL(implied_by);
+    implied_by_ = implied_by;
+#ifdef DEBUG
+    // This only works when implied_by is a flag_name or !flag_name, but it
+    // can also be a condition e.g. flag_name > 3. Since this is only used for
+    // checks in DEBUG mode, we will just ignore the more complex conditions
+    // for now - that will just lead to a nullptr which won't be followed.
+    implied_by_ptr_ = static_cast<Flag*>(FindImplicationFlagByName(
+        implied_by[0] == '!' ? implied_by + 1 : implied_by));
+    DCHECK_NE(implied_by_ptr_, this);
+#endif
+  }
+  return change_flag;
+}
 
-  void AllowOverwriting() { set_by_ = SetBy::kDefault; }
-};
+bool Flag::IsDefault() const {
+  switch (type_) {
+    case TYPE_BOOL:
+      return bool_variable() == bool_default();
+    case TYPE_MAYBE_BOOL:
+      return maybe_bool_variable().has_value() == false;
+    case TYPE_INT:
+      return int_variable() == int_default();
+    case TYPE_UINT:
+      return uint_variable() == uint_default();
+    case TYPE_UINT64:
+      return uint64_variable() == uint64_default();
+    case TYPE_FLOAT:
+      return float_variable() == float_default();
+    case TYPE_SIZE_T:
+      return size_t_variable() == size_t_default();
+    case TYPE_STRING: {
+      const char* str1 = string_value();
+      const char* str2 = string_default();
+      if (str2 == nullptr) return str1 == nullptr;
+      if (str1 == nullptr) return str2 == nullptr;
+      return strcmp(str1, str2) == 0;
+    }
+  }
+  UNREACHABLE();
+}
+
+void Flag::ReleaseDynamicAllocations() {
+  if (type_ != TYPE_STRING) return;
+  if (owns_ptr_) DeleteArray(string_value());
+}
+
+void Flag::Reset() {
+  switch (type_) {
+    case TYPE_BOOL:
+      set_bool_variable(bool_default(), SetBy::kDefault);
+      break;
+    case TYPE_MAYBE_BOOL:
+      set_maybe_bool_variable(base::nullopt, SetBy::kDefault);
+      break;
+    case TYPE_INT:
+      set_int_variable(int_default(), SetBy::kDefault);
+      break;
+    case TYPE_UINT:
+      set_uint_variable(uint_default(), SetBy::kDefault);
+      break;
+    case TYPE_UINT64:
+      set_uint64_variable(uint64_default(), SetBy::kDefault);
+      break;
+    case TYPE_FLOAT:
+      set_float_variable(float_default(), SetBy::kDefault);
+      break;
+    case TYPE_SIZE_T:
+      set_size_t_variable(size_t_default(), SetBy::kDefault);
+      break;
+    case TYPE_STRING:
+      set_string_value(string_default(), false, SetBy::kDefault);
+      break;
+  }
+}
 
 Flag flags[] = {
 #define FLAG_MODE_META
@@ -460,19 +285,68 @@ Flag flags[] = {
 
 constexpr size_t kNumFlags = arraysize(flags);
 
-bool EqualNames(const char* a, const char* b) {
-  for (int i = 0; NormalizeChar(a[i]) == NormalizeChar(b[i]); i++) {
-    if (a[i] == '\0') {
-      return true;
-    }
+base::Vector<Flag> Flags() { return base::ArrayVector(flags); }
+
+struct FlagLess {
+  bool operator()(const Flag* a, const Flag* b) const {
+    return FlagHelpers::FlagNamesCmp(a->name(), b->name()) < 0;
   }
-  return false;
+};
+
+struct FlagNameLess {
+  bool operator()(const Flag* a, const char* b) const {
+    return FlagHelpers::FlagNamesCmp(a->name(), b) < 0;
+  }
+};
+
+// Optimized look-up of flags by name using binary search. Works only for flags
+// that can be found. If the looked-up flag might not exit in the list, an
+// additional name check of the returned flag is required.
+class FlagMapByName {
+ public:
+  FlagMapByName() {
+    for (size_t i = 0; i < kNumFlags; ++i) {
+      flags_[i] = &flags[i];
+    }
+    std::sort(flags_.begin(), flags_.end(), FlagLess());
+  }
+
+  Flag* GetFlag(const char* name) {
+    auto it =
+        std::lower_bound(flags_.begin(), flags_.end(), name, FlagNameLess());
+    if (it == flags_.end()) return nullptr;
+    return *it;
+  }
+
+ private:
+  std::array<Flag*, kNumFlags> flags_;
+};
+
+DEFINE_LAZY_LEAKY_OBJECT_GETTER(FlagMapByName, GetFlagMap)
+
+// This should be used to look up flags that we know were defined.
+Flag* FindImplicationFlagByName(const char* name) {
+  Flag* flag = GetFlagMap()->GetFlag(name);
+  CHECK(flag != nullptr);
+  DCHECK(FlagHelpers::EqualNames(flag->name(), name));
+  return flag;
 }
 
+// This can be used to look up flags that might not exist (e.g. invalid command
+// line flags).
 Flag* FindFlagByName(const char* name) {
-  for (size_t i = 0; i < kNumFlags; ++i) {
-    if (EqualNames(name, flags[i].name())) return &flags[i];
+  Flag* flag = GetFlagMap()->GetFlag(name);
+  // GetFlag returns an invalid lower bound for flags not in the list. So
+  // we need to verify the name again.
+  if (flag != nullptr && FlagHelpers::EqualNames(flag->name(), name)) {
+    return flag;
   }
+#ifdef DEBUG
+  // Ensure the flag is not in the global list.
+  for (size_t i = 0; i < kNumFlags; ++i) {
+    DCHECK(!FlagHelpers::EqualNames(name, flags[i].name()));
+  }
+#endif
   return nullptr;
 }
 
@@ -586,12 +460,14 @@ uint32_t ComputeFlagListHash() {
     // The following flags are implied by --predictable (some negated).
     if (flag.PointsTo(&v8_flags.concurrent_sparkplug) ||
         flag.PointsTo(&v8_flags.concurrent_recompilation) ||
+        flag.PointsTo(&v8_flags.lazy_feedback_allocation) ||
 #ifdef V8_ENABLE_MAGLEV
         flag.PointsTo(&v8_flags.maglev_deopt_data_on_background) ||
         flag.PointsTo(&v8_flags.maglev_build_code_on_background) ||
 #endif
         flag.PointsTo(&v8_flags.parallel_scavenge) ||
         flag.PointsTo(&v8_flags.concurrent_marking) ||
+        flag.PointsTo(&v8_flags.concurrent_minor_ms_marking) ||
         flag.PointsTo(&v8_flags.concurrent_array_buffer_sweeping) ||
         flag.PointsTo(&v8_flags.parallel_marking) ||
         flag.PointsTo(&v8_flags.concurrent_sweeping) ||
@@ -613,14 +489,20 @@ uint32_t ComputeFlagListHash() {
   }
 
 #ifdef DEBUG
-  for (const char* name : flags_implied_by_predictable) {
-    if (flags_ignored_because_of_predictable.find(name) ==
-        flags_ignored_because_of_predictable.end()) {
-      PrintF(
-          "%s should be added to the list of "
-          "flags_ignored_because_of_predictable\n",
-          name);
-      UNREACHABLE();
+  // Disable the check for fuzzing. This check is only here
+  // to ensure that we can generate reproducible code cache
+  // for production builds, we don't care as much about the
+  // reproducibility in the case of fuzzing.
+  if (!v8_flags.fuzzing) {
+    for (const char* name : flags_implied_by_predictable) {
+      if (flags_ignored_because_of_predictable.find(name) ==
+          flags_ignored_because_of_predictable.end()) {
+        PrintF(
+            "%s should be added to the list of "
+            "flags_ignored_because_of_predictable\n",
+            name);
+        UNREACHABLE();
+      }
     }
   }
 #endif
@@ -634,8 +516,6 @@ uint32_t ComputeFlagListHash() {
   return hash;
 }
 
-}  // namespace
-
 // Helper function to parse flags: Takes an argument arg and splits it into
 // a flag name and flag value (or nullptr if they are missing). negated is set
 // if the arg started with "-no" or "--no". The buffer may be used to NUL-
@@ -647,34 +527,35 @@ static void SplitArgument(const char* arg, char* buffer, int buffer_size,
   *value = nullptr;
   *negated = false;
 
-  if (arg != nullptr && *arg == '-') {
-    // find the begin of the flag name
-    arg++;  // remove 1st '-'
-    if (*arg == '-') {
-      arg++;                    // remove 2nd '-'
-      DCHECK_NE('\0', arg[0]);  // '--' arguments are handled in the caller.
-    }
-    if (arg[0] == 'n' && arg[1] == 'o') {
-      arg += 2;                                 // remove "no"
-      if (NormalizeChar(arg[0]) == '-') arg++;  // remove dash after "no".
-      *negated = true;
-    }
-    *name = arg;
+  if (arg[0] != '-') return;
 
-    // find the end of the flag name
-    while (*arg != '\0' && *arg != '=') arg++;
-
-    // get the value if any
-    if (*arg == '=') {
-      // make a copy so we can NUL-terminate flag name
-      size_t n = arg - *name;
-      CHECK(n < static_cast<size_t>(buffer_size));  // buffer is too small
-      MemCopy(buffer, *name, n);
-      buffer[n] = '\0';
-      *name = buffer;
-      // get the value
-      *value = arg + 1;
+  // Find the begin of the flag name.
+  arg++;  // remove 1st '-'
+  if (*arg == '-') {
+    arg++;                    // remove 2nd '-'
+    DCHECK_NE('\0', arg[0]);  // '--' arguments are handled in the caller.
+  }
+  if (arg[0] == 'n' && arg[1] == 'o') {
+    arg += 2;  // remove "no"
+    if (FlagHelpers::NormalizeChar(arg[0]) == '-') {
+      arg++;  // remove dash after "no".
     }
+    *negated = true;
+  }
+  *name = arg;
+
+  // Find the end of the flag name.
+  while (*arg != '\0' && *arg != '=') arg++;
+
+  // Get the value if any.
+  if (*arg == '=') {
+    // Make a copy so we can NUL-terminate the flag name.
+    size_t n = arg - *name;
+    CHECK(n < static_cast<size_t>(buffer_size));  // buffer is too small
+    MemCopy(buffer, *name, n);
+    buffer[n] = '\0';
+    *name = buffer;
+    *value = arg + 1;
   }
 }
 
@@ -702,121 +583,125 @@ bool TryParseUnsigned(Flag* flag, const char* arg, const char* value,
 int FlagList::SetFlagsFromCommandLine(int* argc, char** argv, bool remove_flags,
                                       HelpOptions help_options) {
   int return_code = 0;
-  // parse arguments
+  // Parse arguments.
   for (int i = 1; i < *argc;) {
     int j = i;  // j > 0
     const char* arg = argv[i++];
+    if (arg == nullptr) continue;
 
-    // split arg into flag components
+    // Stop processing flags on '--'.
+    if (arg[0] == '-' && arg[1] == '-' && arg[2] == '\0') break;
+
+    // Split arg into flag components.
     char buffer[1 * KB];
     const char* name;
     const char* value;
     bool negated;
     SplitArgument(arg, buffer, sizeof buffer, &name, &value, &negated);
 
-    if (name != nullptr) {
-      // lookup the flag
-      Flag* flag = FindFlagByName(name);
-      if (flag == nullptr) {
-        if (remove_flags) {
-          // We don't recognize this flag but since we're removing
-          // the flags we recognize we assume that the remaining flags
-          // will be processed somewhere else so this flag might make
-          // sense there.
-          continue;
-        } else {
-          PrintF(stderr, "Error: unrecognized flag %s\n", arg);
-          return_code = j;
-          break;
-        }
-      }
+    if (name == nullptr) continue;
 
-      // if we still need a flag value, use the next argument if available
-      if (flag->type() != Flag::TYPE_BOOL &&
-          flag->type() != Flag::TYPE_MAYBE_BOOL && value == nullptr) {
-        if (i < *argc) {
-          value = argv[i++];
-        }
-        if (!value) {
-          PrintF(stderr, "Error: missing value for flag %s of type %s\n", arg,
-                 Type2String(flag->type()));
-          return_code = j;
-          break;
-        }
-      }
-
-      // set the flag
-      char* endp = const_cast<char*>("");  // *endp is only read
-      switch (flag->type()) {
-        case Flag::TYPE_BOOL:
-          flag->set_bool_variable(!negated, Flag::SetBy::kCommandLine);
-          break;
-        case Flag::TYPE_MAYBE_BOOL:
-          flag->set_maybe_bool_variable(!negated, Flag::SetBy::kCommandLine);
-          break;
-        case Flag::TYPE_INT:
-          flag->set_int_variable(static_cast<int>(strtol(value, &endp, 10)),
-                                 Flag::SetBy::kCommandLine);
-          break;
-        case Flag::TYPE_UINT: {
-          unsigned int parsed_value;
-          if (TryParseUnsigned(flag, arg, value, &endp, &parsed_value)) {
-            flag->set_uint_variable(parsed_value, Flag::SetBy::kCommandLine);
-          } else {
-            return_code = j;
-          }
-          break;
-        }
-        case Flag::TYPE_UINT64: {
-          uint64_t parsed_value;
-          if (TryParseUnsigned(flag, arg, value, &endp, &parsed_value)) {
-            flag->set_uint64_variable(parsed_value, Flag::SetBy::kCommandLine);
-          } else {
-            return_code = j;
-          }
-          break;
-        }
-        case Flag::TYPE_FLOAT:
-          flag->set_float_variable(strtod(value, &endp),
-                                   Flag::SetBy::kCommandLine);
-          break;
-        case Flag::TYPE_SIZE_T: {
-          size_t parsed_value;
-          if (TryParseUnsigned(flag, arg, value, &endp, &parsed_value)) {
-            flag->set_size_t_variable(parsed_value, Flag::SetBy::kCommandLine);
-          } else {
-            return_code = j;
-          }
-          break;
-        }
-        case Flag::TYPE_STRING:
-          flag->set_string_value(value ? StrDup(value) : nullptr, true,
-                                 Flag::SetBy::kCommandLine);
-          break;
-      }
-
-      // handle errors
-      bool is_bool_type = flag->type() == Flag::TYPE_BOOL ||
-                          flag->type() == Flag::TYPE_MAYBE_BOOL;
-      if ((is_bool_type && value != nullptr) || (!is_bool_type && negated) ||
-          *endp != '\0') {
-        // TODO(neis): TryParseUnsigned may return with {*endp == '\0'} even in
-        // an error case.
-        PrintF(stderr, "Error: illegal value for flag %s of type %s\n", arg,
-               Type2String(flag->type()));
-        if (is_bool_type) {
-          PrintF(stderr,
-                 "To set or unset a boolean flag, use --flag or --no-flag.\n");
-        }
+    // Lookup the flag.
+    Flag* flag = FindFlagByName(name);
+    if (flag == nullptr) {
+      if (remove_flags) {
+        // We don't recognize this flag but since we're removing
+        // the flags we recognize we assume that the remaining flags
+        // will be processed somewhere else so this flag might make
+        // sense there.
+        continue;
+      } else {
+        PrintF(stderr, "Error: unrecognized flag %s\n", arg);
         return_code = j;
         break;
       }
+    }
 
-      // remove the flag & value from the command
-      if (remove_flags) {
-        while (j < i) {
-          argv[j++] = nullptr;
+    // If we still need a flag value, use the next argument if available.
+    if (flag->type() != Flag::TYPE_BOOL &&
+        flag->type() != Flag::TYPE_MAYBE_BOOL && value == nullptr) {
+      if (i < *argc) {
+        value = argv[i++];
+      }
+      if (!value) {
+        PrintF(stderr, "Error: missing value for flag %s of type %s\n", arg,
+               Type2String(flag->type()));
+        return_code = j;
+        break;
+      }
+    }
+
+    // Set the flag.
+    char* endp = const_cast<char*>("");  // *endp is only read
+    switch (flag->type()) {
+      case Flag::TYPE_BOOL:
+        flag->set_bool_variable(!negated, Flag::SetBy::kCommandLine);
+        break;
+      case Flag::TYPE_MAYBE_BOOL:
+        flag->set_maybe_bool_variable(!negated, Flag::SetBy::kCommandLine);
+        break;
+      case Flag::TYPE_INT:
+        flag->set_int_variable(static_cast<int>(strtol(value, &endp, 10)),
+                               Flag::SetBy::kCommandLine);
+        break;
+      case Flag::TYPE_UINT: {
+        unsigned int parsed_value;
+        if (TryParseUnsigned(flag, arg, value, &endp, &parsed_value)) {
+          flag->set_uint_variable(parsed_value, Flag::SetBy::kCommandLine);
+        } else {
+          return_code = j;
         }
+        break;
+      }
+      case Flag::TYPE_UINT64: {
+        uint64_t parsed_value;
+        if (TryParseUnsigned(flag, arg, value, &endp, &parsed_value)) {
+          flag->set_uint64_variable(parsed_value, Flag::SetBy::kCommandLine);
+        } else {
+          return_code = j;
+        }
+        break;
+      }
+      case Flag::TYPE_FLOAT:
+        flag->set_float_variable(strtod(value, &endp),
+                                 Flag::SetBy::kCommandLine);
+        break;
+      case Flag::TYPE_SIZE_T: {
+        size_t parsed_value;
+        if (TryParseUnsigned(flag, arg, value, &endp, &parsed_value)) {
+          flag->set_size_t_variable(parsed_value, Flag::SetBy::kCommandLine);
+        } else {
+          return_code = j;
+        }
+        break;
+      }
+      case Flag::TYPE_STRING:
+        flag->set_string_value(value ? StrDup(value) : nullptr, true,
+                               Flag::SetBy::kCommandLine);
+        break;
+    }
+
+    // Handle errors.
+    bool is_bool_type = flag->type() == Flag::TYPE_BOOL ||
+                        flag->type() == Flag::TYPE_MAYBE_BOOL;
+    if ((is_bool_type && value != nullptr) || (!is_bool_type && negated) ||
+        *endp != '\0') {
+      // TODO(neis): TryParseUnsigned may return with {*endp == '\0'} even in
+      // an error case.
+      PrintF(stderr, "Error: illegal value for flag %s of type %s\n", arg,
+             Type2String(flag->type()));
+      if (is_bool_type) {
+        PrintF(stderr,
+               "To set or unset a boolean flag, use --flag or --no-flag.\n");
+      }
+      return_code = j;
+      break;
+    }
+
+    // Remove the flag & value from the command.
+    if (remove_flags) {
+      while (j < i) {
+        argv[j++] = nullptr;
       }
     }
   }
@@ -832,7 +717,7 @@ int FlagList::SetFlagsFromCommandLine(int* argc, char** argv, bool remove_flags,
   }
 
   if (remove_flags) {
-    // shrink the argument list
+    // Shrink the argument list.
     int j = 1;
     for (int i = 1; i < *argc; i++) {
       if (argv[i] != nullptr) argv[j++] = argv[i];
@@ -864,25 +749,25 @@ static char* SkipBlackSpace(char* p) {
 
 // static
 int FlagList::SetFlagsFromString(const char* str, size_t len) {
-  // make a 0-terminated copy of str
+  // Make a 0-terminated copy of str.
   std::unique_ptr<char[]> copy0{NewArray<char>(len + 1)};
   MemCopy(copy0.get(), str, len);
   copy0[len] = '\0';
 
-  // strip leading white space
+  // Strip leading white space.
   char* copy = SkipWhiteSpace(copy0.get());
 
-  // count the number of 'arguments'
+  // Count the number of 'arguments'.
   int argc = 1;  // be compatible with SetFlagsFromCommandLine()
   for (char* p = copy; *p != '\0'; argc++) {
     p = SkipBlackSpace(p);
     p = SkipWhiteSpace(p);
   }
 
-  // allocate argument array
+  // Allocate argument array.
   base::ScopedVector<char*> argv(argc);
 
-  // split the flags string into arguments
+  // Split the flags string into arguments.
   argc = 1;  // be compatible with SetFlagsFromCommandLine()
   for (char* p = copy; *p != '\0'; argc++) {
     argv[argc] = p;
@@ -972,7 +857,7 @@ class ImplicationProcessor {
                           const char* conclusion_name, T value,
                           bool weak_implication) {
     if (!premise) return false;
-    Flag* conclusion_flag = FindFlagByName(conclusion_name);
+    Flag* conclusion_flag = FindImplicationFlagByName(conclusion_name);
     if (!conclusion_flag->CheckFlagChange(
             weak_implication ? Flag::SetBy::kWeakImplication
                              : Flag::SetBy::kImplication,
@@ -1000,7 +885,7 @@ class ImplicationProcessor {
                           const char* conclusion_name, T value,
                           bool weak_implication) {
     if (!premise) return false;
-    Flag* conclusion_flag = FindFlagByName(conclusion_name);
+    Flag* conclusion_flag = FindImplicationFlagByName(conclusion_name);
     // Because this is the `const FlagValue*` overload:
     DCHECK(conclusion_flag->IsReadOnly());
     if (!conclusion_flag->CheckFlagChange(
@@ -1048,6 +933,50 @@ class ImplicationProcessor {
 };
 
 }  // namespace
+
+#define CONTRADICTION(flag1, flag2)                         \
+  (v8_flags.flag1 && v8_flags.flag2)                        \
+      ? std::make_tuple(FindFlagByPointer(&v8_flags.flag1), \
+                        FindFlagByPointer(&v8_flags.flag2)) \
+      : std::make_tuple(nullptr, nullptr)
+
+// static
+void FlagList::ResolveContradictionsWhenFuzzing() {
+  if (!i::v8_flags.fuzzing) return;
+
+  // List flags that lead to known contradictory cycles when both are passed
+  // on the command line. One of them will be reset with precedence left to
+  // right.
+  std::tuple<Flag*, Flag*> contradictions[] = {
+      CONTRADICTION(jitless, maglev_future),
+      CONTRADICTION(jitless, stress_maglev),
+      CONTRADICTION(jitless, stress_concurrent_inlining),
+      CONTRADICTION(jitless, stress_concurrent_inlining_attach_code),
+      CONTRADICTION(predictable, stress_concurrent_inlining_attach_code),
+      CONTRADICTION(stress_concurrent_inlining, assert_types),
+      CONTRADICTION(stress_concurrent_inlining_attach_code, assert_types),
+  };
+  for (auto [flag1, flag2] : contradictions) {
+    if (!flag1 || !flag2) continue;
+    // Check values again, since a flag might have already been reset by
+    // another contradiction.
+    if (!flag1->bool_variable() || !flag2->bool_variable()) continue;
+
+    Flag* flag = flag1;
+    if (flag->IsDefault()) {
+      flag = flag2;
+    }
+    if (flag->IsDefault()) {
+      FATAL("Multiple flags with contradictory default values");
+    }
+
+    std::cerr << "Warning: resetting flag --" << flag->name()
+              << " due to conflicting flags" << std::endl;
+    flag->Reset();
+  }
+}
+
+#undef CONTRADICTION
 
 // static
 void FlagList::EnforceFlagImplications() {

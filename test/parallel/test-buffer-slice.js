@@ -71,9 +71,9 @@ for (let i = 0, s = buf.toString(); i < buf.length; ++i) {
   );
 }
 
-expectedSameBufs.forEach(([buf1, buf2]) => {
+for (const [buf1, buf2] of expectedSameBufs) {
   assert.strictEqual(Buffer.compare(buf1, buf2), 0);
-});
+}
 
 const utf16Buf = Buffer.from('0123456789', 'utf16le');
 assert.deepStrictEqual(utf16Buf.slice(0, 6), Buffer.from('012', 'utf16le'));

@@ -9,6 +9,7 @@
 #include "src/base/strings.h"
 #include "src/execution/isolate.h"
 #include "src/handles/handles.h"
+#include "src/objects/heap-object-inl.h"
 #include "src/objects/objects-inl.h"
 
 namespace v8 {
@@ -81,8 +82,8 @@ ExternalizeStringExtension::GetNativeFunctionTemplate(
 
 namespace {
 
-bool HasExternalForwardingIndex(Isolate* isolate, Handle<String> string) {
-  if (!string->IsShared(isolate)) return false;
+bool HasExternalForwardingIndex(Handle<String> string) {
+  if (!string->IsShared()) return false;
   uint32_t raw_hash = string->raw_hash_field(kAcquireLoad);
   return Name::IsExternalForwardingIndex(raw_hash);
 }
@@ -103,7 +104,14 @@ void ExternalizeStringExtension::Externalize(
   if (!string->SupportsExternalization(
           externalize_as_one_byte ? v8::String::Encoding::ONE_BYTE_ENCODING
                                   : v8::String::Encoding::TWO_BYTE_ENCODING)) {
-    info.GetIsolate()->ThrowError("string does not support externalization.");
+    // If the string is shared, testing with the combination of
+    // --shared-string-table and --isolate in d8 may result in races to
+    // externalize the same string. If GC is stressed in addition, this test
+    // might fail as the string was already externalized (marked for
+    // externalization by another thread and externalized during GC).
+    if (!StringShape(*string).IsExternal()) {
+      info.GetIsolate()->ThrowError("string does not support externalization.");
+    }
     return;
   }
   if (externalize_as_one_byte) {
@@ -126,8 +134,7 @@ void ExternalizeStringExtension::Externalize(
   // externalize the same string. Those races manifest as externalization
   // sometimes failing if another thread won and already forwarded the string to
   // the external resource. Don't consider those races as failures.
-  if (!result && !HasExternalForwardingIndex(
-                     reinterpret_cast<Isolate*>(info.GetIsolate()), string)) {
+  if (!result && !HasExternalForwardingIndex(string)) {
     info.GetIsolate()->ThrowError("externalizeString() failed.");
     return;
   }
@@ -154,7 +161,7 @@ void ExternalizeStringExtension::CreateExternalizableString(
   }
   Handle<String> string = Utils::OpenHandle(*info[0].As<v8::String>());
   Isolate* isolate = reinterpret_cast<Isolate*>(info.GetIsolate());
-  v8::String::Encoding encoding = string->IsOneByteRepresentation(isolate)
+  v8::String::Encoding encoding = string->IsOneByteRepresentation()
                                       ? v8::String::Encoding::ONE_BYTE_ENCODING
                                       : v8::String::Encoding::TWO_BYTE_ENCODING;
   if (string->SupportsExternalization(encoding)) {
@@ -176,7 +183,7 @@ void ExternalizeStringExtension::CreateExternalizableString(
   }
 #ifdef V8_COMPRESS_POINTERS
   // Small strings may not be in-place externalizable.
-  if (string->Size() < ExternalString::kUncachedSize) {
+  if (string->Size() < static_cast<int>(sizeof(UncachedExternalString))) {
     info.GetIsolate()->ThrowError("String is too short to be externalized.");
     return;
   }
@@ -186,7 +193,7 @@ void ExternalizeStringExtension::CreateExternalizableString(
   // migration is special for GC (Tagged pointers to Untagged pointers).
   // Skip if the ConsString is flat (second is empty), as we won't be guaranteed
   // a string in old space in that case.
-  if (IsConsString(*string, isolate) && !string->IsFlat(isolate)) {
+  if (IsConsString(*string, isolate) && !string->IsFlat()) {
     Handle<String> result;
     if (CopyConsStringToOld(isolate, Handle<ConsString>::cast(string))
             .ToHandle(&result)) {
@@ -234,8 +241,8 @@ void ExternalizeStringExtension::IsOneByte(
         "isOneByteString() requires a single string argument.");
     return;
   }
-  bool is_one_byte =
-      Utils::OpenHandle(*info[0].As<v8::String>())->IsOneByteRepresentation();
+  bool is_one_byte = Utils::OpenDirectHandle(*info[0].As<v8::String>())
+                         ->IsOneByteRepresentation();
   info.GetReturnValue().Set(is_one_byte);
 }
 

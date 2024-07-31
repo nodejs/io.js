@@ -535,7 +535,7 @@ public:
      * Generates the hash code for the collation object
      * @stable ICU 2.0
      */
-    virtual int32_t hashCode(void) const = 0;
+    virtual int32_t hashCode() const = 0;
 
 #ifndef U_FORCE_HIDE_DEPRECATED_API
     /**
@@ -599,7 +599,7 @@ public:
      * @see Collator#setStrength
      * @deprecated ICU 2.6 Use getAttribute(UCOL_STRENGTH...) instead
      */
-    virtual ECollationStrength getStrength(void) const;
+    virtual ECollationStrength getStrength() const;
 
     /**
      * Sets the minimum strength to be used in comparison or transformation.
@@ -730,7 +730,7 @@ public:
      * @return a StringEnumeration over the locales available at the time of the call
      * @stable ICU 2.6
      */
-    static StringEnumeration* U_EXPORT2 getAvailableLocales(void);
+    static StringEnumeration* U_EXPORT2 getAvailableLocales();
 
     /**
      * Create a string enumerator of all possible keywords that are relevant to
@@ -864,7 +864,7 @@ public:
      *         IDs.
      * @stable ICU 2.0
      */
-    virtual UClassID getDynamicClassID(void) const override = 0;
+    virtual UClassID getDynamicClassID() const override = 0;
 
     /**
      * Universal attribute setter
@@ -1245,7 +1245,7 @@ public:
      * @return true if the factory is visible.
      * @stable ICU 2.6
      */
-    virtual UBool visible(void) const;
+    virtual UBool visible() const;
 
     /**
      * Return a collator for the provided locale.  If the locale

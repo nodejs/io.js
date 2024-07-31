@@ -166,7 +166,7 @@ attempting to develop or distribute cryptographic code.
 Copyright
 =========
 
-Copyright (c) 1998-2023 The OpenSSL Project
+Copyright (c) 1998-2024 The OpenSSL Project
 
 Copyright (c) 1995-1998 Eric A. Young, Tim J. Hudson
 

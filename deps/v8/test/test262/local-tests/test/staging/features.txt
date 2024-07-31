@@ -1,0 +1,273 @@
+## Proposed language features
+#
+# This project accepts tests for language proposals that have reached stage 3
+# in TC39's standardization process. Those tests should be annotated with a
+# dedicated feature flag so that consumers may more easily omit them as
+# necessary.
+#
+# Generally, feature flags should be per proposal, not per individual API
+# that a proposal adds. To filter for specific APIs, use the directory
+# structure.
+#
+# https://github.com/tc39/process-document
+
+# Intl.Locale Info
+# https://github.com/tc39/proposal-intl-locale-info
+Intl.Locale-info
+
+# FinalizationRegistry#cleanupSome
+# https://github.com/tc39/proposal-cleanup-some
+FinalizationRegistry.prototype.cleanupSome
+
+# Intl.NumberFormat V3
+# https://github.com/tc39/proposal-intl-numberformat-v3
+Intl.NumberFormat-v3
+
+# Legacy RegExp features
+# https://github.com/tc39/proposal-regexp-legacy-features
+legacy-regexp
+
+# Atomics.waitAsync
+# https://github.com/tc39/proposal-atomics-wait-async
+Atomics.waitAsync
+
+# Import Attributes
+# https://github.com/tc39/proposal-import-attributes/
+import-attributes
+
+# Import Assertions (Normative Optional, Deprecated)
+# This feature should not be implemented, but if it is it must
+# respect the specified behavior
+# https://github.com/tc39/proposal-import-attributes/
+import-assertions
+
+# JSON modules
+# https://github.com/tc39/proposal-json-modules
+json-modules
+
+# Resizable Arraybuffer
+# https://github.com/tc39/proposal-resizablearraybuffer
+resizable-arraybuffer
+
+# ArrayBuffer transfer
+# https://github.com/tc39/proposal-arraybuffer-transfer
+arraybuffer-transfer
+
+# Temporal
+# https://github.com/tc39/proposal-temporal
+Temporal
+
+# ShadowRealm, née Callable Boundary Realms
+# https://github.com/tc39/proposal-realms
+ShadowRealm
+
+# Array.groupBy & Map.groupBy
+# https://github.com/tc39/proposal-array-grouping
+array-grouping
+
+# Intl.DurationFormat
+# https://github.com/tc39/proposal-intl-duration-format
+Intl.DurationFormat
+
+# RegExp set notation + properties of strings
+# https://github.com/tc39/proposal-regexp-set-notation
+regexp-v-flag
+
+# Decorators
+# https://github.com/tc39/proposal-decorators
+decorators
+
+# Duplicate named capturing groups
+# https://github.com/tc39/proposal-duplicate-named-capturing-groups
+regexp-duplicate-named-groups
+
+# https://tc39.es/proposal-array-from-async/
+Array.fromAsync
+
+# Well-formed Unicode strings
+# https://github.com/tc39/proposal-is-usv-string
+String.prototype.isWellFormed
+String.prototype.toWellFormed
+
+# JSON.parse with source
+# https://github.com/tc39/proposal-json-parse-with-source
+json-parse-with-source
+
+# Regular expression modifiers
+# https://github.com/tc39/proposal-regexp-modifiers
+regexp-modifiers
+
+# Iterator Helpers
+# https://github.com/tc39/proposal-iterator-helpers
+iterator-helpers
+
+# Promise.withResolvers
+# https://github.com/tc39/proposal-promise-with-resolvers
+promise-with-resolvers
+
+# Set methods
+# https://github.com/tc39/proposal-set-methods
+set-methods
+
+## Standard language features
+#
+# Language features that have been included in a published version of the
+# ECMA-262 specification. These flags are largely maintained for historical
+# reasons, though their use for relatively new features (i.e. prior to
+# availability across major implementations) is appreciated.
+
+AggregateError
+align-detached-buffer-semantics-with-web-reality  # https://github.com/tc39/ecma262/pull/2164
+arbitrary-module-namespace-names  # https://github.com/tc39/ecma262/pull/2154
+ArrayBuffer
+array-find-from-last
+Array.prototype.at
+Array.prototype.flat
+Array.prototype.flatMap
+Array.prototype.includes
+Array.prototype.values
+arrow-function
+async-iteration
+async-functions
+Atomics
+BigInt
+caller
+change-array-by-copy
+class
+class-fields-private
+class-fields-private-in
+class-fields-public
+class-methods-private
+class-static-block
+class-static-fields-private
+class-static-fields-public
+class-static-methods-private
+coalesce-expression
+computed-property-names
+const
+cross-realm
+DataView
+DataView.prototype.getFloat32
+DataView.prototype.getFloat64
+DataView.prototype.getInt16
+DataView.prototype.getInt32
+DataView.prototype.getInt8
+DataView.prototype.getUint16
+DataView.prototype.getUint32
+DataView.prototype.setUint8
+default-parameters
+destructuring-assignment
+destructuring-binding
+dynamic-import
+error-cause
+exponentiation
+export-star-as-namespace-from-module  # https://github.com/tc39/ecma262/pull/1174
+FinalizationRegistry
+for-in-order
+for-of
+Float32Array
+Float64Array
+generators
+globalThis
+hashbang
+import.meta
+Int8Array
+Int16Array
+Int32Array
+Intl-enumeration
+intl-normative-optional  # https://tc39.es/ecma402/#legacy-constructor
+Intl.DateTimeFormat-datetimestyle
+Intl.DateTimeFormat-dayPeriod  # https://github.com/tc39/ecma402/pull/346
+Intl.DateTimeFormat-extend-timezonename
+Intl.DateTimeFormat-formatRange
+Intl.DateTimeFormat-fractionalSecondDigits  # https://github.com/tc39/ecma402/pull/347
+Intl.DisplayNames
+Intl.DisplayNames-v2
+Intl.ListFormat
+Intl.Locale
+Intl.NumberFormat-unified
+Intl.RelativeTimeFormat
+Intl.Segmenter
+json-superset
+let
+logical-assignment-operators
+Map
+new.target
+numeric-separator-literal
+object-rest
+object-spread
+Object.fromEntries
+Object.hasOwn
+Object.is
+optional-catch-binding
+optional-chaining
+Promise
+Promise.allSettled
+Promise.any
+Promise.prototype.finally
+Proxy
+proxy-missing-checks  # https://github.com/tc39/ecma262/pull/666
+Reflect
+Reflect.construct
+Reflect.set
+Reflect.setPrototypeOf
+regexp-dotall
+regexp-lookbehind
+regexp-match-indices
+regexp-named-groups
+regexp-unicode-property-escapes
+rest-parameters
+Set
+SharedArrayBuffer
+string-trimming
+String.fromCodePoint
+String.prototype.at
+String.prototype.endsWith
+String.prototype.includes
+String.prototype.matchAll
+String.prototype.replaceAll
+String.prototype.trimEnd
+String.prototype.trimStart
+super
+Symbol
+symbols-as-weakmap-keys
+Symbol.asyncIterator
+Symbol.hasInstance
+Symbol.isConcatSpreadable
+Symbol.iterator
+Symbol.match
+Symbol.matchAll
+Symbol.prototype.description
+Symbol.replace
+Symbol.search
+Symbol.species
+Symbol.split
+Symbol.toPrimitive
+Symbol.toStringTag
+Symbol.unscopables
+tail-call-optimization
+template
+top-level-await
+TypedArray
+TypedArray.prototype.at
+u180e
+Uint8Array
+Uint16Array
+Uint32Array
+Uint8ClampedArray
+WeakMap
+WeakRef
+WeakSet
+well-formed-json-stringify
+__proto__
+__getter__
+__setter__
+
+## Test-Harness Features
+#
+# The rare cases where testing language functionality requires non-standard
+# language features, exposed through global-environment functions on the $262
+# object, go here.
+
+IsHTMLDDA
+host-gc-required

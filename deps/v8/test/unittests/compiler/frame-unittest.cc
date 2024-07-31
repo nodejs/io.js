@@ -25,7 +25,7 @@ class FrameTest : public ::testing::Test {
 };
 
 TEST_F(FrameTest, Constructor) {
-  Frame frame(kFixed3);
+  Frame frame(kFixed3, nullptr);
   EXPECT_EQ(kFixed3, frame.GetTotalFrameSlotCount());
   EXPECT_EQ(kFixed3, frame.GetFixedSlotCount());
   EXPECT_EQ(0, frame.GetSpillSlotCount());
@@ -33,7 +33,7 @@ TEST_F(FrameTest, Constructor) {
 }
 
 TEST_F(FrameTest, ReserveSpillSlots) {
-  Frame frame(kFixed3);
+  Frame frame(kFixed3, nullptr);
   constexpr int kReserve2 = 2;
 
   frame.ReserveSpillSlots(kReserve2);
@@ -44,7 +44,7 @@ TEST_F(FrameTest, ReserveSpillSlots) {
 }
 
 TEST_F(FrameTest, EnsureReturnSlots) {
-  Frame frame(kFixed3);
+  Frame frame(kFixed3, nullptr);
   constexpr int kReturn3 = 3;
   constexpr int kReturn5 = 5;
   constexpr int kReturn2 = 2;
@@ -71,7 +71,7 @@ TEST_F(FrameTest, EnsureReturnSlots) {
 }
 
 TEST_F(FrameTest, AllocateSavedCalleeRegisterSlots) {
-  Frame frame(kFixed3);
+  Frame frame(kFixed3, nullptr);
   constexpr int kFirstSlots = 2;
   constexpr int kSecondSlots = 3;
 
@@ -90,7 +90,7 @@ TEST_F(FrameTest, AllocateSavedCalleeRegisterSlots) {
 }
 
 TEST_F(FrameTest, AlignSavedCalleeRegisterSlots) {
-  Frame frame(kFixed3);
+  Frame frame(kFixed3, nullptr);
   constexpr int kSlots = 2;  // An even number leaves the slots misaligned.
 
   frame.AllocateSavedCalleeRegisterSlots(kSlots);
@@ -111,7 +111,7 @@ TEST_F(FrameTest, AlignSavedCalleeRegisterSlots) {
 }
 
 TEST_F(FrameTest, AllocateSpillSlotAligned) {
-  Frame frame(kFixed1);
+  Frame frame(kFixed1, nullptr);
 
   // Allocate a quad slot, which must add 3 padding slots. Frame returns the
   // last index of the 4 slot allocation.
@@ -142,7 +142,7 @@ TEST_F(FrameTest, AllocateSpillSlotAligned) {
 }
 
 TEST_F(FrameTest, AllocateSpillSlotAlignedWithReturns) {
-  Frame frame(kFixed3);
+  Frame frame(kFixed3, nullptr);
   constexpr int kReturn3 = 3;
   constexpr int kReturn5 = 5;
 
@@ -167,7 +167,7 @@ TEST_F(FrameTest, AllocateSpillSlotAlignedWithReturns) {
 }
 
 TEST_F(FrameTest, AllocateSpillSlotAndEndSpillArea) {
-  Frame frame(kFixed3);
+  Frame frame(kFixed3, nullptr);
 
   // Allocate a double slot, which must add 1 padding slot.
   EXPECT_EQ(kFixed3 + 2, frame.AllocateSpillSlot(2 * kSlotSize, 2 * kSlotSize));
@@ -189,7 +189,7 @@ TEST_F(FrameTest, AllocateSpillSlotAndEndSpillArea) {
 }
 
 TEST_F(FrameTest, AllocateSpillSlotOverAligned) {
-  Frame frame(kFixed1);
+  Frame frame(kFixed1, nullptr);
 
   // Allocate a 4-aligned double slot, which must add 3 padding slots. This
   // also terminates the slot area. Returns the starting slot in this case.
@@ -208,7 +208,7 @@ TEST_F(FrameTest, AllocateSpillSlotOverAligned) {
 }
 
 TEST_F(FrameTest, AllocateSpillSlotUnderAligned) {
-  Frame frame(kFixed1);
+  Frame frame(kFixed1, nullptr);
 
   // Allocate a 1-aligned double slot. This also terminates the slot area.
   EXPECT_EQ(kFixed1 + 1, frame.AllocateSpillSlot(2 * kSlotSize, kSlotSize));
@@ -219,7 +219,7 @@ TEST_F(FrameTest, AllocateSpillSlotUnderAligned) {
 }
 
 TEST_F(FrameTest, AlignFrame) {
-  Frame frame(kFixed3);
+  Frame frame(kFixed3, nullptr);
   constexpr int kReturn3 = 3;
 
   frame.EnsureReturnSlots(kReturn3);

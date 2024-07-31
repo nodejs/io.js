@@ -4,7 +4,7 @@ import assert from 'node:assert';
 import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
-describe('Worker threads do not spawn infinitely', { concurrency: true }, () => {
+describe('Worker threads do not spawn infinitely', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should not trigger an infinite loop when using a loader exports no recognized hooks', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',

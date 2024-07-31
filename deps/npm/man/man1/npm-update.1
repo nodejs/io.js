@@ -1,4 +1,4 @@
-.TH "NPM-UPDATE" "1" "October 2023" "" ""
+.TH "NPM-UPDATE" "1" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBnpm-update\fR - Update packages
 .SS "Synopsis"
@@ -20,7 +20,7 @@ If the \fB-g\fR flag is specified, this command will update globally installed p
 .P
 If no package name is specified, all packages in the specified location (global or local) will be updated.
 .P
-Note that by default \fBnpm update\fR will not update the semver values of direct dependencies in your project \fBpackage.json\fR, if you want to also update values in \fBpackage.json\fR you can run: \fBnpm update --save\fR (or add the \fBsave=true\fR option to a npm help "configuration file" to make that the default behavior).
+Note that by default \fBnpm update\fR will not update the semver values of direct dependencies in your project \fBpackage.json\fR. If you want to also update values in \fBpackage.json\fR you can run: \fBnpm update --save\fR (or add the \fBsave=true\fR option to a npm help "configuration file" to make that the default behavior).
 .SS "Example"
 .P
 For the examples below, assume that the current package is \fBapp\fR and it depends on dependencies, \fBdep1\fR (\fBdep2\fR, .. etc.). The published versions of \fBdep1\fR are:
@@ -68,7 +68,7 @@ However, if \fBapp\fR's \fBpackage.json\fR contains:
 .fi
 .RE
 .P
-In this case, running \fBnpm update\fR will install \fBdep1@1.1.2\fR. Even though the \fBlatest\fR tag points to \fB1.2.2\fR, this version do not satisfy \fB~1.1.1\fR, which is equivalent to \fB>=1.1.1 <1.2.0\fR. So the highest-sorting version that satisfies \fB~1.1.1\fR is used, which is \fB1.1.2\fR.
+In this case, running \fBnpm update\fR will install \fBdep1@1.1.2\fR. Even though the \fBlatest\fR tag points to \fB1.2.2\fR, this version does not satisfy \fB~1.1.1\fR, which is equivalent to \fB>=1.1.1 <1.2.0\fR. So the highest-sorting version that satisfies \fB~1.1.1\fR is used, which is \fB1.1.2\fR.
 .SS "Caret Dependencies below 1.0.0"
 .P
 Suppose \fBapp\fR has a caret dependency on a version below \fB1.0.0\fR, for example:
@@ -81,7 +81,7 @@ Suppose \fBapp\fR has a caret dependency on a version below \fB1.0.0\fR, for exa
 .fi
 .RE
 .P
-\fBnpm update\fR will install \fBdep1@0.2.0\fR, because there are no other versions which satisfy \fB^0.2.0\fR.
+\fBnpm update\fR will install \fBdep1@0.2.0\fR.
 .P
 If the dependence were on \fB^0.4.0\fR:
 .P
@@ -256,7 +256,7 @@ If set to false, then ignore \fBpackage-lock.json\fR files when installing. This
 .SS "\fBforeground-scripts\fR"
 .RS 0
 .IP \(bu 4
-Default: false
+Default: \fBfalse\fR unless when using \fBnpm pack\fR or \fBnpm publish\fR where it defaults to \fBtrue\fR
 .IP \(bu 4
 Type: Boolean
 .RE 0

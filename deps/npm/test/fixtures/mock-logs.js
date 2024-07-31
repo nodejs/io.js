@@ -1,131 +1,108 @@
+const { log: { LEVELS } } = require('proc-log')
+const { stripVTControlCharacters: stripAnsi } = require('node:util')
 
-const NPMLOG = require('npmlog')
-const { LEVELS } = require('proc-log')
+const logPrefix = new RegExp(`^npm (${LEVELS.join('|')})\\s`)
+const isLog = (str) => logPrefix.test(stripAnsi(str))
 
-const npmEmitLog = NPMLOG.emitLog.bind(NPMLOG)
-const npmLog = NPMLOG.log.bind(NPMLOG)
+// We only strip trailing newlines since some output will
+// have significant tabs and spaces
+const trimTrailingNewline = (str) => str.replace(/\n$/, '')
 
-const merge = (...objs) => objs.reduce((acc, obj) => ({ ...acc, ...obj }))
+const joinAndTrimTrailingNewlines = (arr) =>
+  trimTrailingNewline(arr.map(trimTrailingNewline).join('\n'))
 
-const mockLogs = (otherMocks = {}) => {
-  // Return mocks as an array with getters for each level
-  // that return an array of logged properties with the
-  // level removed. This is for convenience throughout tests
-  const logs = Object.defineProperties(
-    [],
-    ['timing', ...LEVELS].reduce((acc, level) => {
+const logsByTitle = (logs) => ({
+  byTitle: {
+    value: (title) => {
+      return logs
+        .filter((l) => stripAnsi(l.message).startsWith(`${title} `))
+        .map((l) => l.message)
+    },
+  },
+})
+
+module.exports = () => {
+  const outputs = []
+  const outputErrors = []
+  const fullOutput = []
+
+  const levelLogs = []
+  const logs = Object.defineProperties([], {
+    ...logsByTitle(levelLogs),
+    ...LEVELS.reduce((acc, level) => {
       acc[level] = {
         get () {
-          return this
-            .filter(([l]) => level === l)
-            .map(([l, ...args]) => args)
+          const byLevel = levelLogs.filter((l) => l.level === level)
+          return Object.defineProperties(byLevel.map((l) => l.message), logsByTitle(byLevel))
         },
       }
       return acc
-    }, {})
-  )
+    }, {}),
+  })
 
-  // the above logs array is anything logged and it not filtered by level.
-  // this display array is filtered and will not include items that
-  // would not be shown in the terminal
-  const display = Object.defineProperties(
-    [],
-    ['timing', ...LEVELS].reduce((acc, level) => {
-      acc[level] = {
-        get () {
-          return this
-            .filter(([l]) => level === l)
-            .map(([l, ...args]) => args)
-        },
-      }
-      return acc
-    }, {})
-  )
+  const streams = {
+    stderr: {
+      cursorTo: () => {},
+      clearLine: () => {},
+      write: (str) => {
+        str = trimTrailingNewline(str)
 
-  const npmLogBuffer = []
-
-  // This returns an object with mocked versions of all necessary
-  // logging modules. It mocks them with methods that add logs
-  // to an array which it also returns. The reason it also returns
-  // the mocks is that in tests the same instance of these mocks
-  // should be passed to multiple calls to t.mock.
-  // XXX: this is messy and fragile and should be removed in favor
-  // of some other way to collect and filter logs across all tests
-  const logMocks = {
-    'proc-log': merge(
-      { LEVELS },
-      LEVELS.reduce((acc, l) => {
-        acc[l] = (...args) => {
-          // Re-emit log item for since the log file listens on these
-          process.emit('log', l, ...args)
-          // Dont add pause/resume events to the logs. Those aren't displayed
-          // and emitting them is tested in the display layer
-          if (l !== 'pause' && l !== 'resume') {
-            logs.push([l, ...args])
-          }
+        // Use the beginning of each line to determine if its a log
+        // or an output error since we write both of those to stderr.
+        // This couples logging format to this test but we only need
+        // to do it in a single place so hopefully its easy to change
+        // in the future if/when we refactor what logs look like.
+        if (!isLog(str)) {
+          outputErrors.push(str)
+          fullOutput.push(str)
+          return
         }
-        return acc
-      }, {}),
-      otherMocks['proc-log']
-    ),
-    // Object.assign is important here because we need to assign
-    // mocked properties directly to npmlog and then mock with that
-    // object. This is necessary so tests can still directly set
-    // `log.level = 'silent'` anywhere in the test and have that
-    // that reflected in the npmlog singleton.
-    // XXX: remove with npmlog
-    npmlog: Object.assign(NPMLOG, merge(
-      {
-        log: (level, ...args) => {
-          // timing does not exist on proclog, so if it got logged
-          // with npmlog we need to push it to our logs
-          if (level === 'timing') {
-            logs.push([level, ...args])
-          }
-          npmLog(level, ...args)
-        },
-        write: (msg) => {
-          // npmlog.write is what outputs to the terminal.
-          // it writes in chunks so we push each chunk to an
-          // array that we will log and zero out
-          npmLogBuffer.push(msg)
-        },
-        emitLog: (m) => {
-          // this calls the original emitLog method
-          // which will filter based on loglevel
-          npmEmitLog(m)
-          // if anything was logged then we push to our display
-          // array which we can assert against in tests
-          if (npmLogBuffer.length) {
-            // first two parts are 'npm' and a single space
-            display.push(npmLogBuffer.slice(2))
-          }
-          npmLogBuffer.length = 0
-        },
-        newItem: () => {
-          return {
-            info: (...p) => {
-              logs.push(['info', ...p])
-            },
-            warn: (...p) => {
-              logs.push(['warn', ...p])
-            },
-            error: (...p) => {
-              logs.push(['error', ...p])
-            },
-            silly: (...p) => {
-              logs.push(['silly', ...p])
-            },
-            completeWork: () => {},
-            finish: () => {},
-          }
-        },
+
+        // Split on spaces for the heading and level/label. We know that
+        // none of those have spaces but could be colorized so there's no
+        // other good way to get each of those including control chars
+        const [rawHeading, rawLevel] = str.split(' ')
+        const rawPrefix = `${rawHeading} ${rawLevel} `
+        // If message is colorized we can just replaceAll with the string since
+        // it will be unique due to control chars. Otherwise we create a regex
+        // that will only match the beginning of each line.
+        const prefix = stripAnsi(str) !== str ? rawPrefix : new RegExp(`^${rawPrefix}`, 'gm')
+
+        // The level needs color stripped always because we use it to filter logs
+        const level = stripAnsi(rawLevel)
+
+        logs.push(str.replaceAll(prefix, `${level} `))
+        fullOutput.push(str.replaceAll(prefix, `${level} `))
+        levelLogs.push({ level, message: str.replaceAll(prefix, '') })
       },
-      otherMocks.npmlog
-    )),
+    },
+    stdout: {
+      write: (str) => {
+        outputs.push(trimTrailingNewline(str))
+        fullOutput.push(trimTrailingNewline(str))
+      },
+    },
   }
 
-  return { logs, logMocks, display }
+  return {
+    streams,
+    logs: {
+      outputs,
+      joinedOutput: () => joinAndTrimTrailingNewlines(outputs),
+      clearOutput: () => {
+        outputs.length = 0
+        outputErrors.length = 0
+        fullOutput.length = 0
+      },
+      outputErrors,
+      joinedOutputError: () => joinAndTrimTrailingNewlines(outputs),
+      fullOutput,
+      joinedFullOutput: () => joinAndTrimTrailingNewlines(fullOutput),
+      logs,
+      clearLogs: () => {
+        levelLogs.length = 0
+        logs.length = 0
+      },
+    },
+  }
 }
-
-module.exports = mockLogs

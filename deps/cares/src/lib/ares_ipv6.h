@@ -27,13 +27,25 @@
 #ifndef ARES_IPV6_H
 #define ARES_IPV6_H
 
+#ifdef HAVE_NETINET6_IN6_H
+#  include <netinet6/in6.h>
+#endif
+
+#if defined(USE_WINSOCK)
+#  if defined(HAVE_IPHLPAPI_H)
+#    include <iphlpapi.h>
+#  endif
+#  if defined(HAVE_NETIOAPI_H)
+#    include <netioapi.h>
+#  endif
+#endif
+
 #ifndef HAVE_PF_INET6
-#define PF_INET6 AF_INET6
+#  define PF_INET6 AF_INET6
 #endif
 
 #ifndef HAVE_STRUCT_SOCKADDR_IN6
-struct sockaddr_in6
-{
+struct sockaddr_in6 {
   unsigned short       sin6_family;
   unsigned short       sin6_port;
   unsigned long        sin6_flowinfo;
@@ -42,21 +54,19 @@ struct sockaddr_in6
 };
 #endif
 
-typedef union
-{
+typedef union {
   struct sockaddr     sa;
   struct sockaddr_in  sa4;
   struct sockaddr_in6 sa6;
 } ares_sockaddr;
 
 #ifndef HAVE_STRUCT_ADDRINFO
-struct addrinfo
-{
+struct addrinfo {
   int              ai_flags;
   int              ai_family;
   int              ai_socktype;
   int              ai_protocol;
-  ares_socklen_t   ai_addrlen;   /* Follow rfc3493 struct addrinfo */
+  ares_socklen_t   ai_addrlen; /* Follow rfc3493 struct addrinfo */
   char            *ai_canonname;
   struct sockaddr *ai_addr;
   struct addrinfo *ai_next;
@@ -64,28 +74,28 @@ struct addrinfo
 #endif
 
 #ifndef NS_IN6ADDRSZ
-#ifndef HAVE_STRUCT_IN6_ADDR
+#  ifndef HAVE_STRUCT_IN6_ADDR
 /* We cannot have it set to zero, so we pick a fixed value here */
-#define NS_IN6ADDRSZ 16
-#else
-#define NS_IN6ADDRSZ sizeof(struct in6_addr)
-#endif
+#    define NS_IN6ADDRSZ 16
+#  else
+#    define NS_IN6ADDRSZ sizeof(struct in6_addr)
+#  endif
 #endif
 
 #ifndef NS_INADDRSZ
-#define NS_INADDRSZ sizeof(struct in_addr)
+#  define NS_INADDRSZ sizeof(struct in_addr)
 #endif
 
 #ifndef NS_INT16SZ
-#define NS_INT16SZ 2
+#  define NS_INT16SZ 2
 #endif
 
 #ifndef IF_NAMESIZE
-#ifdef IFNAMSIZ
-#define IF_NAMESIZE IFNAMSIZ
-#else
-#define IF_NAMESIZE 256
-#endif
+#  ifdef IFNAMSIZ
+#    define IF_NAMESIZE IFNAMSIZ
+#  else
+#    define IF_NAMESIZE 256
+#  endif
 #endif
 
 /* Defined in inet_net_pton.c for no particular reason. */

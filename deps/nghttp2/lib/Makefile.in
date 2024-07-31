@@ -153,7 +153,7 @@ am__objects_1 =
 am__objects_2 = nghttp2_pq.lo nghttp2_map.lo nghttp2_queue.lo \
 	nghttp2_frame.lo nghttp2_buf.lo nghttp2_stream.lo \
 	nghttp2_outbound_item.lo nghttp2_session.lo nghttp2_submit.lo \
-	nghttp2_helper.lo nghttp2_npn.lo nghttp2_hd.lo \
+	nghttp2_helper.lo nghttp2_alpn.lo nghttp2_hd.lo \
 	nghttp2_hd_huffman.lo nghttp2_hd_huffman_data.lo \
 	nghttp2_version.lo nghttp2_priority_spec.lo nghttp2_option.lo \
 	nghttp2_callbacks.lo nghttp2_mem.lo nghttp2_http.lo \
@@ -183,15 +183,15 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/nghttp2_buf.Plo \
-	./$(DEPDIR)/nghttp2_callbacks.Plo \
+am__depfiles_remade = ./$(DEPDIR)/nghttp2_alpn.Plo \
+	./$(DEPDIR)/nghttp2_buf.Plo ./$(DEPDIR)/nghttp2_callbacks.Plo \
 	./$(DEPDIR)/nghttp2_debug.Plo ./$(DEPDIR)/nghttp2_extpri.Plo \
 	./$(DEPDIR)/nghttp2_frame.Plo ./$(DEPDIR)/nghttp2_hd.Plo \
 	./$(DEPDIR)/nghttp2_hd_huffman.Plo \
 	./$(DEPDIR)/nghttp2_hd_huffman_data.Plo \
 	./$(DEPDIR)/nghttp2_helper.Plo ./$(DEPDIR)/nghttp2_http.Plo \
 	./$(DEPDIR)/nghttp2_map.Plo ./$(DEPDIR)/nghttp2_mem.Plo \
-	./$(DEPDIR)/nghttp2_npn.Plo ./$(DEPDIR)/nghttp2_option.Plo \
+	./$(DEPDIR)/nghttp2_option.Plo \
 	./$(DEPDIR)/nghttp2_outbound_item.Plo \
 	./$(DEPDIR)/nghttp2_pq.Plo \
 	./$(DEPDIR)/nghttp2_priority_spec.Plo \
@@ -306,8 +306,6 @@ CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CSCOPE = @CSCOPE@
 CTAGS = @CTAGS@
-CUNIT_CFLAGS = @CUNIT_CFLAGS@
-CUNIT_LIBS = @CUNIT_LIBS@
 CXX = @CXX@
 CXX1XCXXFLAGS = @CXX1XCXXFLAGS@
 CXXCPP = @CXXCPP@
@@ -329,9 +327,8 @@ EXTRABPFCFLAGS = @EXTRABPFCFLAGS@
 EXTRACFLAG = @EXTRACFLAG@
 EXTRA_DEFS = @EXTRA_DEFS@
 FGREP = @FGREP@
-FILECMD = @FILECMD@
 GREP = @GREP@
-HAVE_CXX14 = @HAVE_CXX14@
+HAVE_CXX20 = @HAVE_CXX20@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -345,6 +342,10 @@ LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBBPF_CFLAGS = @LIBBPF_CFLAGS@
 LIBBPF_LIBS = @LIBBPF_LIBS@
+LIBBROTLIDEC_CFLAGS = @LIBBROTLIDEC_CFLAGS@
+LIBBROTLIDEC_LIBS = @LIBBROTLIDEC_LIBS@
+LIBBROTLIENC_CFLAGS = @LIBBROTLIENC_CFLAGS@
+LIBBROTLIENC_LIBS = @LIBBROTLIENC_LIBS@
 LIBCARES_CFLAGS = @LIBCARES_CFLAGS@
 LIBCARES_LIBS = @LIBCARES_LIBS@
 LIBEVENT_OPENSSL_CFLAGS = @LIBEVENT_OPENSSL_CFLAGS@
@@ -502,7 +503,7 @@ OBJECTS = nghttp2_pq.c nghttp2_map.c nghttp2_queue.c \
 	nghttp2_stream.c nghttp2_outbound_item.c \
 	nghttp2_session.c nghttp2_submit.c \
 	nghttp2_helper.c \
-	nghttp2_npn.c \
+	nghttp2_alpn.c \
 	nghttp2_hd.c nghttp2_hd_huffman.c nghttp2_hd_huffman_data.c \
 	nghttp2_version.c \
 	nghttp2_priority_spec.c \
@@ -521,7 +522,7 @@ HFILES = nghttp2_pq.h nghttp2_int.h nghttp2_map.h nghttp2_queue.h \
 	nghttp2_frame.h \
 	nghttp2_buf.h \
 	nghttp2_session.h nghttp2_helper.h nghttp2_stream.h nghttp2_int.h \
-	nghttp2_npn.h \
+	nghttp2_alpn.h \
 	nghttp2_submit.h nghttp2_outbound_item.h \
 	nghttp2_net.h \
 	nghttp2_hd.h nghttp2_hd_huffman.h \
@@ -621,6 +622,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_alpn.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_buf.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_callbacks.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_debug.Plo@am__quote@ # am--include-marker
@@ -633,7 +635,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_http.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_map.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_mem.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_npn.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_option.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_outbound_item.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nghttp2_pq.Plo@am__quote@ # am--include-marker
@@ -906,7 +907,8 @@ clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
 	mostlyclean-am
 
 distclean: distclean-recursive
-		-rm -f ./$(DEPDIR)/nghttp2_buf.Plo
+		-rm -f ./$(DEPDIR)/nghttp2_alpn.Plo
+	-rm -f ./$(DEPDIR)/nghttp2_buf.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_callbacks.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_debug.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_extpri.Plo
@@ -918,7 +920,6 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/nghttp2_http.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_map.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_mem.Plo
-	-rm -f ./$(DEPDIR)/nghttp2_npn.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_option.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_outbound_item.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_pq.Plo
@@ -977,7 +978,8 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-recursive
-		-rm -f ./$(DEPDIR)/nghttp2_buf.Plo
+		-rm -f ./$(DEPDIR)/nghttp2_alpn.Plo
+	-rm -f ./$(DEPDIR)/nghttp2_buf.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_callbacks.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_debug.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_extpri.Plo
@@ -989,7 +991,6 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/nghttp2_http.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_map.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_mem.Plo
-	-rm -f ./$(DEPDIR)/nghttp2_npn.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_option.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_outbound_item.Plo
 	-rm -f ./$(DEPDIR)/nghttp2_pq.Plo

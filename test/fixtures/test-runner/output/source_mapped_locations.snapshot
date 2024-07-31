@@ -1,0 +1,36 @@
+TAP version 13
+# Subtest: fails
+not ok 1 - fails
+  ---
+  duration_ms: *
+  location: '/test/fixtures/test-runner/output/source_mapped_locations.ts:5:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms *

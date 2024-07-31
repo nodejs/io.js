@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "src/base/optional.h"
 #include "src/handles/handles.h"
 #include "src/handles/maybe-handles.h"
 
@@ -45,6 +46,13 @@ class MaglevCodeGenerator;
 
 class MaglevCompilationInfo final {
  public:
+  static std::unique_ptr<MaglevCompilationInfo> New(
+      Isolate* isolate, compiler::JSHeapBroker* broker,
+      Handle<JSFunction> function, BytecodeOffset osr_offset) {
+    // Doesn't use make_unique due to the private ctor.
+    return std::unique_ptr<MaglevCompilationInfo>(
+        new MaglevCompilationInfo(isolate, function, osr_offset, broker));
+  }
   static std::unique_ptr<MaglevCompilationInfo> New(Isolate* isolate,
                                                     Handle<JSFunction> function,
                                                     BytecodeOffset osr_offset) {
@@ -55,7 +63,7 @@ class MaglevCompilationInfo final {
   ~MaglevCompilationInfo();
 
   Zone* zone() { return &zone_; }
-  compiler::JSHeapBroker* broker() const { return broker_.get(); }
+  compiler::JSHeapBroker* broker() const { return broker_; }
   MaglevCompilationUnit* toplevel_compilation_unit() const {
     return toplevel_compilation_unit_;
   }
@@ -75,8 +83,10 @@ class MaglevCompilationInfo final {
     return graph_labeller_.get();
   }
 
+#ifdef V8_ENABLE_MAGLEV
   void set_code_generator(std::unique_ptr<MaglevCodeGenerator> code_generator);
   MaglevCodeGenerator* code_generator() const { return code_generator_.get(); }
+#endif
 
   // Flag accessors (for thread-safe access to global flags).
   // TODO(v8:7700): Consider caching these.
@@ -106,8 +116,9 @@ class MaglevCompilationInfo final {
   bool is_detached();
 
  private:
-  MaglevCompilationInfo(Isolate* isolate, Handle<JSFunction> function,
-                        BytecodeOffset osr_offset);
+  MaglevCompilationInfo(
+      Isolate* isolate, Handle<JSFunction> function, BytecodeOffset osr_offset,
+      base::Optional<compiler::JSHeapBroker*> broker = base::nullopt);
 
   // Storing the raw pointer to the CanonicalHandlesMap is generally not safe.
   // Use DetachCanonicalHandles() to transfer ownership instead.
@@ -118,17 +129,24 @@ class MaglevCompilationInfo final {
   friend compiler::JSHeapBroker;
 
   Zone zone_;
-  const std::unique_ptr<compiler::JSHeapBroker> broker_;
+  compiler::JSHeapBroker* broker_;
   // Must be initialized late since it requires an initialized heap broker.
   MaglevCompilationUnit* toplevel_compilation_unit_ = nullptr;
   Handle<JSFunction> toplevel_function_;
   Handle<Code> code_;
   BytecodeOffset osr_offset_;
 
+  // True if this MaglevCompilationInfo owns its broker and false otherwise. In
+  // particular, when used as Turboshaft front-end, this will use Turboshaft's
+  // broker.
+  bool owns_broker_ = true;
+
   std::unique_ptr<MaglevGraphLabeller> graph_labeller_;
 
+#ifdef V8_ENABLE_MAGLEV
   // Produced off-thread during ExecuteJobImpl.
   std::unique_ptr<MaglevCodeGenerator> code_generator_;
+#endif
 
 #define V(Name) const bool Name##_;
   MAGLEV_COMPILATION_FLAG_LIST(V)

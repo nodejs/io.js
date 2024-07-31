@@ -189,12 +189,11 @@ BUILTIN(ShadowRealmPrototypeEvaluate) {
   }
 
   if (result.is_null()) {
-    DCHECK(isolate->has_pending_exception());
-    Handle<Object> pending_exception =
-        Handle<Object>(isolate->pending_exception(), isolate);
-    isolate->clear_pending_exception();
+    DCHECK(isolate->has_exception());
+    Handle<Object> exception = Handle<Object>(isolate->exception(), isolate);
+    isolate->clear_internal_exception();
     if (is_parse_failed) {
-      Handle<JSObject> error_object = Handle<JSObject>::cast(pending_exception);
+      Handle<JSObject> error_object = Handle<JSObject>::cast(exception);
       Handle<String> message = Handle<String>::cast(JSReceiver::GetDataProperty(
           isolate, error_object, factory->message_string()));
 
@@ -202,8 +201,7 @@ BUILTIN(ShadowRealmPrototypeEvaluate) {
           *factory->NewError(isolate->syntax_error_function(), message));
     }
     // 21. If result.[[Type]] is not normal, throw a TypeError exception.
-    Handle<String> string =
-        Object::NoSideEffectsToString(isolate, pending_exception);
+    Handle<String> string = Object::NoSideEffectsToString(isolate, exception);
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate,
         NewTypeError(MessageTemplate::kCallShadowRealmEvaluateThrew, string));

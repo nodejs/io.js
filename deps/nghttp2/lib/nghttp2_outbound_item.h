@@ -33,9 +33,32 @@
 #include "nghttp2_frame.h"
 #include "nghttp2_mem.h"
 
+#define NGHTTP2_DATA_PROVIDER_V1 1
+#define NGHTTP2_DATA_PROVIDER_V2 2
+
+typedef struct nghttp2_data_provider_wrap {
+  int version;
+  union {
+    struct {
+      nghttp2_data_source source;
+      void *read_callback;
+    };
+    nghttp2_data_provider v1;
+    nghttp2_data_provider2 v2;
+  } data_prd;
+} nghttp2_data_provider_wrap;
+
+nghttp2_data_provider_wrap *
+nghttp2_data_provider_wrap_v1(nghttp2_data_provider_wrap *dpw,
+                              const nghttp2_data_provider *data_prd);
+
+nghttp2_data_provider_wrap *
+nghttp2_data_provider_wrap_v2(nghttp2_data_provider_wrap *dpw,
+                              const nghttp2_data_provider2 *data_prd);
+
 /* struct used for HEADERS and PUSH_PROMISE frame */
 typedef struct {
-  nghttp2_data_provider data_prd;
+  nghttp2_data_provider_wrap dpw;
   void *stream_user_data;
   /* error code when request HEADERS is canceled by RST_STREAM while
      it is in queue. */
@@ -50,7 +73,7 @@ typedef struct {
   /**
    * The data to be sent for this DATA frame.
    */
-  nghttp2_data_provider data_prd;
+  nghttp2_data_provider_wrap dpw;
   /**
    * The flags of DATA frame.  We use separate flags here and
    * nghttp2_data frame.  The latter contains flags actually sent to

@@ -4,7 +4,7 @@ const assert = require('assert');
 const { describe, it } = require('node:test');
 
 
-describe('assert.CallTracker.getCalls()', { concurrency: true }, () => {
+describe('assert.CallTracker.getCalls()', { concurrency: !process.env.TEST_PARALLEL }, () => {
   const tracker = new assert.CallTracker();
 
   it('should return empty list when no calls', () => {

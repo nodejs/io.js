@@ -33,7 +33,7 @@ void RuleBasedTransliterator::_construct(const UnicodeString& rules,
                                          UTransDirection direction,
                                          UParseError& parseError,
                                          UErrorCode& status) {
-    fData = 0;
+    fData = nullptr;
     isDataOwned = true;
     if (U_FAILURE(status)) {
         return;
@@ -153,7 +153,7 @@ RuleBasedTransliterator::RuleBasedTransliterator(const UnicodeString& id,
 RuleBasedTransliterator::RuleBasedTransliterator(const UnicodeString& id,
                                                  TransliterationRuleData* theData,
                                                  UBool isDataAdopted) :
-    Transliterator(id, 0),
+    Transliterator(id, nullptr),
     fData(theData),
     isDataOwned(isDataAdopted) {
     setMaximumContextLength(fData->ruleSet.getMaximumContextLength());

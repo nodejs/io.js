@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "include/v8-embedder-heap.h"
 #include "src/handles/handles.h"
 #include "src/handles/traced-handles.h"
 #include "test/unittests/heap/cppgc-js/unified-heap-utils.h"
@@ -10,8 +11,6 @@
 namespace v8::internal {
 
 namespace {
-
-constexpr uint16_t kClassIdToOptimize = 23;
 
 using EmbedderRootsHandlerTest = TestWithHeapInternalsAndContext;
 
@@ -35,17 +34,21 @@ class V8_NODISCARD TemporaryEmbedderRootsHandleScope final {
 // TracedReference.
 class ClearingEmbedderRootsHandler final : public v8::EmbedderRootsHandler {
  public:
-  explicit ClearingEmbedderRootsHandler(uint16_t class_id_to_optimize)
-      : class_id_to_optimize_(class_id_to_optimize) {}
+  ClearingEmbedderRootsHandler()
+      : EmbedderRootsHandler(EmbedderRootsHandler::RootHandling::
+                                 kQueryEmbedderForNonDroppableReferences) {}
 
   bool IsRoot(const v8::TracedReference<v8::Value>& handle) final {
-    return handle.WrapperClassId() != class_id_to_optimize_;
+    // Convention for test: Objects that are optimized have their first field
+    // set as a back pointer. The `handle` passed here may be different from the
+    // original handle, so we cannot check equality against `&handle`.
+    return v8::Object::GetAlignedPointerFromInternalField(
+               handle.As<v8::Object>(), 0) == nullptr;
   }
 
   void ResetRoot(const v8::TracedReference<v8::Value>& handle) final {
-    if (handle.WrapperClassId() != class_id_to_optimize_) return;
-
-    // Convention (for test): Objects that are optimized have their first field
+    CHECK(!IsRoot(handle));
+    // Convention for test: Objects that are optimized have their first field
     // set as a back pointer.
     BasicTracedReference<v8::Value>* original_handle =
         reinterpret_cast<BasicTracedReference<v8::Value>*>(
@@ -53,14 +56,10 @@ class ClearingEmbedderRootsHandler final : public v8::EmbedderRootsHandler {
                 handle.As<v8::Object>(), 0));
     original_handle->Reset();
   }
-
- private:
-  const uint16_t class_id_to_optimize_;
 };
 
 template <typename T>
 void SetupOptimizedAndNonOptimizedHandle(v8::Isolate* isolate,
-                                         uint16_t optimized_class_id,
                                          T* optimized_handle,
                                          T* non_optimized_handle) {
   v8::HandleScope scope(isolate);
@@ -70,7 +69,6 @@ void SetupOptimizedAndNonOptimizedHandle(v8::Isolate* isolate,
   EXPECT_TRUE(optimized_handle->IsEmpty());
   *optimized_handle = T(isolate, optimized_object);
   EXPECT_FALSE(optimized_handle->IsEmpty());
-  optimized_handle->SetWrapperClassId(optimized_class_id);
 
   v8::Local<v8::Object> non_optimized_object = WrapperHelper::CreateWrapper(
       isolate->GetCurrentContext(), nullptr, nullptr);
@@ -90,15 +88,15 @@ TEST_F(EmbedderRootsHandlerTest,
 
   DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap());
 
-  ClearingEmbedderRootsHandler handler(kClassIdToOptimize);
+  ClearingEmbedderRootsHandler handler;
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
 
   auto* traced_handles = i_isolate()->traced_handles();
   const size_t initial_count = traced_handles->used_node_count();
   auto* optimized_handle = new v8::TracedReference<v8::Value>();
   auto* non_optimized_handle = new v8::TracedReference<v8::Value>();
-  SetupOptimizedAndNonOptimizedHandle(v8_isolate(), kClassIdToOptimize,
-                                      optimized_handle, non_optimized_handle);
+  SetupOptimizedAndNonOptimizedHandle(v8_isolate(), optimized_handle,
+                                      non_optimized_handle);
   EXPECT_EQ(initial_count + 2, traced_handles->used_node_count());
   InvokeMinorGC();
   EXPECT_EQ(initial_count + 1, traced_handles->used_node_count());
@@ -164,17 +162,6 @@ void TracedReferenceTest(v8::Isolate* isolate,
 
 }  // namespace
 
-TEST_F(EmbedderRootsHandlerTest, TracedReferenceWrapperClassId) {
-  ManualGCScope manual_gc(i_isolate());
-  v8::HandleScope scope(v8_isolate());
-
-  v8::TracedReference<v8::Object> traced;
-  ConstructJSObject(v8_isolate(), v8_isolate()->GetCurrentContext(), &traced);
-  EXPECT_EQ(0, traced.WrapperClassId());
-  traced.SetWrapperClassId(17);
-  EXPECT_EQ(17, traced.WrapperClassId());
-}
-
 // EmbedderRootsHandler does not affect full GCs.
 TEST_F(EmbedderRootsHandlerTest,
        TracedReferenceToUnmodifiedJSObjectDiesOnFullGC) {
@@ -182,7 +169,7 @@ TEST_F(EmbedderRootsHandlerTest,
   // alive.
   if (v8_flags.stress_incremental_marking) return;
 
-  ClearingEmbedderRootsHandler handler(kClassIdToOptimize);
+  ClearingEmbedderRootsHandler handler;
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   TracedReferenceTest(
       v8_isolate(), ConstructJSObject,
@@ -195,7 +182,7 @@ TEST_F(
     EmbedderRootsHandlerTest,
     TracedReferenceToUnmodifiedJSObjectDiesOnFullGCEvenWhenPointeeIsHeldAlive) {
   ManualGCScope manual_gcs(i_isolate());
-  ClearingEmbedderRootsHandler handler(kClassIdToOptimize);
+  ClearingEmbedderRootsHandler handler;
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   // The TracedReference itself will die as it's not found by the full GC. The
   // pointee will be kept alive through other means.
@@ -220,7 +207,7 @@ TEST_F(EmbedderRootsHandlerTest,
   if (v8_flags.single_generation) return;
 
   ManualGCScope manual_gc(i_isolate());
-  ClearingEmbedderRootsHandler handler(kClassIdToOptimize);
+  ClearingEmbedderRootsHandler handler;
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   TracedReferenceTest(
       v8_isolate(), ConstructJSObject,
@@ -228,22 +215,19 @@ TEST_F(EmbedderRootsHandlerTest,
       SurvivalMode::kSurvives);
 }
 
-// EmbedderRootsHandler does not affect non-API objects, even when the handle
-// has a wrapper class id that allows for reclamation.
+// EmbedderRootsHandler does not affect non-API objects.
 TEST_F(
     EmbedderRootsHandlerTest,
     TracedReferenceToUnmodifiedJSObjectSurvivesYoungGCWhenExcludedFromRoots) {
   if (v8_flags.single_generation) return;
 
   ManualGCScope manual_gc(i_isolate());
-  ClearingEmbedderRootsHandler handler(kClassIdToOptimize);
+  ClearingEmbedderRootsHandler handler;
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   TracedReferenceTest(
       v8_isolate(), ConstructJSObject,
-      [](TracedReference<v8::Object>& handle) {
-        handle.SetWrapperClassId(kClassIdToOptimize);
-      },
-      [this]() { InvokeMinorGC(); }, SurvivalMode::kSurvives);
+      [](TracedReference<v8::Object>& handle) {}, [this]() { InvokeMinorGC(); },
+      SurvivalMode::kSurvives);
 }
 
 // EmbedderRootsHandler does not affect API objects for handles that have
@@ -253,7 +237,7 @@ TEST_F(EmbedderRootsHandlerTest,
   if (v8_flags.single_generation) return;
 
   ManualGCScope manual_gc(i_isolate());
-  ClearingEmbedderRootsHandler handler(kClassIdToOptimize);
+  ClearingEmbedderRootsHandler handler;
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   TracedReferenceTest(
       v8_isolate(), ConstructJSApiObject<TracedReference<v8::Object>>,
@@ -269,12 +253,11 @@ TEST_F(
   if (v8_flags.single_generation) return;
 
   ManualGCScope manual_gc(i_isolate());
-  ClearingEmbedderRootsHandler handler(kClassIdToOptimize);
+  ClearingEmbedderRootsHandler handler;
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   TracedReferenceTest(
       v8_isolate(), ConstructJSApiObject<TracedReference<v8::Object>>,
       [this](TracedReference<v8::Object>& handle) {
-        handle.SetWrapperClassId(kClassIdToOptimize);
         {
           HandleScope handles(i_isolate());
           auto local = handle.Get(v8_isolate());

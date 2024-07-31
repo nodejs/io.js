@@ -1,9 +1,9 @@
 'use strict';
 
-require('../common');
+const common = require('../common');
 
 const {
-  injectAndCodeSign,
+  generateSEA,
   skipIfSingleExecutableIsNotSupported,
 } = require('../common/sea');
 
@@ -13,8 +13,8 @@ skipIfSingleExecutableIsNotSupported();
 // script.
 
 const tmpdir = require('../common/tmpdir');
-const { copyFileSync, writeFileSync, existsSync } = require('fs');
-const { execFileSync } = require('child_process');
+const { writeFileSync, existsSync } = require('fs');
+const { spawnSyncAndExitWithoutError } = require('../common/child_process');
 const assert = require('assert');
 
 const configFile = tmpdir.resolve('sea-config.json');
@@ -31,13 +31,33 @@ writeFileSync(configFile, `
 }
 `);
 
-execFileSync(process.execPath, ['--experimental-sea-config', 'sea-config.json'], {
-  cwd: tmpdir.path
-});
+spawnSyncAndExitWithoutError(
+  process.execPath,
+  ['--experimental-sea-config', 'sea-config.json'],
+  { cwd: tmpdir.path });
 
 assert(existsSync(seaPrepBlob));
 
-copyFileSync(process.execPath, outputFile);
-injectAndCodeSign(outputFile, seaPrepBlob);
+// Verify the workflow.
+try {
+  generateSEA(outputFile, process.execPath, seaPrepBlob, true);
+} catch (e) {
+  if (/Cannot copy/.test(e.message)) {
+    common.skip(e.message);
+  } else if (common.isWindows) {
+    if (/Cannot sign/.test(e.message) || /Cannot find signtool/.test(e.message)) {
+      common.skip(e.message);
+    }
+  }
 
-execFileSync(outputFile);
+  throw e;
+}
+
+spawnSyncAndExitWithoutError(
+  outputFile,
+  {
+    env: {
+      NODE_DEBUG_NATIVE: 'SEA',
+      ...process.env,
+    }
+  });

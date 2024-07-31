@@ -15,8 +15,8 @@ let func = builder.addFunction('func', kSig_v_i)
                  kExprDrop,          //
                ])
                .exportAs('main');
-var o = builder.addGlobal(kWasmI32, func).exportAs('exported_global');
-builder.addGlobal(kWasmI32);  // global2
+var o = builder.addGlobal(kWasmI32, true, false).exportAs('exported_global');
+builder.addGlobal(kWasmI32, false, false);  // global2
 let moduleBytes = builder.toArray();
 
 InspectorTest.runAsyncTestSuite([

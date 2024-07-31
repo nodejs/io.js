@@ -16,6 +16,7 @@ const http2 = require('http2');
     server.once('request', common.mustCall((request, response) => {
       const returnVal = response.writeHead(200, [
         ['foo', 'bar'],
+        ['foo', 'baz'],
         ['ABC', 123],
       ]);
       assert.strictEqual(returnVal, response);
@@ -26,7 +27,7 @@ const http2 = require('http2');
       const request = client.request();
 
       request.on('response', common.mustCall((headers) => {
-        assert.strictEqual(headers.foo, 'bar');
+        assert.strictEqual(headers.foo, 'bar, baz');
         assert.strictEqual(headers.abc, '123');
         assert.strictEqual(headers[':status'], 200);
       }, 1));
@@ -45,7 +46,7 @@ const http2 = require('http2');
     const port = server.address().port;
 
     server.once('request', common.mustCall((request, response) => {
-      const returnVal = response.writeHead(200, ['foo', 'bar', 'ABC', 123]);
+      const returnVal = response.writeHead(200, ['foo', 'bar', 'foo', 'baz', 'ABC', 123]);
       assert.strictEqual(returnVal, response);
       response.end(common.mustCall(() => { server.close(); }));
     }));
@@ -54,7 +55,7 @@ const http2 = require('http2');
       const request = client.request();
 
       request.on('response', common.mustCall((headers) => {
-        assert.strictEqual(headers.foo, 'bar');
+        assert.strictEqual(headers.foo, 'bar, baz');
         assert.strictEqual(headers.abc, '123');
         assert.strictEqual(headers[':status'], 200);
       }, 1));

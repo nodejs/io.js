@@ -69,14 +69,14 @@ export class Processor extends LogReader {
 
   MAJOR_VERSION = 7;
   MINOR_VERSION = 6;
-  constructor(useBigInt = false) {
-    super(false, false, useBigInt);
-    this.useBigInt = useBigInt;
-    this.kZero = useBigInt ? 0n : 0;
-    this.parseAddress = useBigInt ? BigInt : parseInt;
+  constructor(useBigIntAddresses = false) {
+    super(false, false, useBigIntAddresses);
+    this.useBigIntAddresses = useBigIntAddresses;
+    this.kZero = useBigIntAddresses ? 0n : 0;
+    this.parseAddress = useBigIntAddresses ? BigInt : parseInt;
     this._chunkConsumer =
         new AsyncConsumer((chunk) => this._processChunk(chunk));
-    this._profile = new Profile(useBigInt);
+    this._profile = new Profile(useBigIntAddresses);
     const propertyICParser = [
       this.parseAddress, parseInt, parseInt, parseInt, parseString, parseString,
       parseString, parseString, parseString, parseString

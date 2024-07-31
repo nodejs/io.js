@@ -104,6 +104,13 @@ public:
      */
     int32_t extract(char *dest, int32_t capacity, UErrorCode &errorCode) const;
 
+    bool operator==(const CharString& other) const {
+        return len == other.length() && (len == 0 || uprv_memcmp(data(), other.data(), len) == 0);
+    }
+    bool operator!=(const CharString& other) const {
+        return !operator==(other);
+    }
+
     bool operator==(StringPiece other) const {
         return len == other.length() && (len == 0 || uprv_memcmp(data(), other.data(), len) == 0);
     }

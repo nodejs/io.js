@@ -217,9 +217,7 @@ class ThreadLocalStorageTest : public Thread, public ::testing::Test {
   }
 
  private:
-  static void* GetValue(size_t x) {
-    return base::bit_cast<void*>(static_cast<uintptr_t>(x + 1));
-  }
+  static void* GetValue(size_t x) { return reinterpret_cast<void*>(x + 1); }
 
   // Older versions of Android have fewer TLS slots (nominally 64, but the
   // system uses "about 5 of them" itself).

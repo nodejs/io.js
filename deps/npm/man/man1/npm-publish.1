@@ -1,4 +1,4 @@
-.TH "NPM-PUBLISH" "1" "October 2023" "" ""
+.TH "NPM-PUBLISH" "1" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBnpm-publish\fR - Publish a package
 .SS "Synopsis"
@@ -14,7 +14,7 @@ Publishes a package to the registry so that it can be installed by name.
 .P
 By default npm will publish to the public registry. This can be overridden by specifying a different default registry or using a npm help scope in the name, combined with a scope-configured registry (see \fB\fBpackage.json\fR\fR \fI\(la/configuring-npm/package-json\(ra\fR).
 .P
-A \fBpackage\fR is interpreted the same way as other commands (like \fBnpm install\fR and can be:
+A \fBpackage\fR is interpreted the same way as other commands (like \fBnpm install\fR) and can be:
 .RS 0
 .IP \(bu 4
 a) a folder containing a program described by a \fB\fBpackage.json\fR\fR \fI\(la/configuring-npm/package-json\(ra\fR file
@@ -72,9 +72,12 @@ Type: String
 .P
 If you ask npm to install a package and don't tell it a specific version, then it will install the specified tag.
 .P
-Also the tag that is added to the package@version specified by the \fBnpm tag\fR command, if no explicit tag is given.
+It is the tag added to the package@version specified in the \fBnpm dist-tag
+add\fR command, if no explicit tag is given.
 .P
 When used by the \fBnpm diff\fR command, this is the tag used to fetch the tarball that will be compared with the local files by default.
+.P
+If used in the \fBnpm publish\fR command, this is the tag that will be added to the package submitted to the registry.
 .SS "\fBaccess\fR"
 .RS 0
 .IP \(bu 4

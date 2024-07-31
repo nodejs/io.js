@@ -57,18 +57,28 @@ static_assert(kDigitBits == 8 * sizeof(digit_t), "inconsistent type sizes");
 class Digits {
  public:
   // This is the constructor intended for public consumption.
+  Digits(const digit_t* mem, int len)
+      // The const_cast here is ugly, but we need the digits field to be mutable
+      // for the RWDigits subclass. We pinky swear to not mutate the memory with
+      // this class.
+      : Digits(const_cast<digit_t*>(mem), len) {}
+
   Digits(digit_t* mem, int len) : digits_(mem), len_(len) {
     // Require 4-byte alignment (even on 64-bit platforms).
     // TODO(jkummerow): See if we can tighten BigInt alignment in V8 to
     // system pointer size, and raise this requirement to that.
     BIGINT_H_DCHECK((reinterpret_cast<uintptr_t>(mem) & 3) == 0);
   }
+
   // Provides a "slice" view into another Digits object.
   Digits(Digits src, int offset, int len)
       : digits_(src.digits_ + offset),
         len_(std::max(0, std::min(src.len_ - offset, len))) {
     BIGINT_H_DCHECK(offset >= 0);
   }
+
+  Digits() : Digits(static_cast<digit_t*>(nullptr), 0) {}
+
   // Alternative way to get a "slice" view into another Digits object.
   Digits operator+(int i) {
     BIGINT_H_DCHECK(i >= 0 && i <= len_);
@@ -117,7 +127,7 @@ class Digits {
       return digits_[i];
     } else {
       digit_t result;
-      memcpy(&result, digits_ + i, sizeof(result));
+      memcpy(&result, static_cast<const void*>(digits_ + i), sizeof(result));
       return result;
     }
   }

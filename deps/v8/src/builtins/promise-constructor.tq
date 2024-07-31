@@ -82,6 +82,13 @@ transitioning javascript builtin PromiseConstructor(
   try {
     Call(context, UnsafeCast<Callable>(executor), Undefined, resolve, reject);
   } catch (e, _message) {
+    // We need to disable the debug event, as we have already paused on this
+    // exception.
+    const promiseContext =
+        %RawDownCast<PromiseResolvingFunctionContext>(funcs.context);
+    *ContextSlot(
+        promiseContext, PromiseResolvingFunctionContextSlot::kDebugEventSlot) =
+        False;
     Call(context, reject, Undefined, e);
   }
 

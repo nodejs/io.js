@@ -50,7 +50,8 @@ class MemoryOptimizer final {
  public:
   MemoryOptimizer(JSHeapBroker* broker, JSGraph* jsgraph, Zone* zone,
                   MemoryLowering::AllocationFolding allocation_folding,
-                  const char* function_debug_name, TickCounter* tick_counter);
+                  const char* function_debug_name, TickCounter* tick_counter,
+                  bool is_wasm);
   ~MemoryOptimizer() = default;
 
   void Optimize();

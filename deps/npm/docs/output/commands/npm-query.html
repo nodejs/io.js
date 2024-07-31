@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-query">npm-query</h1>
+<h1 id="----npm-query----1082">
+    <span>npm-query</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Dependency selector query</span>
 </header>
 
@@ -264,16 +272,22 @@ npm query ":type(git)" | jq 'map(.name)' | xargs -I {} npm why {}
   },
   ...
 </code></pre>
+<h3 id="expecting-a-certain-number-of-results">Expecting a certain number of results</h3>
+<p>One common use of <code>npm query</code> is to make sure there is only one version of
+a certain dependency in your tree.  This is especially common for
+ecosystems like that rely on <code>typescript</code> where having state split
+across two different but identically-named packages causes bugs.  You
+can use the <code>--expect-results</code> or <code>--expect-result-count</code> in your setup
+to ensure that npm will exit with an exit code if your tree doesn't look
+like you want it to.</p>
+<pre><code class="language-sh">$ npm query '#react' --expect-result-count=1
+</code></pre>
+<p>Perhaps you want to quickly check if there are any production
+dependencies that could be updated:</p>
+<pre><code class="language-sh">$ npm query ':root&gt;:outdated(in-range).prod' --no-expect-results
+</code></pre>
 <h3 id="package-lock-only-mode">Package lock only mode</h3>
-<p>If package-lock-only is enabled, only the information in the package
-lock (or shrinkwrap) is loaded.  This means that information from the
-package.json files of your dependencies will not be included in the
-result set (e.g. description, homepage, engines).</p>
-<h3 id="package-lock-only-mode2">Package lock only mode</h3>
-<p>If package-lock-only is enabled, only the information in the package
-lock (or shrinkwrap) is loaded.  This means that information from the
-package.json files of your dependencies will not be included in the
-result set (e.g. description, homepage, engines).</p>
+<p>If package-lock-only is enabled, only the information in the package lock (or shrinkwrap) is loaded.  This means that information from the package.json files of your dependencies will not be included in the result set (e.g. description, homepage, engines).</p>
 <h3 id="configuration">Configuration</h3>
 <h4 id="global"><code>global</code></h4>
 <ul>
@@ -345,6 +359,21 @@ ignoring <code>node_modules</code>.</p>
 instead of checking <code>node_modules</code> and downloading dependencies.</p>
 <p>For <code>list</code> this means the output will be based on the tree described by the
 <code>package-lock.json</code>, rather than the contents of <code>node_modules</code>.</p>
+<h4 id="expect-results"><code>expect-results</code></h4>
+<ul>
+<li>Default: null</li>
+<li>Type: null or Boolean</li>
+</ul>
+<p>Tells npm whether or not to expect results from the command. Can be either
+true (expect some results) or false (expect no results).</p>
+<p>This config can not be used with: <code>expect-result-count</code></p>
+<h4 id="expect-result-count"><code>expect-result-count</code></h4>
+<ul>
+<li>Default: null</li>
+<li>Type: null or Number</li>
+</ul>
+<p>Tells to expect a specific number of results from the command.</p>
+<p>This config can not be used with: <code>expect-results</code></p>
 <h2 id="see-also">See Also</h2>
 <ul>
 <li><a href="../using-npm/dependency-selectors.html">dependency selectors</a></li>

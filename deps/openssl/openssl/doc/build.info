@@ -843,6 +843,10 @@ DEPEND[html/man3/CMS_sign_receipt.html]=man3/CMS_sign_receipt.pod
 GENERATE[html/man3/CMS_sign_receipt.html]=man3/CMS_sign_receipt.pod
 DEPEND[man/man3/CMS_sign_receipt.3]=man3/CMS_sign_receipt.pod
 GENERATE[man/man3/CMS_sign_receipt.3]=man3/CMS_sign_receipt.pod
+DEPEND[html/man3/CMS_signed_get_attr.html]=man3/CMS_signed_get_attr.pod
+GENERATE[html/man3/CMS_signed_get_attr.html]=man3/CMS_signed_get_attr.pod
+DEPEND[man/man3/CMS_signed_get_attr.3]=man3/CMS_signed_get_attr.pod
+GENERATE[man/man3/CMS_signed_get_attr.3]=man3/CMS_signed_get_attr.pod
 DEPEND[html/man3/CMS_uncompress.html]=man3/CMS_uncompress.pod
 GENERATE[html/man3/CMS_uncompress.html]=man3/CMS_uncompress.pod
 DEPEND[man/man3/CMS_uncompress.3]=man3/CMS_uncompress.pod
@@ -1239,6 +1243,10 @@ DEPEND[html/man3/EVP_PKEY_fromdata.html]=man3/EVP_PKEY_fromdata.pod
 GENERATE[html/man3/EVP_PKEY_fromdata.html]=man3/EVP_PKEY_fromdata.pod
 DEPEND[man/man3/EVP_PKEY_fromdata.3]=man3/EVP_PKEY_fromdata.pod
 GENERATE[man/man3/EVP_PKEY_fromdata.3]=man3/EVP_PKEY_fromdata.pod
+DEPEND[html/man3/EVP_PKEY_get_attr.html]=man3/EVP_PKEY_get_attr.pod
+GENERATE[html/man3/EVP_PKEY_get_attr.html]=man3/EVP_PKEY_get_attr.pod
+DEPEND[man/man3/EVP_PKEY_get_attr.3]=man3/EVP_PKEY_get_attr.pod
+GENERATE[man/man3/EVP_PKEY_get_attr.3]=man3/EVP_PKEY_get_attr.pod
 DEPEND[html/man3/EVP_PKEY_get_default_digest_nid.html]=man3/EVP_PKEY_get_default_digest_nid.pod
 GENERATE[html/man3/EVP_PKEY_get_default_digest_nid.html]=man3/EVP_PKEY_get_default_digest_nid.pod
 DEPEND[man/man3/EVP_PKEY_get_default_digest_nid.3]=man3/EVP_PKEY_get_default_digest_nid.pod
@@ -2659,6 +2667,10 @@ DEPEND[html/man3/X509_ALGOR_dup.html]=man3/X509_ALGOR_dup.pod
 GENERATE[html/man3/X509_ALGOR_dup.html]=man3/X509_ALGOR_dup.pod
 DEPEND[man/man3/X509_ALGOR_dup.3]=man3/X509_ALGOR_dup.pod
 GENERATE[man/man3/X509_ALGOR_dup.3]=man3/X509_ALGOR_dup.pod
+DEPEND[html/man3/X509_ATTRIBUTE.html]=man3/X509_ATTRIBUTE.pod
+GENERATE[html/man3/X509_ATTRIBUTE.html]=man3/X509_ATTRIBUTE.pod
+DEPEND[man/man3/X509_ATTRIBUTE.3]=man3/X509_ATTRIBUTE.pod
+GENERATE[man/man3/X509_ATTRIBUTE.3]=man3/X509_ATTRIBUTE.pod
 DEPEND[html/man3/X509_CRL_get0_by_serial.html]=man3/X509_CRL_get0_by_serial.pod
 GENERATE[html/man3/X509_CRL_get0_by_serial.html]=man3/X509_CRL_get0_by_serial.pod
 DEPEND[man/man3/X509_CRL_get0_by_serial.3]=man3/X509_CRL_get0_by_serial.pod
@@ -2703,6 +2715,14 @@ DEPEND[html/man3/X509_PUBKEY_new.html]=man3/X509_PUBKEY_new.pod
 GENERATE[html/man3/X509_PUBKEY_new.html]=man3/X509_PUBKEY_new.pod
 DEPEND[man/man3/X509_PUBKEY_new.3]=man3/X509_PUBKEY_new.pod
 GENERATE[man/man3/X509_PUBKEY_new.3]=man3/X509_PUBKEY_new.pod
+DEPEND[html/man3/X509_REQ_get_attr.html]=man3/X509_REQ_get_attr.pod
+GENERATE[html/man3/X509_REQ_get_attr.html]=man3/X509_REQ_get_attr.pod
+DEPEND[man/man3/X509_REQ_get_attr.3]=man3/X509_REQ_get_attr.pod
+GENERATE[man/man3/X509_REQ_get_attr.3]=man3/X509_REQ_get_attr.pod
+DEPEND[html/man3/X509_REQ_get_extensions.html]=man3/X509_REQ_get_extensions.pod
+GENERATE[html/man3/X509_REQ_get_extensions.html]=man3/X509_REQ_get_extensions.pod
+DEPEND[man/man3/X509_REQ_get_extensions.3]=man3/X509_REQ_get_extensions.pod
+GENERATE[man/man3/X509_REQ_get_extensions.3]=man3/X509_REQ_get_extensions.pod
 DEPEND[html/man3/X509_SIG_get0.html]=man3/X509_SIG_get0.pod
 GENERATE[html/man3/X509_SIG_get0.html]=man3/X509_SIG_get0.pod
 DEPEND[man/man3/X509_SIG_get0.3]=man3/X509_SIG_get0.pod
@@ -2978,6 +2998,7 @@ html/man3/CMS_get0_type.html \
 html/man3/CMS_get1_ReceiptRequest.html \
 html/man3/CMS_sign.html \
 html/man3/CMS_sign_receipt.html \
+html/man3/CMS_signed_get_attr.html \
 html/man3/CMS_uncompress.html \
 html/man3/CMS_verify.html \
 html/man3/CMS_verify_receipt.html \
@@ -3077,6 +3098,7 @@ html/man3/EVP_PKEY_digestsign_supports_digest.html \
 html/man3/EVP_PKEY_encapsulate.html \
 html/man3/EVP_PKEY_encrypt.html \
 html/man3/EVP_PKEY_fromdata.html \
+html/man3/EVP_PKEY_get_attr.html \
 html/man3/EVP_PKEY_get_default_digest_nid.html \
 html/man3/EVP_PKEY_get_field_type.html \
 html/man3/EVP_PKEY_get_group_name.html \
@@ -3432,6 +3454,7 @@ html/man3/UI_new.html \
 html/man3/X509V3_get_d2i.html \
 html/man3/X509V3_set_ctx.html \
 html/man3/X509_ALGOR_dup.html \
+html/man3/X509_ATTRIBUTE.html \
 html/man3/X509_CRL_get0_by_serial.html \
 html/man3/X509_EXTENSION_set_object.html \
 html/man3/X509_LOOKUP.html \
@@ -3443,6 +3466,8 @@ html/man3/X509_NAME_get0_der.html \
 html/man3/X509_NAME_get_index_by_NID.html \
 html/man3/X509_NAME_print_ex.html \
 html/man3/X509_PUBKEY_new.html \
+html/man3/X509_REQ_get_attr.html \
+html/man3/X509_REQ_get_extensions.html \
 html/man3/X509_SIG_get0.html \
 html/man3/X509_STORE_CTX_get_error.html \
 html/man3/X509_STORE_CTX_new.html \
@@ -3582,6 +3607,7 @@ man/man3/CMS_get0_type.3 \
 man/man3/CMS_get1_ReceiptRequest.3 \
 man/man3/CMS_sign.3 \
 man/man3/CMS_sign_receipt.3 \
+man/man3/CMS_signed_get_attr.3 \
 man/man3/CMS_uncompress.3 \
 man/man3/CMS_verify.3 \
 man/man3/CMS_verify_receipt.3 \
@@ -3681,6 +3707,7 @@ man/man3/EVP_PKEY_digestsign_supports_digest.3 \
 man/man3/EVP_PKEY_encapsulate.3 \
 man/man3/EVP_PKEY_encrypt.3 \
 man/man3/EVP_PKEY_fromdata.3 \
+man/man3/EVP_PKEY_get_attr.3 \
 man/man3/EVP_PKEY_get_default_digest_nid.3 \
 man/man3/EVP_PKEY_get_field_type.3 \
 man/man3/EVP_PKEY_get_group_name.3 \
@@ -4036,6 +4063,7 @@ man/man3/UI_new.3 \
 man/man3/X509V3_get_d2i.3 \
 man/man3/X509V3_set_ctx.3 \
 man/man3/X509_ALGOR_dup.3 \
+man/man3/X509_ATTRIBUTE.3 \
 man/man3/X509_CRL_get0_by_serial.3 \
 man/man3/X509_EXTENSION_set_object.3 \
 man/man3/X509_LOOKUP.3 \
@@ -4047,6 +4075,8 @@ man/man3/X509_NAME_get0_der.3 \
 man/man3/X509_NAME_get_index_by_NID.3 \
 man/man3/X509_NAME_print_ex.3 \
 man/man3/X509_PUBKEY_new.3 \
+man/man3/X509_REQ_get_attr.3 \
+man/man3/X509_REQ_get_extensions.3 \
 man/man3/X509_SIG_get0.3 \
 man/man3/X509_STORE_CTX_get_error.3 \
 man/man3/X509_STORE_CTX_new.3 \

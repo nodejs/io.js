@@ -1,0 +1,3 @@
+features:
+- name: compression-streams
+  files: "**"

@@ -254,7 +254,7 @@ Handle<String> StringStream::ToString(Isolate* isolate) {
 }
 
 void StringStream::ClearMentionedObjectCache(Isolate* isolate) {
-  isolate->set_string_stream_current_security_token(Object());
+  isolate->set_string_stream_current_security_token(Tagged<Object>());
   if (isolate->string_stream_debug_object_cache() == nullptr) {
     isolate->set_string_stream_debug_object_cache(new DebugObjectCache());
   }

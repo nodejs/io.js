@@ -112,11 +112,11 @@ class ManagedEVPPKey : public MemoryRetainer {
       unsigned int* offset,
       bool allow_key_object);
 
-  v8::Maybe<bool> ToEncodedPublicKey(Environment* env,
+  v8::Maybe<void> ToEncodedPublicKey(Environment* env,
                                      const PublicKeyEncodingConfig& config,
                                      v8::Local<v8::Value>* out);
 
-  v8::Maybe<bool> ToEncodedPrivateKey(Environment* env,
+  v8::Maybe<void> ToEncodedPrivateKey(Environment* env,
                                       const PrivateKeyEncodingConfig& config,
                                       v8::Local<v8::Value>* out);
 

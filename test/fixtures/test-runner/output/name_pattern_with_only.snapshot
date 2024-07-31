@@ -15,27 +15,12 @@ ok 1 - enabled and only
   ---
   duration_ms: *
   ...
-# Subtest: enabled but not only
-ok 2 - enabled but not only # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-# Subtest: only does not match pattern
-ok 3 - only does not match pattern # SKIP test name does not match pattern
-  ---
-  duration_ms: *
-  ...
-# Subtest: not only and does not match pattern
-ok 4 - not only and does not match pattern # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-1..4
-# tests 6
+1..1
+# tests 3
 # suites 0
 # pass 3
 # fail 0
 # cancelled 0
-# skipped 3
+# skipped 0
 # todo 0
 # duration_ms *

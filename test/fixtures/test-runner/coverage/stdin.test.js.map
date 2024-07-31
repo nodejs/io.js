@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["stdin.test.ts"],
+  "sourcesContent": ["import { test } from 'node:test';\ntest('ok', () => {});\n\nfunction uncovered() {\n  return 'uncovered';\n}\n\n"],
+  "mappings": ";AAAA,uBAAqB;AAAA,IACrB,uBAAK,MAAM,MAAM;AAAC,CAAC;",
+  "names": []
+}

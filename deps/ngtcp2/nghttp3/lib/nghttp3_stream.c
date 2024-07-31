@@ -35,6 +35,7 @@
 #include "nghttp3_str.h"
 #include "nghttp3_http.h"
 #include "nghttp3_vec.h"
+#include "nghttp3_unreachable.h"
 
 /* NGHTTP3_STREAM_MAX_COPY_THRES is the maximum size of buffer which
    makes a copy to outq. */
@@ -43,13 +44,14 @@
 /* NGHTTP3_MIN_RBLEN is the minimum length of nghttp3_ringbuf */
 #define NGHTTP3_MIN_RBLEN 4
 
+nghttp3_objalloc_def(stream, nghttp3_stream, oplent);
+
 int nghttp3_stream_new(nghttp3_stream **pstream, int64_t stream_id,
-                       uint64_t seq, const nghttp3_stream_callbacks *callbacks,
+                       const nghttp3_stream_callbacks *callbacks,
                        nghttp3_objalloc *out_chunk_objalloc,
                        nghttp3_objalloc *stream_objalloc,
                        const nghttp3_mem *mem) {
   nghttp3_stream *stream = nghttp3_objalloc_stream_get(stream_objalloc);
-  nghttp3_node_id nid;
 
   if (stream == NULL) {
     return NGHTTP3_ERR_NOMEM;
@@ -60,10 +62,7 @@ int nghttp3_stream_new(nghttp3_stream **pstream, int64_t stream_id,
   stream->out_chunk_objalloc = out_chunk_objalloc;
   stream->stream_objalloc = stream_objalloc;
 
-  nghttp3_tnode_init(
-      &stream->node,
-      nghttp3_node_id_init(&nid, NGHTTP3_NODE_ID_TYPE_STREAM, stream_id), seq,
-      NGHTTP3_DEFAULT_URGENCY);
+  nghttp3_tnode_init(&stream->node, stream_id);
 
   nghttp3_ringbuf_init(&stream->frq, 0, sizeof(nghttp3_frame_entry), mem);
   nghttp3_ringbuf_init(&stream->chunks, 0, sizeof(nghttp3_buf), mem);
@@ -77,7 +76,7 @@ int nghttp3_stream_new(nghttp3_stream **pstream, int64_t stream_id,
   stream->tx.offset = 0;
   stream->rx.http.status_code = -1;
   stream->rx.http.content_length = -1;
-  stream->rx.http.pri = NGHTTP3_DEFAULT_URGENCY;
+  stream->rx.http.pri.urgency = NGHTTP3_DEFAULT_URGENCY;
   stream->error_code = NGHTTP3_H3_NO_ERROR;
 
   if (callbacks) {
@@ -146,6 +145,9 @@ static void delete_frq(nghttp3_ringbuf *frq, const nghttp3_mem *mem) {
     case NGHTTP3_FRAME_HEADERS:
       nghttp3_frame_headers_free(&frent->fr.headers, mem);
       break;
+    case NGHTTP3_FRAME_PRIORITY_UPDATE:
+      nghttp3_frame_priority_update_free(&frent->fr.priority_update, mem);
+      break;
     default:
       break;
     }
@@ -188,7 +190,7 @@ nghttp3_ssize nghttp3_read_varint(nghttp3_varint_read_state *rvint,
   if (rvint->left == 0) {
     assert(rvint->acc == 0);
 
-    rvint->left = nghttp3_get_varint_len(src);
+    rvint->left = nghttp3_get_varintlen(src);
     if (rvint->left <= srclen) {
       rvint->acc = nghttp3_get_varint(&nread, src);
       rvint->left = 0;
@@ -248,7 +250,7 @@ int nghttp3_stream_fill_outq(nghttp3_stream *stream) {
   int data_eof;
   int rv;
 
-  for (; nghttp3_ringbuf_len(frq) && !nghttp3_stream_outq_is_full(stream) &&
+  for (; nghttp3_ringbuf_len(frq) &&
          stream->unsent_bytes < NGHTTP3_MIN_UNSENT_BYTES;) {
     frent = nghttp3_ringbuf_get(frq, 0);
 
@@ -289,6 +291,8 @@ int nghttp3_stream_fill_outq(nghttp3_stream *stream) {
       if (rv != 0) {
         return rv;
       }
+      nghttp3_frame_priority_update_free(&frent->fr.priority_update,
+                                         stream->mem);
       break;
     default:
       /* TODO Not implemented */
@@ -308,7 +312,7 @@ static void typed_buf_shared_init(nghttp3_typed_buf *tbuf,
 }
 
 int nghttp3_stream_write_stream_type(nghttp3_stream *stream) {
-  size_t len = nghttp3_put_varint_len((int64_t)stream->type);
+  size_t len = nghttp3_put_varintlen((int64_t)stream->type);
   nghttp3_buf *chunk;
   nghttp3_typed_buf tbuf;
   int rv;
@@ -351,10 +355,18 @@ int nghttp3_stream_write_settings(nghttp3_stream *stream,
   iv[2].id = NGHTTP3_SETTINGS_ID_QPACK_BLOCKED_STREAMS;
   iv[2].value = local_settings->qpack_blocked_streams;
 
-  if (local_settings->enable_connect_protocol) {
+  if (local_settings->h3_datagram) {
+    iv[fr.settings.niv].id = NGHTTP3_SETTINGS_ID_H3_DATAGRAM;
+    iv[fr.settings.niv].value = 1;
+
     ++fr.settings.niv;
-    iv[3].id = NGHTTP3_SETTINGS_ID_ENABLE_CONNECT_PROTOCOL;
-    iv[3].value = 1;
+  }
+
+  if (local_settings->enable_connect_protocol) {
+    iv[fr.settings.niv].id = NGHTTP3_SETTINGS_ID_ENABLE_CONNECT_PROTOCOL;
+    iv[fr.settings.niv].value = 1;
+
+    ++fr.settings.niv;
   }
 
   len = nghttp3_frame_write_settings_len(&fr.settings.hd.length, &fr.settings);
@@ -453,8 +465,8 @@ int nghttp3_stream_write_header_block(nghttp3_stream *stream,
 
   nghttp3_buf_wrap_init(&pbuf, raw_pbuf, sizeof(raw_pbuf));
 
-  rv = nghttp3_qpack_encoder_encode(qenc, &pbuf, rbuf, ebuf,
-                                    stream->node.nid.id, nva, nvlen);
+  rv = nghttp3_qpack_encoder_encode(qenc, &pbuf, rbuf, ebuf, stream->node.id,
+                                    nva, nvlen);
   if (rv != 0) {
     goto fail;
   }
@@ -574,8 +586,8 @@ int nghttp3_stream_write_data(nghttp3_stream *stream, int *peof,
 
   *peof = 0;
 
-  sveccnt = read_data(conn, stream->node.nid.id, vec, nghttp3_arraylen(vec),
-                      &flags, conn->user_data, stream->user_data);
+  sveccnt = read_data(conn, stream->node.id, vec, nghttp3_arraylen(vec), &flags,
+                      conn->user_data, stream->user_data);
   if (sveccnt < 0) {
     if (sveccnt == NGHTTP3_ERR_WOULDBLOCK) {
       stream->flags |= NGHTTP3_STREAM_FLAG_READ_DATA_BLOCKED;
@@ -691,11 +703,6 @@ int nghttp3_stream_write_qpack_decoder_stream(nghttp3_stream *stream) {
   return nghttp3_stream_outq_add(stream, &tbuf);
 }
 
-int nghttp3_stream_outq_is_full(nghttp3_stream *stream) {
-  /* TODO Verify that the limit is reasonable. */
-  return nghttp3_ringbuf_len(&stream->outq) >= 1024;
-}
-
 int nghttp3_stream_outq_add(nghttp3_stream *stream,
                             const nghttp3_typed_buf *tbuf) {
   nghttp3_ringbuf *outq = &stream->outq;
@@ -809,11 +816,11 @@ int nghttp3_stream_require_schedule(nghttp3_stream *stream) {
           !(stream->flags & NGHTTP3_STREAM_FLAG_READ_DATA_BLOCKED));
 }
 
-nghttp3_ssize nghttp3_stream_writev(nghttp3_stream *stream, int *pfin,
-                                    nghttp3_vec *vec, size_t veccnt) {
+size_t nghttp3_stream_writev(nghttp3_stream *stream, int *pfin,
+                             nghttp3_vec *vec, size_t veccnt) {
   nghttp3_ringbuf *outq = &stream->outq;
   size_t len = nghttp3_ringbuf_len(outq);
-  size_t i;
+  size_t i = stream->outq_idx;
   uint64_t offset = stream->outq_offset;
   size_t buflen;
   nghttp3_vec *vbegin = vec, *vend = vec + veccnt;
@@ -821,25 +828,27 @@ nghttp3_ssize nghttp3_stream_writev(nghttp3_stream *stream, int *pfin,
 
   assert(veccnt > 0);
 
-  for (i = stream->outq_idx; i < len; ++i) {
+  if (i < len) {
     tbuf = nghttp3_ringbuf_get(outq, i);
     buflen = nghttp3_buf_len(&tbuf->buf);
-    if (offset >= buflen) {
-      offset -= buflen;
-      continue;
+
+    if (offset < buflen) {
+      vec->base = tbuf->buf.pos + offset;
+      vec->len = (size_t)(buflen - offset);
+      ++vec;
+    } else {
+      /* This is the only case that satisfies offset >= buflen */
+      assert(0 == offset);
+      assert(0 == buflen);
     }
 
-    vec->base = tbuf->buf.pos + offset;
-    vec->len = (size_t)(buflen - offset);
-    ++vec;
     ++i;
-    break;
-  }
 
-  for (; i < len && vec != vend; ++i, ++vec) {
-    tbuf = nghttp3_ringbuf_get(outq, i);
-    vec->base = tbuf->buf.pos;
-    vec->len = nghttp3_buf_len(&tbuf->buf);
+    for (; i < len && vec != vend; ++i, ++vec) {
+      tbuf = nghttp3_ringbuf_get(outq, i);
+      vec->base = tbuf->buf.pos;
+      vec->len = nghttp3_buf_len(&tbuf->buf);
+    }
   }
 
   /* TODO Rework this if we have finished implementing HTTP
@@ -847,10 +856,10 @@ nghttp3_ssize nghttp3_stream_writev(nghttp3_stream *stream, int *pfin,
   *pfin = nghttp3_ringbuf_len(&stream->frq) == 0 && i == len &&
           (stream->flags & NGHTTP3_STREAM_FLAG_WRITE_END_STREAM);
 
-  return vec - vbegin;
+  return (size_t)(vec - vbegin);
 }
 
-int nghttp3_stream_add_outq_offset(nghttp3_stream *stream, size_t n) {
+void nghttp3_stream_add_outq_offset(nghttp3_stream *stream, size_t n) {
   nghttp3_ringbuf *outq = &stream->outq;
   size_t i;
   size_t len = nghttp3_ringbuf_len(outq);
@@ -874,8 +883,6 @@ int nghttp3_stream_add_outq_offset(nghttp3_stream *stream, size_t n) {
   stream->unsent_bytes -= n;
   stream->outq_idx = i;
   stream->outq_offset = offset;
-
-  return 0;
 }
 
 int nghttp3_stream_outq_write_done(nghttp3_stream *stream) {
@@ -885,8 +892,8 @@ int nghttp3_stream_outq_write_done(nghttp3_stream *stream) {
   return len == 0 || stream->outq_idx >= len;
 }
 
-static int stream_pop_outq_entry(nghttp3_stream *stream,
-                                 nghttp3_typed_buf *tbuf) {
+static void stream_pop_outq_entry(nghttp3_stream *stream,
+                                  nghttp3_typed_buf *tbuf) {
   nghttp3_ringbuf *chunks = &stream->chunks;
   nghttp3_buf *chunk;
 
@@ -915,13 +922,10 @@ static int stream_pop_outq_entry(nghttp3_stream *stream,
     }
     break;
   default:
-    assert(0);
-    abort();
+    nghttp3_unreachable();
   };
 
   nghttp3_ringbuf_pop_front(&stream->outq);
-
-  return 0;
 }
 
 int nghttp3_stream_add_ack_offset(nghttp3_stream *stream, uint64_t n) {
@@ -940,7 +944,7 @@ int nghttp3_stream_add_ack_offset(nghttp3_stream *stream, uint64_t n) {
     if (tbuf->type == NGHTTP3_BUF_TYPE_ALIEN) {
       nack = nghttp3_min(offset, (uint64_t)buflen) - stream->ack_done;
       if (stream->callbacks.acked_data) {
-        rv = stream->callbacks.acked_data(stream, stream->node.nid.id, nack,
+        rv = stream->callbacks.acked_data(stream, stream->node.id, nack,
                                           stream->user_data);
         if (rv != 0) {
           return NGHTTP3_ERR_CALLBACK_FAILURE;
@@ -950,10 +954,7 @@ int nghttp3_stream_add_ack_offset(nghttp3_stream *stream, uint64_t n) {
     }
 
     if (offset >= buflen) {
-      rv = stream_pop_outq_entry(stream, tbuf);
-      if (rv != 0) {
-        return rv;
-      }
+      stream_pop_outq_entry(stream, tbuf);
 
       offset -= buflen;
       ++npopped;
@@ -1221,8 +1222,7 @@ int nghttp3_stream_transit_rx_http_state(nghttp3_stream *stream,
   case NGHTTP3_HTTP_STATE_RESP_END:
     return NGHTTP3_ERR_MALFORMED_HTTP_MESSAGING;
   default:
-    assert(0);
-    abort();
+    nghttp3_unreachable();
   }
 }
 

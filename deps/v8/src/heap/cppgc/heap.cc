@@ -8,6 +8,7 @@
 #include "src/heap/base/stack.h"
 #include "src/heap/cppgc/garbage-collector.h"
 #include "src/heap/cppgc/gc-invoker.h"
+#include "src/heap/cppgc/heap-config.h"
 #include "src/heap/cppgc/heap-object-header.h"
 #include "src/heap/cppgc/heap-visitor.h"
 #include "src/heap/cppgc/marker.h"
@@ -83,6 +84,9 @@ Heap::Heap(std::shared_ptr<cppgc::Platform> platform,
                 platform_->GetForegroundTaskRunner());
   CHECK_IMPLIES(options.sweeping_support != HeapBase::SweepingType::kAtomic,
                 platform_->GetForegroundTaskRunner());
+#ifdef V8_ENABLE_ALLOCATION_TIMEOUT
+  object_allocator().UpdateAllocationTimeout();
+#endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 }
 
 Heap::~Heap() {
@@ -171,7 +175,7 @@ void Heap::FinalizeGarbageCollection(StackState stack_state) {
 void Heap::FinalizeGarbageCollectionImpl(StackState stack_state) {
   DCHECK(IsMarking());
   DCHECK(!in_no_gc_scope());
-  CHECK(!in_disallow_gc_scope());
+  CHECK(!IsGCForbidden());
   config_.stack_state = stack_state;
   in_atomic_pause_ = true;
 
@@ -211,8 +215,10 @@ void Heap::FinalizeGarbageCollectionImpl(StackState stack_state) {
       config_.sweeping_type, SweepingConfig::CompactableSpaceHandling::kSweep,
       config_.free_memory_handling};
   sweeper_.Start(sweeping_config);
+  if (config_.sweeping_type == SweepingConfig::SweepingType::kAtomic) {
+    sweeper_.FinishIfRunning();
+  }
   in_atomic_pause_ = false;
-  sweeper_.NotifyDoneIfNeeded();
 }
 
 void Heap::EnableGenerationalGC() {

@@ -46,7 +46,7 @@ static void getter_thread_body(void* arg) {
   getter_sem = arg;
 
   while (UV_EAGAIN == uv_sem_trywait(getter_sem)) {
-    ASSERT(0 == uv_get_process_title(buffer, sizeof(buffer)));
+    ASSERT_OK(uv_get_process_title(buffer, sizeof(buffer)));
 
     /* The maximum size of the process title on some platforms depends on
      * the total size of the argv vector. It's therefore possible to read
@@ -70,10 +70,10 @@ static void setter_thread_body(void* arg) {
   int i;
 
   for (i = 0; i < NUM_ITERATIONS; i++) {
-    ASSERT(0 == uv_set_process_title(titles[0]));
-    ASSERT(0 == uv_set_process_title(titles[1]));
-    ASSERT(0 == uv_set_process_title(titles[2]));
-    ASSERT(0 == uv_set_process_title(titles[3]));
+    ASSERT_OK(uv_set_process_title(titles[0]));
+    ASSERT_OK(uv_set_process_title(titles[1]));
+    ASSERT_OK(uv_set_process_title(titles[2]));
+    ASSERT_OK(uv_set_process_title(titles[3]));
   }
 }
 
@@ -89,20 +89,19 @@ TEST_IMPL(process_title_threadsafe) {
   RETURN_SKIP("uv_(get|set)_process_title is not implemented.");
 #endif
 
-  ASSERT(0 == uv_set_process_title(titles[0]));
+  ASSERT_OK(uv_set_process_title(titles[0]));
 
-  ASSERT_EQ(0, uv_sem_init(&getter_sem, 0));
-  ASSERT_EQ(0,
-            uv_thread_create(&getter_thread, getter_thread_body, &getter_sem));
-
-  for (i = 0; i < (int) ARRAY_SIZE(setter_threads); i++)
-    ASSERT(0 == uv_thread_create(&setter_threads[i], setter_thread_body, NULL));
+  ASSERT_OK(uv_sem_init(&getter_sem, 0));
+  ASSERT_OK(uv_thread_create(&getter_thread, getter_thread_body, &getter_sem));
 
   for (i = 0; i < (int) ARRAY_SIZE(setter_threads); i++)
-    ASSERT(0 == uv_thread_join(&setter_threads[i]));
+    ASSERT_OK(uv_thread_create(&setter_threads[i], setter_thread_body, NULL));
+
+  for (i = 0; i < (int) ARRAY_SIZE(setter_threads); i++)
+    ASSERT_OK(uv_thread_join(&setter_threads[i]));
 
   uv_sem_post(&getter_sem);
-  ASSERT_EQ(0, uv_thread_join(&getter_thread));
+  ASSERT_OK(uv_thread_join(&getter_thread));
   uv_sem_destroy(&getter_sem);
 
   return 0;

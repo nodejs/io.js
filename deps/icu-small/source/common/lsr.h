@@ -7,6 +7,7 @@
 #ifndef __LSR_H__
 #define __LSR_H__
 
+#include "unicode/stringpiece.h"
 #include "unicode/utypes.h"
 #include "unicode/uobject.h"
 #include "cstring.h"
@@ -44,6 +45,8 @@ struct LSR final : public UMemory {
      * copies those into owned memory, and aliases the region.
      */
     LSR(char prefix, const char *lang, const char *scr, const char *r, int32_t f,
+        UErrorCode &errorCode);
+    LSR(StringPiece lang, StringPiece scr, StringPiece r, int32_t f,
         UErrorCode &errorCode);
     LSR(LSR &&other) noexcept;
     LSR(const LSR &other) = delete;

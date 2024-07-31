@@ -8,7 +8,9 @@ namespace inspector {
 namespace protocol {
 
 RuntimeAgent::RuntimeAgent()
-  : notify_when_waiting_for_disconnect_(false) {}
+    : notify_when_waiting_for_disconnect_(false),
+      enabled_(false),
+      is_waiting_for_debugger_(false) {}
 
 void RuntimeAgent::Wire(UberDispatcher* dispatcher) {
   frontend_ = std::make_unique<NodeRuntime::Frontend>(dispatcher->channel());
@@ -18,6 +20,30 @@ void RuntimeAgent::Wire(UberDispatcher* dispatcher) {
 DispatchResponse RuntimeAgent::notifyWhenWaitingForDisconnect(bool enabled) {
   notify_when_waiting_for_disconnect_ = enabled;
   return DispatchResponse::OK();
+}
+
+DispatchResponse RuntimeAgent::enable() {
+  enabled_ = true;
+  if (is_waiting_for_debugger_) {
+    frontend_->waitingForDebugger();
+  }
+  return DispatchResponse::OK();
+}
+
+DispatchResponse RuntimeAgent::disable() {
+  enabled_ = false;
+  return DispatchResponse::OK();
+}
+
+void RuntimeAgent::setWaitingForDebugger() {
+  is_waiting_for_debugger_ = true;
+  if (enabled_) {
+    frontend_->waitingForDebugger();
+  }
+}
+
+void RuntimeAgent::unsetWaitingForDebugger() {
+  is_waiting_for_debugger_ = false;
 }
 
 bool RuntimeAgent::notifyWaitingForDisconnect() {

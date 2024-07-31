@@ -1175,6 +1175,21 @@ uprv_tzname(int n)
         if (ret != nullptr && uprv_strcmp(TZDEFAULT, gTimeZoneBuffer) != 0) {
             int32_t tzZoneInfoTailLen = uprv_strlen(TZZONEINFOTAIL);
             const char *tzZoneInfoTailPtr = uprv_strstr(gTimeZoneBuffer, TZZONEINFOTAIL);
+            // MacOS14 has the realpath as something like
+            // /usr/share/zoneinfo.default/Australia/Melbourne
+            // which will not have "/zoneinfo/" in the path.
+            // Therefore if we fail, we fall back to read the link which is
+            // /var/db/timezone/zoneinfo/Australia/Melbourne
+            // We also fall back to reading the link if the realpath leads to something like
+            // /usr/share/zoneinfo/posixrules
+            if (tzZoneInfoTailPtr == nullptr ||
+                    uprv_strcmp(tzZoneInfoTailPtr + tzZoneInfoTailLen, "posixrules") == 0) {
+                ssize_t size = readlink(TZDEFAULT, gTimeZoneBuffer, sizeof(gTimeZoneBuffer)-1);
+                if (size > 0) {
+                    gTimeZoneBuffer[size] = 0;
+                    tzZoneInfoTailPtr = uprv_strstr(gTimeZoneBuffer, TZZONEINFOTAIL);
+                }
+            }
             if (tzZoneInfoTailPtr != nullptr) {
                 tzZoneInfoTailPtr += tzZoneInfoTailLen;
                 skipZoneIDPrefix(&tzZoneInfoTailPtr);
@@ -1483,7 +1498,6 @@ static void U_CALLCONV dataDirectoryInitFn() {
     }
 
     u_setDataDirectory(path);
-    return;
 }
 
 U_CAPI const char * U_EXPORT2
@@ -1607,7 +1621,7 @@ static const char *uprv_getPOSIXIDForCategory(int category)
         * of nullptr, will modify the libc behavior.
         */
         posixID = setlocale(category, nullptr);
-        if ((posixID == 0)
+        if ((posixID == nullptr)
             || (uprv_strcmp("C", posixID) == 0)
             || (uprv_strcmp("POSIX", posixID) == 0))
         {
@@ -1621,16 +1635,16 @@ static const char *uprv_getPOSIXIDForCategory(int category)
                 posixID = getenv(category == LC_MESSAGES ? "LC_MESSAGES" : "LC_CTYPE");
                 if ((posixID == 0) || (posixID[0] == '\0')) {
 #else
-            if (posixID == 0) {
+            if (posixID == nullptr) {
                 posixID = getenv(category == LC_MESSAGES ? "LC_MESSAGES" : "LC_CTYPE");
-                if (posixID == 0) {
+                if (posixID == nullptr) {
 #endif
                     posixID = getenv("LANG");
                 }
             }
         }
     }
-    if ((posixID==0)
+    if ((posixID == nullptr)
         || (uprv_strcmp("C", posixID) == 0)
         || (uprv_strcmp("POSIX", posixID) == 0))
     {
@@ -1650,7 +1664,7 @@ static const char *uprv_getPOSIXIDForCategory(int category)
 static const char *uprv_getPOSIXIDForDefaultLocale()
 {
     static const char* posixID = nullptr;
-    if (posixID == 0) {
+    if (posixID == nullptr) {
         posixID = uprv_getPOSIXIDForCategory(LC_MESSAGES);
     }
     return posixID;

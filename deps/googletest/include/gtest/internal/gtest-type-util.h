@@ -71,7 +71,7 @@ inline std::string CanonicalizeForStdLibVersioning(std::string s) {
   // Strip redundant spaces in typename to match MSVC
   // For example, std::pair<int, bool> -> std::pair<int,bool>
   static const char to_search[] = ", ";
-  static const char replace_str[] = ",";
+  const char replace_char = ',';
   size_t pos = 0;
   while (true) {
     // Get the next occurrence from the current position
@@ -80,8 +80,8 @@ inline std::string CanonicalizeForStdLibVersioning(std::string s) {
       break;
     }
     // Replace this occurrence of substring
-    s.replace(pos, strlen(to_search), replace_str);
-    pos += strlen(replace_str);
+    s.replace(pos, strlen(to_search), 1, replace_char);
+    ++pos;
   }
   return s;
 }

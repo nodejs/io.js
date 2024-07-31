@@ -7,6 +7,7 @@ const stream = require('stream');
 let loops = 5;
 
 const src = new stream.Readable({
+  highWaterMark: 16 * 1024,
   read() {
     if (loops--)
       this.push(Buffer.alloc(20000));
@@ -14,6 +15,7 @@ const src = new stream.Readable({
 });
 
 const dst = new stream.Transform({
+  highWaterMark: 16 * 1024,
   transform(chunk, output, fn) {
     this.push(null);
     fn();

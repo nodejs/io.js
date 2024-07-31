@@ -7,6 +7,7 @@
 #include "src/base/iterator.h"
 #include "src/base/optional.h"
 #include "src/base/utils/random-number-generator.h"
+#include "src/compiler/backend/instruction-codes.h"
 
 namespace v8 {
 namespace internal {
@@ -300,6 +301,14 @@ int InstructionScheduler::GetInstructionFlags(const Instruction* instr) const {
       // pointer value and must not be reordered with instructions with side
       // effects.
       return kIsLoadOperation;
+
+#if V8_ENABLE_WEBASSEMBLY
+    case kArchStackPointer:
+    case kArchSetStackPointer:
+      // Instructions that load or set the stack pointer must not be reordered
+      // with instructions with side effects or with each other.
+      return kHasSideEffect;
+#endif  // V8_ENABLE_WEBASSEMBLY
 
     case kArchPrepareCallCFunction:
     case kArchPrepareTailCall:

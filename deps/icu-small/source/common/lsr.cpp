@@ -31,6 +31,26 @@ LSR::LSR(char prefix, const char *lang, const char *scr, const char *r, int32_t 
     }
 }
 
+LSR::LSR(StringPiece lang, StringPiece scr, StringPiece r, int32_t f,
+         UErrorCode &errorCode) :
+        language(nullptr), script(nullptr), region(nullptr),
+        regionIndex(indexForRegion(r.data())), flags(f) {
+    if (U_SUCCESS(errorCode)) {
+        CharString data;
+        data.append(lang, errorCode).append('\0', errorCode);
+        int32_t scriptOffset = data.length();
+        data.append(scr, errorCode).append('\0', errorCode);
+        int32_t regionOffset = data.length();
+        data.append(r, errorCode);
+        owned = data.cloneData(errorCode);
+        if (U_SUCCESS(errorCode)) {
+            language = owned;
+            script = owned + scriptOffset;
+            region = owned + regionOffset;
+        }
+    }
+}
+
 LSR::LSR(LSR &&other) noexcept :
         language(other.language), script(other.script), region(other.region), owned(other.owned),
         regionIndex(other.regionIndex), flags(other.flags),

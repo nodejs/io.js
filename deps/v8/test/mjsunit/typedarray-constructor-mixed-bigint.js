@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Flags: --js-float16array
+
 let BigIntCtors = [BigInt64Array, BigUint64Array];
 let NonBigIntCtors = [Int8Array,
                       Uint8Array,
@@ -10,6 +12,7 @@ let NonBigIntCtors = [Int8Array,
                       Uint16Array,
                       Int32Array,
                       Uint32Array,
+                      Float16Array,
                       Float32Array,
                       Float64Array];
 

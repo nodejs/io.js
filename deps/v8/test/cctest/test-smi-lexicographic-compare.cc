@@ -13,7 +13,7 @@ namespace internal {
 
 namespace {
 
-void AddSigned(std::set<Smi>* smis, int64_t x) {
+void AddSigned(std::set<Tagged<Smi>>* smis, int64_t x) {
   if (!Smi::IsValid(x)) return;
 
   smis->insert(Smi::FromInt(static_cast<int>(x)));
@@ -40,7 +40,7 @@ int ExpectedCompareResult(Tagged<Smi> a, Tagged<Smi> b) {
 }
 
 bool Test(Isolate* isolate, Tagged<Smi> a, Tagged<Smi> b) {
-  int actual = Smi(Smi::LexicographicCompare(isolate, a, b)).value();
+  int actual = Tagged<Smi>(Smi::LexicographicCompare(isolate, a, b)).value();
   int expected = ExpectedCompareResult(a, b);
 
   return actual == expected;
@@ -52,7 +52,7 @@ TEST(TestSmiLexicographicCompare) {
   Isolate* isolate = CcTest::InitIsolateOnce();
   HandleScope scope(isolate);
 
-  std::set<Smi> smis;
+  std::set<Tagged<Smi>> smis;
 
   for (int64_t xb = 1; xb <= Smi::kMaxValue; xb *= 10) {
     for (int64_t xf = 0; xf <= 9; ++xf) {

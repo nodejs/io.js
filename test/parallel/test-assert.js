@@ -55,6 +55,16 @@ assert.throws(() => a.ok(false), a.AssertionError, 'ok(false)');
   assert.ok(threw, 'Error: ok(false)');
 }
 
+// Errors created in different contexts are handled as any other custom error
+{
+  const context = vm.createContext();
+  const error = vm.runInContext('new SyntaxError("custom error")', context);
+
+  assert.throws(() => assert(false, error), {
+    message: 'custom error',
+    name: 'SyntaxError'
+  });
+}
 
 a(true);
 a('test', 'ok(\'test\')');
@@ -730,7 +740,7 @@ assert.throws(
     // before the assertion causes any wrong assertion message.
     // Therefore, don't reformat the following code.
     // Refs: https://github.com/nodejs/node/issues/30872
-    try { assert.ok(0);   // eslint-disable-line no-useless-catch, brace-style
+    try { assert.ok(0);   // eslint-disable-line no-useless-catch, @stylistic/js/brace-style
     } catch (err) {
       throw err;
     }
@@ -767,7 +777,7 @@ assert.throws(
     // before the assertion causes any wrong assertion message.
     // Therefore, don't reformat the following code.
     // Refs: https://github.com/nodejs/node/issues/30872
-    function test() { assert.ok(0);     // eslint-disable-line brace-style
+    function test() { assert.ok(0);     // eslint-disable-line @stylistic/js/brace-style
     }
     test();
   },
@@ -804,7 +814,7 @@ assert.throws(
   () => {
     a(
       (() => 'string')()
-      // eslint-disable-next-line operator-linebreak
+      // eslint-disable-next-line @stylistic/js/operator-linebreak
       ===
       123 instanceof
           Buffer
@@ -816,7 +826,7 @@ assert.throws(
     message: 'The expression evaluated to a falsy value:\n\n' +
              '  a(\n' +
              '    (() => \'string\')()\n' +
-             '    // eslint-disable-next-line operator-linebreak\n' +
+             '    // eslint-disable-next-line @stylistic/js/operator-linebreak\n' +
              '    ===\n' +
              '    123 instanceof\n' +
              '        Buffer\n' +
@@ -828,7 +838,7 @@ assert.throws(
   () => {
     a(
       (() => 'string')()
-      // eslint-disable-next-line operator-linebreak
+      // eslint-disable-next-line @stylistic/js/operator-linebreak
       ===
   123 instanceof
           Buffer
@@ -840,7 +850,7 @@ assert.throws(
     message: 'The expression evaluated to a falsy value:\n\n' +
              '  a(\n' +
              '    (() => \'string\')()\n' +
-             '    // eslint-disable-next-line operator-linebreak\n' +
+             '    // eslint-disable-next-line @stylistic/js/operator-linebreak\n' +
              '    ===\n' +
              '  123 instanceof\n' +
              '        Buffer\n' +
@@ -848,7 +858,7 @@ assert.throws(
   }
 );
 
-/* eslint-disable indent */
+/* eslint-disable @stylistic/js/indent */
 assert.throws(() => {
 a((
   () => 'string')() ===
@@ -866,7 +876,7 @@ Buffer
            '  )\n'
   }
 );
-/* eslint-enable indent */
+/* eslint-enable @stylistic/js/indent */
 
 assert.throws(
   () => {
@@ -894,7 +904,7 @@ assert.throws(
 );
 
 assert.throws(
-  // eslint-disable-next-line dot-notation, quotes
+  // eslint-disable-next-line dot-notation, @stylistic/js/quotes
   () => assert['ok']["apply"](null, [0]),
   {
     code: 'ERR_ASSERTION',
@@ -981,6 +991,7 @@ for (const input of inputs) {
 {
 
   assert.throws(() => {
+    // eslint-disable-next-line no-constant-binary-expression
     assert.ok((() => Boolean('' === false))());
   }, {
     message: 'The expression evaluated to a falsy value:\n\n' +

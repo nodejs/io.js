@@ -22,7 +22,7 @@ void EvacuationVerifier::VerifyHeapObjectImpl(Tagged<HeapObject> heap_object) {
 }
 
 bool EvacuationVerifier::ShouldVerifyObject(Tagged<HeapObject> heap_object) {
-  const bool in_shared_heap = heap_object.InWritableSharedSpace();
+  const bool in_shared_heap = InWritableSharedSpace(heap_object);
   return heap_->isolate()->is_shared_space_isolate() ? in_shared_heap
                                                      : !in_shared_heap;
 }
@@ -31,6 +31,9 @@ template <typename TSlot>
 void EvacuationVerifier::VerifyPointersImpl(TSlot start, TSlot end) {
   for (TSlot current = start; current < end; ++current) {
     typename TSlot::TObject object = current.load(cage_base());
+#ifdef V8_ENABLE_DIRECT_LOCAL
+    if (object.ptr() == kTaggedNullAddress) continue;
+#endif
     Tagged<HeapObject> heap_object;
     if (object.GetHeapObjectIfStrong(&heap_object)) {
       VerifyHeapObjectImpl(heap_object);

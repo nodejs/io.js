@@ -43,7 +43,7 @@ static void getaddrinfo_initiate(uv_getaddrinfo_t* handle);
 
 static void getaddrinfo_cb(uv_getaddrinfo_t* handle, int status,
     struct addrinfo* res) {
-  ASSERT(status == 0);
+  ASSERT_OK(status);
   calls_completed++;
   if (calls_initiated < TOTAL_CALLS) {
     getaddrinfo_initiate(handle);
@@ -59,7 +59,7 @@ static void getaddrinfo_initiate(uv_getaddrinfo_t* handle) {
   calls_initiated++;
 
   r = uv_getaddrinfo(loop, handle, &getaddrinfo_cb, name, NULL, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 }
 
 
@@ -80,8 +80,8 @@ BENCHMARK_IMPL(getaddrinfo) {
   uv_update_time(loop);
   end_time = uv_now(loop);
 
-  ASSERT(calls_initiated == TOTAL_CALLS);
-  ASSERT(calls_completed == TOTAL_CALLS);
+  ASSERT_EQ(calls_initiated, TOTAL_CALLS);
+  ASSERT_EQ(calls_completed, TOTAL_CALLS);
 
   fprintf(stderr, "getaddrinfo: %.0f req/s\n",
           (double) calls_completed / (double) (end_time - start_time) * 1000.0);

@@ -1,4 +1,4 @@
-// META: global=window,worker,jsshell
+// META: global=window,worker,shadowrealm
 // META: script=../resources/test-utils.js
 'use strict';
 

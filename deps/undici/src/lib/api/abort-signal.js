@@ -6,13 +6,16 @@ const kSignal = Symbol('kSignal')
 
 function abort (self) {
   if (self.abort) {
-    self.abort()
+    self.abort(self[kSignal]?.reason)
   } else {
-    self.onError(new RequestAbortedError())
+    self.reason = self[kSignal]?.reason ?? new RequestAbortedError()
   }
+  removeSignal(self)
 }
 
 function addSignal (self, signal) {
+  self.reason = null
+
   self[kSignal] = null
   self[kListener] = null
 

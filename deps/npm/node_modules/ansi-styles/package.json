@@ -1,6 +1,6 @@
 {
 	"name": "ansi-styles",
-	"version": "4.3.0",
+	"version": "6.2.1",
 	"description": "ANSI escape codes for styling strings in the terminal",
 	"license": "MIT",
 	"repository": "chalk/ansi-styles",
@@ -8,10 +8,12 @@
 	"author": {
 		"name": "Sindre Sorhus",
 		"email": "sindresorhus@gmail.com",
-		"url": "sindresorhus.com"
+		"url": "https://sindresorhus.com"
 	},
+	"type": "module",
+	"exports": "./index.js",
 	"engines": {
-		"node": ">=8"
+		"node": ">=12"
 	},
 	"scripts": {
 		"test": "xo && ava && tsd",
@@ -43,14 +45,10 @@
 		"command-line",
 		"text"
 	],
-	"dependencies": {
-		"color-convert": "^2.0.1"
-	},
 	"devDependencies": {
-		"@types/color-convert": "^1.9.0",
-		"ava": "^2.3.0",
+		"ava": "^3.15.0",
 		"svg-term-cli": "^2.1.1",
-		"tsd": "^0.11.0",
-		"xo": "^0.25.3"
+		"tsd": "^0.19.0",
+		"xo": "^0.47.0"
 	}
 }

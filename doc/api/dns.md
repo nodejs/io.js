@@ -163,13 +163,13 @@ Returns an array of IP address strings, formatted according to [RFC 5952][],
 that are currently configured for DNS resolution. A string will include a port
 section if a custom port is used.
 
-<!-- eslint-disable semi-->
+<!-- eslint-disable @stylistic/js/semi-->
 
 ```js
 [
-  '4.4.4.4',
+  '8.8.8.8',
   '2001:4860:4860::8888',
-  '4.4.4.4:1053',
+  '8.8.8.8:1053',
   '[2001:4860:4860::8888]:1053',
 ]
 ```
@@ -179,6 +179,11 @@ section if a custom port is used.
 <!-- YAML
 added: v0.1.90
 changes:
+  - version:
+    - v22.1.0
+    - v20.13.0
+    pr-url: https://github.com/nodejs/node/pull/52492
+    description: The `verbatim` option is now deprecated in favor of the new `order` option.
   - version: v18.4.0
     pr-url: https://github.com/nodejs/node/pull/43054
     description: For compatibility with `node:net`, when passing an option
@@ -204,15 +209,26 @@ changes:
 * `options` {integer | Object}
   * `family` {integer|string} The record family. Must be `4`, `6`, or `0`. For
     backward compatibility reasons,`'IPv4'` and `'IPv6'` are interpreted as `4`
-    and `6` respectively. The value `0` indicates that IPv4 and IPv6 addresses
-    are both returned. **Default:** `0`.
+    and `6` respectively. The value `0` indicates that either an IPv4 or IPv6
+    address is returned. If the value `0` is used with `{ all: true }` (see
+    below), either one of or both IPv4 and IPv6 addresses are returned,
+    depending on the system's DNS resolver. **Default:** `0`.
   * `hints` {number} One or more [supported `getaddrinfo` flags][]. Multiple
     flags may be passed by bitwise `OR`ing their values.
   * `all` {boolean} When `true`, the callback returns all resolved addresses in
     an array. Otherwise, returns a single address. **Default:** `false`.
+  * `order` {string} When `verbatim`, the resolved addresses are return
+    unsorted. When `ipv4first`, the resolved addresses are sorted by placing
+    IPv4 addresses before IPv6 addresses. When `ipv6first`, the resolved
+    addresses are sorted by placing IPv6 addresses before IPv4 addresses.
+    **Default:** `verbatim` (addresses are not reordered).
+    Default value is configurable using [`dns.setDefaultResultOrder()`][] or
+    [`--dns-result-order`][].
   * `verbatim` {boolean} When `true`, the callback receives IPv4 and IPv6
     addresses in the order the DNS resolver returned them. When `false`,
     IPv4 addresses are placed before IPv6 addresses.
+    This option will be deprecated in favor of `order`. When both are specified,
+    `order` has higher precedence. New code should only use `order`.
     **Default:** `true` (addresses are not reordered). Default value is
     configurable using [`dns.setDefaultResultOrder()`][] or
     [`--dns-result-order`][].
@@ -225,8 +241,8 @@ changes:
 
 Resolves a host name (e.g. `'nodejs.org'`) into the first found A (IPv4) or
 AAAA (IPv6) record. All `option` properties are optional. If `options` is an
-integer, then it must be `4` or `6` – if `options` is `0` or not provided, then
-IPv4 and IPv6 addresses are both returned if found.
+integer, then it must be `4` or `6` – if `options` is not provided, then
+either IPv4 or IPv6 addresses, or both, are returned if found.
 
 With the `all` option set to `true`, the arguments for `callback` change to
 `(err, addresses)`, with `addresses` being an array of objects with the
@@ -467,7 +483,7 @@ will be present on the object:
 
 Here is an example of the `ret` object passed to the callback:
 
-<!-- eslint-disable semi -->
+<!-- eslint-disable @stylistic/js/semi -->
 
 ```js
 [ { type: 'A', address: '127.0.0.1', ttl: 299 },
@@ -774,18 +790,24 @@ added:
   - v16.4.0
   - v14.18.0
 changes:
+  - version:
+    - v22.1.0
+    - v20.13.0
+    pr-url: https://github.com/nodejs/node/pull/52492
+    description: The `ipv6first` value is supported now.
   - version: v17.0.0
     pr-url: https://github.com/nodejs/node/pull/39987
     description: Changed default value to `verbatim`.
 -->
 
-* `order` {string} must be `'ipv4first'` or `'verbatim'`.
+* `order` {string} must be `'ipv4first'`, `'ipv6first'` or `'verbatim'`.
 
-Set the default value of `verbatim` in [`dns.lookup()`][] and
+Set the default value of `order` in [`dns.lookup()`][] and
 [`dnsPromises.lookup()`][]. The value could be:
 
-* `ipv4first`: sets default `verbatim` `false`.
-* `verbatim`: sets default `verbatim` `true`.
+* `ipv4first`: sets default `order` to `ipv4first`.
+* `ipv6first`: sets default `order` to `ipv6first`.
+* `verbatim`: sets default `order` to `verbatim`.
 
 The default is `verbatim` and [`dns.setDefaultResultOrder()`][] have higher
 priority than [`--dns-result-order`][]. When using [worker threads][],
@@ -798,13 +820,20 @@ dns orders in workers.
 added:
   - v20.1.0
   - v18.17.0
+changes:
+  - version:
+    - v22.1.0
+    - v20.13.0
+    pr-url: https://github.com/nodejs/node/pull/52492
+    description: The `ipv6first` value is supported now.
 -->
 
-Get the default value for `verbatim` in [`dns.lookup()`][] and
+Get the default value for `order` in [`dns.lookup()`][] and
 [`dnsPromises.lookup()`][]. The value could be:
 
-* `ipv4first`: for `verbatim` defaulting to `false`.
-* `verbatim`: for `verbatim` defaulting to `true`.
+* `ipv4first`: for `order` defaulting to `ipv4first`.
+* `ipv6first`: for `order` defaulting to `ipv6first`.
+* `verbatim`: for `order` defaulting to `verbatim`.
 
 ## `dns.setServers(servers)`
 
@@ -820,9 +849,9 @@ addresses. If the port is the IANA default DNS port (53) it can be omitted.
 
 ```js
 dns.setServers([
-  '4.4.4.4',
+  '8.8.8.8',
   '[2001:4860:4860::8888]',
-  '4.4.4.4:1053',
+  '8.8.8.8:1053',
   '[2001:4860:4860::8888]:1053',
 ]);
 ```
@@ -933,13 +962,13 @@ Returns an array of IP address strings, formatted according to [RFC 5952][],
 that are currently configured for DNS resolution. A string will include a port
 section if a custom port is used.
 
-<!-- eslint-disable semi-->
+<!-- eslint-disable @stylistic/js/semi-->
 
 ```js
 [
-  '4.4.4.4',
+  '8.8.8.8',
   '2001:4860:4860::8888',
-  '4.4.4.4:1053',
+  '8.8.8.8:1053',
   '[2001:4860:4860::8888]:1053',
 ]
 ```
@@ -948,29 +977,46 @@ section if a custom port is used.
 
 <!-- YAML
 added: v10.6.0
+changes:
+  - version:
+    - v22.1.0
+    - v20.13.0
+    pr-url: https://github.com/nodejs/node/pull/52492
+    description: The `verbatim` option is now deprecated in favor of the new `order` option.
 -->
 
 * `hostname` {string}
 * `options` {integer | Object}
   * `family` {integer} The record family. Must be `4`, `6`, or `0`. The value
-    `0` indicates that IPv4 and IPv6 addresses are both returned. **Default:**
-    `0`.
+    `0` indicates that either an IPv4 or IPv6 address is returned. If the
+    value `0` is used with `{ all: true }` (see below), either one of or both
+    IPv4 and IPv6 addresses are returned, depending on the system's DNS
+    resolver. **Default:** `0`.
   * `hints` {number} One or more [supported `getaddrinfo` flags][]. Multiple
     flags may be passed by bitwise `OR`ing their values.
   * `all` {boolean} When `true`, the `Promise` is resolved with all addresses in
     an array. Otherwise, returns a single address. **Default:** `false`.
+  * `order` {string} When `verbatim`, the `Promise` is resolved with IPv4 and
+    IPv6 addresses in the order the DNS resolver returned them. When `ipv4first`,
+    IPv4 addresses are placed before IPv6 addresses. When `ipv6first`,
+    IPv6 addresses are placed before IPv4 addresses.
+    **Default:** `verbatim` (addresses are not reordered).
+    Default value is configurable using [`dns.setDefaultResultOrder()`][] or
+    [`--dns-result-order`][]. New code should use `{ order: 'verbatim' }`.
   * `verbatim` {boolean} When `true`, the `Promise` is resolved with IPv4 and
     IPv6 addresses in the order the DNS resolver returned them. When `false`,
     IPv4 addresses are placed before IPv6 addresses.
+    This option will be deprecated in favor of `order`. When both are specified,
+    `order` has higher precedence. New code should only use `order`.
     **Default:** currently `false` (addresses are reordered) but this is
     expected to change in the not too distant future. Default value is
     configurable using [`dns.setDefaultResultOrder()`][] or
-    [`--dns-result-order`][]. New code should use `{ verbatim: true }`.
+    [`--dns-result-order`][].
 
 Resolves a host name (e.g. `'nodejs.org'`) into the first found A (IPv4) or
 AAAA (IPv6) record. All `option` properties are optional. If `options` is an
-integer, then it must be `4` or `6` – if `options` is not provided, then IPv4
-and IPv6 addresses are both returned if found.
+integer, then it must be `4` or `6` – if `options` is not provided, then
+either IPv4 or IPv6 addresses, or both, are returned if found.
 
 With the `all` option set to `true`, the `Promise` is resolved with `addresses`
 being an array of objects with the properties `address` and `family`.
@@ -1133,7 +1179,7 @@ present on the object:
 
 Here is an example of the result object:
 
-<!-- eslint-disable semi -->
+<!-- eslint-disable @stylistic/js/semi -->
 
 ```js
 [ { type: 'A', address: '127.0.0.1', ttl: 299 },
@@ -1347,18 +1393,24 @@ added:
   - v16.4.0
   - v14.18.0
 changes:
+  - version:
+    - v22.1.0
+    - v20.13.0
+    pr-url: https://github.com/nodejs/node/pull/52492
+    description: The `ipv6first` value is supported now.
   - version: v17.0.0
     pr-url: https://github.com/nodejs/node/pull/39987
     description: Changed default value to `verbatim`.
 -->
 
-* `order` {string} must be `'ipv4first'` or `'verbatim'`.
+* `order` {string} must be `'ipv4first'`, `'ipv6first'` or `'verbatim'`.
 
-Set the default value of `verbatim` in [`dns.lookup()`][] and
+Set the default value of `order` in [`dns.lookup()`][] and
 [`dnsPromises.lookup()`][]. The value could be:
 
-* `ipv4first`: sets default `verbatim` `false`.
-* `verbatim`: sets default `verbatim` `true`.
+* `ipv4first`: sets default `order` to `ipv4first`.
+* `ipv6first`: sets default `order` to `ipv6first`.
+* `verbatim`: sets default `order` to `verbatim`.
 
 The default is `verbatim` and [`dnsPromises.setDefaultResultOrder()`][] have
 higher priority than [`--dns-result-order`][]. When using [worker threads][],
@@ -1389,9 +1441,9 @@ addresses. If the port is the IANA default DNS port (53) it can be omitted.
 
 ```js
 dnsPromises.setServers([
-  '4.4.4.4',
+  '8.8.8.8',
   '[2001:4860:4860::8888]',
-  '4.4.4.4:1053',
+  '8.8.8.8:1053',
   '[2001:4860:4860::8888]:1053',
 ]);
 ```

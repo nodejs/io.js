@@ -108,6 +108,7 @@ def _default_args():
                 "-fno-strict-aliasing",
                 "-Werror",
                 "-Wextra",
+                "-Wno-unneeded-internal-declaration",
                 "-Wno-unknown-warning-option",
                 "-Wno-bitwise-instead-of-logical",
                 "-Wno-builtin-assume-aligned-alignment",
@@ -312,10 +313,7 @@ def v8_library(
 # split the set of outputs by using OutputGroupInfo, that way we do not need to
 # run the torque generator twice.
 def _torque_files_impl(ctx):
-    if ctx.workspace_name == "v8":
-        v8root = "."
-    else:
-        v8root = "external/v8"
+    v8root = "."
 
     # Arguments
     args = []
@@ -413,7 +411,7 @@ def _v8_target_cpu_transition_impl(settings,
     # Check for an existing v8_target_cpu flag.
     if "@v8//bazel/config:v8_target_cpu" in settings:
         if settings["@v8//bazel/config:v8_target_cpu"] != "none":
-            return
+            return {}
 
     # Auto-detect target architecture based on the --cpu flag.
     mapping = {
@@ -479,9 +477,6 @@ _v8_mksnapshot = rule(
             cfg = "exec",
         ),
         "target_os": attr.string(mandatory = True),
-        "_allowlist_function_transition": attr.label(
-            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
-        ),
         "prefix": attr.string(mandatory = True),
         "suffix": attr.string(mandatory = True),
     },
@@ -556,7 +551,7 @@ def build_config_content(cpu, icu):
         ("full_debug", "false"),
         ("gdbjit", "false"),
         ("has_jitless", "false"),
-        ("has_maglev", "false"),
+        ("has_maglev", "true"),
         ("has_turbofan", "true"),
         ("has_webassembly", "false"),
         ("i18n", icu),
@@ -564,6 +559,7 @@ def build_config_content(cpu, icu):
         ("is_ios", "false"),
         ("js_shared_memory", "false"),
         ("lite_mode", "false"),
+        ("local_off_stack_check", "false"),
         ("mips_arch_variant", '""'),
         ("mips_use_msa", "false"),
         ("msan", "false"),

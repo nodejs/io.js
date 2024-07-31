@@ -73,7 +73,11 @@ class V8_EXPORT_PRIVATE IdentityMapBase {
 
  private:
   // Internal implementation should not be called directly by subclasses.
-  int ScanKeysFor(Address address, uint32_t hash) const;
+  // The result is {index, found}. The index is either:
+  //   * The index where the key was found (found=true)
+  //   * The index of the first empty space encountered (found=false)
+  //   * -1 if the table is full and the key was not found (found=false)
+  std::pair<int, bool> ScanKeysFor(Address address, uint32_t hash) const;
   std::pair<int, bool> InsertKey(Address address, uint32_t hash);
   int Lookup(Address key) const;
   std::pair<int, bool> LookupOrInsert(Address key);
@@ -81,6 +85,7 @@ class V8_EXPORT_PRIVATE IdentityMapBase {
   void Rehash();
   void Resize(int new_capacity);
   uint32_t Hash(Address address) const;
+  bool ShouldGrow() const;
 
   base::hash<uintptr_t> hasher_;
   Heap* heap_;

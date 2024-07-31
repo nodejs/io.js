@@ -14,6 +14,21 @@ using node::quic::RetryToken;
 using node::quic::StatelessResetToken;
 using node::quic::TokenSecret;
 
+TEST(TokenSecret, Basics) {
+  uint8_t secret[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
+  TokenSecret fixed_secret(secret);
+
+  for (int n = 0; n < TokenSecret::QUIC_TOKENSECRET_LEN; n++) {
+    CHECK_EQ(fixed_secret[n], secret[n]);
+  }
+
+  // Copy assignment works
+  TokenSecret other = fixed_secret;
+  for (int n = 0; n < TokenSecret::QUIC_TOKENSECRET_LEN; n++) {
+    CHECK_EQ(other[n], secret[n]);
+  }
+}
+
 TEST(StatelessResetToken, Basic) {
   ngtcp2_cid cid_;
   uint8_t secret[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};

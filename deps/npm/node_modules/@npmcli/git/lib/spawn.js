@@ -1,11 +1,11 @@
 const spawn = require('@npmcli/promise-spawn')
 const promiseRetry = require('promise-retry')
-const log = require('proc-log')
+const { log } = require('proc-log')
 const makeError = require('./make-error.js')
-const whichGit = require('./which.js')
 const makeOpts = require('./opts.js')
 
 module.exports = (gitArgs, opts = {}) => {
+  const whichGit = require('./which.js')
   const gitPath = whichGit(opts)
 
   if (gitPath instanceof Error) {

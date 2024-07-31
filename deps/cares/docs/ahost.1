@@ -1,19 +1,6 @@
 .\"
 .\" Copyright (C) the Massachusetts Institute of Technology.
 .\" Copyright (C) Daniel Stenberg
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH AHOST "1" "April 2011" "c-ares utilities"
@@ -39,11 +26,14 @@ Print some extra debugging output.
 Display this help and exit.
 .TP
 \fB\-t\fR type
-If type is "a", print the A record (default).
+If type is "a", print the A record.
 If type is "aaaa", print the AAAA record.
-If type is "u", look for either AAAA or A record (in that order).
+If type is "u", look for both AAAA and A records (default).
 .TP
-\fB\-s\fR \fIdomain\fP
+\fB\-s\fR server
+Set the server list to use for DNS lookups.
+.TP
+\fB\-D\fR \fIdomain\fP
 Specify the \fIdomain\fP to search instead of using the default values from
 .br
 /etc/resolv.conf. This option only has an effect on platforms that use
@@ -57,21 +47,4 @@ Report bugs to the c-ares mailing list:
 \fBhttps://lists.haxx.se/listinfo/c-ares\fR
 .SH "SEE ALSO"
 .PP
-acountry(1), adig(1).
-.SH COPYRIGHT
-This utility is based on code/ideas contained in sofware written by Greg Hudson (ares)
-carrying the following notice:
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.
-.br
-Permission to use, copy, modify, and distribute this software and its
-documentation for any purpose and without fee is hereby granted,
-provided that the above copyright notice appear in all copies and that
-both that copyright notice and this permission notice appear in
-supporting documentation, and that the name of M.I.T. not be used in
-advertising or publicity pertaining to distribution of the software
-without specific, written prior permission. M.I.T. makes no
-representations about the suitability of this software for any
-purpose. It is provided "as is" without express or implied warranty.
-.br
-No further copyright claims are being made by the author(s) of this utility.
+adig(1)

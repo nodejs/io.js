@@ -46,6 +46,7 @@ struct SourceRange {
   V(BinaryOperation)             \
   V(Block)                       \
   V(CaseClause)                  \
+  V(ConditionalChain)            \
   V(Conditional)                 \
   V(Expression)                  \
   V(FunctionLiteral)             \
@@ -140,6 +141,39 @@ class CaseClauseSourceRanges final : public AstNodeSourceRanges {
 
  private:
   SourceRange body_range_;
+};
+
+class ConditionalChainSourceRanges final : public AstNodeSourceRanges {
+ public:
+  explicit ConditionalChainSourceRanges(Zone* zone)
+      : then_ranges_(zone), else_ranges_(zone) {}
+
+  SourceRange GetRangeAtIndex(SourceRangeKind kind, size_t index) {
+    if (kind == SourceRangeKind::kThen) {
+      DCHECK_LT(index, then_ranges_.size());
+      return then_ranges_[index];
+    }
+    DCHECK_EQ(kind, SourceRangeKind::kElse);
+    DCHECK_LT(index, else_ranges_.size());
+    return else_ranges_[index];
+  }
+
+  void AddThenRanges(const SourceRange& range) {
+    then_ranges_.push_back(range);
+  }
+
+  void AddElseRange(const SourceRange& else_range) {
+    else_ranges_.push_back(else_range);
+  }
+
+  size_t RangeCount() const { return then_ranges_.size(); }
+
+  SourceRange GetRange(SourceRangeKind kind) override { UNREACHABLE(); }
+  bool HasRange(SourceRangeKind kind) override { return false; }
+
+ private:
+  ZoneVector<SourceRange> then_ranges_;
+  ZoneVector<SourceRange> else_ranges_;
 };
 
 class ConditionalSourceRanges final : public AstNodeSourceRanges {

@@ -1,170 +1,154 @@
 const t = require('tap')
-const fs = require('fs/promises')
-const npmFetch = require('npm-registry-fetch')
-const mockNpm = require('../../fixtures/mock-npm')
-const { join } = require('path')
+const fs = require('node:fs/promises')
+const { load: loadMockNpm } = require('../../fixtures/mock-npm.js')
+const MockRegistry = require('@npmcli/mock-registry')
+const { join } = require('node:path')
 
-const mockLogout = async (t, { userRc = [], ...npmOpts } = {}) => {
-  let result = null
-
-  const mock = await mockNpm(t, {
-    command: 'logout',
-    mocks: {
-      // XXX: refactor to use mock registry
-      'npm-registry-fetch': Object.assign(async (url, opts) => {
-        result = { url, opts }
-      }, npmFetch),
-    },
-    ...npmOpts,
+t.test('token logout - user config', async t => {
+  const { npm, home, logs } = await loadMockNpm(t, {
     homeDir: {
-      '.npmrc': userRc.join('\n'),
+      '.npmrc': [
+        '//registry.npmjs.org/:_authToken=@foo/',
+        'other-config=true',
+      ].join('\n'),
     },
   })
 
-  return {
-    ...mock,
-    result: () => result,
-    // get only the message portion of the verbose log from the command
-    logMsg: () => mock.logs.verbose.find(l => l[0] === 'logout')[1],
-    userRc: () => fs.readFile(join(mock.home, '.npmrc'), 'utf-8').then(r => r.trim()),
-  }
-}
-
-t.test('token logout', async t => {
-  const { logout, logMsg, result, userRc } = await mockLogout(t, {
-    userRc: [
-      '//registry.npmjs.org/:_authToken=@foo/',
-      'other-config=true',
-    ],
-  })
-
-  await logout.exec([])
-
+  const mockRegistry = new MockRegistry({ tap: t, registry: 'https://registry.npmjs.org/' })
+  mockRegistry.logout('@foo/')
+  await npm.exec('logout', [])
   t.equal(
-    logMsg(),
-    'clearing token for https://registry.npmjs.org/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://registry.npmjs.org/',
     'should log message with correct registry'
   )
-
-  t.match(
-    result(),
-    {
-      url: '/-/user/token/%40foo%2F',
-      opts: {
-        registry: 'https://registry.npmjs.org/',
-        scope: '',
-        '//registry.npmjs.org/:_authToken': '@foo/',
-        method: 'DELETE',
-        ignoreBody: true,
-      },
-    },
-    'should call npm-registry-fetch with expected values'
-  )
-
-  t.equal(await userRc(), 'other-config=true')
+  const userRc = await fs.readFile(join(home, '.npmrc'), 'utf-8')
+  t.equal(userRc.trim(), 'other-config=true')
 })
 
-t.test('token scoped logout', async t => {
-  const { logout, logMsg, result, userRc } = await mockLogout(t, {
-    config: { scope: '@myscope' },
-    userRc: [
-      '//diff-registry.npmjs.com/:_authToken=@bar/',
-      '//registry.npmjs.org/:_authToken=@foo/',
-      '@myscope:registry=https://diff-registry.npmjs.com/',
-    ],
+t.test('token scoped logout - user config', async t => {
+  const { npm, home, logs } = await loadMockNpm(t, {
+    config: {
+      scope: '@myscope',
+    },
+    homeDir: {
+      '.npmrc': [
+        '//diff-registry.npmjs.com/:_authToken=@bar/',
+        '//registry.npmjs.org/:_authToken=@foo/',
+        '@myscope:registry=https://diff-registry.npmjs.com/',
+
+      ].join('\n'),
+    },
   })
 
-  await logout.exec([])
-
+  const mockRegistry = new MockRegistry({ tap: t, registry: 'https://diff-registry.npmjs.com/' })
+  mockRegistry.logout('@bar/')
+  await npm.exec('logout', [])
   t.equal(
-    logMsg(),
-    'clearing token for https://diff-registry.npmjs.com/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://diff-registry.npmjs.com/',
     'should log message with correct registry'
   )
 
-  t.match(
-    result(),
-    {
-      url: '/-/user/token/%40bar%2F',
-      opts: {
-        registry: 'https://registry.npmjs.org/',
-        '@myscope:registry': 'https://diff-registry.npmjs.com/',
-        scope: '@myscope',
-        '//registry.npmjs.org/:_authToken': '@foo/', // <- removed by npm-registry-fetch
-        '//diff-registry.npmjs.com/:_authToken': '@bar/',
-        method: 'DELETE',
-        ignoreBody: true,
-      },
-    },
-    'should call npm-registry-fetch with expected values'
-  )
-
-  t.equal(await userRc(), '//registry.npmjs.org/:_authToken=@foo/')
+  const userRc = await fs.readFile(join(home, '.npmrc'), 'utf-8')
+  t.equal(userRc.trim(), '//registry.npmjs.org/:_authToken=@foo/')
 })
 
-t.test('user/pass logout', async t => {
-  const { logout, logMsg, userRc } = await mockLogout(t, {
-    userRc: [
-      '//registry.npmjs.org/:username=foo',
-      '//registry.npmjs.org/:_password=bar',
-      'other-config=true',
-    ],
+t.test('user/pass logout - user config', async t => {
+  const { npm, home, logs } = await loadMockNpm(t, {
+    homeDir: {
+      '.npmrc': [
+        '//registry.npmjs.org/:username=foo',
+        '//registry.npmjs.org/:_password=bar',
+        'other-config=true',
+      ].join('\n'),
+    },
   })
 
-  await logout.exec([])
-
+  await npm.exec('logout', [])
   t.equal(
-    logMsg(),
-    'clearing user credentials for https://registry.npmjs.org/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing user credentials for https://registry.npmjs.org/',
     'should log message with correct registry'
   )
 
-  t.equal(await userRc(), 'other-config=true')
+  const userRc = await fs.readFile(join(home, '.npmrc'), 'utf-8')
+  t.equal(userRc.trim(), 'other-config=true')
 })
 
 t.test('missing credentials', async t => {
-  const { logout } = await mockLogout(t)
+  const { npm } = await loadMockNpm(t)
 
   await t.rejects(
-    logout.exec([]),
+    npm.exec('logout', []),
     {
       code: 'ENEEDAUTH',
       message: /not logged in to https:\/\/registry.npmjs.org\/, so can't log out!/,
     },
-    'should throw with expected error code'
+    'should reject with expected error code'
   )
 })
 
 t.test('ignore invalid scoped registry config', async t => {
-  const { logout, logMsg, result, userRc } = await mockLogout(t, {
+  const { npm, home, logs } = await loadMockNpm(t, {
     config: { scope: '@myscope' },
-    userRc: [
-      '//registry.npmjs.org/:_authToken=@foo/',
-      'other-config=true',
-    ],
+    homeDir: {
+      '.npmrc': [
+        '//registry.npmjs.org/:_authToken=@foo/',
+        'other-config=true',
+
+      ].join('\n'),
+    },
   })
 
-  await logout.exec([])
+  const mockRegistry = new MockRegistry({ tap: t, registry: 'https://registry.npmjs.org/' })
+  mockRegistry.logout('@foo/')
+  await npm.exec('logout', [])
 
   t.equal(
-    logMsg(),
-    'clearing token for https://registry.npmjs.org/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://registry.npmjs.org/',
     'should log message with correct registry'
   )
+  const userRc = await fs.readFile(join(home, '.npmrc'), 'utf-8')
+  t.equal(userRc.trim(), 'other-config=true')
+})
 
-  t.match(
-    result(),
-    {
-      url: '/-/user/token/%40foo%2F',
-      opts: {
-        '//registry.npmjs.org/:_authToken': '@foo/',
-        registry: 'https://registry.npmjs.org/',
-        method: 'DELETE',
-        ignoreBody: true,
-      },
+t.test('token logout - project config', async t => {
+  const { npm, home, logs, prefix } = await loadMockNpm(t, {
+    homeDir: {
+      '.npmrc': [
+        '//registry.npmjs.org/:_authToken=@foo/',
+        'other-config=true',
+      ].join('\n'),
     },
-    'should call npm-registry-fetch with expected values'
-  )
+    prefixDir: {
+      '.npmrc': [
+        '//registry.npmjs.org/:_authToken=@bar/',
+        'other-config=true',
+      ].join('\n'),
+    },
+  })
 
-  t.equal(await userRc(), 'other-config=true')
+  const mockRegistry = new MockRegistry({ tap: t, registry: 'https://registry.npmjs.org/' })
+  mockRegistry.logout('@bar/')
+  await npm.exec('logout', [])
+
+  t.equal(
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://registry.npmjs.org/',
+    'should log message with correct registry'
+  )
+  const userRc = await fs.readFile(join(home, '.npmrc'), 'utf-8')
+  t.equal(userRc.trim(), [
+    '//registry.npmjs.org/:_authToken=@foo/',
+    'other-config=true',
+  ].join('\n'), 'leaves user config alone')
+  t.equal(
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://registry.npmjs.org/',
+    'should log message with correct registry'
+  )
+  const projectRc = await fs.readFile(join(prefix, '.npmrc'), 'utf-8')
+  t.equal(projectRc.trim(), 'other-config=true', 'removes project config')
 })

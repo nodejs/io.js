@@ -110,6 +110,10 @@ typedef struct {
 #define NGHTTP2_DEFAULT_STREAM_RESET_BURST 1000
 #define NGHTTP2_DEFAULT_STREAM_RESET_RATE 33
 
+/* The default max number of CONTINUATION frames following an incoming
+   HEADER frame. */
+#define NGHTTP2_DEFAULT_MAX_CONTINUATIONS 8
+
 /* Internal state when receiving incoming frame */
 typedef enum {
   /* Receiving frame header */
@@ -290,6 +294,12 @@ struct nghttp2_session {
   size_t max_send_header_block_length;
   /* The maximum number of settings accepted per SETTINGS frame. */
   size_t max_settings;
+  /* The maximum number of CONTINUATION frames following an incoming
+     HEADER frame. */
+  size_t max_continuations;
+  /* The number of CONTINUATION frames following an incoming HEADER
+     frame.  This variable is reset when END_HEADERS flag is seen. */
+  size_t num_continuations;
   /* Next Stream ID. Made unsigned int to detect >= (1 << 31). */
   uint32_t next_stream_id;
   /* The last stream ID this session initiated.  For client session,

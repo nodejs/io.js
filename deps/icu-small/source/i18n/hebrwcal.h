@@ -319,7 +319,7 @@ public:
      * implementation than the default implementation in Calendar.
      * @internal
      */
-    virtual int32_t handleGetMonthLength(int32_t extendedYear, int32_t month) const override;
+    virtual int32_t handleGetMonthLength(int32_t extendedYear, int32_t month, UErrorCode& status) const override;
 
     /**
      * Return the number of days in the given extended year of this
@@ -350,10 +350,11 @@ public:
      * use the UCAL_EXTENDED_YEAR field or the UCAL_YEAR and supra-year fields (such
      * as UCAL_ERA) specific to the calendar system, depending on which set of
      * fields is newer.
+     * @param status
      * @return the extended year
      * @internal
      */
-    virtual int32_t handleGetExtendedYear() override;
+    virtual int32_t handleGetExtendedYear(UErrorCode& status) override;
     /**
      * Return the Julian day number of day before the first day of the
      * given month in the given extended year.  Subclasses should override
@@ -367,8 +368,8 @@ public:
      * day of the given month and year
      * @internal
      */
-    virtual int32_t handleComputeMonthStart(int32_t eyear, int32_t month,
-                                                   UBool useMonth) const override;
+    virtual int64_t handleComputeMonthStart(int32_t eyear, int32_t month,
+                                                   UBool useMonth, UErrorCode& status) const override;
 
 
     /**
@@ -380,24 +381,7 @@ public:
     virtual void validateField(UCalendarDateFields field, UErrorCode &status) override;
 
  protected:
-  /**
-   * Returns true because the Hebrew Calendar does have a default century
-   * @internal
-   */
-  virtual UBool haveDefaultCentury() const override;
-
-  /**
-   * Returns the date of the start of the default century
-   * @return start of century - in milliseconds since epoch, 1970
-   * @internal
-   */
-  virtual UDate defaultCenturyStart() const override;
-
-  /**
-   * Returns the year in which the default century begins
-   * @internal
-   */
-  virtual int32_t defaultCenturyStartYear() const override;
+  DECLARE_OVERRIDE_SYSTEM_DEFAULT_CENTURY
 
  public:
   /**
@@ -442,7 +426,7 @@ public:
   virtual void setTemporalMonthCode(const char* code, UErrorCode& status ) override;
 
  protected:
-   virtual int32_t internalGetMonth() const override;
+   virtual int32_t internalGetMonth(UErrorCode& status) const override;
 
  private: // Calendar-specific implementation
     /**

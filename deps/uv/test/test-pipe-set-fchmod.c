@@ -35,10 +35,10 @@ TEST_IMPL(pipe_set_chmod) {
   loop = uv_default_loop();
 
   r = uv_pipe_init(loop, &pipe_handle, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_pipe_bind(&pipe_handle, TEST_PIPENAME);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   /* No easy way to test if this works, we will only make sure that the call is
    * successful. */
@@ -47,17 +47,17 @@ TEST_IMPL(pipe_set_chmod) {
     MAKE_VALGRIND_HAPPY(loop);
     RETURN_SKIP("Insufficient privileges to alter pipe fmode");
   }
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 #ifndef _WIN32
   memset(&stat_buf, 0, sizeof(stat_buf));
-  ASSERT_EQ(0, stat(TEST_PIPENAME, &stat_buf));
+  ASSERT_OK(stat(TEST_PIPENAME, &stat_buf));
   ASSERT(stat_buf.st_mode & S_IRUSR);
   ASSERT(stat_buf.st_mode & S_IRGRP);
   ASSERT(stat_buf.st_mode & S_IROTH);
 #endif
 
   r = uv_pipe_chmod(&pipe_handle, UV_WRITABLE);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 #ifndef _WIN32
   stat(TEST_PIPENAME, &stat_buf);
   ASSERT(stat_buf.st_mode & S_IWUSR);
@@ -66,7 +66,7 @@ TEST_IMPL(pipe_set_chmod) {
 #endif
 
   r = uv_pipe_chmod(&pipe_handle, UV_WRITABLE | UV_READABLE);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 #ifndef _WIN32
   stat(TEST_PIPENAME, &stat_buf);
   ASSERT(stat_buf.st_mode & S_IRUSR);
@@ -78,14 +78,14 @@ TEST_IMPL(pipe_set_chmod) {
 #endif
 
   r = uv_pipe_chmod(NULL, UV_WRITABLE | UV_READABLE);
-  ASSERT(r == UV_EBADF);
+  ASSERT_EQ(r, UV_EBADF);
 
   r = uv_pipe_chmod(&pipe_handle, 12345678);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   uv_close((uv_handle_t*)&pipe_handle, NULL);
   r = uv_pipe_chmod(&pipe_handle, UV_WRITABLE | UV_READABLE);
-  ASSERT(r == UV_EBADF);
+  ASSERT_EQ(r, UV_EBADF);
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

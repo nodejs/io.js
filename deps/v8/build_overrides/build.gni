@@ -6,6 +6,13 @@
 # Chromium specific targets in a client project's GN file etc.
 build_with_chromium = false
 
+# Variable that can be used to support multiple build scenarios, like when
+# V8 is embedded within a target.
+build_with_v8_embedder = false
+
+# Not all of V8's dependencies are available in V8's Node.js build.
+build_with_node = false
+
 # Used by perfetto to distinguish from its own standalone build and the
 # chromium build.
 perfetto_build_with_embedder = true
@@ -34,6 +41,12 @@ enable_java_templates = false
 
 # Enables assertions on safety checks in libc++.
 enable_safe_libcxx = true
+
+# Enable assertions on safety checks, also in libstdc++
+#
+# In case the C++ standard library implementation used is libstdc++, then
+# enable its own hardening checks.
+enable_safe_libstdcxx = true
 
 # Allows different projects to specify their own suppressions files.
 asan_suppressions_file = "//build/sanitizers/asan_suppressions.cc"

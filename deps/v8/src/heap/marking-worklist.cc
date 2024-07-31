@@ -93,7 +93,7 @@ GetLocalPerContextMarkingWorklists(bool is_per_context_mode,
   worklist_by_context.reserve(global->context_worklists().size());
   for (auto& cw : global->context_worklists()) {
     worklist_by_context[cw.context] =
-        std::make_unique<MarkingWorklist::Local>(*cw.worklist.get());
+        std::make_unique<MarkingWorklist::Local>(*cw.worklist);
   }
   return worklist_by_context;
 }

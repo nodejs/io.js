@@ -7,53 +7,19 @@
 #ifndef {{"_".join(config.protocol.namespace)}}_Maybe_h
 #define {{"_".join(config.protocol.namespace)}}_Maybe_h
 
-// This macro allows to test for the version of the GNU C++ compiler.
-// Note that this also applies to compilers that masquerade as GCC,
-// for example clang and the Intel C++ compiler for Linux.
-// Use like:
-//  #if IP_GNUC_PREREQ(4, 3, 1)
-//   ...
-//  #endif
-#if defined(__GNUC__) && defined(__GNUC_MINOR__) && defined(__GNUC_PATCHLEVEL__)
-#define IP_GNUC_PREREQ(major, minor, patchlevel)                      \
-  ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) >= \
-   ((major)*10000 + (minor)*100 + (patchlevel)))
-#elif defined(__GNUC__) && defined(__GNUC_MINOR__)
-#define IP_GNUC_PREREQ(major, minor, patchlevel) \
-  ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100) >=  \
-   ((major)*10000 + (minor)*100 + (patchlevel)))
-#else
-#define IP_GNUC_PREREQ(major, minor, patchlevel) 0
-#endif
-
-#if defined(__mips64)
-#define IP_TARGET_ARCH_MIPS64 1
-#elif defined(__MIPSEB__) || defined(__MIPSEL__)
-#define IP_TARGET_ARCH_MIPS 1
-#endif
-
-// Allowing the use of noexcept by removing the keyword on older compilers that
-// do not support adding noexcept to default members.
-#if ((IP_GNUC_PREREQ(4, 9, 0) && !defined(IP_TARGET_ARCH_MIPS) && \
-      !defined(IP_TARGET_ARCH_MIPS64)) ||                         \
-     (defined(__clang__) && __cplusplus > 201300L))
-#define IP_NOEXCEPT noexcept
-#else
-#define IP_NOEXCEPT
-#endif
-
 //#include "Forward.h"
 
 {% for namespace in config.protocol.namespace %}
 namespace {{namespace}} {
 {% endfor %}
 
+namespace detail {
 template<typename T>
-class Maybe {
+class PtrMaybe {
 public:
-    Maybe() : m_value() { }
-    Maybe(std::unique_ptr<T> value) : m_value(std::move(value)) { }
-    Maybe(Maybe&& other) IP_NOEXCEPT : m_value(std::move(other.m_value)) {}
+    PtrMaybe() = default;
+    PtrMaybe(std::unique_ptr<T> value) : m_value(std::move(value)) { }
+    PtrMaybe(PtrMaybe&& other) noexcept : m_value(std::move(other.m_value)) {}
     void operator=(std::unique_ptr<T> value) { m_value = std::move(value); }
     T* fromJust() const { DCHECK(m_value); return m_value.get(); }
     T* fromMaybe(T* defaultValue) const { return m_value ? m_value.get() : defaultValue; }
@@ -64,76 +30,48 @@ private:
 };
 
 template<typename T>
-class MaybeBase {
+class ValueMaybe {
 public:
-    MaybeBase() : m_isJust(false) { }
-    MaybeBase(T value) : m_isJust(true), m_value(value) { }
-    MaybeBase(MaybeBase&& other) IP_NOEXCEPT
+    ValueMaybe() : m_isJust(false), m_value() { }
+    ValueMaybe(T value) : m_isJust(true), m_value(std::move(value)) { }
+    ValueMaybe(ValueMaybe&& other) noexcept
         : m_isJust(other.m_isJust),
           m_value(std::move(other.m_value)) {}
     void operator=(T value) { m_value = value; m_isJust = true; }
-    T fromJust() const { DCHECK(m_isJust); return m_value; }
-    T fromMaybe(const T& defaultValue) const { return m_isJust ? m_value : defaultValue; }
+    const T& fromJust() const { DCHECK(m_isJust); return m_value; }
+    const T& fromMaybe(const T& defaultValue) const { return m_isJust ? m_value : defaultValue; }
     bool isJust() const { return m_isJust; }
-    T takeJust() { DCHECK(m_isJust); return m_value; }
-
-protected:
+    T takeJust() { DCHECK(m_isJust); return std::move(m_value); }
+private:
     bool m_isJust;
     T m_value;
 };
 
-template<>
-class Maybe<bool> : public MaybeBase<bool> {
-public:
-    Maybe() { m_value = false; }
-    Maybe(bool value) : MaybeBase(value) { }
-    Maybe(Maybe&& other) IP_NOEXCEPT : MaybeBase(std::move(other)) {}
-    using MaybeBase::operator=;
-};
+template <typename T>
+struct MaybeTypedef { typedef PtrMaybe<T> type; };
 
-template<>
-class Maybe<int> : public MaybeBase<int> {
-public:
-    Maybe() { m_value = 0; }
-    Maybe(int value) : MaybeBase(value) { }
-    Maybe(Maybe&& other) IP_NOEXCEPT : MaybeBase(std::move(other)) {}
-    using MaybeBase::operator=;
-};
+template <>
+struct MaybeTypedef<bool> { typedef ValueMaybe<bool> type; };
 
-template<>
-class Maybe<double> : public MaybeBase<double> {
-public:
-    Maybe() { m_value = 0; }
-    Maybe(double value) : MaybeBase(value) { }
-    Maybe(Maybe&& other) IP_NOEXCEPT : MaybeBase(std::move(other)) {}
-    using MaybeBase::operator=;
-};
+template <>
+struct MaybeTypedef<int> { typedef ValueMaybe<int> type; };
 
-template<>
-class Maybe<String> : public MaybeBase<String> {
-public:
-    Maybe() { }
-    Maybe(const String& value) : MaybeBase(value) { }
-    Maybe(Maybe&& other) IP_NOEXCEPT : MaybeBase(std::move(other)) {}
-    using MaybeBase::operator=;
-};
+template <>
+struct MaybeTypedef<double> { typedef ValueMaybe<double> type; };
 
-template<>
-class Maybe<Binary> : public MaybeBase<Binary> {
-public:
-    Maybe() { }
-    Maybe(Binary value) : MaybeBase(value) { }
-    Maybe(Maybe&& other) IP_NOEXCEPT : MaybeBase(std::move(other)) {}
-    using MaybeBase::operator=;
-};
+template <>
+struct MaybeTypedef<String> { typedef ValueMaybe<String> type; };
+
+template <>
+struct MaybeTypedef<Binary> { typedef ValueMaybe<Binary> type; };
+
+}  // namespace detail
+
+template <typename T>
+using Maybe = typename detail::MaybeTypedef<T>::type;
 
 {% for namespace in config.protocol.namespace %}
 } // namespace {{namespace}}
 {% endfor %}
-
-#undef IP_GNUC_PREREQ
-#undef IP_TARGET_ARCH_MIPS64
-#undef IP_TARGET_ARCH_MIPS
-#undef IP_NOEXCEPT
 
 #endif // !defined({{"_".join(config.protocol.namespace)}}_Maybe_h)

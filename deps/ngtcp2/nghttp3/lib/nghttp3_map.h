@@ -132,6 +132,8 @@ size_t nghttp3_map_size(nghttp3_map *map);
 int nghttp3_map_each(nghttp3_map *map, int (*func)(void *data, void *ptr),
                      void *ptr);
 
+#ifndef WIN32
 void nghttp3_map_print_distance(nghttp3_map *map);
+#endif /* !WIN32 */
 
 #endif /* NGHTTP3_MAP_H */

@@ -12,8 +12,8 @@
 /* Computes the bit cost reduction by combining out[idx1] and out[idx2] and if
    it is below a threshold, stores the pair (idx1, idx2) in the *pairs queue. */
 BROTLI_INTERNAL void FN(BrotliCompareAndPushToQueue)(
-    const HistogramType* out, const uint32_t* cluster_size, uint32_t idx1,
-    uint32_t idx2, size_t max_num_pairs, HistogramPair* pairs,
+    const HistogramType* out, HistogramType* tmp, const uint32_t* cluster_size,
+    uint32_t idx1, uint32_t idx2, size_t max_num_pairs, HistogramPair* pairs,
     size_t* num_pairs) CODE({
   BROTLI_BOOL is_good_pair = BROTLI_FALSE;
   HistogramPair p;
@@ -42,10 +42,10 @@ BROTLI_INTERNAL void FN(BrotliCompareAndPushToQueue)(
   } else {
     double threshold = *num_pairs == 0 ? 1e99 :
         BROTLI_MAX(double, 0.0, pairs[0].cost_diff);
-    HistogramType combo = out[idx1];
     double cost_combo;
-    FN(HistogramAddHistogram)(&combo, &out[idx2]);
-    cost_combo = FN(BrotliPopulationCost)(&combo);
+    *tmp = out[idx1];
+    FN(HistogramAddHistogram)(tmp, &out[idx2]);
+    cost_combo = FN(BrotliPopulationCost)(tmp);
     if (cost_combo < threshold - p.cost_diff) {
       p.cost_combo = cost_combo;
       is_good_pair = BROTLI_TRUE;
@@ -68,6 +68,7 @@ BROTLI_INTERNAL void FN(BrotliCompareAndPushToQueue)(
 })
 
 BROTLI_INTERNAL size_t FN(BrotliHistogramCombine)(HistogramType* out,
+                                                  HistogramType* tmp,
                                                   uint32_t* cluster_size,
                                                   uint32_t* symbols,
                                                   uint32_t* clusters,
@@ -87,7 +88,7 @@ BROTLI_INTERNAL size_t FN(BrotliHistogramCombine)(HistogramType* out,
     for (idx1 = 0; idx1 < num_clusters; ++idx1) {
       size_t idx2;
       for (idx2 = idx1 + 1; idx2 < num_clusters; ++idx2) {
-        FN(BrotliCompareAndPushToQueue)(out, cluster_size, clusters[idx1],
+        FN(BrotliCompareAndPushToQueue)(out, tmp, cluster_size, clusters[idx1],
             clusters[idx2], max_num_pairs, &pairs[0], &num_pairs);
       }
     }
@@ -146,8 +147,8 @@ BROTLI_INTERNAL size_t FN(BrotliHistogramCombine)(HistogramType* out,
 
     /* Push new pairs formed with the combined histogram to the heap. */
     for (i = 0; i < num_clusters; ++i) {
-      FN(BrotliCompareAndPushToQueue)(out, cluster_size, best_idx1, clusters[i],
-                                      max_num_pairs, &pairs[0], &num_pairs);
+      FN(BrotliCompareAndPushToQueue)(out, tmp, cluster_size, best_idx1,
+          clusters[i], max_num_pairs, &pairs[0], &num_pairs);
     }
   }
   return num_clusters;
@@ -155,13 +156,14 @@ BROTLI_INTERNAL size_t FN(BrotliHistogramCombine)(HistogramType* out,
 
 /* What is the bit cost of moving histogram from cur_symbol to candidate. */
 BROTLI_INTERNAL double FN(BrotliHistogramBitCostDistance)(
-    const HistogramType* histogram, const HistogramType* candidate) CODE({
+    const HistogramType* histogram, const HistogramType* candidate,
+    HistogramType* tmp) CODE({
   if (histogram->total_count_ == 0) {
     return 0.0;
   } else {
-    HistogramType tmp = *histogram;
-    FN(HistogramAddHistogram)(&tmp, candidate);
-    return FN(BrotliPopulationCost)(&tmp) - candidate->bit_cost_;
+    *tmp = *histogram;
+    FN(HistogramAddHistogram)(tmp, candidate);
+    return FN(BrotliPopulationCost)(tmp) - candidate->bit_cost_;
   }
 })
 
@@ -171,16 +173,16 @@ BROTLI_INTERNAL double FN(BrotliHistogramBitCostDistance)(
    Note: we assume that out[]->bit_cost_ is already up-to-date. */
 BROTLI_INTERNAL void FN(BrotliHistogramRemap)(const HistogramType* in,
     size_t in_size, const uint32_t* clusters, size_t num_clusters,
-    HistogramType* out, uint32_t* symbols) CODE({
+    HistogramType* out, HistogramType* tmp, uint32_t* symbols) CODE({
   size_t i;
   for (i = 0; i < in_size; ++i) {
     uint32_t best_out = i == 0 ? symbols[0] : symbols[i - 1];
     double best_bits =
-        FN(BrotliHistogramBitCostDistance)(&in[i], &out[best_out]);
+        FN(BrotliHistogramBitCostDistance)(&in[i], &out[best_out], tmp);
     size_t j;
     for (j = 0; j < num_clusters; ++j) {
       const double cur_bits =
-          FN(BrotliHistogramBitCostDistance)(&in[i], &out[clusters[j]]);
+          FN(BrotliHistogramBitCostDistance)(&in[i], &out[clusters[j]], tmp);
       if (cur_bits < best_bits) {
         best_bits = cur_bits;
         best_out = clusters[j];
@@ -226,7 +228,7 @@ BROTLI_INTERNAL size_t FN(BrotliHistogramReindex)(MemoryManager* m,
       ++next_index;
     }
   }
-  /* TODO: by using idea of "cycle-sort" we can avoid allocation of
+  /* TODO(eustas): by using idea of "cycle-sort" we can avoid allocation of
      tmp and reduce the number of copying by the factor of 2. */
   tmp = BROTLI_ALLOC(m, HistogramType, next_index);
   if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(tmp)) return 0;
@@ -257,10 +259,12 @@ BROTLI_INTERNAL void FN(BrotliClusterHistograms)(
   size_t pairs_capacity = max_input_histograms * max_input_histograms / 2;
   /* For the first pass of clustering, we allow all pairs. */
   HistogramPair* pairs = BROTLI_ALLOC(m, HistogramPair, pairs_capacity + 1);
+  /* TODO(eustas): move to "persistent" arena? */
+  HistogramType* tmp = BROTLI_ALLOC(m, HistogramType, 1);
   size_t i;
 
   if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(cluster_size) ||
-      BROTLI_IS_NULL(clusters) || BROTLI_IS_NULL(pairs)) {
+      BROTLI_IS_NULL(clusters) || BROTLI_IS_NULL(pairs)|| BROTLI_IS_NULL(tmp)) {
     return;
   }
 
@@ -283,7 +287,7 @@ BROTLI_INTERNAL void FN(BrotliClusterHistograms)(
       clusters[num_clusters + j] = (uint32_t)(i + j);
     }
     num_new_clusters =
-        FN(BrotliHistogramCombine)(out, cluster_size,
+        FN(BrotliHistogramCombine)(out, tmp, cluster_size,
                                    &histogram_symbols[i],
                                    &clusters[num_clusters], pairs,
                                    num_to_combine, num_to_combine,
@@ -301,7 +305,7 @@ BROTLI_INTERNAL void FN(BrotliClusterHistograms)(
     if (BROTLI_IS_OOM(m)) return;
 
     /* Collapse similar histograms. */
-    num_clusters = FN(BrotliHistogramCombine)(out, cluster_size,
+    num_clusters = FN(BrotliHistogramCombine)(out, tmp, cluster_size,
                                               histogram_symbols, clusters,
                                               pairs, num_clusters, in_size,
                                               max_histograms, max_num_pairs);
@@ -310,7 +314,8 @@ BROTLI_INTERNAL void FN(BrotliClusterHistograms)(
   BROTLI_FREE(m, cluster_size);
   /* Find the optimal map from original histograms to the final ones. */
   FN(BrotliHistogramRemap)(in, in_size, clusters, num_clusters,
-                           out, histogram_symbols);
+                           out, tmp, histogram_symbols);
+  BROTLI_FREE(m, tmp);
   BROTLI_FREE(m, clusters);
   /* Convert the context map to a canonical form. */
   *out_size = FN(BrotliHistogramReindex)(m, out, histogram_symbols, in_size);

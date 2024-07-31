@@ -19,7 +19,8 @@ import time
 
 import psutil
 
-renderer_cmd_file = Path(__file__).parent / 'linux-perf-chrome-renderer-cmd.sh'
+renderer_cmd_file = (Path(__file__).parent /
+                     'linux-perf-chrome-renderer-cmd.sh').resolve()
 assert renderer_cmd_file.is_file()
 renderer_cmd_prefix = f"{renderer_cmd_file} --perf-data-prefix=chrome_renderer"
 
@@ -121,8 +122,7 @@ old_cwd = Path.cwd()
 os.chdir(options.perf_data_dir)
 
 # ==============================================================================
-JS_FLAGS_PERF = ("--perf-prof", "--no-write-protect-code-memory",
-                 "--interpreted-frames-native-stack")
+JS_FLAGS_PERF = ("--perf-prof", "--interpreted-frames-native-stack")
 
 
 def wait_for_process_timeout(process):

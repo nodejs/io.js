@@ -5,7 +5,7 @@
 #ifndef V8_HEAP_OBJECT_LOCK_H_
 #define V8_HEAP_OBJECT_LOCK_H_
 
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page.h"
 #include "src/objects/heap-object.h"
 
 namespace v8::internal {
@@ -13,20 +13,28 @@ namespace v8::internal {
 class ExclusiveObjectLock final {
  public:
   static void Lock(Tagged<HeapObject> heap_object) {
-    MemoryChunk::FromHeapObject(heap_object)->shared_mutex()->LockExclusive();
+    MutablePageMetadata::FromHeapObject(heap_object)
+        ->shared_mutex()
+        ->LockExclusive();
   }
   static void Unlock(Tagged<HeapObject> heap_object) {
-    MemoryChunk::FromHeapObject(heap_object)->shared_mutex()->UnlockExclusive();
+    MutablePageMetadata::FromHeapObject(heap_object)
+        ->shared_mutex()
+        ->UnlockExclusive();
   }
 };
 
 class SharedObjectLock final {
  public:
   static void Lock(Tagged<HeapObject> heap_object) {
-    MemoryChunk::FromHeapObject(heap_object)->shared_mutex()->LockShared();
+    MutablePageMetadata::FromHeapObject(heap_object)
+        ->shared_mutex()
+        ->LockShared();
   }
   static void Unlock(Tagged<HeapObject> heap_object) {
-    MemoryChunk::FromHeapObject(heap_object)->shared_mutex()->UnlockShared();
+    MutablePageMetadata::FromHeapObject(heap_object)
+        ->shared_mutex()
+        ->UnlockShared();
   }
 };
 
@@ -39,7 +47,7 @@ class ObjectLockGuard final {
   ~ObjectLockGuard() { LockType::Unlock(raw_object_); }
 
  private:
-  HeapObject raw_object_;
+  Tagged<HeapObject> raw_object_;
 };
 
 using ExclusiveObjectLockGuard = ObjectLockGuard<ExclusiveObjectLock>;

@@ -4,9 +4,10 @@
 
 <!-- type=misc -->
 
-These objects are available in all modules. The following variables may appear
-to be global but are not. They exist only in the scope of modules, see the
-[module system documentation][]:
+These objects are available in all modules.
+
+The following variables may appear to be global but are not. They exist only in
+the scope of [CommonJS modules][]:
 
 * [`__dirname`][]
 * [`__filename`][]
@@ -321,6 +322,19 @@ added: v0.0.1
 
 [`clearTimeout`][] is described in the [timers][] section.
 
+## `CloseEvent`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+<!-- type=global -->
+
+The `CloseEvent` class. See [`CloseEvent`][] for more details.
+
+A browser-compatible implementation of [`CloseEvent`][]. Disable this API
+with the [`--no-experimental-websocket`][] CLI flag.
+
 ## Class: `CompressionStream`
 
 <!-- YAML
@@ -360,13 +374,15 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/52564
+    description: No longer experimental.
   - version: v19.0.0
     pr-url: https://github.com/nodejs/node/pull/42083
     description: No longer behind `--experimental-global-webcrypto` CLI flag.
 -->
 
-> Stability: 1 - Experimental. Disable this API with the
-> [`--no-experimental-global-webcrypto`][] CLI flag.
+> Stability: 2 - Stable.
 
 A browser-compatible implementation of {Crypto}. This global is available
 only if the Node.js binary was compiled with including support for the
@@ -379,13 +395,15 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/52564
+    description: No longer experimental.
   - version: v19.0.0
     pr-url: https://github.com/nodejs/node/pull/42083
     description: No longer behind `--experimental-global-webcrypto` CLI flag.
 -->
 
-> Stability: 1 - Experimental. Disable this API with the
-> [`--no-experimental-global-webcrypto`][] CLI flag.
+> Stability: 2 - Stable.
 
 A browser-compatible implementation of the [Web Crypto API][].
 
@@ -396,13 +414,15 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/52564
+    description: No longer experimental.
   - version: v19.0.0
     pr-url: https://github.com/nodejs/node/pull/42083
     description: No longer behind `--experimental-global-webcrypto` CLI flag.
 -->
 
-> Stability: 1 - Experimental. Disable this API with the
-> [`--no-experimental-global-webcrypto`][] CLI flag.
+> Stability: 2 - Stable.
 
 A browser-compatible implementation of {CryptoKey}. This global is available
 only if the Node.js binary was compiled with including support for the
@@ -415,13 +435,15 @@ added:
   - v18.7.0
   - v16.17.0
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/52723
+    description: No longer experimental.
   - version: v19.0.0
     pr-url: https://github.com/nodejs/node/pull/44860
     description: No longer behind `--experimental-global-customevent` CLI flag.
 -->
 
-> Stability: 1 - Experimental. Disable this API with the
-> [`--no-experimental-global-customevent`][] CLI flag.
+> Stability: 2 - Stable
 
 <!-- type=global -->
 
@@ -484,7 +506,7 @@ changes:
     description: No longer experimental.
   - version: v18.0.0
     pr-url: https://github.com/nodejs/node/pull/41811
-    description: No longer behind `--experimental-global-fetch` CLI flag.
+    description: No longer behind `--experimental-fetch` CLI flag.
 -->
 
 > Stability: 2 - Stable
@@ -514,7 +536,7 @@ changes:
     description: No longer experimental.
   - version: v18.0.0
     pr-url: https://github.com/nodejs/node/pull/41811
-    description: No longer behind `--experimental-global-fetch` CLI flag.
+    description: No longer behind `--experimental-fetch` CLI flag.
 -->
 
 > Stability: 2 - Stable
@@ -553,12 +575,25 @@ changes:
     description: No longer experimental.
   - version: v18.0.0
     pr-url: https://github.com/nodejs/node/pull/41811
-    description: No longer behind `--experimental-global-fetch` CLI flag.
+    description: No longer behind `--experimental-fetch` CLI flag.
 -->
 
 > Stability: 2 - Stable
 
 A browser-compatible implementation of {Headers}.
+
+## `localStorage`
+
+<!-- YAML
+added: v22.4.0
+-->
+
+> Stability: 1.0 - Early development.
+
+A browser-compatible implementation of [`localStorage`][]. Data is stored
+unencrypted in the file specified by the [`--localstorage-file`][] CLI flag.
+Any modification of this data outside of the Web Storage API is not supported.
+Enable this API with the [`--experimental-webstorage`][] CLI flag.
 
 ## `MessageChannel`
 
@@ -600,7 +635,8 @@ This variable may appear to be global but is not. See [`module`][].
 added: v21.0.0
 -->
 
-> Stability: 1.1 - Active development
+> Stability: 1.1 - Active development. Disable this API with the
+> [`--no-experimental-global-navigator`][] CLI flag.
 
 A partial implementation of the [Navigator API][].
 
@@ -610,17 +646,10 @@ A partial implementation of the [Navigator API][].
 added: v21.0.0
 -->
 
-> Stability: 1.1 - Active development
+> Stability: 1.1 - Active development. Disable this API with the
+> [`--no-experimental-global-navigator`][] CLI flag.
 
 A partial implementation of [`window.navigator`][].
-
-If your app or a dependency uses a check for `navigator` to determine whether it
-is running in a browser, the following can be used to delete the `navigator`
-global before app code runs:
-
-```bash
-node --import 'data:text/javascript,delete globalThis.navigator' app.js
-```
 
 ### `navigator.hardwareConcurrency`
 
@@ -635,6 +664,62 @@ logical processors available to the current Node.js instance.
 
 ```js
 console.log(`This process is running on ${navigator.hardwareConcurrency} logical processors`);
+```
+
+### `navigator.language`
+
+<!-- YAML
+added: v21.2.0
+-->
+
+* {string}
+
+The `navigator.language` read-only property returns a string representing the
+preferred language of the Node.js instance. The language will be determined by
+the ICU library used by Node.js at runtime based on the
+default language of the operating system.
+
+The value is representing the language version as defined in [RFC 5646][].
+
+The fallback value on builds without ICU is `'en-US'`.
+
+```js
+console.log(`The preferred language of the Node.js instance has the tag '${navigator.language}'`);
+```
+
+### `navigator.languages`
+
+<!-- YAML
+added: v21.2.0
+-->
+
+* {Array<string>}
+
+The `navigator.languages` read-only property returns an array of strings
+representing the preferred languages of the Node.js instance.
+By default `navigator.languages` contains only the value of
+`navigator.language`, which will be determined by the ICU library used by
+Node.js at runtime based on the default language of the operating system.
+
+The fallback value on builds without ICU is `['en-US']`.
+
+```js
+console.log(`The preferred languages are '${navigator.languages}'`);
+```
+
+### `navigator.platform`
+
+<!-- YAML
+added: v21.2.0
+-->
+
+* {string}
+
+The `navigator.platform` read-only property returns a string identifying the
+platform on which the Node.js instance is running.
+
+```js
+console.log(`This process is running on ${navigator.platform}`);
 ```
 
 ### `navigator.userAgent`
@@ -851,7 +936,7 @@ changes:
     description: No longer experimental.
   - version: v18.0.0
     pr-url: https://github.com/nodejs/node/pull/41811
-    description: No longer behind `--experimental-global-fetch` CLI flag.
+    description: No longer behind `--experimental-fetch` CLI flag.
 -->
 
 > Stability: 2 - Stable
@@ -871,12 +956,25 @@ changes:
     description: No longer experimental.
   - version: v18.0.0
     pr-url: https://github.com/nodejs/node/pull/41811
-    description: No longer behind `--experimental-global-fetch` CLI flag.
+    description: No longer behind `--experimental-fetch` CLI flag.
 -->
 
 > Stability: 2 - Stable
 
 A browser-compatible implementation of {Request}.
+
+## `sessionStorage`
+
+<!-- YAML
+added: v22.4.0
+-->
+
+> Stability: 1.0 - Early development.
+
+A browser-compatible implementation of [`sessionStorage`][]. Data is stored in
+memory, with a storage quota of 10 MB. Any modification of this data outside of
+the Web Storage API is not supported. Enable this API with the
+[`--experimental-webstorage`][] CLI flag.
 
 ## `setImmediate(callback[, ...args])`
 
@@ -908,6 +1006,17 @@ added: v0.0.1
 
 [`setTimeout`][] is described in the [timers][] section.
 
+## Class: `Storage`
+
+<!-- YAML
+added: v22.4.0
+-->
+
+> Stability: 1.0 - Early development.
+
+A browser-compatible implementation of [`Storage`][]. Enable this API with the
+[`--experimental-webstorage`][] CLI flag.
+
 ## `structuredClone(value[, options])`
 
 <!-- YAML
@@ -930,8 +1039,7 @@ changes:
     description: No longer behind `--experimental-global-webcrypto` CLI flag.
 -->
 
-> Stability: 1 - Experimental. Disable this API with the
-> [`--no-experimental-global-webcrypto`][] CLI flag.
+> Stability: 2 - Stable.
 
 A browser-compatible implementation of {SubtleCrypto}. This global is available
 only if the Node.js binary was compiled with including support for the
@@ -1044,13 +1152,22 @@ The object that acts as the namespace for all W3C
 ## `WebSocket`
 
 <!-- YAML
-added: v21.0.0
+added:
+  - v21.0.0
+  - v20.10.0
+changes:
+  - version: v22.4.0
+    pr-url: https://github.com/nodejs/node/pull/53352
+    description: No longer experimental.
+  - version: v22.0.0
+    pr-url: https://github.com/nodejs/node/pull/51594
+    description: No longer behind `--experimental-websocket` CLI flag.
 -->
 
-> Stability: 1 - Experimental.
+> Stability: 2 - Stable.
 
-A browser-compatible implementation of [`WebSocket`][]. Enable this API
-with the [`--experimental-websocket`][] CLI flag.
+A browser-compatible implementation of [`WebSocket`][]. Disable this API
+with the [`--no-experimental-websocket`][] CLI flag.
 
 ## Class: `WritableStream`
 
@@ -1083,14 +1200,18 @@ added: v18.0.0
 A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 
 [CommonJS module]: modules.md
+[CommonJS modules]: modules.md
 [ECMAScript module]: esm.md
 [Navigator API]: https://html.spec.whatwg.org/multipage/system-state.html#the-navigator-object
+[RFC 5646]: https://www.rfc-editor.org/rfc/rfc5646.txt
 [Web Crypto API]: webcrypto.md
-[`--experimental-websocket`]: cli.md#--experimental-websocket
-[`--no-experimental-global-customevent`]: cli.md#--no-experimental-global-customevent
-[`--no-experimental-global-webcrypto`]: cli.md#--no-experimental-global-webcrypto
+[`--experimental-webstorage`]: cli.md#--experimental-webstorage
+[`--localstorage-file`]: cli.md#--localstorage-filefile
+[`--no-experimental-global-navigator`]: cli.md#--no-experimental-global-navigator
+[`--no-experimental-websocket`]: cli.md#--no-experimental-websocket
 [`AbortController`]: https://developer.mozilla.org/en-US/docs/Web/API/AbortController
 [`ByteLengthQueuingStrategy`]: webstreams.md#class-bytelengthqueuingstrategy
+[`CloseEvent`]: https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/CloseEvent
 [`CompressionStream`]: webstreams.md#class-compressionstream
 [`CountQueuingStrategy`]: webstreams.md#class-countqueuingstrategy
 [`CustomEvent` Web API]: https://dom.spec.whatwg.org/#customevent
@@ -1112,6 +1233,7 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [`ReadableStreamDefaultController`]: webstreams.md#class-readablestreamdefaultcontroller
 [`ReadableStreamDefaultReader`]: webstreams.md#class-readablestreamdefaultreader
 [`ReadableStream`]: webstreams.md#class-readablestream
+[`Storage`]: https://developer.mozilla.org/en-US/docs/Web/API/Storage
 [`TextDecoderStream`]: webstreams.md#class-textdecoderstream
 [`TextDecoder`]: util.md#class-utiltextdecoder
 [`TextEncoderStream`]: webstreams.md#class-textencoderstream
@@ -1136,11 +1258,13 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [`exports`]: modules.md#exports
 [`fetch()`]: https://developer.mozilla.org/en-US/docs/Web/API/fetch
 [`globalThis`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis
+[`localStorage`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage
 [`module`]: modules.md#module
 [`perf_hooks.performance`]: perf_hooks.md#perf_hooksperformance
 [`process.nextTick()`]: process.md#processnexttickcallback-args
 [`process` object]: process.md#process
 [`require()`]: modules.md#requireid
+[`sessionStorage`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage
 [`setImmediate`]: timers.md#setimmediatecallback-args
 [`setInterval`]: timers.md#setintervalcallback-delay-args
 [`setTimeout`]: timers.md#settimeoutcallback-delay-args
@@ -1148,7 +1272,6 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [`window.navigator`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/navigator
 [buffer section]: buffer.md
 [built-in objects]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects
-[module system documentation]: modules.md
 [timers]: timers.md
 [webassembly-mdn]: https://developer.mozilla.org/en-US/docs/WebAssembly
 [webassembly-org]: https://webassembly.org

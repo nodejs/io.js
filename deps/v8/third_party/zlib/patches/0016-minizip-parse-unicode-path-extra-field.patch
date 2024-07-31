@@ -1,0 +1,117 @@
+commit c8834821f452a3d424edd0ed2a1e9ceeda38d0ea
+Author: Alex Danilo <adanilo@chromium.org>
+Date:   Thu May 12 03:29:52 2022 +0000
+
+    Extract: Parse Unicode Path Extra field in minizip
+    
+    Adds parsing of the Info-ZIP Extra field which overrides the
+    file name in the File Header only if the CRC in the extra field
+    is a CRC of the file name in the File Header.
+    
+    See https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
+    section 4.6.9 for reference.
+    
+    Also tidied up some whitespace indent.
+    
+    Bug: 953256, 953599
+    Tests: Manually tested, auto test in follow on CL
+    Change-Id: I1283dcb88a203c3bb56c1d9c504035a2e51aecbd
+    Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/3641742
+    Reviewed-by: Noel Gordon <noel@chromium.org>
+    Commit-Queue: Alex Danilo <adanilo@chromium.org>
+    Cr-Commit-Position: refs/heads/main@{#1002476}
+
+diff --git a/third_party/zlib/contrib/minizip/unzip.c b/third_party/zlib/contrib/minizip/unzip.c
+index c8a01b23efd42..42677cff82c96 100644
+--- a/third_party/zlib/contrib/minizip/unzip.c
++++ b/third_party/zlib/contrib/minizip/unzip.c
+@@ -193,6 +193,26 @@ typedef struct
+    Reads a long in LSB order from the given gz_stream. Sets
+ */
+ 
++local int unz64local_getByte(const zlib_filefunc64_32_def* pzlib_filefunc_def,
++                             voidpf filestream,
++                             int *pi) {
++    unsigned char c;
++    int err = (int)ZREAD64(*pzlib_filefunc_def,filestream,&c,1);
++    if (err==1)
++    {
++        *pi = (int)c;
++        return UNZ_OK;
++    }
++    else
++    {
++        *pi = 0;
++        if (ZERROR64(*pzlib_filefunc_def,filestream))
++            return UNZ_ERRNO;
++        else
++            return UNZ_EOF;
++    }
++}
++
+ local int unz64local_getShort(const zlib_filefunc64_32_def* pzlib_filefunc_def,
+                               voidpf filestream,
+                               uLong *pX) {
+@@ -948,6 +968,62 @@ local int unz64local_GetCurrentFileInfoInternal(unzFile file,
+                 }
+ 
+             }
++            else if (headerId == 0x7075) /* Info-ZIP Unicode Path Extra Field */
++            {
++                int version = 0;
++
++                if (unz64local_getByte(&s->z_filefunc, s->filestream, &version) != UNZ_OK)
++                {
++                    err = UNZ_ERRNO;
++                }
++                if (version != 1)
++                {
++                    if (ZSEEK64(s->z_filefunc, s->filestream,dataSize - 1, ZLIB_FILEFUNC_SEEK_CUR) != 0)
++                    {
++                        err = UNZ_ERRNO;
++                    }
++                }
++                else
++                {
++                    uLong uCrc, uHeaderCrc, fileNameSize;
++
++                    if (unz64local_getLong(&s->z_filefunc, s->filestream, &uCrc) != UNZ_OK)
++                    {
++                        err = UNZ_ERRNO;
++                    }
++                    uHeaderCrc = crc32(0, (const unsigned char *)szFileName, file_info.size_filename);
++                    fileNameSize = dataSize - (2 * sizeof (short) + 1);
++                    /* Check CRC against file name in the header. */
++                    if (uHeaderCrc != uCrc)
++                    {
++                        if (ZSEEK64(s->z_filefunc, s->filestream, fileNameSize, ZLIB_FILEFUNC_SEEK_CUR) != 0)
++                        {
++                            err = UNZ_ERRNO;
++                        }
++                    }
++                    else
++                    {
++                        uLong uSizeRead;
++
++                        if (fileNameSize < fileNameBufferSize)
++                        {
++                             *(szFileName + fileNameSize) = '\0';
++                            uSizeRead = fileNameSize;
++                        }
++                        else
++                        {
++                            uSizeRead = fileNameBufferSize;
++                        }
++                        if ((fileNameSize > 0) && (fileNameBufferSize > 0))
++                        {
++                            if (ZREAD64(s->z_filefunc, s->filestream, szFileName, uSizeRead) != uSizeRead)
++                            {
++                                err = UNZ_ERRNO;
++                            }
++                        }
++                    }
++                }
++            }
+             else
+             {
+                 if (ZSEEK64(s->z_filefunc, s->filestream,dataSize,ZLIB_FILEFUNC_SEEK_CUR)!=0)

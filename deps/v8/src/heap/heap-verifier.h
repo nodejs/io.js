@@ -7,7 +7,7 @@
 
 #include "src/common/globals.h"
 #include "src/flags/flags.h"
-#include "src/heap/basic-memory-chunk.h"
+#include "src/heap/memory-chunk-metadata.h"
 #include "src/heap/read-only-heap.h"
 #include "src/objects/map.h"
 
@@ -27,10 +27,10 @@ class SpaceVerificationVisitor {
 
   // This method will be invoked for each page in the space before verifying an
   // object on it.
-  virtual void VerifyPage(const BasicMemoryChunk* chunk) = 0;
+  virtual void VerifyPage(const MemoryChunkMetadata* chunk) = 0;
 
   // This method will be invoked after verifying all objects on that page.
-  virtual void VerifyPageDone(const BasicMemoryChunk* chunk) = 0;
+  virtual void VerifyPageDone(const MemoryChunkMetadata* chunk) = 0;
 };
 
 class HeapVerifier final {
@@ -66,13 +66,13 @@ class HeapVerifier final {
   static void VerifyHeap(Heap* heap) {}
   static void VerifyReadOnlyHeap(Heap* heap) {}
   static void VerifySharedHeap(Heap* heap, Isolate* initiator) {}
-  static void VerifyRememberedSetFor(Heap* heap, HeapObject object) {}
-  static void VerifySafeMapTransition(Heap* heap, HeapObject object,
-                                      Map new_map) {}
-  static void VerifyObjectLayoutChange(Heap* heap, HeapObject object,
-                                       Map new_map) {}
-  static void VerifyObjectLayoutChangeIsAllowed(Heap* heap, HeapObject object) {
-  }
+  static void VerifyRememberedSetFor(Heap* heap, Tagged<HeapObject> object) {}
+  static void VerifySafeMapTransition(Heap* heap, Tagged<HeapObject> object,
+                                      Tagged<Map> new_map) {}
+  static void VerifyObjectLayoutChange(Heap* heap, Tagged<HeapObject> object,
+                                       Tagged<Map> new_map) {}
+  static void VerifyObjectLayoutChangeIsAllowed(Heap* heap,
+                                                Tagged<HeapObject> object) {}
 #endif
 
   V8_INLINE static void VerifyHeapIfEnabled(Heap* heap) {

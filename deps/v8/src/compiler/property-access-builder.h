@@ -79,7 +79,7 @@ class PropertyAccessBuilder {
                       Node* lookup_start_object);
 
   Node* BuildLoadDataField(NameRef name, Node* holder,
-                           FieldAccess& field_access, bool is_inobject,
+                           FieldAccess&& field_access, bool is_inobject,
                            Node** effect, Node** control);
 
   JSGraph* jsgraph_;

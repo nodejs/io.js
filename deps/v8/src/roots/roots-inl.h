@@ -133,8 +133,8 @@ bool ReadOnlyRoots::IsNameForProtector(Tagged<HeapObject> object) const {
 void ReadOnlyRoots::VerifyNameForProtectorsPages() const {
   // The symbols and strings that can cause protector invalidation should
   // reside on the same page so we can do a fast range check.
-  CHECK_EQ(Page::FromAddress(first_name_for_protector()),
-           Page::FromAddress(last_name_for_protector()));
+  CHECK_EQ(PageMetadata::FromAddress(first_name_for_protector()),
+           PageMetadata::FromAddress(last_name_for_protector()));
 }
 
 Handle<Object> ReadOnlyRoots::handle_at(RootIndex root_index) const {

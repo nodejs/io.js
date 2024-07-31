@@ -2,22 +2,23 @@ const { dirname, relative, join, resolve, basename } = require('path')
 const linkGently = require('./link-gently.js')
 const manTarget = require('./man-target.js')
 
-const linkMans = ({ path, pkg, top, force }) => {
+const linkMans = async ({ path, pkg, top, force }) => {
   const target = manTarget({ path, top })
-  if (!target || !pkg.man || !Array.isArray(pkg.man) || !pkg.man.length) {
-    return Promise.resolve([])
+  if (!target || !Array.isArray(pkg?.man) || !pkg.man.length) {
+    return []
   }
 
-  // break any links to c:\\blah or /foo/blah or ../blah
-  // and filter out duplicates
-  const set = [...new Set(pkg.man.map(man =>
-    man ? join('/', man).replace(/\\|:/g, '/').slice(1) : null)
-    .filter(man => typeof man === 'string'))]
-
-  return Promise.all(set.map(man => {
-    const parseMan = man.match(/(.*\.([0-9]+)(\.gz)?)$/)
+  const links = []
+  // `new Set` to filter out duplicates
+  for (let man of new Set(pkg.man)) {
+    if (!man || typeof man !== 'string') {
+      continue
+    }
+    // break any links to c:\\blah or /foo/blah or ../blah
+    man = join('/', man).replace(/\\|:/g, '/').slice(1)
+    const parseMan = man.match(/\.([0-9]+)(\.gz)?$/)
     if (!parseMan) {
-      return Promise.reject(Object.assign(new Error('invalid man entry name\n' +
+      throw Object.assign(new Error('invalid man entry name\n' +
         'Man files must end with a number, ' +
         'and optionally a .gz suffix if they are compressed.'
       ), {
@@ -25,28 +26,28 @@ const linkMans = ({ path, pkg, top, force }) => {
         path,
         pkgid: pkg._id,
         man,
-      }))
+      })
     }
 
-    const stem = parseMan[1]
-    const sxn = parseMan[2]
-    const base = basename(stem)
+    const section = parseMan[1]
+    const base = basename(man)
     const absFrom = resolve(path, man)
     /* istanbul ignore if - that unpossible */
     if (absFrom.indexOf(path) !== 0) {
-      return Promise.reject(Object.assign(new Error('invalid man entry'), {
+      throw Object.assign(new Error('invalid man entry'), {
         code: 'EBADMAN',
         path,
         pkgid: pkg._id,
         man,
-      }))
+      })
     }
 
-    const to = resolve(target, 'man' + sxn, base)
+    const to = resolve(target, 'man' + section, base)
     const from = relative(dirname(to), absFrom)
 
-    return linkGently({ from, to, path, absFrom, force })
-  }))
+    links.push(linkGently({ from, to, path, absFrom, force }))
+  }
+  return Promise.all(links)
 }
 
 module.exports = linkMans

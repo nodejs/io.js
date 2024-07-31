@@ -90,10 +90,11 @@ responsible for that release. In order to be able to verify downloaded binaries,
 the public should be able to check that the `SHASUMS256.txt` file has been
 signed by someone who has been authorized to create a release.
 
-The GPG keys should be fetchable from a known third-party keyserver. The SKS
-Keyservers at <https://sks-keyservers.net> are recommended. Use the
-[submission](https://pgp.mit.edu/) form to submit a new GPG key. You'll need to
-do an ASCII-armored export of your key first:
+The public keys should be fetchable from a known third-party keyserver.
+The OpenPGP keyserver at <https://keys.openpgp.org/> is recommended.
+Use the [submission](https://keys.openpgp.org/upload) form to submit
+a new public key, and make sure to verify the associated email.
+You'll need to do an ASCII-armored export of your key first:
 
 ```bash
 gpg --armor --export email@server.com > ~/nodekey.asc
@@ -102,7 +103,7 @@ gpg --armor --export email@server.com > ~/nodekey.asc
 Keys should be fetchable via:
 
 ```bash
-gpg --keyserver pool.sks-keyservers.net --recv-keys <FINGERPRINT>
+gpg --keyserver hkps://keys.openpgp.org --recv-keys <FINGERPRINT>
 ```
 
 The key you use may be a child/subkey of an existing key.
@@ -152,7 +153,9 @@ git reset --hard upstream/v1.x-staging
 If the staging branch is not up to date relative to `main`, bring the
 appropriate PRs and commits into it.
 
-Go through PRs with the label `vN.x`. e.g. [PRs with the `v8.x` label](https://github.com/nodejs/node/pulls?q=is%3Apr+is%3Aopen+sort%3Aupdated-desc+label%3Av8.x).
+Go through PRs with the label `vN.x`. e.g. [PRs with the
+`v8.x` label](https://github.com/nodejs/node/pulls?q=is%3Apr+is%3Aopen+sort%3Aupdated-desc+label%3Av8.x)
+and `baking-for-lts` label if preparing a release for an LTS line.
 
 For each PR:
 
@@ -161,6 +164,8 @@ For each PR:
 * Check that the commit metadata was not changed from the `main` commit.
 * If there are merge conflicts, ask the PR author to rebase.
   Simple conflicts can be resolved when landing.
+* If `baking-for-lts` is present, check if the PR is ready to be landed.
+  If it is, remove the `baking-for-lts` label.
 
 When landing the PR add the `Backport-PR-URL:` line to each commit. Close the
 backport PR with `Landed in ...`. Update the label on the original PR from
@@ -184,7 +189,13 @@ duplicate or not.
 For a list of commits that could be landed in a minor release on v1.x:
 
 ```bash
-branch-diff v1.x-staging main --exclude-label=semver-major,dont-land-on-v1.x,backport-requested-v1.x,backport-blocked-v1.x,backport-open-v1.x,backported-to-v1.x --filter-release --format=simple
+N=1 sh -c 'branch-diff v$N.x-staging upstream/main --exclude-label=semver-major,dont-land-on-v$N.x,backport-requested-v$N.x,backport-blocked-v$N.x,backport-open-v$N.x,backported-to-v$N.x --filter-release --format=simple'
+```
+
+If the target branch is an LTS line, you should also exclude the `baking-for-lts`:
+
+```bash
+N=1 sh -c 'branch-diff v$N.x-staging upstream/main --exclude-label=semver-major,dont-land-on-v$N.x,backport-requested-v$N.x,backport-blocked-v$N.x,backport-open-v$N.x,backported-to-v$N.x,baking-for-lts --filter-release --format=simple'
 ```
 
 Previously released commits and version bumps do not need to be
@@ -203,7 +214,13 @@ When you are ready to cherry-pick commits, you can automate with the following
 command.
 
 ```bash
-branch-diff v1.x-staging main --exclude-label=semver-major,dont-land-on-v1.x,backport-requested-v1.x,backport-blocked-v1.x,backport-open-v1.x,backported-to-v1.x --filter-release --format=sha --reverse | xargs git cherry-pick
+N=1 sh -c 'branch-diff v$N.x-staging upstream/main --exclude-label=semver-major,dont-land-on-v$N.x,backport-requested-v$N.x,backport-blocked-v$N.x,backport-open-v$N.x,backported-to-v$N.x --filter-release --format=sha --reverse' | xargs git cherry-pick -S
+```
+
+If the target branch is an LTS line, you should also exclude the `baking-for-lts`:
+
+```bash
+N=1 sh -c 'branch-diff v$N.x-staging upstream/main --exclude-label=semver-major,dont-land-on-v$N.x,backport-requested-v$N.x,backport-blocked-v$N.x,backport-open-v$N.x,backported-to-v$N.x,baking-for-lts --filter-release --format=sha --reverse' | xargs git cherry-pick -S
 ```
 
 <sup>For patch releases, make sure to add the `semver-minor` tag
@@ -709,7 +726,17 @@ Install `git-secure-tag` npm module:
 npm install -g git-secure-tag
 ```
 
-Create a tag using the following command:
+> Ensure to disable `--follow-tags` in your git settings using: `git config push.followTags false`
+
+If your private key is protected by a passphrase, you might need to run:
+
+```bash
+export GPG_TTY=$(tty)
+```
+
+before creating the tag.
+
+To create a tag use the following command:
 
 ```bash
 git secure-tag <vx.y.z> <commit-sha> -sm "YYYY-MM-DD Node.js vx.y.z (<release-type>) Release"
@@ -792,7 +819,7 @@ Git should stop to let you fix conflicts.
 Revert all changes that were made to `src/node_version.h`:
 
 ```bash
-git checkout --ours HEAD -- src/node_version.h
+git restore --source=upstream/main src/node_version.h
 ```
 
 <details>
@@ -883,6 +910,12 @@ same GPG key!**
 Use `tools/release.sh` to promote and sign the build. Before doing this, you'll
 need to ensure you've loaded the correct ssh key, or you'll see the following:
 
+If your GPG key is protected by a password, you might need to run:
+
+```console
+$ export GPG_TTY=$(tty)
+```
+
 ```console
 # Checking for releases ...
 Enter passphrase for key '/Users/<user>/.ssh/id_rsa':
@@ -971,7 +1004,7 @@ release. However, the blog post is not yet fully automatic.
 Create a new blog post by running the [nodejs.org release-post.js script][]:
 
 ```bash
-node ./scripts/release-post/index.mjs x.y.z
+node ./apps/site/scripts/release-post/index.mjs x.y.z
 ```
 
 This script will use the promoted builds and changelog to generate the post. Run

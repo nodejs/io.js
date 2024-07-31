@@ -423,7 +423,8 @@ class TransliteratorRegistry : public UMemory {
         static UClassID U_EXPORT2 getStaticClassID();
         virtual UClassID getDynamicClassID() const override;
     private:
-        int32_t index;
+        int32_t pos;
+        int32_t size;
         const TransliteratorRegistry& reg;
     };
     friend class Enumeration;
@@ -452,7 +453,7 @@ class TransliteratorRegistry : public UMemory {
     /**
      * Vector of public full IDs.
      */
-    UVector availableIDs;
+    Hashtable availableIDs;
 
     TransliteratorRegistry(const TransliteratorRegistry &other); // forbid copying of this class
     TransliteratorRegistry &operator=(const TransliteratorRegistry &other); // forbid copying of this class

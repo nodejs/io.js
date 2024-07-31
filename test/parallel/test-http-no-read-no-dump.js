@@ -34,7 +34,7 @@ const server = http.createServer((req, res) => {
   }, common.mustCall((res) => {
     res.resume();
 
-    post.write(Buffer.alloc(16 * 1024).fill('X'));
+    post.write(Buffer.alloc(64 * 1024).fill('X'));
     onPause = () => {
       post.end('something');
     };

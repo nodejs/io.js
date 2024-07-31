@@ -31,12 +31,12 @@ proc.once('exit', common.mustCall(() => {
     const traces = JSON.parse(data.toString()).traceEvents;
     assert(traces.length > 0);
     let count = 0;
-    traces.forEach((trace) => {
+    for (const trace of traces) {
       if (trace.cat === 'node,node.http' &&
           ['http.server.request', 'http.client.request'].includes(trace.name)) {
         count++;
       }
-    });
+    }
     // Two begin, two end
     assert.strictEqual(count, 4);
   }));

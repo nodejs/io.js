@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('path');
-const fork = require('child_process').fork;
+const { spawn, fork } = require('node:child_process');
 const CLI = require('./_cli.js');
 
 const cli = new CLI(`usage: ./node run.js [options] [--] <category> ...
@@ -17,7 +17,14 @@ const cli = new CLI(`usage: ./node run.js [options] [--] <category> ...
   test                      only run a single configuration from the options
                             matrix
   all                       each benchmark category is run one after the other
+
+  Examples:
+    --set CPUSET=0            Runs benchmarks on CPU core 0.
+    --set CPUSET=0-2          Specifies that benchmarks should run on CPU cores 0 to 2.
+
+  Note: The CPUSET format should match the specifications of the 'taskset' command on your system.
 `, { arrayArgs: ['set', 'filter', 'exclude'] });
+
 const benchmarks = cli.benchmarks();
 
 if (benchmarks.length === 0) {
@@ -40,10 +47,21 @@ if (format === 'csv') {
 
 (function recursive(i) {
   const filename = benchmarks[i];
-  const child = fork(
-    path.resolve(__dirname, filename),
-    cli.test ? ['--test'] : cli.optional.set,
-  );
+  const scriptPath = path.resolve(__dirname, filename);
+
+  const args = cli.test ? ['--test'] : cli.optional.set;
+  const cpuCore = cli.getCpuCoreSetting();
+  let child;
+  if (cpuCore !== null) {
+    child = spawn('taskset', ['-c', cpuCore, 'node', scriptPath, ...args], {
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    });
+  } else {
+    child = fork(
+      scriptPath,
+      args,
+    );
+  }
 
   if (format !== 'csv') {
     console.log();

@@ -97,12 +97,11 @@
   'test-code-stub-assembler/PopAndReturnFromTFCBuiltinWithStackParameters' : [FAIL, ['official_build', CRASH]],
 
   # Slow tests.
+  'test-api/FastApiCalls': [PASS, SLOW],
   'test-api/InternalFieldsSubclassing': [PASS, SLOW],
   'test-debug/CallFunctionInDebugger': [PASS, ['mode == debug', SLOW]],
   'test-heap/TestInternalWeakLists': [PASS, SLOW],
   'test-heap-profiler/ManyLocalsInSharedContext': [PASS, SLOW],
-  'test-jump-table-assembler/JumpTablePatchingStress': [PASS, SLOW],
-  'test-ptr-compr-cage/SharedPtrComprCageRace': [PASS, SLOW],
   'test-serialize/CustomSnapshotDataBlobImmortalImmovableRoots': [PASS, ['mode == debug', SKIP]],
   'test-serialize/SharedStrings': [PASS, SLOW],
   'test-serialize/StartupSerializerOnce': [PASS, SLOW],
@@ -110,25 +109,24 @@
   'test-strings/StringOOM*': [PASS, ['mode == debug', SKIP]],
 
   # Tests that need to run sequentially (e.g. due to memory consumption).
-  'test-accessors/HandleScopePop': [PASS, HEAVY],
-  'test-api/FastApiCalls': [PASS, HEAVY],
+  'test-allocation/AccountingAllocatorOOM': [PASS, HEAVY],
+  'test-allocation/MallocedOperatorNewOOM': [PASS, HEAVY],
   'test-api/NewStringRangeError': [PASS, HEAVY],
-  'test-api/Threading8': [PASS, HEAVY],
+  'test-jump-table-assembler/JumpTablePatchingStress': [PASS, HEAVY],
+  'test-lockers/LockerUnlocker': [PASS, HEAVY],
   'test-lockers/LockTwiceAndUnlock': [PASS, HEAVY],
-  'test-run-machops/RunInt32AddWithOverflowImm': [PASS, HEAVY],
-  'test-run-machops/RunInt32MulAndInt32AddP': [PASS, HEAVY],
-  'test-run-machops/RunInt64SubWithOverflowImm': [PASS, HEAVY],
+  'test-lockers/SeparateIsolatesLocksNonexclusive': [PASS, HEAVY],
+  'test-ptr-compr-cage/SharedPtrComprCageRace': [PASS, HEAVY],
   'test-serialize/ContextSerializerContext': [PASS, HEAVY],
   'test-serialize/ContextSerializerCustomContext': [PASS, HEAVY],
   'test-serialize/SnapshotCompression': [PASS, HEAVY],
   'test-serialize/StartupSerializerOnceRunScript': [PASS, HEAVY],
   'test-serialize/StartupSerializerTwiceRunScript': [PASS, HEAVY],
-  'test-serialize/StaticRootsPredictableSnapshot': [PASS, HEAVY],
+  'test-serialize/StaticRootsPredictableSnapshot': [PASS, SLOW, HEAVY],
+  'test-spaces/OldLargeObjectSpace': [PASS, HEAVY],
+  'test-spaces/OldSpace': [PASS, HEAVY],
   'test-strings/StringOOMNewStringFromOneByte': [PASS, HEAVY],
   'test-strings/StringOOMNewStringFromUtf8': [PASS, HEAVY],
-  'test-strings/Traverse': [PASS, HEAVY],
-  'test-swiss-name-dictionary-csa/DeleteAtBoundaries': [PASS, HEAVY],
-  'test-swiss-name-dictionary-csa/SameH2': [PASS, HEAVY],
 }],  # ALWAYS
 
 ##############################################################################
@@ -201,13 +199,18 @@
   'test-wasm-serialization/*': [SKIP],
   'test-streaming-compilation/SingleThreadedTestDeserializationBypassesCompilation': [SKIP],
   'test-streaming-compilation/SingleThreadedTestDeserializationFails': [SKIP],
+  'test-streaming-compilation/SingleThreadedTestIncrementalCaching': [SKIP],
   'test-streaming-compilation/AsyncTestDeserializationFails': [SKIP],
   'test-streaming-compilation/AsyncTestDeserializationBypassesCompilation': [SKIP],
+  'test-streaming-compilation/AsyncTestIncrementalCaching': [SKIP],
 
   # %ObserveNode tests rely on TurboFan.
   'test-calls-with-arraylike-or-spread/*': [SKIP],
   'test-js-to-wasm/*': [SKIP],
   'test-verify-type/*': [SKIP],
+
+  # Field representation tracking is disabled in nooptimization mode.
+  'test-field-type-tracking/*': [SKIP],
 }],  # variant == nooptimization
 
 ##############################################################################
@@ -256,6 +259,12 @@
   # Too slow for tsan in debug mode:
   'test-serialize/StaticRootsPredictableSnapshot': [PASS, ['mode == debug', SKIP]],
 }],  # 'tsan == True'
+
+##############################################################################
+['ubsan', {
+  # https://crbug.com/v8/14309
+  'test-run-wasm-simd/RunWasm*': [SKIP],
+}],  # 'ubsan'
 
 ##############################################################################
 ['full_debug', {
@@ -379,6 +388,8 @@
   # is not guaranteed. So the test fails when src bits has payload.
   'test-run-wasm/RunWasmLiftoff_F32ReinterpretI32': [SKIP],
   'test-run-wasm/RunWasmTurbofan_F32ReinterpretI32': [SKIP],
+
+  'test-serialize/StaticRootsPredictableSnapshot': ['pointer_compression', SKIP],
 }],  # 'arch == riscv64 or (arch == riscv32)'
 ['arch == riscv32', {
   # Some wasm functionality is not implemented yet.
@@ -436,6 +447,7 @@
   # Pass but take too long with the simulator.
   'test-api/Threading*': [PASS, SLOW],
   'test-api/ExternalArrays': [PASS, SLOW],
+  'test-debug/DebugBreakStackTrace': [PASS, SLOW],
 
 }],  # 'arch == ppc64 and simulator_run'
 
@@ -447,6 +459,14 @@
 
   'test-wasm-breakpoints/*' : [SKIP],
 }],  # 'arch == ppc or arch == ppc64 or arch == s390 or arch == s390x'
+
+##############################################################################
+['arch == s390 or arch == s390x', {
+
+  # Turboshaft not supported yet.
+  'turboshaft-test-branch-combine/*' : [SKIP],
+
+}],  # 'arch == s390 or arch == s390x'
 
 ##############################################################################
 ['variant == stress_incremental_marking', {
@@ -533,7 +553,6 @@
   'test-multiple-return/*': [SKIP],
   'test-run-calls-to-external-references/*': [SKIP],
   'test-run-intrinsics/*': [SKIP],
-
   'test-run-load-store/*': [SKIP],
   'test-run-machops/*': [SKIP],
   'test-run-native-calls/*': [SKIP],
@@ -544,8 +563,24 @@
   'test-serialize/*': [SKIP],
   'test-swiss-name-dictionary-csa/*': [SKIP],
   'test-torque/*': [SKIP],
-  'test-unwinder-code-pages/PCIsInV8_LargeCodeObject_CodePagesAPI': [SKIP],
   'test-verify-type/*': [SKIP],
+  'test-concurrent-shared-function-info/*': [SKIP],
+  'test-concurrent-allocation/*': [SKIP],
+  'test-sync-primitives-arm/*': [SKIP],
+  'test-sync-primitives-arm64/*': [SKIP],
+  'turboshaft-test-branch-combine/*': [SKIP],
+  'turboshaft-test-select-combine/*': [SKIP],
+
+  'test-unwinder-code-pages/PCIsInV8_LargeCodeObject_CodePagesAPI': [SKIP],
+  'test-heap-profiler/WeakReference': [SKIP],
+  'test-alloc/StressJS': [SKIP],
+  'test-alloc/StressHandles': [SKIP],
+  'test-heap/CodeLargeObjectSpace': [SKIP],
+  'test-heap/CodeLargeObjectSpace64k': [SKIP],
+  'test-heap/CodeObjectRegistry': [SKIP],
+  'test-heap/HeapObjects': [SKIP],
+  'test-heap/Regress10900': [SKIP],
+  'test-weak-references/WeakReferencesBasic': [SKIP],
 
   # Field representation tracking is disabled in jitless mode.
   'test-field-type-tracking/*': [SKIP],
@@ -600,9 +635,6 @@
   'test-macro-assembler-arm/ExtractLane': [PASS, ['arch == arm and not simulator_run', SKIP]],
   'test-macro-assembler-arm/LoadAndStoreWithRepresentation': [PASS, ['arch == arm and not simulator_run', SKIP]],
   'test-macro-assembler-arm/ReplaceLane': [PASS, ['arch == arm and not simulator_run', SKIP]],
-
-  # Too slow on arm64 simulator on Mac.
-  'test-cpu-profiler/MultipleIsolates': [PASS, ['arch == arm64 and system == macos and simulator_run', SKIP]],
 }], # variant == jitless
 
 
@@ -1050,80 +1082,18 @@
   # and these tests don't make sense.
   # TODO(14108): Remove once we remove '--no-liftoff' from the 'turboshaft'
   # variant.
-  'test-streaming-compilation/AsyncTestIncrementalCaching': [FAIL],
-  'test-streaming-compilation/SingleThreadedTestIncrementalCaching': [FAIL],
+  'test-streaming-compilation/AsyncTestIncrementalCaching': [SKIP],
+  'test-streaming-compilation/SingleThreadedTestIncrementalCaching': [SKIP],
+}],  # variant == turboshaft
 
+##############################################################################
+['variant == turboshaft or variant == future', {
   # Revectorization is not supported yet in Turboshaft.
   # TODO(14108): Remove once supported.
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8Max': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8Min': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8Pmin': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8Pmax': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F64x4Pmin': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F64x4Min': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F64x4Pmax': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F64x4Max': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8GeS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8Ne': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8GeU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8GtU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I64x4Ne': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I64x4GeS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32GeS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32GeU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32GtU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32Ne': [FAIL],
-  'test-run-wasm-simd/WasmTurbofan_I16x16GeU': [FAIL],
-  'test-run-wasm-simd/WasmTurbofan_I16x16GeS': [FAIL],
-  'test-run-wasm-simd/WasmTurbofan_I16x16GtU': [FAIL],
-  'test-run-wasm-simd/WasmTurbofan_I16x16Ne': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8Abs': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8Sqrt': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8SConvertI32x8': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8UConvertI32x8': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8Neg': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16Abs': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_F64x4Sqrt': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16Neg': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8Neg': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8UConvertF32x8': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8Abs': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32Neg': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32Abs': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16AddSatS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16AddSatU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16SubSatS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16SubSatU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32AddSatS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32AddSatU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32SubSatS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I8x32SubSatU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Const': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Not': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256And': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Or': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Xor': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256AndNot': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Select': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16ShrS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16Shl': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I16x16ShrU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8Shl': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8ShrU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I32x8ShrS': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I64x4Shl': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_I64x4ShrU': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Load8Splat': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Load16Splat': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Load32Splat': [FAIL],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Load64Splat': [FAIL],
-  'test-run-wasm-simd/S128Load8x8S': [FAIL],
-  'test-run-wasm-simd/S128Load8x8U': [FAIL],
-  'test-run-wasm-simd/S128Load16x4S': [FAIL],
-  'test-run-wasm-simd/S128Load16x4U': [FAIL],
-  'test-run-wasm-simd/S128Load32x2S': [FAIL],
-  'test-run-wasm-simd/S128Load32x2U': [FAIL],
-}],  # variant == turboshaft
+  'test-run-wasm-simd/RunWasmTurbofan_F32x8SConvertI32x8': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_S256Const': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_ShuffleVpshufd': [SKIP],
+}],  # variant == turboshaft or variant == future
 
 ##############################################################################
 # Behavioural differences between Maglev and Turbofan when the former is used
@@ -1163,6 +1133,7 @@
   'test-verify-type/TestVerifyType': [FAIL],
   # Maglev doesn't support FastApi calls.
   'test-api/FastApiCalls': [FAIL],
+  'test-api/FastApiCallWithAllocationAndGC': [FAIL],
   'test-api/FastApiSequenceOverloads': [FAIL],
   # Maglev doesn't produce optimized enough code to match heap tests
   # expectations.
@@ -1173,4 +1144,15 @@
   # Needs --predictable.
   'test-serialize/StaticRootsPredictableSnapshot': [SKIP],
 }],  # conservative_stack_scanning
+
+['clang_coverage and mode == debug', {
+  # Too slow tests.
+  'test-concurrent-allocation/ConcurrentAllocationInLargeSpace': [SKIP],
+  'test-serialize/ContextSerializerContext': [SKIP],
+  'test-serialize/ContextSerializerCustomContext': [SKIP],
+  'test-serialize/StartupSerializerOnceRunScript': [SKIP],
+  'test-serialize/StartupSerializerTwiceRunScript': [SKIP],
+  'test-api/Threading8': [SKIP],
+  'test-heap/TestInternalWeakLists': [SKIP],
+}],  # 'clang_coverage and mode == debug'
 ]

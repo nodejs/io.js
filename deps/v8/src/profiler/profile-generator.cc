@@ -242,7 +242,7 @@ size_t CodeEntry::EstimatedSize() const {
   }
 
   if (line_info_) {
-    estimated_size += line_info_.get()->Size();
+    estimated_size += line_info_->Size();
   }
   return sizeof(*this) + estimated_size;
 }
@@ -541,7 +541,7 @@ template <typename Callback>
 void ProfileTree::TraverseDepthFirst(Callback* callback) {
   std::vector<Position> stack;
   stack.emplace_back(root_);
-  while (stack.size() > 0) {
+  while (!stack.empty()) {
     Position& current = stack.back();
     if (current.has_current_child()) {
       callback->BeforeTraversingChild(current.node, current.current_child());

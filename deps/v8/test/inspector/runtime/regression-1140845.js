@@ -13,13 +13,12 @@ const setupScript = `
 (async function() {
   await Protocol.Debugger.enable();
 
-  // Set a custom `then` method on the Object prototype. This causes termination
-  // when 'then' is retrieved, as the 'then' getter is side-effecting.
+  // Set a custom `then` method on the Object prototype. This should have no effect on replMode.
   await Protocol.Runtime.evaluate({
     expression: setupScript,
   });
 
-  InspectorTest.log(`Evaluating a simple string 'foo' does not cause a crash, but a side-effect exception.`);
+  InspectorTest.log(`Evaluating a simple string 'foo' without side-effects should give us the string.`);
   InspectorTest.logMessage(await Protocol.Runtime.evaluate({
     expression: `"foo"`,
     replMode: true,

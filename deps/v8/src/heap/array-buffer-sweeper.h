@@ -88,12 +88,13 @@ class ArrayBufferSweeper final {
   void DecrementExternalMemoryCounters(size_t bytes);
 
   void Prepare(SweepingType type,
-               TreatAllYoungAsPromoted treat_all_young_as_promoted);
+               TreatAllYoungAsPromoted treat_all_young_as_promoted,
+               uint64_t trace_id);
   void Finalize();
 
   void ReleaseAll(ArrayBufferList* extension);
 
-  void DoSweep();
+  void DoSweep(SweepingType type, ThreadKind thread_kind, uint64_t trace_id);
 
   Heap* const heap_;
   std::unique_ptr<SweepingJob> job_;

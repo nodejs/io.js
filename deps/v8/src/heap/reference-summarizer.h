@@ -28,7 +28,8 @@ class ReferenceSummary {
                                                   Tagged<HeapObject> obj);
 
   using UnorderedHeapObjectSet =
-      std::unordered_set<HeapObject, Object::Hasher, Object::KeyEqualSafe>;
+      std::unordered_set<Tagged<HeapObject>, Object::Hasher,
+                         Object::KeyEqualSafe>;
 
   // All objects which the chosen object has strong pointers to.
   UnorderedHeapObjectSet& strong_references() { return strong_references_; }

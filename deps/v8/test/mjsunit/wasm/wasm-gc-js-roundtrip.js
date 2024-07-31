@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
-
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 let instance = (() => {
@@ -28,7 +26,7 @@ let instance = (() => {
       .exportFunc();
 
   builder.addFunction('i31_as_eq_producer', makeSig([], [kWasmEqRef]))
-      .addBody([kExprI32Const, 5, kGCPrefix, kExprI31New])
+      .addBody([kExprI32Const, 5, kGCPrefix, kExprRefI31])
       .exportFunc();
 
   builder.addFunction('func_producer', makeSig([], [wasmRefType(sig)]))

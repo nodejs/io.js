@@ -39,38 +39,15 @@ extern "C" {
 #endif /* WIN32 */
 
 /**
- * @macro
- *
- * :macro:`NGTCP2_CRYPTO_INITIAL_SECRETLEN` is the length of secret
- * for Initial packets.
- */
-#define NGTCP2_CRYPTO_INITIAL_SECRETLEN 32
-
-/**
- * @macro
- *
- * :macro:`NGTCP2_CRYPTO_INITIAL_KEYLEN` is the length of key for
- * Initial packets.
- */
-#define NGTCP2_CRYPTO_INITIAL_KEYLEN 16
-
-/**
- * @macro
- *
- * :macro:`NGTCP2_CRYPTO_INITIAL_IVLEN` is the length of IV for
- * Initial packets.
- */
-#define NGTCP2_CRYPTO_INITIAL_IVLEN 12
-
-/**
  * @function
  *
  * `ngtcp2_crypto_ctx_tls` initializes |ctx| by extracting negotiated
  * ciphers and message digests from native TLS session
  * |tls_native_handle|.  This is used for encrypting/decrypting
- * Handshake and Short header packets.
+ * Handshake and 1-RTT packets.  If it is unable to obtain necessary
+ * data from |tls_native_handle|, this function returns NULL.
  *
- * If libngtcp2_crypto_openssl is linked, |tls_native_handle| must be
+ * If libngtcp2_crypto_quictls is linked, |tls_native_handle| must be
  * a pointer to SSL object.
  */
 NGTCP2_EXTERN ngtcp2_crypto_ctx *ngtcp2_crypto_ctx_tls(ngtcp2_crypto_ctx *ctx,
@@ -81,10 +58,11 @@ NGTCP2_EXTERN ngtcp2_crypto_ctx *ngtcp2_crypto_ctx_tls(ngtcp2_crypto_ctx *ctx,
  *
  * `ngtcp2_crypto_ctx_tls_early` initializes |ctx| by extracting early
  * ciphers and message digests from native TLS session
- * |tls_native_handle|.  This is used for encrypting/decrypting 0RTT
- * packets.
+ * |tls_native_handle|.  This is used for encrypting/decrypting 0-RTT
+ * packets.  If it is unable to obtain necessary data from
+ * |tls_native_handle|, this function returns NULL.
  *
- * If libngtcp2_crypto_openssl is linked, |tls_native_handle| must be
+ * If libngtcp2_crypto_quictls is linked, |tls_native_handle| must be
  * a pointer to SSL object.
  */
 NGTCP2_EXTERN ngtcp2_crypto_ctx *
@@ -96,7 +74,7 @@ ngtcp2_crypto_ctx_tls_early(ngtcp2_crypto_ctx *ctx, void *tls_native_handle);
  * `ngtcp2_crypto_md_init` initializes |md| with the provided
  * |md_native_handle| which is an underlying message digest object.
  *
- * If libngtcp2_crypto_openssl is linked, |md_native_handle| must be a
+ * If libngtcp2_crypto_quictls is linked, |md_native_handle| must be a
  * pointer to EVP_MD.
  *
  * If libngtcp2_crypto_gnutls is linked, |md_native_handle| must be
@@ -134,10 +112,12 @@ ngtcp2_crypto_aead_noncelen(const ngtcp2_crypto_aead *aead);
 /**
  * @function
  *
- * `ngtcp2_crypto_hkdf_extract` performs HKDF extract operation.  The
- * result is the length of |md| and is stored to the buffer pointed by
- * |dest|.  The caller is responsible to specify the buffer that can
- * store the output.
+ * `ngtcp2_crypto_hkdf_extract` performs HKDF extract operation.
+ *
+ * The length of output is `ngtcp2_crypto_md_hashlen(md)
+ * <ngtcp2_crypto_md_hashlen>`.  The output is stored in the buffer
+ * pointed by |dest|.  The caller is responsible to specify the buffer
+ * that has enough capacity to store the output.
  *
  * This function returns 0 if it succeeds, or -1.
  */
@@ -150,7 +130,7 @@ ngtcp2_crypto_hkdf_extract(uint8_t *dest, const ngtcp2_crypto_md *md,
  * @function
  *
  * `ngtcp2_crypto_hkdf_expand` performs HKDF expand operation.  The
- * result is |destlen| bytes long and is stored to the buffer pointed
+ * result is |destlen| bytes long, and is stored in the buffer pointed
  * by |dest|.
  *
  * This function returns 0 if it succeeds, or -1.
@@ -166,7 +146,8 @@ NGTCP2_EXTERN int ngtcp2_crypto_hkdf_expand(uint8_t *dest, size_t destlen,
  * @function
  *
  * `ngtcp2_crypto_hkdf` performs HKDF operation.  The result is
- * |destlen| bytes long and is stored to the buffer pointed by |dest|.
+ * |destlen| bytes long, and is stored in the buffer pointed by
+ * |dest|.
  *
  * This function returns 0 if it succeeds, or -1.
  */
@@ -175,41 +156,6 @@ NGTCP2_EXTERN int ngtcp2_crypto_hkdf(uint8_t *dest, size_t destlen,
                                      const uint8_t *secret, size_t secretlen,
                                      const uint8_t *salt, size_t saltlen,
                                      const uint8_t *info, size_t infolen);
-
-/**
- * @function
- *
- * `ngtcp2_crypto_hkdf_expand_label` performs HKDF expand label.  The
- * result is |destlen| bytes long and is stored to the buffer pointed
- * by |dest|.
- *
- * This function returns 0 if it succeeds, or -1.
- */
-NGTCP2_EXTERN int ngtcp2_crypto_hkdf_expand_label(uint8_t *dest, size_t destlen,
-                                                  const ngtcp2_crypto_md *md,
-                                                  const uint8_t *secret,
-                                                  size_t secretlen,
-                                                  const uint8_t *label,
-                                                  size_t labellen);
-
-/**
- * @enum
- *
- * :type:`ngtcp2_crypto_side` indicates which side the application
- * implements; client or server.
- */
-typedef enum ngtcp2_crypto_side {
-  /**
-   * :enum:`NGTCP2_CRYPTO_SIDE_CLIENT` indicates that the application
-   * is client.
-   */
-  NGTCP2_CRYPTO_SIDE_CLIENT,
-  /**
-   * :enum:`NGTCP2_CRYPTO_SIDE_SERVER` indicates that the application
-   * is server.
-   */
-  NGTCP2_CRYPTO_SIDE_SERVER
-} ngtcp2_crypto_side;
 
 /**
  * @function
@@ -225,11 +171,10 @@ ngtcp2_crypto_packet_protection_ivlen(const ngtcp2_crypto_aead *aead);
  *
  * `ngtcp2_crypto_encrypt` encrypts |plaintext| of length
  * |plaintextlen| and writes the ciphertext into the buffer pointed by
- * |dest|.  The length of ciphertext is plaintextlen +
+ * |dest|.  The length of ciphertext is |plaintextlen| +
  * :member:`aead->max_overhead <ngtcp2_crypto_aead.max_overhead>`
  * bytes long.  |dest| must have enough capacity to store the
- * ciphertext.  It is allowed to specify the same value to |dest| and
- * |plaintext|.
+ * ciphertext.  |dest| and |plaintext| may point to the same buffer.
  *
  * This function returns 0 if it succeeds, or -1.
  */
@@ -263,11 +208,10 @@ ngtcp2_crypto_encrypt_cb(uint8_t *dest, const ngtcp2_crypto_aead *aead,
  *
  * `ngtcp2_crypto_decrypt` decrypts |ciphertext| of length
  * |ciphertextlen| and writes the plaintext into the buffer pointed by
- * |dest|.  The length of plaintext is ciphertextlen -
+ * |dest|.  The length of plaintext is |ciphertextlen| -
  * :member:`aead->max_overhead <ngtcp2_crypto_aead.max_overhead>`
  * bytes long.  |dest| must have enough capacity to store the
- * plaintext.  It is allowed to specify the same value to |dest| and
- * |ciphertext|.
+ * plaintext.  |dest| and |ciphertext| may point to the same buffer.
  *
  * This function returns 0 if it succeeds, or -1.
  */
@@ -299,7 +243,7 @@ ngtcp2_crypto_decrypt_cb(uint8_t *dest, const ngtcp2_crypto_aead *aead,
 /**
  * @function
  *
- * `ngtcp2_crypto_hp_mask` generates mask which is used in packet
+ * `ngtcp2_crypto_hp_mask` generates a mask which is used in packet
  * header encryption.  The mask is written to the buffer pointed by
  * |dest|.  The sample is passed as |sample| which is
  * :macro:`NGTCP2_HP_SAMPLELEN` bytes long.  The length of mask must
@@ -333,15 +277,14 @@ ngtcp2_crypto_hp_mask_cb(uint8_t *dest, const ngtcp2_crypto_cipher *hp,
 /**
  * @function
  *
- * `ngtcp2_crypto_derive_and_install_rx_key` derives the rx keys from
- * |secret| and installs new keys to |conn|.
+ * `ngtcp2_crypto_derive_and_install_rx_key` derives the decryption
+ * keying materials from |secret|, and installs them to |conn|.
  *
- * If |key| is not NULL, the derived packet protection key for
- * decryption is written to the buffer pointed by |key|.  If |iv| is
- * not NULL, the derived packet protection IV for decryption is
- * written to the buffer pointed by |iv|.  If |hp| is not NULL, the
- * derived header protection key for decryption is written to the
- * buffer pointed by |hp|.
+ * If |key| is not NULL, the derived packet protection key is written
+ * to the buffer pointed by |key|.  If |iv| is not NULL, the derived
+ * packet protection IV is written to the buffer pointed by |iv|.  If
+ * |hp| is not NULL, the derived header protection key is written to
+ * the buffer pointed by |hp|.
  *
  * |secretlen| specifies the length of |secret|.
  *
@@ -351,44 +294,44 @@ ngtcp2_crypto_hp_mask_cb(uint8_t *dest, const ngtcp2_crypto_cipher *hp,
  * `ngtcp2_crypto_packet_protection_ivlen(ctx->aead)
  * <ngtcp2_crypto_packet_protection_ivlen>` where ctx is obtained by
  * `ngtcp2_crypto_ctx_tls` (or `ngtcp2_crypto_ctx_tls_early` if
- * |level| == :enum:`ngtcp2_crypto_level.NGTCP2_CRYPTO_LEVEL_EARLY`).
+ * |level| ==
+ * :enum:`ngtcp2_encryption_level.NGTCP2_ENCRYPTION_LEVEL_0RTT`).
  *
  * In the first call of this function, it calls
  * `ngtcp2_conn_set_crypto_ctx` (or `ngtcp2_conn_set_early_crypto_ctx`
  * if |level| ==
- * :enum:`ngtcp2_crypto_level.NGTCP2_CRYPTO_LEVEL_EARLY`) to set
- * negotiated AEAD and message digest algorithm.  After the successful
- * call of this function, application can use
+ * :enum:`ngtcp2_encryption_level.NGTCP2_ENCRYPTION_LEVEL_0RTT`) to
+ * set negotiated AEAD and message digest algorithm.  After the
+ * successful call of this function, application can use
  * `ngtcp2_conn_get_crypto_ctx` (or `ngtcp2_conn_get_early_crypto_ctx`
  * if |level| ==
- * :enum:`ngtcp2_crypto_level.NGTCP2_CRYPTO_LEVEL_EARLY`) to get
- * :type:`ngtcp2_crypto_ctx`.
+ * :enum:`ngtcp2_encryption_level.NGTCP2_ENCRYPTION_LEVEL_0RTT`) to
+ * get :type:`ngtcp2_crypto_ctx`.
  *
  * If |conn| is initialized as client, and |level| is
- * :enum:`ngtcp2_crypto_level.NGTCP2_CRYPTO_LEVEL_APPLICATION`, this
+ * :enum:`ngtcp2_encryption_level.NGTCP2_ENCRYPTION_LEVEL_1RTT`, this
  * function retrieves a remote QUIC transport parameters extension
- * from an object obtained by `ngtcp2_conn_get_tls_native_handle` and
+ * from an object obtained by `ngtcp2_conn_get_tls_native_handle`, and
  * sets it to |conn| by calling
- * `ngtcp2_conn_decode_remote_transport_params`.
+ * `ngtcp2_conn_decode_and_set_remote_transport_params`.
  *
  * This function returns 0 if it succeeds, or -1.
  */
 NGTCP2_EXTERN int ngtcp2_crypto_derive_and_install_rx_key(
     ngtcp2_conn *conn, uint8_t *key, uint8_t *iv, uint8_t *hp,
-    ngtcp2_crypto_level level, const uint8_t *secret, size_t secretlen);
+    ngtcp2_encryption_level level, const uint8_t *secret, size_t secretlen);
 
 /**
  * @function
  *
- * `ngtcp2_crypto_derive_and_install_tx_key` derives the tx keys from
- * |secret| and installs new keys to |conn|.
+ * `ngtcp2_crypto_derive_and_install_tx_key` derives the encryption
+ * keying materials from |secret|, and installs new keys to |conn|.
  *
- * If |key| is not NULL, the derived packet protection key for
- * encryption is written to the buffer pointed by |key|.  If |iv| is
- * not NULL, the derived packet protection IV for encryption is
- * written to the buffer pointed by |iv|.  If |hp| is not NULL, the
- * derived header protection key for encryption is written to the
- * buffer pointed by |hp|.
+ * If |key| is not NULL, the derived packet protection key is written
+ * to the buffer pointed by |key|.  If |iv| is not NULL, the derived
+ * packet protection IV is written to the buffer pointed by |iv|.  If
+ * |hp| is not NULL, the derived header protection key is written to
+ * the buffer pointed by |hp|.
  *
  * |secretlen| specifies the length of |secret|.
  *
@@ -398,58 +341,59 @@ NGTCP2_EXTERN int ngtcp2_crypto_derive_and_install_rx_key(
  * `ngtcp2_crypto_packet_protection_ivlen(ctx->aead)
  * <ngtcp2_crypto_packet_protection_ivlen>` where ctx is obtained by
  * `ngtcp2_crypto_ctx_tls` (or `ngtcp2_crypto_ctx_tls_early` if
- * |level| == :enum:`ngtcp2_crypto_level.NGTCP2_CRYPTO_LEVEL_EARLY`).
+ * |level| ==
+ * :enum:`ngtcp2_encryption_level.NGTCP2_ENCRYPTION_LEVEL_0RTT`).
  *
  * In the first call of this function, it calls
  * `ngtcp2_conn_set_crypto_ctx` (or `ngtcp2_conn_set_early_crypto_ctx`
  * if |level| ==
- * :enum:`ngtcp2_crypto_level.NGTCP2_CRYPTO_LEVEL_EARLY`) to set
- * negotiated AEAD and message digest algorithm.  After the successful
- * call of this function, application can use
+ * :enum:`ngtcp2_encryption_level.NGTCP2_ENCRYPTION_LEVEL_0RTT`) to
+ * set negotiated AEAD and message digest algorithm.  After the
+ * successful call of this function, application can use
  * `ngtcp2_conn_get_crypto_ctx` (or `ngtcp2_conn_get_early_crypto_ctx`
  * if |level| ==
- * :enum:`ngtcp2_crypto_level.NGTCP2_CRYPTO_LEVEL_EARLY`) to get
- * :type:`ngtcp2_crypto_ctx`.
+ * :enum:`ngtcp2_encryption_level.NGTCP2_ENCRYPTION_LEVEL_0RTT`) to
+ * get :type:`ngtcp2_crypto_ctx`.
  *
  * If |conn| is initialized as server, and |level| is
- * :enum:`ngtcp2_crypto_level.NGTCP2_CRYPTO_LEVEL_APPLICATION`, this
+ * :enum:`ngtcp2_encryption_level.NGTCP2_ENCRYPTION_LEVEL_1RTT`, this
  * function retrieves a remote QUIC transport parameters extension
- * from an object obtained by `ngtcp2_conn_get_tls_native_handle` and
+ * from an object obtained by `ngtcp2_conn_get_tls_native_handle`, and
  * sets it to |conn| by calling
- * `ngtcp2_conn_decode_remote_transport_params`.
+ * `ngtcp2_conn_decode_and_set_remote_transport_params`.
  *
  * This function returns 0 if it succeeds, or -1.
  */
 NGTCP2_EXTERN int ngtcp2_crypto_derive_and_install_tx_key(
     ngtcp2_conn *conn, uint8_t *key, uint8_t *iv, uint8_t *hp,
-    ngtcp2_crypto_level level, const uint8_t *secret, size_t secretlen);
+    ngtcp2_encryption_level level, const uint8_t *secret, size_t secretlen);
 
 /**
  * @function
  *
  * `ngtcp2_crypto_update_key` updates traffic keying materials.
  *
- * The new traffic secret for decryption is written to the buffer
- * pointed by |rx_secret|.  The length of secret is |secretlen| bytes,
- * and |rx_secret| must point to the buffer which has enough capacity.
+ * The new decryption traffic secret is written to the buffer pointed
+ * by |rx_secret|.  The length of secret is |secretlen| bytes, and
+ * |rx_secret| must point to the buffer which has enough capacity.
  *
- * The new traffic secret for encryption is written to the buffer
- * pointed by |tx_secret|.  The length of secret is |secretlen| bytes,
- * and |tx_secret| must point to the buffer which has enough capacity.
+ * The new encryption traffic secret is written to the buffer pointed
+ * by |tx_secret|.  The length of secret is |secretlen| bytes, and
+ * |tx_secret| must point to the buffer which has enough capacity.
  *
- * The derived packet protection key for decryption is written to the
- * buffer pointed by |rx_key|.  The derived packet protection IV for
- * decryption is written to the buffer pointed by |rx_iv|.
- * |rx_aead_ctx| must be constructed with |rx_key|.
+ * The derived decryption packet protection key is written to the
+ * buffer pointed by |rx_key|.  The derived decryption packet
+ * protection IV is written to the buffer pointed by |rx_iv|.
+ * |rx_aead_ctx| is initialized with the derived key and IV.
  *
- * The derived packet protection key for encryption is written to the
- * buffer pointed by |tx_key|.  The derived packet protection IV for
- * encryption is written to the buffer pointed by |tx_iv|.
- * |tx_aead_ctx| must be constructed with |rx_key|.
+ * The derived encryption packet protection key is written to the
+ * buffer pointed by |tx_key|.  The derived encryption packet
+ * protection IV is written to the buffer pointed by |tx_iv|.
+ * |tx_aead_ctx| is initialized with the derived key and IV.
  *
- * |current_rx_secret| and |current_tx_secret| are the current traffic
- * secrets for decryption and encryption.  |secretlen| specifies the
- * length of |rx_secret| and |tx_secret|.
+ * |current_rx_secret| and |current_tx_secret| are the current
+ * decryption and encryption traffic secrets respectively.  They share
+ * the same length with |rx_secret| and |tx_secret|.
  *
  * The length of packet protection key and header protection key is
  * `ngtcp2_crypto_aead_keylen(ctx->aead) <ngtcp2_crypto_aead_keylen>`,
@@ -488,7 +432,7 @@ NGTCP2_EXTERN int ngtcp2_crypto_update_key_cb(
  * @function
  *
  * `ngtcp2_crypto_client_initial_cb` installs initial secrets and
- * encryption keys and sets QUIC transport parameters.
+ * encryption keys, and sets QUIC transport parameters.
  *
  * This function can be directly passed to
  * :member:`ngtcp2_callbacks.client_initial` field.  It is only used
@@ -507,8 +451,8 @@ NGTCP2_EXTERN int ngtcp2_crypto_client_initial_cb(ngtcp2_conn *conn,
  * response to incoming Retry packet.
  *
  * This function can be directly passed to
- * :member:`ngtcp2_callbacks.recv_retry` field.  It is only used
- * by client.
+ * :member:`ngtcp2_callbacks.recv_retry` field.  It is only used by
+ * client.
  *
  * This function returns 0 if it succeeds, or
  * :macro:`NGTCP2_ERR_CALLBACK_FAILURE`.
@@ -525,8 +469,8 @@ NGTCP2_EXTERN int ngtcp2_crypto_recv_retry_cb(ngtcp2_conn *conn,
  * transport parameters.
  *
  * This function can be directly passed to
- * :member:`ngtcp2_callbacks.recv_client_initial` field.  It is
- * only used by server.
+ * :member:`ngtcp2_callbacks.recv_client_initial` field.  It is only
+ * used by server.
  *
  * This function returns 0 if it succeeds, or
  * :macro:`NGTCP2_ERR_CALLBACK_FAILURE`.
@@ -539,21 +483,21 @@ NGTCP2_EXTERN int ngtcp2_crypto_recv_client_initial_cb(ngtcp2_conn *conn,
  * @function
  *
  * `ngtcp2_crypto_read_write_crypto_data` reads CRYPTO data |data| of
- * length |datalen| in encryption level |crypto_level| and may feed
- * outgoing CRYPTO data to |conn|.  This function can drive handshake.
- * This function can be also used after handshake completes.  It is
- * allowed to call this function with |datalen| == 0.  In this case,
- * no additional read operation is done.
+ * length |datalen| in an encryption level |encryption_level|, and may
+ * feed outgoing CRYPTO data to |conn|.  This function can drive
+ * handshake.  This function can be also used after handshake
+ * completes.  It is allowed to call this function with |datalen| ==
+ * 0.  In this case, no additional read operation is done.
  *
  * This function returns 0 if it succeeds, or a negative error code.
  * The generic error code is -1 if a specific error code is not
  * suitable.  The error codes less than -10000 are specific to
- * underlying TLS implementation.  For OpenSSL, the error codes are
- * defined in *ngtcp2_crypto_openssl.h*.
+ * underlying TLS implementation.  For quictls, the error codes are
+ * defined in *ngtcp2_crypto_quictls.h*.
  */
 NGTCP2_EXTERN int
 ngtcp2_crypto_read_write_crypto_data(ngtcp2_conn *conn,
-                                     ngtcp2_crypto_level crypto_level,
+                                     ngtcp2_encryption_level encryption_level,
                                      const uint8_t *data, size_t datalen);
 
 /**
@@ -570,17 +514,17 @@ ngtcp2_crypto_read_write_crypto_data(ngtcp2_conn *conn,
  * codes.
  */
 NGTCP2_EXTERN int ngtcp2_crypto_recv_crypto_data_cb(
-    ngtcp2_conn *conn, ngtcp2_crypto_level crypto_level, uint64_t offset,
-    const uint8_t *data, size_t datalen, void *user_data);
+    ngtcp2_conn *conn, ngtcp2_encryption_level encryption_level,
+    uint64_t offset, const uint8_t *data, size_t datalen, void *user_data);
 
 /**
  * @function
  *
  *  `ngtcp2_crypto_generate_stateless_reset_token` generates a
  *  stateless reset token using HKDF extraction using the given |cid|
- *  and static key |secret| as input.  The token will be written to
- *  the buffer pointed by |token| and it must have a capacity of at
- *  least :macro:`NGTCP2_STATELESS_RESET_TOKENLEN` bytes.
+ *  and |secret| as input.  The token will be written to the buffer
+ *  pointed by |token|, and it must have a capacity of at least
+ *  :macro:`NGTCP2_STATELESS_RESET_TOKENLEN` bytes.
  *
  * This function returns 0 if it succeeds, or -1.
  */
@@ -644,12 +588,12 @@ NGTCP2_EXTERN int ngtcp2_crypto_generate_stateless_reset_token(
  * :macro:`NGTCP2_CRYPTO_MAX_RETRY_TOKENLEN` bytes long.  The
  * successfully generated token starts with
  * :macro:`NGTCP2_CRYPTO_TOKEN_MAGIC_RETRY`.  |secret| of length
- * |secretlen| is an initial keying material to generate keys to
- * encrypt the token.  |version| is QUIC version.  |remote_addr| of
- * length |remote_addrlen| is an address of client.  |retry_scid| is a
- * Source Connection ID chosen by server and set in Retry packet.
- * |odcid| is a Destination Connection ID in Initial packet sent by
- * client.  |ts| is the timestamp when the token is generated.
+ * |secretlen| is a keying material to generate keys to encrypt the
+ * token.  |version| is QUIC version.  |remote_addr| of length
+ * |remote_addrlen| is an address of client.  |retry_scid| is a Source
+ * Connection ID chosen by server, and set in Retry packet.  |odcid|
+ * is a Destination Connection ID in Initial packet sent by client.
+ * |ts| is the timestamp when the token is generated.
  *
  * This function returns the length of generated token if it succeeds,
  * or -1.
@@ -664,16 +608,16 @@ NGTCP2_EXTERN ngtcp2_ssize ngtcp2_crypto_generate_retry_token(
  *
  * `ngtcp2_crypto_verify_retry_token` verifies Retry token stored in
  * the buffer pointed by |token| of length |tokenlen|.  |secret| of
- * length |secretlen| is an initial keying material to generate keys
- * to decrypt the token.  |version| is QUIC version of the Initial
- * packet that contains this token.  |remote_addr| of length
- * |remote_addrlen| is an address of client.  |dcid| is a Destination
- * Connection ID in Initial packet sent by client.  |timeout| is the
- * period during which the token is valid.  |ts| is the current
- * timestamp.  When validation succeeds, the extracted Destination
- * Connection ID (which is the Destination Connection ID in Initial
- * packet sent by client that triggered Retry packet) is stored to the
- * buffer pointed by |odcid|.
+ * length |secretlen| is a keying material to generate keys to decrypt
+ * the token.  |version| is QUIC version of the Initial packet that
+ * contains this token.  |remote_addr| of length |remote_addrlen| is
+ * an address of client.  |dcid| is a Destination Connection ID in
+ * Initial packet sent by client.  |timeout| is the period during
+ * which the token is valid.  |ts| is the current timestamp.  When
+ * validation succeeds, the extracted Destination Connection ID (which
+ * is the Destination Connection ID in Initial packet sent by client
+ * that triggered Retry packet) is stored in the buffer pointed by
+ * |odcid|.
  *
  * This function returns 0 if it succeeds, or -1.
  */
@@ -692,10 +636,9 @@ NGTCP2_EXTERN int ngtcp2_crypto_verify_retry_token(
  * :macro:`NGTCP2_CRYPTO_MAX_REGULAR_TOKENLEN` bytes long.  The
  * successfully generated token starts with
  * :macro:`NGTCP2_CRYPTO_TOKEN_MAGIC_REGULAR`.  |secret| of length
- * |secretlen| is an initial keying material to generate keys to
- * encrypt the token.  |remote_addr| of length |remote_addrlen| is an
- * address of client.  |ts| is the timestamp when the token is
- * generated.
+ * |secretlen| is a keying material to generate keys to encrypt the
+ * token.  |remote_addr| of length |remote_addrlen| is an address of
+ * client.  |ts| is the timestamp when the token is generated.
  *
  * This function returns the length of generated token if it succeeds,
  * or -1.
@@ -710,8 +653,8 @@ NGTCP2_EXTERN ngtcp2_ssize ngtcp2_crypto_generate_regular_token(
  *
  * `ngtcp2_crypto_verify_regular_token` verifies a regular token
  * stored in the buffer pointed by |token| of length |tokenlen|.
- * |secret| of length |secretlen| is an initial keying material to
- * generate keys to decrypt the token.  |remote_addr| of length
+ * |secret| of length |secretlen| is a keying material to generate
+ * keys to decrypt the token.  |remote_addr| of length
  * |remote_addrlen| is an address of client.  |timeout| is the period
  * during which the token is valid.  |ts| is the current timestamp.
  *
@@ -750,9 +693,12 @@ NGTCP2_EXTERN ngtcp2_ssize ngtcp2_crypto_write_connection_close(
  * @function
  *
  * `ngtcp2_crypto_write_retry` writes Retry packet to the buffer
- * pointed by |dest| of length |destlen|.  |odcid| specifies Original
- * Destination Connection ID.  |token| specifies Retry Token, and
- * |tokenlen| specifies its length.
+ * pointed by |dest| of length |destlen|.  |dcid| is the Connection ID
+ * which appeared in a packet as a Source Connection ID sent by
+ * client.  |scid| is a server chosen Source Connection ID.  |odcid|
+ * specifies Original Destination Connection ID which appeared in a
+ * packet as a Destination Connection ID sent by client.  |token|
+ * specifies Retry Token, and |tokenlen| specifies its length.
  *
  * This function wraps around `ngtcp2_pkt_write_retry` for easier use.
  *
@@ -783,7 +729,7 @@ ngtcp2_crypto_aead_ctx_encrypt_init(ngtcp2_crypto_aead_ctx *aead_ctx,
  *
  * `ngtcp2_crypto_aead_ctx_decrypt_init` initializes |aead_ctx| with
  * new AEAD cipher context object for decryption which is constructed
- * to use |key| as encryption key.  |aead| specifies AEAD cipher to
+ * to use |key| as decryption key.  |aead| specifies AEAD cipher to
  * use.  |noncelen| is the length of nonce.
  *
  * This function returns 0 if it succeeds, or -1.
@@ -806,7 +752,8 @@ ngtcp2_crypto_aead_ctx_free(ngtcp2_crypto_aead_ctx *aead_ctx);
 /**
  * @function
  *
- * `ngtcp2_crypto_delete_crypto_aead_ctx_cb` deletes the given |aead_ctx|.
+ * `ngtcp2_crypto_delete_crypto_aead_ctx_cb` deletes the given
+ * |aead_ctx|.
  *
  * This function can be directly passed to
  * :member:`ngtcp2_callbacks.delete_crypto_aead_ctx` field.
@@ -845,7 +792,8 @@ NGTCP2_EXTERN int ngtcp2_crypto_get_path_challenge_data_cb(ngtcp2_conn *conn,
  *
  * `ngtcp2_crypto_version_negotiation_cb` installs Initial keys for
  * |version| which is negotiated or being negotiated.  |client_dcid|
- * is the destination connection ID in first Initial packet of client.
+ * is the destination connection ID in first Initial packet from
+ * client.
  *
  * This function can be directly passed to
  * :member:`ngtcp2_callbacks.version_negotiation` field.
@@ -872,7 +820,7 @@ typedef ngtcp2_conn *(*ngtcp2_crypto_get_conn)(
  *
  * :type:`ngtcp2_crypto_conn_ref` is a structure to get a pointer to
  * :type:`ngtcp2_conn`.  It is meant to be set to TLS native handle as
- * an application specific data (e.g. SSL_set_app_data in OpenSSL).
+ * an application specific data (e.g. SSL_set_app_data in quictls).
  */
 typedef struct ngtcp2_crypto_conn_ref {
   /**

@@ -181,7 +181,10 @@ U_CAPI const UNormalizer2 * U_EXPORT2
 unorm2_getNFKDInstance(UErrorCode *pErrorCode);
 
 /**
- * Returns a UNormalizer2 instance for Unicode NFKC_Casefold normalization.
+ * Returns a UNormalizer2 instance for Unicode toNFKC_Casefold() normalization
+ * which is equivalent to applying the NFKC_Casefold mappings and then NFC.
+ * See https://www.unicode.org/reports/tr44/#NFKC_Casefold
+ *
  * Same as unorm2_getInstance(NULL, "nfkc_cf", UNORM2_COMPOSE, pErrorCode).
  * Returns an unmodifiable singleton instance. Do not delete it.
  * @param pErrorCode Standard ICU error code. Its input value must
@@ -193,6 +196,25 @@ unorm2_getNFKDInstance(UErrorCode *pErrorCode);
  */
 U_CAPI const UNormalizer2 * U_EXPORT2
 unorm2_getNFKCCasefoldInstance(UErrorCode *pErrorCode);
+
+#ifndef U_HIDE_DRAFT_API
+/**
+ * Returns a UNormalizer2 instance for a variant of Unicode toNFKC_Casefold() normalization
+ * which is equivalent to applying the NFKC_Simple_Casefold mappings and then NFC.
+ * See https://www.unicode.org/reports/tr44/#NFKC_Simple_Casefold
+ *
+ * Same as unorm2_getInstance(NULL, "nfkc_scf", UNORM2_COMPOSE, pErrorCode).
+ * Returns an unmodifiable singleton instance. Do not delete it.
+ * @param pErrorCode Standard ICU error code. Its input value must
+ *                  pass the U_SUCCESS() test, or else the function returns
+ *                  immediately. Check for U_FAILURE() on output or use with
+ *                  function chaining. (See User Guide for details.)
+ * @return the requested Normalizer2, if successful
+ * @draft ICU 74
+ */
+U_CAPI const UNormalizer2 * U_EXPORT2
+unorm2_getNFKCSimpleCasefoldInstance(UErrorCode *pErrorCode);
+#endif  // U_HIDE_DRAFT_API
 
 /**
  * Returns a UNormalizer2 instance which uses the specified data file
@@ -206,7 +228,7 @@ unorm2_getNFKCCasefoldInstance(UErrorCode *pErrorCode);
  * Use name="nfkc_cf" and UNORM2_COMPOSE for Unicode standard NFKC_CF=NFKC_Casefold.
  *
  * @param packageName NULL for ICU built-in data, otherwise application data package name
- * @param name "nfc" or "nfkc" or "nfkc_cf" or name of custom data file
+ * @param name "nfc" or "nfkc" or "nfkc_cf" or "nfkc_scf" or name of custom data file
  * @param mode normalization mode (compose or decompose etc.)
  * @param pErrorCode Standard ICU error code. Its input value must
  *                  pass the U_SUCCESS() test, or else the function returns

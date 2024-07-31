@@ -194,6 +194,35 @@ async function testSign({
     });
 }
 
+async function testSaltLength(keyLength, hash, hLen) {
+  const { publicKey, privateKey } = await subtle.generateKey({
+    name: 'RSA-PSS',
+    modulusLength: keyLength,
+    publicExponent: new Uint8Array([1, 0, 1]),
+    hash,
+  }, false, ['sign', 'verify']);
+
+  const data = Buffer.from('Hello, world!');
+  const max = keyLength / 8 - hLen - 2;
+
+  const signature = await subtle.sign({ name: 'RSA-PSS', saltLength: max }, privateKey, data);
+  await assert.rejects(
+    subtle.sign({ name: 'RSA-PSS', saltLength: max + 1 }, privateKey, data), (err) => {
+      assert.strictEqual(err.name, 'OperationError');
+      assert.strictEqual(err.cause?.code, 'ERR_OUT_OF_RANGE');
+      assert.strictEqual(err.cause?.message, `The value of "algorithm.saltLength" is out of range. It must be >= 0 && <= ${max}. Received ${max + 1}`);
+      return true;
+    });
+  await subtle.verify({ name: 'RSA-PSS', saltLength: max }, publicKey, signature, data);
+  await assert.rejects(
+    subtle.verify({ name: 'RSA-PSS', saltLength: max + 1 }, publicKey, signature, data), (err) => {
+      assert.strictEqual(err.name, 'OperationError');
+      assert.strictEqual(err.cause?.code, 'ERR_OUT_OF_RANGE');
+      assert.strictEqual(err.cause?.message, `The value of "algorithm.saltLength" is out of range. It must be >= 0 && <= ${max}. Received ${max + 1}`);
+      return true;
+    });
+}
+
 (async function() {
   const variations = [];
 
@@ -205,6 +234,12 @@ async function testSign({
     variations.push(testVerify(vector));
     variations.push(testSign(vector));
   });
+
+  for (const keyLength of [1024, 2048]) {
+    for (const [hash, hLen] of [['SHA-1', 20], ['SHA-256', 32], ['SHA-384', 48], ['SHA-512', 64]]) {
+      variations.push(testSaltLength(keyLength, hash, hLen));
+    }
+  }
 
   await Promise.all(variations);
 })().then(common.mustCall());

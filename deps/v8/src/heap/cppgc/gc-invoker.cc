@@ -24,9 +24,20 @@ class GCInvoker::GCInvokerImpl final : public GarbageCollector {
   void CollectGarbage(GCConfig) final;
   void StartIncrementalGarbageCollection(GCConfig) final;
   size_t epoch() const final { return collector_->epoch(); }
-  const EmbedderStackState* override_stack_state() const final {
-    return collector_->override_stack_state();
+  std::optional<EmbedderStackState> overridden_stack_state() const final {
+    return collector_->overridden_stack_state();
   }
+  void set_override_stack_state(EmbedderStackState state) final {
+    collector_->set_override_stack_state(state);
+  }
+  void clear_overridden_stack_state() final {
+    collector_->clear_overridden_stack_state();
+  }
+#ifdef V8_ENABLE_ALLOCATION_TIMEOUT
+  v8::base::Optional<int> UpdateAllocationTimeout() final {
+    return v8::base::nullopt;
+  }
+#endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
  private:
   class GCTask final : public cppgc::Task {
@@ -50,11 +61,11 @@ class GCInvoker::GCInvokerImpl final : public GarbageCollector {
 
    private:
     void Run() final {
-      CHECK_NULL(collector_->override_stack_state());
-
       if (handle_.IsCanceled() || (collector_->epoch() != saved_epoch_)) return;
 
+      collector_->set_override_stack_state(EmbedderStackState::kNoHeapPointers);
       collector_->CollectGarbage(config_);
+      collector_->clear_overridden_stack_state();
       handle_.Cancel();
     }
 
@@ -140,9 +151,23 @@ void GCInvoker::StartIncrementalGarbageCollection(GCConfig config) {
 
 size_t GCInvoker::epoch() const { return impl_->epoch(); }
 
-const EmbedderStackState* GCInvoker::override_stack_state() const {
-  return impl_->override_stack_state();
+std::optional<EmbedderStackState> GCInvoker::overridden_stack_state() const {
+  return impl_->overridden_stack_state();
 }
+
+void GCInvoker::set_override_stack_state(EmbedderStackState state) {
+  impl_->set_override_stack_state(state);
+}
+
+void GCInvoker::clear_overridden_stack_state() {
+  impl_->clear_overridden_stack_state();
+}
+
+#ifdef V8_ENABLE_ALLOCATION_TIMEOUT
+v8::base::Optional<int> GCInvoker::UpdateAllocationTimeout() {
+  return impl_->UpdateAllocationTimeout();
+}
+#endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
 }  // namespace internal
 }  // namespace cppgc

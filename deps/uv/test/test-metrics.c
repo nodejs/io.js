@@ -59,11 +59,11 @@ TEST_IMPL(metrics_idle_time) {
   cntr = 0;
   timer.data = &cntr;
 
-  ASSERT_EQ(0, uv_loop_configure(uv_default_loop(), UV_METRICS_IDLE_TIME));
-  ASSERT_EQ(0, uv_timer_init(uv_default_loop(), &timer));
-  ASSERT_EQ(0, uv_timer_start(&timer, timer_spin_cb, timeout, 0));
+  ASSERT_OK(uv_loop_configure(uv_default_loop(), UV_METRICS_IDLE_TIME));
+  ASSERT_OK(uv_timer_init(uv_default_loop(), &timer));
+  ASSERT_OK(uv_timer_start(&timer, timer_spin_cb, timeout, 0));
 
-  ASSERT_EQ(0, uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
   ASSERT_GT(cntr, 0);
 
   idle_time = uv_metrics_idle_time(uv_default_loop());
@@ -87,12 +87,12 @@ static void metrics_routine_cb(void* arg) {
   cntr = 0;
   timer.data = &cntr;
 
-  ASSERT_EQ(0, uv_loop_init(&loop));
-  ASSERT_EQ(0, uv_loop_configure(&loop, UV_METRICS_IDLE_TIME));
-  ASSERT_EQ(0, uv_timer_init(&loop, &timer));
-  ASSERT_EQ(0, uv_timer_start(&timer, timer_spin_cb, timeout, 0));
+  ASSERT_OK(uv_loop_init(&loop));
+  ASSERT_OK(uv_loop_configure(&loop, UV_METRICS_IDLE_TIME));
+  ASSERT_OK(uv_timer_init(&loop, &timer));
+  ASSERT_OK(uv_timer_start(&timer, timer_spin_cb, timeout, 0));
 
-  ASSERT_EQ(0, uv_run(&loop, UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(&loop, UV_RUN_DEFAULT));
   ASSERT_GT(cntr, 0);
 
   idle_time = uv_metrics_idle_time(&loop);
@@ -104,7 +104,7 @@ static void metrics_routine_cb(void* arg) {
   ASSERT_GE(idle_time, (timeout - 500) * UV_NS_TO_MS);
 
   close_loop(&loop);
-  ASSERT_EQ(0, uv_loop_close(&loop));
+  ASSERT_OK(uv_loop_close(&loop));
 }
 
 
@@ -113,7 +113,7 @@ TEST_IMPL(metrics_idle_time_thread) {
   int i;
 
   for (i = 0; i < 5; i++) {
-    ASSERT_EQ(0, uv_thread_create(&threads[i], metrics_routine_cb, NULL));
+    ASSERT_OK(uv_thread_create(&threads[i], metrics_routine_cb, NULL));
   }
 
   for (i = 0; i < 5; i++) {
@@ -136,16 +136,16 @@ TEST_IMPL(metrics_idle_time_zero) {
 
   cntr = 0;
   timer.data = &cntr;
-  ASSERT_EQ(0, uv_loop_configure(uv_default_loop(), UV_METRICS_IDLE_TIME));
-  ASSERT_EQ(0, uv_timer_init(uv_default_loop(), &timer));
-  ASSERT_EQ(0, uv_timer_start(&timer, timer_noop_cb, 0, 0));
+  ASSERT_OK(uv_loop_configure(uv_default_loop(), UV_METRICS_IDLE_TIME));
+  ASSERT_OK(uv_timer_init(uv_default_loop(), &timer));
+  ASSERT_OK(uv_timer_start(&timer, timer_noop_cb, 0, 0));
 
-  ASSERT_EQ(0, uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
 
   ASSERT_GT(cntr, 0);
-  ASSERT_EQ(0, uv_metrics_idle_time(uv_default_loop()));
+  ASSERT_OK(uv_metrics_idle_time(uv_default_loop()));
 
-  ASSERT_EQ(0, uv_metrics_info(uv_default_loop(), &metrics));
+  ASSERT_OK(uv_metrics_info(uv_default_loop(), &metrics));
   ASSERT_UINT64_EQ(cntr, metrics.loop_count);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
@@ -156,7 +156,7 @@ TEST_IMPL(metrics_idle_time_zero) {
 static void close_cb(uv_fs_t* req) {
   uv_metrics_t metrics;
 
-  ASSERT_EQ(0, uv_metrics_info(uv_default_loop(), &metrics));
+  ASSERT_OK(uv_metrics_info(uv_default_loop(), &metrics));
   ASSERT_UINT64_EQ(3, metrics.loop_count);
   ASSERT_UINT64_GT(metrics.events, last_events_count);
 
@@ -168,7 +168,7 @@ static void close_cb(uv_fs_t* req) {
 static void write_cb(uv_fs_t* req) {
   uv_metrics_t metrics;
 
-  ASSERT_EQ(0, uv_metrics_info(uv_default_loop(), &metrics));
+  ASSERT_OK(uv_metrics_info(uv_default_loop(), &metrics));
   ASSERT_UINT64_EQ(2, metrics.loop_count);
   ASSERT_UINT64_GT(metrics.events, last_events_count);
   ASSERT_EQ(req->result, sizeof(test_buf));
@@ -176,17 +176,17 @@ static void write_cb(uv_fs_t* req) {
   uv_fs_req_cleanup(req);
   last_events_count = metrics.events;
 
-  ASSERT_EQ(0, uv_fs_close(uv_default_loop(),
-                           &fs_reqs.close_req,
-                           fs_reqs.open_req.result,
-                           close_cb));
+  ASSERT_OK(uv_fs_close(uv_default_loop(),
+                        &fs_reqs.close_req,
+                        fs_reqs.open_req.result,
+                        close_cb));
 }
 
 
 static void create_cb(uv_fs_t* req) {
   uv_metrics_t metrics;
 
-  ASSERT_EQ(0, uv_metrics_info(uv_default_loop(), &metrics));
+  ASSERT_OK(uv_metrics_info(uv_default_loop(), &metrics));
   /* Event count here is still 0 so not going to check. */
   ASSERT_UINT64_EQ(1, metrics.loop_count);
   ASSERT_GE(req->result, 0);
@@ -195,13 +195,13 @@ static void create_cb(uv_fs_t* req) {
   last_events_count = metrics.events;
 
   uv_buf_t iov = uv_buf_init(test_buf, sizeof(test_buf));
-  ASSERT_EQ(0, uv_fs_write(uv_default_loop(),
-                           &fs_reqs.write_req,
-                           req->result,
-                           &iov,
-                           1,
-                           0,
-                           write_cb));
+  ASSERT_OK(uv_fs_write(uv_default_loop(),
+                        &fs_reqs.write_req,
+                        req->result,
+                        &iov,
+                        1,
+                        0,
+                        write_cb));
 }
 
 
@@ -210,15 +210,15 @@ static void prepare_cb(uv_prepare_t* handle) {
 
   uv_prepare_stop(handle);
 
-  ASSERT_EQ(0, uv_metrics_info(uv_default_loop(), &metrics));
+  ASSERT_OK(uv_metrics_info(uv_default_loop(), &metrics));
   ASSERT_UINT64_EQ(0, metrics.loop_count);
   ASSERT_UINT64_EQ(0, metrics.events);
 
-  ASSERT_EQ(0, uv_fs_open(uv_default_loop(),
-                          &fs_reqs.open_req,
-                          "test_file",
-                          O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR,
-                          create_cb));
+  ASSERT_OK(uv_fs_open(uv_default_loop(),
+                       &fs_reqs.open_req,
+                       "test_file",
+                       UV_FS_O_WRONLY | UV_FS_O_CREAT, S_IRUSR | S_IWUSR,
+                       create_cb));
 }
 
 
@@ -229,10 +229,10 @@ TEST_IMPL(metrics_info_check) {
   uv_fs_unlink(NULL, &unlink_req, "test_file", NULL);
   uv_fs_req_cleanup(&unlink_req);
 
-  ASSERT_EQ(0, uv_prepare_init(uv_default_loop(), &prepare));
-  ASSERT_EQ(0, uv_prepare_start(&prepare, prepare_cb));
+  ASSERT_OK(uv_prepare_init(uv_default_loop(), &prepare));
+  ASSERT_OK(uv_prepare_start(&prepare, prepare_cb));
 
-  ASSERT_EQ(0, uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
 
   uv_fs_unlink(NULL, &unlink_req, "test_file", NULL);
   uv_fs_req_cleanup(&unlink_req);
@@ -329,9 +329,7 @@ TEST_IMPL(metrics_pool_events) {
 
   pool_events_counter = 0;
   fd = uv_fs_open(NULL,
-                  &open_req,
-                  "test_file",
-                  O_WRONLY | O_CREAT,
+                  &open_req, "test_file", UV_FS_O_WRONLY | UV_FS_O_CREAT,
                   S_IRUSR | S_IWUSR,
                   NULL);
   ASSERT_GT(fd, 0);

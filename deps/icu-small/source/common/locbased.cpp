@@ -17,7 +17,7 @@ U_NAMESPACE_BEGIN
 
 Locale LocaleBased::getLocale(ULocDataLocaleType type, UErrorCode& status) const {
     const char* id = getLocaleID(type, status);
-    return Locale((id != 0) ? id : "");
+    return Locale(id != nullptr ? id : "");
 }
 
 const char* LocaleBased::getLocaleID(ULocDataLocaleType type, UErrorCode& status) const {
@@ -37,11 +37,11 @@ const char* LocaleBased::getLocaleID(ULocDataLocaleType type, UErrorCode& status
 }
 
 void LocaleBased::setLocaleIDs(const char* validID, const char* actualID) {
-    if (validID != 0) {
+    if (validID != nullptr) {
       uprv_strncpy(valid, validID, ULOC_FULLNAME_CAPACITY);
       valid[ULOC_FULLNAME_CAPACITY-1] = 0; // always terminate
     }
-    if (actualID != 0) {
+    if (actualID != nullptr) {
       uprv_strncpy(actual, actualID, ULOC_FULLNAME_CAPACITY);
       actual[ULOC_FULLNAME_CAPACITY-1] = 0; // always terminate
     }

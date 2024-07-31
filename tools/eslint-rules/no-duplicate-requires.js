@@ -25,41 +25,43 @@ function isTopLevel(node) {
   return false;
 }
 
-module.exports = (context) => {
-  if (context.parserOptions.sourceType === 'module') {
-    return {};
-  }
-
-  function getRequiredModuleNameFromCall(node) {
-    // Node has arguments and first argument is string
-    if (node.arguments.length && isString(node.arguments[0])) {
-      return node.arguments[0].value.trim();
+module.exports = {
+  create(context) {
+    if (context.languageOptions.sourceType === 'module') {
+      return {};
     }
 
-    return undefined;
-  }
-
-  const required = new Set();
-
-  const rules = {
-    CallExpression: (node) => {
-      if (isRequireCall(node) && isTopLevel(node)) {
-        const moduleName = getRequiredModuleNameFromCall(node);
-        if (moduleName === undefined) {
-          return;
-        }
-        if (required.has(moduleName)) {
-          context.report(
-            node,
-            '\'{{moduleName}}\' require is duplicated.',
-            { moduleName },
-          );
-        } else {
-          required.add(moduleName);
-        }
+    function getRequiredModuleNameFromCall(node) {
+      // Node has arguments and first argument is string
+      if (node.arguments.length && isString(node.arguments[0])) {
+        return node.arguments[0].value.trim();
       }
-    },
-  };
 
-  return rules;
+      return undefined;
+    }
+
+    const required = new Set();
+
+    const rules = {
+      CallExpression: (node) => {
+        if (isRequireCall(node) && isTopLevel(node)) {
+          const moduleName = getRequiredModuleNameFromCall(node);
+          if (moduleName === undefined) {
+            return;
+          }
+          if (required.has(moduleName)) {
+            context.report(
+              node,
+              '\'{{moduleName}}\' require is duplicated.',
+              { moduleName },
+            );
+          } else {
+            required.add(moduleName);
+          }
+        }
+      },
+    };
+
+    return rules;
+  },
 };

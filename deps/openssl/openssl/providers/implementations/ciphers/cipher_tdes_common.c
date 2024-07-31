@@ -92,6 +92,7 @@ static int tdes_init(void *vctx, const unsigned char *key, size_t keylen,
         }
         if (!ctx->hw->init(ctx, key, ctx->keylen))
             return 0;
+        ctx->key_set = 1;
     }
     return ossl_cipher_generic_set_ctx_params(ctx, params);
 }

@@ -2,9 +2,12 @@
 
 #include <aliased_struct.h>
 #include <env.h>
+#include <nghttp3/nghttp3.h>
+#include <ngtcp2/ngtcp2.h>
 #include <node_errors.h>
 #include <uv.h>
 #include <v8.h>
+#include <limits>
 
 namespace node {
 namespace quic {
@@ -12,6 +15,21 @@ namespace quic {
 #define NGTCP2_SUCCESS 0
 #define NGTCP2_ERR(V) (V != NGTCP2_SUCCESS)
 #define NGTCP2_OK(V) (V == NGTCP2_SUCCESS)
+
+#define IF_QUIC_DEBUG(env)                                                     \
+  if (UNLIKELY(env->enabled_debug_list()->enabled(DebugCategory::QUIC)))
+
+#define DISALLOW_COPY(Name)                                                    \
+  Name(const Name&) = delete;                                                  \
+  Name& operator=(const Name&) = delete;
+
+#define DISALLOW_MOVE(Name)                                                    \
+  Name(Name&&) = delete;                                                       \
+  Name& operator=(Name&&) = delete;
+
+#define DISALLOW_COPY_AND_MOVE(Name)                                           \
+  DISALLOW_COPY(Name)                                                          \
+  DISALLOW_MOVE(Name)
 
 template <typename Opt, std::string Opt::*member>
 bool SetOption(Environment* env,
@@ -35,8 +53,33 @@ bool SetOption(Environment* env,
   v8::Local<v8::Value> value;
   if (!object->Get(env->context(), name).ToLocal(&value)) return false;
   if (!value->IsUndefined()) {
-    CHECK(value->IsBoolean());
-    options->*member = value->IsTrue();
+    options->*member = value->BooleanValue(env->isolate());
+  }
+  return true;
+}
+
+template <typename Opt, uint32_t Opt::*member>
+bool SetOption(Environment* env,
+               Opt* options,
+               const v8::Local<v8::Object>& object,
+               const v8::Local<v8::String>& name) {
+  v8::Local<v8::Value> value;
+  if (!object->Get(env->context(), name).ToLocal(&value)) return false;
+  if (!value->IsUndefined()) {
+    if (!value->IsUint32()) {
+      Utf8Value nameStr(env->isolate(), name);
+      THROW_ERR_INVALID_ARG_VALUE(
+          env, "The %s option must be an uint32", *nameStr);
+      return false;
+    }
+    v8::Local<v8::Uint32> num;
+    if (!value->ToUint32(env->context()).ToLocal(&num)) {
+      Utf8Value nameStr(env->isolate(), name);
+      THROW_ERR_INVALID_ARG_VALUE(
+          env, "The %s option must be an uint32", *nameStr);
+      return false;
+    }
+    options->*member = num->Value();
   }
   return true;
 }
@@ -50,7 +93,13 @@ bool SetOption(Environment* env,
   if (!object->Get(env->context(), name).ToLocal(&value)) return false;
 
   if (!value->IsUndefined()) {
-    CHECK_IMPLIES(!value->IsBigInt(), value->IsNumber());
+    if (!value->IsBigInt() && !value->IsNumber()) {
+      Utf8Value nameStr(env->isolate(), name);
+      THROW_ERR_INVALID_ARG_VALUE(
+          env, "option %s must be a bigint or number", *nameStr);
+      return false;
+    }
+    DCHECK_IMPLIES(!value->IsBigInt(), value->IsNumber());
 
     uint64_t val = 0;
     if (value->IsBigInt()) {
@@ -58,12 +107,17 @@ bool SetOption(Environment* env,
       val = value.As<v8::BigInt>()->Uint64Value(&lossless);
       if (!lossless) {
         Utf8Value label(env->isolate(), name);
-        THROW_ERR_OUT_OF_RANGE(
-            env, ("options." + label.ToString() + " is out of range").c_str());
+        THROW_ERR_INVALID_ARG_VALUE(env, "option %s is out of range", *label);
         return false;
       }
     } else {
-      val = static_cast<int64_t>(value.As<v8::Number>()->Value());
+      double dbl = value.As<v8::Number>()->Value();
+      if (dbl < 0) {
+        Utf8Value label(env->isolate(), name);
+        THROW_ERR_INVALID_ARG_VALUE(env, "option %s is out of range", *label);
+        return false;
+      }
+      val = static_cast<uint64_t>(dbl);
     }
     options->*member = val;
   }
@@ -110,6 +164,84 @@ uint64_t GetStat(Stats* stats) {
 
 #define JS_METHOD(name)                                                        \
   static void name(const v8::FunctionCallbackInfo<v8::Value>& args)
+
+enum class Side : uint8_t {
+  CLIENT,
+  SERVER,
+};
+
+enum class EndpointLabel : uint8_t {
+  LOCAL,
+  REMOTE,
+};
+
+enum class Direction : uint8_t {
+  BIDIRECTIONAL,
+  UNIDIRECTIONAL,
+};
+
+enum class HeadersKind : uint8_t {
+  HINTS,
+  INITIAL,
+  TRAILING,
+};
+
+enum class HeadersFlags : uint8_t {
+  NONE,
+  TERMINAL,
+};
+
+enum class StreamPriority : uint8_t {
+  DEFAULT = NGHTTP3_DEFAULT_URGENCY,
+  LOW = NGHTTP3_URGENCY_LOW,
+  HIGH = NGHTTP3_URGENCY_HIGH,
+};
+
+enum class StreamPriorityFlags : uint8_t {
+  NONE,
+  NON_INCREMENTAL,
+};
+
+enum class PathValidationResult : uint8_t {
+  SUCCESS = NGTCP2_PATH_VALIDATION_RESULT_SUCCESS,
+  FAILURE = NGTCP2_PATH_VALIDATION_RESULT_FAILURE,
+  ABORTED = NGTCP2_PATH_VALIDATION_RESULT_ABORTED,
+};
+
+enum class DatagramStatus : uint8_t {
+  ACKNOWLEDGED,
+  LOST,
+};
+
+constexpr uint64_t NGTCP2_APP_NOERROR = 65280;
+constexpr size_t kDefaultMaxPacketLength = NGTCP2_MAX_UDP_PAYLOAD_SIZE;
+constexpr size_t kMaxSizeT = std::numeric_limits<size_t>::max();
+constexpr uint64_t kMaxSafeJsInteger = 9007199254740991;
+constexpr auto kSocketAddressInfoTimeout = 60 * NGTCP2_SECONDS;
+constexpr size_t kMaxVectorCount = 16;
+
+using error_code = uint64_t;
+
+class DebugIndentScope {
+ public:
+  inline DebugIndentScope() { ++indent_; }
+  DISALLOW_COPY_AND_MOVE(DebugIndentScope)
+  inline ~DebugIndentScope() { --indent_; }
+  inline std::string Prefix() const {
+    std::string res("\n");
+    res.append(indent_, '\t');
+    return res;
+  }
+  inline std::string Close() const {
+    std::string res("\n");
+    res.append(indent_ - 1, '\t');
+    res += "}";
+    return res;
+  }
+
+ private:
+  static int indent_;
+};
 
 }  // namespace quic
 }  // namespace node

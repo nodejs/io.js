@@ -68,6 +68,17 @@ void PropertyCell::Transition(PropertyDetails new_details,
   set_property_details_raw(new_details.AsSmi(), kReleaseStore);
 }
 
+TQ_OBJECT_CONSTRUCTORS_IMPL(ConstTrackingLetCell)
+
+ACCESSORS(ConstTrackingLetCell, dependent_code, Tagged<DependentCode>,
+          kDependentCodeOffset)
+
+bool ConstTrackingLetCell::IsNotConst(Tagged<Object> object) {
+  DCHECK(IsConstTrackingLetCell(object) ||
+         (object == kNonConstMarker || object == kConstMarker));
+  return object == kNonConstMarker;
+}
+
 }  // namespace internal
 }  // namespace v8
 

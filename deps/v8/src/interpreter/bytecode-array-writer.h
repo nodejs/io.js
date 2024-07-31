@@ -13,6 +13,7 @@ namespace v8 {
 namespace internal {
 
 class BytecodeArray;
+class TrustedByteArray;
 class SourcePositionTableBuilder;
 
 namespace interpreter {
@@ -58,11 +59,11 @@ class V8_EXPORT_PRIVATE BytecodeArrayWriter final {
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
   Handle<BytecodeArray> ToBytecodeArray(IsolateT* isolate, int register_count,
                                         int parameter_count,
-                                        Handle<ByteArray> handler_table);
+                                        Handle<TrustedByteArray> handler_table);
 
   template <typename IsolateT>
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
-  Handle<ByteArray> ToSourcePositionTable(IsolateT* isolate);
+  Handle<TrustedByteArray> ToSourcePositionTable(IsolateT* isolate);
 
 #ifdef DEBUG
   // Returns -1 if they match or the offset of the first mismatching byte.

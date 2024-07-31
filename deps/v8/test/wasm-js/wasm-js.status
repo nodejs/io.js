@@ -10,12 +10,19 @@
   # Failing WPT tests
   'wpt/exception/type.tentative': [FAIL],
   'wpt/function/constructor.tentative': [FAIL],
-  'wpt/function/table.tentative': [FAIL],
-  'wpt/function/type.tentative': [FAIL],
   # TODO(v8): Should work after
   # https://github.com/WebAssembly/exception-handling/pull/257 landed and the
   # tests have been updated.
   'wpt/exception/getArg.tentative': [FAIL],
+
+  # Failing spec tests after test update
+  'proposals/js-types/function/constructor.tentative': [FAIL],
+  'proposals/gc/gc/casts.tentative': [FAIL],
+  'wpt/gc/casts.tentative': [FAIL],
+
+  # This is a spec test of the https://github.com/WebAssembly/esm-integration
+  # proposal which V8 does not implement yet.
+  'wpt/module/moduleSource.tentative': [FAIL],
 
   # Outdated proposal tests.
   'proposals/js-types/table/get-set': [FAIL],
@@ -40,11 +47,11 @@
   'proposals/multi-memory/limits': [SKIP],
   'proposals/tail-call/limits': [SKIP],
 
-  # Slow tests:
-  # TODO(14258): Switch back to [PASS, SLOW] once wasm-js tests allow more
+  # Tests that need to run sequentially (e.g. due to memory consumption).
+  # TODO(14258): Switch back to [PASS, HEAVY] once wasm-js tests allow more
   # than one memory. Github issue:
   # https://github.com/WebAssembly/multi-memory/issues/49
-  'limits': [FAIL],
+  'limits': [FAIL, HEAVY],
 }], # ALWAYS
 
 ['system == android', {

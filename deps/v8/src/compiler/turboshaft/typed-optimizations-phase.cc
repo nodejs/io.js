@@ -5,6 +5,8 @@
 #include "src/compiler/turboshaft/typed-optimizations-phase.h"
 
 #include "src/compiler/js-heap-broker.h"
+#include "src/compiler/turboshaft/copying-phase.h"
+#include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/type-inference-reducer.h"
 #include "src/compiler/turboshaft/typed-optimizations-reducer.h"
 
@@ -20,9 +22,8 @@ void TypedOptimizationsPhase::Run(Zone* temp_zone) {
       turboshaft::TypeInferenceReducerArgs::InputGraphTyping::kPrecise,
       turboshaft::TypeInferenceReducerArgs::OutputGraphTyping::kNone};
 
-  turboshaft::OptimizationPhase<
-      turboshaft::TypedOptimizationsReducer,
-      turboshaft::TypeInferenceReducer>::Run(temp_zone);
+  turboshaft::CopyingPhase<turboshaft::TypedOptimizationsReducer,
+                           turboshaft::TypeInferenceReducer>::Run(temp_zone);
 }
 
 }  // namespace v8::internal::compiler::turboshaft

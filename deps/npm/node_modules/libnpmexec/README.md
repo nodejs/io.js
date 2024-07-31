@@ -35,7 +35,6 @@ await libexec({
   - `localBin`: Location to the `node_modules/.bin` folder of the local project to start scanning for bin files **String**, defaults to `./node_modules/.bin`. **libexec** will walk up the directory structure looking for `node_modules/.bin` folders in parent folders that might satisfy the current `arg` and will use that bin if found.
   - `locationMsg`: Overrides "at location" message when entering interactive mode **String**
   - `globalBin`: Location to the global space bin folder, same as: `$(npm bin -g)` **String**, defaults to empty string.
-  - `output`: A function to print output to **Function**
   - `packages`: A list of packages to be used (possibly fetch from the registry) **Array<String>**, defaults to `[]`
   - `path`: Location to where to read local project info (`package.json`) **String**, defaults to `.`
   - `runPath`: Location to where to execute the script **String**, defaults to `.`

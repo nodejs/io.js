@@ -393,7 +393,6 @@ void ConfusabledataBuilder::build(const char * confusables, int32_t confusablesL
 
     // All of the intermediate allocated data belongs to the ConfusabledataBuilder
     //  object  (this), and is deleted in the destructor.
-    return;
 }
 
 //

@@ -66,7 +66,7 @@ class ValueMirror {
   virtual void buildEntryPreview(
       v8::Local<v8::Context> context, int* nameLimit, int* indexLimit,
       std::unique_ptr<protocol::Runtime::ObjectPreview>*) const {}
-  virtual v8::Local<v8::Value> v8Value() const = 0;
+  virtual v8::Local<v8::Value> v8Value(v8::Isolate* isolate) const = 0;
   // https://goo.gle/browser-automation-deepserialization
   virtual Response buildDeepSerializedValue(
       v8::Local<v8::Context> context, int maxDepth,

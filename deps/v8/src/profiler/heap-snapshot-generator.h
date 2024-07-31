@@ -45,8 +45,8 @@ class JSGlobalProxy;
 class JSPromise;
 class JSWeakCollection;
 
-struct SourceLocation {
-  SourceLocation(int entry_index, int scriptId, int line, int col)
+struct EntrySourceLocation {
+  EntrySourceLocation(int entry_index, int scriptId, int line, int col)
       : entry_index(entry_index), scriptId(scriptId), line(line), col(col) {}
 
   const int entry_index;
@@ -237,7 +237,9 @@ class HeapSnapshot {
   std::deque<HeapGraphEdge>& edges() { return edges_; }
   const std::deque<HeapGraphEdge>& edges() const { return edges_; }
   std::vector<HeapGraphEdge*>& children() { return children_; }
-  const std::vector<SourceLocation>& locations() const { return locations_; }
+  const std::vector<EntrySourceLocation>& locations() const {
+    return locations_;
+  }
   void RememberLastJSObjectId();
   SnapshotObjectId max_snapshot_js_object_id() const {
     return max_snapshot_js_object_id_;
@@ -280,7 +282,7 @@ class HeapSnapshot {
   std::deque<HeapGraphEdge> edges_;
   std::vector<HeapGraphEdge*> children_;
   std::unordered_map<SnapshotObjectId, HeapEntry*> entries_by_id_cache_;
-  std::vector<SourceLocation> locations_;
+  std::vector<EntrySourceLocation> locations_;
   SnapshotObjectId max_snapshot_js_object_id_ = -1;
   v8::HeapProfiler::HeapSnapshotMode snapshot_mode_;
   v8::HeapProfiler::NumericsMode numerics_mode_;
@@ -556,7 +558,8 @@ class V8_EXPORT_PRIVATE V8HeapExplorer : public HeapEntriesAllocator {
                              Tagged<Object> child);
   const char* GetStrongGcSubrootName(Tagged<HeapObject> object);
   void TagObject(Tagged<Object> obj, const char* tag,
-                 base::Optional<HeapEntry::Type> type = {});
+                 base::Optional<HeapEntry::Type> type = {},
+                 bool overwrite_existing_name = false);
   void RecursivelyTagConstantPool(Tagged<Object> obj, const char* tag,
                                   HeapEntry::Type type, int recursion_limit);
 
@@ -568,10 +571,10 @@ class V8_EXPORT_PRIVATE V8HeapExplorer : public HeapEntriesAllocator {
   HeapObjectsMap* heap_object_map_;
   SnapshottingProgressReportingInterface* progress_;
   HeapSnapshotGenerator* generator_ = nullptr;
-  std::unordered_map<JSGlobalObject, const char*, Object::Hasher>
+  std::unordered_map<Tagged<JSGlobalObject>, const char*, Object::Hasher>
       global_object_tag_map_;
   UnorderedHeapObjectMap<const char*> strong_gc_subroot_names_;
-  std::unordered_set<JSGlobalObject, Object::Hasher> user_roots_;
+  std::unordered_set<Tagged<JSGlobalObject>, Object::Hasher> user_roots_;
   v8::HeapProfiler::ObjectNameResolver* global_object_name_resolver_;
 
   std::vector<bool> visited_fields_;
@@ -626,6 +629,7 @@ class HeapSnapshotGenerator : public SnapshottingProgressReportingInterface {
   HeapSnapshotGenerator(const HeapSnapshotGenerator&) = delete;
   HeapSnapshotGenerator& operator=(const HeapSnapshotGenerator&) = delete;
   bool GenerateSnapshot();
+  bool GenerateSnapshotAfterGC();
 
   HeapEntry* FindEntry(HeapThing ptr) {
     auto it = entries_map_.find(ptr);
@@ -745,7 +749,7 @@ class HeapSnapshotJSONSerializer {
   void SerializeSamples();
   void SerializeString(const unsigned char* s);
   void SerializeStrings();
-  void SerializeLocation(const SourceLocation& location);
+  void SerializeLocation(const EntrySourceLocation& location);
   void SerializeLocations();
 
   static const int kEdgeFieldsCount;

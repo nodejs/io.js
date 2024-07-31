@@ -19,22 +19,22 @@ transitioning javascript builtin SetPrototypeUnion(
   // 3. Let otherRec be ? GetSetRecord(other).
   let otherRec = GetSetRecord(other, methodName);
 
-  const table = Cast<OrderedHashSet>(o.table) otherwise unreachable;
+  const table = NewStableBackingTableWitness(o);
 
   // 5. Let resultSetData be a copy of O.[[SetData]].
-  let resultSetData = Cast<OrderedHashSet>(CloneFixedArray(
-      table, ExtractFixedArrayFlag::kFixedArrays)) otherwise unreachable;
+  let resultSetData = Cast<OrderedHashSet>(
+      CloneFixedArray(table.GetTable(), ExtractFixedArrayFlag::kFixedArrays))
+      otherwise unreachable;
 
   try {
     typeswitch (other) {
       case (otherSet: JSSetWithNoCustomIteration): {
         CheckSetRecordHasJSSetMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashSet>(otherSet.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherSet);
 
-        let otherIterator =
-            collections::NewUnmodifiedOrderedHashSetIterator(otherTable);
+        let otherIterator = collections::NewUnmodifiedOrderedHashSetIterator(
+            otherTable.GetTable());
 
         while (true) {
           const nextValue = otherIterator.Next() otherwise Done;
@@ -44,11 +44,10 @@ transitioning javascript builtin SetPrototypeUnion(
       case (otherMap: JSMapWithNoCustomIteration): {
         CheckSetRecordHasJSMapMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashMap>(otherMap.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherMap);
 
-        let otherIterator =
-            collections::NewUnmodifiedOrderedHashMapIterator(otherTable);
+        let otherIterator = collections::NewUnmodifiedOrderedHashMapIterator(
+            otherTable.GetTable());
 
         while (true) {
           const nextValue = otherIterator.Next() otherwise Done;

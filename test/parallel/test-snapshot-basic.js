@@ -8,8 +8,9 @@ const assert = require('assert');
 const tmpdir = require('../common/tmpdir');
 const fixtures = require('../common/fixtures');
 const {
-  spawnSyncAndExitWithoutError,
+  spawnSyncAndAssert,
   spawnSyncAndExit,
+  spawnSyncAndExitWithoutError,
 } = require('../common/child_process');
 const fs = require('fs');
 
@@ -65,7 +66,7 @@ const blobPath = tmpdir.resolve('my-snapshot.blob');
 
 {
   // Check --help.
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     '--help',
@@ -78,7 +79,7 @@ const blobPath = tmpdir.resolve('my-snapshot.blob');
 
 {
   // Check -c.
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     '-c',

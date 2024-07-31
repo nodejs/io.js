@@ -1,6 +1,7 @@
 #include "node_shadow_realm.h"
 #include "env-inl.h"
 #include "node_errors.h"
+#include "node_process.h"
 
 namespace node {
 namespace shadow_realm {
@@ -9,6 +10,8 @@ using v8::EscapableHandleScope;
 using v8::HandleScope;
 using v8::Local;
 using v8::MaybeLocal;
+using v8::Object;
+using v8::String;
 using v8::Value;
 
 using TryCatchScope = node::errors::TryCatchScope;
@@ -16,6 +19,11 @@ using TryCatchScope = node::errors::TryCatchScope;
 // static
 ShadowRealm* ShadowRealm::New(Environment* env) {
   ShadowRealm* realm = new ShadowRealm(env);
+  // TODO(legendecas): required by node::PromiseRejectCallback.
+  // Remove this once promise rejection doesn't need to be handled across
+  // realms.
+  realm->context()->SetSecurityToken(
+      env->principal_realm()->context()->GetSecurityToken());
 
   // We do not expect the realm bootstrapping to throw any
   // exceptions. If it does, exit the current Node.js instance.
@@ -32,6 +40,10 @@ MaybeLocal<Context> HostCreateShadowRealmContextCallback(
     Local<Context> initiator_context) {
   Environment* env = Environment::GetCurrent(initiator_context);
   EscapableHandleScope scope(env->isolate());
+
+  // We do not expect the realm bootstrapping to throw any
+  // exceptions. If it does, exit the current Node.js instance.
+  TryCatchScope try_catch(env, TryCatchScope::CatchMode::kFatal);
   ShadowRealm* realm = ShadowRealm::New(env);
   if (realm != nullptr) {
     return scope.Escape(realm->context());
@@ -135,6 +147,28 @@ v8::MaybeLocal<v8::Value> ShadowRealm::BootstrapRealm() {
             .IsEmpty()) {
       return MaybeLocal<Value>();
     }
+  }
+
+  // The process object is not exposed globally in ShadowRealm yet.
+  // However, the process properties need to be setup for built-in modules.
+  // Specifically, process.cwd() is needed by the ESM loader.
+  if (ExecuteBootstrapper(
+          "internal/bootstrap/switches/does_not_own_process_state")
+          .IsEmpty()) {
+    return MaybeLocal<Value>();
+  }
+
+  // Setup process.env proxy.
+  Local<String> env_string = FIXED_ONE_BYTE_STRING(isolate_, "env");
+  Local<Object> env_proxy;
+  if (!isolate_data()->env_proxy_template()->NewInstance(context()).ToLocal(
+          &env_proxy) ||
+      process_object()->Set(context(), env_string, env_proxy).IsNothing()) {
+    return MaybeLocal<Value>();
+  }
+
+  if (ExecuteBootstrapper("internal/bootstrap/shadow_realm").IsEmpty()) {
+    return MaybeLocal<Value>();
   }
 
   return v8::True(isolate_);

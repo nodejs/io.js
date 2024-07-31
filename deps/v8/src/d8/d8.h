@@ -210,6 +210,12 @@ class Worker : public std::enable_shared_from_this<Worker> {
                                 std::shared_ptr<Worker> worker,
                                 base::Thread::Priority priority);
 
+  // Enters State::kTerminated for the Worker and resets the task runner.
+  void EnterTerminatedState();
+
+  // Returns the Worker instance for this thread.
+  static Worker* GetCurrentWorker();
+
  private:
   friend class ProcessMessageTask;
   friend class TerminateTask;
@@ -242,6 +248,8 @@ class Worker : public std::enable_shared_from_this<Worker> {
   void ExecuteInThread();
   static void PostMessageOut(const v8::FunctionCallbackInfo<v8::Value>& info);
 
+  static void SetCurrentWorker(Worker* worker);
+
   i::ParkingSemaphore out_semaphore_{0};
   SerializationDataQueue out_queue_;
   base::Thread* thread_ = nullptr;
@@ -264,7 +272,7 @@ class Worker : public std::enable_shared_from_this<Worker> {
   Isolate* isolate_ = nullptr;
 
   // Only accessed by the worker thread.
-  v8::Persistent<v8::Context> context_;
+  Global<Context> context_;
 };
 
 class PerIsolateData {
@@ -279,7 +287,7 @@ class PerIsolateData {
 
   class V8_NODISCARD RealmScope {
    public:
-    explicit RealmScope(PerIsolateData* data);
+    explicit RealmScope(Isolate* isolate, const Global<Context>& context);
     ~RealmScope();
 
    private:
@@ -419,16 +427,16 @@ class ShellOptions {
   DisallowReassignment<bool> no_fail = {"no-fail", false};
   DisallowReassignment<bool> dump_counters = {"dump-counters", false};
   DisallowReassignment<bool> dump_counters_nvp = {"dump-counters-nvp", false};
+  DisallowReassignment<bool> dump_system_memory_stats = {
+      "dump-system-memory-stats", false};
   DisallowReassignment<bool> ignore_unhandled_promises = {
       "ignore-unhandled-promises", false};
   DisallowReassignment<bool> mock_arraybuffer_allocator = {
       "mock-arraybuffer-allocator", false};
   DisallowReassignment<size_t> mock_arraybuffer_allocator_limit = {
       "mock-arraybuffer-allocator-limit", 0};
-#if MULTI_MAPPED_ALLOCATOR_AVAILABLE
   DisallowReassignment<bool> multi_mapped_mock_allocator = {
       "multi-mapped-mock-allocator", false};
-#endif
   DisallowReassignment<bool> enable_inspector = {"enable-inspector", false};
   int num_isolates = 1;
   DisallowReassignment<v8::ScriptCompiler::CompileOptions, true>
@@ -471,10 +479,6 @@ class ShellOptions {
   DisallowReassignment<bool> wasm_trap_handler = {"wasm-trap-handler", true};
 #endif  // V8_ENABLE_WEBASSEMBLY
   DisallowReassignment<bool> expose_fast_api = {"expose-fast-api", false};
-#if V8_ENABLE_SANDBOX
-  DisallowReassignment<bool> enable_sandbox_crash_filter = {
-      "enable-sandbox-crash-filter", false};
-#endif  // V8_ENABLE_SANDBOX
   DisallowReassignment<size_t> max_serializer_memory = {"max-serializer-memory",
                                                         1 * i::MB};
 };
@@ -493,14 +497,14 @@ class Shell : public i::AllStatic {
   enum class CodeType { kFileName, kString, kFunction, kInvalid, kNone };
 
   static bool ExecuteString(Isolate* isolate, Local<String> source,
-                            Local<String> name, PrintResult print_result,
+                            Local<String> name,
                             ReportExceptions report_exceptions,
-                            ProcessMessageQueue process_message_queue);
+                            Global<Value>* out_result = nullptr);
   static bool ExecuteModule(Isolate* isolate, const char* file_name);
   static bool LoadJSON(Isolate* isolate, const char* file_name);
   static void ReportException(Isolate* isolate, Local<Message> message,
                               Local<Value> exception);
-  static void ReportException(Isolate* isolate, TryCatch* try_catch);
+  static void ReportException(Isolate* isolate, const TryCatch& try_catch);
   static MaybeLocal<String> ReadFile(Isolate* isolate, const char* name,
                                      bool should_throw = true);
   static Local<String> WasmLoadSourceMapCallback(Isolate* isolate,
@@ -513,11 +517,9 @@ class Shell : public i::AllStatic {
   static void CollectGarbage(Isolate* isolate);
   static bool EmptyMessageQueues(Isolate* isolate);
   static bool CompleteMessageLoop(Isolate* isolate);
+  static bool FinishExecuting(Isolate* isolate, const Global<Context>& context);
 
   static bool HandleUnhandledPromiseRejections(Isolate* isolate);
-
-  static void PostForegroundTask(Isolate* isolate, std::unique_ptr<Task> task);
-  static void PostBlockingBackgroundTask(std::unique_ptr<Task> task);
 
   static std::unique_ptr<SerializationData> SerializeValue(
       Isolate* isolate, Local<Value> value, Local<Value> transfer);
@@ -552,9 +554,9 @@ class Shell : public i::AllStatic {
   static void RealmDispose(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void RealmSwitch(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void RealmEval(const v8::FunctionCallbackInfo<v8::Value>& info);
-  static void RealmSharedGet(Local<String> property,
+  static void RealmSharedGet(Local<Name> property,
                              const PropertyCallbackInfo<Value>& info);
-  static void RealmSharedSet(Local<String> property, Local<Value> value,
+  static void RealmSharedSet(Local<Name> property, Local<Value> value,
                              const PropertyCallbackInfo<void>& info);
 
   static void LogGetAndStop(const v8::FunctionCallbackInfo<v8::Value>& info);
@@ -663,10 +665,19 @@ class Shell : public i::AllStatic {
   // the "mkdir -p" command.
   static void MakeDirectory(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void RemoveDirectory(const v8::FunctionCallbackInfo<v8::Value>& info);
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  static void GetContinuationPreservedEmbedderData(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
+#endif  // V8_ENABLE_CONTINUATION_PRESERVER_EMBEDDER_DATA
+
+  static void GetExtrasBindingObject(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
+
   static MaybeLocal<Promise> HostImportModuleDynamically(
       Local<Context> context, Local<Data> host_defined_options,
       Local<Value> resource_name, Local<String> specifier,
-      Local<FixedArray> import_assertions);
+      Local<FixedArray> import_attributes);
 
   static void ModuleResolutionSuccessCallback(
       const v8::FunctionCallbackInfo<v8::Value>& info);

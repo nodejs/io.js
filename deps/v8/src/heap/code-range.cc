@@ -106,7 +106,7 @@ bool CodeRange::InitReservation(v8::PageAllocator* page_allocator,
     requested = kMinimumCodeRangeSize;
   }
 
-  const size_t kPageSize = MemoryChunk::kPageSize;
+  const size_t kPageSize = MutablePageMetadata::kPageSize;
   CHECK(IsAligned(kPageSize, page_allocator->AllocatePageSize()));
 
   // When V8_EXTERNAL_CODE_SPACE_BOOL is enabled the allocatable region must

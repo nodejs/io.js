@@ -3,8 +3,8 @@
 const errors = require('./errors.js')
 const { Response } = require('minipass-fetch')
 const defaultOpts = require('./default-opts.js')
-const log = require('proc-log')
-const cleanUrl = require('./clean-url.js')
+const { log } = require('proc-log')
+const { redact: cleanUrl } = require('@npmcli/redact')
 
 /* eslint-disable-next-line max-len */
 const moreInfoUrl = 'https://github.com/npm/cli/wiki/No-auth-for-URI,-but-auth-present-for-scoped-registry'

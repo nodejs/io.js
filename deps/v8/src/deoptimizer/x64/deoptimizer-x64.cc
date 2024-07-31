@@ -21,7 +21,12 @@ ASSERT_OFFSET(Builtin::kDeoptimizationEntry_Lazy);
 #undef ASSERT_OFFSET
 
 const int Deoptimizer::kEagerDeoptExitSize = 4;
+#ifdef V8_ENABLE_CET_IBT
+// With IBT, the lazy deopt entry has an additional endbr64 instruction.
+const int Deoptimizer::kLazyDeoptExitSize = 8;
+#else
 const int Deoptimizer::kLazyDeoptExitSize = 4;
+#endif
 
 Float32 RegisterValues::GetFloatRegister(unsigned n) const {
   return Float32::FromBits(

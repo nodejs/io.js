@@ -7,8 +7,10 @@
 #error("This header can only be used when inspector is enabled")
 #endif
 
+#include <optional>
 #include <unordered_set>
 #include "inspector_agent.h"
+#include "simdjson.h"
 
 namespace node {
 // Forward declaration to break recursive dependency chain with src/env.h.
@@ -40,7 +42,7 @@ class V8ProfilerConnection {
   // The optional `params` should be formatted in JSON.
   // The strings should be in one byte characters - which is enough for
   // the commands we use here.
-  uint32_t DispatchMessage(const char* method,
+  uint64_t DispatchMessage(const char* method,
                            const char* params = nullptr,
                            bool is_profile_request = false);
 
@@ -59,23 +61,24 @@ class V8ProfilerConnection {
   virtual std::string GetFilename() const = 0;
   // Return the profile object parsed from `message.result`,
   // which will be then written as a JSON.
-  virtual v8::MaybeLocal<v8::Object> GetProfile(
-      v8::Local<v8::Object> result) = 0;
-  virtual void WriteProfile(v8::Local<v8::Object> result);
+  virtual std::optional<std::string_view> GetProfile(
+      simdjson::ondemand::object* result);
+  virtual void WriteProfile(simdjson::ondemand::object* result);
 
-  bool HasProfileId(uint32_t id) const {
+  bool HasProfileId(uint64_t id) const {
     return profile_ids_.find(id) != profile_ids_.end();
   }
 
-  void RemoveProfileId(uint32_t id) { profile_ids_.erase(id); }
+  void RemoveProfileId(uint64_t id) { profile_ids_.erase(id); }
 
  private:
-  uint32_t next_id() { return id_++; }
+  uint64_t next_id() { return id_++; }
   std::unique_ptr<inspector::InspectorSession> session_;
-  uint32_t id_ = 1;
-  std::unordered_set<uint32_t> profile_ids_;
+  uint64_t id_ = 1;
+  std::unordered_set<uint64_t> profile_ids_;
 
  protected:
+  simdjson::ondemand::parser json_parser_;
   Environment* env_ = nullptr;
 };
 
@@ -91,8 +94,9 @@ class V8CoverageConnection : public V8ProfilerConnection {
 
   std::string GetDirectory() const override;
   std::string GetFilename() const override;
-  v8::MaybeLocal<v8::Object> GetProfile(v8::Local<v8::Object> result) override;
-  void WriteProfile(v8::Local<v8::Object> result) override;
+  std::optional<std::string_view> GetProfile(
+      simdjson::ondemand::object* result) override;
+  void WriteProfile(simdjson::ondemand::object* result) override;
   void WriteSourceMapCache();
   void TakeCoverage();
   void StopCoverage();
@@ -115,7 +119,6 @@ class V8CpuProfilerConnection : public V8ProfilerConnection {
 
   std::string GetDirectory() const override;
   std::string GetFilename() const override;
-  v8::MaybeLocal<v8::Object> GetProfile(v8::Local<v8::Object> result) override;
 
  private:
   std::unique_ptr<inspector::InspectorSession> session_;
@@ -135,7 +138,6 @@ class V8HeapProfilerConnection : public V8ProfilerConnection {
 
   std::string GetDirectory() const override;
   std::string GetFilename() const override;
-  v8::MaybeLocal<v8::Object> GetProfile(v8::Local<v8::Object> result) override;
 
  private:
   std::unique_ptr<inspector::InspectorSession> session_;

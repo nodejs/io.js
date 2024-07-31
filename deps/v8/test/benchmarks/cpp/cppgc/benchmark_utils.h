@@ -7,7 +7,7 @@
 
 #include "include/cppgc/heap.h"
 #include "test/unittests/heap/cppgc/test-platform.h"
-#include "third_party/google_benchmark/src/include/benchmark/benchmark.h"
+#include "third_party/google_benchmark_chrome/src/include/benchmark/benchmark.h"
 
 namespace cppgc {
 namespace internal {

@@ -22,11 +22,11 @@ class SharedMemoryStatistics;
 
 namespace internal {
 
-class BasicMemoryChunk;
+class MemoryChunkMetadata;
 class Isolate;
-class Page;
+class PageMetadata;
 class ReadOnlyArtifacts;
-class ReadOnlyPage;
+class ReadOnlyPageMetadata;
 class ReadOnlySpace;
 class SharedReadOnlySpace;
 class SnapshotData;
@@ -84,7 +84,7 @@ class ReadOnlyHeap {
 
   ReadOnlySpace* read_only_space() const { return read_only_space_; }
 
-#ifdef V8_CODE_POINTER_SANDBOXING
+#ifdef V8_ENABLE_SANDBOX
   CodePointerTable::Space* code_pointer_space() { return &code_pointer_space_; }
 #endif
 
@@ -123,11 +123,11 @@ class ReadOnlyHeap {
   bool roots_init_complete_ = false;
   ReadOnlySpace* read_only_space_ = nullptr;
 
-#ifdef V8_CODE_POINTER_SANDBOXING
+#ifdef V8_ENABLE_SANDBOX
   // The read-only heap has its own code pointer space. Entries in this space
   // are never deallocated.
   CodePointerTable::Space code_pointer_space_;
-#endif  // V8_CODE_POINTER_SANDBOXING
+#endif  // V8_ENABLE_SANDBOX
 
   // Returns whether shared memory can be allocated and then remapped to
   // additional addresses.
@@ -164,19 +164,20 @@ enum class SkipFreeSpaceOrFiller {
 class V8_EXPORT_PRIVATE ReadOnlyPageObjectIterator final {
  public:
   explicit ReadOnlyPageObjectIterator(
-      const ReadOnlyPage* page,
+      const ReadOnlyPageMetadata* page,
       SkipFreeSpaceOrFiller skip_free_space_or_filler =
           SkipFreeSpaceOrFiller::kYes);
-  ReadOnlyPageObjectIterator(const ReadOnlyPage* page, Address current_addr,
+  ReadOnlyPageObjectIterator(const ReadOnlyPageMetadata* page,
+                             Address current_addr,
                              SkipFreeSpaceOrFiller skip_free_space_or_filler =
                                  SkipFreeSpaceOrFiller::kYes);
 
   Tagged<HeapObject> Next();
 
  private:
-  void Reset(const ReadOnlyPage* page);
+  void Reset(const ReadOnlyPageMetadata* page);
 
-  const ReadOnlyPage* page_;
+  const ReadOnlyPageMetadata* page_;
   Address current_addr_;
   const SkipFreeSpaceOrFiller skip_free_space_or_filler_;
 
@@ -194,7 +195,7 @@ class V8_EXPORT_PRIVATE ReadOnlyHeapObjectIterator final {
 
  private:
   const ReadOnlySpace* const ro_space_;
-  std::vector<ReadOnlyPage*>::const_iterator current_page_;
+  std::vector<ReadOnlyPageMetadata*>::const_iterator current_page_;
   ReadOnlyPageObjectIterator page_iterator_;
 };
 

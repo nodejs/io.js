@@ -8,17 +8,26 @@
 #include "src/objects/bigint.h"
 #include "src/objects/objects-inl.h"
 
-// Has to be the last include (doesn't have include guards):
-#include "src/objects/object-macros.h"
-
 namespace v8 {
 namespace internal {
 
-#include "torque-generated/src/objects/bigint-tq-inl.inc"
+Tagged<BigIntBase> BigIntBase::cast(Tagged<Object> object) {
+  SLOW_DCHECK(IsBigIntBase(object));
+  return BigIntBase::unchecked_cast(object);
+}
+
+Tagged<BigInt> BigInt::cast(Tagged<Object> object) {
+  SLOW_DCHECK(IsBigInt(object));
+  return BigInt::unchecked_cast(object);
+}
+
+Tagged<FreshlyAllocatedBigInt> FreshlyAllocatedBigInt::cast(
+    Tagged<Object> object) {
+  SLOW_DCHECK(IsBigInt(object));
+  return FreshlyAllocatedBigInt::unchecked_cast(object);
+}
 
 }  // namespace internal
 }  // namespace v8
-
-#include "src/objects/object-macros-undef.h"
 
 #endif  // V8_OBJECTS_BIGINT_INL_H_

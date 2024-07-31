@@ -49,14 +49,25 @@ void JSArray::SetContent(Handle<JSArray> array,
                          Handle<FixedArrayBase> storage) {
   EnsureCanContainElements(array, storage, storage->length(),
                            ALLOW_COPIED_DOUBLE_ELEMENTS);
-
-  DCHECK(
-      (storage->map() == array->GetReadOnlyRoots().fixed_double_array_map() &&
-       IsDoubleElementsKind(array->GetElementsKind())) ||
-      ((storage->map() != array->GetReadOnlyRoots().fixed_double_array_map()) &&
-       (IsObjectElementsKind(array->GetElementsKind()) ||
-        (IsSmiElementsKind(array->GetElementsKind()) &&
-         Handle<FixedArray>::cast(storage)->ContainsOnlySmisOrHoles()))));
+#ifdef DEBUG
+  ReadOnlyRoots roots = array->GetReadOnlyRoots();
+  Tagged<Map> map = storage->map();
+  if (map == roots.fixed_double_array_map()) {
+    DCHECK(IsDoubleElementsKind(array->GetElementsKind()));
+  } else {
+    DCHECK_NE(map, roots.fixed_double_array_map());
+    if (IsSmiElementsKind(array->GetElementsKind())) {
+      auto elems = Handle<FixedArray>::cast(storage);
+      Tagged<Object> the_hole = roots.the_hole_value();
+      for (int i = 0; i < elems->length(); i++) {
+        Tagged<Object> candidate = elems->get(i);
+        DCHECK(IsSmi(candidate) || candidate == the_hole);
+      }
+    } else {
+      DCHECK(IsObjectElementsKind(array->GetElementsKind()));
+    }
+  }
+#endif  // DEBUG
   array->set_elements(*storage);
   array->set_length(Smi::FromInt(storage->length()));
 }

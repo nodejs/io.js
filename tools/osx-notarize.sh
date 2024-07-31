@@ -3,10 +3,6 @@
 # Notarize a generated node-<version>.pkg file as an Apple requirement for installation on macOS Catalina and later, as validated by Gatekeeper.
 # Uses notarytool and requires Xcode >= 13.0.
 
-version() {
-  echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }' || echo "0"
-}
-
 pkgid="$1"
 
 if [ -z "$pkgid" ]; then
@@ -38,25 +34,26 @@ then
     exit 1
 fi
 
-# Submit the package for notarization
-# TODO(@ulisesGascon): refactor to use --keychain-profile
-# when https://github.com/nodejs/build/issues/3385#issuecomment-1729281269 is ready
-notarization_output=$(
-  xcrun notarytool submit \
-    --apple-id "$NOTARIZATION_ID" \
-    --password "$NOTARIZATION_PASSWORD" \
-    --team-id "$NOTARIZATION_TEAM_ID" \
-    --wait \
-    "node-$pkgid.pkg" 2>&1
-)
+echo "Submitting node-$pkgid.pkg for notarization..."
+
+xcrun notarytool submit \
+  --keychain-profile "NODE_RELEASE_PROFILE" \
+  --wait \
+  "node-$pkgid.pkg"
 
 if [ $? -eq 0 ]; then
-  # Extract the operation ID from the output
-  operation_id=$(echo "$notarization_output" | awk '/RequestUUID/ {print $NF}')
-  echo "Notarization submitted. Operation ID: $operation_id"
-  exit 0
+  echo "Notarization node-$pkgid.pkg submitted successfully."
 else
-  echo "Notarization failed. Error: $notarization_output"
+  echo "Notarization node-$pkgid.pkg failed."
   exit 1
 fi
 
+if ! xcrun spctl --assess --type install --context context:primary-signature --ignore-cache --verbose=2 "node-$pkgid.pkg"; then
+  echo "error: Signature will not be accepted by Gatekeeper!" 1>&2
+  exit 1
+else
+  echo "Verification was successful."
+fi
+
+xcrun stapler staple "node-$pkgid.pkg"
+echo "Stapler was successful."

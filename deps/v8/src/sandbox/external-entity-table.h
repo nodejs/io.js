@@ -37,6 +37,11 @@ class Isolate;
  * management as well as entry allocation routines, it does not implement any
  * logic for reclaiming entries such as garbage collection. This must be done
  * by the child classes.
+ *
+ * The Entry type defines how the freelist is represented. For that, it must
+ * implement the following methods:
+ * - void MakeFreelistEntry(uint32_t next_entry_index)
+ * - uint32_t GetNextFreelistEntry()
  */
 template <typename Entry, size_t size>
 class V8_EXPORT_PRIVATE ExternalEntityTable {
@@ -167,6 +172,11 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
       return is_internal_read_only_space_;
     }
 
+#ifdef DEBUG
+    // Check whether this space belongs to the given external entity table.
+    bool BelongsTo(void* table) { return owning_table_ == table; }
+#endif  // DEBUG
+
    protected:
     friend class ExternalEntityTable<Entry, size>;
 
@@ -175,10 +185,7 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
     // able to insert additional DCHECKs that verify that spaces are always used
     // with the correct table.
     std::atomic<void*> owning_table_ = nullptr;
-
-    // Check whether this space belongs to the given external entity table.
-    bool BelongsTo(void* table) { return owning_table_ == table; }
-#endif  // DEBUG
+#endif
 
     // The freelist used by this space.
     // This contains both the index of the first entry in the freelist and the
@@ -199,6 +206,17 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
 
     // Mutex guarding access to the segments_ set.
     base::Mutex mutex_;
+  };
+
+  // A Space that supports black allocations.
+  struct SpaceWithBlackAllocationSupport : public Space {
+    bool allocate_black() { return allocate_black_; }
+    void set_allocate_black(bool allocate_black) {
+      allocate_black_ = allocate_black;
+    }
+
+   private:
+    bool allocate_black_ = false;
   };
 
   ExternalEntityTable() = default;
@@ -243,6 +261,20 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
   // allocated segment.
   FreelistHead Extend(Space* space);
 
+  // Sweeps the given space.
+  //
+  // This will free all unmarked entries to the freelist and unmark all live
+  // entries. The table is swept top-to-bottom so that the freelist ends up
+  // sorted. During sweeping, new entries must not be allocated.
+  //
+  // This is a generic implementation of table sweeping and requires that the
+  // Entry type implements the following additional methods:
+  // - bool IsMarked()
+  // - void Unmark()
+  //
+  // Returns the number of live entries after sweeping.
+  uint32_t GenericSweep(Space* space);
+
   // Allocate a new segment in this table.
   //
   // The memory of the newly allocated segment is guaranteed to be
@@ -253,6 +285,13 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
   //
   // The memory of this segment will afterwards be inaccessible.
   void FreeTableSegment(Segment segment);
+
+  // Iterate over all entries in the given space.
+  //
+  // The callback function will be invoked for every entry and be passed the
+  // index of that entry as argument.
+  template <typename Callback>
+  void IterateEntriesIn(Space* space, Callback callback);
 
   // Marker value for the freelist_head_ member to indicate that entry
   // allocation is currently forbidden, for example because the table is being

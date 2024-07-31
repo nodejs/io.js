@@ -13,7 +13,7 @@ snippet: "
 "
 frame size: 8
 parameter count: 1
-bytecode array length: 130
+bytecode array length: 133
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(1),
                 B(Mov), R(closure), R(1),
@@ -27,7 +27,9 @@ bytecodes: [
                 B(ResumeGenerator), R(0), R(0), U8(5),
                 B(Star5),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
-                B(SwitchOnSmiNoFeedback), U8(1), U8(2), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(1), U8(3), I8(0),
+                B(Ldar), R(5),
+  /*   17 E> */ B(ReThrow),
                 B(Ldar), R(5),
   /*   17 E> */ B(Throw),
                 B(LdaSmi), I8(1),
@@ -40,7 +42,7 @@ bytecodes: [
                 B(Star1),
                 B(Jump), U8(34),
                 B(Star5),
-                B(CreateCatchContext), R(5), U8(3),
+                B(CreateCatchContext), R(5), U8(4),
                 B(Star4),
                 B(LdaTheHole),
                 B(SetPendingMessage),
@@ -65,7 +67,7 @@ bytecodes: [
                 B(Ldar), R(3),
                 B(SetPendingMessage),
                 B(Ldar), R(1),
-                B(SwitchOnSmiNoFeedback), U8(4), U8(3), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(5), U8(3), I8(0),
                 B(Jump), U8(21),
                 B(Ldar), R(2),
                 B(ReThrow),
@@ -82,7 +84,8 @@ bytecodes: [
 ]
 constant pool: [
   Smi [28],
-  Smi [15],
+  Smi [18],
+  Smi [10],
   Smi [7],
   SCOPE_INFO_TYPE,
   Smi [6],
@@ -90,8 +93,8 @@ constant pool: [
   Smi [22],
 ]
 handlers: [
-  [18, 88, 88],
-  [21, 59, 59],
+  [18, 91, 91],
+  [21, 62, 62],
 ]
 
 ---
@@ -101,7 +104,7 @@ snippet: "
 "
 frame size: 8
 parameter count: 1
-bytecode array length: 171
+bytecode array length: 177
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(2),
                 B(Mov), R(closure), R(1),
@@ -115,13 +118,15 @@ bytecodes: [
                 B(ResumeGenerator), R(0), R(0), U8(5),
                 B(Star5),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
-                B(SwitchOnSmiNoFeedback), U8(2), U8(2), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(2), U8(3), I8(0),
+                B(Ldar), R(5),
+  /*   17 E> */ B(ReThrow),
                 B(Ldar), R(5),
   /*   17 E> */ B(Throw),
                 B(LdaSmi), I8(1),
                 B(Star1),
                 B(Mov), R(5), R(2),
-                B(Jump), U8(82),
+                B(Jump), U8(85),
   /*   22 S> */ B(LdaSmi), I8(42),
                 B(Star6),
                 B(LdaFalse),
@@ -132,7 +137,9 @@ bytecodes: [
                 B(ResumeGenerator), R(0), R(0), U8(5),
                 B(Star5),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
-                B(SwitchOnSmiNoFeedback), U8(4), U8(2), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(5), U8(3), I8(0),
+                B(Ldar), R(5),
+  /*   22 E> */ B(ReThrow),
                 B(Ldar), R(5),
   /*   22 E> */ B(Throw),
                 B(LdaSmi), I8(1),
@@ -145,7 +152,7 @@ bytecodes: [
                 B(Star1),
                 B(Jump), U8(34),
                 B(Star5),
-                B(CreateCatchContext), R(5), U8(6),
+                B(CreateCatchContext), R(5), U8(8),
                 B(Star4),
                 B(LdaTheHole),
                 B(SetPendingMessage),
@@ -170,7 +177,7 @@ bytecodes: [
                 B(Ldar), R(3),
                 B(SetPendingMessage),
                 B(Ldar), R(1),
-                B(SwitchOnSmiNoFeedback), U8(7), U8(3), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(9), U8(3), I8(0),
                 B(Jump), U8(21),
                 B(Ldar), R(2),
                 B(ReThrow),
@@ -187,10 +194,12 @@ bytecodes: [
 ]
 constant pool: [
   Smi [28],
-  Smi [69],
-  Smi [15],
+  Smi [72],
+  Smi [18],
+  Smi [10],
   Smi [7],
-  Smi [15],
+  Smi [18],
+  Smi [10],
   Smi [7],
   SCOPE_INFO_TYPE,
   Smi [6],
@@ -198,8 +207,8 @@ constant pool: [
   Smi [22],
 ]
 handlers: [
-  [18, 129, 129],
-  [21, 100, 100],
+  [18, 135, 135],
+  [21, 106, 106],
 ]
 
 ---
@@ -209,7 +218,7 @@ snippet: "
 "
 frame size: 17
 parameter count: 1
-bytecode array length: 303
+bytecode array length: 309
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(2),
                 B(Mov), R(closure), R(4),
@@ -223,18 +232,20 @@ bytecodes: [
                 B(ResumeGenerator), R(0), R(0), U8(8),
                 B(Star8),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
-                B(SwitchOnSmiNoFeedback), U8(2), U8(2), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(2), U8(3), I8(0),
+                B(Ldar), R(8),
+  /*   17 E> */ B(ReThrow),
                 B(Ldar), R(8),
   /*   17 E> */ B(Throw),
                 B(LdaSmi), I8(1),
                 B(Star4),
                 B(Mov), R(8), R(5),
-                B(Jump), U8(214),
-  /*   36 S> */ B(CreateArrayLiteral), U8(4), U8(0), U8(37),
+                B(Jump), U8(217),
+  /*   36 S> */ B(CreateArrayLiteral), U8(5), U8(0), U8(37),
                 B(Star10),
                 B(GetIterator), R(10), U8(1), U8(3),
                 B(Star9),
-                B(GetNamedProperty), R(9), U8(5), U8(5),
+                B(GetNamedProperty), R(9), U8(6), U8(5),
                 B(Star8),
                 B(LdaFalse),
                 B(Star10),
@@ -245,9 +256,9 @@ bytecodes: [
                 B(Star14),
                 B(JumpIfJSReceiver), U8(7),
                 B(CallRuntime), U16(Runtime::kThrowIteratorResultNotAnObject), R(14), U8(1),
-                B(GetNamedProperty), R(14), U8(6), U8(9),
-                B(JumpIfToBooleanTrue), U8(63),
-                B(GetNamedProperty), R(14), U8(7), U8(11),
+                B(GetNamedProperty), R(14), U8(7), U8(9),
+                B(JumpIfToBooleanTrue), U8(66),
+                B(GetNamedProperty), R(14), U8(8), U8(11),
                 B(Star14),
                 B(LdaFalse),
                 B(Star10),
@@ -262,7 +273,9 @@ bytecodes: [
                 B(ResumeGenerator), R(0), R(0), U8(14),
                 B(Star14),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
-                B(SwitchOnSmiNoFeedback), U8(8), U8(2), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(9), U8(3), I8(0),
+                B(Ldar), R(14),
+  /*   42 E> */ B(ReThrow),
                 B(Ldar), R(14),
   /*   42 E> */ B(Throw),
                 B(LdaSmi), I8(1),
@@ -270,7 +283,7 @@ bytecodes: [
                 B(Mov), R(14), R(12),
                 B(Jump), U8(17),
                 B(Ldar), R(14),
-  /*   22 E> */ B(JumpLoop), U8(77), I8(0), U8(13),
+  /*   22 E> */ B(JumpLoop), U8(80), I8(0), U8(13),
                 B(LdaSmi), I8(-1),
                 B(Star12),
                 B(Star11),
@@ -284,7 +297,7 @@ bytecodes: [
                 B(Ldar), R(10),
                 B(JumpIfToBooleanTrue), U8(36),
                 B(Mov), R(context), R(14),
-                B(GetNamedProperty), R(9), U8(10), U8(14),
+                B(GetNamedProperty), R(9), U8(12), U8(14),
                 B(JumpIfUndefinedOrNull), U8(27),
                 B(Star15),
                 B(CallProperty0), R(15), R(9), U8(16),
@@ -301,7 +314,7 @@ bytecodes: [
                 B(Ldar), R(13),
                 B(SetPendingMessage),
                 B(Ldar), R(11),
-                B(SwitchOnSmiNoFeedback), U8(11), U8(2), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(13), U8(2), I8(0),
                 B(Jump), U8(13),
                 B(Ldar), R(12),
                 B(ReThrow),
@@ -315,7 +328,7 @@ bytecodes: [
                 B(Star4),
                 B(Jump), U8(34),
                 B(Star8),
-                B(CreateCatchContext), R(8), U8(13),
+                B(CreateCatchContext), R(8), U8(15),
                 B(Star7),
                 B(LdaTheHole),
                 B(SetPendingMessage),
@@ -340,7 +353,7 @@ bytecodes: [
                 B(Ldar), R(6),
                 B(SetPendingMessage),
                 B(Ldar), R(4),
-                B(SwitchOnSmiNoFeedback), U8(14), U8(3), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(16), U8(3), I8(0),
                 B(Jump), U8(21),
                 B(Ldar), R(5),
                 B(ReThrow),
@@ -357,14 +370,16 @@ bytecodes: [
 ]
 constant pool: [
   Smi [28],
-  Smi [123],
-  Smi [15],
+  Smi [126],
+  Smi [18],
+  Smi [10],
   Smi [7],
   ARRAY_BOILERPLATE_DESCRIPTION_TYPE,
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["next"],
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["done"],
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["value"],
-  Smi [15],
+  Smi [18],
+  Smi [10],
   Smi [7],
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["return"],
   Smi [6],
@@ -375,10 +390,10 @@ constant pool: [
   Smi [22],
 ]
 handlers: [
-  [18, 261, 261],
-  [21, 232, 232],
-  [72, 153, 159],
-  [172, 192, 194],
+  [18, 267, 267],
+  [21, 238, 238],
+  [75, 159, 165],
+  [178, 198, 200],
 ]
 
 ---
@@ -389,7 +404,7 @@ snippet: "
 "
 frame size: 17
 parameter count: 1
-bytecode array length: 423
+bytecode array length: 426
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(5),
                 B(Mov), R(closure), R(1),
@@ -403,40 +418,42 @@ bytecodes: [
                 B(ResumeGenerator), R(0), R(0), U8(5),
                 B(Star5),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
-                B(SwitchOnSmiNoFeedback), U8(5), U8(2), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(5), U8(3), I8(0),
+                B(Ldar), R(5),
+  /*   44 E> */ B(ReThrow),
                 B(Ldar), R(5),
   /*   44 E> */ B(Throw),
                 B(LdaSmi), I8(1),
                 B(Star1),
                 B(Mov), R(5), R(2),
-                B(JumpConstant), U8(18),
-  /*   49 S> */ B(LdaGlobal), U8(7), U8(0),
+                B(JumpConstant), U8(19),
+  /*   49 S> */ B(LdaGlobal), U8(8), U8(0),
                 B(Star9),
   /*   56 E> */ B(CallUndefinedReceiver0), R(9), U8(2),
                 B(Star10),
-                B(GetNamedProperty), R(10), U8(8), U8(4),
+                B(GetNamedProperty), R(10), U8(9), U8(4),
                 B(JumpIfUndefinedOrNull), U8(14),
                 B(Star11),
                 B(CallProperty0), R(11), R(10), U8(6),
                 B(JumpIfJSReceiver), U8(21),
                 B(CallRuntime), U16(Runtime::kThrowSymbolAsyncIteratorInvalid), R(0), U8(0),
-                B(GetNamedProperty), R(10), U8(9), U8(8),
+                B(GetNamedProperty), R(10), U8(10), U8(8),
                 B(Star11),
                 B(CallProperty0), R(11), R(10), U8(10),
                 B(Star11),
                 B(InvokeIntrinsic), U8(Runtime::k_CreateAsyncFromSyncIterator), R(11), U8(1),
                 B(Star7),
-                B(GetNamedProperty), R(7), U8(10), U8(12),
+                B(GetNamedProperty), R(7), U8(11), U8(12),
                 B(Star9),
                 B(LdaUndefined),
                 B(Star8),
                 B(LdaZero),
                 B(Star6),
                 B(Ldar), R(6),
-                B(SwitchOnSmiNoFeedback), U8(11), U8(2), I8(1),
+                B(SwitchOnSmiNoFeedback), U8(12), U8(2), I8(1),
                 B(CallProperty1), R(9), R(7), R(8), U8(14),
                 B(Jump), U8(130),
-                B(GetNamedProperty), R(7), U8(13), U8(16),
+                B(GetNamedProperty), R(7), U8(14), U8(16),
                 B(JumpIfUndefinedOrNull), U8(10),
                 B(Star10),
                 B(CallProperty1), R(10), R(7), R(8), U8(18),
@@ -458,12 +475,12 @@ bytecodes: [
                 B(Star1),
                 B(Mov), R(10), R(2),
                 B(Jump), U8(216),
-                B(GetNamedProperty), R(7), U8(14), U8(20),
+                B(GetNamedProperty), R(7), U8(15), U8(20),
                 B(JumpIfUndefinedOrNull), U8(10),
                 B(Star12),
                 B(CallProperty1), R(12), R(7), R(8), U8(22),
                 B(Jump), U8(61),
-                B(GetNamedProperty), R(7), U8(13), U8(24),
+                B(GetNamedProperty), R(7), U8(14), U8(24),
                 B(JumpIfUndefinedOrNull), U8(50),
                 B(Star12),
                 B(CallProperty0), R(12), R(7), U8(26),
@@ -503,9 +520,9 @@ bytecodes: [
                 B(Mov), R(12), R(5),
                 B(JumpIfJSReceiver), U8(7),
                 B(CallRuntime), U16(Runtime::kThrowIteratorResultNotAnObject), R(5), U8(1),
-                B(GetNamedProperty), R(5), U8(15), U8(28),
+                B(GetNamedProperty), R(5), U8(16), U8(28),
                 B(JumpIfToBooleanTrue), U8(36),
-                B(GetNamedProperty), R(5), U8(16), U8(30),
+                B(GetNamedProperty), R(5), U8(17), U8(30),
                 B(Star15),
                 B(LdaFalse),
                 B(Star), R(16),
@@ -517,7 +534,7 @@ bytecodes: [
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
                 B(Star6),
                 B(JumpLoop), U8(220), I8(0), U8(32),
-                B(GetNamedProperty), R(5), U8(16), U8(33),
+                B(GetNamedProperty), R(5), U8(17), U8(33),
                 B(Star7),
                 B(LdaSmi), I8(1),
                 B(TestReferenceEqual), R(6),
@@ -532,7 +549,7 @@ bytecodes: [
                 B(Star1),
                 B(Jump), U8(34),
                 B(Star5),
-                B(CreateCatchContext), R(5), U8(17),
+                B(CreateCatchContext), R(5), U8(18),
                 B(Star4),
                 B(LdaTheHole),
                 B(SetPendingMessage),
@@ -557,7 +574,7 @@ bytecodes: [
                 B(Ldar), R(3),
                 B(SetPendingMessage),
                 B(Ldar), R(1),
-                B(SwitchOnSmiNoFeedback), U8(19), U8(3), I8(0),
+                B(SwitchOnSmiNoFeedback), U8(20), U8(3), I8(0),
                 B(Jump), U8(21),
                 B(Ldar), R(2),
                 B(ReThrow),
@@ -574,11 +591,12 @@ bytecodes: [
 ]
 constant pool: [
   Smi [28],
-  Smi [144],
-  Smi [210],
-  Smi [256],
-  Smi [312],
-  Smi [15],
+  Smi [147],
+  Smi [213],
+  Smi [259],
+  Smi [315],
+  Smi [18],
+  Smi [10],
   Smi [7],
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["g"],
   SYMBOL_TYPE,
@@ -597,7 +615,7 @@ constant pool: [
   Smi [22],
 ]
 handlers: [
-  [18, 381, 381],
-  [21, 352, 352],
+  [18, 384, 384],
+  [21, 355, 355],
 ]
 

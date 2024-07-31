@@ -172,5 +172,31 @@
   {
     "input": "≯",
     "output": "xn--hdh"
+  },
+  {
+    "comment": "NFC normalization (forbidden < and > characters are normalized to valid ones)",
+    "input": "=\u0338",
+    "output": "xn--1ch"
+  },
+  {
+    "input": "<\u0338",
+    "output": "xn--gdh"
+  },
+  {
+    "input": ">\u0338",
+    "output": "xn--hdh"
+  },
+  {
+    "comment": "Same with inserted IDNA ignored code point",
+    "input": "=\u00AD\u0338",
+    "output": "xn--1ch"
+  },
+  {
+    "input": "<\u00AD\u0338",
+    "output": "xn--gdh"
+  },
+  {
+    "input": ">\u00AD\u0338",
+    "output": "xn--hdh"
   }
 ]

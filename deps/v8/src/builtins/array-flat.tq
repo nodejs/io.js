@@ -1,0 +1,272 @@
+// Copyright 2023 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+namespace array {
+
+transitioning macro ArrayIsArray_Inline(
+    implicit context: Context)(element: JSAny): Boolean {
+  if (Is<JSArray>(element)) {
+    return True;
+  } else if (Is<JSProxy>(element)) {
+    return Cast<Boolean>(runtime::ArrayIsArray(element))
+        otherwise unreachable;
+  } else {
+    return False;
+  }
+}
+
+transitioning macro FlattenIntoArrayFast(
+    implicit context: Context)(target: JSReceiver, source: JSReceiver,
+    sourceLength: Number, start: Number, depth: Smi, hasMapper: constexpr bool,
+    mapfn: JSAny, thisArgs: JSAny): Number
+    labels Bailout(Number, Number) {
+  // 1. Let targetIndex be start.
+  let targetIndex: Number = start;
+
+  // 2. Let sourceIndex be 0.
+  let smiSourceIndex: Smi = 0;
+  const fastSource = Cast<FastJSArray>(source)
+      otherwise goto Bailout(targetIndex, smiSourceIndex);
+  let fastOW = NewFastJSArrayWitness(fastSource);
+
+  // The source is a FastJSArray, thus its length must be a Smi.
+  dcheck(Is<Smi>(sourceLength));
+  const smiSourceLength = UnsafeCast<Smi>(sourceLength);
+
+  // 3. Repeat, while sourceIndex < sourceLen
+  for (; smiSourceIndex < smiSourceLength; smiSourceIndex++) {
+    fastOW.Recheck() otherwise goto Bailout(targetIndex, smiSourceIndex);
+
+    // Ensure that we haven't walked beyond a possibly updated length.
+    if (smiSourceIndex >= fastOW.Get().length)
+      goto Bailout(targetIndex, smiSourceIndex);
+
+    // a. Let P be ! ToString(sourceIndex).
+    // b. Let exists be ? HasProperty(source, P).
+    //   i. Let element be ? Get(source, P).
+    let element = fastOW.LoadElementNoHole(smiSourceIndex)
+        otherwise continue;
+    //   ii. If mapperFunction is present, then
+    if constexpr (hasMapper) {
+      //  1. Set element to ? Call(mapperFunction, thisArgs , « element,
+      //                          sourceIndex, source »).
+      element = Call(context, mapfn, thisArgs, element, smiSourceIndex, source);
+    }
+    // iii. Let shouldFlatten be false.
+    let shouldFlatten: Boolean = False;
+    // iv. If depth > 0, then
+    let elementLength: Number = 0;
+    if (depth > 0) {
+      // Set shouldFlatten to ? IsArray(element).
+      // 1. Let elementLen be ? ToLength(? Get(element, "length")).
+      try {
+        const elementJSArray: JSArray =
+            Cast<JSArray>(element) otherwise NonJSArray;
+        shouldFlatten = True;
+        elementLength = elementJSArray.length;
+      } label NonJSArray {
+        if (Is<JSProxy>(element)) {
+          shouldFlatten = Cast<Boolean>(runtime::ArrayIsArray(element))
+              otherwise unreachable;
+        }
+        if (shouldFlatten == True) {
+          elementLength = GetLengthProperty(element);
+        }
+      }
+    }
+    // v. If shouldFlatten is true, then
+    if (shouldFlatten == True) {
+      if (elementLength > 0) {
+        // 2. Set targetIndex to ? FlattenIntoArray(target, element,
+        //    elementLen, targetIndex, depth - 1).
+        const element = Cast<JSReceiver>(element) otherwise unreachable;
+        targetIndex = FlattenIntoArrayWithoutMapFn(
+            target, element, elementLength, targetIndex, depth - 1);
+      }
+    } else {
+      // 1. If targetIndex >= 2^53-1, throw a TypeError exception.
+      if (targetIndex >= kMaxSafeInteger) deferred {
+          ThrowTypeError(
+              MessageTemplate::kFlattenPastSafeLength, sourceLength,
+              targetIndex);
+        }
+      // 2. Perform ? CreateDataPropertyOrThrow(target,
+      //                                        ! ToString(targetIndex),
+      //                                        element).
+      FastCreateDataProperty(target, targetIndex, element);
+      targetIndex++;
+    }
+  }
+  return targetIndex;
+}
+
+// https://tc39.github.io/proposal-flatMap/#sec-FlattenIntoArray
+transitioning macro FlattenIntoArraySlow(
+    implicit context: Context)(target: JSReceiver, source: JSReceiver,
+    sourceIndex: Number, sourceLength: Number, start: Number, depth: Smi,
+    hasMapper: constexpr bool, mapfn: JSAny, thisArgs: JSAny): Number {
+  // 1. Let targetIndex be start.
+  let targetIndex: Number = start;
+
+  // 2. Let sourceIndex be 0.
+  let sourceIndex: Number = sourceIndex;
+
+  // 3. Repeat, while sourceIndex < sourceLen
+  while (sourceIndex < sourceLength) {
+    // a. Let P be ! ToString(sourceIndex).
+    // b. Let exists be ? HasProperty(source, P).
+    const exists: Boolean = HasProperty(source, sourceIndex);
+    if (exists == True) {
+      let element: JSAny;
+      // i. Let element be ? Get(source, P).
+      element = GetProperty(source, sourceIndex);
+
+      // ii. If mapperFunction is present, then
+      if constexpr (hasMapper) {
+        // 1. Set element to ? Call(mapperFunction, thisArgs , « element,
+        //                          sourceIndex, source »).
+        element = Call(context, mapfn, thisArgs, element, sourceIndex, source);
+      }
+      // iii. Let shouldFlatten be false.
+      let shouldFlatten: Boolean = False;
+      // iv. If depth > 0, then
+      if (depth > 0) {
+        // Set shouldFlatten to ? IsArray(element).
+        shouldFlatten = ArrayIsArray_Inline(element);
+      }
+      // v. If shouldFlatten is true, then
+      if (shouldFlatten == True) {
+        // 1. Let elementLen be ? ToLength(? Get(element, "length")).
+        const elementLength: Number = GetLengthProperty(element);
+        // 2. Set targetIndex to ? FlattenIntoArray(target, element,
+        //    elementLen, targetIndex, depth - 1).
+        const element = Cast<JSReceiver>(element) otherwise unreachable;
+        targetIndex = FlattenIntoArrayWithoutMapFn(
+            target, element, elementLength, targetIndex, depth - 1);
+      } else {
+        // 1. If targetIndex >= 2^53-1, throw a TypeError exception.
+        if (targetIndex >= kMaxSafeInteger) deferred {
+            ThrowTypeError(
+                MessageTemplate::kFlattenPastSafeLength, sourceLength,
+                targetIndex);
+          }
+        // 2. Perform ? CreateDataPropertyOrThrow(target,
+        //                                        ! ToString(targetIndex),
+        //                                        element).
+        FastCreateDataProperty(target, targetIndex, element);
+        targetIndex++;
+      }
+    }
+    // d. Increase sourceIndex by 1.
+    sourceIndex++;
+  }
+  return targetIndex;
+}
+
+transitioning macro FlattenIntoArray(
+    implicit context: Context)(target: JSReceiver, source: JSReceiver,
+    sourceLength: Number, start: Number, depth: Smi, hasMapper: constexpr bool,
+    mapfn: JSAny, thisArgs: JSAny): Number {
+  try {
+    return FlattenIntoArrayFast(
+        target, source, sourceLength, start, depth, hasMapper, mapfn, thisArgs)
+        otherwise Bailout;
+  } label Bailout(kTargetIndex: Number, kSourceIndex: Number) {
+    return FlattenIntoArraySlow(
+        target, source, kSourceIndex, sourceLength, kTargetIndex, depth,
+        hasMapper, mapfn, thisArgs);
+  }
+}
+
+transitioning builtin FlattenIntoArrayWithoutMapFn(
+    implicit context: Context)(target: JSReceiver, source: JSReceiver,
+    sourceLength: Number, start: Number, depth: Smi): Number {
+  // This builtin might get called recursively, check stack for overflow
+  // manually as it has stub linkage.
+  PerformStackCheck();
+  return FlattenIntoArray(
+      target, source, sourceLength, start, depth, false, Undefined, Undefined);
+}
+
+transitioning builtin FlattenIntoArrayWithMapFn(
+    implicit context: Context)(target: JSReceiver, source: JSReceiver,
+    sourceLength: Number, start: Number, depth: Smi, mapfn: JSAny,
+    thisArgs: JSAny): Number {
+  return FlattenIntoArray(
+      target, source, sourceLength, start, depth, true, mapfn, thisArgs);
+}
+
+// https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flat
+transitioning javascript builtin ArrayPrototypeFlat(
+    js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
+  // 1. Let O be ? ToObject(this value).
+  const o: JSReceiver = ToObject_Inline(context, receiver);
+
+  // 2. Let sourceLen be ? ToLength(? Get(O, "length")).
+  const len: Number = GetLengthProperty(o);
+
+  // 3. Let depthNum be 1.
+  let depthNum: Number = 1;
+
+  // 4. If depth is not Undefined, then
+  if (arguments[0] != Undefined) {
+    // a. Set depthNum to ? ToInteger(depth).
+    depthNum = ToInteger_Inline(arguments[0]);
+  }
+
+  // We will hit stack overflow before the stack depth reaches kSmiMax, so we
+  // can truncate depthNum(Number) to Smi to improve performance.
+  let depthSmi: Smi = 0;
+  try {
+    depthSmi = Cast<PositiveSmi>(depthNum) otherwise NotPositiveSmi;
+  } label NotPositiveSmi {
+    if (depthNum <= 0) {
+      depthSmi = 0;
+    } else {
+      depthSmi = Convert<Smi>(Convert<intptr>(kSmiMax));
+    }
+  }
+
+  // 5. Let A be ? ArraySpeciesCreate(O, 0).
+  const a: JSReceiver = ArraySpeciesCreate(context, o, 0);
+
+  // 6. Perform ? FlattenIntoArray(A, O, sourceLen, 0, depthNum).
+  FlattenIntoArrayWithoutMapFn(a, o, len, 0, depthSmi);
+
+  // 7. Return A.
+  return a;
+}
+
+// https://tc39.github.io/proposal-flatMap/#sec-Array.prototype.flatMap
+transitioning javascript builtin ArrayPrototypeFlatMap(
+    js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
+  // 1. Let O be ? ToObject(this value).
+  const o: JSReceiver = ToObject_Inline(context, receiver);
+
+  // 2. Let sourceLen be ? ToLength(? Get(O, "length")).
+  const len: Number = GetLengthProperty(o);
+
+  // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
+  let mapfn: Callable;
+  try {
+    mapfn = Cast<Callable>(arguments[0])
+        otherwise NonCallableError;
+  } label NonCallableError deferred {
+    ThrowCalledNonCallable(arguments[0]);
+  }
+
+
+  // 4. If thisArgs is present, let T be thisArgs; else let T be Undefined.
+  const t: JSAny = arguments[1];
+
+  // 5. Let A be ? ArraySpeciesCreate(O, 0).
+  const a: JSReceiver = ArraySpeciesCreate(context, o, 0);
+
+  // 6. Perform ? FlattenIntoArray(A, O, sourceLen, 0, depthNum).
+  FlattenIntoArrayWithMapFn(a, o, len, 0, 1, mapfn, t);
+
+  // 7. Return A.
+  return a;
+}
+}

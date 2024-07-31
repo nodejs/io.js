@@ -96,25 +96,24 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ax_ac_append_to_file.m4 \
 	$(top_srcdir)/m4/ax_ac_print_to_file.m4 \
 	$(top_srcdir)/m4/ax_add_am_macro_static.m4 \
 	$(top_srcdir)/m4/ax_am_macros_static.m4 \
+	$(top_srcdir)/m4/ax_append_compile_flags.m4 \
+	$(top_srcdir)/m4/ax_append_flag.m4 \
+	$(top_srcdir)/m4/ax_append_link_flags.m4 \
+	$(top_srcdir)/m4/ax_check_compile_flag.m4 \
 	$(top_srcdir)/m4/ax_check_gnu_make.m4 \
+	$(top_srcdir)/m4/ax_check_link_flag.m4 \
+	$(top_srcdir)/m4/ax_check_user_namespace.m4 \
+	$(top_srcdir)/m4/ax_check_uts_namespace.m4 \
 	$(top_srcdir)/m4/ax_code_coverage.m4 \
+	$(top_srcdir)/m4/ax_compiler_vendor.m4 \
 	$(top_srcdir)/m4/ax_cxx_compile_stdcxx.m4 \
-	$(top_srcdir)/m4/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/m4/ax_cxx_compile_stdcxx_14.m4 \
 	$(top_srcdir)/m4/ax_file_escapes.m4 \
+	$(top_srcdir)/m4/ax_pthread.m4 \
 	$(top_srcdir)/m4/ax_require_defined.m4 \
-	$(top_srcdir)/m4/cares-compilers.m4 \
-	$(top_srcdir)/m4/cares-confopts.m4 \
-	$(top_srcdir)/m4/cares-functions.m4 \
-	$(top_srcdir)/m4/cares-reentrant.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
 	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
-	$(top_srcdir)/m4/lt~obsolete.m4 \
-	$(top_srcdir)/m4/xc-am-iface.m4 \
-	$(top_srcdir)/m4/xc-cc-check.m4 \
-	$(top_srcdir)/m4/xc-lt-iface.m4 \
-	$(top_srcdir)/m4/xc-translit.m4 \
-	$(top_srcdir)/m4/xc-val-flgs.m4 \
-	$(top_srcdir)/m4/zz40-xc-ovr.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/m4/pkg.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -181,6 +180,8 @@ am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.inc
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_CFLAGS = @AM_CFLAGS@
+AM_CPPFLAGS = @AM_CPPFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
 AS = @AS@
@@ -189,14 +190,13 @@ AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 BUILD_SUBDIRS = @BUILD_SUBDIRS@
-CARES_CFLAG_EXTRAS = @CARES_CFLAG_EXTRAS@
 CARES_PRIVATE_LIBS = @CARES_PRIVATE_LIBS@
 CARES_RANDOM_FILE = @CARES_RANDOM_FILE@
+CARES_SYMBOL_HIDING_CFLAG = @CARES_SYMBOL_HIDING_CFLAG@
 CARES_VERSION_INFO = @CARES_VERSION_INFO@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
-CFLAG_CARES_SYMBOL_HIDING = @CFLAG_CARES_SYMBOL_HIDING@
 CODE_COVERAGE_CFLAGS = @CODE_COVERAGE_CFLAGS@
 CODE_COVERAGE_CPPFLAGS = @CODE_COVERAGE_CPPFLAGS@
 CODE_COVERAGE_CXXFLAGS = @CODE_COVERAGE_CXXFLAGS@
@@ -204,7 +204,6 @@ CODE_COVERAGE_ENABLED = @CODE_COVERAGE_ENABLED@
 CODE_COVERAGE_LIBS = @CODE_COVERAGE_LIBS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
-CPPFLAG_CARES_STATICLIB = @CPPFLAG_CARES_STATICLIB@
 CSCOPE = @CSCOPE@
 CTAGS = @CTAGS@
 CXX = @CXX@
@@ -227,8 +226,10 @@ FGREP = @FGREP@
 FILECMD = @FILECMD@
 GCOV = @GCOV@
 GENHTML = @GENHTML@
+GMOCK_CFLAGS = @GMOCK_CFLAGS@
+GMOCK_LIBS = @GMOCK_LIBS@
 GREP = @GREP@
-HAVE_CXX11 = @HAVE_CXX11@
+HAVE_CXX14 = @HAVE_CXX14@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -262,6 +263,14 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PKGCONFIG_CFLAGS = @PKGCONFIG_CFLAGS@
+PKG_CONFIG = @PKG_CONFIG@
+PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
+PTHREAD_CC = @PTHREAD_CC@
+PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
+PTHREAD_CXX = @PTHREAD_CXX@
+PTHREAD_LIBS = @PTHREAD_LIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -281,6 +290,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+ax_pthread_config = @ax_pthread_config@
 bindir = @bindir@
 build = @build@
 build_alias = @build_alias@
@@ -319,7 +329,6 @@ runstatedir = @runstatedir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 srcdir = @srcdir@
-subdirs = @subdirs@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
@@ -333,6 +342,77 @@ MANPAGES = ares_cancel.3		\
   ares_create_query.3			\
   ares_destroy.3			\
   ares_destroy_options.3		\
+  ares_dns_class_fromstr.3		\
+  ares_dns_class_t.3			\
+  ares_dns_class_tostr.3		\
+  ares_dns_datatype_t.3			\
+  ares_dns_flags_t.3			\
+  ares_dns_mapping.3			\
+  ares_dns_opcode_tostr.3		\
+  ares_dns_opt_datatype_t.3		\
+  ares_dns_opt_get_datatype.3		\
+  ares_dns_opt_get_name.3		\
+  ares_dns_opcode_t.3			\
+  ares_dns_parse.3			\
+  ares_dns_rcode_t.3			\
+  ares_dns_rcode_tostr.3		\
+  ares_dns_record.3			\
+  ares_dns_record_create.3		\
+  ares_dns_record_duplicate.3		\
+  ares_dns_record_get_flags.3		\
+  ares_dns_record_get_id.3		\
+  ares_dns_record_get_opcode.3		\
+  ares_dns_record_get_rcode.3		\
+  ares_dns_record_destroy.3		\
+  ares_dns_record_query_add.3		\
+  ares_dns_record_query_set_name.3	\
+  ares_dns_record_query_set_type.3	\
+  ares_dns_record_query_cnt.3		\
+  ares_dns_record_query_get.3		\
+  ares_dns_record_rr_add.3		\
+  ares_dns_record_rr_cnt.3		\
+  ares_dns_record_rr_del.3		\
+  ares_dns_record_rr_get.3		\
+  ares_dns_record_rr_get_const.3	\
+  ares_dns_record_set_id.3		\
+  ares_dns_rec_type_fromstr.3		\
+  ares_dns_rec_type_tostr.3		\
+  ares_dns_rec_type_t.3			\
+  ares_dns_rr.3				\
+  ares_dns_rr_add_abin.3		\
+  ares_dns_rr_del_abin.3		\
+  ares_dns_rr_get_abin.3		\
+  ares_dns_rr_get_abin_cnt.3		\
+  ares_dns_rr_get_addr.3		\
+  ares_dns_rr_get_addr6.3		\
+  ares_dns_rr_get_bin.3			\
+  ares_dns_rr_get_class.3		\
+  ares_dns_rr_get_keys.3		\
+  ares_dns_rr_get_name.3		\
+  ares_dns_rr_get_opt.3			\
+  ares_dns_rr_get_opt_byid.3		\
+  ares_dns_rr_get_opt_cnt.3		\
+  ares_dns_rr_get_str.3			\
+  ares_dns_rr_get_type.3		\
+  ares_dns_rr_get_ttl.3			\
+  ares_dns_rr_get_u16.3			\
+  ares_dns_rr_get_u32.3			\
+  ares_dns_rr_get_u8.3			\
+  ares_dns_rr_key_datatype.3		\
+  ares_dns_rr_key_t.3			\
+  ares_dns_rr_key_to_rec_type.3		\
+  ares_dns_rr_key_tostr.3		\
+  ares_dns_rr_set_addr.3		\
+  ares_dns_rr_set_addr6.3		\
+  ares_dns_rr_set_bin.3			\
+  ares_dns_rr_set_opt.3			\
+  ares_dns_rr_set_str.3			\
+  ares_dns_rr_set_u16.3			\
+  ares_dns_rr_set_u32.3			\
+  ares_dns_rr_set_u8.3			\
+  ares_dns_section_t.3			\
+  ares_dns_section_tostr.3		\
+  ares_dns_write.3			\
   ares_dup.3				\
   ares_expand_name.3			\
   ares_expand_string.3			\
@@ -342,6 +422,7 @@ MANPAGES = ares_cancel.3		\
   ares_free_string.3			\
   ares_freeaddrinfo.3			\
   ares_get_servers.3			\
+  ares_get_servers_csv.3		\
   ares_get_servers_ports.3		\
   ares_getaddrinfo.3			\
   ares_gethostbyaddr.3			\
@@ -358,6 +439,7 @@ MANPAGES = ares_cancel.3		\
   ares_library_init_android.3		\
   ares_library_initialized.3		\
   ares_mkquery.3			\
+  ares_opt_param_t.3			\
   ares_parse_a_reply.3			\
   ares_parse_aaaa_reply.3		\
   ares_parse_caa_reply.3		\
@@ -371,12 +453,20 @@ MANPAGES = ares_cancel.3		\
   ares_parse_uri_reply.3		\
   ares_process.3			\
   ares_query.3				\
+  ares_query_dnsrec.3			\
+  ares_queue.3				\
+  ares_queue_active_queries.3		\
+  ares_queue_wait_empty.3		\
+  ares_reinit.3				\
   ares_save_options.3			\
   ares_search.3				\
+  ares_search_dnsrec.3			\
   ares_send.3				\
+  ares_send_dnsrec.3			\
   ares_set_local_dev.3			\
   ares_set_local_ip4.3			\
   ares_set_local_ip6.3			\
+  ares_set_server_state_callback.3	\
   ares_set_servers.3			\
   ares_set_servers_csv.3		\
   ares_set_servers_ports.3		\
@@ -386,7 +476,12 @@ MANPAGES = ares_cancel.3		\
   ares_set_socket_functions.3		\
   ares_set_sortlist.3			\
   ares_strerror.3			\
+  ares_svcb_param_t.3			\
+  ares_threadsafety.3			\
   ares_timeout.3			\
+  ares_tlsa_match_t.3			\
+  ares_tlsa_selector_t.3		\
+  ares_tlsa_usage_t.3			\
   ares_version.3
 
 man_MANS = $(MANPAGES)

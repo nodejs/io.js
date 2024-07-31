@@ -27,6 +27,7 @@ promise_test(async () => {
 
     assert_equals(await slicedBlob.text(), "oo");
     assert_equals(charCodeBufferToString(await slicedBlob.arrayBuffer()), "oo");
+    assert_equals(charCodeArrayToString(await slicedBlob.bytes()), "oo");
 
     const reader = slicedBlob.stream().getReader();
     const { value } = await reader.read();
@@ -47,6 +48,14 @@ promise_test(async () => {
     const charCodeBuffer = await arrayBuffer.call(blob);
     assert_equals(charCodeBufferToString(charCodeBuffer), "bar");
 }, "arrayBuffer()");
+
+promise_test(async () => {
+    const { bytes } = await BlobPrototypeFromDetachedFramePromise;
+    const blob = new Blob(["bar"]);
+
+    const charCodeBytes = await bytes.call(blob);
+    assert_equals(charCodeArrayToString(charCodeBytes), "bar");
+}, "bytes()");
 
 promise_test(async () => {
     const { stream } = await BlobPrototypeFromDetachedFramePromise;

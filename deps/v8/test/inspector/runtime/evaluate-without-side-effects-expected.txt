@@ -98,3 +98,14 @@ Test that debug break does not trigger with throwOnSideEffect
         }
     }
 }
+Test that private member access does not trigger with replMode and throwOnSideEffect
+{
+    id : <messageId>
+    result : {
+        result : {
+            description : 1
+            type : number
+            value : 1
+        }
+    }
+}

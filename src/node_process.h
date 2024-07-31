@@ -15,7 +15,7 @@ class MemoryTracker;
 class ExternalReferenceRegistry;
 class Realm;
 
-void CreateEnvProxyTemplate(v8::Isolate* isolate, IsolateData* isolate_data);
+void CreateEnvProxyTemplate(IsolateData* isolate_data);
 
 // Most of the time, it's best to use `console.error` to write
 // to the process.stderr stream.  However, in some cases, such as
@@ -36,6 +36,8 @@ template <typename... Args>
 inline v8::Maybe<bool> ProcessEmitWarning(Environment* env,
                                           const char* fmt,
                                           Args&&... args);
+
+v8::Maybe<bool> ProcessEmitWarningSync(Environment* env, const char* message);
 v8::Maybe<bool> ProcessEmitExperimentalWarning(Environment* env,
                                               const char* warning);
 v8::Maybe<bool> ProcessEmitDeprecationWarning(Environment* env,
@@ -48,16 +50,20 @@ void PatchProcessObject(const v8::FunctionCallbackInfo<v8::Value>& args);
 namespace process {
 class BindingData : public SnapshotableObject {
  public:
+  struct InternalFieldInfo : public node::InternalFieldInfoBase {
+    AliasedBufferIndex hrtime_buffer;
+  };
+
   static void AddMethods(v8::Isolate* isolate,
                          v8::Local<v8::ObjectTemplate> target);
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
 
-  using InternalFieldInfo = InternalFieldInfoBase;
-
   SERIALIZABLE_OBJECT_METHODS()
   SET_BINDING_ID(process_binding_data)
 
-  BindingData(Realm* realm, v8::Local<v8::Object> object);
+  BindingData(Realm* realm,
+              v8::Local<v8::Object> object,
+              InternalFieldInfo* info = nullptr);
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(BindingData)
@@ -80,11 +86,13 @@ class BindingData : public SnapshotableObject {
 
   static void SlowBigInt(const v8::FunctionCallbackInfo<v8::Value>& args);
 
+  static void LoadEnvFile(const v8::FunctionCallbackInfo<v8::Value>& args);
+
  private:
-  static constexpr size_t kBufferSize =
-      std::max(sizeof(uint64_t), sizeof(uint32_t) * 3);
-  v8::Global<v8::ArrayBuffer> array_buffer_;
-  std::shared_ptr<v8::BackingStore> backing_store_;
+  // Buffer length in uint32.
+  static constexpr size_t kHrTimeBufferLength = 3;
+  AliasedUint32Array hrtime_buffer_;
+  InternalFieldInfo* internal_field_info_ = nullptr;
 
   // These need to be static so that we have their addresses available to
   // register as external references in the snapshot at environment creation

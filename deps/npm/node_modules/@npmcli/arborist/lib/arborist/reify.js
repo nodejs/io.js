@@ -7,30 +7,30 @@ const npa = require('npm-package-arg')
 const semver = require('semver')
 const debug = require('../debug.js')
 const { walkUp } = require('walk-up-path')
-const log = require('proc-log')
+const { log, time } = require('proc-log')
 const hgi = require('hosted-git-info')
 const rpj = require('read-package-json-fast')
 
-const { dirname, resolve, relative, join } = require('path')
+const { dirname, resolve, relative, join } = require('node:path')
 const { depth: dfwalk } = require('treeverse')
 const {
   lstat,
   mkdir,
   rm,
   symlink,
-} = require('fs/promises')
+} = require('node:fs/promises')
 const { moveFile } = require('@npmcli/fs')
 const PackageJson = require('@npmcli/package-json')
 const packageContents = require('@npmcli/installed-package-contents')
 const runScript = require('@npmcli/run-script')
 const { checkEngine, checkPlatform } = require('npm-install-checks')
-const _force = Symbol.for('force')
 
 const treeCheck = require('../tree-check.js')
 const relpath = require('../relpath.js')
 const Diff = require('../diff.js')
 const retirePath = require('../retire-path.js')
 const promiseAllRejectLate = require('promise-all-reject-late')
+const { callLimit: promiseCallLimit } = require('promise-call-limit')
 const optionalSet = require('../optional-set.js')
 const calcDepFlags = require('../calc-dep-flags.js')
 const { saveTypeMap, hasSubKey } = require('../add-rm-pkg-deps.js')
@@ -38,124 +38,96 @@ const { saveTypeMap, hasSubKey } = require('../add-rm-pkg-deps.js')
 const Shrinkwrap = require('../shrinkwrap.js')
 const { defaultLockfileVersion } = Shrinkwrap
 
-const _retiredPaths = Symbol('retiredPaths')
-const _retiredUnchanged = Symbol('retiredUnchanged')
-const _sparseTreeDirs = Symbol('sparseTreeDirs')
-const _sparseTreeRoots = Symbol('sparseTreeRoots')
-const _savePrefix = Symbol('savePrefix')
+// Part of steps (steps need refactoring before we can do anything about these)
 const _retireShallowNodes = Symbol.for('retireShallowNodes')
-const _getBundlesByDepth = Symbol('getBundlesByDepth')
-const _registryResolved = Symbol('registryResolved')
-const _addNodeToTrashList = Symbol.for('addNodeToTrashList')
-const _workspaces = Symbol.for('workspaces')
-const _workspacesEnabled = Symbol.for('workspacesEnabled')
+const _loadBundlesAndUpdateTrees = Symbol.for('loadBundlesAndUpdateTrees')
+const _submitQuickAudit = Symbol('submitQuickAudit')
+const _addOmitsToTrashList = Symbol('addOmitsToTrashList')
+const _unpackNewModules = Symbol.for('unpackNewModules')
+const _build = Symbol.for('build')
 
 // shared by rebuild mixin
 const _trashList = Symbol.for('trashList')
 const _handleOptionalFailure = Symbol.for('handleOptionalFailure')
 const _loadTrees = Symbol.for('loadTrees')
+// defined by rebuild mixin
+const _checkBins = Symbol.for('checkBins')
 
 // shared symbols for swapping out when testing
+// TODO tests should not be this deep into internals
 const _diffTrees = Symbol.for('diffTrees')
 const _createSparseTree = Symbol.for('createSparseTree')
 const _loadShrinkwrapsAndUpdateTrees = Symbol.for('loadShrinkwrapsAndUpdateTrees')
-const _shrinkwrapInflated = Symbol('shrinkwrapInflated')
-const _bundleUnpacked = Symbol('bundleUnpacked')
-const _bundleMissing = Symbol('bundleMissing')
 const _reifyNode = Symbol.for('reifyNode')
-const _extractOrLink = Symbol('extractOrLink')
 const _updateAll = Symbol.for('updateAll')
 const _updateNames = Symbol.for('updateNames')
-// defined by rebuild mixin
-const _checkBins = Symbol.for('checkBins')
-const _symlink = Symbol('symlink')
-const _warnDeprecated = Symbol('warnDeprecated')
-const _loadBundlesAndUpdateTrees = Symbol.for('loadBundlesAndUpdateTrees')
-const _submitQuickAudit = Symbol('submitQuickAudit')
-const _unpackNewModules = Symbol.for('unpackNewModules')
 const _moveContents = Symbol.for('moveContents')
 const _moveBackRetiredUnchanged = Symbol.for('moveBackRetiredUnchanged')
-const _build = Symbol.for('build')
 const _removeTrash = Symbol.for('removeTrash')
 const _renamePath = Symbol.for('renamePath')
 const _rollbackRetireShallowNodes = Symbol.for('rollbackRetireShallowNodes')
 const _rollbackCreateSparseTree = Symbol.for('rollbackCreateSparseTree')
 const _rollbackMoveBackRetiredUnchanged = Symbol.for('rollbackMoveBackRetiredUnchanged')
 const _saveIdealTree = Symbol.for('saveIdealTree')
-const _copyIdealToActual = Symbol('copyIdealToActual')
-const _addOmitsToTrashList = Symbol('addOmitsToTrashList')
-const _packageLockOnly = Symbol('packageLockOnly')
-const _dryRun = Symbol('dryRun')
-const _validateNodeModules = Symbol('validateNodeModules')
-const _nmValidated = Symbol('nmValidated')
-const _validatePath = Symbol('validatePath')
 const _reifyPackages = Symbol.for('reifyPackages')
-const _includeWorkspaceRoot = Symbol.for('includeWorkspaceRoot')
 
-const _omitDev = Symbol('omitDev')
-const _omitOptional = Symbol('omitOptional')
-const _omitPeer = Symbol('omitPeer')
-
-const _global = Symbol.for('global')
-
-const _pruneBundledMetadeps = Symbol('pruneBundledMetadeps')
-
-// defined by Ideal mixin
+// defined by build-ideal-tree mixin
 const _resolvedAdd = Symbol.for('resolvedAdd')
 const _usePackageLock = Symbol.for('usePackageLock')
-const _formatPackageLock = Symbol.for('formatPackageLock')
+// used by build-ideal-tree mixin
+const _addNodeToTrashList = Symbol.for('addNodeToTrashList')
 
 const _createIsolatedTree = Symbol.for('createIsolatedTree')
 
 module.exports = cls => class Reifier extends cls {
+  #bundleMissing = new Set() // child nodes we'd EXPECT to be included in a bundle, but aren't
+  #bundleUnpacked = new Set() // the nodes we unpack to read their bundles
+  #dryRun
+  #nmValidated = new Set()
+  #omitDev
+  #omitPeer
+  #omitOptional
+  #retiredPaths = {}
+  #retiredUnchanged = {}
+  #savePrefix
+  #shrinkwrapInflated = new Set()
+  #sparseTreeDirs = new Set()
+  #sparseTreeRoots = new Set()
+
   constructor (options) {
     super(options)
 
-    const {
-      savePrefix = '^',
-      packageLockOnly = false,
-      dryRun = false,
-      formatPackageLock = true,
-    } = options
-
-    this[_dryRun] = !!dryRun
-    this[_packageLockOnly] = !!packageLockOnly
-    this[_savePrefix] = savePrefix
-    this[_formatPackageLock] = !!formatPackageLock
-
-    this.diff = null
-    this[_retiredPaths] = {}
-    this[_shrinkwrapInflated] = new Set()
-    this[_retiredUnchanged] = {}
-    this[_sparseTreeDirs] = new Set()
-    this[_sparseTreeRoots] = new Set()
     this[_trashList] = new Set()
-    // the nodes we unpack to read their bundles
-    this[_bundleUnpacked] = new Set()
-    // child nodes we'd EXPECT to be included in a bundle, but aren't
-    this[_bundleMissing] = new Set()
-    this[_nmValidated] = new Set()
   }
 
   // public method
   async reify (options = {}) {
     const linked = (options.installStrategy || this.options.installStrategy) === 'linked'
 
-    if (this[_packageLockOnly] && this[_global]) {
+    if (this.options.packageLockOnly && this.options.global) {
       const er = new Error('cannot generate lockfile for global packages')
       er.code = 'ESHRINKWRAPGLOBAL'
       throw er
     }
 
     const omit = new Set(options.omit || [])
-    this[_omitDev] = omit.has('dev')
-    this[_omitOptional] = omit.has('optional')
-    this[_omitPeer] = omit.has('peer')
+    this.#omitDev = omit.has('dev')
+    this.#omitOptional = omit.has('optional')
+    this.#omitPeer = omit.has('peer')
 
     // start tracker block
     this.addTracker('reify')
-    process.emit('time', 'reify')
-    await this[_validatePath]()
+    const timeEnd = time.start('reify')
+    // don't create missing dirs on dry runs
+    if (!this.options.packageLockOnly && !this.options.dryRun) {
+      // we do NOT want to set ownership on this folder, especially
+      // recursively, because it can have other side effects to do that
+      // in a project directory.  We just want to make it if it's missing.
+      await mkdir(resolve(this.path), { recursive: true })
+
+      // do not allow the top-level node_modules to be a symlink
+      await this.#validateNodeModules(resolve(this.path, 'node_modules'))
+    }
     await this[_loadTrees](options)
 
     const oldTree = this.idealTree
@@ -164,7 +136,7 @@ module.exports = cls => class Reifier extends cls {
       // this is currently technical debt which will be resolved in a refactor
       // of Node/Link trees
       log.warn('reify', 'The "linked" install strategy is EXPERIMENTAL and may contain bugs.')
-      this.idealTree = await this[_createIsolatedTree](this.idealTree)
+      this.idealTree = await this[_createIsolatedTree]()
     }
     await this[_diffTrees]()
     await this[_reifyPackages]()
@@ -174,37 +146,139 @@ module.exports = cls => class Reifier extends cls {
       this.idealTree = oldTree
     }
     await this[_saveIdealTree](options)
-    await this[_copyIdealToActual]()
+    // clean up any trash that is still in the tree
+    for (const path of this[_trashList]) {
+      const loc = relpath(this.idealTree.realpath, path)
+      const node = this.idealTree.inventory.get(loc)
+      if (node && node.root === this.idealTree) {
+        node.parent = null
+      }
+    }
+
+    // if we filtered to only certain nodes, then anything ELSE needs
+    // to be untouched in the resulting actual tree, even if it differs
+    // in the idealTree.  Copy over anything that was in the actual and
+    // was not changed, delete anything in the ideal and not actual.
+    // Then we move the entire idealTree over to this.actualTree, and
+    // save the hidden lockfile.
+    if (this.diff && this.diff.filterSet.size) {
+      const reroot = new Set()
+
+      const { filterSet } = this.diff
+      const seen = new Set()
+      for (const [loc, ideal] of this.idealTree.inventory.entries()) {
+        seen.add(loc)
+
+        // if it's an ideal node from the filter set, then skip it
+        // because we already made whatever changes were necessary
+        if (filterSet.has(ideal)) {
+          continue
+        }
+
+        // otherwise, if it's not in the actualTree, then it's not a thing
+        // that we actually added.  And if it IS in the actualTree, then
+        // it's something that we left untouched, so we need to record
+        // that.
+        const actual = this.actualTree.inventory.get(loc)
+        if (!actual) {
+          ideal.root = null
+        } else {
+          if ([...actual.linksIn].some(link => filterSet.has(link))) {
+            seen.add(actual.location)
+            continue
+          }
+          const { realpath, isLink } = actual
+          if (isLink && ideal.isLink && ideal.realpath === realpath) {
+            continue
+          } else {
+            reroot.add(actual)
+          }
+        }
+      }
+
+      // now find any actual nodes that may not be present in the ideal
+      // tree, but were left behind by virtue of not being in the filter
+      for (const [loc, actual] of this.actualTree.inventory.entries()) {
+        if (seen.has(loc)) {
+          continue
+        }
+        seen.add(loc)
+
+        // we know that this is something that ISN'T in the idealTree,
+        // or else we will have addressed it in the previous loop.
+        // If it's in the filterSet, that means we intentionally removed
+        // it, so nothing to do here.
+        if (filterSet.has(actual)) {
+          continue
+        }
+
+        reroot.add(actual)
+      }
+
+      // go through the rerooted actual nodes, and move them over.
+      for (const actual of reroot) {
+        actual.root = this.idealTree
+      }
+
+      // prune out any tops that lack a linkIn, they are no longer relevant.
+      for (const top of this.idealTree.tops) {
+        if (top.linksIn.size === 0) {
+          top.root = null
+        }
+      }
+
+      // need to calculate dep flags, since nodes may have been marked
+      // as extraneous or otherwise incorrect during transit.
+      calcDepFlags(this.idealTree)
+    }
+
+    // save the ideal's meta as a hidden lockfile after we actualize it
+    this.idealTree.meta.filename =
+      this.idealTree.realpath + '/node_modules/.package-lock.json'
+    this.idealTree.meta.hiddenLockfile = true
+    this.idealTree.meta.lockfileVersion = defaultLockfileVersion
+
+    this.actualTree = this.idealTree
+    this.idealTree = null
+
+    if (!this.options.global) {
+      await this.actualTree.meta.save()
+      const ignoreScripts = !!this.options.ignoreScripts
+      // if we aren't doing a dry run or ignoring scripts and we actually made changes to the dep
+      // tree, then run the dependencies scripts
+      if (!this.options.dryRun && !ignoreScripts && this.diff && this.diff.children.length) {
+        const { path, package: pkg } = this.actualTree.target
+        const stdio = this.options.foregroundScripts ? 'inherit' : 'pipe'
+        const { scripts = {} } = pkg
+        for (const event of ['predependencies', 'dependencies', 'postdependencies']) {
+          if (Object.prototype.hasOwnProperty.call(scripts, event)) {
+            log.info('run', pkg._id, event, scripts[event])
+            await time.start(`reify:run:${event}`, () => runScript({
+              event,
+              path,
+              pkg,
+              stdio,
+              scriptShell: this.options.scriptShell,
+            }))
+          }
+        }
+      }
+    }
     // This is a very bad pattern and I can't wait to stop doing it
     this.auditReport = await this.auditReport
 
     this.finishTracker('reify')
-    process.emit('timeEnd', 'reify')
+    timeEnd()
     return treeCheck(this.actualTree)
-  }
-
-  async [_validatePath] () {
-    // don't create missing dirs on dry runs
-    if (this[_packageLockOnly] || this[_dryRun]) {
-      return
-    }
-
-    // we do NOT want to set ownership on this folder, especially
-    // recursively, because it can have other side effects to do that
-    // in a project directory.  We just want to make it if it's missing.
-    await mkdir(resolve(this.path), { recursive: true })
-
-    // do not allow the top-level node_modules to be a symlink
-    await this[_validateNodeModules](resolve(this.path, 'node_modules'))
   }
 
   async [_reifyPackages] () {
     // we don't submit the audit report or write to disk on dry runs
-    if (this[_dryRun]) {
+    if (this.options.dryRun) {
       return
     }
 
-    if (this[_packageLockOnly]) {
+    if (this.options.packageLockOnly) {
       // we already have the complete tree, so just audit it now,
       // and that's all we have to do here.
       return this[_submitQuickAudit]()
@@ -253,6 +327,7 @@ module.exports = cls => class Reifier extends cls {
             throw reifyTerminated
           }
         } catch (er) {
+          // TODO rollbacks shouldn't be relied on to throw err
           await this[rollback](er)
           /* istanbul ignore next - rollback throws, should never hit this */
           throw er
@@ -274,19 +349,18 @@ module.exports = cls => class Reifier extends cls {
   // when doing a local install, we load everything and figure it all out.
   // when doing a global install, we *only* care about the explicit requests.
   [_loadTrees] (options) {
-    process.emit('time', 'reify:loadTrees')
+    const timeEnd = time.start('reify:loadTrees')
     const bitOpt = {
       ...options,
-      complete: this[_packageLockOnly] || this[_dryRun],
+      complete: this.options.packageLockOnly || this.options.dryRun,
     }
 
     // if we're only writing a package lock, then it doesn't matter what's here
-    if (this[_packageLockOnly]) {
-      return this.buildIdealTree(bitOpt)
-        .then(() => process.emit('timeEnd', 'reify:loadTrees'))
+    if (this.options.packageLockOnly) {
+      return this.buildIdealTree(bitOpt).then(timeEnd)
     }
 
-    const actualOpt = this[_global] ? {
+    const actualOpt = this.options.global ? {
       ignoreMissing: true,
       global: true,
       filter: (node, kid) => {
@@ -313,11 +387,11 @@ module.exports = cls => class Reifier extends cls {
       },
     } : { ignoreMissing: true }
 
-    if (!this[_global]) {
+    if (!this.options.global) {
       return Promise.all([
         this.loadActual(actualOpt),
         this.buildIdealTree(bitOpt),
-      ]).then(() => process.emit('timeEnd', 'reify:loadTrees'))
+      ]).then(timeEnd)
     }
 
     // the global install space tends to have a lot of stuff in it.  don't
@@ -327,25 +401,25 @@ module.exports = cls => class Reifier extends cls {
     // explicitRequests which is set during buildIdealTree
     return this.buildIdealTree(bitOpt)
       .then(() => this.loadActual(actualOpt))
-      .then(() => process.emit('timeEnd', 'reify:loadTrees'))
+      .then(timeEnd)
   }
 
   [_diffTrees] () {
-    if (this[_packageLockOnly]) {
+    if (this.options.packageLockOnly) {
       return
     }
 
-    process.emit('time', 'reify:diffTrees')
+    const timeEnd = time.start('reify:diffTrees')
     // XXX if we have an existing diff already, there should be a way
     // to just invalidate the parts that changed, but avoid walking the
     // whole tree again.
 
-    const includeWorkspaces = this[_workspacesEnabled]
-    const includeRootDeps = !this[_workspacesEnabled]
-      || this[_includeWorkspaceRoot] && this[_workspaces].length > 0
+    const includeWorkspaces = this.options.workspacesEnabled
+    const includeRootDeps = !includeWorkspaces
+      || this.options.includeWorkspaceRoot && this.options.workspaces.length > 0
 
     const filterNodes = []
-    if (this[_global] && this.explicitRequests.size) {
+    if (this.options.global && this.explicitRequests.size) {
       const idealTree = this.idealTree.target
       const actualTree = this.actualTree.target
       // we ONLY are allowed to make changes in the global top-level
@@ -363,7 +437,7 @@ module.exports = cls => class Reifier extends cls {
     } else {
       if (includeWorkspaces) {
         // add all ws nodes to filterNodes
-        for (const ws of this[_workspaces]) {
+        for (const ws of this.options.workspaces) {
           const ideal = this.idealTree.children.get(ws)
           if (ideal) {
             filterNodes.push(ideal)
@@ -389,7 +463,7 @@ module.exports = cls => class Reifier extends cls {
     // find all the nodes that need to change between the actual
     // and ideal trees.
     this.diff = Diff.calculate({
-      shrinkwrapInflated: this[_shrinkwrapInflated],
+      shrinkwrapInflated: this.#shrinkwrapInflated,
       filterNodes,
       actual: this.actualTree,
       ideal: this.idealTree,
@@ -402,7 +476,7 @@ module.exports = cls => class Reifier extends cls {
     // because if we remove node_modules/FOO on case-insensitive systems,
     // it will remove the dep that we *want* at node_modules/foo.
 
-    process.emit('timeEnd', 'reify:diffTrees')
+    timeEnd()
   }
 
   // add the node and all its bins to the list of things to be
@@ -411,7 +485,7 @@ module.exports = cls => class Reifier extends cls {
   // replace them when rolling back on failure.
   [_addNodeToTrashList] (node, retire = false) {
     const paths = [node.path, ...node.binPaths]
-    const moves = this[_retiredPaths]
+    const moves = this.#retiredPaths
     log.silly('reify', 'mark', retire ? 'retired' : 'deleted', paths)
     for (const path of paths) {
       if (retire) {
@@ -427,8 +501,8 @@ module.exports = cls => class Reifier extends cls {
   // move aside the shallowest nodes in the tree that have to be
   // changed or removed, so that we can rollback if necessary.
   [_retireShallowNodes] () {
-    process.emit('time', 'reify:retireShallow')
-    const moves = this[_retiredPaths] = {}
+    const timeEnd = time.start('reify:retireShallow')
+    const moves = this.#retiredPaths = {}
     for (const diff of this.diff.children) {
       if (diff.action === 'CHANGE' || diff.action === 'REMOVE') {
         // we'll have to clean these up at the end, so add them to the list
@@ -438,8 +512,7 @@ module.exports = cls => class Reifier extends cls {
     log.silly('reify', 'moves', moves)
     const movePromises = Object.entries(moves)
       .map(([from, to]) => this[_renamePath](from, to))
-    return promiseAllRejectLate(movePromises)
-      .then(() => process.emit('timeEnd', 'reify:retireShallow'))
+    return promiseAllRejectLate(movePromises).then(timeEnd)
   }
 
   [_renamePath] (from, to, didMkdirp = false) {
@@ -461,14 +534,14 @@ module.exports = cls => class Reifier extends cls {
   }
 
   [_rollbackRetireShallowNodes] (er) {
-    process.emit('time', 'reify:rollback:retireShallow')
-    const moves = this[_retiredPaths]
+    const timeEnd = time.start('reify:rollback:retireShallow')
+    const moves = this.#retiredPaths
     const movePromises = Object.entries(moves)
       .map(([from, to]) => this[_renamePath](to, from))
     return promiseAllRejectLate(movePromises)
       // ignore subsequent rollback errors
-      .catch(er => {})
-      .then(() => process.emit('timeEnd', 'reify:rollback:retireShallow'))
+      .catch(() => {})
+      .then(timeEnd)
       .then(() => {
         throw er
       })
@@ -477,11 +550,11 @@ module.exports = cls => class Reifier extends cls {
   // adding to the trash list will skip reifying, and delete them
   // if they are currently in the tree and otherwise untouched.
   [_addOmitsToTrashList] () {
-    if (!this[_omitDev] && !this[_omitOptional] && !this[_omitPeer]) {
+    if (!this.#omitDev && !this.#omitOptional && !this.#omitPeer) {
       return
     }
 
-    process.emit('time', 'reify:trashOmits')
+    const timeEnd = time.start('reify:trashOmits')
 
     for (const node of this.idealTree.inventory.values()) {
       const { top } = node
@@ -499,26 +572,26 @@ module.exports = cls => class Reifier extends cls {
 
       // omit node if the dep type matches any omit flags that were set
       if (
-        node.peer && this[_omitPeer] ||
-        node.dev && this[_omitDev] ||
-        node.optional && this[_omitOptional] ||
-        node.devOptional && this[_omitOptional] && this[_omitDev]
+        node.peer && this.#omitPeer ||
+        node.dev && this.#omitDev ||
+        node.optional && this.#omitOptional ||
+        node.devOptional && this.#omitOptional && this.#omitDev
       ) {
         this[_addNodeToTrashList](node)
       }
     }
 
-    process.emit('timeEnd', 'reify:trashOmits')
+    timeEnd()
   }
 
   [_createSparseTree] () {
-    process.emit('time', 'reify:createSparse')
+    const timeEnd = time.start('reify:createSparse')
     // if we call this fn again, we look for the previous list
     // so that we can avoid making the same directory multiple times
     const leaves = this.diff.leaves
       .filter(diff => {
         return (diff.action === 'ADD' || diff.action === 'CHANGE') &&
-          !this[_sparseTreeDirs].has(diff.ideal.path) &&
+          !this.#sparseTreeDirs.has(diff.ideal.path) &&
           !diff.ideal.isLink
       })
       .map(diff => diff.ideal)
@@ -535,37 +608,36 @@ module.exports = cls => class Reifier extends cls {
           continue
         }
         dirsChecked.add(d)
-        const st = await lstat(d).catch(er => null)
+        const st = await lstat(d).catch(() => null)
         // this can happen if we have a link to a package with a name
         // that the filesystem treats as if it is the same thing.
         // would be nice to have conditional istanbul ignores here...
         /* istanbul ignore next - defense in depth */
         if (st && !st.isDirectory()) {
           const retired = retirePath(d)
-          this[_retiredPaths][d] = retired
+          this.#retiredPaths[d] = retired
           this[_trashList].add(retired)
           await this[_renamePath](d, retired)
         }
       }
-      this[_sparseTreeDirs].add(node.path)
+      this.#sparseTreeDirs.add(node.path)
       const made = await mkdir(node.path, { recursive: true })
       // if the directory already exists, made will be undefined. if that's the case
       // we don't want to remove it because we aren't the ones who created it so we
-      // omit it from the _sparseTreeRoots
+      // omit it from the #sparseTreeRoots
       if (made) {
-        this[_sparseTreeRoots].add(made)
+        this.#sparseTreeRoots.add(made)
       }
-    }))
-      .then(() => process.emit('timeEnd', 'reify:createSparse'))
+    })).then(timeEnd)
   }
 
   [_rollbackCreateSparseTree] (er) {
-    process.emit('time', 'reify:rollback:createSparse')
+    const timeEnd = time.start('reify:rollback:createSparse')
     // cut the roots of the sparse tree that were created, not the leaves
-    const roots = this[_sparseTreeRoots]
+    const roots = this.#sparseTreeRoots
     // also delete the moves that we retired, so that we can move them back
     const failures = []
-    const targets = [...roots, ...Object.keys(this[_retiredPaths])]
+    const targets = [...roots, ...Object.keys(this.#retiredPaths)]
     const unlinks = targets
       .map(path => rm(path, { recursive: true, force: true }).catch(er => failures.push([path, er])))
     return promiseAllRejectLate(unlinks).then(() => {
@@ -574,7 +646,7 @@ module.exports = cls => class Reifier extends cls {
         log.warn('cleanup', 'Failed to remove some directories', failures)
       }
     })
-      .then(() => process.emit('timeEnd', 'reify:rollback:createSparse'))
+      .then(timeEnd)
       .then(() => this[_rollbackRetireShallowNodes](er))
   }
 
@@ -582,7 +654,7 @@ module.exports = cls => class Reifier extends cls {
   // we need to unpack them, read that shrinkwrap file, and then update
   // the tree by calling loadVirtual with the node as the root.
   [_loadShrinkwrapsAndUpdateTrees] () {
-    const seen = this[_shrinkwrapInflated]
+    const seen = this.#shrinkwrapInflated
     const shrinkwraps = this.diff.leaves
       .filter(d => (d.action === 'CHANGE' || d.action === 'ADD' || !d.action) &&
         d.ideal.hasShrinkwrap && !seen.has(d.ideal) &&
@@ -592,7 +664,7 @@ module.exports = cls => class Reifier extends cls {
       return
     }
 
-    process.emit('time', 'reify:loadShrinkwraps')
+    const timeEnd = time.start('reify:loadShrinkwraps')
 
     const Arborist = this.constructor
     return promiseAllRejectLate(shrinkwraps.map(diff => {
@@ -609,7 +681,7 @@ module.exports = cls => class Reifier extends cls {
       .then(() => this[_createSparseTree]())
       .then(() => this[_addOmitsToTrashList]())
       .then(() => this[_loadShrinkwrapsAndUpdateTrees]())
-      .then(() => process.emit('timeEnd', 'reify:loadShrinkwraps'))
+      .then(timeEnd)
   }
 
   // create a symlink for Links, extract for Nodes
@@ -624,11 +696,10 @@ module.exports = cls => class Reifier extends cls {
       return node
     }
 
-    const timer = `reifyNode:${node.location}`
-    process.emit('time', timer)
+    const timeEnd = time.start(`reifyNode:${node.location}`)
     this.addTracker('reify', node.name, node.location)
 
-    const { npmVersion, nodeVersion, cpu, os } = this.options
+    const { npmVersion, nodeVersion, cpu, os, libc } = this.options
     const p = Promise.resolve().then(async () => {
       // when we reify an optional node, check the engine and platform
       // first. be sure to ignore the --force and --engine-strict flags,
@@ -638,38 +709,43 @@ module.exports = cls => class Reifier extends cls {
       // eslint-disable-next-line promise/always-return
       if (node.optional) {
         checkEngine(node.package, npmVersion, nodeVersion, false)
-        checkPlatform(node.package, false, { cpu, os })
+        checkPlatform(node.package, false, { cpu, os, libc })
       }
       await this[_checkBins](node)
-      await this[_extractOrLink](node)
-      await this[_warnDeprecated](node)
+      await this.#extractOrLink(node)
+      const { _id, deprecated } = node.package
+      // The .catch is in _handleOptionalFailure.  Not ideal, this should be cleaned up.
+      // eslint-disable-next-line promise/always-return
+      if (deprecated) {
+        log.warn('deprecated', `${_id}: ${deprecated}`)
+      }
     })
 
     return this[_handleOptionalFailure](node, p)
       .then(() => {
         this.finishTracker('reify', node.name, node.location)
-        process.emit('timeEnd', timer)
+        timeEnd()
         return node
       })
   }
 
   // do not allow node_modules to be a symlink
-  async [_validateNodeModules] (nm) {
-    if (this[_force] || this[_nmValidated].has(nm)) {
+  async #validateNodeModules (nm) {
+    if (this.options.force || this.#nmValidated.has(nm)) {
       return
     }
     const st = await lstat(nm).catch(() => null)
     if (!st || st.isDirectory()) {
-      this[_nmValidated].add(nm)
+      this.#nmValidated.add(nm)
       return
     }
     log.warn('reify', 'Removing non-directory', nm)
     await rm(nm, { recursive: true, force: true })
   }
 
-  async [_extractOrLink] (node) {
+  async #extractOrLink (node) {
     const nm = resolve(node.parent.path, 'node_modules')
-    await this[_validateNodeModules](nm)
+    await this.#validateNodeModules(nm)
 
     if (!node.isLink) {
       // in normal cases, node.resolved should *always* be set by now.
@@ -681,7 +757,7 @@ module.exports = cls => class Reifier extends cls {
       // entirely, since we can't possibly reify it.
       let res = null
       if (node.resolved) {
-        const registryResolved = this[_registryResolved](node.resolved)
+        const registryResolved = this.#registryResolved(node.resolved)
         if (registryResolved) {
           res = `${node.name}@${registryResolved}`
         }
@@ -703,7 +779,7 @@ module.exports = cls => class Reifier extends cls {
         return
       }
       await debug(async () => {
-        const st = await lstat(node.path).catch(e => null)
+        const st = await lstat(node.path).catch(() => null)
         if (st && !st.isDirectory()) {
           debug.log('unpacking into a non-directory', node)
           throw Object.assign(new Error('ENOTDIR: not a directory'), {
@@ -727,10 +803,8 @@ module.exports = cls => class Reifier extends cls {
 
     // node.isLink
     await rm(node.path, { recursive: true, force: true })
-    await this[_symlink](node)
-  }
 
-  async [_symlink] (node) {
+    // symlink
     const dir = dirname(node.path)
     const target = node.realpath
     const rel = relative(dir, target)
@@ -738,17 +812,10 @@ module.exports = cls => class Reifier extends cls {
     return symlink(rel, node.path, 'junction')
   }
 
-  [_warnDeprecated] (node) {
-    const { _id, deprecated } = node.package
-    if (deprecated) {
-      log.warn('deprecated', `${_id}: ${deprecated}`)
-    }
-  }
-
   // if the node is optional, then the failure of the promise is nonfatal
   // just add it and its optional set to the trash list.
   [_handleOptionalFailure] (node, p) {
-    return (node.optional ? p.catch(er => {
+    return (node.optional ? p.catch(() => {
       const set = optionalSet(node)
       for (node of set) {
         log.verbose('reify', 'failed optional dependency', node.path)
@@ -757,7 +824,7 @@ module.exports = cls => class Reifier extends cls {
     }) : p).then(() => node)
   }
 
-  [_registryResolved] (resolved) {
+  #registryResolved (resolved) {
     // the default registry url is a magic value meaning "the currently
     // configured registry".
     // `resolved` must never be falsey.
@@ -787,21 +854,51 @@ module.exports = cls => class Reifier extends cls {
   // by the contents of the package.  however, in their case, rather than
   // shipping a virtual tree that must be reified, they ship an entire
   // reified actual tree that must be unpacked and not modified.
-  [_loadBundlesAndUpdateTrees] (
-    depth = 0, bundlesByDepth = this[_getBundlesByDepth]()
-  ) {
-    if (depth === 0) {
-      process.emit('time', 'reify:loadBundles')
+  [_loadBundlesAndUpdateTrees] (depth = 0, bundlesByDepth) {
+    let maxBundleDepth
+    if (!bundlesByDepth) {
+      bundlesByDepth = new Map()
+      maxBundleDepth = -1
+      dfwalk({
+        tree: this.diff,
+        visit: diff => {
+          const node = diff.ideal
+          if (!node) {
+            return
+          }
+          if (node.isProjectRoot) {
+            return
+          }
+
+          const { bundleDependencies } = node.package
+          if (bundleDependencies && bundleDependencies.length) {
+            maxBundleDepth = Math.max(maxBundleDepth, node.depth)
+            if (!bundlesByDepth.has(node.depth)) {
+              bundlesByDepth.set(node.depth, [node])
+            } else {
+              bundlesByDepth.get(node.depth).push(node)
+            }
+          }
+        },
+        getChildren: diff => diff.children,
+      })
+
+      bundlesByDepth.set('maxBundleDepth', maxBundleDepth)
+    } else {
+      maxBundleDepth = bundlesByDepth.get('maxBundleDepth')
     }
 
-    const maxBundleDepth = bundlesByDepth.get('maxBundleDepth')
+    if (depth === 0) {
+      time.start('reify:loadBundles')
+    }
+
     if (depth > maxBundleDepth) {
       // if we did something, then prune the tree and update the diffs
       if (maxBundleDepth !== -1) {
-        this[_pruneBundledMetadeps](bundlesByDepth)
+        this.#pruneBundledMetadeps(bundlesByDepth)
         this[_diffTrees]()
       }
-      process.emit('timeEnd', 'reify:loadBundles')
+      time.end('reify:loadBundles')
       return
     }
 
@@ -817,10 +914,12 @@ module.exports = cls => class Reifier extends cls {
     }
 
     // extract all the nodes with bundles
-    return promiseAllRejectLate(set.map(node => {
-      this[_bundleUnpacked].add(node)
-      return this[_reifyNode](node)
-    }))
+    return promiseCallLimit(set.map(node => {
+      return () => {
+        this.#bundleUnpacked.add(node)
+        return this[_reifyNode](node)
+      }
+    }), { rejectLate: true })
     // then load their unpacked children and move into the ideal tree
       .then(nodes =>
         promiseAllRejectLate(nodes.map(async node => {
@@ -846,46 +945,15 @@ module.exports = cls => class Reifier extends cls {
             },
           })
           for (const name of notTransplanted) {
-            this[_bundleMissing].add(node.children.get(name))
+            this.#bundleMissing.add(node.children.get(name))
           }
         })))
     // move onto the next level of bundled items
       .then(() => this[_loadBundlesAndUpdateTrees](depth + 1, bundlesByDepth))
   }
 
-  [_getBundlesByDepth] () {
-    const bundlesByDepth = new Map()
-    let maxBundleDepth = -1
-    dfwalk({
-      tree: this.diff,
-      visit: diff => {
-        const node = diff.ideal
-        if (!node) {
-          return
-        }
-        if (node.isProjectRoot) {
-          return
-        }
-
-        const { bundleDependencies } = node.package
-        if (bundleDependencies && bundleDependencies.length) {
-          maxBundleDepth = Math.max(maxBundleDepth, node.depth)
-          if (!bundlesByDepth.has(node.depth)) {
-            bundlesByDepth.set(node.depth, [node])
-          } else {
-            bundlesByDepth.get(node.depth).push(node)
-          }
-        }
-      },
-      getChildren: diff => diff.children,
-    })
-
-    bundlesByDepth.set('maxBundleDepth', maxBundleDepth)
-    return bundlesByDepth
-  }
-
   // https://github.com/npm/cli/issues/1597#issuecomment-667639545
-  [_pruneBundledMetadeps] (bundlesByDepth) {
+  #pruneBundledMetadeps (bundlesByDepth) {
     const bundleShadowed = new Set()
 
     // Example dep graph:
@@ -984,21 +1052,21 @@ module.exports = cls => class Reifier extends cls {
     // before finishing the reify() and returning the tree.  Thus, we do
     // NOT return the promise, as the intent is for this to run in parallel
     // with the reification, and be resolved at a later time.
-    process.emit('time', 'reify:audit')
+    const timeEnd = time.start('reify:audit')
     const options = { ...this.options }
     const tree = this.idealTree
 
     // if we're operating on a workspace, only audit the workspace deps
-    if (this[_workspaces] && this[_workspaces].length) {
+    if (this.options.workspaces.length) {
       options.filterSet = this.workspaceDependencySet(
         tree,
-        this[_workspaces],
-        this[_includeWorkspaceRoot]
+        this.options.workspaces,
+        this.options.includeWorkspaceRoot
       )
     }
 
     this.auditReport = AuditReport.load(tree, options).then(res => {
-      process.emit('timeEnd', 'reify:audit')
+      timeEnd()
       return res
     })
   }
@@ -1008,7 +1076,7 @@ module.exports = cls => class Reifier extends cls {
   // kicking off each unpack job.  If any fail, we rm the sparse
   // tree entirely and try to put everything back where it was.
   [_unpackNewModules] () {
-    process.emit('time', 'reify:unpack')
+    const timeEnd = time.start('reify:unpack')
     const unpacks = []
     dfwalk({
       tree: this.diff,
@@ -1019,9 +1087,9 @@ module.exports = cls => class Reifier extends cls {
         }
 
         const node = diff.ideal
-        const bd = this[_bundleUnpacked].has(node)
-        const sw = this[_shrinkwrapInflated].has(node)
-        const bundleMissing = this[_bundleMissing].has(node)
+        const bd = this.#bundleUnpacked.has(node)
+        const sw = this.#shrinkwrapInflated.has(node)
+        const bundleMissing = this.#bundleMissing.has(node)
 
         // check whether we still need to unpack this one.
         // test the inDepBundle last, since that's potentially a tree walk.
@@ -1041,8 +1109,7 @@ module.exports = cls => class Reifier extends cls {
       },
       getChildren: diff => diff.children,
     })
-    return promiseAllRejectLate(unpacks)
-      .then(() => process.emit('timeEnd', 'reify:unpack'))
+    return promiseAllRejectLate(unpacks).then(timeEnd)
   }
 
   // This is the part where we move back the unchanging nodes that were
@@ -1057,9 +1124,9 @@ module.exports = cls => class Reifier extends cls {
     // This is sort of an inverse diff tree, of all the nodes where
     // the actualTree and idealTree _don't_ differ, starting from the
     // shallowest nodes that we moved aside in the first place.
-    process.emit('time', 'reify:unretire')
-    const moves = this[_retiredPaths]
-    this[_retiredUnchanged] = {}
+    const timeEnd = time.start('reify:unretire')
+    const moves = this.#retiredPaths
+    this.#retiredUnchanged = {}
     return promiseAllRejectLate(this.diff.children.map(diff => {
       // skip if nothing was retired
       if (diff.action !== 'CHANGE' && diff.action !== 'REMOVE') {
@@ -1082,7 +1149,7 @@ module.exports = cls => class Reifier extends cls {
         }
       })
 
-      this[_retiredUnchanged][retireFolder] = []
+      this.#retiredUnchanged[retireFolder] = []
       return promiseAllRejectLate(diff.unchanged.map(node => {
         // no need to roll back links, since we'll just delete them anyway
         if (node.isLink) {
@@ -1091,11 +1158,11 @@ module.exports = cls => class Reifier extends cls {
         }
 
         // will have been moved/unpacked along with bundler
-        if (node.inDepBundle && !this[_bundleMissing].has(node)) {
+        if (node.inDepBundle && !this.#bundleMissing.has(node)) {
           return
         }
 
-        this[_retiredUnchanged][retireFolder].push(node)
+        this.#retiredUnchanged[retireFolder].push(node)
 
         const rel = relative(realFolder, node.path)
         const fromPath = resolve(retireFolder, rel)
@@ -1105,8 +1172,7 @@ module.exports = cls => class Reifier extends cls {
         const dir = bd && bd.length ? node.path + '/node_modules' : node.path
         return mkdir(dir, { recursive: true }).then(() => this[_moveContents](node, fromPath))
       }))
-    }))
-      .then(() => process.emit('timeEnd', 'reify:unretire'))
+    })).then(timeEnd)
   }
 
   // move the contents from the fromPath to the node.path
@@ -1123,10 +1189,10 @@ module.exports = cls => class Reifier extends cls {
   }
 
   [_rollbackMoveBackRetiredUnchanged] (er) {
-    const moves = this[_retiredPaths]
+    const moves = this.#retiredPaths
     // flip the mapping around to go back
     const realFolders = new Map(Object.entries(moves).map(([k, v]) => [v, k]))
-    const promises = Object.entries(this[_retiredUnchanged])
+    const promises = Object.entries(this.#retiredUnchanged)
       .map(([retireFolder, nodes]) => promiseAllRejectLate(nodes.map(node => {
         const realFolder = realFolders.get(retireFolder)
         const rel = relative(realFolder, node.path)
@@ -1138,7 +1204,7 @@ module.exports = cls => class Reifier extends cls {
   }
 
   [_build] () {
-    process.emit('time', 'reify:build')
+    const timeEnd = time.start('reify:build')
 
     // for all the things being installed, run their appropriate scripts
     // run in tip->root order, so as to be more likely to build a node's
@@ -1170,8 +1236,7 @@ module.exports = cls => class Reifier extends cls {
       }
     }
 
-    return this.rebuild({ nodes, handleOptionalFailure: true })
-      .then(() => process.emit('timeEnd', 'reify:build'))
+    return this.rebuild({ nodes, handleOptionalFailure: true }).then(timeEnd)
   }
 
   // the tree is pretty much built now, so it's cleanup time.
@@ -1179,7 +1244,7 @@ module.exports = cls => class Reifier extends cls {
   // If this fails, there isn't much we can do but tell the user about it.
   // Thankfully, it's pretty unlikely that it'll fail, since rm is a node builtin.
   async [_removeTrash] () {
-    process.emit('time', 'reify:trash')
+    const timeEnd = time.start('reify:trash')
     const promises = []
     const failures = []
     const _rm = path => rm(path, { recursive: true, force: true }).catch(er => failures.push([path, er]))
@@ -1192,7 +1257,8 @@ module.exports = cls => class Reifier extends cls {
     if (failures.length) {
       log.warn('cleanup', 'Failed to remove some directories', failures)
     }
-    process.emit('timeEnd', 'reify:trash')
+
+    timeEnd()
   }
 
   // last but not least, we save the ideal tree metadata to the package-lock
@@ -1217,15 +1283,15 @@ module.exports = cls => class Reifier extends cls {
     // saveIdealTree to be able to write the lockfile by default.
     const saveIdealTree = !(
       (!save && !hasUpdates)
-      || this[_global]
-      || this[_dryRun]
+      || this.options.global
+      || this.options.dryRun
     )
 
     if (!saveIdealTree) {
       return false
     }
 
-    process.emit('time', 'reify:save')
+    const timeEnd = time.start('reify:save')
 
     const updatedTrees = new Set()
     const updateNodes = nodes => {
@@ -1254,7 +1320,7 @@ module.exports = cls => class Reifier extends cls {
         const isLocalDep = req.type === 'directory' || req.type === 'file'
         if (req.registry) {
           const version = child.version
-          const prefixRange = version ? this[_savePrefix] + version : '*'
+          const prefixRange = version ? this.options.savePrefix + version : '*'
           // if we installed a range, then we save the range specified
           // if it is not a subset of the ^x.y.z.  eg, installing a range
           // of `1.x <1.2.3` will not be saved as `^1.2.0`, because that
@@ -1289,7 +1355,7 @@ module.exports = cls => class Reifier extends cls {
           // using their relative path
           if (edge.type === 'workspace') {
             const { version } = edge.to.target
-            const prefixRange = version ? this[_savePrefix] + version : '*'
+            const prefixRange = version ? this.options.savePrefix + version : '*'
             newSpec = prefixRange
           } else {
             // save the relative path in package.json
@@ -1458,136 +1524,12 @@ module.exports = cls => class Reifier extends cls {
 
       // TODO this ignores options.save
       await this.idealTree.meta.save({
-        format: (this[_formatPackageLock] && format) ? format
-        : this[_formatPackageLock],
+        format: (this.options.formatPackageLock && format) ? format
+        : this.options.formatPackageLock,
       })
     }
 
-    process.emit('timeEnd', 'reify:save')
+    timeEnd()
     return true
-  }
-
-  async [_copyIdealToActual] () {
-    // clean up any trash that is still in the tree
-    for (const path of this[_trashList]) {
-      const loc = relpath(this.idealTree.realpath, path)
-      const node = this.idealTree.inventory.get(loc)
-      if (node && node.root === this.idealTree) {
-        node.parent = null
-      }
-    }
-
-    // if we filtered to only certain nodes, then anything ELSE needs
-    // to be untouched in the resulting actual tree, even if it differs
-    // in the idealTree.  Copy over anything that was in the actual and
-    // was not changed, delete anything in the ideal and not actual.
-    // Then we move the entire idealTree over to this.actualTree, and
-    // save the hidden lockfile.
-    if (this.diff && this.diff.filterSet.size) {
-      const reroot = new Set()
-
-      const { filterSet } = this.diff
-      const seen = new Set()
-      for (const [loc, ideal] of this.idealTree.inventory.entries()) {
-        seen.add(loc)
-
-        // if it's an ideal node from the filter set, then skip it
-        // because we already made whatever changes were necessary
-        if (filterSet.has(ideal)) {
-          continue
-        }
-
-        // otherwise, if it's not in the actualTree, then it's not a thing
-        // that we actually added.  And if it IS in the actualTree, then
-        // it's something that we left untouched, so we need to record
-        // that.
-        const actual = this.actualTree.inventory.get(loc)
-        if (!actual) {
-          ideal.root = null
-        } else {
-          if ([...actual.linksIn].some(link => filterSet.has(link))) {
-            seen.add(actual.location)
-            continue
-          }
-          const { realpath, isLink } = actual
-          if (isLink && ideal.isLink && ideal.realpath === realpath) {
-            continue
-          } else {
-            reroot.add(actual)
-          }
-        }
-      }
-
-      // now find any actual nodes that may not be present in the ideal
-      // tree, but were left behind by virtue of not being in the filter
-      for (const [loc, actual] of this.actualTree.inventory.entries()) {
-        if (seen.has(loc)) {
-          continue
-        }
-        seen.add(loc)
-
-        // we know that this is something that ISN'T in the idealTree,
-        // or else we will have addressed it in the previous loop.
-        // If it's in the filterSet, that means we intentionally removed
-        // it, so nothing to do here.
-        if (filterSet.has(actual)) {
-          continue
-        }
-
-        reroot.add(actual)
-      }
-
-      // go through the rerooted actual nodes, and move them over.
-      for (const actual of reroot) {
-        actual.root = this.idealTree
-      }
-
-      // prune out any tops that lack a linkIn, they are no longer relevant.
-      for (const top of this.idealTree.tops) {
-        if (top.linksIn.size === 0) {
-          top.root = null
-        }
-      }
-
-      // need to calculate dep flags, since nodes may have been marked
-      // as extraneous or otherwise incorrect during transit.
-      calcDepFlags(this.idealTree)
-    }
-
-    // save the ideal's meta as a hidden lockfile after we actualize it
-    this.idealTree.meta.filename =
-      this.idealTree.realpath + '/node_modules/.package-lock.json'
-    this.idealTree.meta.hiddenLockfile = true
-    this.idealTree.meta.lockfileVersion = defaultLockfileVersion
-
-    this.actualTree = this.idealTree
-    this.idealTree = null
-
-    if (!this[_global]) {
-      await this.actualTree.meta.save()
-      const ignoreScripts = !!this.options.ignoreScripts
-      // if we aren't doing a dry run or ignoring scripts and we actually made changes to the dep
-      // tree, then run the dependencies scripts
-      if (!this[_dryRun] && !ignoreScripts && this.diff && this.diff.children.length) {
-        const { path, package: pkg } = this.actualTree.target
-        const stdio = this.options.foregroundScripts ? 'inherit' : 'pipe'
-        const { scripts = {} } = pkg
-        for (const event of ['predependencies', 'dependencies', 'postdependencies']) {
-          if (Object.prototype.hasOwnProperty.call(scripts, event)) {
-            const timer = `reify:run:${event}`
-            process.emit('time', timer)
-            log.info('run', pkg._id, event, scripts[event])
-            await runScript({
-              event,
-              path,
-              pkg,
-              stdio,
-              scriptShell: this.options.scriptShell,
-            })
-            process.emit('timeEnd', timer)
-          }
-        }
-      }
-    }
   }
 }

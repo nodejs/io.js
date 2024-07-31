@@ -8,7 +8,7 @@ const bench = common.createBenchmark(main, {
   sync: ['createHash', 'subtle'],
   data: [10, 20, 50, 100],
   method: ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'],
-  n: [1e3],
+  n: [1e5],
 });
 
 const kMethods = {

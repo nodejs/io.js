@@ -1,0 +1,38 @@
+{
+	"name": "amaro",
+	"version": "0.0.4",
+	"description": "Node.js TypeScript wrapper",
+	"license": "MIT",
+	"type": "commonjs",
+	"main": "dist/index.js",
+	"homepage": "https://github.com/nodejs/amaro#readme",
+	"bugs": {
+		"url": "https://github.com/nodejs/amaro/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/nodejs/amaro.git"
+	},
+	"scripts": {
+		"clean": "rimraf dist",
+		"lint": "biome lint --write",
+		"format": "biome format --write",
+		"prepack": "npm run build",
+		"postpack": "npm run clean",
+		"build": "rspack build",
+		"typecheck": "tsc --noEmit",
+		"test": "node --test ./test"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.8.3",
+		"@rspack/cli": "^0.7.5",
+		"@rspack/core": "^0.7.5",
+		"@types/node": "^20.14.11",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.5.3"
+	},
+	"exports": {
+		"./package.json": "./package.json"
+	},
+	"files": ["dist", "LICENSE.md"]
+}

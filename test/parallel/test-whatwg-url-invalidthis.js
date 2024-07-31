@@ -11,12 +11,26 @@ const assert = require('assert');
 ].forEach((i) => {
   assert.throws(() => Reflect.apply(URL.prototype[i], [], {}), {
     name: 'TypeError',
-    message: /Cannot read private member/,
+    message: /Receiver must be an instance of class/,
   });
 });
 
 [
   'href',
+  'search',
+].forEach((i) => {
+  assert.throws(() => Reflect.get(URL.prototype, i, {}), {
+    name: 'TypeError',
+    message: /Receiver must be an instance of class/,
+  });
+
+  assert.throws(() => Reflect.set(URL.prototype, i, null, {}), {
+    name: 'TypeError',
+    message: /Cannot read private member/,
+  });
+});
+
+[
   'protocol',
   'username',
   'password',
@@ -24,7 +38,6 @@ const assert = require('assert');
   'hostname',
   'port',
   'pathname',
-  'search',
   'hash',
 ].forEach((i) => {
   assert.throws(() => Reflect.get(URL.prototype, i, {}), {

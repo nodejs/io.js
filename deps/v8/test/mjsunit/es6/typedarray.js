@@ -449,6 +449,12 @@ TestSubArray(Float32Array, 0.5);
 TestSubArray(Float64Array, 0.5);
 TestSubArray(Uint8ClampedArray, 0xFF);
 
+assertThrows(
+    () => { Int8Array.prototype.subarray.call("xyz", 0, 1); },
+    TypeError,
+    "Method %TypedArray%.prototype.subarray called on incompatible " +
+    "receiver xyz");
+
 function TestTypedArrayOutOfRange(constructor, value, result) {
   var a = new constructor(1);
   a[0] = value;
@@ -994,17 +1000,17 @@ for(i = 0; i < typedArrayConstructors.length; i++) {
 })();
 
 (function TestBufferLengthTooLong() {
-  const kLength = %TypedArrayMaxLength() + 1;
-  try {
-    var buf = new ArrayBuffer(kLength);
-  } catch (e) {
-    // The ArrayBuffer allocation fails on 32-bit archs, so no need to try to
-    // construct the typed array.
-    return;
+  const kMaxByteLength = %ArrayBufferMaxByteLength();
+  assertThrows(
+      () => new ArrayBuffer(kMaxByteLength + 1), RangeError,
+      'Invalid array buffer length');
+  for (let constr
+           of [Int8Array, Int16Array, Int32Array, Float32Array, Float64Array,
+               BigInt64Array]) {
+    let max_len = Math.floor(kMaxByteLength / constr.BYTES_PER_ELEMENT);
+    let expected_error = `Invalid typed array length: ${max_len + 1}`;
+    assertThrows(() => new constr(max_len + 1), RangeError, expected_error);
   }
-  assertThrows(function() {
-    new Int8Array(buf);
-  }, RangeError);
 })();
 
 (function TestByteLengthErrorMessage() {

@@ -9,8 +9,6 @@
 #ifndef V8_WASM_WASM_DISASSEMBLER_IMPL_H_
 #define V8_WASM_WASM_DISASSEMBLER_IMPL_H_
 
-#include <iomanip>
-
 #include "src/wasm/function-body-decoder-impl.h"
 #include "src/wasm/names-provider.h"
 #include "src/wasm/string-builder-multiline.h"
@@ -63,12 +61,165 @@ inline StringBuilder& operator<<(StringBuilder& sb, Indentation indentation) {
   return sb;
 }
 
+inline StringBuilder& operator<<(StringBuilder& sb, uint64_t n) {
+  if (n == 0) {
+    *sb.allocate(1) = '0';
+    return sb;
+  }
+  static constexpr size_t kBufferSize = 20;  // Just enough for a uint64.
+  char buffer[kBufferSize];
+  char* end = buffer + kBufferSize;
+  char* out = end;
+  while (n != 0) {
+    *(--out) = '0' + (n % 10);
+    n /= 10;
+  }
+  sb.write(out, static_cast<size_t>(end - out));
+  return sb;
+}
+
 V8_EXPORT_PRIVATE void PrintSignatureOneLine(
     StringBuilder& out, const FunctionSig* sig, uint32_t func_index,
     NamesProvider* names, bool param_names,
     IndexAsComment indices_as_comments = NamesProvider::kDontPrintIndex);
 
-class OffsetsProvider;
+////////////////////////////////////////////////////////////////////////////////
+// OffsetsProvider.
+
+class OffsetsProvider : public ITracer {
+ public:
+  struct RecGroup {
+    uint32_t offset{kInvalid};
+    uint32_t start_type_index{kInvalid};
+    uint32_t end_type_index{kInvalid};  // Exclusive.
+
+    // For convenience: built-in support for "maybe" values, useful at the
+    // end of iteration.
+    static constexpr uint32_t kInvalid = ~0u;
+    static constexpr RecGroup Invalid() { return {}; }
+    bool valid() { return start_type_index != kInvalid; }
+  };
+
+  OffsetsProvider() = default;
+
+  // All-in-one, expects to be called on a freshly constructed {OffsetsProvider}
+  // when the {WasmModule} already exists.
+  // The alternative is to pass an {OffsetsProvider} as a tracer to the initial
+  // decoding of the wire bytes, letting it record offsets on the fly.
+  V8_EXPORT_PRIVATE void CollectOffsets(const WasmModule* module,
+                                        base::Vector<const uint8_t> wire_bytes);
+
+  void TypeOffset(uint32_t offset) override { type_offsets_.push_back(offset); }
+
+  void ImportOffset(uint32_t offset) override {
+    import_offsets_.push_back(offset);
+  }
+
+  void TableOffset(uint32_t offset) override {
+    table_offsets_.push_back(offset);
+  }
+
+  void MemoryOffset(uint32_t offset) override { memory_offset_ = offset; }
+
+  void TagOffset(uint32_t offset) override { tag_offsets_.push_back(offset); }
+
+  void GlobalOffset(uint32_t offset) override {
+    global_offsets_.push_back(offset);
+  }
+
+  void StartOffset(uint32_t offset) override { start_offset_ = offset; }
+
+  void ElementOffset(uint32_t offset) override {
+    element_offsets_.push_back(offset);
+  }
+
+  void DataOffset(uint32_t offset) override { data_offsets_.push_back(offset); }
+
+  void StringOffset(uint32_t offset) override {
+    string_offsets_.push_back(offset);
+  }
+
+  void RecGroupOffset(uint32_t offset, uint32_t group_size) override {
+    uint32_t start_index = static_cast<uint32_t>(type_offsets_.size());
+    recgroups_.push_back({offset, start_index, start_index + group_size});
+  }
+
+  void ImportsDone(const WasmModule* module) override {
+    num_imported_tables_ = module->num_imported_tables;
+    num_imported_globals_ = module->num_imported_globals;
+    num_imported_tags_ = module->num_imported_tags;
+  }
+
+  // Unused by this tracer:
+  void Bytes(const uint8_t* start, uint32_t count) override {}
+  void Description(const char* desc) override {}
+  void Description(const char* desc, size_t length) override {}
+  void Description(uint32_t number) override {}
+  void Description(ValueType type) override {}
+  void Description(HeapType type) override {}
+  void Description(const FunctionSig* sig) override {}
+  void NextLine() override {}
+  void NextLineIfFull() override {}
+  void NextLineIfNonEmpty() override {}
+  void InitializerExpression(const uint8_t* start, const uint8_t* end,
+                             ValueType expected_type) override {}
+  void FunctionBody(const WasmFunction* func, const uint8_t* start) override {}
+  void FunctionName(uint32_t func_index) override {}
+  void NameSection(const uint8_t* start, const uint8_t* end,
+                   uint32_t offset) override {}
+
+#define GETTER(name)                        \
+  uint32_t name##_offset(uint32_t index) {  \
+    DCHECK(index < name##_offsets_.size()); \
+    return name##_offsets_[index];          \
+  }
+  GETTER(type)
+  GETTER(import)
+  GETTER(element)
+  GETTER(data)
+  GETTER(string)
+#undef GETTER
+
+#define IMPORT_ADJUSTED_GETTER(name)                                  \
+  uint32_t name##_offset(uint32_t index) {                            \
+    DCHECK(index >= num_imported_##name##s_ &&                        \
+           index - num_imported_##name##s_ < name##_offsets_.size()); \
+    return name##_offsets_[index - num_imported_##name##s_];          \
+  }
+  IMPORT_ADJUSTED_GETTER(table)
+  IMPORT_ADJUSTED_GETTER(tag)
+  IMPORT_ADJUSTED_GETTER(global)
+#undef IMPORT_ADJUSTED_GETTER
+
+  uint32_t memory_offset() { return memory_offset_; }
+
+  uint32_t start_offset() { return start_offset_; }
+
+  RecGroup recgroup(uint32_t index) {
+    if (index >= recgroups_.size()) return RecGroup::Invalid();
+    return recgroups_[index];
+  }
+
+ private:
+  uint32_t num_imported_tables_{0};
+  uint32_t num_imported_globals_{0};
+  uint32_t num_imported_tags_{0};
+  std::vector<uint32_t> type_offsets_;
+  std::vector<uint32_t> import_offsets_;
+  std::vector<uint32_t> table_offsets_;
+  std::vector<uint32_t> tag_offsets_;
+  std::vector<uint32_t> global_offsets_;
+  std::vector<uint32_t> element_offsets_;
+  std::vector<uint32_t> data_offsets_;
+  std::vector<uint32_t> string_offsets_;
+  uint32_t memory_offset_{0};
+  uint32_t start_offset_{0};
+  std::vector<RecGroup> recgroups_;
+};
+
+inline std::unique_ptr<OffsetsProvider> AllocateOffsetsProvider() {
+  return std::make_unique<OffsetsProvider>();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // FunctionBodyDisassembler.
@@ -80,13 +231,13 @@ class V8_EXPORT_PRIVATE FunctionBodyDisassembler
   enum FunctionHeader : bool { kSkipHeader = false, kPrintHeader = true };
 
   FunctionBodyDisassembler(Zone* zone, const WasmModule* module,
-                           uint32_t func_index, WasmFeatures* detected,
-                           const FunctionSig* sig, const uint8_t* start,
-                           const uint8_t* end, uint32_t offset,
-                           const ModuleWireBytes wire_bytes,
+                           uint32_t func_index, bool shared,
+                           WasmFeatures* detected, const FunctionSig* sig,
+                           const uint8_t* start, const uint8_t* end,
+                           uint32_t offset, const ModuleWireBytes wire_bytes,
                            NamesProvider* names)
       : WasmDecoder<ValidationTag>(zone, module, WasmFeatures::All(), detected,
-                                   sig, start, end, offset),
+                                   sig, shared, start, end, offset),
         func_index_(func_index),
         wire_bytes_(wire_bytes),
         names_(names) {}
@@ -135,7 +286,8 @@ class ModuleDisassembler {
   V8_EXPORT_PRIVATE ModuleDisassembler(
       MultiLineStringBuilder& out, const WasmModule* module,
       NamesProvider* names, const ModuleWireBytes wire_bytes,
-      AccountingAllocator* allocator, bool collect_offsets,
+      AccountingAllocator* allocator,
+      std::unique_ptr<OffsetsProvider> offsets_provider = {},
       std::vector<int>* function_body_offsets = nullptr);
   V8_EXPORT_PRIVATE ~ModuleDisassembler();
 

@@ -480,7 +480,7 @@ class FFTContainer {
 inline void CopyAndZeroExtend(digit_t* dst, const digit_t* src,
                               int digits_to_copy, size_t total_bytes) {
   size_t bytes_to_copy = digits_to_copy * sizeof(digit_t);
-  memcpy(dst, src, bytes_to_copy);
+  memcpy(dst, static_cast<const void*>(src), bytes_to_copy);
   memset(dst + digits_to_copy, 0, total_bytes - bytes_to_copy);
 }
 

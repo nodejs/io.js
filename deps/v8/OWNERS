@@ -10,15 +10,11 @@ per-file codereview.settings=file:INFRA_OWNERS
 per-file AUTHORS=file:COMMON_OWNERS
 per-file BUILD.bazel=file:COMMON_OWNERS
 per-file BUILD.gn=file:COMMON_OWNERS
-per-file DEPS=file:INFRA_OWNERS
+per-file DEPS=file:COMMON_OWNERS
 per-file INFRA_OWNERS=file:INFRA_OWNERS
 per-file PRESUBMIT.py=file:INFRA_OWNERS
 per-file WATCHLISTS=file:COMMON_OWNERS
 per-file WORKSPACE=file:COMMON_OWNERS
-
-# For Test262 rolls.
-per-file DEPS=mathias@chromium.org
-per-file DEPS=syg@chromium.org
 
 # Needed by the auto_tag builder
 per-file WATCHLISTS=v8-ci-autoroll-builder@chops-service-accounts.iam.gserviceaccount.com

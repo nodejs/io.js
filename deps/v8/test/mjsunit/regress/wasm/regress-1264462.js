@@ -2,7 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --no-liftoff --turbo-force-mid-tier-regalloc
+// This was for a bug in the instruction selector, but the minimal repro
+// required the (now removed) mid-tier register allocator.
+// We still keep this regression test for the future, even though the flag
+// `--turbo-force-mid-tier-regalloc` doesn't exist anymore.
+
+// Flags: --no-liftoff
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 

@@ -13,7 +13,7 @@
 #include "src/wasm/module-decoder.h"
 #include "src/wasm/wasm-module-builder.h"
 
-namespace v8::internal::wasm::fuzzer {
+namespace v8::internal::wasm::fuzzing {
 
 // A default value for {max_executed_instructions} in {ExecuteAgainstReference}.
 #ifdef USE_SIMULATOR
@@ -55,5 +55,6 @@ class WasmExecutionFuzzer {
                               ZoneBuffer* buffer) = 0;
 };
 
-}  // namespace v8::internal::wasm::fuzzer
+}  // namespace v8::internal::wasm::fuzzing
+
 #endif  // WASM_FUZZER_COMMON_H_

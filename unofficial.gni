@@ -1,0 +1,371 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please take a look at node.gyp if you are making changes to build system.
+
+import("node.gni")
+import("$node_v8_path/gni/snapshot_toolchain.gni")
+import("$node_v8_path/gni/v8.gni")
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("node_gn_build") {
+  config("node_features") {
+    defines = []
+    if (is_component_build) {
+      defines += [
+        "USING_UV_SHARED",
+        "USING_V8_SHARED",
+      ]
+    }
+    if (node_use_openssl) {
+      defines += [ "HAVE_OPENSSL=1" ]
+    } else {
+      defines += [ "HAVE_OPENSSL=0" ]
+    }
+    if (node_use_v8_platform) {
+      defines += [ "NODE_USE_V8_PLATFORM=1" ]
+    } else {
+      defines += [ "NODE_USE_V8_PLATFORM=0" ]
+    }
+    if (node_enable_inspector) {
+      defines += [ "HAVE_INSPECTOR=1" ]
+    } else {
+      defines += [ "HAVE_INSPECTOR=0" ]
+    }
+    if (node_use_node_code_cache) {
+      defines += [ "NODE_USE_NODE_CODE_CACHE=1"]
+    }
+    if (v8_enable_i18n_support) {
+      defines += [ "NODE_HAVE_I18N_SUPPORT=1" ]
+    }
+  }
+
+  config("node_external_config") {
+    include_dirs = [
+      target_gen_dir,
+      "src",
+    ]
+    defines = [
+      "NODE_WANT_INTERNALS=1",
+      "NODE_EMBEDDER_MODULE_VERSION=$node_module_version",
+    ]
+    configs = [
+      ":node_features",
+      "$node_v8_path:external_config",
+    ]
+  }
+
+  config("node_internal_config") {
+    visibility = [
+      ":*",
+      "src/inspector:*",
+    ]
+    configs = [ ":node_external_config" ]
+    libs = []
+    cflags = [ "-Wno-microsoft-include" ]
+    cflags_cc = [
+      "-Wno-deprecated-declarations",
+      "-Wno-extra-semi",
+      "-Wno-implicit-fallthrough",
+      "-Wno-macro-redefined",
+      "-Wno-return-type",
+      "-Wno-shadow",
+      "-Wno-sometimes-uninitialized",
+      "-Wno-string-plus-int",
+      "-Wno-string-conversion",
+      "-Wno-unreachable-code",
+      "-Wno-unreachable-code-break",
+      "-Wno-unreachable-code-return",
+      "-Wno-unused-label",
+      "-Wno-unused-private-field",
+      "-Wno-unused-variable",
+      "-Wno-unused-function",
+    ]
+
+    if (current_cpu == "x86") {
+      node_arch = "ia32"
+    } else {
+      node_arch = current_cpu
+    }
+    if (target_os == "win") {
+      node_platform = "win32"
+    } else if (target_os == "mac") {
+      node_platform = "darwin"
+    } else {
+      node_platform = target_os
+    }
+    defines = [
+      "NODE_ARCH=\"$node_arch\"",
+      "NODE_PLATFORM=\"$node_platform\"",
+      "NODE_REPORT"
+    ]
+
+    if (is_win) {
+      defines += [
+        "NOMINMAX",
+        "_UNICODE=1",
+      ]
+    } else {
+      defines += [ "__POSIX__" ]
+    }
+    if (node_tag != "") {
+      defines += [ "NODE_TAG=\"$node_tag\"" ]
+    }
+    if (node_v8_options != "") {
+      defines += [ "NODE_V8_OPTIONS=\"$node_v8_options\"" ]
+    }
+    if (node_release_urlbase != "") {
+      defines += [ "NODE_RELEASE_URLBASE=\"$node_release_urlbase\"" ]
+    }
+    if (node_use_openssl) {
+      defines += [
+        "NODE_OPENSSL_SYSTEM_CERT_PATH=\"$node_openssl_system_ca_path\"",
+      ]
+    }
+  }
+
+  gypi_values = exec_script("./tools/gypi_to_gn.py",
+                            [ rebase_path("node.gyp"),
+                              "--replace=<@(node_builtin_shareable_builtins)=" ],
+                            "scope",
+                            [ "node.gyp" ])
+
+  source_set("libnode") {
+    configs += [ ":node_internal_config" ]
+    public_configs = [
+      ":node_external_config",
+      "deps/googletest:googletest_config",
+    ]
+    public_deps = [
+      "deps/ada",
+      "deps/uv",
+      "deps/simdjson",
+      "$node_v8_path",
+    ]
+    deps = [
+      ":run_node_js2c",
+      "deps/brotli",
+      "deps/cares",
+      "deps/histogram",
+      "deps/llhttp",
+      "deps/nbytes",
+      "deps/nghttp2",
+      "deps/ngtcp2",
+      "deps/postject",
+      "deps/simdutf",
+      "deps/sqlite",
+      "deps/uvwasi",
+      "//third_party/zlib",
+      "$node_v8_path:v8_libplatform",
+    ]
+
+    sources = [
+      "$target_gen_dir/node_javascript.cc",
+    ] + gypi_values.node_sources
+
+    if (is_win) {
+      libs = [ "psapi.lib" ]
+    }
+    if (is_mac) {
+      frameworks = [ "CoreFoundation.framework" ]
+    }
+    if (is_posix) {
+      configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
+      configs += [ "//build/config/gcc:symbol_visibility_default" ]
+    }
+
+    if (v8_enable_i18n_support) {
+      deps += [ "//third_party/icu" ]
+    }
+    if (node_use_openssl) {
+      deps += [ "deps/ncrypto" ]
+      public_deps += [ "deps/openssl" ]
+      sources += gypi_values.node_crypto_sources
+    }
+    if (node_enable_inspector) {
+      deps += [
+        "src/inspector:node_protocol_generated_sources",
+        "src/inspector:v8_inspector_compress_protocol_json",
+      ]
+      include_dirs = [
+        "$target_gen_dir/src",
+        "$target_gen_dir/src/inspector",
+      ]
+      node_inspector = exec_script(
+          "./tools/gypi_to_gn.py",
+          [ rebase_path("src/inspector/node_inspector.gypi"),
+            "--replace=<(SHARED_INTERMEDIATE_DIR)=$target_gen_dir" ],
+          "scope",
+          [ "src/inspector/node_inspector.gypi" ])
+      sources += node_inspector.node_inspector_sources +
+                 node_inspector.node_inspector_generated_sources
+    }
+  }
+
+  executable(target_name) {
+    forward_variables_from(invoker, "*")
+
+    sources = [ "src/node_main.cc" ]
+    deps = [
+      ":libnode",
+      "//build/win:default_exe_manifest",
+    ]
+    if (node_use_node_snapshot) {
+      sources += [ "$target_gen_dir/node_snapshot.cc" ]
+      deps += [ ":run_node_mksnapshot" ]
+      if (is_clang || !is_win) {
+        cflags_cc = [
+          "-Wno-c++11-narrowing",
+          "-Wno-shadow",
+        ]
+      }
+    } else {
+      sources += [ "src/node_snapshot_stub.cc" ]
+    }
+    output_name = "node"
+
+    if (is_apple) {
+      # Default optimization on apple adds "-dead_strip" to ldflags, which would
+      # strip exported V8 and NAPI symbols, has to remove it to make native
+      # modules work.
+      # There is almost no performance penalty since we are only removing
+      # optimization on the node_main.cc.
+      configs -= [ "//build/config/compiler:default_optimization" ]
+    }
+  }
+
+  if (node_use_node_snapshot) {
+    if (current_toolchain == v8_snapshot_toolchain) {
+      executable("node_mksnapshot") {
+        configs += [ ":node_internal_config" ]
+        sources = [
+          "src/node_snapshot_stub.cc",
+          "tools/snapshot/node_mksnapshot.cc",
+        ]
+        deps = [ ":libnode" ]
+      }
+    }
+
+    action("run_node_mksnapshot") {
+      deps = [ ":node_mksnapshot($v8_snapshot_toolchain)" ]
+      script = "$node_v8_path/tools/run.py"
+      sources = []
+      data = []
+
+      mksnapshot_dir = get_label_info(":node_mksnapshot($v8_snapshot_toolchain)",
+                                      "root_out_dir")
+
+      outputs = [ "$target_gen_dir/node_snapshot.cc" ]
+      args = [
+        "./" + rebase_path(mksnapshot_dir + "/node_mksnapshot", root_build_dir),
+        rebase_path("$target_gen_dir/node_snapshot.cc", root_build_dir),
+      ]
+    }
+  }
+
+  action("generate_config_gypi") {
+    deps = [ "$node_v8_path:v8_generate_features_json" ]
+    script = "tools/generate_config_gypi.py"
+    outputs = [ "$target_gen_dir/config.gypi" ]
+    depfile = "$target_gen_dir/$target_name.d"
+    args = rebase_path(outputs, root_build_dir) + [
+      "--out-dir", rebase_path(root_build_dir, root_build_dir),
+      "--dep-file", rebase_path(depfile, root_build_dir),
+      "--node-gn-path", node_path,
+    ]
+  }
+
+  executable("node_js2c") {
+    deps = [
+      "deps/simdutf",
+      "deps/uv",
+    ]
+    sources = [
+      "tools/js2c.cc",
+      "tools/executable_wrapper.h",
+      "src/embedded_data.cc",
+      "src/embedded_data.h",
+    ]
+    include_dirs = [ "src" ]
+  }
+
+  action("run_node_js2c") {
+    script = "$node_v8_path/tools/run.py"
+    deps = [
+      ":node_js2c($host_toolchain)",
+      ":generate_config_gypi",
+    ]
+
+    node_deps_files = gypi_values.deps_files + node_builtin_shareable_builtins
+    node_library_files = exec_script("./tools/search_files.py",
+                                     [ rebase_path(".", root_build_dir),
+                                       rebase_path("lib", root_build_dir),
+                                       "js" ],
+                                     "list lines")
+
+    inputs = node_library_files +
+             node_deps_files +
+             [ "$target_gen_dir/config.gypi" ]
+    outputs = [ "$target_gen_dir/node_javascript.cc" ]
+
+    # Get the path to node_js2c executable of the host toolchain.
+    if (host_os == "win") {
+      host_executable_suffix = ".exe"
+    } else {
+      host_executable_suffix = ""
+    }
+    node_js2c_path =
+        get_label_info(":node_js2c($host_toolchain)", "root_out_dir") + "/" +
+        get_label_info(":node_js2c($host_toolchain)", "name") +
+        host_executable_suffix
+
+    args = [ rebase_path(node_js2c_path),
+             rebase_path("$target_gen_dir/node_javascript.cc"),
+             "--root", rebase_path("."),
+             "lib", rebase_path("$target_gen_dir/config.gypi") ] +
+           node_deps_files
+  }
+
+  executable("node_cctest") {
+    testonly = true
+    configs += [ ":node_internal_config" ]
+
+    deps = [
+      ":libnode",
+      "deps/googletest",
+      "deps/googletest:gtest_main",
+      "deps/nbytes",
+      "deps/simdutf",
+    ]
+
+    sources = gypi_values.node_cctest_sources
+    if (node_use_openssl) {
+      deps += [ "deps/ncrypto" ]
+      sources += gypi_values.node_cctest_openssl_sources
+    }
+    if (node_enable_inspector) {
+      sources += gypi_values.node_cctest_inspector_sources
+    }
+  }
+
+  executable("node_embedtest") {
+    output_name = "embedtest"
+    testonly = true
+    deps = [ ":libnode" ]
+    include_dirs = [ "tools" ]
+    sources = [
+      "src/node_snapshot_stub.cc",
+      "test/embedding/embedtest.cc",
+    ]
+  }
+
+  executable("overlapped_checker") {
+    output_name = "overlapped-checker"
+    testonly = true
+    if (is_win) {
+      sources = [ "test/overlapped-checker/main_win.c" ]
+    } else {
+      sources = [ "test/overlapped-checker/main_unix.c" ]
+    }
+  }
+}

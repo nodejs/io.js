@@ -4,16 +4,16 @@ const {
   Readable,
   Duplex,
   PassThrough
-} = require('stream')
+} = require('node:stream')
 const {
   InvalidArgumentError,
   InvalidReturnValueError,
   RequestAbortedError
 } = require('../core/errors')
 const util = require('../core/util')
-const { AsyncResource } = require('async_hooks')
+const { AsyncResource } = require('node:async_hooks')
 const { addSignal, removeSignal } = require('./abort-signal')
-const assert = require('assert')
+const assert = require('node:assert')
 
 const kResume = Symbol('resume')
 
@@ -100,7 +100,7 @@ class PipelineHandler extends AsyncResource {
       read: () => {
         const { body } = this
 
-        if (body && body.resume) {
+        if (body?.resume) {
           body.resume()
         }
       },
@@ -147,11 +147,13 @@ class PipelineHandler extends AsyncResource {
   onConnect (abort, context) {
     const { ret, res } = this
 
-    assert(!res, 'pipeline cannot be retried')
-
-    if (ret.destroyed) {
-      throw new RequestAbortedError()
+    if (this.reason) {
+      abort(this.reason)
+      return
     }
+
+    assert(!res, 'pipeline cannot be retried')
+    assert(!ret.destroyed)
 
     this.abort = abort
     this.context = context

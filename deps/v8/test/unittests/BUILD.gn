@@ -123,6 +123,7 @@ v8_source_set("cppgc_unittests_sources") {
 
   sources = [
     "heap/cppgc/allocation-unittest.cc",
+    "heap/cppgc/caged-heap-unittest.cc",
     "heap/cppgc/compactor-unittest.cc",
     "heap/cppgc/concurrent-marking-unittest.cc",
     "heap/cppgc/concurrent-sweeper-unittest.cc",
@@ -222,6 +223,10 @@ v8_executable("v8_unittests") {
     deps += [ ":cppgc_unittests_sources" ]
   }
 
+  if (v8_enable_fuzztest && use_centipede) {
+    deps += [ "//third_party/boringssl" ]
+  }
+
   data_deps = [ "../../tools:v8_testrunner" ]
 
   data = [
@@ -255,15 +260,18 @@ v8_source_set("v8_unittests_sources") {
     "api/api-icu-unittest.cc",
     "api/context-unittest.cc",
     "api/deserialize-unittest.cc",
+    "api/dictionary-template-unittest.cc",
     "api/exception-unittest.cc",
     "api/gc-callbacks-unittest.cc",
     "api/interceptor-unittest.cc",
     "api/isolate-unittest.cc",
     "api/remote-object-unittest.cc",
     "api/resource-constraints-unittest.cc",
+    "api/v8-array-unittest.cc",
     "api/v8-maybe-unittest.cc",
     "api/v8-object-unittest.cc",
     "api/v8-script-unittest.cc",
+    "api/v8-value-unittest.cc",
     "base/address-region-unittest.cc",
     "base/atomic-utils-unittest.cc",
     "base/atomicops-unittest.cc",
@@ -273,6 +281,7 @@ v8_source_set("v8_unittests_sources") {
     "base/cpu-unittest.cc",
     "base/division-by-constant-unittest.cc",
     "base/double-unittest.cc",
+    "base/doubly-threaded-list-unittest.cc",
     "base/dtoa-unittest.cc",
     "base/fast-dtoa-unittest.cc",
     "base/fixed-dtoa-unittest.cc",
@@ -320,6 +329,8 @@ v8_source_set("v8_unittests_sources") {
     "execution/thread-termination-unittest.cc",
     "execution/threads-unittest.cc",
     "flags/flag-definitions-unittest.cc",
+    "fuzztest.cc",
+    "fuzztest.h",
     "gay-fixed.cc",
     "gay-fixed.h",
     "gay-precision.cc",
@@ -347,7 +358,6 @@ v8_source_set("v8_unittests_sources") {
     "heap/heap-utils.h",
     "heap/index-generator-unittest.cc",
     "heap/iterators-unittest.cc",
-    "heap/lab-unittest.cc",
     "heap/list-unittest.cc",
     "heap/local-factory-unittest.cc",
     "heap/local-handles-unittest.cc",
@@ -358,12 +368,13 @@ v8_source_set("v8_unittests_sources") {
     "heap/object-stats-unittest.cc",
     "heap/page-promotion-unittest.cc",
     "heap/persistent-handles-unittest.cc",
+    "heap/pool-unittest.cc",
     "heap/progressbar-unittest.cc",
     "heap/safepoint-unittest.cc",
     "heap/shared-heap-unittest.cc",
     "heap/slot-set-unittest.cc",
     "heap/spaces-unittest.cc",
-    "heap/unmapper-unittest.cc",
+    "heap/strong-root-allocator-unittest.cc",
     "interpreter/bytecode-array-builder-unittest.cc",
     "interpreter/bytecode-array-iterator-unittest.cc",
     "interpreter/bytecode-array-random-iterator-unittest.cc",
@@ -399,6 +410,9 @@ v8_source_set("v8_unittests_sources") {
     "libsampler/signals-and-mutexes-unittest.cc",
     "logging/counters-unittest.cc",
     "logging/log-unittest.cc",
+    "maglev/maglev-assembler-unittest.cc",
+    "maglev/maglev-test.cc",
+    "maglev/maglev-test.h",
     "maglev/node-type-unittest.cc",
     "numbers/bigint-unittest.cc",
     "numbers/conversions-unittest.cc",
@@ -488,6 +502,8 @@ v8_source_set("v8_unittests_sources") {
       "compiler/backend/instruction-sequence-unittest.cc",
       "compiler/backend/instruction-sequence-unittest.h",
       "compiler/backend/instruction-unittest.cc",
+      "compiler/backend/turboshaft-instruction-selector-unittest.cc",
+      "compiler/backend/turboshaft-instruction-selector-unittest.h",
       "compiler/branch-elimination-unittest.cc",
       "compiler/bytecode-analysis-unittest.cc",
       "compiler/checkpoint-elimination-unittest.cc",
@@ -535,7 +551,6 @@ v8_source_set("v8_unittests_sources") {
       "compiler/persistent-unittest.cc",
       "compiler/redundancy-elimination-unittest.cc",
       "compiler/regalloc/live-range-unittest.cc",
-      "compiler/regalloc/mid-tier-register-allocator-unittest.cc",
       "compiler/regalloc/move-optimizer-unittest.cc",
       "compiler/regalloc/register-allocator-unittest.cc",
       "compiler/run-bytecode-graph-builder-unittest.cc",
@@ -554,8 +569,13 @@ v8_source_set("v8_unittests_sources") {
       "compiler/simplified-operator-unittest.cc",
       "compiler/sloppy-equality-unittest.cc",
       "compiler/state-values-utils-unittest.cc",
-      "compiler/turboshaft/doubly-threaded-list-unittest.cc",
+      "compiler/turboshaft/control-flow-unittest.cc",
+      "compiler/turboshaft/late-load-elimination-reducer-unittest.cc",
+      "compiler/turboshaft/opmask-unittest.cc",
+      "compiler/turboshaft/reducer-test.h",
+      "compiler/turboshaft/simplified-lowering-reducer-unittest.cc",
       "compiler/turboshaft/snapshot-table-unittest.cc",
+      "compiler/turboshaft/store-store-elimination-reducer-unittest.cc",
       "compiler/turboshaft/turboshaft-typer-unittest.cc",
       "compiler/turboshaft/turboshaft-types-unittest.cc",
       "compiler/typed-optimization-unittest.cc",
@@ -652,10 +672,13 @@ v8_source_set("v8_unittests_sources") {
       "execution/pointer-auth-arm64-unittest.cc",
     ]
     if (v8_enable_turbofan) {
-      sources += [ "compiler/arm64/instruction-selector-arm64-unittest.cc" ]
+      sources += [
+        "compiler/arm64/instruction-selector-arm64-unittest.cc",
+        "compiler/arm64/turboshaft-instruction-selector-arm64-unittest.cc",
+      ]
     }
     if (v8_enable_webassembly && current_cpu == "arm64") {
-      sources += [ "wasm/trap-handler-x64-arm64-unittest.cc" ]
+      sources += [ "wasm/trap-handler-native-unittest.cc" ]
     }
   } else if (v8_current_cpu == "x86") {
     sources += [
@@ -681,6 +704,9 @@ v8_source_set("v8_unittests_sources") {
     if (v8_enable_turbofan) {
       sources += [ "compiler/riscv64/instruction-selector-riscv64-unittest.cc" ]
     }
+    if (v8_enable_webassembly && current_cpu == "riscv64") {
+      sources += [ "wasm/trap-handler-native-unittest.cc" ]
+    }
   } else if (v8_current_cpu == "riscv32") {
     sources += [
       "assembler/disasm-riscv-unittest.cc",
@@ -699,7 +725,7 @@ v8_source_set("v8_unittests_sources") {
       sources += [ "compiler/x64/instruction-selector-x64-unittest.cc" ]
     }
     if (v8_enable_webassembly) {
-      sources += [ "wasm/trap-handler-x64-arm64-unittest.cc" ]
+      sources += [ "wasm/trap-handler-native-unittest.cc" ]
     }
   } else if (v8_current_cpu == "ppc" || v8_current_cpu == "ppc64") {
     sources += [
@@ -725,6 +751,9 @@ v8_source_set("v8_unittests_sources") {
     if (v8_enable_turbofan) {
       sources += [ "compiler/loong64/instruction-selector-loong64-unittest.cc" ]
     }
+    if (v8_enable_webassembly && current_cpu == "loong64") {
+      sources += [ "wasm/trap-handler-native-unittest.cc" ]
+    }
   }
 
   if (v8_enable_webassembly) {
@@ -736,10 +765,11 @@ v8_source_set("v8_unittests_sources") {
       sources += [ "wasm/trap-handler-win-unittest.cc" ]
     }
 
-    # Include this test only on arm64 simulator builds on x64 on Linux, Mac and
+    # Include this test only on simulator builds on x64 on Linux, Mac and
     # Windows.
-    if (current_cpu == "x64" && v8_current_cpu == "arm64" &&
-        (is_linux || is_mac || is_win)) {
+    if (current_cpu == "x64" &&
+        (v8_current_cpu == "arm64" || v8_current_cpu == "loong64" ||
+         v8_current_cpu == "riscv64") && (is_linux || is_mac || is_win)) {
       sources += [ "wasm/trap-handler-simulator-unittest.cc" ]
     }
   }
@@ -763,6 +793,29 @@ v8_source_set("v8_unittests_sources") {
     "//testing/gmock",
     "//testing/gtest",
   ]
+
+  if (v8_enable_fuzztest) {
+    # TODO(https://crbug.com/1500944): Drop this once FuzzTest fixed these
+    # warnings.
+    remove_configs = [ v8_path_prefix + ":strict_warnings" ]
+
+    sources += [
+      "fuzztest-adapter.h",
+      "fuzztest-init-adapter.h",
+    ]
+
+    deps += [
+      "//third_party/abseil-cpp:absl_full",
+      "//third_party/fuzztest:fuzztest",
+    ]
+
+    if (!is_win) {
+      # TODO(https://crbug.com/40941204): Using jsoncpp doesn't work on
+      # Windows.
+      sources += [ "json/json-unittest.cc" ]
+      deps += [ "//third_party/jsoncpp:jsoncpp" ]
+    }
+  }
 
   if (v8_enable_webassembly) {
     deps += [ "../..:wasm_test_common" ]
@@ -825,4 +878,27 @@ v8_executable("generate-bytecode-expectations") {
   ]
 
   data = [ "interpreter/bytecode_expectations/" ]
+}
+
+if (v8_enable_fuzztest && use_centipede) {
+  # Create all fuzzer wrappers in the fuzztests/ subdirectory. Note that
+  # the contents of the directory are calculated dynamically. Therefore
+  # this action purges the directory when run and we can't depent on
+  # any specific files in this directory in any dependent ninja targets.
+  action("v8_gen_fuzztest_configs") {
+    testonly = true
+    script = "gen_fuzztest_configs.py"
+    outputs = [ "$root_out_dir/fuzztests/fuzztests.stamp" ]
+
+    deps = [
+      ":v8_unittests",
+      "//third_party/fuzztest:centipede",
+    ]
+  }
+
+  # Placeholder target used on the bots.
+  group("v8_fuzztests") {
+    testonly = true
+    deps = [ ":v8_gen_fuzztest_configs" ]
+  }
 }

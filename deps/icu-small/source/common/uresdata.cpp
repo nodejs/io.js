@@ -571,7 +571,7 @@ const uint8_t *ResourceDataValue::getBinary(int32_t &length, UErrorCode &errorCo
 
 ResourceArray ResourceDataValue::getArray(UErrorCode &errorCode) const {
     if(U_FAILURE(errorCode)) {
-        return ResourceArray();
+        return {};
     }
     const uint16_t *items16 = nullptr;
     const Resource *items32 = nullptr;
@@ -590,14 +590,14 @@ ResourceArray ResourceDataValue::getArray(UErrorCode &errorCode) const {
         break;
     default:
         errorCode = U_RESOURCE_TYPE_MISMATCH;
-        return ResourceArray();
+        return {};
     }
     return ResourceArray(items16, items32, length, fTraceInfo);
 }
 
 ResourceTable ResourceDataValue::getTable(UErrorCode &errorCode) const {
     if(U_FAILURE(errorCode)) {
-        return ResourceTable();
+        return {};
     }
     const uint16_t *keys16 = nullptr;
     const int32_t *keys32 = nullptr;
@@ -627,7 +627,7 @@ ResourceTable ResourceDataValue::getTable(UErrorCode &errorCode) const {
         break;
     default:
         errorCode = U_RESOURCE_TYPE_MISMATCH;
-        return ResourceTable();
+        return {};
     }
     return ResourceTable(keys16, keys32, items16, items32, length, fTraceInfo);
 }

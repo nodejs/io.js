@@ -75,8 +75,6 @@ TEST(ExternalString_ExternalBackingStoreSizeDecreases) {
   Heap* heap = reinterpret_cast<Isolate*>(isolate)->heap();
   ExternalBackingStoreType type = ExternalBackingStoreType::kExternalString;
 
-  i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
-
   const size_t backing_store_before =
       heap->old_space()->ExternalBackingStoreBytes(type);
 
@@ -87,11 +85,15 @@ TEST(ExternalString_ExternalBackingStoreSizeDecreases) {
     USE(es);
   }
 
-  heap::InvokeAtomicMajorGC(heap);
+  {
+    // We need to invoke GC without stack, otherwise some objects may not be
+    // reclaimed because of conservative stack scanning.
+    i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
+    heap::InvokeAtomicMajorGC(heap);
+  }
 
   const size_t backing_store_after =
       heap->old_space()->ExternalBackingStoreBytes(type);
-
   CHECK_EQ(0, backing_store_after - backing_store_before);
 }
 
@@ -107,8 +109,6 @@ TEST(ExternalString_ExternalBackingStoreSizeIncreasesMarkCompact) {
   heap::AbandonCurrentlyFreeMemory(heap->old_space());
   ExternalBackingStoreType type = ExternalBackingStoreType::kExternalString;
 
-  i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
-
   const size_t backing_store_before =
       heap->old_space()->ExternalBackingStoreBytes(type);
 
@@ -118,7 +118,7 @@ TEST(ExternalString_ExternalBackingStoreSizeIncreasesMarkCompact) {
         isolate, new TestOneByteResource(i::StrDup(TEST_STR))).ToLocalChecked();
     v8::internal::Handle<v8::internal::String> esh = v8::Utils::OpenHandle(*es);
 
-    Page* page_before_gc = Page::FromHeapObject(*esh);
+    PageMetadata* page_before_gc = PageMetadata::FromHeapObject(*esh);
     heap::ForceEvacuationCandidate(page_before_gc);
 
     heap::InvokeMajorGC(heap);
@@ -128,7 +128,13 @@ TEST(ExternalString_ExternalBackingStoreSizeIncreasesMarkCompact) {
     CHECK_EQ(es->Length(), backing_store_after - backing_store_before);
   }
 
-  heap::InvokeAtomicMajorGC(heap);
+  {
+    // We need to invoke GC without stack, otherwise some objects may not be
+    // reclaimed because of conservative stack scanning.
+    i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
+    heap::InvokeAtomicMajorGC(heap);
+  }
+
   const size_t backing_store_after =
       heap->old_space()->ExternalBackingStoreBytes(type);
   CHECK_EQ(0, backing_store_after - backing_store_before);
@@ -143,8 +149,6 @@ TEST(ExternalString_ExternalBackingStoreSizeIncreasesAfterExternalization) {
   Heap* heap = reinterpret_cast<Isolate*>(isolate)->heap();
   ExternalBackingStoreType type = ExternalBackingStoreType::kExternalString;
   size_t old_backing_store_before = 0, new_backing_store_before = 0;
-
-  i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
 
   {
     v8::HandleScope handle_scope(isolate);
@@ -172,7 +176,13 @@ TEST(ExternalString_ExternalBackingStoreSizeIncreasesAfterExternalization) {
                                 old_backing_store_before);
   }
 
-  heap::InvokeAtomicMajorGC(heap);
+  {
+    // We need to invoke GC without stack, otherwise some objects may not be
+    // reclaimed because of conservative stack scanning.
+    i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
+    heap::InvokeAtomicMajorGC(heap);
+  }
+
   const size_t backing_store_after =
       heap->old_space()->ExternalBackingStoreBytes(type);
   CHECK_EQ(0, backing_store_after - old_backing_store_before);

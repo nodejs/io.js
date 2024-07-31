@@ -116,8 +116,8 @@ bool UsePosition::HintRegister(int* register_code) const {
       return true;
     }
     case UsePositionHintType::kPhi: {
-      TopTierRegisterAllocationData::PhiMapValue* phi =
-          reinterpret_cast<TopTierRegisterAllocationData::PhiMapValue*>(hint_);
+      RegisterAllocationData::PhiMapValue* phi =
+          reinterpret_cast<RegisterAllocationData::PhiMapValue*>(hint_);
       int assigned_register = phi->assigned_register();
       if (assigned_register == kUnassignedRegister) return false;
       *register_code = assigned_register;
@@ -505,7 +505,7 @@ void LiveRange::ConvertUsesToOperand(const InstructionOperand& op,
         break;
       case UsePositionType::kRequiresRegister:
         DCHECK(op.IsRegister() || op.IsFPRegister());
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case UsePositionType::kRegisterOrSlot:
       case UsePositionType::kRegisterOrSlotOrConstant:
         InstructionOperand::ReplaceWith(pos->operand(), &op);
@@ -584,6 +584,12 @@ bool LiveRange::Covers(LifetimePosition position) {
       break;
     }
     ++interval;
+  }
+  if (!covers && interval > intervals_.begin()) {
+    // To ensure that we advance {current_interval_} below, move back to the
+    // last interval starting before position.
+    interval--;
+    DCHECK_LE(interval->start(), position);
   }
   AdvanceLastProcessedMarker(interval, position);
   return covers;
@@ -697,7 +703,7 @@ void TopLevelLiveRange::RecordSpillLocation(Zone* zone, int gap_index,
       gap_index, operand, spill_move_insertion_locations_);
 }
 
-void TopLevelLiveRange::CommitSpillMoves(TopTierRegisterAllocationData* data,
+void TopLevelLiveRange::CommitSpillMoves(RegisterAllocationData* data,
                                          const InstructionOperand& op) {
   DCHECK_IMPLIES(op.IsConstant(),
                  GetSpillMoveInsertionLocations(data) == nullptr);
@@ -719,7 +725,7 @@ void TopLevelLiveRange::CommitSpillMoves(TopTierRegisterAllocationData* data,
   }
 }
 
-void TopLevelLiveRange::FilterSpillMoves(TopTierRegisterAllocationData* data,
+void TopLevelLiveRange::FilterSpillMoves(RegisterAllocationData* data,
                                          const InstructionOperand& op) {
   DCHECK_IMPLIES(op.IsConstant(),
                  GetSpillMoveInsertionLocations(data) == nullptr);
@@ -1138,8 +1144,9 @@ void SpillRange::Print() const {
   os << "}" << std::endl;
 }
 
-TopTierRegisterAllocationData::PhiMapValue::PhiMapValue(
-    PhiInstruction* phi, const InstructionBlock* block, Zone* zone)
+RegisterAllocationData::PhiMapValue::PhiMapValue(PhiInstruction* phi,
+                                                 const InstructionBlock* block,
+                                                 Zone* zone)
     : phi_(phi),
       block_(block),
       incoming_operands_(zone),
@@ -1147,24 +1154,23 @@ TopTierRegisterAllocationData::PhiMapValue::PhiMapValue(
   incoming_operands_.reserve(phi->operands().size());
 }
 
-void TopTierRegisterAllocationData::PhiMapValue::AddOperand(
+void RegisterAllocationData::PhiMapValue::AddOperand(
     InstructionOperand* operand) {
   incoming_operands_.push_back(operand);
 }
 
-void TopTierRegisterAllocationData::PhiMapValue::CommitAssignment(
+void RegisterAllocationData::PhiMapValue::CommitAssignment(
     const InstructionOperand& assigned) {
   for (InstructionOperand* operand : incoming_operands_) {
     InstructionOperand::ReplaceWith(operand, &assigned);
   }
 }
 
-TopTierRegisterAllocationData::TopTierRegisterAllocationData(
+RegisterAllocationData::RegisterAllocationData(
     const RegisterConfiguration* config, Zone* zone, Frame* frame,
     InstructionSequence* code, TickCounter* tick_counter,
     const char* debug_name)
-    : RegisterAllocationData(Type::kTopTier),
-      allocation_zone_(zone),
+    : allocation_zone_(zone),
       frame_(frame),
       code_(code),
       debug_name_(debug_name),
@@ -1230,7 +1236,7 @@ TopTierRegisterAllocationData::TopTierRegisterAllocationData(
   this->frame()->SetAllocatedDoubleRegisters(assigned_double_registers_);
 }
 
-MoveOperands* TopTierRegisterAllocationData::AddGapMove(
+MoveOperands* RegisterAllocationData::AddGapMove(
     int index, Instruction::GapPosition position,
     const InstructionOperand& from, const InstructionOperand& to) {
   Instruction* instr = code()->InstructionAt(index);
@@ -1238,30 +1244,29 @@ MoveOperands* TopTierRegisterAllocationData::AddGapMove(
   return moves->AddMove(from, to);
 }
 
-MachineRepresentation TopTierRegisterAllocationData::RepresentationFor(
+MachineRepresentation RegisterAllocationData::RepresentationFor(
     int virtual_register) {
   DCHECK_LT(virtual_register, code()->VirtualRegisterCount());
   return code()->GetRepresentation(virtual_register);
 }
 
-TopLevelLiveRange* TopTierRegisterAllocationData::GetLiveRangeFor(int index) {
+TopLevelLiveRange* RegisterAllocationData::GetLiveRangeFor(int index) {
   TopLevelLiveRange* result = live_ranges()[index];
   DCHECK_NOT_NULL(result);
   DCHECK_EQ(live_ranges()[index]->vreg(), index);
   return result;
 }
 
-TopLevelLiveRange* TopTierRegisterAllocationData::NewLiveRange(
+TopLevelLiveRange* RegisterAllocationData::NewLiveRange(
     int index, MachineRepresentation rep) {
   return allocation_zone()->New<TopLevelLiveRange>(index, rep,
                                                    allocation_zone());
 }
 
-TopTierRegisterAllocationData::PhiMapValue*
-TopTierRegisterAllocationData::InitializePhiMap(const InstructionBlock* block,
-                                                PhiInstruction* phi) {
-  TopTierRegisterAllocationData::PhiMapValue* map_value =
-      allocation_zone()->New<TopTierRegisterAllocationData::PhiMapValue>(
+RegisterAllocationData::PhiMapValue* RegisterAllocationData::InitializePhiMap(
+    const InstructionBlock* block, PhiInstruction* phi) {
+  RegisterAllocationData::PhiMapValue* map_value =
+      allocation_zone()->New<RegisterAllocationData::PhiMapValue>(
           phi, block, allocation_zone());
   auto res =
       phi_map_.insert(std::make_pair(phi->virtual_register(), map_value));
@@ -1270,19 +1275,19 @@ TopTierRegisterAllocationData::InitializePhiMap(const InstructionBlock* block,
   return map_value;
 }
 
-TopTierRegisterAllocationData::PhiMapValue*
-TopTierRegisterAllocationData::GetPhiMapValueFor(int virtual_register) {
+RegisterAllocationData::PhiMapValue* RegisterAllocationData::GetPhiMapValueFor(
+    int virtual_register) {
   auto it = phi_map_.find(virtual_register);
   DCHECK(it != phi_map_.end());
   return it->second;
 }
 
-TopTierRegisterAllocationData::PhiMapValue*
-TopTierRegisterAllocationData::GetPhiMapValueFor(TopLevelLiveRange* top_range) {
+RegisterAllocationData::PhiMapValue* RegisterAllocationData::GetPhiMapValueFor(
+    TopLevelLiveRange* top_range) {
   return GetPhiMapValueFor(top_range->vreg());
 }
 
-bool TopTierRegisterAllocationData::ExistsUseWithoutDefinition() {
+bool RegisterAllocationData::ExistsUseWithoutDefinition() {
   bool found = false;
   for (int operand_index : *live_in_sets()[0]) {
     found = true;
@@ -1309,7 +1314,7 @@ bool TopTierRegisterAllocationData::ExistsUseWithoutDefinition() {
 // path, it will be as one of the inputs of a phi. In that case, the value
 // will be transferred via a move in the Gap::END's of the last instruction
 // of a deferred block.
-bool TopTierRegisterAllocationData::RangesDefinedInDeferredStayInDeferred() {
+bool RegisterAllocationData::RangesDefinedInDeferredStayInDeferred() {
   const size_t live_ranges_size = live_ranges().size();
   for (const TopLevelLiveRange* range : live_ranges()) {
     CHECK_EQ(live_ranges_size,
@@ -1334,7 +1339,7 @@ bool TopTierRegisterAllocationData::RangesDefinedInDeferredStayInDeferred() {
   return true;
 }
 
-SpillRange* TopTierRegisterAllocationData::AssignSpillRangeToLiveRange(
+SpillRange* RegisterAllocationData::AssignSpillRangeToLiveRange(
     TopLevelLiveRange* range, SpillMode spill_mode) {
   using SpillType = TopLevelLiveRange::SpillType;
   DCHECK(!range->HasSpillOperand());
@@ -1353,8 +1358,8 @@ SpillRange* TopTierRegisterAllocationData::AssignSpillRangeToLiveRange(
   return spill_range;
 }
 
-void TopTierRegisterAllocationData::MarkFixedUse(MachineRepresentation rep,
-                                                 int index) {
+void RegisterAllocationData::MarkFixedUse(MachineRepresentation rep,
+                                          int index) {
   switch (rep) {
     case MachineRepresentation::kFloat32:
     case MachineRepresentation::kSimd128:
@@ -1388,8 +1393,7 @@ void TopTierRegisterAllocationData::MarkFixedUse(MachineRepresentation rep,
   }
 }
 
-bool TopTierRegisterAllocationData::HasFixedUse(MachineRepresentation rep,
-                                                int index) {
+bool RegisterAllocationData::HasFixedUse(MachineRepresentation rep, int index) {
   switch (rep) {
     case MachineRepresentation::kFloat32:
     case MachineRepresentation::kSimd128:
@@ -1423,8 +1427,8 @@ bool TopTierRegisterAllocationData::HasFixedUse(MachineRepresentation rep,
   }
 }
 
-void TopTierRegisterAllocationData::MarkAllocated(MachineRepresentation rep,
-                                                  int index) {
+void RegisterAllocationData::MarkAllocated(MachineRepresentation rep,
+                                           int index) {
   switch (rep) {
     case MachineRepresentation::kFloat32:
     case MachineRepresentation::kSimd128:
@@ -1458,8 +1462,7 @@ void TopTierRegisterAllocationData::MarkAllocated(MachineRepresentation rep,
   }
 }
 
-bool TopTierRegisterAllocationData::IsBlockBoundary(
-    LifetimePosition pos) const {
+bool RegisterAllocationData::IsBlockBoundary(LifetimePosition pos) const {
   return pos.IsFullStart() &&
          (static_cast<size_t>(pos.ToInstructionIndex()) ==
               code()->instructions().size() ||
@@ -1467,7 +1470,7 @@ bool TopTierRegisterAllocationData::IsBlockBoundary(
               pos.ToInstructionIndex());
 }
 
-ConstraintBuilder::ConstraintBuilder(TopTierRegisterAllocationData* data)
+ConstraintBuilder::ConstraintBuilder(RegisterAllocationData* data)
     : data_(data) {}
 
 InstructionOperand* ConstraintBuilder::AllocateFixed(
@@ -1704,7 +1707,7 @@ void ConstraintBuilder::MeetConstraintsBefore(int instr_index) {
     DCHECK_NOT_NULL(gap_move);
     if (code()->IsReference(input_vreg) && !code()->IsReference(output_vreg)) {
       if (second->HasReferenceMap()) {
-        TopTierRegisterAllocationData::DelayedReference delayed_reference = {
+        RegisterAllocationData::DelayedReference delayed_reference = {
             second->reference_map(), &gap_move->source()};
         data()->delayed_references().push_back(delayed_reference);
       }
@@ -1723,7 +1726,7 @@ void ConstraintBuilder::ResolvePhis() {
 void ConstraintBuilder::ResolvePhis(const InstructionBlock* block) {
   for (PhiInstruction* phi : block->phis()) {
     int phi_vreg = phi->virtual_register();
-    TopTierRegisterAllocationData::PhiMapValue* map_value =
+    RegisterAllocationData::PhiMapValue* map_value =
         data()->InitializePhiMap(block, phi);
     InstructionOperand& output = phi->output();
     // Map the destination operands, so the commitment phase can find them.
@@ -1749,12 +1752,12 @@ void ConstraintBuilder::ResolvePhis(const InstructionBlock* block) {
   }
 }
 
-LiveRangeBuilder::LiveRangeBuilder(TopTierRegisterAllocationData* data,
+LiveRangeBuilder::LiveRangeBuilder(RegisterAllocationData* data,
                                    Zone* local_zone)
     : data_(data), phi_hints_(local_zone) {}
 
 SparseBitVector* LiveRangeBuilder::ComputeLiveOut(
-    const InstructionBlock* block, TopTierRegisterAllocationData* data) {
+    const InstructionBlock* block, RegisterAllocationData* data) {
   size_t block_index = block->rpo_number().ToSize();
   SparseBitVector* live_out = data->live_out_sets()[block_index];
   if (live_out == nullptr) {
@@ -1807,15 +1810,15 @@ int LiveRangeBuilder::FixedFPLiveRangeID(int index, MachineRepresentation rep) {
     case MachineRepresentation::kSimd256:
       result -=
           kNumberOfFixedRangesPerRegister * config()->num_simd128_registers();
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case MachineRepresentation::kSimd128:
       result -=
           kNumberOfFixedRangesPerRegister * config()->num_float_registers();
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case MachineRepresentation::kFloat32:
       result -=
           kNumberOfFixedRangesPerRegister * config()->num_double_registers();
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case MachineRepresentation::kFloat64:
       result -=
           kNumberOfFixedRangesPerRegister * config()->num_general_registers();
@@ -2673,7 +2676,7 @@ void LiveRangeBundle::MergeSpillRangesAndClear() {
   intervals_.clear();
 }
 
-RegisterAllocator::RegisterAllocator(TopTierRegisterAllocationData* data,
+RegisterAllocator::RegisterAllocator(RegisterAllocationData* data,
                                      RegisterKind kind)
     : data_(data),
       mode_(kind),
@@ -2901,7 +2904,7 @@ const char* RegisterAllocator::RegisterName(int register_code) const {
   }
 }
 
-LinearScanAllocator::LinearScanAllocator(TopTierRegisterAllocationData* data,
+LinearScanAllocator::LinearScanAllocator(RegisterAllocationData* data,
                                          RegisterKind kind, Zone* local_zone)
     : RegisterAllocator(data, kind),
       unhandled_live_ranges_(local_zone),
@@ -4443,7 +4446,7 @@ bool LinearScanAllocator::TryReuseSpillForPhi(TopLevelLiveRange* range) {
   DCHECK(!range->HasSpillOperand());
   // Check how many operands belong to the same bundle as the output.
   LiveRangeBundle* out_bundle = range->get_bundle();
-  TopTierRegisterAllocationData::PhiMapValue* phi_map_value =
+  RegisterAllocationData::PhiMapValue* phi_map_value =
       data()->GetPhiMapValueFor(range);
   const PhiInstruction* phi = phi_map_value->phi();
   const InstructionBlock* block = phi_map_value->block();
@@ -4555,13 +4558,11 @@ void LinearScanAllocator::SpillBetweenUntil(LiveRange* range,
   }
 }
 
-OperandAssigner::OperandAssigner(TopTierRegisterAllocationData* data)
-    : data_(data) {}
+OperandAssigner::OperandAssigner(RegisterAllocationData* data) : data_(data) {}
 
 void OperandAssigner::DecideSpillingMode() {
   for (auto range : data()->live_ranges()) {
     data()->tick_counter()->TickAndMaybeEnterSafepoint();
-    int max_blocks = data()->code()->InstructionBlockCount();
     DCHECK_NOT_NULL(range);
     if (range->IsSpilledOnlyInDeferredBlocks(data())) {
       // If the range is spilled only in deferred blocks and starts in
@@ -4578,8 +4579,7 @@ void OperandAssigner::DecideSpillingMode() {
       } else {
         TRACE("Live range %d is spilled deferred code only but alive outside\n",
               range->vreg());
-        range->TransitionRangeToDeferredSpill(data()->allocation_zone(),
-                                              max_blocks);
+        range->TransitionRangeToDeferredSpill(data()->allocation_zone());
       }
     }
   }
@@ -4710,8 +4710,7 @@ void OperandAssigner::CommitAssignment() {
   }
 }
 
-ReferenceMapPopulator::ReferenceMapPopulator(
-    TopTierRegisterAllocationData* data)
+ReferenceMapPopulator::ReferenceMapPopulator(RegisterAllocationData* data)
     : data_(data) {}
 
 bool ReferenceMapPopulator::SafePointsAreInOrder() const {
@@ -4726,7 +4725,7 @@ bool ReferenceMapPopulator::SafePointsAreInOrder() const {
 void ReferenceMapPopulator::PopulateReferenceMaps() {
   DCHECK(SafePointsAreInOrder());
   // Map all delayed references.
-  for (TopTierRegisterAllocationData::DelayedReference& delayed_reference :
+  for (RegisterAllocationData::DelayedReference& delayed_reference :
        data()->delayed_references()) {
     delayed_reference.map->RecordReference(
         AllocatedOperand::cast(*delayed_reference.operand));
@@ -4857,7 +4856,7 @@ void ReferenceMapPopulator::PopulateReferenceMaps() {
   }
 }
 
-LiveRangeConnector::LiveRangeConnector(TopTierRegisterAllocationData* data)
+LiveRangeConnector::LiveRangeConnector(RegisterAllocationData* data)
     : data_(data) {}
 
 bool LiveRangeConnector::CanEagerlyResolveControlFlow(

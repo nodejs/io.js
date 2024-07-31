@@ -1,7 +1,7 @@
 // mixin providing the loadVirtual method
 const mapWorkspaces = require('@npmcli/map-workspaces')
 
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 
 const nameFromFolder = require('@npmcli/name-from-folder')
 const consistentResolve = require('../consistent-resolve.js')
@@ -283,7 +283,7 @@ module.exports = cls => class VirtualLoader extends cls {
     return node
   }
 
-  #loadLink (location, targetLoc, target, meta) {
+  #loadLink (location, targetLoc, target) {
     const path = resolve(this.path, location)
     const link = new Link({
       installLinks: this.installLinks,

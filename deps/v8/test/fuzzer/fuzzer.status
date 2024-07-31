@@ -34,4 +34,10 @@
   'wasm/regress-1464231.wasm': [SKIP],
 }],  # no_simd_hardware == True
 
+##############################################################################
+['official_build', {
+  # Random Wasm module generation is not available on official builds.
+  'wasm_compile/*': [FAIL],
+}],  # 'official_build'
+
 ]

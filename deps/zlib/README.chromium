@@ -1,8 +1,8 @@
 Name: zlib
 Short Name: zlib
 URL: http://zlib.net/
-Version: 1.2.13
-CPEPrefix: cpe:/a:zlib:zlib:1.2.13
+Version: 1.3.0.1
+CPEPrefix: cpe:/a:zlib:zlib:1.3.0.1
 Security Critical: yes
 Shipped: yes
 License: Zlib

@@ -1,12 +1,10 @@
-const Fetcher = require('./fetcher.js')
-const FileFetcher = require('./file.js')
-const _tarballFromResolved = Symbol.for('pacote.Fetcher._tarballFromResolved')
-const pacoteVersion = require('../package.json').version
 const fetch = require('npm-registry-fetch')
 const { Minipass } = require('minipass')
+const Fetcher = require('./fetcher.js')
+const FileFetcher = require('./file.js')
+const _ = require('./util/protected.js')
+const pacoteVersion = require('../package.json').version
 
-const _cacheFetches = Symbol.for('pacote.Fetcher._cacheFetches')
-const _headers = Symbol('_headers')
 class RemoteFetcher extends Fetcher {
   constructor (spec, opts) {
     super(spec, opts)
@@ -25,17 +23,17 @@ class RemoteFetcher extends Fetcher {
 
   // Don't need to cache tarball fetches in pacote, because make-fetch-happen
   // will write into cacache anyway.
-  get [_cacheFetches] () {
+  get [_.cacheFetches] () {
     return false
   }
 
-  [_tarballFromResolved] () {
+  [_.tarballFromResolved] () {
     const stream = new Minipass()
     stream.hasIntegrityEmitter = true
 
     const fetchOpts = {
       ...this.opts,
-      headers: this[_headers](),
+      headers: this.#headers(),
       spec: this.spec,
       integrity: this.integrity,
       algorithms: [this.pickIntegrityAlgorithm()],
@@ -59,7 +57,7 @@ class RemoteFetcher extends Fetcher {
     return stream
   }
 
-  [_headers] () {
+  #headers () {
     return {
       // npm will override this, but ensure that we always send *something*
       'user-agent': this.opts.userAgent ||

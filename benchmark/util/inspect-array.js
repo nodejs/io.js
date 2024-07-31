@@ -4,7 +4,7 @@ const common = require('../common');
 const util = require('util');
 
 const bench = common.createBenchmark(main, {
-  n: [5e2],
+  n: [5e3],
   len: [1e2, 1e5],
   type: [
     'denseArray',

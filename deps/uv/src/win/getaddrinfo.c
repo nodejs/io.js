@@ -104,13 +104,14 @@ static void uv__getaddrinfo_work(struct uv__work* w) {
  */
 static void uv__getaddrinfo_done(struct uv__work* w, int status) {
   uv_getaddrinfo_t* req;
-  int addrinfo_len = 0;
-  int name_len = 0;
+  size_t addrinfo_len = 0;
+  ssize_t name_len = 0;
   size_t addrinfo_struct_len = ALIGNED_SIZE(sizeof(struct addrinfo));
   struct addrinfoW* addrinfow_ptr;
   struct addrinfo* addrinfo_ptr;
   char* alloc_ptr = NULL;
   char* cur_ptr = NULL;
+  int r;
 
   req = container_of(w, uv_getaddrinfo_t, work_req);
 
@@ -131,19 +132,12 @@ static void uv__getaddrinfo_done(struct uv__work* w, int status) {
       addrinfo_len += addrinfo_struct_len +
           ALIGNED_SIZE(addrinfow_ptr->ai_addrlen);
       if (addrinfow_ptr->ai_canonname != NULL) {
-        name_len = WideCharToMultiByte(CP_UTF8,
-                                       0,
-                                       addrinfow_ptr->ai_canonname,
-                                       -1,
-                                       NULL,
-                                       0,
-                                       NULL,
-                                       NULL);
-        if (name_len == 0) {
-          req->retcode = uv_translate_sys_error(GetLastError());
+        name_len = uv_utf16_length_as_wtf8(addrinfow_ptr->ai_canonname, -1);
+        if (name_len < 0) {
+          req->retcode = name_len;
           goto complete;
         }
-        addrinfo_len += ALIGNED_SIZE(name_len);
+        addrinfo_len += ALIGNED_SIZE(name_len + 1);
       }
       addrinfow_ptr = addrinfow_ptr->ai_next;
     }
@@ -182,27 +176,14 @@ static void uv__getaddrinfo_done(struct uv__work* w, int status) {
 
         /* convert canonical name to UTF-8 */
         if (addrinfow_ptr->ai_canonname != NULL) {
-          name_len = WideCharToMultiByte(CP_UTF8,
-                                         0,
-                                         addrinfow_ptr->ai_canonname,
-                                         -1,
-                                         NULL,
-                                         0,
-                                         NULL,
-                                         NULL);
-          assert(name_len > 0);
-          assert(cur_ptr + name_len <= alloc_ptr + addrinfo_len);
-          name_len = WideCharToMultiByte(CP_UTF8,
-                                         0,
-                                         addrinfow_ptr->ai_canonname,
-                                         -1,
-                                         cur_ptr,
-                                         name_len,
-                                         NULL,
-                                         NULL);
-          assert(name_len > 0);
+          name_len = alloc_ptr + addrinfo_len - cur_ptr;
+          r = uv__copy_utf16_to_utf8(addrinfow_ptr->ai_canonname,
+                                     -1,
+                                     cur_ptr,
+                                     (size_t*)&name_len);
+          assert(r == 0);
           addrinfo_ptr->ai_canonname = cur_ptr;
-          cur_ptr += ALIGNED_SIZE(name_len);
+          cur_ptr += ALIGNED_SIZE(name_len + 1);
         }
         assert(cur_ptr <= alloc_ptr + addrinfo_len);
 
@@ -261,12 +242,11 @@ int uv_getaddrinfo(uv_loop_t* loop,
                    const char* service,
                    const struct addrinfo* hints) {
   char hostname_ascii[256];
-  int nodesize = 0;
-  int servicesize = 0;
-  int hintssize = 0;
+  size_t nodesize = 0;
+  size_t servicesize = 0;
+  size_t hintssize = 0;
   char* alloc_ptr = NULL;
-  int err;
-  long rc;
+  ssize_t rc;
 
   if (req == NULL || (node == NULL && service == NULL)) {
     return UV_EINVAL;
@@ -286,56 +266,36 @@ int uv_getaddrinfo(uv_loop_t* loop,
                           hostname_ascii + sizeof(hostname_ascii));
     if (rc < 0)
       return rc;
-    nodesize = ALIGNED_SIZE(MultiByteToWideChar(CP_UTF8, 0, hostname_ascii,
-                                                -1, NULL, 0) * sizeof(WCHAR));
-    if (nodesize == 0) {
-      err = GetLastError();
-      goto error;
-    }
+    nodesize = strlen(hostname_ascii) + 1;
     node = hostname_ascii;
   }
 
   if (service != NULL) {
-    servicesize = ALIGNED_SIZE(MultiByteToWideChar(CP_UTF8,
-                                                   0,
-                                                   service,
-                                                   -1,
-                                                   NULL,
-                                                   0) *
-                               sizeof(WCHAR));
-    if (servicesize == 0) {
-      err = GetLastError();
-      goto error;
-    }
+    rc = uv_wtf8_length_as_utf16(service);
+    if (rc < 0)
+       return rc;
+    servicesize = rc;
   }
   if (hints != NULL) {
     hintssize = ALIGNED_SIZE(sizeof(struct addrinfoW));
   }
 
   /* allocate memory for inputs, and partition it as needed */
-  alloc_ptr = (char*)uv__malloc(nodesize + servicesize + hintssize);
-  if (!alloc_ptr) {
-    err = WSAENOBUFS;
-    goto error;
-  }
+  alloc_ptr = uv__malloc(ALIGNED_SIZE(nodesize * sizeof(WCHAR)) +
+                         ALIGNED_SIZE(servicesize * sizeof(WCHAR)) +
+                         hintssize);
+  if (!alloc_ptr)
+    return UV_ENOMEM;
 
   /* save alloc_ptr now so we can free if error */
-  req->alloc = (void*)alloc_ptr;
+  req->alloc = (void*) alloc_ptr;
 
   /* Convert node string to UTF16 into allocated memory and save pointer in the
-   * request. */
+   * request. The node here has been converted to ascii. */
   if (node != NULL) {
-    req->node = (WCHAR*)alloc_ptr;
-    if (MultiByteToWideChar(CP_UTF8,
-                            0,
-                            node,
-                            -1,
-                            (WCHAR*) alloc_ptr,
-                            nodesize / sizeof(WCHAR)) == 0) {
-      err = GetLastError();
-      goto error;
-    }
-    alloc_ptr += nodesize;
+    req->node = (WCHAR*) alloc_ptr;
+    uv_wtf8_to_utf16(node, (WCHAR*) alloc_ptr, nodesize);
+    alloc_ptr += ALIGNED_SIZE(nodesize * sizeof(WCHAR));
   } else {
     req->node = NULL;
   }
@@ -343,24 +303,16 @@ int uv_getaddrinfo(uv_loop_t* loop,
   /* Convert service string to UTF16 into allocated memory and save pointer in
    * the req. */
   if (service != NULL) {
-    req->service = (WCHAR*)alloc_ptr;
-    if (MultiByteToWideChar(CP_UTF8,
-                            0,
-                            service,
-                            -1,
-                            (WCHAR*) alloc_ptr,
-                            servicesize / sizeof(WCHAR)) == 0) {
-      err = GetLastError();
-      goto error;
-    }
-    alloc_ptr += servicesize;
+    req->service = (WCHAR*) alloc_ptr;
+    uv_wtf8_to_utf16(service, (WCHAR*) alloc_ptr, servicesize);
+    alloc_ptr += ALIGNED_SIZE(servicesize * sizeof(WCHAR));
   } else {
     req->service = NULL;
   }
 
   /* copy hints to allocated memory and save pointer in req */
   if (hints != NULL) {
-    req->addrinfow = (struct addrinfoW*)alloc_ptr;
+    req->addrinfow = (struct addrinfoW*) alloc_ptr;
     req->addrinfow->ai_family = hints->ai_family;
     req->addrinfow->ai_socktype = hints->ai_socktype;
     req->addrinfow->ai_protocol = hints->ai_protocol;
@@ -387,19 +339,11 @@ int uv_getaddrinfo(uv_loop_t* loop,
     uv__getaddrinfo_done(&req->work_req, 0);
     return req->retcode;
   }
-
-error:
-  if (req != NULL) {
-    uv__free(req->alloc);
-    req->alloc = NULL;
-  }
-  return uv_translate_sys_error(err);
 }
 
 int uv_if_indextoname(unsigned int ifindex, char* buffer, size_t* size) {
   NET_LUID luid;
   wchar_t wname[NDIS_IF_MAX_STRING_SIZE + 1]; /* Add one for the NUL. */
-  DWORD bufsize;
   int r;
 
   if (buffer == NULL || size == NULL || *size == 0)
@@ -415,31 +359,7 @@ int uv_if_indextoname(unsigned int ifindex, char* buffer, size_t* size) {
   if (r != 0)
     return uv_translate_sys_error(r);
 
-  /* Check how much space we need */
-  bufsize = WideCharToMultiByte(CP_UTF8, 0, wname, -1, NULL, 0, NULL, NULL);
-
-  if (bufsize == 0) {
-    return uv_translate_sys_error(GetLastError());
-  } else if (bufsize > *size) {
-    *size = bufsize;
-    return UV_ENOBUFS;
-  }
-
-  /* Convert to UTF-8 */
-  bufsize = WideCharToMultiByte(CP_UTF8,
-                                0,
-                                wname,
-                                -1,
-                                buffer,
-                                *size,
-                                NULL,
-                                NULL);
-
-  if (bufsize == 0)
-    return uv_translate_sys_error(GetLastError());
-
-  *size = bufsize - 1;
-  return 0;
+  return uv__copy_utf16_to_utf8(wname, -1, buffer, size);
 }
 
 int uv_if_indextoiid(unsigned int ifindex, char* buffer, size_t* size) {

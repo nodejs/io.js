@@ -1,0 +1,5 @@
+# Tests that intentionally violate the project's linting rules (along with a
+# space-separated list of the specific rules they violate) should be specified
+# in this file.
+#
+# (see the original file at data/lint.exceptions for more information)

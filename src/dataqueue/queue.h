@@ -141,6 +141,14 @@ class DataQueue : public MemoryRetainer {
     using Done = bob::Done;
   };
 
+  // A BackpressureListener can be used to receive notifications
+  // when a non-idempotent DataQueue releases entries as they
+  // are consumed.
+  class BackpressureListener {
+   public:
+    virtual void EntryRead(size_t amount) = 0;
+  };
+
   // A DataQueue::Entry represents a logical chunk of data in the queue.
   // The entry may or may not represent memory-resident data. It may
   // or may not be consumable more than once.
@@ -284,6 +292,10 @@ class DataQueue : public MemoryRetainer {
   // If the size of the queue cannot be known, or the cap has not
   // been set, maybeCapRemaining() will return std::nullopt.
   virtual std::optional<uint64_t> maybeCapRemaining() const = 0;
+
+  // BackpressureListeners only work on non-idempotent DataQueues.
+  virtual void addBackpressureListener(BackpressureListener* listener) = 0;
+  virtual void removeBackpressureListener(BackpressureListener* listener) = 0;
 
   static void Initialize(Environment* env, v8::Local<v8::Object> target);
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);

@@ -51,7 +51,7 @@ IF[{- !$disabled{tests} -}]
           bioprinttest sslapitest dtlstest sslcorrupttest \
           bio_enc_test pkey_meth_test pkey_meth_kdf_test evp_kdf_test uitest \
           cipherbytes_test threadstest_fips \
-          asn1_encode_test asn1_decode_test asn1_string_table_test \
+          asn1_encode_test asn1_decode_test asn1_string_table_test asn1_stable_parse_test \
           x509_time_test x509_dup_cert_test x509_check_cert_pkey_test \
           recordlentest drbgtest rand_status_test sslbuffertest \
           time_offset_test pemtest ssl_cert_table_internal_test ciphername_test \
@@ -172,6 +172,14 @@ IF[{- !$disabled{tests} -}]
   SOURCE[evp_extra_test]=evp_extra_test.c
   INCLUDE[evp_extra_test]=../include ../apps/include
   DEPEND[evp_extra_test]=../libcrypto.a libtestutil.a
+  IF[{- !$disabled{module} && !$disabled{legacy} -}]
+    DEFINE[evp_extra_test]=STATIC_LEGACY
+    SOURCE[evp_extra_test]=../providers/legacyprov.c
+    INCLUDE[evp_extra_test]=../providers/common/include \
+                            ../providers/implementations/include
+    DEPEND[evp_extra_test]=../providers/liblegacy.a \
+                           ../providers/libcommon.a
+  ENDIF
 
   SOURCE[evp_extra_test2]=evp_extra_test2.c
   INCLUDE[evp_extra_test2]=../include ../apps/include
@@ -537,6 +545,10 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[asn1_string_table_test]=../include ../apps/include
   DEPEND[asn1_string_table_test]=../libcrypto libtestutil.a
 
+  SOURCE[asn1_stable_parse_test]=asn1_stable_parse_test.c
+  INCLUDE[asn1_stable_parse_test]=../include ../apps/include
+  DEPEND[asn1_stable_parse_test]=../libcrypto libtestutil.a
+
   SOURCE[time_offset_test]=time_offset_test.c
   INCLUDE[time_offset_test]=../include ../apps/include
   DEPEND[time_offset_test]=../libcrypto libtestutil.a
@@ -851,6 +863,13 @@ IF[{- !$disabled{tests} -}]
     IF[{- defined $target{shared_defflag} -}]
       SOURCE[p_test]=p_test.ld
       GENERATE[p_test.ld]=../util/providers.num
+    ENDIF
+    MODULES{noinst}=p_minimal
+    SOURCE[p_minimal]=p_minimal.c
+    INCLUDE[p_minimal]=../include ..
+    IF[{- defined $target{shared_defflag} -}]
+      SOURCE[p_minimal]=p_minimal.ld
+      GENERATE[p_minimal.ld]=../util/providers.num
     ENDIF
   ENDIF
   IF[{- $disabled{module} || !$target{dso_scheme} -}]

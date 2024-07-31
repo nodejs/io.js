@@ -247,9 +247,9 @@ void MaybeSetHandlerNow(Isolate* isolate) {
 }
 
 // TODO(v8/11911): UnboundScript::GetLineNumber should be replaced
-SharedFunctionInfo GetSharedFunctionInfo(const JitCodeEvent* event) {
+Tagged<SharedFunctionInfo> GetSharedFunctionInfo(const JitCodeEvent* event) {
   return event->script.IsEmpty() ? Tagged<SharedFunctionInfo>()
-                                 : *Utils::OpenHandle(*event->script);
+                                 : *Utils::OpenDirectHandle(*event->script);
 }
 
 std::wstring GetScriptMethodNameFromEvent(const JitCodeEvent* event) {
@@ -265,8 +265,8 @@ std::wstring GetScriptMethodNameFromEvent(const JitCodeEvent* event) {
 }
 
 std::wstring GetScriptMethodNameFromSharedFunctionInfo(
-    const SharedFunctionInfo& sfi) {
-  auto sfi_name = sfi.DebugNameCStr();
+    Tagged<SharedFunctionInfo> sfi) {
+  auto sfi_name = sfi->DebugNameCStr();
   int method_name_length = static_cast<int>(strlen(sfi_name.get()));
   std::wstring method_name(method_name_length, L'\0');
   MultiByteToWideChar(CP_UTF8, 0, sfi_name.get(), method_name_length,
@@ -374,22 +374,22 @@ void EventHandler(const JitCodeEvent* event) {
   uint32_t script_line = -1;
   uint32_t script_column = -1;
 
-  SharedFunctionInfo sfi = GetSharedFunctionInfo(event);
-  if (!sfi.is_null() && IsScript(sfi.script())) {
-    Script script = Script::cast(sfi.script());
+  Tagged<SharedFunctionInfo> sfi = GetSharedFunctionInfo(event);
+  if (!sfi.is_null() && IsScript(sfi->script())) {
+    Tagged<Script> script = Script::cast(sfi->script());
 
     // if the first time seeing this source file, log the SourceLoad event
-    script_id = script.id();
+    script_id = script->id();
     if (IsolateLoadScriptData::MaybeAddLoadedScript(isolate, script_id)) {
       std::wstring wstr_name(0, L'\0');
-      Object script_name = script.GetNameOrSourceURL();
+      Tagged<Object> script_name = script->GetNameOrSourceURL();
       if (IsString(script_name)) {
-        String v8str_name = String::cast(script_name);
-        wstr_name.resize(v8str_name.length());
+        Tagged<String> v8str_name = String::cast(script_name);
+        wstr_name.resize(v8str_name->length());
         // On Windows wchar_t == uint16_t. const_Cast needed for C++14.
         uint16_t* wstr_data = const_cast<uint16_t*>(
             reinterpret_cast<const uint16_t*>(wstr_name.data()));
-        String::WriteToFlat(v8str_name, wstr_data, 0, v8str_name.length());
+        String::WriteToFlat(v8str_name, wstr_data, 0, v8str_name->length());
       }
 
       constexpr static auto source_load_event_meta =
@@ -406,7 +406,7 @@ void EventHandler(const JitCodeEvent* event) {
     }
 
     Script::PositionInfo info;
-    script.GetPositionInfo(sfi.StartPosition(), &info);
+    script->GetPositionInfo(sfi->StartPosition(), &info);
     script_line = info.line + 1;
     script_column = info.column + 1;
   }

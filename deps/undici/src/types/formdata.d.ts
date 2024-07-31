@@ -2,7 +2,7 @@
 /// <reference types="node" />
 
 import { File } from './file'
-import { SpecIterator, SpecIterableIterator } from './fetch'
+import { SpecIterableIterator } from './fetch'
 
 /**
  * A `string` or `File` that represents a single value from a set of `FormData` key-value pairs.

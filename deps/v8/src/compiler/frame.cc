@@ -8,10 +8,11 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
-Frame::Frame(int fixed_frame_size_in_slots)
+Frame::Frame(int fixed_frame_size_in_slots, Zone* zone)
     : fixed_slot_count_(fixed_frame_size_in_slots),
       allocated_registers_(nullptr),
-      allocated_double_registers_(nullptr) {
+      allocated_double_registers_(nullptr),
+      zone_(zone) {
   slot_allocator_.AllocateUnaligned(fixed_frame_size_in_slots);
 }
 
@@ -43,6 +44,10 @@ void Frame::AlignFrame(int alignment) {
 void FrameAccessState::MarkHasFrame(bool state) {
   has_frame_ = state;
   SetFrameAccessToDefault();
+}
+
+void FrameAccessState::SetFPRelativeOnly(bool state) {
+  fp_relative_only_ = state;
 }
 
 void FrameAccessState::SetFrameAccessToDefault() {

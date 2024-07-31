@@ -25,6 +25,9 @@ struct PropInfo {
 
 typedef size_t SnapshotIndex;
 
+bool WithoutCodeCache(const SnapshotFlags& flags);
+bool WithoutCodeCache(const SnapshotConfig& config);
+
 // When serializing an embedder object, we'll serialize the native states
 // into a chunk that can be mapped into a subclass of InternalFieldInfoBase,
 // and pass it into the V8 callback as the payload of StartupData.
@@ -44,6 +47,7 @@ struct InternalFieldInfoBase {
                       std::is_same_v<InternalFieldInfoBase, T>,
                   "Can only accept InternalFieldInfoBase subclasses");
     void* buf = ::operator new[](sizeof(T));
+    memset(buf, 0, sizeof(T));  // Make the padding reproducible.
     T* result = new (buf) T;
     result->type = type;
     result->length = sizeof(T);
@@ -123,10 +127,17 @@ class SnapshotableObject : public BaseObject {
 v8::StartupData SerializeNodeContextInternalFields(v8::Local<v8::Object> holder,
                                                    int index,
                                                    void* env);
+v8::StartupData SerializeNodeContextData(v8::Local<v8::Context> holder,
+                                         int index,
+                                         void* env);
 void DeserializeNodeInternalFields(v8::Local<v8::Object> holder,
                                    int index,
                                    v8::StartupData payload,
                                    void* env);
+void DeserializeNodeContextData(v8::Local<v8::Context> holder,
+                                int index,
+                                v8::StartupData payload,
+                                void* env);
 void SerializeSnapshotableObjects(Realm* realm,
                                   v8::SnapshotCreator* creator,
                                   RealmSerializeInfo* info);
@@ -154,7 +165,6 @@ class BindingData : public SnapshotableObject {
   AliasedUint8Array is_building_snapshot_buffer_;
   InternalFieldInfo* internal_field_info_ = nullptr;
 };
-
 }  // namespace mksnapshot
 
 }  // namespace node

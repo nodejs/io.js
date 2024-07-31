@@ -9,8 +9,8 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 (function TestDefaultValue() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  const g_null = builder.addGlobal(kWasmExternRef, true).index;
-  const g_nullfunc = builder.addGlobal(kWasmAnyFunc, true).index;
+  const g_null = builder.addGlobal(kWasmExternRef, true, false).index;
+  const g_nullfunc = builder.addGlobal(kWasmAnyFunc, true, false).index;
   builder.addFunction("get_externref_global", kSig_r_v)
     .addBody([kExprGlobalGet, g_null])
     .exportAs("get_externref_global");
@@ -26,10 +26,10 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 (function TestDefaultValueSecondGlobal() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  const g_setref = builder.addGlobal(kWasmExternRef, true);
-  const g_setfunc = builder.addGlobal(kWasmAnyFunc, true);
-  const g_null = builder.addGlobal(kWasmExternRef, true);
-  const g_nullfunc = builder.addGlobal(kWasmAnyFunc, true);
+  const g_setref = builder.addGlobal(kWasmExternRef, true, false);
+  const g_setfunc = builder.addGlobal(kWasmAnyFunc, true, false);
+  const g_null = builder.addGlobal(kWasmExternRef, true, false);
+  const g_nullfunc = builder.addGlobal(kWasmAnyFunc, true, false);
   builder.addFunction("get_externref_global", kSig_r_r)
     .addBody([
       kExprLocalGet, 0,
@@ -55,8 +55,8 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
   // Dummy global for offset.
-  builder.addGlobal(kWasmExternRef, true);
-  const g = builder.addGlobal(kWasmExternRef, true);
+  builder.addGlobal(kWasmExternRef, true, false);
+  const g = builder.addGlobal(kWasmExternRef, true, false);
   builder.addFunction("main", kSig_r_r)
     .addBody([
       kExprLocalGet, 0,
@@ -75,8 +75,8 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
   // Dummy global for offset.
-  builder.addGlobal(kWasmAnyFunc, true);
-  const g = builder.addGlobal(kWasmAnyFunc, true);
+  builder.addGlobal(kWasmAnyFunc, true, false);
+  const g = builder.addGlobal(kWasmAnyFunc, true, false);
   builder.addFunction("main", kSig_a_a)
     .addBody([
       kExprLocalGet, 0,
@@ -96,8 +96,8 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   let builder = new WasmModuleBuilder();
   const gc_index = builder.addImport("q", "gc", kSig_v_v);
   // Dummy global for offset.
-  builder.addGlobal(kWasmExternRef, true);
-  const g = builder.addGlobal(kWasmExternRef, true);
+  builder.addGlobal(kWasmExternRef, true, false);
+  const g = builder.addGlobal(kWasmExternRef, true, false);
   builder.addFunction("main", kSig_r_r)
     .addBody([
       kExprLocalGet, 0,
@@ -118,7 +118,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 (function TestGlobalAsRoot() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  const g = builder.addGlobal(kWasmExternRef, true);
+  const g = builder.addGlobal(kWasmExternRef, true, false);
   builder.addFunction("get_global", kSig_r_v)
     .addBody([
       kExprGlobalGet, g.index
@@ -235,7 +235,8 @@ function dummy_func() {
   assertSame(null, global_null.value);
   assertSame(null, global_null.valueOf());
 
-  assertThrows(() => new WebAssembly.Global({ value: 'anyfunc' }, {}), TypeError);
+  assertThrows(() => new WebAssembly.Global({ value: 'anyfunc' }, {}),
+               TypeError);
 })();
 
 (function TestExternRefGlobalObjectSetValue() {
@@ -276,12 +277,12 @@ function dummy_func() {
 (function TestExportMutableRefGlobal() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  const g1 = builder.addGlobal(kWasmExternRef, true).exportAs("global1");
-  const g2 = builder.addGlobal(kWasmAnyFunc, true).exportAs("global2");
-  builder.addGlobal(kWasmI32, true); // Dummy.
-  builder.addGlobal(kWasmExternRef, true); // Dummy.
-  const g3 = builder.addGlobal(kWasmExternRef, true).exportAs("global3");
-  const g4 = builder.addGlobal(kWasmAnyFunc, true).exportAs("global4");
+  const g1 = builder.addGlobal(kWasmExternRef, true, false).exportAs("global1");
+  const g2 = builder.addGlobal(kWasmAnyFunc, true, false).exportAs("global2");
+  builder.addGlobal(kWasmI32, true, false); // Dummy.
+  builder.addGlobal(kWasmExternRef, true, false); // Dummy.
+  const g3 = builder.addGlobal(kWasmExternRef, true, false).exportAs("global3");
+  const g4 = builder.addGlobal(kWasmAnyFunc, true, false).exportAs("global4");
   builder.addFunction("main",
     makeSig([kWasmExternRef, kWasmAnyFunc, kWasmExternRef, kWasmAnyFunc], []))
     .addBody([
@@ -351,10 +352,10 @@ function dummy_func() {
 
   // Create an instance which exports globals.
   let builder1 = new WasmModuleBuilder();
-  const g3 = builder1.addGlobal(kWasmExternRef, true).exportAs("e3");
-  builder1.addGlobal(kWasmI32, true).exportAs("e1"); // Dummy.
-  builder1.addGlobal(kWasmExternRef, true).exportAs("e4"); // Dummy.
-  const g2 = builder1.addGlobal(kWasmExternRef, true).exportAs("e2");
+  const g3 = builder1.addGlobal(kWasmExternRef, true, false).exportAs("e3");
+  builder1.addGlobal(kWasmI32, true, false).exportAs("e1"); // Dummy.
+  builder1.addGlobal(kWasmExternRef, true, false).exportAs("e4"); // Dummy.
+  const g2 = builder1.addGlobal(kWasmExternRef, true, false).exportAs("e2");
 
   builder1.addFunction("set_globals", kSig_v_rr)
     .addBody([
@@ -447,10 +448,10 @@ function dummy_func() {
 
   // Create an instance which exports globals.
   let builder1 = new WasmModuleBuilder();
-  const g3 = builder1.addGlobal(kWasmAnyFunc, true).exportAs("e3");
-  builder1.addGlobal(kWasmI32, true).exportAs("e1"); // Dummy.
-  builder1.addGlobal(kWasmAnyFunc, true).exportAs("e4"); // Dummy.
-  const g2 = builder1.addGlobal(kWasmAnyFunc, true).exportAs("e2");
+  const g3 = builder1.addGlobal(kWasmAnyFunc, true, false).exportAs("e3");
+  builder1.addGlobal(kWasmI32, true, false).exportAs("e1"); // Dummy.
+  builder1.addGlobal(kWasmAnyFunc, true, false).exportAs("e4"); // Dummy.
+  const g2 = builder1.addGlobal(kWasmAnyFunc, true, false).exportAs("e2");
 
   builder1.addFunction("set_globals", kSig_v_aa)
     .addBody([
@@ -532,9 +533,9 @@ function dummy_func() {
 (function TestImportMutableAnyFuncGlobalAsExternRefFails() {
   print(arguments.callee.name);
   let builder1 = new WasmModuleBuilder();
-  const g3 = builder1.addGlobal(kWasmAnyFunc, true).exportAs("e3");
-  builder1.addGlobal(kWasmExternRef, true).exportAs("e1"); // Dummy.
-  builder1.addGlobal(kWasmAnyFunc, true).exportAs("e2"); // Dummy.
+  const g3 = builder1.addGlobal(kWasmAnyFunc, true, false).exportAs("e3");
+  builder1.addGlobal(kWasmExternRef, true, false).exportAs("e1"); // Dummy.
+  builder1.addGlobal(kWasmAnyFunc, true, false).exportAs("e2"); // Dummy.
   const instance1 = builder1.instantiate();
 
   let builder2 = new WasmModuleBuilder();
@@ -548,7 +549,7 @@ function dummy_func() {
   let builder = new WasmModuleBuilder();
   const f_func = builder.addFunction('get_anyfunc_global', kSig_a_v)
   builder.addDeclarativeElementSegment([f_func.index]);
-  const g_func = builder.addGlobal(kWasmAnyFunc, true,
+  const g_func = builder.addGlobal(kWasmAnyFunc, true, false,
     [kExprRefFunc, f_func.index]);
   // Doing this here to break the cyclic dependency with g_func.
   f_func.addBody([kExprGlobalGet, g_func.index])
@@ -566,9 +567,9 @@ function dummy_func() {
   const sig_index = builder.addType(kSig_i_v);
   const import_wasm = builder.addImport('m', 'wasm', sig_index);
   const import_js = builder.addImport('m', 'js', sig_index);
-  const g_wasm = builder.addGlobal(kWasmAnyFunc, true,
+  const g_wasm = builder.addGlobal(kWasmAnyFunc, true, false,
                                    [kExprRefFunc, import_wasm]);
-  const g_js = builder.addGlobal(kWasmAnyFunc, true,
+  const g_js = builder.addGlobal(kWasmAnyFunc, true, false,
                                  [kExprRefFunc, import_js]);
   builder.addDeclarativeElementSegment([import_wasm, import_js]);
   builder.addFunction('get_global_wasm', kSig_a_v)
@@ -599,7 +600,7 @@ function dummy_func() {
 (function TestSetGlobalWriteBarrier() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  const global = builder.addGlobal(kWasmExternRef, true).index;
+  const global = builder.addGlobal(kWasmExternRef, true, false).index;
   builder.addFunction("set_global", kSig_v_r)
     .addBody([kExprLocalGet, 0, kExprGlobalSet, global])
     .exportFunc();

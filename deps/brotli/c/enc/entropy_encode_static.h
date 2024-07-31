@@ -9,10 +9,11 @@
 #ifndef BROTLI_ENC_ENTROPY_ENCODE_STATIC_H_
 #define BROTLI_ENC_ENTROPY_ENCODE_STATIC_H_
 
+#include <brotli/types.h>
+
 #include "../common/constants.h"
 #include "../common/platform.h"
-#include <brotli/types.h>
-#include "./write_bits.h"
+#include "write_bits.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -76,6 +77,7 @@ static const uint8_t kStaticDistanceCodeDepth[64] = {
   6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
 };
 
+/* GENERATED CODE START */
 static const uint32_t kCodeLengthBits[18] = {
   0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 15, 31, 0, 11, 7,
 };
@@ -531,6 +533,7 @@ static BROTLI_INLINE void StoreStaticDistanceHuffmanTree(
     size_t* storage_ix, uint8_t* storage) {
   BrotliWriteBits(28, 0x0369DC03u, storage_ix, storage);
 }
+/* GENERATED CODE END */
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */

@@ -131,9 +131,9 @@ class ZoneBuffer : public ZoneObject {
 
   size_t offset() const { return static_cast<size_t>(pos_ - buffer_); }
   size_t size() const { return static_cast<size_t>(pos_ - buffer_); }
-  const uint8_t* data() const { return buffer_; }
-  const uint8_t* begin() const { return buffer_; }
-  const uint8_t* end() const { return pos_; }
+  uint8_t* data() const { return buffer_; }
+  uint8_t* begin() const { return buffer_; }
+  uint8_t* end() const { return pos_; }
 
   void EnsureSpace(size_t size) {
     if ((pos_ + size) > end_) {
@@ -189,6 +189,7 @@ class V8_EXPORT_PRIVATE WasmFunctionBuilder : public ZoneObject {
   void EmitWithU32V(WasmOpcode opcode, uint32_t immediate);
   void EmitValueType(ValueType type);
   void EmitDirectCallIndex(uint32_t index);
+  void EmitFromInitializerExpression(const WasmInitExpr& init_expr);
   void SetName(base::Vector<const char> name);
   void AddAsmWasmOffset(size_t call_position, size_t to_number_position);
   void SetAsmFunctionStartPosition(size_t function_position);
@@ -313,7 +314,7 @@ class V8_EXPORT_PRIVATE WasmModuleBuilder : public ZoneObject {
   };
 
   // Building methods.
-  uint32_t AddImport(base::Vector<const char> name, FunctionSig* sig,
+  uint32_t AddImport(base::Vector<const char> name, const FunctionSig* sig,
                      base::Vector<const char> module = {});
   WasmFunctionBuilder* AddFunction(const FunctionSig* sig = nullptr);
   WasmFunctionBuilder* AddFunction(uint32_t sig_index);
@@ -342,7 +343,7 @@ class V8_EXPORT_PRIVATE WasmModuleBuilder : public ZoneObject {
   // Does not deduplicate function signatures.
   uint32_t ForceAddSignature(const FunctionSig* sig, bool is_final,
                              uint32_t supertype = kNoSuperType);
-  uint32_t AddException(const FunctionSig* type);
+  uint32_t AddTag(const FunctionSig* type);
   uint32_t AddStructType(StructType* type, bool is_final,
                          uint32_t supertype = kNoSuperType);
   uint32_t AddArrayType(ArrayType* type, bool is_final,
@@ -418,18 +419,29 @@ class V8_EXPORT_PRIVATE WasmModuleBuilder : public ZoneObject {
   uint32_t GetSuperType(uint32_t index) { return types_[index].supertype; }
 
   WasmFunctionBuilder* GetFunction(uint32_t index) { return functions_[index]; }
-  int NumExceptions() { return static_cast<int>(exceptions_.size()); }
+  int NumTags() { return static_cast<int>(tags_.size()); }
 
   int NumTypes() { return static_cast<int>(types_.size()); }
 
   int NumTables() { return static_cast<int>(tables_.size()); }
 
-  int NumFunctions() { return static_cast<int>(functions_.size()); }
+  int NumGlobals() { return static_cast<int>(globals_.size()); }
+
+  int NumImportedFunctions() {
+    return static_cast<int>(function_imports_.size());
+  }
+  int NumDeclaredFunctions() { return static_cast<int>(functions_.size()); }
 
   int NumDataSegments() { return static_cast<int>(data_segments_.size()); }
 
-  const FunctionSig* GetExceptionType(int index) {
-    return types_[exceptions_[index]].function_sig;
+  const FunctionSig* GetTagType(int index) {
+    return types_[tags_[index]].function_sig;
+  }
+
+  ValueType GetGlobalType(uint32_t index) const { return globals_[index].type; }
+
+  bool IsMutableGlobal(uint32_t index) const {
+    return globals_[index].mutability;
   }
 
  private:
@@ -442,6 +454,7 @@ class V8_EXPORT_PRIVATE WasmModuleBuilder : public ZoneObject {
   struct WasmGlobalImport {
     base::Vector<const char> module;
     base::Vector<const char> name;
+    // TODO(manoskouk): Extend to full value type.
     ValueTypeCode type_code;
     bool mutability;
   };
@@ -483,7 +496,7 @@ class V8_EXPORT_PRIVATE WasmModuleBuilder : public ZoneObject {
   ZoneVector<WasmDataSegment> data_segments_;
   ZoneVector<WasmElemSegment> element_segments_;
   ZoneVector<WasmGlobal> globals_;
-  ZoneVector<int> exceptions_;
+  ZoneVector<int> tags_;
   ZoneUnorderedMap<FunctionSig, uint32_t> signature_map_;
   int current_recursive_group_start_;
   // first index -> size

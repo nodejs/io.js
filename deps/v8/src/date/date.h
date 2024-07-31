@@ -213,7 +213,7 @@ class V8_EXPORT_PRIVATE DateCache {
     return segment->start_sec > segment->end_sec;
   }
 
-  Smi stamp_;
+  Tagged<Smi> stamp_;
 
   // Daylight Saving Time cache.
   DST dst_[kDSTSize];

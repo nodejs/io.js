@@ -17,62 +17,32 @@ NPM="$ROOT/deps/npm/bin/npm-cli.js"
 . "$ROOT/tools/dep_updaters/utils.sh"
 
 NEW_VERSION=$("$NODE" "$NPM" view eslint dist-tags.latest)
-CURRENT_VERSION=$("$NODE" -p "require('./tools/node_modules/eslint/package.json').version")
+CURRENT_VERSION=$("$NODE" -p "require('./tools/eslint/node_modules/eslint/package.json').version")
 
 # This function exit with 0 if new version and current version are the same
 compare_dependency_version "eslint" "$NEW_VERSION" "$CURRENT_VERSION"
 
 cd "$( dirname "$0" )" || exit
-rm -rf ../node_modules/eslint
-(
-    rm -rf eslint-tmp
-    mkdir eslint-tmp
-    cd eslint-tmp || exit
+rm -rf ../eslint/node_modules ../eslint/package-lock.json
 
-    "$NODE" "$NPM" init --yes
-
-    "$NODE" "$NPM" install \
+cd ../eslint
+"$NODE" "$NPM" install \
     --ignore-scripts \
-    --install-strategy=shallow \
     --no-bin-links \
-    "eslint@$NEW_VERSION"
-    # Uninstall plugins that we want to install so that they are removed from
-    # devDependencies. Otherwise --omit=dev will cause them to be skipped.
-    (
-        cd node_modules/eslint
-        "$NODE" "$NPM" uninstall \
-        --install-links=false \
-        --ignore-scripts \
-        eslint-plugin-jsdoc \
-        eslint-plugin-markdown \
-        @babel/core \
-        @babel/eslint-parser \
-        @babel/plugin-syntax-import-attributes
-    )
-    (
-        cd node_modules/eslint
-        "$NODE" "$NPM" install \
-        --ignore-scripts \
-        --install-links=false \
-        --no-bin-links \
-        --no-save \
-        --omit=dev \
-        --omit=peer \
-        eslint-plugin-jsdoc \
-        eslint-plugin-markdown \
-        @babel/core \
-        @babel/eslint-parser \
-        @babel/plugin-syntax-import-attributes
-    )
-    # Use dmn to remove some unneeded files.
-    "$NODE" "$NPM" exec --package=dmn@2.2.2 --yes -- dmn -f clean
-    # TODO: Get this into dmn.
-    find node_modules -name .package-lock.json -exec rm {} \;
-    find node_modules -name 'README*' -exec rm {} \;
-)
+    "eslint@$NEW_VERSION" \
+    eslint-formatter-tap \
+    eslint-plugin-jsdoc \
+    eslint-plugin-markdown \
+    globals \
+    @babel/core \
+    @babel/eslint-parser \
+    @babel/plugin-syntax-import-attributes \
+    @stylistic/eslint-plugin-js
 
-mv eslint-tmp/node_modules/eslint ../node_modules/eslint
-rm -rf eslint-tmp/
+# Use dmn to remove some unneeded files.
+"$NODE" "$NPM" exec --package=dmn@3.0.1 --yes -- dmn -f clean
+# TODO: Get this into dmn.
+find node_modules \( -name .package-lock.json -or -name 'README*' \) -exec rm {} \;
 
 # The last line of the script should always print the new version,
 # as we need to add it to $GITHUB_ENV variable.

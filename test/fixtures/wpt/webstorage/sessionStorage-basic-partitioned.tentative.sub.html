@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset=utf-8>
+<title>sessionStorage: partitioned storage test</title>
+<meta name=help href="https://privacycg.github.io/storage-partitioning/">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<iframe id="shared-iframe" src="http://{{host}}:{{ports[http][0]}}/webstorage/resources/sessionStorage-about-blank-partitioned-iframe.html"></iframe>
+<body>
+<script>
+// Here's the set-up for this test:
+// Step 1. (main window) set up messaging and same-site iframe load listeners.
+// Step 2. (same-site iframe) loads, requests sessionStorage for "userID".
+// Step 3. (same-site iframe) receives the message, gets or allocates sessionStorage,
+// and returns the generated ID to the main frame.
+// Step 4. (main window) receives "storage got set" message from same-site iframe.
+// Step 5. (main window) opens a new cross-site window with the shared-iframe inside.
+// Step 6. (cross-site iframe) loads, requests sessionStorage for "userID", gets or
+// allocates that sessionStorage, and returns the generated ID to the main frame.
+// Step 7. (main window) asserts that the generated IDs should be different, as
+// they should have a different StorageKey.
+const altOrigin = "http://{{hosts[alt][]}}:{{ports[http][0]}}";
+
+async_test(t => {
+  let crossSiteWindow;
+  let crossSiteID;
+  let sameSiteID;
+  // Retrieve the iframe we created in the HTML above.
+  const iframe = document.getElementById("shared-iframe");
+
+  // Once the iframe loads, we request sessionStorage.
+  iframe.addEventListener("load", t.step_func(e => {
+    const payload = {
+      command: "create ID",
+      key: "userID",
+    };
+    iframe.contentWindow.postMessage(payload, iframe.origin);
+  }), {once: true});
+
+  window.addEventListener("message", t.step_func(e => {
+    // Once we get or allocate the sessionStorage, we expect the iframe
+    // to message us back with the generated ID.
+    if (e.data.message === "ID created") {
+      sameSiteID = e.data.userID;
+      assert_true(typeof sameSiteID === "string");
+
+      // Now that same-site storage has been secured, we need to open a
+      // new cross-site window that contains our shared-iframe to repeat
+      // the process in a cross-site environment.
+      if (location.origin !== altOrigin) {
+        crossSiteWindow = window.open(`${altOrigin}/webstorage/sessionStorage-basic-partitioned.tentative.sub.html`, "", "noopener=false");
+        t.add_cleanup(() => crossSiteWindow.close());
+      }
+    }
+
+    // We expect that once the cross-site iframe requests sessionStorage,
+    // it will message us back with the generated ID.
+    if (e.data.message === "cross-site window iframe loaded") {
+      crossSiteID = e.data.userID;
+      t.step(() => {
+        // Same and cross-site iframes should have different generated IDs.
+        assert_true(typeof crossSiteID === "string");
+        assert_true(sameSiteID !== crossSiteID, "IDs pulled from two partitioned iframes are different.")
+      });
+
+      // Clear storage state to clean up after the test.
+      iframe.contentWindow.sessionStorage.clear();
+      crossSiteWindow.postMessage({command: "clearStorage"}, altOrigin);
+      t.done();
+    };
+  }));
+}, "Simple test for partitioned sessionStorage");
+</script>
+</body>

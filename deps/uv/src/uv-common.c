@@ -559,6 +559,9 @@ static void uv__print_handles(uv_loop_t* loop, int only_active, FILE* stream) {
   if (loop == NULL)
     loop = uv_default_loop();
 
+  if (stream == NULL)
+    stream = stderr;
+
   uv__queue_foreach(q, &loop->handle_queue) {
     h = uv__queue_data(q, uv_handle_t, handle_queue);
 

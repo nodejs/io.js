@@ -4,8 +4,8 @@
    See file LICENSE for detail or copy at https://opensource.org/licenses/MIT
 */
 
-#include "./dictionary.h"
-#include "./platform.h"
+#include "dictionary.h"
+#include "platform.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -13,6 +13,7 @@ extern "C" {
 
 #if !defined(BROTLI_EXTERNAL_DICTIONARY_DATA)
 static const uint8_t kBrotliDictionaryData[] =
+/* GENERATED CODE START */
 {
 116,105,109,101,100,111,119,110,108,105,102,101,108,101,102,116,98,97,99,107,99,
 111,100,101,100,97,116,97,115,104,111,119,111,110,108,121,115,105,116,101,99,105
@@ -5860,6 +5861,7 @@ static const uint8_t kBrotliDictionaryData[] =
 ,164,181,224,164,190,224,164,136,224,164,184,224,164,149,224,165,141,224,164,176
 ,224,164,191,224,164,175,224,164,164,224,164,190
 }
+/* GENERATED CODE END */
 ;
 #endif  /* !BROTLI_EXTERNAL_DICTIONARY_DATA */
 
@@ -5895,7 +5897,7 @@ static BrotliDictionary kBrotliDictionary = {
 #endif
 };
 
-const BrotliDictionary* BrotliGetDictionary() {
+const BrotliDictionary* BrotliGetDictionary(void) {
   return &kBrotliDictionary;
 }
 

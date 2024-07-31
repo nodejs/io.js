@@ -351,7 +351,7 @@ MaybeHandle<JSDurationFormat> JSDurationFormat::New(
   MAYBE_ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, fractional_digits,
       GetNumberOption(isolate, options, factory->fractionalDigits_string(), 0,
-                      9, 0),
+                      9, kUndefinedFractionalDigits),
       Handle<JSDurationFormat>());
 
   icu::number::LocalizedNumberFormatter fmt =
@@ -467,9 +467,6 @@ Handle<JSObject> JSDurationFormat::ResolvedOptions(
                        JSNumberFormat::NumberingSystemFromSkeleton(skeleton))
             .ToHandle(&numbering_system));
 
-  Handle<Smi> fractional_digits =
-      handle(Smi::FromInt(format->fractional_digits()), isolate);
-
   bool created;
 
 #define OUTPUT_PROPERTY(s, f)                                           \
@@ -502,7 +499,14 @@ Handle<JSObject> JSDurationFormat::ResolvedOptions(
   OUTPUT_STYLE_AND_DISPLAY_PROPERTIES(microseconds);
   OUTPUT_STYLE_AND_DISPLAY_PROPERTIES(nanoseconds);
 
-  OUTPUT_PROPERTY(fractionalDigits_string, fractional_digits);
+  int32_t fractional_digits = format->fractional_digits();
+  if (kUndefinedFractionalDigits == fractional_digits) {
+    OUTPUT_PROPERTY(fractionalDigits_string, factory->undefined_value());
+  } else {
+    Handle<Smi> fractional_digits_obj =
+        handle(Smi::FromInt(fractional_digits), isolate);
+    OUTPUT_PROPERTY(fractionalDigits_string, fractional_digits_obj);
+  }
   OUTPUT_PROPERTY(numberingSystem_string, numbering_system);
 #undef OUTPUT_PROPERTY
 #undef OUTPUT_STYLE_PROPERTY
@@ -652,6 +656,15 @@ void DurationRecordToListOfFormattedNumber(
                 df->minutes_style(), fmt, icu::MeasureUnit::getMinute(), true,
                 separator, parts, strings);
   int32_t fractional_digits = df->fractional_digits();
+  int32_t maximumFractionDigits =
+      (fractional_digits == JSDurationFormat::kUndefinedFractionalDigits)
+          ? 9
+          : fractional_digits;
+  int32_t minimumFractionDigits =
+      (fractional_digits == JSDurationFormat::kUndefinedFractionalDigits)
+          ? 0
+          : fractional_digits;
+
   if (df->milliseconds_style() == JSDurationFormat::FieldStyle::kNumeric) {
     // a. Set value to value + duration.[[Milliseconds]] / 10^3 +
     // duration.[[Microseconds]] / 10^6 + duration.[[Nanoseconds]] / 10^9.
@@ -661,7 +674,7 @@ void DurationRecordToListOfFormattedNumber(
                    record.time_duration.nanoseconds / 1e9;
     Output5Styles("second", value, df->seconds_display(), df->seconds_style(),
                   fmt.precision(icu::number::Precision::minMaxFraction(
-                      fractional_digits, fractional_digits)),
+                      minimumFractionDigits, maximumFractionDigits)),
                   icu::MeasureUnit::getSecond(), true, separator, parts,
                   strings);
     return;
@@ -679,7 +692,7 @@ void DurationRecordToListOfFormattedNumber(
     Output4Styles("millisecond", value, df->milliseconds_display(),
                   df->milliseconds_style(),
                   fmt.precision(icu::number::Precision::minMaxFraction(
-                      fractional_digits, fractional_digits)),
+                      minimumFractionDigits, maximumFractionDigits)),
                   icu::MeasureUnit::getMillisecond(), false, separator, parts,
                   strings);
     return;
@@ -696,7 +709,7 @@ void DurationRecordToListOfFormattedNumber(
     Output4Styles("microsecond", value, df->microseconds_display(),
                   df->microseconds_style(),
                   fmt.precision(icu::number::Precision::minMaxFraction(
-                      fractional_digits, fractional_digits)),
+                      minimumFractionDigits, maximumFractionDigits)),
                   icu::MeasureUnit::getMicrosecond(), false, separator, parts,
                   strings);
     return;

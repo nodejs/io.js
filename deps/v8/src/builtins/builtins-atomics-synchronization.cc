@@ -7,6 +7,32 @@
 
 namespace v8 {
 namespace internal {
+namespace {
+base::Optional<base::TimeDelta> GetTimeoutDelta(Handle<Object> timeout_obj) {
+  double ms = Object::Number(*timeout_obj);
+  if (!std::isnan(ms)) {
+    if (ms < 0) ms = 0;
+    if (ms <= static_cast<double>(std::numeric_limits<int64_t>::max())) {
+      return base::TimeDelta::FromMilliseconds(static_cast<int64_t>(ms));
+    }
+  }
+  return base::nullopt;
+}
+
+// TODO(lpardosixtos): Consider making and caching a canonical map for this
+// result object, like we do for the iterator result object.
+Handle<JSObject> CreateResultObject(Isolate* isolate, Handle<Object> value,
+                                    bool success) {
+  Handle<JSObject> result =
+      isolate->factory()->NewJSObject(isolate->object_function());
+  Handle<Object> success_value = isolate->factory()->ToBoolean(success);
+  JSObject::AddProperty(isolate, result, "value", value,
+                        PropertyAttributes::NONE);
+  JSObject::AddProperty(isolate, result, "success", success_value,
+                        PropertyAttributes::NONE);
+  return result;
+}
+}  // namespace
 
 BUILTIN(AtomicsMutexConstructor) {
   DCHECK(v8_flags.harmony_struct);
@@ -75,17 +101,83 @@ BUILTIN(AtomicsMutexTryLock) {
         isolate, NewTypeError(MessageTemplate::kNotCallable, run_under_lock));
   }
 
-  JSAtomicsMutex::TryLockGuard try_lock_guard(isolate, js_mutex);
-  if (try_lock_guard.locked()) {
-    Handle<Object> result;
-    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-        isolate, result,
-        Execution::Call(isolate, run_under_lock,
-                        isolate->factory()->undefined_value(), 0, nullptr));
-    return ReadOnlyRoots(isolate).true_value();
+  Handle<Object> callback_result;
+  bool success;
+  {
+    JSAtomicsMutex::TryLockGuard try_lock_guard(isolate, js_mutex);
+    if (try_lock_guard.locked()) {
+      ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
+          isolate, callback_result,
+          Execution::Call(isolate, run_under_lock,
+                          isolate->factory()->undefined_value(), 0, nullptr));
+      success = true;
+    } else {
+      callback_result = isolate->factory()->undefined_value();
+      success = false;
+    }
+  }
+  Handle<JSObject> result =
+      CreateResultObject(isolate, callback_result, success);
+  return *result;
+}
+
+BUILTIN(AtomicsMutexLockWithTimeout) {
+  DCHECK(v8_flags.harmony_struct);
+  constexpr char method_name[] = "Atomics.Mutex.lockWithTimeout";
+  HandleScope scope(isolate);
+
+  Handle<Object> js_mutex_obj = args.atOrUndefined(isolate, 1);
+  if (!IsJSAtomicsMutex(*js_mutex_obj)) {
+    THROW_NEW_ERROR_RETURN_FAILURE(
+        isolate, NewTypeError(MessageTemplate::kMethodInvokedOnWrongType,
+                              isolate->factory()->NewStringFromAsciiChecked(
+                                  method_name)));
+  }
+  Handle<JSAtomicsMutex> js_mutex = Handle<JSAtomicsMutex>::cast(js_mutex_obj);
+  Handle<Object> run_under_lock = args.atOrUndefined(isolate, 2);
+  if (!IsCallable(*run_under_lock)) {
+    THROW_NEW_ERROR_RETURN_FAILURE(
+        isolate, NewTypeError(MessageTemplate::kNotCallable, run_under_lock));
   }
 
-  return ReadOnlyRoots(isolate).false_value();
+  Handle<Object> timeout_obj = args.atOrUndefined(isolate, 3);
+  base::Optional<base::TimeDelta> timeout;
+  if (!IsNumber(*timeout_obj)) {
+    THROW_NEW_ERROR_RETURN_FAILURE(
+        isolate, NewTypeError(MessageTemplate::kIsNotNumber, timeout_obj,
+                              Object::TypeOf(isolate, timeout_obj)));
+  }
+  timeout = GetTimeoutDelta(timeout_obj);
+
+  // Like Atomics.wait, synchronous locking may block, and so is disallowed on
+  // the main thread.
+  //
+  // This is not a recursive lock, so also throw if recursively locking.
+  if (!isolate->allow_atomics_wait() || js_mutex->IsCurrentThreadOwner()) {
+    THROW_NEW_ERROR_RETURN_FAILURE(
+        isolate, NewTypeError(MessageTemplate::kAtomicsOperationNotAllowed,
+                              isolate->factory()->NewStringFromAsciiChecked(
+                                  method_name)));
+  }
+
+  Handle<Object> callback_result;
+  bool success;
+  {
+    JSAtomicsMutex::LockGuard lock_guard(isolate, js_mutex, timeout);
+    if (V8_LIKELY(lock_guard.locked())) {
+      ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
+          isolate, callback_result,
+          Execution::Call(isolate, run_under_lock,
+                          isolate->factory()->undefined_value(), 0, nullptr));
+      success = true;
+    } else {
+      callback_result = isolate->factory()->undefined_value();
+      success = false;
+    }
+  }
+  Handle<JSObject> result =
+      CreateResultObject(isolate, callback_result, success);
+  return *result;
 }
 
 BUILTIN(AtomicsConditionConstructor) {
@@ -112,15 +204,12 @@ BUILTIN(AtomicsConditionWait) {
 
   base::Optional<base::TimeDelta> timeout = base::nullopt;
   if (!IsUndefined(*timeout_obj, isolate)) {
-    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, timeout_obj,
-                                       Object::ToNumber(isolate, timeout_obj));
-    double ms = Object::Number(*timeout_obj);
-    if (!std::isnan(ms)) {
-      if (ms < 0) ms = 0;
-      if (ms <= static_cast<double>(std::numeric_limits<int64_t>::max())) {
-        timeout = base::TimeDelta::FromMilliseconds(static_cast<int64_t>(ms));
-      }
+    if (!IsNumber(*timeout_obj)) {
+      THROW_NEW_ERROR_RETURN_FAILURE(
+          isolate, NewTypeError(MessageTemplate::kIsNotNumber, timeout_obj,
+                                Object::TypeOf(isolate, timeout_obj)));
     }
+    timeout = GetTimeoutDelta(timeout_obj);
   }
 
   if (!isolate->allow_atomics_wait()) {
@@ -176,7 +265,7 @@ BUILTIN(AtomicsConditionNotify) {
   Handle<JSAtomicsCondition> js_condition =
       Handle<JSAtomicsCondition>::cast(js_condition_obj);
   return *isolate->factory()->NewNumberFromUint(
-      js_condition->Notify(isolate, count));
+      JSAtomicsCondition::Notify(isolate, js_condition, count));
 }
 
 }  // namespace internal

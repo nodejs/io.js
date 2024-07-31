@@ -73,6 +73,7 @@ SameValueSubstitution::~SameValueSubstitution() {}
 
 class MultiplierSubstitution : public NFSubstitution {
     int64_t divisor;
+    const NFRule* owningRule;
 
 public:
     MultiplierSubstitution(int32_t _pos,
@@ -80,7 +81,7 @@ public:
         const NFRuleSet* _ruleSet,
         const UnicodeString& description,
         UErrorCode& status)
-        : NFSubstitution(_pos, _ruleSet, description, status), divisor(rule->getDivisor())
+        : NFSubstitution(_pos, _ruleSet, description, status), divisor(rule->getDivisor()), owningRule(rule)
     {
         if (divisor == 0) {
             status = U_PARSE_ERROR;
@@ -103,7 +104,22 @@ public:
     }
 
     virtual double transformNumber(double number) const override {
-        if (getRuleSet()) {
+        // Most of the time, when a number is handled by an NFSubstitution, we do a floor() on it, but
+        // if a substitution uses a DecimalFormat to format the number instead of a ruleset, we generally
+        // don't want to do a floor()-- we want to keep the value intact so that the DecimalFormat can
+        // either include the fractional part or round properly.  The big exception to this is here in
+        // MultiplierSubstitution.  If the rule includes two substitutions, the MultiplierSubstitution
+        // (which is handling the larger part of the number) really _does_ want to do a floor(), because
+        // the ModulusSubstitution (which is handling the smaller part of the number) will take
+        // care of the fractional part.  (Consider something like `1/12: <0< feet >0.0> inches;`.)
+        // But if there is no ModulusSubstitution, we're shortening the number in some way-- the "larger part"
+        // of the number is the only part we're keeping.  Even if the DecimalFormat doesn't include the
+        // fractional part in its output, we still want it to round.  (Consider something like `1/1000: <0<K;`.)
+        // (TODO: The kRoundFloor thing is a kludge to preserve the previous floor-always behavior.  What we
+        // probably really want to do is just set the rounding mode on the DecimalFormat to match the rounding
+        // mode on the RuleBasedNumberFormat and then pass the number to it whole and let it do its own rounding.
+        // But before making that change, we'd have to make sure it didn't have undesirable side effects.)
+        if (getRuleSet() != nullptr || owningRule->hasModulusSubstitution() || owningRule->formatter->getRoundingMode() == NumberFormat::kRoundFloor) {
             return uprv_floor(number / divisor);
         } else {
             return number / divisor;
@@ -580,17 +596,11 @@ NFSubstitution::doSubstitution(int64_t number, UnicodeString& toInsertInto, int3
         ruleSet->format(transformNumber(number), toInsertInto, _pos + this->pos, recursionCount, status);
     } else if (numberFormat != nullptr) {
         if (number <= MAX_INT64_IN_DOUBLE) {
-            // or perform the transformation on the number (preserving
-            // the result's fractional part if the formatter it set
-            // to show it), then use that formatter's format() method
+            // or perform the transformation on the number,
+            // then use that formatter's format() method
             // to format the result
-            double numberToFormat = transformNumber((double)number);
-            if (numberFormat->getMaximumFractionDigits() == 0) {
-                numberToFormat = uprv_floor(numberToFormat);
-            }
-
             UnicodeString temp;
-            numberFormat->format(numberToFormat, temp, status);
+            numberFormat->format(transformNumber((double)number), temp, status);
             toInsertInto.insert(_pos + this->pos, temp);
         } 
         else { 

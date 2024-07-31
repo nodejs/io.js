@@ -1,10 +1,11 @@
 const t = require('tap')
 const { load: loadMockNpm } = require('../../fixtures/mock-npm')
+const { cleanZlib } = require('../../fixtures/clean-snapshot')
 const MockRegistry = require('@npmcli/mock-registry')
 const pacote = require('pacote')
 const Arborist = require('@npmcli/arborist')
-const path = require('path')
-const fs = require('fs')
+const path = require('node:path')
+const fs = require('node:fs')
 const npa = require('npm-package-arg')
 
 const pkg = 'test-package'
@@ -19,12 +20,7 @@ const pkgJson = {
   version: '1.0.0',
 }
 
-t.cleanSnapshot = data => {
-  return data.replace(/shasum:.*/g, 'shasum:{sha}')
-    .replace(/integrity:.*/g, 'integrity:{sha}')
-    .replace(/"shasum": ".*",/g, '"shasum": "{sha}",')
-    .replace(/"integrity": ".*",/g, '"integrity": "{sha}",')
-}
+t.cleanSnapshot = data => cleanZlib(data)
 
 t.test('respects publishConfig.registry, runs appropriate scripts', async t => {
   const { npm, joinedOutput, prefix } = await loadMockNpm(t, {
@@ -87,6 +83,8 @@ t.test('re-loads publishConfig.registry if added during script process', async t
   const { joinedOutput, npm } = await loadMockNpm(t, {
     config: {
       [`${alternateRegistry.slice(6)}/:_authToken`]: 'test-other-token',
+      // Keep output from leaking into tap logs for readability
+      'foreground-scripts': false,
     },
     prefixDir: {
       'package.json': JSON.stringify({
@@ -135,6 +133,60 @@ t.test('re-loads publishConfig.registry if added during script process', async t
   t.matchSnapshot(joinedOutput(), 'new package version')
 })
 
+t.test('prioritize CLI flags over publishConfig', async t => {
+  const publishConfig = { registry: 'http://publishconfig' }
+  const { joinedOutput, npm } = await loadMockNpm(t, {
+    config: {
+      [`${alternateRegistry.slice(6)}/:_authToken`]: 'test-other-token',
+      // Keep output from leaking into tap logs for readability
+      'foreground-scripts': false,
+    },
+    prefixDir: {
+      'package.json': JSON.stringify({
+        ...pkgJson,
+        scripts: {
+          prepare: 'cp new.json package.json',
+        },
+      }, null, 2),
+      'new.json': JSON.stringify({
+        ...pkgJson,
+        publishConfig,
+      }),
+    },
+    argv: ['--registry', alternateRegistry],
+  })
+  const registry = new MockRegistry({
+    tap: t,
+    registry: alternateRegistry,
+    authorization: 'test-other-token',
+  })
+  registry.nock.put(`/${pkg}`, body => {
+    return t.match(body, {
+      _id: pkg,
+      name: pkg,
+      'dist-tags': { latest: '1.0.0' },
+      access: null,
+      versions: {
+        '1.0.0': {
+          name: pkg,
+          version: '1.0.0',
+          _id: `${pkg}@1.0.0`,
+          dist: {
+            shasum: /\.*/,
+            tarball: `http:${alternateRegistry.slice(6)}/test-package/-/test-package-1.0.0.tgz`,
+          },
+          publishConfig,
+        },
+      },
+      _attachments: {
+        [`${pkg}-1.0.0.tgz`]: {},
+      },
+    })
+  }).reply(200, {})
+  await npm.exec('publish', [])
+  t.matchSnapshot(joinedOutput(), 'new package version')
+})
+
 t.test('json', async t => {
   const { joinedOutput, npm, logs } = await loadMockNpm(t, {
     config: {
@@ -171,12 +223,75 @@ t.test('dry-run', async t => {
   t.matchSnapshot(logs.notice)
 })
 
+t.test('foreground-scripts defaults to true', async t => {
+  const { outputs, npm, logs } = await loadMockNpm(t, {
+    config: {
+      'dry-run': true,
+      ...auth,
+    },
+    prefixDir: {
+      'package.json': JSON.stringify({
+        name: 'test-fg-scripts',
+        version: '0.0.0',
+        scripts: {
+          prepack: 'echo prepack!',
+          postpack: 'echo postpack!',
+        },
+      }
+      ),
+    },
+  })
+
+  await npm.exec('publish', [])
+
+  t.matchSnapshot(logs.notice)
+
+  t.strictSame(
+    outputs,
+    [
+      '\n> test-fg-scripts@0.0.0 prepack\n> echo prepack!\n',
+      '\n> test-fg-scripts@0.0.0 postpack\n> echo postpack!\n',
+      `+ test-fg-scripts@0.0.0`,
+    ],
+    'prepack and postpack log to stdout')
+})
+
+t.test('foreground-scripts can still be set to false', async t => {
+  const { outputs, npm, logs } = await loadMockNpm(t, {
+    config: {
+      'dry-run': true,
+      'foreground-scripts': false,
+      ...auth,
+    },
+    prefixDir: {
+      'package.json': JSON.stringify({
+        name: 'test-fg-scripts',
+        version: '0.0.0',
+        scripts: {
+          prepack: 'echo prepack!',
+          postpack: 'echo postpack!',
+        },
+      }
+      ),
+    },
+  })
+
+  await npm.exec('publish', [])
+
+  t.matchSnapshot(logs.notice)
+
+  t.strictSame(
+    outputs,
+    [`+ test-fg-scripts@0.0.0`],
+    'prepack and postpack do not log to stdout')
+})
+
 t.test('shows usage with wrong set of arguments', async t => {
   const { publish } = await loadMockNpm(t, { command: 'publish' })
   await t.rejects(publish.exec(['a', 'b', 'c']), publish.usage)
 })
 
-t.test('throws when invalid tag', async t => {
+t.test('throws when invalid tag is semver', async t => {
   const { npm } = await loadMockNpm(t, {
     config: {
       tag: '0.0.13',
@@ -188,6 +303,24 @@ t.test('throws when invalid tag', async t => {
   await t.rejects(
     npm.exec('publish', []),
     { message: 'Tag name must not be a valid SemVer range: 0.0.13' }
+  )
+})
+
+t.test('throws when invalid tag when not url encodable', async t => {
+  const { npm } = await loadMockNpm(t, {
+    config: {
+      tag: '@test',
+    },
+    prefixDir: {
+      'package.json': JSON.stringify(pkgJson, null, 2),
+    },
+  })
+  await t.rejects(
+    npm.exec('publish', []),
+    {
+      /* eslint-disable-next-line max-len */
+      message: 'Invalid tag name "@test" of package "test-package@@test": Tags may not have any characters that encodeURIComponent encodes.',
+    }
   )
 })
 
@@ -484,6 +617,48 @@ t.test('workspaces', t => {
     await t.rejects(npm.exec('publish', []), { code: 'E404' })
   })
 
+  t.test('all workspaces - some marked private', async t => {
+    const testDir = {
+      'package.json': JSON.stringify(
+        {
+          ...pkgJson,
+          workspaces: ['workspace-a', 'workspace-p'],
+        }, null, 2),
+      'workspace-a': {
+        'package.json': JSON.stringify({
+          name: 'workspace-a',
+          version: '1.2.3-a',
+        }),
+      },
+      'workspace-p': {
+        'package.json': JSON.stringify({
+          name: '@scoped/workspace-p',
+          private: true,
+          version: '1.2.3-p-scoped',
+        }),
+      },
+    }
+
+    const { npm, joinedOutput } = await loadMockNpm(t, {
+      config: {
+        ...auth,
+        workspaces: true,
+      },
+      prefixDir: testDir,
+    })
+    const registry = new MockRegistry({
+      tap: t,
+      registry: npm.config.get('registry'),
+      authorization: token,
+    })
+    registry.nock
+      .put('/workspace-a', body => {
+        return t.match(body, { name: 'workspace-a' })
+      }).reply(200, {})
+    await npm.exec('publish', [])
+    t.matchSnapshot(joinedOutput(), 'one marked private')
+  })
+
   t.test('invalid workspace', async t => {
     const { npm } = await loadMockNpm(t, {
       config: {
@@ -737,6 +912,7 @@ t.test('manifest', async t => {
   const { npm } = await loadMockNpm(t, {
     config: {
       ...auth,
+      'foreground-scripts': false,
     },
     chdir: () => root,
     mocks: {

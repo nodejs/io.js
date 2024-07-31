@@ -41,15 +41,15 @@ class TypeInferenceAnalysis {
       : graph_(graph),
         // TODO(nicohartmann@): Might put types back into phase_zone once we
         // don't store them in the graph anymore.
-        types_(graph.op_id_count(), Type{}, graph.graph_zone()),
+        types_(graph.op_id_count(), Type{}, graph.graph_zone(), &graph),
         table_(phase_zone),
-        op_to_key_mapping_(phase_zone),
+        op_to_key_mapping_(phase_zone, &graph),
         block_to_snapshot_mapping_(graph.block_count(), base::nullopt,
                                    phase_zone),
         predecessors_(phase_zone),
         graph_zone_(graph.graph_zone()) {}
 
-  GrowingSidetable<Type> Run(
+  GrowingOpIndexSidetable<Type> Run(
       GrowingBlockSidetable<std::vector<std::pair<OpIndex, Type>>>*
           block_refinements = nullptr) {
 #ifdef DEBUG
@@ -96,8 +96,7 @@ class TypeInferenceAnalysis {
     // Collect the snapshots of all predecessors.
     {
       predecessors_.clear();
-      for (const Block* pred = block.LastPredecessor(); pred != nullptr;
-           pred = pred->NeighboringPredecessor()) {
+      for (const Block* pred : block.PredecessorsIterable()) {
         base::Optional<table_t::Snapshot> pred_snapshot =
             block_to_snapshot_mapping_[pred->index()];
         if (pred_snapshot.has_value()) {
@@ -131,8 +130,8 @@ class TypeInferenceAnalysis {
 
     // Check if the predecessor is a branch that allows us to refine a few
     // types.
-    DCHECK_IMPLIES(revisit_loop_header, block.HasExactlyNPredecessors(2));
-    if (block.HasExactlyNPredecessors(1)) {
+    DCHECK_IMPLIES(revisit_loop_header, block.PredecessorCount() == 2);
+    if (block.PredecessorCount() == 1) {
       Block* predecessor = block.LastPredecessor();
       const Operation& terminator = predecessor->LastOperation(graph_);
       if (const BranchOp* branch = terminator.TryCast<BranchOp>()) {
@@ -156,7 +155,6 @@ class TypeInferenceAnalysis {
         case Opcode::kReturn:
         case Opcode::kStore:
         case Opcode::kRetain:
-        case Opcode::kTrapIf:
         case Opcode::kUnreachable:
         case Opcode::kSwitch:
         case Opcode::kTuple:
@@ -165,6 +163,7 @@ class TypeInferenceAnalysis {
         case Opcode::kDebugPrint:
 #if V8_ENABLE_WEBASSEMBLY
         case Opcode::kGlobalSet:
+        case Opcode::kTrapIf:
 #endif
         case Opcode::kCheckException:
           // These operations do not produce any output that needs to be typed.
@@ -223,109 +222,7 @@ class TypeInferenceAnalysis {
           break;
         }
 
-        case Opcode::kWordUnary:
-        case Opcode::kFloatUnary:
-        case Opcode::kShift:
-        case Opcode::kEqual:
-        case Opcode::kChange:
-        case Opcode::kChangeOrDeopt:
-        case Opcode::kTryChange:
-        case Opcode::kBitcastWord32PairToFloat64:
-        case Opcode::kTaggedBitcast:
-        case Opcode::kSelect:
-        case Opcode::kLoad:
-        case Opcode::kAtomicRMW:
-        case Opcode::kAllocate:
-        case Opcode::kDecodeExternalPointer:
-        case Opcode::kParameter:
-        case Opcode::kOsrValue:
-        case Opcode::kStackPointerGreaterThan:
-        case Opcode::kStackSlot:
-        case Opcode::kFrameConstant:
-        case Opcode::kCall:
-        case Opcode::kCatchBlockBegin:
-        case Opcode::kTailCall:
-        case Opcode::kDidntThrow:
-        case Opcode::kObjectIs:
-        case Opcode::kFloatIs:
-        case Opcode::kObjectIsNumericValue:
-        case Opcode::kConvert:
-        case Opcode::kConvertUntaggedToJSPrimitive:
-        case Opcode::kConvertUntaggedToJSPrimitiveOrDeopt:
-        case Opcode::kConvertJSPrimitiveToUntagged:
-        case Opcode::kConvertJSPrimitiveToUntaggedOrDeopt:
-        case Opcode::kTruncateJSPrimitiveToUntagged:
-        case Opcode::kTruncateJSPrimitiveToUntaggedOrDeopt:
-        case Opcode::kConvertJSPrimitiveToObject:
-        case Opcode::kNewConsString:
-        case Opcode::kNewArray:
-        case Opcode::kDoubleArrayMinMax:
-        case Opcode::kLoadFieldByIndex:
-        case Opcode::kBigIntBinop:
-        case Opcode::kBigIntEqual:
-        case Opcode::kBigIntComparison:
-        case Opcode::kBigIntUnary:
-        case Opcode::kStringAt:
-#ifdef V8_INTL_SUPPORT
-        case Opcode::kStringToCaseIntl:
-#endif  // V8_INTL_SUPPORT
-        case Opcode::kStringLength:
-        case Opcode::kStringIndexOf:
-        case Opcode::kStringFromCodePointAt:
-        case Opcode::kStringSubstring:
-        case Opcode::kStringConcat:
-        case Opcode::kStringEqual:
-        case Opcode::kStringComparison:
-        case Opcode::kArgumentsLength:
-        case Opcode::kNewArgumentsElements:
-        case Opcode::kLoadTypedElement:
-        case Opcode::kLoadDataViewElement:
-        case Opcode::kLoadStackArgument:
-        case Opcode::kStoreTypedElement:
-        case Opcode::kStoreDataViewElement:
-        case Opcode::kTransitionAndStoreArrayElement:
-        case Opcode::kCompareMaps:
-        case Opcode::kCheckMaps:
-        case Opcode::kAssumeMap:
-        case Opcode::kCheckedClosure:
-        case Opcode::kCheckEqualsInternalizedString:
-        case Opcode::kLoadMessage:
-        case Opcode::kStoreMessage:
-        case Opcode::kSameValue:
-        case Opcode::kFloat64SameValue:
-        case Opcode::kFastApiCall:
-        case Opcode::kRuntimeAbort:
-        case Opcode::kEnsureWritableFastElements:
-        case Opcode::kMaybeGrowFastElements:
-        case Opcode::kTransitionElementsKind:
-        case Opcode::kFindOrderedHashEntry:
-#if V8_ENABLE_WEBASSEMBLY
-        // TODO(14108): Implement.
-        case Opcode::kGlobalGet:
-        case Opcode::kIsNull:
-        case Opcode::kNull:
-        case Opcode::kAssertNotNull:
-        case Opcode::kRttCanon:
-        case Opcode::kWasmTypeCheck:
-        case Opcode::kWasmTypeCast:
-        case Opcode::kStructGet:
-        case Opcode::kStructSet:
-        case Opcode::kArrayGet:
-        case Opcode::kArraySet:
-        case Opcode::kArrayLength:
-        case Opcode::kSimd128Constant:
-        case Opcode::kSimd128Binop:
-        case Opcode::kSimd128Unary:
-        case Opcode::kSimd128Shift:
-        case Opcode::kSimd128Test:
-        case Opcode::kSimd128Splat:
-        case Opcode::kSimd128Ternary:
-        case Opcode::kSimd128ExtractLane:
-        case Opcode::kSimd128ReplaceLane:
-        case Opcode::kSimd128LaneMemory:
-        case Opcode::kSimd128LoadTransform:
-        case Opcode::kSimd128Shuffle:
-#endif
+        default:
           // TODO(nicohartmann@): Support remaining operations. For now we
           // compute fallback types.
           if (op.outputs_rep().size() > 0) {
@@ -631,11 +528,11 @@ class TypeInferenceAnalysis {
 
  private:
   const Graph& graph_;
-  GrowingSidetable<Type> types_;
+  GrowingOpIndexSidetable<Type> types_;
   using table_t = SnapshotTable<Type>;
   table_t table_;
   const Block* current_block_ = nullptr;
-  GrowingSidetable<base::Optional<table_t::Key>> op_to_key_mapping_;
+  GrowingOpIndexSidetable<base::Optional<table_t::Key>> op_to_key_mapping_;
   GrowingBlockSidetable<base::Optional<table_t::Snapshot>>
       block_to_snapshot_mapping_;
   // {predecessors_} is used during merging, but we use an instance variable for

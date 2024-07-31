@@ -39,8 +39,8 @@ V8_WARN_UNUSED_RESULT Handle<FieldType> GeneralizeFieldType(
       Map::FieldTypeIsCleared(rep2, *type2)) {
     return FieldType::Any(isolate);
   }
-  if ((*type1)->NowIs(type2)) return type2;
-  if ((*type2)->NowIs(type1)) return type1;
+  if (FieldType::NowIs(*type1, type2)) return type2;
+  if (FieldType::NowIs(*type2, type1)) return type1;
   return FieldType::Any(isolate);
 }
 
@@ -68,7 +68,7 @@ void PrintGeneralization(
     if (old_field_type.is_null()) {
       os << Brief(*(old_value.ToHandleChecked()));
     } else {
-      (*old_field_type.ToHandleChecked())->PrintTo(os);
+      FieldType::PrintTo(*old_field_type.ToHandleChecked(), os);
     }
     os << ";" << old_constness << "}";
   }
@@ -76,7 +76,7 @@ void PrintGeneralization(
   if (new_field_type.is_null()) {
     os << Brief(*(new_value.ToHandleChecked()));
   } else {
-    (*new_field_type.ToHandleChecked())->PrintTo(os);
+    FieldType::PrintTo(*new_field_type.ToHandleChecked(), os);
   }
   os << ";" << new_constness << "} (";
   if (strlen(reason) > 0) {
@@ -342,9 +342,9 @@ IntegrityLevelTransitionInfo DetectIntegrityLevelTransitions(
 }  // namespace
 
 // static
-base::Optional<Map> MapUpdater::TryUpdateNoLock(Isolate* isolate,
-                                                Tagged<Map> old_map,
-                                                ConcurrencyMode cmode) {
+base::Optional<Tagged<Map>> MapUpdater::TryUpdateNoLock(Isolate* isolate,
+                                                        Tagged<Map> old_map,
+                                                        ConcurrencyMode cmode) {
   DisallowGarbageCollection no_gc;
 
   // Check the state of the root map.
@@ -507,8 +507,8 @@ MapUpdater::State MapUpdater::TryReconfigureToDataFieldInplace() {
   DCHECK(old_descriptors_->GetDetails(modified_descriptor_)
              .representation()
              .Equals(new_representation_));
-  DCHECK(old_descriptors_->GetFieldType(modified_descriptor_)
-             ->NowIs(new_field_type_));
+  DCHECK(FieldType::NowIs(old_descriptors_->GetFieldType(modified_descriptor_),
+                          new_field_type_));
 
   result_map_ = old_map_;
   state_ = kEnd;
@@ -709,9 +709,9 @@ MapUpdater::State MapUpdater::FindTargetMap() {
       DCHECK(new_representation_.fits_into(details.representation()));
       if (new_location_ == PropertyLocation::kField) {
         DCHECK_EQ(PropertyLocation::kField, details.location());
-        DCHECK((*new_field_type_)
-                   ->NowIs(
-                       target_descriptors->GetFieldType(modified_descriptor_)));
+        DCHECK(FieldType::NowIs(
+            *new_field_type_,
+            target_descriptors->GetFieldType(modified_descriptor_)));
       } else {
         DCHECK(details.location() == PropertyLocation::kField ||
                EqualImmutableValues(
@@ -854,8 +854,7 @@ Handle<DescriptorArray> MapUpdater::BuildDescriptorArray() {
       Map::GeneralizeIfCanHaveTransitionableFastElementsKind(
           isolate_, instance_type, &next_representation, &next_field_type);
 
-      MaybeObjectHandle wrapped_type(
-          Map::WrapFieldType(isolate_, next_field_type));
+      MaybeObjectHandle wrapped_type(Map::WrapFieldType(next_field_type));
       Descriptor d;
       if (next_kind == PropertyKind::kData) {
         d = Descriptor::DataField(key, current_offset, next_attributes,
@@ -901,8 +900,7 @@ Handle<DescriptorArray> MapUpdater::BuildDescriptorArray() {
           is_transitionable_fast_elements_kind_,
           Map::IsMostGeneralFieldType(next_representation, *next_field_type));
 
-      MaybeObjectHandle wrapped_type(
-          Map::WrapFieldType(isolate_, next_field_type));
+      MaybeObjectHandle wrapped_type(Map::WrapFieldType(next_field_type));
       Descriptor d;
       if (next_kind == PropertyKind::kData) {
         d = Descriptor::DataField(key, current_offset, next_attributes,
@@ -956,7 +954,7 @@ Handle<Map> MapUpdater::FindSplitMap(Handle<DescriptorArray> descriptors) {
 
     if (next_details.location() == PropertyLocation::kField) {
       Tagged<FieldType> next_field_type = next_descriptors->GetFieldType(i);
-      if (!descriptors->GetFieldType(i)->NowIs(next_field_type)) {
+      if (!FieldType::NowIs(descriptors->GetFieldType(i), next_field_type)) {
         break;
       }
     } else {
@@ -971,6 +969,10 @@ Handle<Map> MapUpdater::FindSplitMap(Handle<DescriptorArray> descriptors) {
 }
 
 MapUpdater::State MapUpdater::ConstructNewMap() {
+#ifdef DEBUG
+  Handle<EnumCache> old_enum_cache =
+      handle(old_map_->instance_descriptors()->enum_cache(), isolate_);
+#endif
   Handle<DescriptorArray> new_descriptors = BuildDescriptorArray();
 
   Handle<Map> split_map = FindSplitMap(new_descriptors);
@@ -1038,17 +1040,30 @@ MapUpdater::State MapUpdater::ConstructNewMap() {
   Handle<Map> new_map =
       Map::AddMissingTransitions(isolate_, split_map, new_descriptors);
 
+  bool had_any_enum_cache =
+      split_map->instance_descriptors(isolate_)
+              ->enum_cache()
+              ->keys()
+              ->length() > 0 ||
+      old_descriptors_->enum_cache()->keys()->length() > 0;
+
   // Deprecated part of the transition tree is no longer reachable, so replace
   // current instance descriptors in the "survived" part of the tree with
   // the new descriptors to maintain descriptors sharing invariant.
   split_map->ReplaceDescriptors(isolate_, *new_descriptors);
 
-  // If the old descriptors had an enum cache, make sure the new ones do too.
-  if (old_descriptors_->enum_cache()->keys()->length() > 0 &&
-      new_map->NumberOfEnumerableProperties() > 0) {
+  // If the old descriptors had an enum cache (or if {split_map}'s descriptors
+  // had one), make sure the new ones do too.
+  if (had_any_enum_cache && new_map->NumberOfEnumerableProperties() > 0) {
     FastKeyAccumulator::InitializeFastPropertyEnumCache(
         isolate_, new_map, new_map->NumberOfEnumerableProperties());
   }
+
+  // The old map has to still point to the old enum cache. This is because we
+  // might have cached the enum indices, for iterating over objects with the old
+  // map -- we don't want this enum cache to move ownership to the new branch,
+  // because then it might get trimmed past the old map's field count.
+  DCHECK_EQ(old_map_->instance_descriptors()->enum_cache(), *old_enum_cache);
 
   if (has_integrity_level_transition_) {
     target_map_ = new_map;
@@ -1131,7 +1146,7 @@ void MapUpdater::UpdateFieldType(Isolate* isolate, Handle<Map> map,
                                  PropertyConstness new_constness,
                                  Representation new_representation,
                                  const MaybeObjectHandle& new_wrapped_type) {
-  DCHECK(new_wrapped_type->IsSmi() || new_wrapped_type->IsWeak());
+  DCHECK(IsSmi(*new_wrapped_type) || IsWeak(*new_wrapped_type));
   // We store raw pointers in the queue, so no allocations are allowed.
   PropertyDetails details =
       map->instance_descriptors(isolate)->GetDetails(descriptor);
@@ -1142,7 +1157,7 @@ void MapUpdater::UpdateFieldType(Isolate* isolate, Handle<Map> map,
     JSObject::InvalidatePrototypeChains(*map);
   }
 
-  std::queue<Map> backlog;
+  std::queue<Tagged<Map>> backlog;
   backlog.push(*map);
 
   while (!backlog.empty()) {
@@ -1201,10 +1216,11 @@ void MapUpdater::GeneralizeField(Isolate* isolate, Handle<Map> map,
       !Map::FieldTypeIsCleared(new_representation, *new_field_type) &&
       // Checking old_field_type for being cleared is not necessary because
       // the NowIs check below would fail anyway in that case.
-      (*new_field_type)->NowIs(old_field_type)) {
-    DCHECK((*GeneralizeFieldType(old_representation, old_field_type,
-                                 new_representation, new_field_type, isolate))
-               ->NowIs(old_field_type));
+      FieldType::NowIs(*new_field_type, old_field_type)) {
+    DCHECK(FieldType::NowIs(
+        *GeneralizeFieldType(old_representation, old_field_type,
+                             new_representation, new_field_type, isolate),
+        old_field_type));
     return;
   }
 
@@ -1223,7 +1239,7 @@ void MapUpdater::GeneralizeField(Isolate* isolate, Handle<Map> map,
   PropertyDetails details = descriptors->GetDetails(modify_index);
   Handle<Name> name(descriptors->GetKey(modify_index), isolate);
 
-  MaybeObjectHandle wrapped_type(Map::WrapFieldType(isolate, new_field_type));
+  MaybeObjectHandle wrapped_type(Map::WrapFieldType(new_field_type));
   UpdateFieldType(isolate, field_owner, modify_index, name, new_constness,
                   new_representation, wrapped_type);
 
@@ -1231,7 +1247,7 @@ void MapUpdater::GeneralizeField(Isolate* isolate, Handle<Map> map,
   if (new_constness != old_constness) {
     dep_groups |= DependentCode::kFieldConstGroup;
   }
-  if (!(*new_field_type)->Equals(*old_field_type)) {
+  if (!FieldType::Equals(*new_field_type, *old_field_type)) {
     dep_groups |= DependentCode::kFieldTypeGroup;
   }
   if (!new_representation.Equals(old_representation)) {

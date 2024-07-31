@@ -34,7 +34,7 @@ generator_default_variables = {
 
 
 def IsMac(params):
-    return "mac" == gyp.common.GetFlavor(params)
+    return gyp.common.GetFlavor(params) == "mac"
 
 
 def CalculateVariables(default_variables, params):
@@ -93,7 +93,7 @@ def AddCommandsForTarget(cwd, target, params, per_config_commands):
                     gyp.common.EncodePOSIXShellArgument(file),
                 )
             )
-            commands.append(dict(command=command, directory=output_dir, file=file))
+            commands.append({"command": command, "directory": output_dir, "file": file})
 
 
 def GenerateOutput(target_list, target_dicts, data, params):
@@ -108,7 +108,10 @@ def GenerateOutput(target_list, target_dicts, data, params):
         cwd = os.path.dirname(build_file)
         AddCommandsForTarget(cwd, target, params, per_config_commands)
 
-    output_dir = params["generator_flags"].get("output_dir", "out")
+    try:
+        output_dir = params["options"].generator_output
+    except (AttributeError, KeyError):
+        output_dir = params["generator_flags"].get("output_dir", "out")
     for configuration_name, commands in per_config_commands.items():
         filename = os.path.join(output_dir, configuration_name, "compile_commands.json")
         gyp.common.EnsureDirExists(filename)

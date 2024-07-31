@@ -52,7 +52,8 @@ class MapCompare {
   inline explicit MapCompare(MaglevAssembler* masm, Register object,
                              size_t map_count);
 
-  inline void Generate(Handle<Map> map);
+  inline void Generate(Handle<Map> map, Condition cond, Label* if_true,
+                       Label::Distance distance = Label::kFar);
   inline Register GetObject() const { return object_; }
   inline Register GetMap();
 
@@ -66,7 +67,7 @@ class MapCompare {
   Register map_ = Register::no_reg();
 };
 
-class MaglevAssembler : public MacroAssembler {
+class V8_EXPORT_PRIVATE MaglevAssembler : public MacroAssembler {
  public:
   class ScratchRegisterScope;
 
@@ -89,6 +90,8 @@ class MaglevAssembler : public MacroAssembler {
   inline MemOperand GetStackSlot(const compiler::AllocatedOperand& operand);
   inline MemOperand ToMemOperand(const compiler::InstructionOperand& operand);
   inline MemOperand ToMemOperand(const ValueLocation& location);
+
+  inline Register GetFramePointer();
 
   inline int GetFramePointerOffsetForStackSlot(
       const compiler::AllocatedOperand& operand) {
@@ -278,6 +281,17 @@ class MaglevAssembler : public MacroAssembler {
   inline void CheckInt32IsSmi(Register obj, Label* fail,
                               Register scratch = Register::no_reg());
 
+  // Add/Subtract a constant (not smi tagged) to a smi. Jump to {fail} if the
+  // result doesn't fit.
+  inline void SmiAddConstant(Register dst, Register src, int value, Label* fail,
+                             Label::Distance distance = Label::kFar);
+  inline void SmiAddConstant(Register reg, int value, Label* fail,
+                             Label::Distance distance = Label::kFar);
+  inline void SmiSubConstant(Register dst, Register src, int value, Label* fail,
+                             Label::Distance distance = Label::kFar);
+  inline void SmiSubConstant(Register reg, int value, Label* fail,
+                             Label::Distance distance = Label::kFar);
+
   inline void MoveHeapNumber(Register dst, double value);
 
   void TruncateDoubleToInt32(Register dst, DoubleRegister src);
@@ -323,6 +337,13 @@ class MaglevAssembler : public MacroAssembler {
   void MaterialiseValueNode(Register dst, ValueNode* value);
 
   inline void IncrementInt32(Register reg);
+  inline void IncrementAddress(Register reg, int32_t delta);
+  inline void LoadAddress(Register dst, MemOperand location);
+
+  inline void Call(Label* target);
+
+  inline void EmitEnterExitFrame(int extra_slots, StackFrame::Type frame_type,
+                                 Register c_function, Register scratch);
 
   inline MemOperand StackSlotOperand(StackSlot slot);
   inline void Move(StackSlot dst, Register src);
@@ -337,9 +358,14 @@ class MaglevAssembler : public MacroAssembler {
   inline void Move(Register dst, Register src);
   inline void Move(Register dst, Tagged<TaggedIndex> i);
   inline void Move(Register dst, int32_t i);
+  inline void Move(Register dst, uint32_t i);
   inline void Move(DoubleRegister dst, double n);
   inline void Move(DoubleRegister dst, Float64 n);
   inline void Move(Register dst, Handle<HeapObject> obj);
+
+  inline void MoveTagged(Register dst, Handle<HeapObject> obj);
+
+  inline void LoadMapForCompare(Register dst, Register obj);
 
   inline void LoadByte(Register dst, MemOperand src);
 
@@ -373,12 +399,34 @@ class MaglevAssembler : public MacroAssembler {
   inline Condition IsNotCallableNorUndetactable(Register map, Register scratch);
 
   inline void LoadInstanceType(Register instance_type, Register heap_object);
-  inline void IsObjectType(Register heap_object, InstanceType type);
-  inline void CompareObjectType(Register heap_object, InstanceType type);
+  inline void CompareObjectTypeAndAssert(Register heap_object,
+                                         InstanceType type, Condition cond,
+                                         AbortReason reason);
+  inline void CompareObjectTypeAndJumpIf(
+      Register heap_object, InstanceType type, Condition cond, Label* target,
+      Label::Distance distance = Label::kFar);
+  inline void CompareObjectTypeAndBranch(
+      Register heap_object, InstanceType type, Condition condition,
+      Label* if_true, Label::Distance true_distance, bool fallthrough_when_true,
+      Label* if_false, Label::Distance false_distance,
+      bool fallthrough_when_false);
   inline void JumpIfJSAnyIsNotPrimitive(Register heap_object, Label* target,
                                         Label::Distance distance = Label::kFar);
-  inline void CompareObjectType(Register heap_object, InstanceType type,
-                                Register scratch);
+
+  inline void JumpIfStringMap(Register map, Label* target,
+                              Label::Distance distance = Label::kFar,
+                              bool jump_if_true = true);
+  inline void JumpIfString(Register heap_object, Label* target,
+                           Label::Distance distance = Label::kFar);
+  inline void JumpIfNotString(Register heap_object, Label* target,
+                              Label::Distance distance = Label::kFar);
+  inline void CheckJSAnyIsStringAndBranch(Register heap_object, Label* if_true,
+                                          Label::Distance true_distance,
+                                          bool fallthrough_when_true,
+                                          Label* if_false,
+                                          Label::Distance false_distance,
+                                          bool fallthrough_when_false);
+
   inline void CompareObjectTypeRange(Register heap_object,
                                      InstanceType lower_limit,
                                      InstanceType higher_limit);
@@ -396,19 +444,25 @@ class MaglevAssembler : public MacroAssembler {
                                        InstanceType lower_limit,
                                        InstanceType higher_limit);
 
-  inline void CompareTagged(Register reg, Tagged<Smi> smi);
-  inline void CompareTagged(Register reg, Handle<HeapObject> obj);
-  inline void CompareTagged(Register src1, Register src2);
-
   inline void CompareTaggedAndJumpIf(Register reg, Tagged<Smi> smi,
                                      Condition cond, Label* target,
                                      Label::Distance distance = Label::kFar);
+  inline void CompareTaggedAndJumpIf(Register reg, Handle<HeapObject> obj,
+                                     Condition cond, Label* target,
+                                     Label::Distance distance = Label::kFar);
+  inline void CompareTaggedAndJumpIf(Register src1, Register src2,
+                                     Condition cond, Label* target,
+                                     Label::Distance distance = Label::kFar);
 
-  inline void CompareInt32(Register reg, int32_t imm);
-  inline void CompareInt32(Register src1, Register src2);
-
-  inline void CompareFloat64(DoubleRegister src1, DoubleRegister src2);
-
+  inline void CompareFloat64AndJumpIf(DoubleRegister src1, DoubleRegister src2,
+                                      Condition cond, Label* target,
+                                      Label* nan_failed,
+                                      Label::Distance distance = Label::kFar);
+  inline void CompareFloat64AndBranch(DoubleRegister src1, DoubleRegister src2,
+                                      Condition cond, BasicBlock* if_true,
+                                      BasicBlock* if_false,
+                                      BasicBlock* next_block,
+                                      BasicBlock* nan_failed);
   inline void PrepareCallCFunction(int num_reg_arguments,
                                    int num_double_registers = 0);
 
@@ -441,15 +495,44 @@ class MaglevAssembler : public MacroAssembler {
   inline void JumpIfNotHoleNan(DoubleRegister value, Register scratch,
                                Label* target,
                                Label::Distance distance = Label::kFar);
+  inline void JumpIfNan(DoubleRegister value, Label* target,
+                        Label::Distance distance = Label::kFar);
+  inline void JumpIfNotNan(DoubleRegister value, Label* target,
+                           Label::Distance distance = Label::kFar);
   inline void JumpIfNotHoleNan(MemOperand operand, Label* target,
                                Label::Distance distance = Label::kFar);
 
   inline void CompareInt32AndJumpIf(Register r1, Register r2, Condition cond,
                                     Label* target,
                                     Label::Distance distance = Label::kFar);
+  inline void CompareIntPtrAndJumpIf(Register r1, Register r2, Condition cond,
+                                     Label* target,
+                                     Label::Distance distance = Label::kFar);
   inline void CompareInt32AndJumpIf(Register r1, int32_t value, Condition cond,
                                     Label* target,
                                     Label::Distance distance = Label::kFar);
+  inline void CompareInt32AndBranch(Register r1, int32_t value, Condition cond,
+                                    BasicBlock* if_true, BasicBlock* if_false,
+                                    BasicBlock* next_block);
+  inline void CompareInt32AndBranch(Register r1, Register r2, Condition cond,
+                                    BasicBlock* if_true, BasicBlock* if_false,
+                                    BasicBlock* next_block);
+  inline void CompareInt32AndBranch(Register r1, int32_t value, Condition cond,
+                                    Label* if_true,
+                                    Label::Distance true_distance,
+                                    bool fallthrough_when_true, Label* if_false,
+                                    Label::Distance false_distance,
+                                    bool fallthrough_when_false);
+  inline void CompareInt32AndBranch(Register r1, Register r2, Condition cond,
+                                    Label* if_true,
+                                    Label::Distance true_distance,
+                                    bool fallthrough_when_true, Label* if_false,
+                                    Label::Distance false_distance,
+                                    bool fallthrough_when_false);
+  inline void CompareInt32AndAssert(Register r1, Register r2, Condition cond,
+                                    AbortReason reason);
+  inline void CompareInt32AndAssert(Register r1, int32_t value, Condition cond,
+                                    AbortReason reason);
   inline void CompareSmiAndJumpIf(Register r1, Tagged<Smi> value,
                                   Condition cond, Label* target,
                                   Label::Distance distance = Label::kFar);
@@ -513,6 +596,8 @@ class MaglevAssembler : public MacroAssembler {
   inline void SetMapAsRoot(Register object, RootIndex map);
 
   inline void LoadHeapNumberValue(DoubleRegister result, Register heap_number);
+  inline void LoadHeapNumberOrOddballValue(DoubleRegister result,
+                                           Register object);
 
   void LoadDataField(const PolymorphicAccessInfo& access_info, Register result,
                      Register object, Register scratch);
@@ -521,6 +606,9 @@ class MaglevAssembler : public MacroAssembler {
                                   Label* eager_deopt_entry,
                                   size_t lazy_deopt_count,
                                   Label* lazy_deopt_entry);
+
+  void GenerateCheckConstTrackingLetCellFooter(Register context, Register data,
+                                               int index, Label* done);
 
   compiler::NativeContextRef native_context() const {
     return code_gen_state()->broker()->target_native_context();
@@ -752,19 +840,6 @@ struct is_iterator_range<base::iterator_range<T>> : std::true_type {};
 
 // General helpers.
 
-inline bool AnyMapIsHeapNumber(const compiler::ZoneRefSet<Map>& maps) {
-  return std::any_of(maps.begin(), maps.end(), [](compiler::MapRef map) {
-    return map.IsHeapNumberMap();
-  });
-}
-
-inline bool AnyMapIsHeapNumber(
-    const base::Vector<const compiler::MapRef>& maps) {
-  return std::any_of(maps.begin(), maps.end(), [](compiler::MapRef map) {
-    return map.IsHeapNumberMap();
-  });
-}
-
 inline Condition ToCondition(AssertCondition cond) {
   switch (cond) {
 #define CASE(Name)               \
@@ -788,6 +863,24 @@ constexpr Condition ConditionFor(Operation operation) {
       return kGreaterThan;
     case Operation::kGreaterThanOrEqual:
       return kGreaterThanEqual;
+    default:
+      UNREACHABLE();
+  }
+}
+
+constexpr Condition UnsignedConditionFor(Operation operation) {
+  switch (operation) {
+    case Operation::kEqual:
+    case Operation::kStrictEqual:
+      return kEqual;
+    case Operation::kLessThan:
+      return kUnsignedLessThan;
+    case Operation::kLessThanOrEqual:
+      return kUnsignedLessThanEqual;
+    case Operation::kGreaterThan:
+      return kUnsignedGreaterThan;
+    case Operation::kGreaterThanOrEqual:
+      return kUnsignedGreaterThanEqual;
     default:
       UNREACHABLE();
   }

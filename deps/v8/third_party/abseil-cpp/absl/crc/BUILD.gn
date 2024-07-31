@@ -1,0 +1,130 @@
+# Copyright 2022 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("cpu_detect") {
+  public = [ "internal/cpu_detect.h" ]
+  sources = [ "internal/cpu_detect.cc" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base",
+    "//third_party/abseil-cpp/absl/base:config",
+  ]
+  visibility = [ ":*" ]
+}
+
+absl_source_set("crc_internal") {
+  public = [
+    "internal/crc.h",
+    "internal/crc32_x86_arm_combined_simd.h",
+  ]
+  sources = [
+    "internal/crc.cc",
+    "internal/crc_internal.h",
+    "internal/crc_x86_arm_combined.cc",
+  ]
+  deps = [
+    ":cpu_detect",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:endian",
+    "//third_party/abseil-cpp/absl/base:prefetch",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+  ]
+  visibility = [ ":*" ]
+}
+
+absl_source_set("crc32c") {
+  public = [
+    "crc32c.h",
+    "internal/crc32c.h",
+    "internal/crc_memcpy.h",
+  ]
+  sources = [
+    "crc32c.cc",
+    "internal/crc32c_inline.h",
+    "internal/crc_memcpy_fallback.cc",
+    "internal/crc_memcpy_x86_arm_combined.cc",
+    "internal/crc_non_temporal_memcpy.cc",
+  ]
+  deps = [
+    ":cpu_detect",
+    ":crc_internal",
+    ":non_temporal_memcpy",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:endian",
+    "//third_party/abseil-cpp/absl/base:prefetch",
+    "//third_party/abseil-cpp/absl/strings:str_format",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
+absl_test("crc32c_test") {
+  sources = [ "crc32c_test.cc" ]
+  deps = [
+    ":crc32c",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:str_format",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
+absl_source_set("non_temporal_arm_intrinsics") {
+  public = [ "internal/non_temporal_arm_intrinsics.h" ]
+  deps = [ "//third_party/abseil-cpp/absl/base:config" ]
+  visibility = [ ":*" ]
+}
+
+absl_source_set("non_temporal_memcpy") {
+  public = [ "internal/non_temporal_memcpy.h" ]
+  deps = [
+    ":non_temporal_arm_intrinsics",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+  ]
+  visibility = [ ":*" ]
+}
+
+absl_test("crc_memcpy_test") {
+  sources = [ "internal/crc_memcpy_test.cc" ]
+  deps = [
+    ":crc32c",
+    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/random",
+    "//third_party/abseil-cpp/absl/random:distributions",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
+absl_test("non_temporal_memcpy_test") {
+  sources = [ "internal/non_temporal_memcpy_test.cc" ]
+  deps = [ ":non_temporal_memcpy" ]
+}
+
+absl_source_set("crc_cord_state") {
+  public = [ "internal/crc_cord_state.h" ]
+  sources = [ "internal/crc_cord_state.cc" ]
+  deps = [
+    ":crc32c",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:no_destructor",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+  ]
+  visibility = [
+    "//third_party/abseil-cpp/absl/crc/*",
+    "//third_party/abseil-cpp/absl/strings:*",
+  ]
+}
+
+absl_test("crc_cord_state_test") {
+  sources = [ "internal/crc_cord_state_test.cc" ]
+  deps = [
+    ":crc32c",
+    ":crc_cord_state",
+  ]
+}

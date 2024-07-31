@@ -3185,8 +3185,6 @@ void   RegexCompile::matchStartType() {
         // Matches can start with anything
         fRXPat->fStartType = START_NO_INFO;
     }
-
-    return;
 }
 
 

@@ -19,6 +19,7 @@ using v8::BackingStore;
 using v8::FunctionCallbackInfo;
 using v8::Int32;
 using v8::Just;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::Nothing;
@@ -359,10 +360,9 @@ WebCryptoCipherStatus RSACipherTraits::DoCipher(
   return WebCryptoCipherStatus::FAILED;
 }
 
-Maybe<bool> ExportJWKRsaKey(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    Local<Object> target) {
+Maybe<void> ExportJWKRsaKey(Environment* env,
+                            std::shared_ptr<KeyObjectData> key,
+                            Local<Object> target) {
   ManagedEVPPKey m_pkey = key->GetAsymmetricKey();
   Mutex::ScopedLock lock(*m_pkey.mutex());
   int type = EVP_PKEY_id(m_pkey.get());
@@ -392,12 +392,12 @@ Maybe<bool> ExportJWKRsaKey(
           env->context(),
           env->jwk_kty_string(),
           env->jwk_rsa_string()).IsNothing()) {
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
   if (SetEncodedValue(env, target, env->jwk_n_string(), n).IsNothing() ||
       SetEncodedValue(env, target, env->jwk_e_string(), e).IsNothing()) {
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
   if (key->GetKeyType() == kKeyTypePrivate) {
@@ -409,11 +409,11 @@ Maybe<bool> ExportJWKRsaKey(
         SetEncodedValue(env, target, env->jwk_dp_string(), dp).IsNothing() ||
         SetEncodedValue(env, target, env->jwk_dq_string(), dq).IsNothing() ||
         SetEncodedValue(env, target, env->jwk_qi_string(), qi).IsNothing()) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
   }
 
-  return Just(true);
+  return JustVoid();
 }
 
 std::shared_ptr<KeyObjectData> ImportJWKRsaKey(
@@ -441,7 +441,7 @@ std::shared_ptr<KeyObjectData> ImportJWKRsaKey(
 
   KeyType type = d_value->IsString() ? kKeyTypePrivate : kKeyTypePublic;
 
-  RsaPointer rsa(RSA_new());
+  RSAPointer rsa(RSA_new());
 
   ByteSource n = ByteSource::FromEncodedString(env, n_value.As<String>());
   ByteSource e = ByteSource::FromEncodedString(env, e_value.As<String>());

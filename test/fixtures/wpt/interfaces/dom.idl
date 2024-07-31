@@ -95,6 +95,7 @@ interface AbortController {
 interface AbortSignal : EventTarget {
   [NewObject] static AbortSignal abort(optional any reason);
   [Exposed=(Window,Worker), NewObject] static AbortSignal timeout([EnforceRange] unsigned long long milliseconds);
+  [NewObject] static AbortSignal _any(sequence<AbortSignal> signals);
 
   readonly attribute boolean aborted;
   readonly attribute any reason;
@@ -119,9 +120,9 @@ interface mixin ParentNode {
   readonly attribute Element? lastElementChild;
   readonly attribute unsigned long childElementCount;
 
-  [CEReactions, Unscopable] undefined prepend((Node or DOMString)... nodes);
-  [CEReactions, Unscopable] undefined append((Node or DOMString)... nodes);
-  [CEReactions, Unscopable] undefined replaceChildren((Node or DOMString)... nodes);
+  [CEReactions, Unscopable] undefined prepend((Node or TrustedScript or DOMString)... nodes);
+  [CEReactions, Unscopable] undefined append((Node or TrustedScript or DOMString)... nodes);
+  [CEReactions, Unscopable] undefined replaceChildren((Node or TrustedScript or DOMString)... nodes);
 
   Element? querySelector(DOMString selectors);
   [NewObject] NodeList querySelectorAll(DOMString selectors);
@@ -138,9 +139,9 @@ Element includes NonDocumentTypeChildNode;
 CharacterData includes NonDocumentTypeChildNode;
 
 interface mixin ChildNode {
-  [CEReactions, Unscopable] undefined before((Node or DOMString)... nodes);
-  [CEReactions, Unscopable] undefined after((Node or DOMString)... nodes);
-  [CEReactions, Unscopable] undefined replaceWith((Node or DOMString)... nodes);
+  [CEReactions, Unscopable] undefined before((Node or TrustedScript or DOMString)... nodes);
+  [CEReactions, Unscopable] undefined after((Node or TrustedScript or DOMString)... nodes);
+  [CEReactions, Unscopable] undefined replaceWith((Node or TrustedScript or DOMString)... nodes);
   [CEReactions, Unscopable] undefined remove();
 };
 DocumentType includes ChildNode;
@@ -338,6 +339,8 @@ interface ShadowRoot : DocumentFragment {
   readonly attribute ShadowRootMode mode;
   readonly attribute boolean delegatesFocus;
   readonly attribute SlotAssignmentMode slotAssignment;
+  readonly attribute boolean clonable;
+  readonly attribute boolean serializable;
   readonly attribute Element host;
   attribute EventHandler onslotchange;
 };
@@ -395,6 +398,8 @@ dictionary ShadowRootInit {
   required ShadowRootMode mode;
   boolean delegatesFocus = false;
   SlotAssignmentMode slotAssignment = "named";
+  boolean clonable = false;
+  boolean serializable = false;
 };
 
 [Exposed=Window,
@@ -618,7 +623,7 @@ callback interface XPathNSResolver {
 
 interface mixin XPathEvaluatorBase {
   [NewObject] XPathExpression createExpression(DOMString expression, optional XPathNSResolver? resolver = null);
-  XPathNSResolver createNSResolver(Node nodeResolver);
+  Node createNSResolver(Node nodeResolver); // legacy
   // XPathResult.ANY_TYPE = 0
   XPathResult evaluate(DOMString expression, Node contextNode, optional XPathNSResolver? resolver = null, optional unsigned short type = 0, optional XPathResult? result = null);
 };

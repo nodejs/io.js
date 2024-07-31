@@ -103,19 +103,19 @@ $	DEF  OSSL$EXE			OSSL$INSTROOT:[EXE.'arch'],-
 					OSSL$INSTROOT:[EXE]
 $	DEF  OSSL$LIBCRYPTO'pz'		OSSL$LIB:OSSL$LIBCRYPTO'pz'.OLB
 $	DEF  OSSL$LIBSSL'pz'		OSSL$LIB:OSSL$LIBSSL'pz'.OLB
-${- output_off() if $config{no_shared}; "" -}
+${- output_off() if $disabled{shared}; "" -}
 $	DEF  OSSL$LIBCRYPTO'sv'_SHR'pz'	OSSL$SHARE:OSSL$LIBCRYPTO'sv'_SHR'pz'.EXE
 $	DEF  OSSL$LIBSSL'sv'_SHR'pz'	OSSL$SHARE:OSSL$LIBSSL'sv'_SHR'pz'.EXE
-${- output_on() if $config{no_shared}; "" -}
+${- output_on() if $disabled{shared}; "" -}
 $	DEF  OPENSSL			OSSL$INCLUDE:[OPENSSL]
 $
 $	IF P2 .NES. "NOALIASES"
 $	THEN
 $	    DEF OSSL$ENGINES'pz'	OSSL$ENGINES'sv''pz'
-${- output_off() if $config{no_shared}; "" -}
+${- output_off() if $disabled{shared}; "" -}
 $	    DEF OSSL$LIBCRYPTO_SHR'pz'	OSSL$LIBCRYPTO'sv'_SHR'pz'
 $	    DEF OSSL$LIBSSL_SHR'pz'	OSSL$LIBSSL'sv'_SHR'pz'
-${- output_on() if $config{no_shared}; "" -}
+${- output_on() if $disabled{shared}; "" -}
 $	ENDIF
 $
 $ bailout:

@@ -3,7 +3,7 @@
 const common = require('../common.js');
 
 const configs = {
-  n: [1e3],
+  n: [1e6],
   mode: [
     'multi-concat',
     'multi-join',

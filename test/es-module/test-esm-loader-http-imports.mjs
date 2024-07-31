@@ -46,7 +46,7 @@ const {
   port,
 } = server.address();
 
-describe('ESM: http import via loader', { concurrency: true }, () => {
+describe('ESM: http import via loader', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should load using --import flag', async () => {
     // ! MUST NOT use spawnSync to avoid blocking the event loop
     const { code, signal, stderr, stdout } = await spawnPromisified(

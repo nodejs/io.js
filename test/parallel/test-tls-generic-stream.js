@@ -4,7 +4,7 @@ if (!common.hasCrypto)
   common.skip('missing crypto');
 
 const fixtures = require('../common/fixtures');
-const makeDuplexPair = require('../common/duplexpair');
+const { duplexPair } = require('stream');
 const assert = require('assert');
 const { TLSSocket, connect } = require('tls');
 
@@ -12,7 +12,7 @@ const key = fixtures.readKey('agent1-key.pem');
 const cert = fixtures.readKey('agent1-cert.pem');
 const ca = fixtures.readKey('ca1-cert.pem');
 
-const { clientSide, serverSide } = makeDuplexPair();
+const [ clientSide, serverSide ] = duplexPair();
 
 const clientTLS = connect({
   socket: clientSide,

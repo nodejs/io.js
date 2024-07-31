@@ -116,8 +116,12 @@ class V8_EXPORT_PRIVATE Type : public TypeBase {
   // Used for naming generated code.
   virtual std::string SimpleName() const;
 
+  enum class HandleKind { kIndirect, kDirect };
+  std::string GetHandleTypeName(HandleKind kind,
+                                const std::string& type_name) const;
+
   std::string TagglifiedCppTypeName() const;
-  std::string HandlifiedCppTypeName() const;
+  std::string HandlifiedCppTypeName(HandleKind kind) const;
 
   const Type* parent() const { return parent_; }
   bool IsVoid() const { return IsAbstractName(VOID_TYPE_STRING); }
@@ -673,18 +677,21 @@ class ClassType final : public AggregateType {
   bool IsExtern() const { return flags_ & ClassFlag::kExtern; }
   bool ShouldGeneratePrint() const {
     if (flags_ & ClassFlag::kCppObjectDefinition) return false;
+    if (flags_ & ClassFlag::kCppObjectLayoutDefinition) return false;
     if (!IsExtern()) return true;
     if (!ShouldGenerateCppClassDefinitions()) return false;
     return !IsAbstract() && !HasUndefinedLayout();
   }
   bool ShouldGenerateVerify() const {
     if (flags_ & ClassFlag::kCppObjectDefinition) return false;
+    if (flags_ & ClassFlag::kCppObjectLayoutDefinition) return false;
     if (!IsExtern()) return true;
     if (!ShouldGenerateCppClassDefinitions()) return false;
     return !HasUndefinedLayout() && !IsShape();
   }
   bool ShouldGenerateBodyDescriptor() const {
     if (flags_ & ClassFlag::kCppObjectDefinition) return false;
+    if (flags_ & ClassFlag::kCppObjectLayoutDefinition) return false;
     if (flags_ & ClassFlag::kGenerateBodyDescriptor) return true;
     return !IsAbstract() && !IsExtern();
   }
@@ -693,15 +700,23 @@ class ClassType final : public AggregateType {
   }
   bool IsTransient() const override { return flags_ & ClassFlag::kTransient; }
   bool IsAbstract() const { return flags_ & ClassFlag::kAbstract; }
+  bool IsLayoutDefinedInCpp() const {
+    return flags_ & ClassFlag::kCppObjectLayoutDefinition;
+  }
   bool HasSameInstanceTypeAsParent() const {
     return flags_ & ClassFlag::kHasSameInstanceTypeAsParent;
   }
   bool ShouldGenerateCppClassDefinitions() const {
     if (flags_ & ClassFlag::kCppObjectDefinition) return false;
+    if (flags_ & ClassFlag::kCppObjectLayoutDefinition) return false;
     return (flags_ & ClassFlag::kGenerateCppClassDefinitions) || !IsExtern();
   }
   bool ShouldGenerateCppObjectDefinitionAsserts() const {
     return flags_ & ClassFlag::kCppObjectDefinition;
+  }
+  bool ShouldGenerateCppObjectLayoutDefinitionAsserts() const {
+    return flags_ & ClassFlag::kCppObjectLayoutDefinition &&
+           flags_ & ClassFlag::kGenerateCppClassDefinitions;
   }
   bool ShouldGenerateFullClassDefinition() const { return !IsExtern(); }
   bool ShouldGenerateUniqueMap() const {

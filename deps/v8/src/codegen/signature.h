@@ -32,12 +32,14 @@ class Signature : public ZoneObject {
   size_t parameter_count() const { return parameter_count_; }
 
   T GetParam(size_t index) const {
-    DCHECK_LT(index, parameter_count_);
+    // If heap memory is corrupted, we may get confused about the number of
+    // parameters during compilation. These SBXCHECKs defend against that.
+    SBXCHECK_LT(index, parameter_count_);
     return reps_[return_count_ + index];
   }
 
   T GetReturn(size_t index = 0) const {
-    DCHECK_LT(index, return_count_);
+    SBXCHECK_LT(index, return_count_);
     return reps_[index];
   }
 
@@ -159,9 +161,7 @@ size_t hash_value(const Signature<T>& sig) {
   // Hash over all contained representations, plus the parameter count to
   // differentiate signatures with the same representation array but different
   // parameter/return count.
-  size_t seed = base::hash_value(sig.parameter_count());
-  for (T rep : sig.all()) seed = base::hash_combine(seed, base::hash<T>{}(rep));
-  return seed;
+  return base::Hasher{}.Add(sig.parameter_count()).AddRange(sig.all()).hash();
 }
 
 template <typename T, size_t kNumReturns = 0, size_t kNumParams = 0>

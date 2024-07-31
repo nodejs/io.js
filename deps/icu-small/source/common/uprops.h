@@ -224,22 +224,79 @@ enum {
 /*
  * Properties in vector word 2
  * Bits
- * 31..26   unused since ICU 70 added uemoji.icu;
- *          in ICU 57..69 stored emoji properties
+ * 31..26   ICU 75: Identifier_Type bit set
+ *          ICU 70..74: unused
+ *          ICU 57..69: emoji properties; moved to uemoji.icu in ICU 70
  * 25..20   Line Break
  * 19..15   Sentence Break
  * 14..10   Word Break
  *  9.. 5   Grapheme Cluster Break
  *  4.. 0   Decomposition Type
  */
+
+#ifdef __cplusplus
+
+// https://www.unicode.org/reports/tr39/#Identifier_Status_and_Type
+// The Identifier_Type maps each code point to a *set* of one or more values.
+// Some can be combined with others, some can only occur alone.
+// Exclusion & Limited_Use are combinable bits, but cannot occur together.
+// We use this forbidden combination for enumerated values.
+// We use 6 bits for all possible combinations.
+// If more combinable values are added, then we need to use more bits.
+//
+// We do not store separate data for Identifier_Status:
+// We can derive that from the encoded Identifier_Type via a simple range check.
+
+inline constexpr uint32_t UPROPS_2_ID_TYPE_MASK = 0xfc000000;
+inline constexpr int32_t UPROPS_2_ID_TYPE_SHIFT = 26;
+
 enum {
-    UPROPS_2_UNUSED_WAS_EXTENDED_PICTOGRAPHIC=26,  // ICU 62..69
-    UPROPS_2_UNUSED_WAS_EMOJI_COMPONENT,  // ICU 60..69
-    UPROPS_2_UNUSED_WAS_EMOJI,  // ICU 57..69
-    UPROPS_2_UNUSED_WAS_EMOJI_PRESENTATION,  // ICU 57..69
-    UPROPS_2_UNUSED_WAS_EMOJI_MODIFIER,  // ICU 57..69
-    UPROPS_2_UNUSED_WAS_EMOJI_MODIFIER_BASE  // ICU 57..69
+    // A high bit for use in idTypeToEncoded[] but not used in the data
+    UPROPS_ID_TYPE_BIT = 0x80,
+
+    // Combinable bits
+    UPROPS_ID_TYPE_EXCLUSION = 0x20,
+    UPROPS_ID_TYPE_LIMITED_USE = 0x10,
+    UPROPS_ID_TYPE_UNCOMMON_USE = 8,
+    UPROPS_ID_TYPE_TECHNICAL = 4,
+    UPROPS_ID_TYPE_OBSOLETE = 2,
+    UPROPS_ID_TYPE_NOT_XID = 1,
+
+    // Exclusive values
+    UPROPS_ID_TYPE_NOT_CHARACTER = 0,
+
+    // Forbidden bit combination used for enumerating other exclusive values
+    UPROPS_ID_TYPE_FORBIDDEN = UPROPS_ID_TYPE_EXCLUSION | UPROPS_ID_TYPE_LIMITED_USE, // 0x30
+    UPROPS_ID_TYPE_DEPRECATED = UPROPS_ID_TYPE_FORBIDDEN, // 0x30
+    UPROPS_ID_TYPE_DEFAULT_IGNORABLE, // 0x31
+    UPROPS_ID_TYPE_NOT_NFKC, // 0x32
+
+    UPROPS_ID_TYPE_ALLOWED_MIN = UPROPS_ID_TYPE_FORBIDDEN + 0xc, // 0x3c
+    UPROPS_ID_TYPE_INCLUSION = UPROPS_ID_TYPE_FORBIDDEN + 0xe, // 0x3e
+    UPROPS_ID_TYPE_RECOMMENDED = UPROPS_ID_TYPE_FORBIDDEN + 0xf, // 0x3f
 };
+
+/**
+ * Maps UIdentifierType to encoded bits.
+ * When UPROPS_ID_TYPE_BIT is set, then use "&" to test whether the value bit is set.
+ * When UPROPS_ID_TYPE_BIT is not set, then compare ("==") the array value with the data value.
+ */
+inline constexpr uint8_t uprops_idTypeToEncoded[] = {
+    UPROPS_ID_TYPE_NOT_CHARACTER,
+    UPROPS_ID_TYPE_DEPRECATED,
+    UPROPS_ID_TYPE_DEFAULT_IGNORABLE,
+    UPROPS_ID_TYPE_NOT_NFKC,
+    UPROPS_ID_TYPE_BIT | UPROPS_ID_TYPE_NOT_XID,
+    UPROPS_ID_TYPE_BIT | UPROPS_ID_TYPE_EXCLUSION,
+    UPROPS_ID_TYPE_BIT | UPROPS_ID_TYPE_OBSOLETE,
+    UPROPS_ID_TYPE_BIT | UPROPS_ID_TYPE_TECHNICAL,
+    UPROPS_ID_TYPE_BIT | UPROPS_ID_TYPE_UNCOMMON_USE,
+    UPROPS_ID_TYPE_BIT | UPROPS_ID_TYPE_LIMITED_USE,
+    UPROPS_ID_TYPE_INCLUSION,
+    UPROPS_ID_TYPE_RECOMMENDED
+};
+
+#endif  // __cplusplus
 
 #define UPROPS_LB_MASK          0x03f00000
 #define UPROPS_LB_SHIFT         20
@@ -379,6 +436,8 @@ enum UPropertySource {
     UPROPS_SRC_INSC,
     UPROPS_SRC_VO,
     UPROPS_SRC_EMOJI,
+    UPROPS_SRC_IDSU,
+    UPROPS_SRC_ID_COMPAT_MATH,
     /** One more than the highest UPropertySource (UPROPS_SRC_) constant. */
     UPROPS_SRC_COUNT
 };

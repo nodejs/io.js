@@ -349,4 +349,6 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
 }  // namespace internal
 }  // namespace v8
 
+#include "src/objects/object-macros-undef.h"
+
 #endif  // V8_OBJECTS_SWISS_NAME_DICTIONARY_H_

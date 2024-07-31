@@ -1,0 +1,16 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<script>
+function handleStorageEvent(e) {
+    if (window.sessionStorage === e.storageArea)
+      e.storageAreaString = "sessionStorage";
+    else if (window.localStorage === e.storageArea)
+      e.storageAreaString = "localStorage";
+    window.parent.storageEventList.push(e);
+}
+</script>
+</head>
+<body onstorage="handleStorageEvent(event);">
+</body>
+</html>

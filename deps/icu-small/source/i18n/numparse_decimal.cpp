@@ -74,7 +74,7 @@ DecimalMatcher::DecimalMatcher(const DecimalFormatSymbols& symbols, const Groupe
     UChar32 cpZero = symbols.getCodePointZero();
     if (cpZero == -1 || !u_isdigit(cpZero) || u_digit(cpZero, 10) != 0) {
         // Uncommon case: okay to allocate.
-        auto digitStrings = new UnicodeString[10];
+        auto* digitStrings = new UnicodeString[10];
         fLocalDigitStrings.adoptInstead(digitStrings);
         for (int32_t i = 0; i <= 9; i++) {
             digitStrings[i] = symbols.getConstDigitSymbol(i);

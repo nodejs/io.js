@@ -1,6 +1,6 @@
 const t = require('tap')
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs')
+const path = require('node:path')
 const { load: loadMockNpm } = require('../../fixtures/mock-npm')
 
 const completionScript = fs

@@ -42,25 +42,6 @@ callback();
     await result;
   },
 
-  async function testTerminateRuntimeEvaluate() {
-    Protocol.Runtime.evaluate({expression: `
-function callback() {
-  debugger;
-  console.log(42);
-  debugger;
-}
-callback();
-//# sourceURL=test.js`});
-    await Protocol.Debugger.oncePaused();
-    await Promise.all([
-      Protocol.Runtime.terminateExecution().then(InspectorTest.logMessage),
-      Protocol.Runtime.evaluate({expression: 'console.log(42)'}).then(InspectorTest.logMessage)
-    ]);
-    await Protocol.Debugger.resume();
-    await Protocol.Debugger.oncePaused();
-    await Protocol.Debugger.resume();
-  },
-
   async function testTerminateRuntimeEvaluateOnCallFrame() {
     Protocol.Runtime.evaluate({expression: `
 function callback() {

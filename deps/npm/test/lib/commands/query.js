@@ -61,6 +61,7 @@ t.test('recursive tree', async t => {
   await npm.exec('query', ['*'])
   t.matchSnapshot(joinedOutput(), 'should return everything in the tree, accounting for recursion')
 })
+
 t.test('workspace query', async t => {
   const { npm, joinedOutput } = await loadMockNpm(t, {
     config: {
@@ -236,4 +237,108 @@ t.test('package-lock-only', t => {
     t.matchSnapshot(joinedOutput(), 'should return valid response with only lock info')
   })
   t.end()
+})
+
+t.test('expect entries', t => {
+  const { exitCode } = process
+  t.afterEach(() => process.exitCode = exitCode)
+  const prefixDir = {
+    node_modules: {
+      a: { name: 'a', version: '1.0.0' },
+    },
+    'package.json': JSON.stringify({
+      name: 'project',
+      dependencies: { a: '^1.0.0' },
+    }),
+  }
+  t.test('false, has entries', async t => {
+    const { logs, npm, joinedOutput } = await loadMockNpm(t, {
+      prefixDir,
+    })
+    npm.config.set('expect-results', false)
+    await npm.exec('query', ['#a'])
+    t.not(joinedOutput(), '[]', 'has entries')
+    t.same(logs.warn.byTitle('query'), ['query Expected no results, got 1'])
+    t.ok(process.exitCode, 'exits with code')
+  })
+  t.test('false, no entries', async t => {
+    const { npm, joinedOutput } = await loadMockNpm(t, {
+      prefixDir,
+    })
+    npm.config.set('expect-results', false)
+    await npm.exec('query', ['#b'])
+    t.equal(joinedOutput(), '[]', 'does not have entries')
+    t.notOk(process.exitCode, 'exits without code')
+  })
+  t.test('true, has entries', async t => {
+    const { npm, joinedOutput } = await loadMockNpm(t, {
+      prefixDir,
+    })
+    npm.config.set('expect-results', true)
+    await npm.exec('query', ['#a'])
+    t.not(joinedOutput(), '[]', 'has entries')
+    t.notOk(process.exitCode, 'exits without code')
+  })
+  t.test('true, no entries', async t => {
+    const { logs, npm, joinedOutput } = await loadMockNpm(t, {
+      prefixDir,
+    })
+    npm.config.set('expect-results', true)
+    await npm.exec('query', ['#b'])
+    t.equal(joinedOutput(), '[]', 'does not have entries')
+    t.same(logs.warn.byTitle('query'), ['query Expected results, got 0'])
+    t.ok(process.exitCode, 'exits with code')
+  })
+  t.test('count, matches', async t => {
+    const { npm, joinedOutput } = await loadMockNpm(t, {
+      prefixDir,
+    })
+    npm.config.set('expect-result-count', 1)
+    await npm.exec('query', ['#a'])
+    t.not(joinedOutput(), '[]', 'has entries')
+    t.notOk(process.exitCode, 'exits without code')
+  })
+  t.test('count 1, does not match', async t => {
+    const { logs, npm, joinedOutput } = await loadMockNpm(t, {
+      prefixDir,
+    })
+    npm.config.set('expect-result-count', 1)
+    await npm.exec('query', ['#b'])
+    t.equal(joinedOutput(), '[]', 'does not have entries')
+    t.same(logs.warn.byTitle('query'), ['query Expected 1 result, got 0'])
+    t.ok(process.exitCode, 'exits with code')
+  })
+  t.test('count 3, does not match', async t => {
+    const { logs, npm, joinedOutput } = await loadMockNpm(t, {
+      prefixDir,
+    })
+    npm.config.set('expect-result-count', 3)
+    await npm.exec('query', ['#b'])
+    t.equal(joinedOutput(), '[]', 'does not have entries')
+    t.same(logs.warn.byTitle('query'), ['query Expected 3 results, got 0'])
+    t.ok(process.exitCode, 'exits with code')
+  })
+  t.end()
+})
+
+t.test('missing', async t => {
+  const { npm, joinedOutput } = await loadMockNpm(t, {
+    prefixDir: {
+      node_modules: {
+        a: {
+          name: 'a',
+          version: '1.0.0',
+        },
+      },
+      'package.json': JSON.stringify({
+        name: 'project',
+        dependencies: {
+          a: '^1.0.0',
+          b: '^1.0.0',
+        },
+      }),
+    },
+  })
+  await npm.exec('query', [':missing'])
+  t.matchSnapshot(joinedOutput(), 'should return missing node')
 })

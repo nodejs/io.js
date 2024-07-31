@@ -5,65 +5,67 @@
 #ifndef V8_HEAP_LARGE_PAGE_H_
 #define V8_HEAP_LARGE_PAGE_H_
 
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page.h"
 
 namespace v8 {
 namespace internal {
 
-class LargePage : public MemoryChunk {
+class LargePageMetadata : public MutablePageMetadata {
  public:
   // A limit to guarantee that we do not overflow typed slot offset in the old
   // to old remembered set. Note that this limit is higher than what assembler
   // already imposes on x64 and ia32 architectures.
   static constexpr int kMaxCodePageSize = 512 * MB;
 
-  static LargePage* cast(MemoryChunk* chunk) {
-    DCHECK_IMPLIES(chunk, chunk->IsLargePage());
-    return static_cast<LargePage*>(chunk);
+  static LargePageMetadata* cast(MutablePageMetadata* metadata) {
+    DCHECK_IMPLIES(metadata, metadata->Chunk()->IsLargePage());
+    return static_cast<LargePageMetadata*>(metadata);
   }
 
-  static LargePage* cast(BasicMemoryChunk* chunk) {
-    return cast(MemoryChunk::cast(chunk));
+  static LargePageMetadata* cast(MemoryChunkMetadata* metadata) {
+    return cast(MutablePageMetadata::cast(metadata));
   }
 
-  static LargePage* FromHeapObject(Tagged<HeapObject> o) {
+  static LargePageMetadata* FromHeapObject(Tagged<HeapObject> o) {
     DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
-    return cast(MemoryChunk::FromHeapObject(o));
+    return cast(MutablePageMetadata::FromHeapObject(o));
   }
 
-  LargePage(Heap* heap, BaseSpace* space, size_t chunk_size, Address area_start,
-            Address area_end, VirtualMemory reservation,
-            Executability executable);
+  LargePageMetadata(Heap* heap, BaseSpace* space, size_t chunk_size,
+                    Address area_start, Address area_end,
+                    VirtualMemory reservation, Executability executable);
 
   Tagged<HeapObject> GetObject() const {
     return HeapObject::FromAddress(area_start());
   }
 
-  LargePage* next_page() { return LargePage::cast(list_node_.next()); }
-  const LargePage* next_page() const {
-    return static_cast<const LargePage*>(list_node_.next());
+  LargePageMetadata* next_page() {
+    return LargePageMetadata::cast(list_node_.next());
+  }
+  const LargePageMetadata* next_page() const {
+    return static_cast<const LargePageMetadata*>(list_node_.next());
   }
 
   void ClearOutOfLiveRangeSlots(Address free_start);
 
  private:
-  static LargePage* Initialize(Heap* heap, MemoryChunk* chunk,
-                               Executability executable);
+  static LargePageMetadata* Initialize(Heap* heap, MutablePageMetadata* chunk,
+                                       Executability executable);
 
   friend class MemoryAllocator;
 };
-
-static_assert(sizeof(LargePage) <= MemoryChunk::kHeaderSize);
 
 }  // namespace internal
 
 namespace base {
 // Define special hash function for page pointers, to be used with std data
-// structures, e.g. std::unordered_set<LargePage*, base::hash<LargePage*>
+// structures, e.g. std::unordered_set<LargePageMetadata*,
+// base::hash<LargePageMetadata*>
 template <>
-struct hash<i::LargePage*> : hash<i::BasicMemoryChunk*> {};
+struct hash<i::LargePageMetadata*> : hash<i::MemoryChunkMetadata*> {};
 template <>
-struct hash<const i::LargePage*> : hash<const i::BasicMemoryChunk*> {};
+struct hash<const i::LargePageMetadata*> : hash<const i::MemoryChunkMetadata*> {
+};
 }  // namespace base
 
 }  // namespace v8

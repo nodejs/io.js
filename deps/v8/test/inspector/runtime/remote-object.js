@@ -579,18 +579,12 @@ InspectorTest.runAsyncTestSuite([
       expression: '[1,2,3]'
     })).result);
   },
-  async function testArrayLike() {
+  async function testArgumentsObject() {
     InspectorTest.logMessage((await evaluate({
-      expression: '({length: 5, splice: () => []})'
+      expression: '(function() { return arguments; })(1, 2, 3)'
     })).result);
     InspectorTest.logMessage((await evaluate({
-      expression: `new (class Foo{constructor() {
-        this.length = 5;
-        this.splice = () => [];
-      }})`
-    })).result);
-    InspectorTest.logMessage((await evaluate({
-      expression: '({length: -5, splice: () => []})'
+      expression: '(function() { "use strict"; return arguments; })(-1, 0, 1, 2, 3)'
     })).result);
   },
   async function testOtherObjects() {

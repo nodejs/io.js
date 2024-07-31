@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --allow-natives-syntax
+// Flags: --allow-natives-syntax
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -36,7 +36,7 @@ builder.addFunction('cast', kSig_r_v)
       kExprEnd,
       kExprLocalTee, 0,
       kGCPrefix, kExprRefCastNull, kStructRefCode,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ]);
 
 let instance = builder.instantiate();

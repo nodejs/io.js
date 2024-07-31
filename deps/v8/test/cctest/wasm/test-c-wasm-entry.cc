@@ -62,7 +62,7 @@ class CWasmEntryArgTester {
     Handle<Object> object_ref = runner_.builder().instance_object();
     Execution::CallWasm(isolate_, c_wasm_entry_, wasm_call_target, object_ref,
                         packer.argv());
-    CHECK(!isolate_->has_pending_exception());
+    CHECK(!isolate_->has_exception());
     packer.Reset();
 
     // Check the result.

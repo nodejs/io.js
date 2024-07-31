@@ -1,0 +1,16 @@
+Checks that wrong restart "mode" doesn't crash the inspector
+Paused at (after evaluation):
+function foo() {
+  #debugger;
+}
+
+Pause stack:
+  foo:2 (canBeRestarted = true)
+
+{
+    error : {
+        code : -32602
+        message : 'StepInto' is the only valid mode
+    }
+    id : <messageId>
+}

@@ -1,0 +1,8 @@
+# absl CMake configuration file.
+
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+
+@PACKAGE_INIT@
+
+include ("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")

@@ -13,9 +13,6 @@
 !.clang-format
 !.cpplint
 !.editorconfig
-!.eslintignore
-!.eslintrc.js
-!.eslintrc.yaml
 !.gitattributes
 !.github
 !.gitignore
@@ -32,6 +29,7 @@
 /perf.data
 /perf.data.old
 /tags
+/tags.*
 /doc/api.xml
 /node
 /node_g

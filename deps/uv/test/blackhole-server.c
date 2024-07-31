@@ -43,20 +43,20 @@ static void connection_cb(uv_stream_t* stream, int status) {
   conn_rec* conn;
   int r;
 
-  ASSERT(status == 0);
-  ASSERT(stream == (uv_stream_t*)&tcp_server);
+  ASSERT_OK(status);
+  ASSERT_PTR_EQ(stream, (uv_stream_t*)&tcp_server);
 
   conn = malloc(sizeof *conn);
   ASSERT_NOT_NULL(conn);
 
   r = uv_tcp_init(stream->loop, &conn->handle);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_accept(stream, (uv_stream_t*)&conn->handle);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_read_start((uv_stream_t*)&conn->handle, alloc_cb, read_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 }
 
 
@@ -76,12 +76,12 @@ static void read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
   if (nread >= 0)
     return;
 
-  ASSERT(nread == UV_EOF);
+  ASSERT_EQ(nread, UV_EOF);
 
   conn = container_of(stream, conn_rec, handle);
 
   r = uv_shutdown(&conn->shutdown_req, stream, shutdown_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 }
 
 
@@ -103,16 +103,16 @@ HELPER_IMPL(tcp4_blackhole_server) {
   int r;
 
   loop = uv_default_loop();
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
 
   r = uv_tcp_init(loop, &tcp_server);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_tcp_bind(&tcp_server, (const struct sockaddr*) &addr, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_listen((uv_stream_t*)&tcp_server, 128, connection_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   notify_parent_process();
   r = uv_run(loop, UV_RUN_DEFAULT);

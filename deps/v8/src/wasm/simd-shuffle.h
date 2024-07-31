@@ -103,6 +103,13 @@ class V8_EXPORT_PRIVATE SimdShuffle {
   static bool TryMatch32x4Rotate(const uint8_t* shuffle, uint8_t* shuffle32x4,
                                  bool is_swizzle);
 
+  // Tries to match a 32x4 reverse shuffle: [3, 2, 1, 0].
+  static bool TryMatch32x4Reverse(const uint8_t* shuffle32x4);
+
+  // Tries to match a one lane copy of 4x32.
+  static bool TryMatch32x4OneLaneSwizzle(const uint8_t* shuffle32x4,
+                                         uint8_t* from, uint8_t* to);
+
   // Tries to match an 8x16 byte shuffle to an equivalent 32x4 shuffle. If
   // successful, it writes the 32x4 shuffle word indices. E.g.
   // [0 1 2 3 8 9 10 11 4 5 6 7 12 13 14 15] == [0 2 1 3]

@@ -7,9 +7,11 @@
 *.sdf
 *.suo
 .vs/
+.vscode/
 *.VC.db
 *.VC.opendb
 core
+.cache
 vgcore.*
 .buildstamp
 .dirstamp
@@ -74,3 +76,5 @@ cmake-build-debug/
 
 # make dist output
 libuv-*.tar.*
+/dist.libuv.org/
+/libuv-release-tool/

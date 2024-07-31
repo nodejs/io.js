@@ -1,0 +1,34 @@
+commit 764f0715d75c8d49339aa73d0ee2feb75d63473f
+Author: joaoe@opera.com <joaoe@opera.com@0039d316-1c4b-4281-b951-d872f2087c98>
+Date:   Wed May 7 20:53:02 2014 +0000
+
+    Fixed uncompressing files with wrong uncompressed size set.
+    
+    A zip file carries some metadata for each archived file, including the total
+    uncompressed size. If that size was incorrect, therefore the compressed file
+    being different in size when unpacking, the minizip code would fail with a
+    CRC error. Every other zip utility handles these files, so should the minizip
+    code for safety sake.
+    
+    BUG=359516
+    
+    Review URL: https://codereview.chromium.org/222243003
+    
+    git-svn-id: svn://svn.chromium.org/chrome/trunk/src@268940 0039d316-1c4b-4281-b951-d872f2087c98
+
+diff --git a/third_party/zlib/contrib/minizip/unzip.c b/third_party/zlib/contrib/minizip/unzip.c
+index ed763f89f1f87..82275d6c1775d 100644
+--- a/third_party/zlib/contrib/minizip/unzip.c
++++ b/third_party/zlib/contrib/minizip/unzip.c
+@@ -1572,11 +1572,6 @@ extern int ZEXPORT unzReadCurrentFile(unzFile file, voidp buf, unsigned len) {
+ 
+     pfile_in_zip_read_info->stream.avail_out = (uInt)len;
+ 
+-    if ((len>pfile_in_zip_read_info->rest_read_uncompressed) &&
+-        (!(pfile_in_zip_read_info->raw)))
+-        pfile_in_zip_read_info->stream.avail_out =
+-            (uInt)pfile_in_zip_read_info->rest_read_uncompressed;
+-
+     if ((len>pfile_in_zip_read_info->rest_read_compressed+
+            pfile_in_zip_read_info->stream.avail_in) &&
+          (pfile_in_zip_read_info->raw))

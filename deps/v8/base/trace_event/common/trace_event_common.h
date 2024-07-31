@@ -195,7 +195,7 @@
 // use_perfetto_client_library GN arg. If that flag is disabled, we fall back to
 // the legacy implementation in the latter half of this file (and
 // trace_event.h).
-// TODO(skyostil): Remove the legacy macro implementation.
+// TODO(skyostil, crbug.com/1006541): Remove the legacy macro implementation.
 
 // Normally we'd use BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY) for this, but
 // because v8 includes trace_event_common.h directly (in non-Perfetto mode), we

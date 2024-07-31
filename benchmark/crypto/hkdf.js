@@ -14,7 +14,7 @@ const bench = common.createBenchmark(main, {
   salt: ['', 'salt'],
   info: ['', 'info'],
   hash: ['sha256', 'sha512'],
-  n: [1e3],
+  n: [1e4],
 });
 
 function measureSync(n, size, salt, info, hash, key) {

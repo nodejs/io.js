@@ -22,11 +22,14 @@ my $no_fips = disabled('fips') || ($ENV{NO_FIPS} // 0);
 
 plan tests => 2;
 
-ok(run(test(["prov_config_test", srctop_file("test", "default.cnf")])),
+ok(run(test(["prov_config_test", srctop_file("test", "default.cnf"),
+                                 srctop_file("test", "recursive.cnf")])),
     "running prov_config_test default.cnf");
+
 SKIP: {
     skip "Skipping FIPS test in this build", 1 if $no_fips;
 
-    ok(run(test(["prov_config_test", srctop_file("test", "fips.cnf")])),
+    ok(run(test(["prov_config_test", srctop_file("test", "fips.cnf"),
+                                     srctop_file("test", "recursive.cnf")])),
        "running prov_config_test fips.cnf");
 }

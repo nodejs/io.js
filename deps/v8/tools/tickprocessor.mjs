@@ -41,8 +41,8 @@ class V8Profile extends Profile {
   static STUBS_RE = /^(Stub: )/;
 
   constructor(separateIc, separateBytecodes, separateBuiltins, separateStubs,
-        separateSparkplugHandlers) {
-    super();
+        separateSparkplugHandlers, useBigIntAddresses=false) {
+    super(useBigIntAddresses);
     const regexps = [];
     if (!separateIc) regexps.push(V8Profile.IC_RE);
     if (!separateBytecodes) regexps.push(V8Profile.BYTECODES_RE);
@@ -60,8 +60,13 @@ class V8Profile extends Profile {
 }
 
 class CppEntriesProvider {
-  constructor() {
+  constructor(useBigIntAddresses=false) {
     this._isEnabled = true;
+    this.parseAddr = useBigIntAddresses ? BigInt : parseInt;
+    this.parseHexAddr = useBigIntAddresses ?
+        (str) => BigInt(parseInt(str, 16)) :
+        (str) => parseInt(str, 16);
+
   }
 
   inRange(funcInfo, start, end) {
@@ -167,12 +172,14 @@ class CppEntriesProvider {
 }
 
 export class LinuxCppEntriesProvider extends CppEntriesProvider {
-  constructor(nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary) {
-    super();
+  constructor(
+        nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary,
+        useBigIntAddresses=false) {
+    super(useBigIntAddresses);
     this.symbols = [];
     // File offset of a symbol minus the virtual address of a symbol found in
     // the symbol table.
-    this.fileOffsetMinusVma = 0;
+    this.fileOffsetMinusVma = useBigIntAddresses ? 0n : 0;
     this.parsePos = 0;
     this.nmExec = nmExec;
     this.objdumpExec = objdumpExec;
@@ -211,7 +218,8 @@ export class LinuxCppEntriesProvider extends CppEntriesProvider {
       for (const line of objdumpOutput.split('\n')) {
         const [, sectionName, , vma, , fileOffset] = line.trim().split(/\s+/);
         if (sectionName === ".text") {
-          this.fileOffsetMinusVma = parseInt(fileOffset, 16) - parseInt(vma, 16);
+          this.fileOffsetMinusVma =
+              this.parseHexAddr(fileOffset) - this.parseHexAddr(vma);
         }
       }
     } catch (e) {
@@ -232,12 +240,14 @@ export class LinuxCppEntriesProvider extends CppEntriesProvider {
     const line = this.symbols[0].substring(this.parsePos, lineEndPos);
     this.parsePos = lineEndPos + 1;
     const fields = line.match(this.FUNC_RE);
-    let funcInfo = null;
-    if (fields) {
-      funcInfo = { name: fields[3], start: parseInt(fields[1], 16) + this.fileOffsetMinusVma };
-      if (fields[2]) {
-        funcInfo.size = parseInt(fields[2], 16);
-      }
+    if (fields === null) return null;
+
+    const funcInfo = {
+      name: fields[3],
+      start: this.parseHexAddr(fields[1]) + this.fileOffsetMinusVma
+    };
+    if (fields[2]) {
+      funcInfo.size = this.parseHexAddr(fields[2]);
     }
     return funcInfo;
   }
@@ -250,8 +260,12 @@ export class RemoteLinuxCppEntriesProvider extends LinuxCppEntriesProvider {
 }
 
 export class MacOSCppEntriesProvider extends LinuxCppEntriesProvider {
-  constructor(nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary) {
-    super(nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary);
+  constructor(
+        nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary,
+        useBigIntAddresses=false) {
+    super(
+        nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary,
+        useBigIntAddresses);
     // Note an empty group. It is required, as LinuxCppEntriesProvider expects 3 groups.
     this.FUNC_RE = /^([0-9a-fA-F]{8,16})() (.*)$/;
   }
@@ -264,8 +278,8 @@ export class MacOSCppEntriesProvider extends LinuxCppEntriesProvider {
     // "flat" display option flag.
     try {
       this.symbols = [
-        os.system(this.nmExec, ['--demangle', '-n', libName], -1, -1),
-        ''];
+        os.system(this.nmExec, ['--demangle', '-n', libName], -1, -1), ''
+      ];
     } catch (e) {
       // If the library cannot be found on this system let's not panic.
       this.symbols = '';
@@ -281,26 +295,28 @@ export class RemoteMacOSCppEntriesProvider extends LinuxCppEntriesProvider {
 
 
 export class WindowsCppEntriesProvider extends CppEntriesProvider {
-  constructor(_ignored_nmExec, _ignored_objdumpExec, targetRootFS,
-    _ignored_apkEmbeddedLibrary) {
-    super();
-    this.targetRootFS = targetRootFS;
-    this.symbols = '';
-    this.parsePos = 0;
-  }
 
   static FILENAME_RE = /^(.*)\.([^.]+)$/;
   static FUNC_RE =
     /^\s+0001:[0-9a-fA-F]{8}\s+([_\?@$0-9a-zA-Z]+)\s+([0-9a-fA-F]{8}).*$/;
   static IMAGE_BASE_RE =
     /^\s+0000:00000000\s+___ImageBase\s+([0-9a-fA-F]{8}).*$/;
-  // This is almost a constant on Windows.
-  static EXE_IMAGE_BASE = 0x00400000;
+
+  constructor(
+        _ignored_nmExec, _ignored_objdumpExec, targetRootFS,
+        _ignored_apkEmbeddedLibrary, useBigIntAddresses) {
+    super(useBigIntAddresses);
+    this.targetRootFS = targetRootFS;
+    this.symbols = '';
+    this.parsePos = 0;
+    // This is almost a constant on Windows.
+    this.EXE_IMAGE_BASE = this.parseAddr(0x00400000);
+  }
 
   loadSymbols(libName) {
     libName = this.targetRootFS + libName;
     const fileNameFields = libName.match(WindowsCppEntriesProvider.FILENAME_RE);
-    if (!fileNameFields) return;
+    if (fileNameFields === null) return;
     const mapFileName = `${fileNameFields[1]}.map`;
     this.moduleType_ = fileNameFields[2].toLowerCase();
     try {
@@ -313,7 +329,7 @@ export class WindowsCppEntriesProvider extends CppEntriesProvider {
 
   parseNextLine() {
     const lineEndPos = this.symbols.indexOf('\r\n', this.parsePos);
-    if (lineEndPos == -1) {
+    if (lineEndPos === -1) {
       return false;
     }
 
@@ -323,18 +339,20 @@ export class WindowsCppEntriesProvider extends CppEntriesProvider {
     // Image base entry is above all other symbols, so we can just
     // terminate parsing.
     const imageBaseFields = line.match(WindowsCppEntriesProvider.IMAGE_BASE_RE);
-    if (imageBaseFields) {
-      const imageBase = parseInt(imageBaseFields[1], 16);
-      if ((this.moduleType_ == 'exe') !=
-        (imageBase == WindowsCppEntriesProvider.EXE_IMAGE_BASE)) {
+    if (imageBaseFields !== null) {
+      const imageBase = this.parseHexAddr(imageBaseFields[1]);
+      if ((this.moduleType_ === 'exe') !=
+        (imageBase === this.EXE_IMAGE_BASE)) {
         return false;
       }
     }
 
     const fields = line.match(WindowsCppEntriesProvider.FUNC_RE);
-    return fields ?
-      { name: this.unmangleName(fields[1]), start: parseInt(fields[2], 16) } :
-      null;
+    if (fields === null) return null
+    return {
+      name: this.unmangleName(fields[1]),
+      start: this.parseHexAddr(fields[2])
+    };
   }
 
   /**
@@ -419,7 +437,9 @@ export class ArgumentsProcessor extends BaseArgumentsProcessor {
       '--serialize-vm-symbols': ['serializeVMSymbols', true,
         'Print all C++ symbols and library addresses as JSON data'],
       '--preprocess': ['preprocessJson', true,
-        'Preprocess for consumption with web interface']
+        'Preprocess for consumption with web interface'],
+      '--use-bigint-addresses': ['useBigIntAddresses', true,
+        'Use slower BigInts to precisely handle large addresses.']
     };
     dispatch['--js'] = dispatch['-j'];
     dispatch['--gc'] = dispatch['-g'];
@@ -427,6 +447,7 @@ export class ArgumentsProcessor extends BaseArgumentsProcessor {
     dispatch['--other'] = dispatch['-o'];
     dispatch['--external'] = dispatch['-e'];
     dispatch['--ptr'] = dispatch['--pairwise-timed-range'];
+    dispatch['--bigint-addresses'] = dispatch['--use-bigint-addresses'];
     return dispatch;
   }
 
@@ -454,6 +475,7 @@ export class ArgumentsProcessor extends BaseArgumentsProcessor {
       onlySummary: false,
       runtimeTimerFilter: null,
       serializeVMSymbols: false,
+      useBigIntAddresses: false,
     };
   }
 }
@@ -489,7 +511,8 @@ export class TickProcessor extends LogReader {
       params.pairwiseTimedRange,
       params.onlySummary,
       params.runtimeTimerFilter,
-      params.preprocessJson);
+      params.preprocessJson,
+      params.useBigIntAddresses);
   }
 
   constructor(
@@ -509,30 +532,34 @@ export class TickProcessor extends LogReader {
     pairwiseTimedRange,
     onlySummary,
     runtimeTimerFilter,
-    preprocessJson) {
-    super(timedRange, pairwiseTimedRange);
+    preprocessJson,
+    useBigIntAddresses) {
+    super(timedRange, pairwiseTimedRange, useBigIntAddresses);
+    this.useBigIntAddresses = useBigIntAddresses;
+    this.parseAddr = useBigIntAddresses ? BigInt : parseInt;
+    this.parseSize = this.parseAddr;
     this.setDispatchTable({
       __proto__: null,
       'shared-library': {
-        parsers: [parseString, parseInt, parseInt, parseInt],
+        parsers: [parseString, this.parseAddr, this.parseAddr, parseInt],
         processor: this.processSharedLibrary
       },
       'code-creation': {
-        parsers: [parseString, parseInt, parseInt, parseInt, parseInt,
-          parseString, parseVarArgs],
+        parsers: [parseString, parseInt, parseInt, this.parseAddr,
+            this.parseSize, parseString, parseVarArgs],
         processor: this.processCodeCreation
       },
       'code-deopt': {
-        parsers: [parseInt, parseInt, parseInt, parseInt, parseInt,
+        parsers: [parseInt, this.parseSize, this.parseAddr, parseInt, parseInt,
           parseString, parseString, parseString],
         processor: this.processCodeDeopt
       },
       'code-move': {
-        parsers: [parseInt, parseInt,],
+        parsers: [this.parseAddr, this.parseAddr,],
         processor: this.processCodeMove
       },
       'code-source-info': {
-        parsers: [parseInt, parseInt, parseInt, parseInt, parseString,
+        parsers: [this.parseAddr, parseInt, parseInt, parseInt, parseString,
           parseString, parseString],
         processor: this.processCodeSourceInfo
       },
@@ -541,7 +568,7 @@ export class TickProcessor extends LogReader {
         processor: this.processScriptSource
       },
       'sfi-move': {
-        parsers: [parseInt, parseInt],
+        parsers: [this.parseAddr, this.parseAddr],
         processor: this.processSFIMove
       },
       'active-runtime-timer': {
@@ -549,8 +576,8 @@ export class TickProcessor extends LogReader {
         processor: this.processRuntimeTimerEvent
       },
       'tick': {
-        parsers: [parseInt, parseInt, parseInt,
-          parseInt, parseInt, parseVarArgs],
+        parsers: [this.parseAddr, parseInt, parseInt,
+          this.parseAddr, parseInt, parseVarArgs],
         processor: this.processTick
       },
       'heap-sample-begin': {
@@ -625,10 +652,11 @@ export class TickProcessor extends LogReader {
     };
 
     if (preprocessJson) {
-      this.profile_ = new JsonProfile();
+      this.profile_ = new JsonProfile(useBigIntAddresses);
     } else {
       this.profile_ = new V8Profile(separateIc, separateBytecodes,
-        separateBuiltins, separateStubs, separateSparkplugHandlers);
+          separateBuiltins, separateStubs, separateSparkplugHandlers,
+          useBigIntAddresses);
     }
     this.codeTypes_ = {};
     // Count each tick as a time unit.
@@ -723,7 +751,7 @@ export class TickProcessor extends LogReader {
 
   processCodeCreation(type, kind, timestamp, start, size, name, maybe_func) {
     if (type != 'RegExp' && maybe_func.length) {
-      const sfiAddr = parseInt(maybe_func[0]);
+      const sfiAddr = this.parseAddr(maybe_func[0]);
       const state = Profile.parseState(maybe_func[1]);
       this.profile_.addFuncCode(type, name, timestamp, start, size, sfiAddr, state);
     } else {
@@ -774,12 +802,9 @@ export class TickProcessor extends LogReader {
     this.currentRuntimeTimer = name;
   }
 
-  processTick(pc,
-    ns_since_start,
-    is_external_callback,
-    tos_or_external_callback,
-    vmState,
-    stack) {
+  processTick(
+        pc, ns_since_start, is_external_callback, tos_or_external_callback,
+        vmState, stack) {
     this.distortion += this.distortion_per_entry;
     ns_since_start -= this.distortion;
     if (ns_since_start < this.range_start || ns_since_start > this.range_end) {

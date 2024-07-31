@@ -12,21 +12,20 @@ namespace internal {
 
 // These checks are here to ensure that the lower 32 bits of any real heap
 // object can't overlap with the lower 32 bits of cleared weak reference value
-// and therefore it's enough to compare only the lower 32 bits of a MaybeObject
-// in order to figure out if it's a cleared weak reference or not.
+// and therefore it's enough to compare only the lower 32 bits of a
+// Tagged<MaybeObject> in order to figure out if it's a cleared weak reference
+// or not.
 static_assert(kClearedWeakHeapObjectLower32 > 0);
-static_assert(kClearedWeakHeapObjectLower32 < Page::kHeaderSize);
+static_assert(kClearedWeakHeapObjectLower32 < PageMetadata::kHeaderSize);
 
-// static
-constexpr Page::MainThreadFlags Page::kCopyOnFlipFlagsMask;
+PageMetadata::PageMetadata(Heap* heap, BaseSpace* space, size_t size,
+                           Address area_start, Address area_end,
+                           VirtualMemory reservation, Executability executable)
+    : MutablePageMetadata(heap, space, size, area_start, area_end,
+                          std::move(reservation), executable,
+                          PageSize::kRegular) {}
 
-Page::Page(Heap* heap, BaseSpace* space, size_t size, Address area_start,
-           Address area_end, VirtualMemory reservation,
-           Executability executable)
-    : MemoryChunk(heap, space, size, area_start, area_end,
-                  std::move(reservation), executable, PageSize::kRegular) {}
-
-void Page::AllocateFreeListCategories() {
+void PageMetadata::AllocateFreeListCategories() {
   DCHECK_NULL(categories_);
   categories_ =
       new FreeListCategory*[owner()->free_list()->number_of_categories()]();
@@ -37,14 +36,14 @@ void Page::AllocateFreeListCategories() {
   }
 }
 
-void Page::InitializeFreeListCategories() {
+void PageMetadata::InitializeFreeListCategories() {
   for (int i = kFirstCategory; i <= owner()->free_list()->last_category();
        i++) {
     categories_[i]->Initialize(static_cast<FreeListCategoryType>(i));
   }
 }
 
-void Page::ReleaseFreeListCategories() {
+void PageMetadata::ReleaseFreeListCategories() {
   if (categories_ != nullptr) {
     for (int i = kFirstCategory; i <= owner()->free_list()->last_category();
          i++) {
@@ -58,30 +57,32 @@ void Page::ReleaseFreeListCategories() {
   }
 }
 
-Page* Page::ConvertNewToOld(Page* old_page) {
+PageMetadata* PageMetadata::ConvertNewToOld(PageMetadata* old_page) {
   DCHECK(old_page);
-  DCHECK(old_page->InNewSpace());
+  MemoryChunk* chunk = old_page->Chunk();
+  DCHECK(chunk->InNewSpace());
   old_page->ResetAgeInNewSpace();
   OldSpace* old_space = old_page->heap()->old_space();
   old_page->set_owner(old_space);
-  old_page->ClearFlags(Page::kAllFlagsMask);
-  Page* new_page = old_space->InitializePage(old_page);
+  chunk->ClearFlags(MemoryChunk::kAllFlagsMask);
+  PageMetadata* new_page = old_space->InitializePage(old_page);
   old_space->AddPromotedPage(new_page);
   return new_page;
 }
 
-size_t Page::AvailableInFreeList() {
+size_t PageMetadata::AvailableInFreeList() {
   size_t sum = 0;
   ForAllFreeListCategories(
       [&sum](FreeListCategory* category) { sum += category->available(); });
   return sum;
 }
 
-void Page::MarkNeverAllocateForTesting() {
+void PageMetadata::MarkNeverAllocateForTesting() {
+  MemoryChunk* chunk = Chunk();
   DCHECK(this->owner_identity() != NEW_SPACE);
-  DCHECK(!IsFlagSet(NEVER_ALLOCATE_ON_PAGE));
-  SetFlag(NEVER_ALLOCATE_ON_PAGE);
-  SetFlag(NEVER_EVACUATE);
+  DCHECK(!chunk->IsFlagSet(MemoryChunk::NEVER_ALLOCATE_ON_PAGE));
+  chunk->SetFlag(MemoryChunk::NEVER_ALLOCATE_ON_PAGE);
+  chunk->SetFlag(MemoryChunk::NEVER_EVACUATE);
   reinterpret_cast<PagedSpace*>(owner())->free_list()->EvictFreeListItems(this);
 }
 
@@ -102,7 +103,7 @@ Address SkipFillers(PtrComprCageBase cage_base, Tagged<HeapObject> filler,
 }  // anonymous namespace
 #endif  // DEBUG
 
-size_t Page::ShrinkToHighWaterMark() {
+size_t PageMetadata::ShrinkToHighWaterMark() {
   // Shrinking only makes sense outside of the CodeRange, where we don't care
   // about address space fragmentation.
   VirtualMemory* reservation = reserved_memory();
@@ -139,7 +140,7 @@ size_t Page::ShrinkToHighWaterMark() {
         filler.address(),
         static_cast<int>(area_end() - filler.address() - unused));
     heap()->memory_allocator()->PartialFreeMemory(
-        this, address() + size() - unused, unused, area_end() - unused);
+        this, ChunkAddress() + size() - unused, unused, area_end() - unused);
     if (filler.address() != area_end()) {
       CHECK(IsFreeSpaceOrFiller(filler, cage_base));
       CHECK_EQ(filler.address() + filler->Size(cage_base), area_end());
@@ -148,24 +149,24 @@ size_t Page::ShrinkToHighWaterMark() {
   return unused;
 }
 
-void Page::CreateBlackArea(Address start, Address end) {
+void PageMetadata::CreateBlackArea(Address start, Address end) {
   DCHECK_NE(NEW_SPACE, owner_identity());
   DCHECK(heap()->incremental_marking()->black_allocation());
-  DCHECK_EQ(Page::FromAddress(start), this);
+  DCHECK_EQ(PageMetadata::FromAddress(start), this);
   DCHECK_LT(start, end);
-  DCHECK_EQ(Page::FromAddress(end - 1), this);
+  DCHECK_EQ(PageMetadata::FromAddress(end - 1), this);
   marking_bitmap()->SetRange<AccessMode::ATOMIC>(
       MarkingBitmap::AddressToIndex(start),
       MarkingBitmap::LimitAddressToIndex(end));
   IncrementLiveBytesAtomically(static_cast<intptr_t>(end - start));
 }
 
-void Page::DestroyBlackArea(Address start, Address end) {
+void PageMetadata::DestroyBlackArea(Address start, Address end) {
   DCHECK_NE(NEW_SPACE, owner_identity());
   DCHECK(heap()->incremental_marking()->black_allocation());
-  DCHECK_EQ(Page::FromAddress(start), this);
+  DCHECK_EQ(PageMetadata::FromAddress(start), this);
   DCHECK_LT(start, end);
-  DCHECK_EQ(Page::FromAddress(end - 1), this);
+  DCHECK_EQ(PageMetadata::FromAddress(end - 1), this);
   marking_bitmap()->ClearRange<AccessMode::ATOMIC>(
       MarkingBitmap::AddressToIndex(start),
       MarkingBitmap::LimitAddressToIndex(end));

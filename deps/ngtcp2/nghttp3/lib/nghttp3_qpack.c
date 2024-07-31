@@ -32,6 +32,7 @@
 #include "nghttp3_str.h"
 #include "nghttp3_macro.h"
 #include "nghttp3_debug.h"
+#include "nghttp3_unreachable.h"
 
 /* NGHTTP3_QPACK_MAX_QPACK_STREAMS is the maximum number of concurrent
    nghttp3_qpack_stream object to handle a client which never cancel
@@ -1099,7 +1100,7 @@ static void qpack_encoder_remove_stream(nghttp3_qpack_encoder *encoder,
 /*
  * reserve_buf_internal ensures that |buf| contains at least
  * |extra_size| of free space.  In other words, if this function
- * succeeds, nghttp2_buf_left(buf) >= extra_size holds.  |min_size| is
+ * succeeds, nghttp3_buf_left(buf) >= extra_size holds.  |min_size| is
  * the minimum size of buffer.  The allocated buffer has at least
  * |min_size| bytes.
  *
@@ -1281,6 +1282,19 @@ int nghttp3_qpack_encoder_stream_is_blocked(nghttp3_qpack_encoder *encoder,
   return stream && encoder->krcnt < nghttp3_qpack_stream_get_max_cnt(stream);
 }
 
+static uint32_t qpack_hash_name(const nghttp3_nv *nv) {
+  /* 32 bit FNV-1a: http://isthe.com/chongo/tech/comp/fnv/ */
+  uint32_t h = 2166136261u;
+  size_t i;
+
+  for (i = 0; i < nv->namelen; ++i) {
+    h ^= nv->name[i];
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+  }
+
+  return h;
+}
+
 /*
  * qpack_encoder_decide_indexing_mode determines and returns indexing
  * mode for header field |nv|.  |token| is a token of header field
@@ -1310,6 +1324,10 @@ qpack_encoder_decide_indexing_mode(nghttp3_qpack_encoder *encoder,
   case NGHTTP3_QPACK_TOKEN_IF_NONE_MATCH:
   case NGHTTP3_QPACK_TOKEN_LOCATION:
   case NGHTTP3_QPACK_TOKEN_SET_COOKIE:
+    if (nv->flags & NGHTTP3_NV_FLAG_TRY_INDEX) {
+      break;
+    }
+
     return NGHTTP3_QPACK_INDEXING_MODE_LITERAL;
   case NGHTTP3_QPACK_TOKEN_HOST:
   case NGHTTP3_QPACK_TOKEN_TE:
@@ -1317,6 +1335,10 @@ qpack_encoder_decide_indexing_mode(nghttp3_qpack_encoder *encoder,
   case NGHTTP3_QPACK_TOKEN_PRIORITY:
     break;
   default:
+    if (nv->flags & NGHTTP3_NV_FLAG_TRY_INDEX) {
+      break;
+    }
+
     if (token >= 1000) {
       return NGHTTP3_QPACK_INDEXING_MODE_LITERAL;
     }
@@ -1428,6 +1450,17 @@ int nghttp3_qpack_encoder_encode_nv(nghttp3_qpack_encoder *encoder,
 
   token = qpack_lookup_token(nv->name, nv->namelen);
   static_entry = token != -1 && (size_t)token < nghttp3_arraylen(token_stable);
+
+  indexing_mode = qpack_encoder_decide_indexing_mode(encoder, nv, token);
+
+  if (static_entry) {
+    sres = nghttp3_qpack_lookup_stable(nv, token, indexing_mode);
+    if (sres.index != -1 && sres.name_value_match) {
+      return nghttp3_qpack_encoder_write_static_indexed(encoder, rbuf,
+                                                        (size_t)sres.index);
+    }
+  }
+
   if (static_entry) {
     hash = token_stable[token].hash;
   } else {
@@ -1444,21 +1477,12 @@ int nghttp3_qpack_encoder_encode_nv(nghttp3_qpack_encoder *encoder,
     case NGHTTP3_QPACK_TOKEN_PRIORITY:
       hash = 2498028297u;
       break;
+    default:
+      hash = qpack_hash_name(nv);
     }
   }
 
-  indexing_mode = qpack_encoder_decide_indexing_mode(encoder, nv, token);
-
-  if (static_entry) {
-    sres = nghttp3_qpack_lookup_stable(nv, token, indexing_mode);
-    if (sres.index != -1 && sres.name_value_match) {
-      return nghttp3_qpack_encoder_write_static_indexed(encoder, rbuf,
-                                                        (size_t)sres.index);
-    }
-  }
-
-  if (hash &&
-      nghttp3_map_size(&encoder->streams) < NGHTTP3_QPACK_MAX_QPACK_STREAMS) {
+  if (nghttp3_map_size(&encoder->streams) < NGHTTP3_QPACK_MAX_QPACK_STREAMS) {
     dres = nghttp3_qpack_encoder_lookup_dtable(encoder, nv, token, hash,
                                                indexing_mode, encoder->krcnt,
                                                allow_blocking);
@@ -2552,18 +2576,14 @@ nghttp3_ssize nghttp3_qpack_encoder_read_decoder(nghttp3_qpack_encoder *encoder,
                                             (int64_t)encoder->rstate.left);
         break;
       default:
-        /* unreachable */
-        assert(0);
-        break;
+        nghttp3_unreachable();
       }
 
       encoder->state = NGHTTP3_QPACK_DS_STATE_OPCODE;
       nghttp3_qpack_read_state_reset(&encoder->rstate);
       break;
     default:
-      /* unreachable */
-      assert(0);
-      break;
+      nghttp3_unreachable();
     }
   }
 
@@ -2838,24 +2858,26 @@ nghttp3_ssize nghttp3_qpack_decoder_read_encoder(nghttp3_qpack_decoder *decoder,
         goto fail;
       }
 
-      if (decoder->opcode == NGHTTP3_QPACK_ES_OPCODE_DUPLICATE) {
+      switch (decoder->opcode) {
+      case NGHTTP3_QPACK_ES_OPCODE_DUPLICATE:
         rv = nghttp3_qpack_decoder_dtable_duplicate_add(decoder);
         if (rv != 0) {
           goto fail;
         }
+
         decoder->state = NGHTTP3_QPACK_ES_STATE_OPCODE;
         nghttp3_qpack_read_state_reset(&decoder->rstate);
-        break;
-      }
 
-      if (decoder->opcode == NGHTTP3_QPACK_ES_OPCODE_INSERT_INDEXED) {
+        break;
+      case NGHTTP3_QPACK_ES_OPCODE_INSERT_INDEXED:
         decoder->rstate.prefix = 7;
         decoder->state = NGHTTP3_QPACK_ES_STATE_CHECK_VALUE_HUFFMAN;
+
         break;
+      default:
+        nghttp3_unreachable();
       }
 
-      /* Unreachable */
-      assert(0);
       break;
     case NGHTTP3_QPACK_ES_STATE_CHECK_NAME_HUFFMAN:
       qpack_read_state_check_huffman(&decoder->rstate, *p);
@@ -3010,9 +3032,7 @@ nghttp3_ssize nghttp3_qpack_decoder_read_encoder(nghttp3_qpack_decoder *decoder,
         rv = nghttp3_qpack_decoder_dtable_literal_add(decoder);
         break;
       default:
-        /* Unreachable */
-        assert(0);
-        abort();
+        nghttp3_unreachable();
       }
       if (rv != 0) {
         goto fail;
@@ -3045,9 +3065,7 @@ nghttp3_ssize nghttp3_qpack_decoder_read_encoder(nghttp3_qpack_decoder *decoder,
         rv = nghttp3_qpack_decoder_dtable_literal_add(decoder);
         break;
       default:
-        /* Unreachable */
-        assert(0);
-        abort();
+        nghttp3_unreachable();
       }
       if (rv != 0) {
         goto fail;
@@ -3430,8 +3448,7 @@ nghttp3_qpack_decoder_read_request(nghttp3_qpack_decoder *decoder,
         sctx->state = NGHTTP3_QPACK_RS_STATE_CHECK_VALUE_HUFFMAN;
         break;
       default:
-        /* Unreachable */
-        assert(0);
+        nghttp3_unreachable();
       }
       break;
     case NGHTTP3_QPACK_RS_STATE_CHECK_NAME_HUFFMAN:
@@ -3589,8 +3606,7 @@ nghttp3_qpack_decoder_read_request(nghttp3_qpack_decoder *decoder,
         nghttp3_qpack_decoder_emit_literal(decoder, sctx, nv);
         break;
       default:
-        /* Unreachable */
-        assert(0);
+        nghttp3_unreachable();
       }
 
       *pflags |= NGHTTP3_QPACK_DECODE_FLAG_EMIT;
@@ -3627,8 +3643,7 @@ nghttp3_qpack_decoder_read_request(nghttp3_qpack_decoder *decoder,
         nghttp3_qpack_decoder_emit_literal(decoder, sctx, nv);
         break;
       default:
-        /* Unreachable */
-        assert(0);
+        nghttp3_unreachable();
       }
 
       *pflags |= NGHTTP3_QPACK_DECODE_FLAG_EMIT;

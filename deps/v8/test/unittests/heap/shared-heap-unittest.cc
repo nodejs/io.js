@@ -46,6 +46,7 @@ void SetupClientIsolateAndRunCallback(Callback callback) {
   IsolateWrapper isolate_wrapper(kNoCounters);
   v8::Isolate* client_isolate = isolate_wrapper.isolate();
   Isolate* i_client_isolate = reinterpret_cast<Isolate*>(client_isolate);
+  v8::Isolate::Scope isolate_scope(client_isolate);
 
   callback(client_isolate, i_client_isolate);
 }
@@ -152,7 +153,7 @@ class SharedMapSpaceAllocationThread final : public ParkingThread {
           HandleScope scope(i_client_isolate);
 
           for (int i = 0; i < kNumIterations; i++) {
-            i_client_isolate->factory()->NewMap(
+            i_client_isolate->factory()->NewContextlessMap(
                 NATIVE_CONTEXT_TYPE, kVariableSizeSentinel,
                 TERMINAL_FAST_ELEMENTS_KIND, 0, AllocationType::kSharedMap);
           }

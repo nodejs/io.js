@@ -76,6 +76,8 @@ void StatisticsExtension::GetCounters(
   Counters* counters = isolate->counters();
   v8::Local<v8::Object> result = v8::Object::New(info.GetIsolate());
 
+  heap->FreeMainThreadLinearAllocationAreas();
+
   struct StatisticsCounter {
     v8::internal::StatsCounter* counter;
     const char* name;
@@ -127,6 +129,15 @@ void StatisticsExtension::GetCounters(
       {heap->code_lo_space()->Available(), "code_lo_space_available_bytes"},
       {heap->code_lo_space()->CommittedMemory(),
        "code_lo_space_commited_bytes"},
+      {heap->trusted_space()->Size(), "trusted_space_live_bytes"},
+      {heap->trusted_space()->Available(), "trusted_space_available_bytes"},
+      {heap->trusted_space()->CommittedMemory(),
+       "trusted_space_commited_bytes"},
+      {heap->trusted_lo_space()->Size(), "trusted_lo_space_live_bytes"},
+      {heap->trusted_lo_space()->Available(),
+       "trusted_lo_space_available_bytes"},
+      {heap->trusted_lo_space()->CommittedMemory(),
+       "trusted_lo_space_commited_bytes"},
   };
 
   for (size_t i = 0; i < arraysize(numbers); i++) {
@@ -148,21 +159,19 @@ void StatisticsExtension::GetCounters(
       if (IsCode(obj)) {
         Tagged<Code> code = Code::cast(obj);
         reloc_info_total += code->relocation_size();
-        // Baseline code doesn't have source positions since it uses
-        // interpreter code positions.
-        if (code->kind() == CodeKind::BASELINE) continue;
+        if (!code->has_source_position_table()) continue;
         maybe_source_positions = code->source_position_table();
       } else if (IsBytecodeArray(obj)) {
         maybe_source_positions =
-            BytecodeArray::cast(obj)->source_position_table(kAcquireLoad);
+            BytecodeArray::cast(obj)->raw_source_position_table(kAcquireLoad);
       } else {
         continue;
       }
-      if (!IsByteArray(maybe_source_positions)) continue;
-      Tagged<ByteArray> source_positions =
-          ByteArray::cast(maybe_source_positions);
+      if (!IsTrustedByteArray(maybe_source_positions)) continue;
+      Tagged<TrustedByteArray> source_positions =
+          TrustedByteArray::cast(maybe_source_positions);
       if (source_positions->length() == 0) continue;
-      source_position_table_total += source_positions->Size();
+      source_position_table_total += source_positions->AllocatedSize();
     }
   }
 

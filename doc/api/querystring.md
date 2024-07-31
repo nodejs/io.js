@@ -87,12 +87,10 @@ collection of key and value pairs.
 
 For example, the query string `'foo=bar&abc=xyz&abc=123'` is parsed into:
 
-<!-- eslint-skip -->
-
-```js
+```json
 {
-  foo: 'bar',
-  abc: ['xyz', '123']
+  "foo": "bar",
+  "abc": ["xyz", "123"]
 }
 ```
 

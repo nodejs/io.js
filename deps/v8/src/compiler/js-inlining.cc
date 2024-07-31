@@ -133,7 +133,7 @@ Reduction JSInliner::InlineCall(Node* call, Node* new_target, Node* context,
           Replace(use, new_target);
         } else if (index == inlinee_arity_index) {
           // The projection is requesting the number of arguments.
-          Replace(use, jsgraph()->Constant(argument_count));
+          Replace(use, jsgraph()->ConstantNoHole(argument_count));
         } else if (index == inlinee_context_index) {
           // The projection is requesting the inlinee function context.
           Replace(use, context);
@@ -221,7 +221,7 @@ Reduction JSInliner::InlineCall(Node* call, Node* new_target, Node* context,
 
   // Depending on whether the inlinee produces a value, we either replace value
   // uses with said value or kill value uses if no value can be returned.
-  if (values.size() > 0) {
+  if (!values.empty()) {
     int const input_count = static_cast<int>(controls.size());
     Node* control_output = graph()->NewNode(common()->Merge(input_count),
                                             input_count, &controls.front());
@@ -375,7 +375,8 @@ FeedbackCellRef JSInliner::DetermineCallContext(Node* node,
     CHECK(function.feedback_vector(broker()).has_value());
 
     // The inlinee specializes to the context from the JSFunction object.
-    *context_out = jsgraph()->Constant(function.context(broker()), broker());
+    *context_out =
+        jsgraph()->ConstantNoHole(function.context(broker()), broker());
     return function.raw_feedback_cell(broker());
   }
 
@@ -442,7 +443,7 @@ JSInliner::WasmInlineResult JSInliner::TryWasmInlining(
   const wasm::FunctionSig* sig = wasm_call_params.signature();
   Graph::SubgraphScope graph_scope(graph());
   WasmGraphBuilder builder(nullptr, zone(), jsgraph(), sig, source_positions_,
-                           WasmGraphBuilder::kNoSpecialParameterMode, isolate(),
+                           WasmGraphBuilder::kJSFunctionAbiMode, isolate(),
                            native_module->enabled_features());
   SourcePosition call_pos = source_positions_->GetSourcePosition(call_node);
   // Calculate hypothetical inlining id, so if we can't inline, we do not add
@@ -470,7 +471,9 @@ Reduction JSInliner::ReduceJSWasmCall(Node* node) {
   // for wasm gc objects).
   WasmInlineResult inline_result;
   if (inline_wasm_fct_if_supported_ && fct_index != -1 && native_module &&
-      native_module->enabled_features().has_gc()) {
+      // Disable inlining for asm.js functions because we haven't tested it
+      // and most asm.js opcodes aren't supported anyway.
+      native_module->enabled_features() != wasm::WasmFeatures::ForAsmjs()) {
     inline_result = TryWasmInlining(call_node);
   }
 
@@ -497,9 +500,11 @@ Reduction JSInliner::ReduceJSWasmCall(Node* node) {
 
     bool set_in_wasm_flag = !inline_result.can_inline_body;
     BuildInlinedJSToWasmWrapper(
-        graph()->zone(), jsgraph(), sig, wasm_call_params.module(), isolate(),
-        source_positions_, wasm::WasmFeatures::FromFlags(),
-        continuation_frame_state, set_in_wasm_flag);
+        graph()->zone(), jsgraph(), sig,
+        native_module->module()->functions[fct_index].imported,
+        wasm_call_params.module(), isolate(), source_positions_,
+        wasm::WasmFeatures::FromFlags(), continuation_frame_state,
+        set_in_wasm_flag);
 
     // Extract the inlinee start/end nodes.
     wrapper_start_node = graph()->start();
@@ -758,6 +763,13 @@ Reduction JSInliner::ReduceJSCall(Node* node) {
   int inlining_id =
       info_->AddInlinedFunction(shared_info->object(), bytecode_array.object(),
                                 source_positions_->GetSourcePosition(node));
+  if (v8_flags.profile_guided_optimization &&
+      FeedbackVector::cast(feedback_cell.object()->value())
+              ->invocation_count_before_stable() >
+          v8_flags.invocation_count_for_early_optimization) {
+    shared_info->object()->set_cached_tiering_decision(
+        CachedTieringDecision::kNormal);
+  }
 
   // Create the subgraph for the inlinee.
   Node* start_node;
@@ -901,12 +913,14 @@ Reduction JSInliner::ReduceJSCall(Node* node) {
     Effect effect{NodeProperties::GetEffectInput(node)};
     if (NodeProperties::CanBePrimitive(broker(), call.receiver(), effect)) {
       CallParameters const& p = CallParametersOf(node->op());
-      Node* global_proxy = jsgraph()->Constant(
+      Node* global_proxy = jsgraph()->ConstantNoHole(
           broker()->target_native_context().global_proxy_object(broker()),
           broker());
-      Node* receiver = effect =
-          graph()->NewNode(simplified()->ConvertReceiver(p.convert_mode()),
-                           call.receiver(), global_proxy, effect, start);
+      Node* receiver = effect = graph()->NewNode(
+          simplified()->ConvertReceiver(p.convert_mode()), call.receiver(),
+          jsgraph()->ConstantNoHole(broker()->target_native_context(),
+                                    broker()),
+          global_proxy, effect, start);
       NodeProperties::ReplaceValueInput(node, receiver,
                                         JSCallNode::ReceiverIndex());
       NodeProperties::ReplaceEffectInput(node, effect);

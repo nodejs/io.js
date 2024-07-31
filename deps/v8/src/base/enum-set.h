@@ -21,6 +21,8 @@ class EnumSet {
   static_assert(std::is_enum<E>::value, "EnumSet can only be used with enums");
 
  public:
+  using StorageType = T;
+
   constexpr EnumSet() = default;
 
   constexpr EnumSet(std::initializer_list<E> init) {

@@ -5,6 +5,7 @@
 #include "src/codegen/code-factory.h"
 
 #include "src/builtins/builtins-descriptors.h"
+#include "src/builtins/builtins-inl.h"
 #include "src/ic/ic.h"
 #include "src/init/bootstrapper.h"
 #include "src/objects/allocation-site-inl.h"
@@ -24,55 +25,21 @@ Handle<Code> CodeFactory::RuntimeCEntry(Isolate* isolate, int result_size,
 Handle<Code> CodeFactory::CEntry(Isolate* isolate, int result_size,
                                  ArgvMode argv_mode, bool builtin_exit_frame,
                                  bool switch_to_central_stack) {
-  // Aliases for readability below.
-  const int rs = result_size;
-  const ArgvMode am = argv_mode;
-  const bool be = builtin_exit_frame;
-
-  if (switch_to_central_stack) {
-    DCHECK_EQ(result_size, 1);
-    DCHECK_EQ(argv_mode, ArgvMode::kStack);
-    DCHECK_EQ(builtin_exit_frame, false);
-    return BUILTIN_CODE(isolate, WasmCEntry);
-  }
-
-  if (rs == 1 && am == ArgvMode::kStack && !be) {
-    return BUILTIN_CODE(isolate, CEntry_Return1_ArgvOnStack_NoBuiltinExit);
-  } else if (rs == 1 && am == ArgvMode::kStack && be) {
-    return BUILTIN_CODE(isolate, CEntry_Return1_ArgvOnStack_BuiltinExit);
-  } else if (rs == 1 && am == ArgvMode::kRegister && !be) {
-    return BUILTIN_CODE(isolate, CEntry_Return1_ArgvInRegister_NoBuiltinExit);
-  } else if (rs == 2 && am == ArgvMode::kStack && !be) {
-    return BUILTIN_CODE(isolate, CEntry_Return2_ArgvOnStack_NoBuiltinExit);
-  } else if (rs == 2 && am == ArgvMode::kStack && be) {
-    return BUILTIN_CODE(isolate, CEntry_Return2_ArgvOnStack_BuiltinExit);
-  } else if (rs == 2 && am == ArgvMode::kRegister && !be) {
-    return BUILTIN_CODE(isolate, CEntry_Return2_ArgvInRegister_NoBuiltinExit);
-  }
-
-  UNREACHABLE();
-}
-
-// static
-Callable CodeFactory::ApiGetter(Isolate* isolate) {
-  return Builtins::CallableFor(isolate, Builtin::kCallApiGetter);
+  Builtin builtin = Builtins::CEntry(result_size, argv_mode, builtin_exit_frame,
+                                     switch_to_central_stack);
+  return isolate->builtins()->code_handle(builtin);
 }
 
 // static
 Callable CodeFactory::LoadGlobalIC(Isolate* isolate, TypeofMode typeof_mode) {
-  return typeof_mode == TypeofMode::kNotInside
-             ? Builtins::CallableFor(isolate, Builtin::kLoadGlobalICTrampoline)
-             : Builtins::CallableFor(
-                   isolate, Builtin::kLoadGlobalICInsideTypeofTrampoline);
+  return Builtins::CallableFor(isolate, Builtins::LoadGlobalIC(typeof_mode));
 }
 
 // static
 Callable CodeFactory::LoadGlobalICInOptimizedCode(Isolate* isolate,
                                                   TypeofMode typeof_mode) {
-  return typeof_mode == TypeofMode::kNotInside
-             ? Builtins::CallableFor(isolate, Builtin::kLoadGlobalIC)
-             : Builtins::CallableFor(isolate,
-                                     Builtin::kLoadGlobalICInsideTypeof);
+  return Builtins::CallableFor(
+      isolate, Builtins::LoadGlobalICInOptimizedCode(typeof_mode));
 }
 
 Callable CodeFactory::DefineNamedOwnIC(Isolate* isolate) {
@@ -84,35 +51,8 @@ Callable CodeFactory::DefineNamedOwnICInOptimizedCode(Isolate* isolate) {
 }
 
 // static
-Callable CodeFactory::NonPrimitiveToPrimitive(Isolate* isolate,
-                                              ToPrimitiveHint hint) {
-  return Callable(isolate->builtins()->NonPrimitiveToPrimitive(hint),
-                  TypeConversionDescriptor{});
-}
-
-// static
-Callable CodeFactory::OrdinaryToPrimitive(Isolate* isolate,
-                                          OrdinaryToPrimitiveHint hint) {
-  return Callable(isolate->builtins()->OrdinaryToPrimitive(hint),
-                  TypeConversionDescriptor{});
-}
-
-// static
 Callable CodeFactory::StringAdd(Isolate* isolate, StringAddFlags flags) {
-  switch (flags) {
-    case STRING_ADD_CHECK_NONE:
-      return Builtins::CallableFor(isolate, Builtin::kStringAdd_CheckNone);
-    case STRING_ADD_CONVERT_LEFT:
-      return Builtins::CallableFor(isolate, Builtin::kStringAddConvertLeft);
-    case STRING_ADD_CONVERT_RIGHT:
-      return Builtins::CallableFor(isolate, Builtin::kStringAddConvertRight);
-  }
-  UNREACHABLE();
-}
-
-// static
-Callable CodeFactory::ResumeGenerator(Isolate* isolate) {
-  return Builtins::CallableFor(isolate, Builtin::kResumeGeneratorTrampoline);
+  return Builtins::CallableFor(isolate, Builtins::StringAdd(flags));
 }
 
 // static
@@ -132,7 +72,7 @@ Callable CodeFactory::FastNewFunctionContext(Isolate* isolate,
 
 // static
 Callable CodeFactory::Call(Isolate* isolate, ConvertReceiverMode mode) {
-  return Callable(isolate->builtins()->Call(mode), CallTrampolineDescriptor{});
+  return Builtins::CallableFor(isolate, Builtins::Call(mode));
 }
 
 // static
@@ -164,13 +104,7 @@ Callable CodeFactory::CallWithSpread(Isolate* isolate) {
 
 // static
 Callable CodeFactory::CallFunction(Isolate* isolate, ConvertReceiverMode mode) {
-  return Callable(isolate->builtins()->CallFunction(mode),
-                  CallTrampolineDescriptor{});
-}
-
-// static
-Callable CodeFactory::CallVarargs(Isolate* isolate) {
-  return Builtins::CallableFor(isolate, Builtin::kCallVarargs);
+  return Builtins::CallableFor(isolate, Builtins::CallFunction(mode));
 }
 
 // static
@@ -194,16 +128,6 @@ Callable CodeFactory::ConstructWithSpread(Isolate* isolate) {
 }
 
 // static
-Callable CodeFactory::ConstructFunction(Isolate* isolate) {
-  return Builtins::CallableFor(isolate, Builtin::kConstructFunction);
-}
-
-// static
-Callable CodeFactory::ConstructVarargs(Isolate* isolate) {
-  return Builtins::CallableFor(isolate, Builtin::kConstructVarargs);
-}
-
-// static
 Callable CodeFactory::ConstructForwardVarargs(Isolate* isolate) {
   return Builtins::CallableFor(isolate, Builtin::kConstructForwardVarargs);
 }
@@ -212,74 +136,6 @@ Callable CodeFactory::ConstructForwardVarargs(Isolate* isolate) {
 Callable CodeFactory::ConstructFunctionForwardVarargs(Isolate* isolate) {
   return Builtins::CallableFor(isolate,
                                Builtin::kConstructFunctionForwardVarargs);
-}
-
-// static
-Callable CodeFactory::InterpreterPushArgsThenCall(
-    Isolate* isolate, ConvertReceiverMode receiver_mode,
-    InterpreterPushArgsMode mode) {
-  switch (mode) {
-    case InterpreterPushArgsMode::kArrayFunction:
-      // There is no special-case handling of calls to Array. They will all go
-      // through the kOther case below.
-      UNREACHABLE();
-    case InterpreterPushArgsMode::kWithFinalSpread:
-      return Builtins::CallableFor(
-          isolate, Builtin::kInterpreterPushArgsThenCallWithFinalSpread);
-    case InterpreterPushArgsMode::kOther:
-      switch (receiver_mode) {
-        case ConvertReceiverMode::kNullOrUndefined:
-          return Builtins::CallableFor(
-              isolate, Builtin::kInterpreterPushUndefinedAndArgsThenCall);
-        case ConvertReceiverMode::kNotNullOrUndefined:
-        case ConvertReceiverMode::kAny:
-          return Builtins::CallableFor(isolate,
-                                       Builtin::kInterpreterPushArgsThenCall);
-      }
-  }
-  UNREACHABLE();
-}
-
-// static
-Callable CodeFactory::InterpreterPushArgsThenConstruct(
-    Isolate* isolate, InterpreterPushArgsMode mode) {
-  switch (mode) {
-    case InterpreterPushArgsMode::kArrayFunction:
-      return Builtins::CallableFor(
-          isolate, Builtin::kInterpreterPushArgsThenConstructArrayFunction);
-    case InterpreterPushArgsMode::kWithFinalSpread:
-      return Builtins::CallableFor(
-          isolate, Builtin::kInterpreterPushArgsThenConstructWithFinalSpread);
-    case InterpreterPushArgsMode::kOther:
-      return Builtins::CallableFor(isolate,
-                                   Builtin::kInterpreterPushArgsThenConstruct);
-  }
-  UNREACHABLE();
-}
-
-// static
-Callable CodeFactory::InterpreterCEntry(Isolate* isolate, int result_size) {
-  Handle<Code> code =
-      CodeFactory::CEntry(isolate, result_size, ArgvMode::kRegister);
-  if (result_size == 1) {
-    return Callable(code, InterpreterCEntry1Descriptor{});
-  } else {
-    DCHECK_EQ(result_size, 2);
-    return Callable(code, InterpreterCEntry2Descriptor{});
-  }
-}
-
-// static
-Callable CodeFactory::InterpreterOnStackReplacement(Isolate* isolate) {
-  return Builtins::CallableFor(isolate,
-                               Builtin::kInterpreterOnStackReplacement);
-}
-
-// static
-Callable CodeFactory::InterpreterOnStackReplacement_ToBaseline(
-    Isolate* isolate) {
-  return Builtins::CallableFor(
-      isolate, Builtin::kInterpreterOnStackReplacement_ToBaseline);
 }
 
 // static

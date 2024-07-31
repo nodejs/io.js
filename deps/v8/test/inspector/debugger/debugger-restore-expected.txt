@@ -1,0 +1,9 @@
+Checks that Debugger agent correctly restore its state.
+
+Running test: testMaxScriptsCacheSize
+Enable debugger agent with script cache of 4k
+will reconnect...
+Evaluate large script
+Trigger GC
+Request script content...
+Received script content of length: 1073

@@ -35,7 +35,7 @@ if (!common.isMainThread)
 
 const expectFilePath = common.isWindows ||
                        common.isLinux ||
-                       common.isOSX ||
+                       common.isMacOS ||
                        common.isAIX;
 
 const testDir = tmpdir.path;
@@ -124,7 +124,7 @@ function repeat(fn) {
 // Whitebox test to ensure that wrapped FSEvent is safe
 // https://github.com/joyent/node/issues/6690
 {
-  if (common.isOSX || common.isWindows) {
+  if (common.isMacOS || common.isWindows) {
     let oldhandle;
     assert.throws(
       () => {
@@ -144,7 +144,7 @@ function repeat(fn) {
 }
 
 {
-  if (common.isOSX || common.isWindows) {
+  if (common.isMacOS || common.isWindows) {
     let oldhandle;
     assert.throws(
       () => {

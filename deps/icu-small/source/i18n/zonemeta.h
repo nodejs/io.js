@@ -55,6 +55,17 @@ public:
     static const char16_t* U_EXPORT2 getCanonicalCLDRID(const TimeZone& tz);
 
     /**
+     * Returns primary IANA zone ID for the input zone ID, which might be the id itself.
+     * If the given system tzid is not known, U_ILLEGAL_ARGUMENT_ERROR is set in the status.
+     *
+     * @param tzid      Zone ID
+     * @param ianaID    Output IANA ID
+     * @param status    Receives the status
+     * @return  A primary IANA zone ID equivalent to the input zone ID.
+     */
+    static UnicodeString& U_EXPORT2 getIanaID(const UnicodeString& tzid, UnicodeString& ianaID, UErrorCode& status);
+
+    /**
      * Return the canonical country code for this tzid.  If we have none, or if the time zone
      * is not associated with a country, return bogus string.
      * @param tzid Zone ID

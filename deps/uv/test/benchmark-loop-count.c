@@ -74,7 +74,7 @@ BENCHMARK_IMPL(loop_count) {
   uv_run(loop, UV_RUN_DEFAULT);
   ns = uv_hrtime() - ns;
 
-  ASSERT(ticks == NUM_TICKS);
+  ASSERT_UINT64_EQ(ticks, NUM_TICKS);
 
   fprintf(stderr, "loop_count: %d ticks in %.2fs (%.0f/s)\n",
           NUM_TICKS,

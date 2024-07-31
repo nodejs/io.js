@@ -114,18 +114,7 @@ class V8_EXPORT_PRIVATE JumpTableAssembler : public MacroAssembler {
 
   static void GenerateLazyCompileTable(Address base, uint32_t num_slots,
                                        uint32_t num_imported_functions,
-                                       Address wasm_compile_lazy_target) {
-    uint32_t lazy_compile_table_size = num_slots * kLazyCompileTableSlotSize;
-    // Assume enough space, so the Assembler does not try to grow the buffer.
-    JumpTableAssembler jtasm(base, lazy_compile_table_size + 256);
-    for (uint32_t slot_index = 0; slot_index < num_slots; ++slot_index) {
-      DCHECK_EQ(slot_index * kLazyCompileTableSlotSize, jtasm.pc_offset());
-      jtasm.EmitLazyCompileJumpSlot(slot_index + num_imported_functions,
-                                    wasm_compile_lazy_target);
-    }
-    DCHECK_EQ(lazy_compile_table_size, jtasm.pc_offset());
-    FlushInstructionCache(base, lazy_compile_table_size);
-  }
+                                       Address wasm_compile_lazy_target);
 
   // Initializes the jump table starting at {base} with jumps to the lazy
   // compile table starting at {lazy_compile_table_start}.
@@ -184,8 +173,13 @@ class V8_EXPORT_PRIVATE JumpTableAssembler : public MacroAssembler {
 // that the instruction containing the call target does not cross cache-line
 // boundaries. The jump table line size has been chosen to satisfy this.
 #if V8_TARGET_ARCH_X64
+#ifdef V8_ENABLE_CET_IBT
+  static constexpr int kEndbrSize = 4;
+#else  // V8_ENABLE_CET_IBT
+  static constexpr int kEndbrSize = 0;
+#endif
   static constexpr int kJumpTableLineSize = 64;
-  static constexpr int kJumpTableSlotSize = 5;
+  static constexpr int kJumpTableSlotSize = 5 + kEndbrSize;
   static constexpr int kFarJumpTableSlotSize = 16;
   static constexpr int kLazyCompileTableSlotSize = 10;
 #elif V8_TARGET_ARCH_IA32

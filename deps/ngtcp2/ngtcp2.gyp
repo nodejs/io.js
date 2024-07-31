@@ -8,14 +8,15 @@
       'ngtcp2/lib/ngtcp2_addr.c',
       'ngtcp2/lib/ngtcp2_balloc.c',
       'ngtcp2/lib/ngtcp2_bbr.c',
-      'ngtcp2/lib/ngtcp2_bbr2.c',
       'ngtcp2/lib/ngtcp2_buf.c',
       'ngtcp2/lib/ngtcp2_cc.c',
       'ngtcp2/lib/ngtcp2_cid.c',
       'ngtcp2/lib/ngtcp2_conn.c',
       'ngtcp2/lib/ngtcp2_conv.c',
+      'ngtcp2/lib/ngtcp2_conversion.c',
       'ngtcp2/lib/ngtcp2_crypto.c',
       'ngtcp2/lib/ngtcp2_err.c',
+      'ngtcp2/lib/ngtcp2_frame_chain.c',
       'ngtcp2/lib/ngtcp2_gaptr.c',
       'ngtcp2/lib/ngtcp2_idtr.c',
       'ngtcp2/lib/ngtcp2_ksl.c',
@@ -38,13 +39,14 @@
       'ngtcp2/lib/ngtcp2_rtb.c',
       'ngtcp2/lib/ngtcp2_str.c',
       'ngtcp2/lib/ngtcp2_strm.c',
+      'ngtcp2/lib/ngtcp2_unreachable.c',
       'ngtcp2/lib/ngtcp2_vec.c',
       'ngtcp2/lib/ngtcp2_version.c',
       'ngtcp2/lib/ngtcp2_window_filter.c',
       'ngtcp2/crypto/shared.c'
     ],
-    'ngtcp2_sources_openssl': [
-      'ngtcp2/crypto/openssl/openssl.c'
+    'ngtcp2_sources_quictls': [
+      'ngtcp2/crypto/quictls/quictls.c'
     ],
     'ngtcp2_sources_boringssl': [
       'ngtcp2/crypto/boringssl/boringssl.c'
@@ -75,8 +77,11 @@
       'nghttp3/lib/nghttp3_str.c',
       'nghttp3/lib/nghttp3_stream.c',
       'nghttp3/lib/nghttp3_tnode.c',
+      'nghttp3/lib/nghttp3_unreachable.c',
       'nghttp3/lib/nghttp3_vec.c',
-      'nghttp3/lib/nghttp3_version.c'
+      'nghttp3/lib/nghttp3_version.c',
+      # sfparse is also used by nghttp2 and is included by nghttp2.gyp
+      # 'nghttp3/lib/sfparse.c'
     ]
   },
   'targets': [
@@ -99,6 +104,9 @@
           'dependencies': [
             '../openssl/openssl.gyp:openssl'
           ]
+        }],
+        ['OS!="win"', {
+          'defines': ['HAVE_UNISTD_H']
         }],
         ['OS=="win"', {
           'defines': [
@@ -132,7 +140,7 @@
       },
       'sources': [
         '<@(ngtcp2_sources)',
-        '<@(ngtcp2_sources_openssl)',
+        '<@(ngtcp2_sources_quictls)',
       ]
     },
     {
@@ -144,7 +152,7 @@
       ],
       'defines': [
         'BUILDING_NGHTTP3',
-        'NGHTTP3_STATICLIB'
+        'NGHTTP3_STATICLIB',
       ],
       'dependencies': [
         'ngtcp2'
@@ -161,6 +169,9 @@
               'CompileAs': '1'
             },
           },
+        }],
+        ['OS!="win"', {
+          'defines': ['HAVE_UNISTD_H']
         }],
         ['OS=="linux" or OS=="android"', {
           'defines': [

@@ -34,12 +34,12 @@ static void shutdown_cb(uv_shutdown_t* req, int status) {
 
 static void connect_cb(uv_connect_t* req, int status) {
   int r;
-  ASSERT(status == 0);
+  ASSERT_OK(status);
 
   r = uv_shutdown(&shutdown_req, req->handle, shutdown_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(0 == uv_is_writable(req->handle));
+  ASSERT_OK(uv_is_writable(req->handle));
 }
 
 TEST_IMPL(not_writable_after_shutdown) {
@@ -49,20 +49,20 @@ TEST_IMPL(not_writable_after_shutdown) {
   uv_tcp_t socket;
   uv_connect_t connect_req;
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
   loop = uv_default_loop();
 
   r = uv_tcp_init(loop, &socket);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_tcp_connect(&connect_req,
                      &socket,
                      (const struct sockaddr*) &addr,
                      connect_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_run(loop, UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

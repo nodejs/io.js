@@ -1,26 +1,17 @@
-/* ares_config.h.  Generated from ares_config.h.in by configure.  */
-/* ares_config.h.in.  Generated from configure.ac by autoheader.  */
+/* src/lib/ares_config.h.  Generated from ares_config.h.in by configure.  */
+/* src/lib/ares_config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* Define if building universal (internal helper macro) */
-/* #undef AC_APPLE_UNIVERSAL_BUILD */
+/* a suitable file/device to read random data from */
+#define CARES_RANDOM_FILE "/dev/urandom"
 
-/* define this if ares is built for a big endian system */
-#define ARES_BIG_ENDIAN 1
+/* Set to 1 if non-pubilc shared library symbols are hidden */
+#define CARES_SYMBOL_HIDING 1 
 
-/* when building as static part of libcurl */
-/* #undef BUILDING_LIBCURL */
-
-/* Defined for build that exposes internal static functions for testing. */
-/* #undef CARES_EXPOSE_STATICS */
-
-/* Defined for build with symbol hiding. */
-/* #undef CARES_SYMBOL_HIDING */
+/* Threading enabled */
+#define CARES_THREADS 1 
 
 /* the signed version of size_t */
 #define CARES_TYPEOF_ARES_SSIZE_T ssize_t
-
-/* Definition to make a library symbol externally visible. */
-/* #undef CARES_SYMBOL_SCOPE_EXTERN */
 
 /* Use resolver library to configure cares */
 /* #undef CARES_USE_LIBRESOLV */
@@ -28,32 +19,32 @@
 /* if a /etc/inet dir is being used */
 /* #undef ETC_INET */
 
-/* Define to the type of arg 2 for gethostname. */
-#define GETHOSTNAME_TYPE_ARG2 size_t
+/* gethostname() arg2 type */
+#define GETHOSTNAME_TYPE_ARG2 size_t 
 
-/* Define to the type qualifier of arg 1 for getnameinfo. */
-#define GETNAMEINFO_QUAL_ARG1 const
+/* getnameinfo() arg1 type */
+#define GETNAMEINFO_TYPE_ARG1 struct sockaddr * 
 
-/* Define to the type of arg 1 for getnameinfo. */
-#define GETNAMEINFO_TYPE_ARG1 struct sockaddr *
+/* getnameinfo() arg2 type */
+#define GETNAMEINFO_TYPE_ARG2 socklen_t 
 
-/* Define to the type of arg 2 for getnameinfo. */
-#define GETNAMEINFO_TYPE_ARG2 socklen_t
+/* getnameinfo() arg4 and 6 type */
+#define GETNAMEINFO_TYPE_ARG46 socklen_t 
 
-/* Define to the type of args 4 and 6 for getnameinfo. */
-#define GETNAMEINFO_TYPE_ARG46 size_t
+/* getnameinfo() arg7 type */
+#define GETNAMEINFO_TYPE_ARG7 int 
 
-/* Define to the type of arg 7 for getnameinfo. */
-#define GETNAMEINFO_TYPE_ARG7 int
+/* number of arguments for getservbyname_r() */
+/* #undef GETSERVBYNAME_R_ARGS */
 
-/* Specifies the number of arguments to getservbyport_r */
-#define GETSERVBYPORT_R_ARGS 4
+/* number of arguments for getservbyport_r() */
+#define GETSERVBYPORT_R_ARGS 4 
 
-/* Specifies the size of the buffer to pass to getservbyport_r */
-#define GETSERVBYPORT_R_BUFSIZE sizeof(struct servent_data)
-
-/* Define to 1 if you have AF_INET6. */
+/* Define to 1 if you have AF_INET6 */
 #define HAVE_AF_INET6 1
+
+/* Define to 1 if you have `arc4random_buf` */
+/* #undef HAVE_ARC4RANDOM_BUF */
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #define HAVE_ARPA_INET_H 1
@@ -67,129 +58,131 @@
 /* Define to 1 if you have the <assert.h> header file. */
 #define HAVE_ASSERT_H 1
 
-/* Define to 1 if you have the `bitncmp' function. */
-/* #undef HAVE_BITNCMP */
+/* Define to 1 if you have the <AvailabilityMacros.h> header file. */
+/* #undef HAVE_AVAILABILITYMACROS_H */
 
-/* Define to 1 if bool is an available type. */
-#define HAVE_BOOL_T 1
+/* Define to 1 if you have `clock_gettime` */
+#define HAVE_CLOCK_GETTIME 1
 
-/* Define to 1 if you have the clock_gettime function and monotonic timer. */
-#define HAVE_CLOCK_GETTIME_MONOTONIC 1
+/* clock_gettime() with CLOCK_MONOTONIC support */
+#define HAVE_CLOCK_GETTIME_MONOTONIC 1 
 
-/* Define to 1 if you have the closesocket function. */
+/* Define to 1 if you have `closesocket` */
 /* #undef HAVE_CLOSESOCKET */
 
-/* Define to 1 if you have the CloseSocket camel case function. */
+/* Define to 1 if you have `CloseSocket` */
 /* #undef HAVE_CLOSESOCKET_CAMEL */
 
-/* Define to 1 if you have the connect function. */
+/* Define to 1 if you have `connect` */
 #define HAVE_CONNECT 1
 
-/* define if the compiler supports basic C++11 syntax */
-#define HAVE_CXX11 1
+/* Define to 1 if you have `ConvertInterfaceIndexToLuid` */
+/* #undef HAVE_CONVERTINTERFACEINDEXTOLUID */
+
+/* Define to 1 if you have `ConvertInterfaceLuidToNameA` */
+/* #undef HAVE_CONVERTINTERFACELUIDTONAMEA */
+
+/* define if the compiler supports basic C++14 syntax */
+#define HAVE_CXX14 1
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
 
+/* Define to 1 if you have `epoll_{create1,ctl,wait}` */
+/* #undef HAVE_EPOLL */
+
 /* Define to 1 if you have the <errno.h> header file. */
 #define HAVE_ERRNO_H 1
 
-/* Define to 1 if you have the fcntl function. */
+/* Define to 1 if you have `fcntl` */
 #define HAVE_FCNTL 1
 
 /* Define to 1 if you have the <fcntl.h> header file. */
 #define HAVE_FCNTL_H 1
 
-/* Define to 1 if you have a working fcntl O_NONBLOCK function. */
-#define HAVE_FCNTL_O_NONBLOCK 1
+/* fcntl() with O_NONBLOCK support */
+#define HAVE_FCNTL_O_NONBLOCK 1 
 
-/* Define to 1 if you have the freeaddrinfo function. */
-#define HAVE_FREEADDRINFO 1
-
-/* Define to 1 if you have a working getaddrinfo function. */
-#define HAVE_GETADDRINFO 1
-
-/* Define to 1 if the getaddrinfo function is threadsafe. */
-#define HAVE_GETADDRINFO_THREADSAFE 1
-
-/* Define to 1 if you have the getenv function. */
+/* Define to 1 if you have `getenv` */
 #define HAVE_GETENV 1
 
-/* Define to 1 if you have the gethostbyaddr function. */
-#define HAVE_GETHOSTBYADDR 1
-
-/* Define to 1 if you have the gethostbyname function. */
-#define HAVE_GETHOSTBYNAME 1
-
-/* Define to 1 if you have the gethostname function. */
+/* Define to 1 if you have `gethostname` */
 #define HAVE_GETHOSTNAME 1
 
-/* Define to 1 if you have the getnameinfo function. */
+/* Define to 1 if you have `getifaddrs` */
+/* #undef HAVE_GETIFADDRS */
+
+/* Define to 1 if you have `getnameinfo` */
 #define HAVE_GETNAMEINFO 1
 
-/* Define to 1 if you have the getservbyport_r function. */
+/* Define to 1 if you have `getrandom` */
+/* #undef HAVE_GETRANDOM */
+
+/* Define to 1 if you have `getservbyport_r` */
 #define HAVE_GETSERVBYPORT_R 1
 
-/* Define to 1 if you have the `gettimeofday' function. */
+/* Define to 1 if you have `gettimeofday` */
 #define HAVE_GETTIMEOFDAY 1
 
-/* Define to 1 if you have the `if_indextoname' function. */
+/* Define to 1 if you have the <ifaddrs.h> header file. */
+/* #undef HAVE_IFADDRS_H */
+
+/* Define to 1 if you have `if_indextoname` */
 #define HAVE_IF_INDEXTONAME 1
 
-/* Define to 1 if you have a IPv6 capable working inet_net_pton function. */
-/* #undef HAVE_INET_NET_PTON */
+/* Define to 1 if you have `if_nametoindex` */
+#define HAVE_IF_NAMETOINDEX 1
 
-/* Define to 1 if you have a IPv6 capable working inet_ntop function. */
+/* Define to 1 if you have `inet_net_pton` */
+#define HAVE_INET_NET_PTON 1
+
+/* Define to 1 if you have `inet_ntop` */
 #define HAVE_INET_NTOP 1
 
-/* Define to 1 if you have a IPv6 capable working inet_pton function. */
+/* Define to 1 if you have `inet_pton` */
 #define HAVE_INET_PTON 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
 
-/* Define to 1 if you have the ioctl function. */
+/* Define to 1 if you have `ioctl` */
 #define HAVE_IOCTL 1
 
-/* Define to 1 if you have the ioctlsocket function. */
+/* Define to 1 if you have `ioctlsocket` */
 /* #undef HAVE_IOCTLSOCKET */
 
-/* Define to 1 if you have the IoctlSocket camel case function. */
+/* Define to 1 if you have `IoctlSocket` */
 /* #undef HAVE_IOCTLSOCKET_CAMEL */
 
-/* Define to 1 if you have a working IoctlSocket camel case FIONBIO function.
-   */
-/* #undef HAVE_IOCTLSOCKET_CAMEL_FIONBIO */
-
-/* Define to 1 if you have a working ioctlsocket FIONBIO function. */
+/* ioctlsocket() with FIONBIO support */
 /* #undef HAVE_IOCTLSOCKET_FIONBIO */
 
-/* Define to 1 if you have a working ioctl FIONBIO function. */
-#define HAVE_IOCTL_FIONBIO 1
+/* ioctl() with FIONBIO support */
+#define HAVE_IOCTL_FIONBIO 1 
 
-/* Define to 1 if you have a working ioctl SIOCGIFADDR function. */
-#define HAVE_IOCTL_SIOCGIFADDR 1
+/* Define to 1 if you have the <iphlpapi.h> header file. */
+/* #undef HAVE_IPHLPAPI_H */
 
-/* Define to 1 if you have the `resolve' library (-lresolve). */
-/* #undef HAVE_LIBRESOLVE */
+/* Define to 1 if you have `kqueue` */
+/* #undef HAVE_KQUEUE */
 
 /* Define to 1 if you have the <limits.h> header file. */
 #define HAVE_LIMITS_H 1
 
-/* if your compiler supports LL */
-#define HAVE_LL 1
-
 /* Define to 1 if the compiler supports the 'long long' data type. */
 #define HAVE_LONGLONG 1
 
-/* Define to 1 if you have the malloc.h header file. */
+/* Define to 1 if you have the <malloc.h> header file. */
 #define HAVE_MALLOC_H 1
 
-/* Define to 1 if you have the memory.h header file. */
+/* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
 
-/* Define to 1 if you have the MSG_NOSIGNAL flag. */
-#define HAVE_MSG_NOSIGNAL 1
+/* Define to 1 if you have the <minix/config.h> header file. */
+/* #undef HAVE_MINIX_CONFIG_H */
+
+/* Define to 1 if you have the <mswsock.h> header file. */
+/* #undef HAVE_MSWSOCK_H */
 
 /* Define to 1 if you have the <netdb.h> header file. */
 #define HAVE_NETDB_H 1
@@ -200,44 +193,68 @@
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
 #define HAVE_NETINET_TCP_H 1
 
+/* Define to 1 if you have the <netioapi.h> header file. */
+/* #undef HAVE_NETIOAPI_H */
+
 /* Define to 1 if you have the <net/if.h> header file. */
 #define HAVE_NET_IF_H 1
 
-/* Define to 1 if you have PF_INET6. */
+/* Define to 1 if you have the <ntdef.h> header file. */
+/* #undef HAVE_NTDEF_H */
+
+/* Define to 1 if you have the <ntstatus.h> header file. */
+/* #undef HAVE_NTSTATUS_H */
+
+/* Define to 1 if you have PF_INET6 */
 #define HAVE_PF_INET6 1
 
-/* Define to 1 if you have the recv function. */
+/* Define to 1 if you have `pipe` */
+#define HAVE_PIPE 1
+
+/* Define to 1 if you have `pipe2` */
+/* #undef HAVE_PIPE2 */
+
+/* Define to 1 if you have `poll` */
+#define HAVE_POLL 1
+
+/* Define to 1 if you have the <poll.h> header file. */
+#define HAVE_POLL_H 1
+
+/* Define to 1 if you have the <pthread.h> header file. */
+#define HAVE_PTHREAD_H 1
+
+/* Define to 1 if you have the <pthread_np.h> header file. */
+/* #undef HAVE_PTHREAD_NP_H */
+
+/* Have PTHREAD_PRIO_INHERIT. */
+#define HAVE_PTHREAD_PRIO_INHERIT 1
+
+/* Define to 1 if you have `recv` */
 #define HAVE_RECV 1
 
-/* Define to 1 if you have the recvfrom function. */
+/* Define to 1 if you have `recvfrom` */
 #define HAVE_RECVFROM 1
 
-/* Define to 1 if you have the send function. */
+/* Define to 1 if you have `send` */
 #define HAVE_SEND 1
 
-/* Define to 1 if you have the setsockopt function. */
+/* Define to 1 if you have `setsockopt` */
 #define HAVE_SETSOCKOPT 1
 
-/* Define to 1 if you have a working setsockopt SO_NONBLOCK function. */
+/* setsockopt() with SO_NONBLOCK support */
 /* #undef HAVE_SETSOCKOPT_SO_NONBLOCK */
 
-/* Define to 1 if you have the <signal.h> header file. */
-#define HAVE_SIGNAL_H 1
-
-/* Define to 1 if sig_atomic_t is an available typedef. */
-#define HAVE_SIG_ATOMIC_T 1
-
-/* Define to 1 if sig_atomic_t is already defined as volatile. */
-/* #undef HAVE_SIG_ATOMIC_T_VOLATILE */
-
-/* Define to 1 if your struct sockaddr_in6 has sin6_scope_id. */
-#define HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID 1
-
-/* Define to 1 if you have the socket function. */
+/* Define to 1 if you have `socket` */
 #define HAVE_SOCKET 1
 
 /* Define to 1 if you have the <socket.h> header file. */
 /* #undef HAVE_SOCKET_H */
+
+/* socklen_t */
+#define HAVE_SOCKLEN_T /**/
+
+/* Define to 1 if you have `stat` */
+#define HAVE_STAT 1
 
 /* Define to 1 if you have the <stdbool.h> header file. */
 #define HAVE_STDBOOL_H 1
@@ -245,19 +262,19 @@
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
 
+/* Define to 1 if you have the <stdio.h> header file. */
+#define HAVE_STDIO_H 1
+
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
 
-/* Define to 1 if you have the strcasecmp function. */
+/* Define to 1 if you have `strcasecmp` */
 #define HAVE_STRCASECMP 1
 
-/* Define to 1 if you have the strcmpi function. */
-/* #undef HAVE_STRCMPI */
-
-/* Define to 1 if you have the strdup function. */
+/* Define to 1 if you have `strdup` */
 #define HAVE_STRDUP 1
 
-/* Define to 1 if you have the stricmp function. */
+/* Define to 1 if you have `stricmp` */
 /* #undef HAVE_STRICMP */
 
 /* Define to 1 if you have the <strings.h> header file. */
@@ -266,38 +283,53 @@
 /* Define to 1 if you have the <string.h> header file. */
 #define HAVE_STRING_H 1
 
-/* Define to 1 if you have the strncasecmp function. */
+/* Define to 1 if you have `strncasecmp` */
 #define HAVE_STRNCASECMP 1
 
-/* Define to 1 if you have the strncmpi function. */
+/* Define to 1 if you have `strncmpi` */
 /* #undef HAVE_STRNCMPI */
 
-/* Define to 1 if you have the strnicmp function. */
+/* Define to 1 if you have `strnicmp` */
 /* #undef HAVE_STRNICMP */
 
-/* Define to 1 if you have the <stropts.h> header file. */
-#define HAVE_STROPTS_H 1
-
-/* Define to 1 if you have struct addrinfo. */
+/* Define to 1 if the system has the type `struct addrinfo'. */
 #define HAVE_STRUCT_ADDRINFO 1
 
-/* Define to 1 if you have struct in6_addr. */
+/* Define to 1 if `ai_flags' is a member of `struct addrinfo'. */
+#define HAVE_STRUCT_ADDRINFO_AI_FLAGS 1
+
+/* Define to 1 if the system has the type `struct in6_addr'. */
 #define HAVE_STRUCT_IN6_ADDR 1
 
-/* Define to 1 if you have struct sockaddr_in6. */
+/* Define to 1 if the system has the type `struct sockaddr_in6'. */
 #define HAVE_STRUCT_SOCKADDR_IN6 1
 
-/* if struct sockaddr_storage is defined */
+/* Define to 1 if `sin6_scope_id' is a member of `struct sockaddr_in6'. */
+#define HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID 1
+
+/* Define to 1 if the system has the type `struct sockaddr_storage'. */
 #define HAVE_STRUCT_SOCKADDR_STORAGE 1
 
-/* Define to 1 if you have the timeval struct. */
+/* Define to 1 if the system has the type `struct timeval'. */
 #define HAVE_STRUCT_TIMEVAL 1
+
+/* Define to 1 if you have the <sys/epoll.h> header file. */
+/* #undef HAVE_SYS_EPOLL_H */
+
+/* Define to 1 if you have the <sys/event.h> header file. */
+/* #undef HAVE_SYS_EVENT_H */
+
+/* Define to 1 if you have the <sys/filio.h> header file. */
+/* #undef HAVE_SYS_FILIO_H */
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #define HAVE_SYS_IOCTL_H 1
 
 /* Define to 1 if you have the <sys/param.h> header file. */
 #define HAVE_SYS_PARAM_H 1
+
+/* Define to 1 if you have the <sys/random.h> header file. */
+/* #undef HAVE_SYS_RANDOM_H */
 
 /* Define to 1 if you have the <sys/select.h> header file. */
 #define HAVE_SYS_SELECT_H 1
@@ -323,50 +355,50 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
 
-/* Define to 1 if you have the windows.h header file. */
+/* Whether user namespaces are available */
+/* #undef HAVE_USER_NAMESPACE */
+
+/* Whether UTS namespaces are available */
+/* #undef HAVE_UTS_NAMESPACE */
+
+/* Define to 1 if you have the <wchar.h> header file. */
+#define HAVE_WCHAR_H 1
+
+/* Define to 1 if you have the <windows.h> header file. */
 /* #undef HAVE_WINDOWS_H */
 
-/* Define to 1 if you have the winsock2.h header file. */
+/* Define to 1 if you have the <winsock2.h> header file. */
 /* #undef HAVE_WINSOCK2_H */
 
-/* Define to 1 if you have the winsock.h header file. */
-/* #undef HAVE_WINSOCK_H */
+/* Define to 1 if you have the <winternl.h> header file. */
+/* #undef HAVE_WINTERNL_H */
 
-/* Define to 1 if you have the writev function. */
+/* Define to 1 if you have `writev` */
 #define HAVE_WRITEV 1
 
-/* Define to 1 if you have the ws2tcpip.h header file. */
+/* Define to 1 if you have the <ws2ipdef.h> header file. */
+/* #undef HAVE_WS2IPDEF_H */
+
+/* Define to 1 if you have the <ws2tcpip.h> header file. */
 /* #undef HAVE_WS2TCPIP_H */
+
+/* Define to 1 if you have `__system_property_get` */
+/* #undef HAVE___SYSTEM_PROPERTY_GET */
 
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #define LT_OBJDIR ".libs/"
-
-/* Define to 1 if you need the malloc.h header file even with stdlib.h */
-/* #undef NEED_MALLOC_H */
-
-/* Define to 1 if you need the memory.h header file even with stdlib.h */
-/* #undef NEED_MEMORY_H */
-
-/* Define to 1 if _REENTRANT preprocessor symbol must be defined. */
-/* #undef NEED_REENTRANT */
-
-/* Define to 1 if _THREAD_SAFE preprocessor symbol must be defined. */
-#define NEED_THREAD_SAFE 1
-
-/* cpu-machine-OS */
-#define OS "powerpc-ibm-aix6.1.9.0"
 
 /* Name of package */
 #define PACKAGE "c-ares"
 
 /* Define to the address where bug reports for this package should be sent. */
-#define PACKAGE_BUGREPORT "c-ares mailing list: http://cool.haxx.se/mailman/listinfo/c-ares"
+#define PACKAGE_BUGREPORT "c-ares mailing list: http://lists.haxx.se/listinfo/c-ares"
 
 /* Define to the full name of this package. */
 #define PACKAGE_NAME "c-ares"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "c-ares 1.13.0"
+#define PACKAGE_STRING "c-ares 1.26.0"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "c-ares"
@@ -375,116 +407,161 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.13.0"
+#define PACKAGE_VERSION "1.26.0"
 
-/* a suitable file/device to read random data from */
-#define CARES_RANDOM_FILE "/dev/urandom"
+/* Define to necessary symbol if this constant uses a non-standard name on
+   your system. */
+/* #undef PTHREAD_CREATE_JOINABLE */
 
-/* Define to the type qualifier pointed by arg 5 for recvfrom. */
-#define RECVFROM_QUAL_ARG5
+/* recvfrom() arg5 qualifier */
+#define RECVFROM_QUAL_ARG5 
 
-/* Define to the type of arg 1 for recvfrom. */
-#define RECVFROM_TYPE_ARG1 int
+/* recvfrom() arg1 type */
+#define RECVFROM_TYPE_ARG1 int 
 
-/* Define to the type pointed by arg 2 for recvfrom. */
-#define RECVFROM_TYPE_ARG2 void
+/* recvfrom() arg2 type */
+#define RECVFROM_TYPE_ARG2 void * 
 
-/* Define to 1 if the type pointed by arg 2 for recvfrom is void. */
-#define RECVFROM_TYPE_ARG2_IS_VOID 1
+/* recvfrom() arg3 type */
+#define RECVFROM_TYPE_ARG3 size_t 
 
-/* Define to the type of arg 3 for recvfrom. */
-#define RECVFROM_TYPE_ARG3 size_t
+/* recvfrom() arg4 type */
+#define RECVFROM_TYPE_ARG4 int 
 
-/* Define to the type of arg 4 for recvfrom. */
-#define RECVFROM_TYPE_ARG4 int
+/* recvfrom() arg5 type */
+#define RECVFROM_TYPE_ARG5 struct sockaddr * 
 
-/* Define to the type pointed by arg 5 for recvfrom. */
-#define RECVFROM_TYPE_ARG5 struct sockaddr
+/* recvfrom() return value */
+#define RECVFROM_TYPE_RETV ssize_t 
 
-/* Define to 1 if the type pointed by arg 5 for recvfrom is void. */
-/* #undef RECVFROM_TYPE_ARG5_IS_VOID */
+/* recv() arg1 type */
+#define RECV_TYPE_ARG1 int 
 
-/* Define to the type pointed by arg 6 for recvfrom. */
-#define RECVFROM_TYPE_ARG6 socklen_t
+/* recv() arg2 type */
+#define RECV_TYPE_ARG2 void * 
 
-/* Define to 1 if the type pointed by arg 6 for recvfrom is void. */
-/* #undef RECVFROM_TYPE_ARG6_IS_VOID */
+/* recv() arg3 type */
+#define RECV_TYPE_ARG3 size_t 
 
-/* Define to the function return type for recvfrom. */
-#define RECVFROM_TYPE_RETV ssize_t
+/* recv() arg4 type */
+#define RECV_TYPE_ARG4 int 
 
-/* Define to the type of arg 1 for recv. */
-#define RECV_TYPE_ARG1 int
+/* recv() return value */
+#define RECV_TYPE_RETV ssize_t 
 
-/* Define to the type of arg 2 for recv. */
-#define RECV_TYPE_ARG2 void *
+/* send() arg2 qualifier */
+#define SEND_QUAL_ARG2 
 
-/* Define to the type of arg 3 for recv. */
-#define RECV_TYPE_ARG3 size_t
+/* send() arg1 type */
+#define SEND_TYPE_ARG1 int 
 
-/* Define to the type of arg 4 for recv. */
-#define RECV_TYPE_ARG4 int
+/* send() arg2 type */
+#define SEND_TYPE_ARG2 void * 
 
-/* Define to the function return type for recv. */
-#define RECV_TYPE_RETV ssize_t
+/* send() arg3 type */
+#define SEND_TYPE_ARG3 size_t 
 
-/* Define as the return type of signal handlers (`int' or `void'). */
-#define RETSIGTYPE void
+/* send() arg4 type */
+#define SEND_TYPE_ARG4 int 
 
-/* Define to the type qualifier of arg 2 for send. */
-#define SEND_QUAL_ARG2 const
+/* send() return value */
+#define SEND_TYPE_RETV ssize_t 
 
-/* Define to the type of arg 1 for send. */
-#define SEND_TYPE_ARG1 int
-
-/* Define to the type of arg 2 for send. */
-#define SEND_TYPE_ARG2 void *
-
-/* Define to the type of arg 3 for send. */
-#define SEND_TYPE_ARG3 size_t
-
-/* Define to the type of arg 4 for send. */
-#define SEND_TYPE_ARG4 int
-
-/* Define to the function return type for send. */
-#define SEND_TYPE_RETV ssize_t
-
-/* Define to 1 if you have the ANSI C header files. */
+/* Define to 1 if all of the C90 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
 #define STDC_HEADERS 1
 
-/* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
-#define TIME_WITH_SYS_TIME 1
+/* Enable extensions on AIX 3, Interix.  */
+#ifndef _ALL_SOURCE
+# define _ALL_SOURCE 1
+#endif
+/* Enable general extensions on macOS.  */
+#ifndef _DARWIN_C_SOURCE
+# define _DARWIN_C_SOURCE 1
+#endif
+/* Enable general extensions on Solaris.  */
+#ifndef __EXTENSIONS__
+# define __EXTENSIONS__ 1
+#endif
+/* Enable GNU extensions on systems that have them.  */
+#ifndef _GNU_SOURCE
+# define _GNU_SOURCE 1
+#endif
+/* Enable X/Open compliant socket functions that do not require linking
+   with -lxnet on HP-UX 11.11.  */
+#ifndef _HPUX_ALT_XOPEN_SOCKET_API
+# define _HPUX_ALT_XOPEN_SOCKET_API 1
+#endif
+/* Identify the host operating system as Minix.
+   This macro does not affect the system headers' behavior.
+   A future release of Autoconf may stop defining this macro.  */
+#ifndef _MINIX
+/* # undef _MINIX */
+#endif
+/* Enable general extensions on NetBSD.
+   Enable NetBSD compatibility extensions on Minix.  */
+#ifndef _NETBSD_SOURCE
+# define _NETBSD_SOURCE 1
+#endif
+/* Enable OpenBSD compatibility extensions on NetBSD.
+   Oddly enough, this does nothing on OpenBSD.  */
+#ifndef _OPENBSD_SOURCE
+# define _OPENBSD_SOURCE 1
+#endif
+/* Define to 1 if needed for POSIX-compatible behavior.  */
+#ifndef _POSIX_SOURCE
+/* # undef _POSIX_SOURCE */
+#endif
+/* Define to 2 if needed for POSIX-compatible behavior.  */
+#ifndef _POSIX_1_SOURCE
+/* # undef _POSIX_1_SOURCE */
+#endif
+/* Enable POSIX-compatible threading on Solaris.  */
+#ifndef _POSIX_PTHREAD_SEMANTICS
+# define _POSIX_PTHREAD_SEMANTICS 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-5:2014.  */
+#ifndef __STDC_WANT_IEC_60559_ATTRIBS_EXT__
+# define __STDC_WANT_IEC_60559_ATTRIBS_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-1:2014.  */
+#ifndef __STDC_WANT_IEC_60559_BFP_EXT__
+# define __STDC_WANT_IEC_60559_BFP_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-2:2015.  */
+#ifndef __STDC_WANT_IEC_60559_DFP_EXT__
+# define __STDC_WANT_IEC_60559_DFP_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-4:2015.  */
+#ifndef __STDC_WANT_IEC_60559_FUNCS_EXT__
+# define __STDC_WANT_IEC_60559_FUNCS_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-3:2015.  */
+#ifndef __STDC_WANT_IEC_60559_TYPES_EXT__
+# define __STDC_WANT_IEC_60559_TYPES_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TR 24731-2:2010.  */
+#ifndef __STDC_WANT_LIB_EXT2__
+# define __STDC_WANT_LIB_EXT2__ 1
+#endif
+/* Enable extensions specified by ISO/IEC 24747:2009.  */
+#ifndef __STDC_WANT_MATH_SPEC_FUNCS__
+# define __STDC_WANT_MATH_SPEC_FUNCS__ 1
+#endif
+/* Enable extensions on HP NonStop.  */
+#ifndef _TANDEM_SOURCE
+# define _TANDEM_SOURCE 1
+#endif
+/* Enable X/Open extensions.  Define to 500 only if necessary
+   to make mbstate_t available.  */
+#ifndef _XOPEN_SOURCE
+/* # undef _XOPEN_SOURCE */
+#endif
 
-/* Define to disable non-blocking sockets. */
-/* #undef USE_BLOCKING_SOCKETS */
 
 /* Version number of package */
-#define VERSION "1.13.0"
-
-/* Define to avoid automatic inclusion of winsock.h */
-/* #undef WIN32_LEAN_AND_MEAN */
-
-/* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
-   significant byte first (like Motorola and SPARC, unlike Intel). */
-#if defined AC_APPLE_UNIVERSAL_BUILD
-# if defined __BIG_ENDIAN__
-#  define WORDS_BIGENDIAN 1
-# endif
-#else
-# ifndef WORDS_BIGENDIAN
-/* #  undef WORDS_BIGENDIAN */
-# endif
-#endif
-
-/* Define to 1 if OS is AIX. */
-#ifndef _ALL_SOURCE
-#  define _ALL_SOURCE 1
-#endif
-
-/* Enable large inode numbers on Mac OS X 10.5.  */
-#ifndef _DARWIN_USE_64_BIT_INODE
-# define _DARWIN_USE_64_BIT_INODE 1
-#endif
+#define VERSION "1.26.0"
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 /* #undef _FILE_OFFSET_BITS */
@@ -492,14 +569,5 @@
 /* Define for large files, on AIX-style hosts. */
 #define _LARGE_FILES 1
 
-/* Define to empty if `const' does not conform to ANSI C. */
-/* #undef const */
-
-/* Type to use in place of in_addr_t when system does not provide it. */
-/* #undef in_addr_t */
-
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 /* #undef size_t */
-
-/* the signed version of size_t */
-/* #undef ssize_t */

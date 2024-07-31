@@ -88,7 +88,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerS390
   // returning.
   // {raw_code} is an Address because this is called via ExternalReference.
   static int CheckStackGuardState(Address* return_address, Address raw_code,
-                                  Address re_frame);
+                                  Address re_frame, uintptr_t extra_space);
 
  private:
   // Offsets from frame_pointer() of function parameters and stored registers.
@@ -146,7 +146,8 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerS390
   void CheckStackLimit();
   void CallCFunctionUsingStub(ExternalReference function, int num_arguments);
 
-  void CallCheckStackGuardState(Register scratch);
+  void CallCheckStackGuardState(
+      Register scratch, Operand extra_space_for_variables = Operand::Zero());
   void CallIsCharacterInRangeArray(const ZoneList<CharacterRange>* ranges);
 
   // The ebp-relative location of a regexp register.

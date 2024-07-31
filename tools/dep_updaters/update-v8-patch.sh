@@ -9,9 +9,9 @@ BASE_DIR=$(cd "$(dirname "$0")/../.." && pwd)
 
 cd "$BASE_DIR"
 
-IS_UP_TO_DATE=$(git node v8 minor | grep "V8 is up-to-date")
+CAN_UPDATE=$(git node v8 minor | grep -q "V8 is up-to-date" || echo "1")
 
-if [ -n "$IS_UP_TO_DATE" ]; then
+if [ -z "$CAN_UPDATE" ]; then
   echo "Skipped because V8 is on the latest version."
   exit 0
 fi
@@ -25,11 +25,6 @@ CURRENT_PATCH_VERSION=$(grep "#define V8_PATCH_LEVEL" "$DEPS_DIR/v8/include/v8-v
 
 NEW_VERSION="$CURRENT_MAJOR_VERSION.$CURRENT_MINOR_VERSION.$CURRENT_BUILD_VERSION.$CURRENT_PATCH_VERSION"
 
-
-# Update the version number. We have to call it twice because V8 is written
-# both in lowercase and uppdercase
-update_dependency_version "v8" "$NEW_VERSION"
-update_dependency_version "V8" "$NEW_VERSION"
 
 echo "All done!"
 echo ""

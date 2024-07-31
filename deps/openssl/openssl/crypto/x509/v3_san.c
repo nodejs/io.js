@@ -581,6 +581,8 @@ GENERAL_NAME *a2i_GENERAL_NAME(GENERAL_NAME *out,
         if ((gen->d.ia5 = ASN1_IA5STRING_new()) == NULL ||
             !ASN1_STRING_set(gen->d.ia5, (unsigned char *)value,
                              strlen(value))) {
+            ASN1_IA5STRING_free(gen->d.ia5);
+            gen->d.ia5 = NULL;
             ERR_raise(ERR_LIB_X509V3, ERR_R_MALLOC_FAILURE);
             goto err;
         }
@@ -651,16 +653,21 @@ static int do_othername(GENERAL_NAME *gen, const char *value, X509V3_CTX *ctx)
      */
     ASN1_TYPE_free(gen->d.otherName->value);
     if ((gen->d.otherName->value = ASN1_generate_v3(p + 1, ctx)) == NULL)
-        return 0;
+        goto err;
     objlen = p - value;
     objtmp = OPENSSL_strndup(value, objlen);
     if (objtmp == NULL)
-        return 0;
+        goto err;
     gen->d.otherName->type_id = OBJ_txt2obj(objtmp, 0);
     OPENSSL_free(objtmp);
     if (!gen->d.otherName->type_id)
-        return 0;
+        goto err;
     return 1;
+
+ err:
+    OTHERNAME_free(gen->d.otherName);
+    gen->d.otherName = NULL;
+    return 0;
 }
 
 static int do_dirname(GENERAL_NAME *gen, const char *value, X509V3_CTX *ctx)

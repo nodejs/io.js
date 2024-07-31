@@ -796,11 +796,13 @@ Handle<HeapObject> RegExpMacroAssemblerPPC::GetCode(Handle<String> source) {
       __ mov(r3, Operand(stack_limit));
       __ LoadU64(r3, MemOperand(r3));
       __ sub(r3, sp, r3, LeaveOE, SetRC);
+      Operand extra_space_for_variables(num_registers_ * kSystemPointerSize);
+
       // Handle it if the stack pointer is already below the stack limit.
       __ ble(&stack_limit_hit, cr0);
       // Check if there is room for the variable number of registers above
       // the stack limit.
-      __ CmpU64(r3, Operand(num_registers_ * kSystemPointerSize), r0);
+      __ CmpU64(r3, extra_space_for_variables, r0);
       __ bge(&stack_ok);
       // Exit with OutOfMemory exception. There is not enough space on the stack
       // for our working registers.
@@ -808,7 +810,7 @@ Handle<HeapObject> RegExpMacroAssemblerPPC::GetCode(Handle<String> source) {
       __ b(&return_r3);
 
       __ bind(&stack_limit_hit);
-      CallCheckStackGuardState(r3);
+      CallCheckStackGuardState(r3, extra_space_for_variables);
       __ cmpi(r3, Operand::Zero());
       // If returned value is non-zero, we exit with the returned value as
       // result.
@@ -1070,6 +1072,7 @@ Handle<HeapObject> RegExpMacroAssemblerPPC::GetCode(Handle<String> source) {
   Handle<Code> code =
       Factory::CodeBuilder(isolate(), code_desc, CodeKind::REGEXP)
           .set_self_reference(masm_->CodeObject())
+          .set_empty_source_position_table()
           .Build();
   PROFILE(masm_->isolate(),
           RegExpCodeCreateEvent(Handle<AbstractCode>::cast(code), source));
@@ -1210,7 +1213,8 @@ void RegExpMacroAssemblerPPC::ClearRegisters(int reg_from, int reg_to) {
 
 // Private methods:
 
-void RegExpMacroAssemblerPPC::CallCheckStackGuardState(Register scratch) {
+void RegExpMacroAssemblerPPC::CallCheckStackGuardState(Register scratch,
+                                                       Operand extra_space) {
   DCHECK(!isolate()->IsGeneratingEmbeddedBuiltins());
   DCHECK(!masm_->options().isolate_independent_code);
 
@@ -1241,10 +1245,12 @@ void RegExpMacroAssemblerPPC::CallCheckStackGuardState(Register scratch) {
   __ li(r0, Operand::Zero());
   __ StoreU64WithUpdate(r0, MemOperand(sp, -stack_space * kSystemPointerSize));
 
+  // Extra space for variables to consider in stack check.
+  __ mov(kCArgRegs[3], extra_space);
   // RegExp code frame pointer.
-  __ mr(r5, frame_pointer());
+  __ mr(kCArgRegs[2], frame_pointer());
   // InstructionStream of self.
-  __ mov(r4, Operand(masm_->CodeObject()));
+  __ mov(kCArgRegs[1], Operand(masm_->CodeObject()));
   // r3 will point to the return address, placed by DirectCEntry.
   __ addi(r3, sp, Operand(kStackFrameExtraParamSlot * kSystemPointerSize));
 
@@ -1268,7 +1274,6 @@ void RegExpMacroAssemblerPPC::CallCheckStackGuardState(Register scratch) {
   __ mov(code_pointer(), Operand(masm_->CodeObject()));
 }
 
-
 // Helper function for reading a value out of a stack frame.
 template <typename T>
 static T& frame_entry(Address re_frame, int frame_offset) {
@@ -1283,8 +1288,10 @@ static T* frame_entry_address(Address re_frame, int frame_offset) {
 
 int RegExpMacroAssemblerPPC::CheckStackGuardState(Address* return_address,
                                                   Address raw_code,
-                                                  Address re_frame) {
-  Tagged<InstructionStream> re_code = InstructionStream::cast(Object(raw_code));
+                                                  Address re_frame,
+                                                  uintptr_t extra_space) {
+  Tagged<InstructionStream> re_code =
+      InstructionStream::cast(Tagged<Object>(raw_code));
   return NativeRegExpMacroAssembler::CheckStackGuardState(
       frame_entry<Isolate*>(re_frame, kIsolateOffset),
       frame_entry<intptr_t>(re_frame, kStartIndexOffset),
@@ -1293,9 +1300,9 @@ int RegExpMacroAssemblerPPC::CheckStackGuardState(Address* return_address,
       return_address, re_code,
       frame_entry_address<Address>(re_frame, kInputStringOffset),
       frame_entry_address<const uint8_t*>(re_frame, kInputStartOffset),
-      frame_entry_address<const uint8_t*>(re_frame, kInputEndOffset));
+      frame_entry_address<const uint8_t*>(re_frame, kInputEndOffset),
+      extra_space);
 }
-
 
 MemOperand RegExpMacroAssemblerPPC::register_location(int register_index) {
   DCHECK(register_index < (1 << 30));
@@ -1318,8 +1325,7 @@ void RegExpMacroAssemblerPPC::CallCFunctionFromIrregexpCode(
   //    fail.
   //
   // See also: crbug.com/v8/12670#c17.
-  __ CallCFunction(function, num_arguments,
-                   MacroAssembler::SetIsolateDataSlots::kNo);
+  __ CallCFunction(function, num_arguments, SetIsolateDataSlots::kNo);
 }
 
 void RegExpMacroAssemblerPPC::CheckPosition(int cp_offset,

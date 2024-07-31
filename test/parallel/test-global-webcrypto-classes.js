@@ -7,7 +7,6 @@ if (!common.hasCrypto)
 
 const assert = require('assert');
 
-/* eslint-disable no-restricted-syntax */
 const webcrypto = require('internal/crypto/webcrypto');
 assert.strictEqual(Crypto, webcrypto.Crypto);
 assert.strictEqual(CryptoKey, webcrypto.CryptoKey);

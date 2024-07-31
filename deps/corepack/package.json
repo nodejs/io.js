@@ -1,6 +1,6 @@
 {
   "name": "corepack",
-  "version": "0.22.0",
+  "version": "0.29.3",
   "homepage": "https://github.com/nodejs/corepack#readme",
   "bugs": {
     "url": "https://github.com/nodejs/corepack/issues"
@@ -10,55 +10,52 @@
     "url": "https://github.com/nodejs/corepack.git"
   },
   "engines": {
-    "node": ">=18.17.1"
+    "node": "^18.17.1 || >=20.10.0"
   },
   "exports": {
     "./package.json": "./package.json"
   },
   "license": "MIT",
-  "packageManager": "yarn@4.0.0-rc.53+sha256.00e0111b9741a6b886c659a49b06d4ccb16e5d568bd1006c2d1f80bc48393c9b",
+  "packageManager": "yarn@4.3.1+sha224.934d21773e22af4b69a7032a2d3b4cb38c1f7c019624777cc9916b23",
   "devDependencies": {
-    "@babel/core": "^7.14.3",
-    "@babel/plugin-transform-modules-commonjs": "^7.14.0",
-    "@babel/preset-typescript": "^7.13.0",
-    "@jest/globals": "^29.0.0",
     "@types/debug": "^4.1.5",
-    "@types/jest": "^29.0.0",
     "@types/node": "^20.4.6",
+    "@types/proxy-from-env": "^1",
     "@types/semver": "^7.1.0",
-    "@types/tar": "^6.0.0",
     "@types/which": "^3.0.0",
-    "@typescript-eslint/eslint-plugin": "^6.8.0",
-    "@typescript-eslint/parser": "^6.8.0",
-    "@yarnpkg/eslint-config": "^0.6.0-rc.7",
+    "@yarnpkg/eslint-config": "^2.0.0",
     "@yarnpkg/fslib": "^3.0.0-rc.48",
     "@zkochan/cmd-shim": "^6.0.0",
-    "babel-plugin-dynamic-import-node": "^2.3.3",
-    "clipanion": "^3.0.1",
+    "better-sqlite3": "^10.0.0",
+    "clipanion": "patch:clipanion@npm%3A3.2.1#~/.yarn/patches/clipanion-npm-3.2.1-fc9187f56c.patch",
     "debug": "^4.1.1",
-    "esbuild": "0.19.5",
-    "eslint": "^8.0.0",
-    "eslint-plugin-arca": "^0.16.0",
-    "jest": "^29.0.0",
-    "nock": "^13.0.4",
-    "proxy-agent": "^6.2.2",
-    "semver": "^7.5.2",
+    "esbuild": "^0.21.0",
+    "eslint": "^8.57.0",
+    "proxy-from-env": "^1.1.0",
+    "semver": "^7.6.3",
     "supports-color": "^9.0.0",
-    "tar": "^6.0.1",
-    "ts-node": "^10.0.0",
-    "typescript": "^5.0.4",
+    "tar": "^7.4.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.3.3",
+    "undici": "^6.19.2",
     "v8-compile-cache": "^2.3.0",
+    "vitest": "^2.0.3",
     "which": "^4.0.0"
   },
+  "resolutions": {
+    "undici-types": "6.x"
+  },
   "scripts": {
-    "build": "rm -rf dist shims && run build:bundle && ts-node ./mkshims.ts",
+    "build": "run clean && run build:bundle && tsx ./mkshims.ts",
     "build:bundle": "esbuild ./sources/_lib.ts --bundle --platform=node --target=node18.17.0 --external:corepack --outfile='./dist/lib/corepack.cjs' --resolve-extensions='.ts,.mjs,.js'",
-    "corepack": "ts-node ./sources/_cli.ts",
+    "clean": "run rimraf dist shims",
+    "corepack": "tsx ./sources/_cli.ts",
     "lint": "eslint .",
     "prepack": "yarn build",
-    "postpack": "rm -rf dist shims",
+    "postpack": "run clean",
+    "rimraf": "node -e 'for(let i=2;i<process.argv.length;i++)fs.rmSync(process.argv[i],{recursive:true,force:true});'",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "vitest"
   },
   "files": [
     "dist",
@@ -94,9 +91,6 @@
       "./shims/yarnpkg",
       "./shims/yarnpkg.ps1"
     ]
-  },
-  "resolutions": {
-    "vm2": "portal:./vm2"
   },
   "bin": {
     "corepack": "./dist/corepack.js",

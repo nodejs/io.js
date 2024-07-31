@@ -1,5 +1,4 @@
 [true]
-js-native-api/test_cannot_run_js/test: PASS,FLAKY
 
 [$mode==debug]
 async-hooks/test-callback-error: SLOW

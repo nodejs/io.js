@@ -35,7 +35,7 @@ const serverConfig = {
 const server = tls.createServer(serverConfig, common.mustCall(clientConfigs.length))
 .listen(0, common.localhostIPv4, function() {
   let connected = 0;
-  clientConfigs.forEach(function(v) {
+  for (const v of clientConfigs) {
     tls.connect({
       host: common.localhostIPv4,
       port: server.address().port,
@@ -51,5 +51,5 @@ const server = tls.createServer(serverConfig, common.mustCall(clientConfigs.leng
       if (++connected === clientConfigs.length)
         server.close();
     }));
-  });
+  }
 });

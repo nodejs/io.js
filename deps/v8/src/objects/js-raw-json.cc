@@ -23,12 +23,12 @@ MaybeHandle<JSRawJson> JSRawJson::Create(Isolate* isolate,
   Handle<String> flat = String::Flatten(isolate, json_string);
   if (String::IsOneByteRepresentationUnderneath(*flat)) {
     if (!JsonParser<uint8_t>::CheckRawJson(isolate, flat)) {
-      DCHECK(isolate->has_pending_exception());
+      DCHECK(isolate->has_exception());
       return MaybeHandle<JSRawJson>();
     }
   } else {
     if (!JsonParser<uint16_t>::CheckRawJson(isolate, flat)) {
-      DCHECK(isolate->has_pending_exception());
+      DCHECK(isolate->has_exception());
       return MaybeHandle<JSRawJson>();
     }
   }

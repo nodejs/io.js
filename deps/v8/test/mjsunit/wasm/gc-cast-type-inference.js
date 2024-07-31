@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
-
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 (function TestRefCastNullReturnsNullTypeForNonNullInput() {
@@ -19,7 +17,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
                       makeSig([kWasmExternRef], []))
   .addBody([
     kExprLocalGet, 0,
-    kGCPrefix, kExprExternInternalize,
+    kGCPrefix, kExprAnyConvertExtern,
     kExprRefAsNonNull,
     kGCPrefix, kExprRefCastNull, kI31RefCode,
     // ref.cast null pushes a nullable value on the stack even though its input
@@ -47,7 +45,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
                       makeSig([kWasmExternRef], [kWasmI32]))
   .addBody([
     kExprLocalGet, 0,
-    kGCPrefix, kExprExternInternalize,
+    kGCPrefix, kExprAnyConvertExtern,
     kGCPrefix, kExprRefCast, kI31RefCode,
     // ref.cast pushes a non-nullable value on the stack even for a nullable
     // input value as the instruction traps on null.
@@ -79,8 +77,8 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   .addBody([
     kExprBlock, kWasmRefNull, kI31RefCode,
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
-      kGCPrefix, kExprBrOnCastNull, 0, kI31RefCode,
+      kGCPrefix, kExprAnyConvertExtern,
+      kGCPrefix, kExprBrOnCast, 0b11, 0, kAnyRefCode, kI31RefCode,
       // As null branches, the type here is guaranteed to be non-null.
       kExprCallFunction, consumeNonNull.index,
       kExprI32Const, 0,
@@ -96,8 +94,8 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
     // The value is guaranteed to be non-null on branch.
     kExprBlock, kWasmRef, kI31RefCode,
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
-      kGCPrefix, kExprBrOnCast, 0, kI31RefCode,
+      kGCPrefix, kExprAnyConvertExtern,
+      kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kI31RefCode,
       kExprDrop,
       kExprI32Const, 0,
       kExprReturn,
@@ -134,8 +132,8 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   .addBody([
     kExprBlock, kWasmRefNull, kAnyRefCode,
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
-      kGCPrefix, kExprBrOnCastFail, 0, kI31RefCode,
+      kGCPrefix, kExprAnyConvertExtern,
+      kGCPrefix, kExprBrOnCastFail, 0b01, 0, kAnyRefCode, kI31RefCode,
       // As null branches, the type here is guaranteed to be non-null.
       kExprCallFunction, i31ToI32.index,
       kExprReturn,
@@ -151,8 +149,8 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
     // The value is guaranteed to be non-null on branch.
     kExprBlock, kWasmRef, kAnyRefCode,
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
-      kGCPrefix, kExprBrOnCastFailNull, 0, kI31RefCode,
+      kGCPrefix, kExprAnyConvertExtern,
+      kGCPrefix, kExprBrOnCastFail, 0b11, 0, kAnyRefCode, kI31RefCode,
       kGCPrefix, kExprI31GetS,
       kExprReturn,
     kExprEnd,

@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-view">npm-view</h1>
+<h1 id="----npm-view----1082">
+    <span>npm-view</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">View registry info</span>
 </header>
 
@@ -160,6 +168,10 @@ aliases: info, show, v
 For example, to show the dependencies of the <code>ronn</code> package at version
 <code>0.3.5</code>, you could do the following:</p>
 <pre><code class="language-bash">npm view ronn@0.3.5 dependencies
+</code></pre>
+<p>By default, <code>npm view</code> shows data about the current project context (by looking for a <code>package.json</code>).
+To show field data for the current project use a file path (i.e. <code>.</code>):</p>
+<pre><code class="language-bash">npm view . dependencies
 </code></pre>
 <p>You can view child fields by separating them with a period.
 To view the git repository URL for the latest version of <code>npm</code>, you would run the following command:</p>

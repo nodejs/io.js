@@ -74,7 +74,7 @@ namespace v8::internal::compiler::turboshaft {
 //      OperationXyz is also processed by those (in addition to the special
 //      handling in ReduceXyz and ReduceInputGraphXyz).
 //
-// For the above MyReducer, consider this OptimizationPhase<R1, MyReducer, R2>.
+// For the above MyReducer, consider this CopyingPhase<R1, MyReducer, R2>.
 // Then the ReduceInputGraph (RIG) and Reduce (R) implementations are visited as
 // follows for Operations OpA and OpB (and all other operations that are not
 // ConstantOp), when all reducers just forward to Next. For ConstantOp, the
@@ -122,6 +122,7 @@ class UniformReducerAdapter : public Next {
 #define REDUCE(op)                                                           \
   struct Reduce##op##Continuation final {                                    \
     explicit Reduce##op##Continuation(Next* _this) : this_(_this) {}         \
+    using Op = op##Op;                                                       \
     OpIndex ReduceInputGraph(OpIndex ig_index, const op##Op& operation) {    \
       return this_->ReduceInputGraph##op(ig_index, operation);               \
     }                                                                        \

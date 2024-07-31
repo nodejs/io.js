@@ -1266,12 +1266,21 @@ TEST_P(InstructionSelectorMemoryAccessImmTest, LoadWithImmediateIndex) {
     StreamBuilder m(this, memacc.type, MachineType::Pointer());
     m.Return(m.Load(memacc.type, m.Parameter(0), m.Int32Constant(index)));
     Stream s = m.Build();
+    MachineRepresentation rep_type = memacc.type.representation();
     ASSERT_EQ(1U, s.size());
     EXPECT_EQ(memacc.load_opcode, s[0]->arch_opcode());
-    EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
     ASSERT_EQ(2U, s[0]->InputCount());
-    ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
-    EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(1)));
+    if (((rep_type == MachineRepresentation::kWord64 ||
+          rep_type == MachineRepresentation::kWord32) &&
+         is_int16(index) && ((index & 0b11) == 0)) ||
+        is_int12(index)) {
+      EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
+      ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
+      EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(1)));
+    } else {
+      EXPECT_EQ(kMode_MRR, s[0]->addressing_mode());
+      ASSERT_EQ(InstructionOperand::UNALLOCATED, s[0]->InputAt(1)->kind());
+    }
     ASSERT_EQ(1U, s[0]->OutputCount());
     EXPECT_TRUE((s.*memacc.val_predicate)(s[0]->Output()));
   }
@@ -1290,12 +1299,21 @@ TEST_P(InstructionSelectorMemoryAccessImmTest, StoreWithImmediateIndex) {
             m.Int32Constant(index), m.Parameter(1), kNoWriteBarrier);
     m.Return(m.Int32Constant(0));
     Stream s = m.Build();
+    MachineRepresentation rep_type = memacc.type.representation();
     ASSERT_EQ(1U, s.size());
     EXPECT_EQ(memacc.store_opcode, s[0]->arch_opcode());
-    EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
     ASSERT_EQ(3U, s[0]->InputCount());
-    ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
-    EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(1)));
+    if (((rep_type == MachineRepresentation::kWord64 ||
+          rep_type == MachineRepresentation::kWord32) &&
+         is_int16(index) && ((index & 0b11) == 0)) ||
+        is_int12(index)) {
+      EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
+      ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
+      EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(1)));
+    } else {
+      EXPECT_EQ(kMode_MRR, s[0]->addressing_mode());
+      ASSERT_EQ(InstructionOperand::UNALLOCATED, s[0]->InputAt(1)->kind());
+    }
     EXPECT_EQ(0U, s[0]->OutputCount());
   }
 }
@@ -1308,12 +1326,21 @@ TEST_P(InstructionSelectorMemoryAccessImmTest, StoreZero) {
             m.Int32Constant(index), m.Int32Constant(0), kNoWriteBarrier);
     m.Return(m.Int32Constant(0));
     Stream s = m.Build();
+    MachineRepresentation rep_type = memacc.type.representation();
     ASSERT_EQ(1U, s.size());
     EXPECT_EQ(memacc.store_opcode, s[0]->arch_opcode());
-    EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
     ASSERT_EQ(3U, s[0]->InputCount());
-    ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
-    EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(1)));
+    if (((rep_type == MachineRepresentation::kWord64 ||
+          rep_type == MachineRepresentation::kWord32) &&
+         is_int16(index) && ((index & 0b11) == 0)) ||
+        is_int12(index)) {
+      ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
+      EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
+      EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(1)));
+    } else {
+      ASSERT_EQ(InstructionOperand::UNALLOCATED, s[0]->InputAt(1)->kind());
+      EXPECT_EQ(kMode_MRR, s[0]->addressing_mode());
+    }
     ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(2)->kind());
     EXPECT_EQ(0, s.ToInt64(s[0]->InputAt(2)));
     EXPECT_EQ(0U, s[0]->OutputCount());

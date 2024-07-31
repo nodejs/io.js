@@ -4,13 +4,54 @@
 
 #include "src/zone/zone-allocator.h"
 
+#include <list>
+#include <vector>
+
 #include "test/unittests/test-utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace v8 {
 namespace internal {
 
-class RecyclingZoneAllocatorTest : public TestWithPlatform {};
+template <template <typename T> typename Allocator>
+void TestWithStdContainers() {
+  AccountingAllocator accounting_allocator;
+  Zone zone(&accounting_allocator, ZONE_NAME);
+  Allocator<int> zone_allocator(&zone);
+
+  // Vector does not require allocator rebinding, list and set do.
+  {
+    std::vector<int, Allocator<int>> v(10, zone_allocator);
+    for (int i = 1; i <= 100; ++i) v.push_back(i);
+    int sum_of_v = 0;
+    for (int i : v) sum_of_v += i;
+    CHECK_EQ(5050, sum_of_v);
+  }
+
+  {
+    std::list<int, Allocator<int>> l(zone_allocator);
+    for (int i = 1; i <= 100; ++i) l.push_back(i);
+    int sum_of_l = 0;
+    for (int i : l) sum_of_l += i;
+    CHECK_EQ(5050, sum_of_l);
+  }
+
+  {
+    std::set<int, std::less<int>, Allocator<int>> s(zone_allocator);
+    for (int i = 1; i <= 100; ++i) s.insert(i);
+    int sum_of_s = 0;
+    for (int i : s) sum_of_s += i;
+    CHECK_EQ(5050, sum_of_s);
+  }
+}
+
+using ZoneAllocatorTest = TestWithPlatform;
+
+TEST_F(ZoneAllocatorTest, UseWithStdContainers) {
+  TestWithStdContainers<ZoneAllocator>();
+}
+
+using RecyclingZoneAllocatorTest = TestWithPlatform;
 
 TEST_F(RecyclingZoneAllocatorTest, ReuseSameSize) {
   AccountingAllocator accounting_allocator;
@@ -74,6 +115,10 @@ TEST_F(RecyclingZoneAllocatorTest, DontChainSmallerSizes) {
   CHECK_EQ(zone_allocator.allocate(5), allocated3);
   CHECK_EQ(zone_allocator.allocate(5), allocated1);
   CHECK_NE(zone_allocator.allocate(5), allocated2);
+}
+
+TEST_F(RecyclingZoneAllocatorTest, UseWithStdContainers) {
+  TestWithStdContainers<RecyclingZoneAllocator>();
 }
 
 }  // namespace internal

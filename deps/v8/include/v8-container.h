@@ -8,6 +8,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <functional>
+
 #include "v8-local-handle.h"  // NOLINT(build/include_directory)
 #include "v8-object.h"        // NOLINT(build/include_directory)
 #include "v8config.h"         // NOLINT(build/include_directory)
@@ -42,6 +44,58 @@ class V8_EXPORT Array : public Object {
 #endif
     return static_cast<Array*>(value);
   }
+
+  /**
+   * Creates a JavaScript array from a provided callback.
+   *
+   * \param context The v8::Context to create the array in.
+   * \param length The length of the array to be created.
+   * \param next_value_callback The callback that is invoked to retrieve
+   *     elements for the array. The embedder can signal that the array
+   *     initialization should be aborted by throwing an exception and returning
+   *     an empty MaybeLocal.
+   * \returns The v8::Array if all elements were constructed successfully and an
+   *     empty MaybeLocal otherwise.
+   */
+  static MaybeLocal<Array> New(
+      Local<Context> context, size_t length,
+      std::function<MaybeLocal<v8::Value>()> next_value_callback);
+
+  enum class CallbackResult {
+    kException,
+    kBreak,
+    kContinue,
+  };
+  using IterationCallback = CallbackResult (*)(uint32_t index,
+                                               Local<Value> element,
+                                               void* data);
+
+  /**
+   * Calls {callback} for every element of this array, passing {callback_data}
+   * as its {data} parameter.
+   * This function will typically be faster than calling {Get()} repeatedly.
+   * As a consequence of being optimized for low overhead, the provided
+   * callback must adhere to the following restrictions:
+   *  - It must not allocate any V8 objects and continue iterating; it may
+   *    allocate (e.g. an error message/object) and then immediately terminate
+   *    the iteration.
+   *  - It must not modify the array being iterated.
+   *  - It must not call back into V8 (unless it can guarantee that such a
+   *    call does not violate the above restrictions, which is difficult).
+   *  - The {Local<Value> element} must not "escape", i.e. must not be assigned
+   *    to any other {Local}. Creating a {Global} from it, or updating a
+   *    v8::TypecheckWitness with it, is safe.
+   * These restrictions may be lifted in the future if use cases arise that
+   * justify a slower but more robust implementation.
+   *
+   * Returns {Nothing} on exception; use a {TryCatch} to catch and handle this
+   * exception.
+   * When the {callback} returns {kException}, iteration is terminated
+   * immediately, returning {Nothing}. By returning {kBreak}, the callback
+   * can request non-exceptional early termination of the iteration.
+   */
+  Maybe<void> Iterate(Local<Context> context, IterationCallback callback,
+                      void* callback_data);
 
  private:
   Array();

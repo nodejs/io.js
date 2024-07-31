@@ -37,7 +37,7 @@ server.listen(0, common.mustCall(() => {
     rejectUnauthorized: false,
     highWaterMark: undefined,
   }, common.mustCall(() => {
-    assert.strictEqual(defaultHighBob.readableHighWaterMark, 16 * 1024);
+    assert.strictEqual(defaultHighBob.readableHighWaterMark, process.platform === 'win32' ? 16 * 1024 : 64 * 1024);
     defaultHighBob.end();
   }));
 

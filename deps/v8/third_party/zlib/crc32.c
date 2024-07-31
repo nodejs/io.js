@@ -792,8 +792,8 @@ unsigned long ZEXPORT crc32_z(unsigned long crc, const unsigned char FAR *buf,
         words = (z_word_t const *)buf;
 
         /* Do endian check at execution time instead of compile time, since ARM
-           processors can change the endianess at execution time. If the
-           compiler knows what the endianess will be, it can optimize out the
+           processors can change the endianness at execution time. If the
+           compiler knows what the endianness will be, it can optimize out the
            check and the unused branch. */
         endian = 1;
         if (*(unsigned char *)&endian) {

@@ -237,3 +237,72 @@
   assertEquals([42, 44], Array.from(firstSet.difference(setLike)));
   assertEquals(0, firstSet.size);
 })();
+
+(function TestDifferenceAfterRewritingKeys() {
+  const firstSet = new Set();
+  firstSet.add(42);
+  firstSet.add(43);
+
+  const otherSet = new Set();
+  otherSet.add(42);
+  otherSet.add(46);
+  otherSet.add(47);
+
+  otherSet.keys =
+      () => {
+        firstSet.clear();
+        return otherSet[Symbol.iterator]();
+      }
+
+  const resultArray = [43];
+
+  const differenceArray = Array.from(firstSet.difference(otherSet));
+
+  assertEquals(resultArray, differenceArray);
+})();
+
+(function TestDifferenceSetLikeAfterRewritingKeys() {
+  const firstSet = new Set();
+  firstSet.add(42);
+  firstSet.add(43);
+
+  const setLike = {
+    arr: [42, 46, 47],
+    size: 3,
+    keys() {
+      return this.arr[Symbol.iterator]();
+    },
+    has(key) {
+      return this.arr.indexOf(key) != -1;
+    }
+  };
+
+  setLike.keys =
+      () => {
+        firstSet.clear();
+        return setLike.arr[Symbol.iterator]();
+      }
+
+  const resultArray = [43];
+
+  const differenceArray = Array.from(firstSet.difference(setLike));
+
+  assertEquals(resultArray, differenceArray);
+})();
+
+(function TestThrowRangeErrorIfSizeIsLowerThanZero() {
+  const setLike = {
+    arr: [42, 46, 47],
+    size: -1,
+    keys() {
+      return this.arr[Symbol.iterator]();
+    },
+    has(key) {
+      return this.arr.indexOf(key) != -1;
+    }
+  };
+
+  assertThrows(() => {
+    new Set().difference(setLike);
+  }, RangeError, "'-1' is an invalid size");
+})()

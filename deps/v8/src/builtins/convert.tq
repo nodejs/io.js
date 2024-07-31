@@ -117,12 +117,6 @@ FromConstexpr<int8, constexpr int31>(i: constexpr int31): int8 {
 FromConstexpr<char8, constexpr int31>(i: constexpr int31): char8 {
   return %RawDownCast<char8>(FromConstexpr<uint8>(i));
 }
-FromConstexpr<Number, constexpr Smi>(s: constexpr Smi): Number {
-  return SmiConstant(s);
-}
-FromConstexpr<Smi, constexpr Smi>(s: constexpr Smi): Smi {
-  return SmiConstant(s);
-}
 FromConstexpr<uint32, constexpr int31>(i: constexpr int31): uint32 {
   return Unsigned(Int32Constant(i));
 }
@@ -360,6 +354,13 @@ Convert<float32, float64>(f: float64): float32 {
 }
 Convert<float32, Number>(n: Number): float32 {
   return Convert<float32>(ChangeNumberToFloat64(n));
+}
+Convert<float16, Number>(n: Number): float16 {
+  return TruncateFloat64ToFloat16(ChangeNumberToFloat64(n));
+}
+
+Convert<float64, float16>(n: float16): float64 {
+  return ChangeFloat16ToFloat64(n);
 }
 Convert<float32, int32>(n: int32): float32 {
   return RoundInt32ToFloat32(n);

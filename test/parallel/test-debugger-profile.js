@@ -14,7 +14,14 @@ function delay(ms) {
 
 // Profiles.
 {
-  const cli = startCLI(['--port=0', fixtures.path('debugger/empty.js')]);
+  const cli = startCLI(['--port=0', fixtures.path('debugger/empty.js')], [], {
+    env: {
+      ...process.env,
+      // When this test is run with NODE_V8_COVERAGE, it clobbers the inspector
+      // output, so override to disable coverage for the child process.
+      NODE_V8_COVERAGE: undefined,
+    }
+  });
 
   function onFatal(error) {
     cli.quit();

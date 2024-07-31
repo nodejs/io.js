@@ -1,7 +1,7 @@
 const t = require('tap')
-const fs = require('fs/promises')
+const fs = require('node:fs/promises')
 const mockNpm = require('../../fixtures/mock-npm')
-const { join } = require('path')
+const { join } = require('node:path')
 const { cleanNewlines } = require('../../fixtures/clean-snapshot')
 
 t.test('no args', async t => {

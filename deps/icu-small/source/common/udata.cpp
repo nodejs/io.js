@@ -850,12 +850,12 @@ static UBool extendICUData(UErrorCode *pErr)
        UDataMemory_init(&copyPData);
        if(pData != nullptr) {
           UDatamemory_assign(&copyPData, pData);
-          copyPData.map = 0;              /* The mapping for this data is owned by the hash table */
-          copyPData.mapAddr = 0;          /*   which will unmap it when ICU is shut down.         */
-                                          /* CommonICUData is also unmapped when ICU is shut down.*/
-                                          /* To avoid unmapping the data twice, zero out the map  */
-                                          /*   fields in the UDataMemory that we're assigning     */
-                                          /*   to CommonICUData.                                  */
+          copyPData.map = nullptr;     /* The mapping for this data is owned by the hash table */
+          copyPData.mapAddr = nullptr; /*   which will unmap it when ICU is shut down.         */
+                                       /* CommonICUData is also unmapped when ICU is shut down.*/
+                                       /* To avoid unmapping the data twice, zero out the map  */
+                                       /*   fields in the UDataMemory that we're assigning     */
+                                       /*   to CommonICUData.                                  */
 
           didUpdate = /* no longer using this result */
               setCommonICUData(&copyPData,/*  The new common data.                                */
@@ -1196,7 +1196,7 @@ doOpenChoice(const char *path, const char *type, const char *name,
                 *p = U_FILE_SEP_CHAR;
             }
 #if defined (UDATA_DEBUG)
-            fprintf(stderr, "Changed path from [%s] to [%s]\n", path, altSepPath.s);
+            fprintf(stderr, "Changed path from [%s] to [%s]\n", path, altSepPath.data());
 #endif
             path = altSepPath.data();
         }

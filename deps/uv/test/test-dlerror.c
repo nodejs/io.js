@@ -38,7 +38,7 @@ TEST_IMPL(dlerror) {
   ASSERT_NOT_NULL(strstr(msg, dlerror_no_error));
 
   r = uv_dlopen(path, &lib);
-  ASSERT(r == -1);
+  ASSERT_EQ(r, -1);
 
   msg = uv_dlerror(&lib);
   ASSERT_NOT_NULL(msg);

@@ -59,7 +59,7 @@ UBool U_CALLCONV cleanup() {
 void U_CALLCONV LocaleDistance::initLocaleDistance(UErrorCode &errorCode) {
     // This function is invoked only via umtx_initOnce().
     U_ASSERT(gLocaleDistance == nullptr);
-    const XLikelySubtags &likely = *XLikelySubtags::getSingleton(errorCode);
+    const LikelySubtags &likely = *LikelySubtags::getSingleton(errorCode);
     if (U_FAILURE(errorCode)) { return; }
     const LocaleDistanceData &data = likely.getDistanceData();
     if (data.distanceTrieBytes == nullptr ||
@@ -83,7 +83,7 @@ const LocaleDistance *LocaleDistance::getSingleton(UErrorCode &errorCode) {
     return gLocaleDistance;
 }
 
-LocaleDistance::LocaleDistance(const LocaleDistanceData &data, const XLikelySubtags &likely) :
+LocaleDistance::LocaleDistance(const LocaleDistanceData &data, const LikelySubtags &likely) :
         likelySubtags(likely),
         trie(data.distanceTrieBytes),
         regionToPartitionsIndex(data.regionToPartitions), partitionArrays(data.partitions),
@@ -119,7 +119,7 @@ int32_t LocaleDistance::getBestIndexAndDistance(
     uint64_t desLangState = desLangDistance >= 0 && supportedLSRsLength > 1 ? iter.getState64() : 0;
     // Index of the supported LSR with the lowest distance.
     int32_t bestIndex = -1;
-    // Cached lookup info from XLikelySubtags.compareLikely().
+    // Cached lookup info from LikelySubtags.compareLikely().
     int32_t bestLikelyInfo = -1;
     for (int32_t slIndex = 0; slIndex < supportedLSRsLength; ++slIndex) {
         const LSR &supported = *supportedLSRs[slIndex];
@@ -399,7 +399,7 @@ int32_t LocaleDistance::trieNext(BytesTrie &iter, const char *s, bool wantValue)
     }
 }
 
-UBool LocaleDistance::isParadigmLSR(const LSR &lsr) const {
+bool LocaleDistance::isParadigmLSR(const LSR &lsr) const {
     // Linear search for a very short list (length 6 as of 2019),
     // because we look for equivalence not equality, and
     // because it's easy.

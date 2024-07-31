@@ -10,8 +10,11 @@
 #endif  // !V8_ENABLE_WEBASSEMBLY
 
 #include "src/common/globals.h"
-#include "src/execution/isolate.h"
 #include "src/utils/allocation.h"
+
+namespace v8 {
+class Isolate;
+}
 
 namespace v8::internal::wasm {
 
@@ -42,6 +45,9 @@ class StackMemory {
   void* jslimit() const { return limit_ + kJSLimitOffsetKB * KB; }
   Address base() const { return reinterpret_cast<Address>(limit_ + size_); }
   JumpBuffer* jmpbuf() { return &jmpbuf_; }
+  bool Contains(Address addr) {
+    return reinterpret_cast<Address>(jslimit()) <= addr && addr < base();
+  }
   int id() { return id_; }
 
   // Insert a stack in the linked list after this stack.
@@ -53,13 +59,13 @@ class StackMemory {
   size_t owned_size() { return sizeof(StackMemory) + (owned_ ? size_ : 0); }
   bool IsActive() { return jmpbuf_.state == JumpBuffer::Active; }
 
- private:
 #ifdef DEBUG
   static constexpr int kJSLimitOffsetKB = 80;
 #else
   static constexpr int kJSLimitOffsetKB = 40;
 #endif
 
+ private:
   // This constructor allocates a new stack segment.
   explicit StackMemory(Isolate* isolate);
 

@@ -1,7 +1,7 @@
 %struct-type
 %language=C++
 %global-table
-%define initializer-suffix ,Token::IDENTIFIER
+%define initializer-suffix ,Token::kIdentifier
 %define hash-function-name Hash
 %define lookup-function-name GetToken
 %define class-name PerfectKeywordHash
@@ -15,52 +15,54 @@
 
 struct PerfectKeywordHashTableEntry { const char* name; Token::Value value; };
 %%
-async, Token::ASYNC
-await, Token::AWAIT
-break, Token::BREAK
-case, Token::CASE
-catch, Token::CATCH
-class, Token::CLASS
-const, Token::CONST
-continue, Token::CONTINUE
-debugger, Token::DEBUGGER
-default, Token::DEFAULT
-delete, Token::DELETE
-do, Token::DO
-else, Token::ELSE
-enum, Token::ENUM
-export, Token::EXPORT
-extends, Token::EXTENDS
-false, Token::FALSE_LITERAL
-finally, Token::FINALLY
-for, Token::FOR
-function, Token::FUNCTION
-get, Token::GET
-if, Token::IF
-implements, Token::FUTURE_STRICT_RESERVED_WORD
-import, Token::IMPORT
-in, Token::IN
-instanceof, Token::INSTANCEOF
-interface, Token::FUTURE_STRICT_RESERVED_WORD
-let, Token::LET
-new, Token::NEW
-null, Token::NULL_LITERAL
-package, Token::FUTURE_STRICT_RESERVED_WORD
-private, Token::FUTURE_STRICT_RESERVED_WORD
-protected, Token::FUTURE_STRICT_RESERVED_WORD
-public, Token::FUTURE_STRICT_RESERVED_WORD
-return, Token::RETURN
-set, Token::SET
-static, Token::STATIC
-super, Token::SUPER
-switch, Token::SWITCH
-this, Token::THIS
-throw, Token::THROW
-true, Token::TRUE_LITERAL
-try, Token::TRY
-typeof, Token::TYPEOF
-var, Token::VAR
-void, Token::VOID
-while, Token::WHILE
-with, Token::WITH
-yield, Token::YIELD
+async, Token::kAsync
+await, Token::kAwait
+break, Token::kBreak
+case, Token::kCase
+catch, Token::kCatch
+class, Token::kClass
+const, Token::kConst
+continue, Token::kContinue
+debugger, Token::kDebugger
+default, Token::kDefault
+delete, Token::kDelete
+do, Token::kDo
+else, Token::kElse
+enum, Token::kEnum
+export, Token::kExport
+extends, Token::kExtends
+false, Token::kFalseLiteral
+finally, Token::kFinally
+for, Token::kFor
+function, Token::kFunction
+get, Token::kGet
+if, Token::kIf
+implements, Token::kFutureStrictReservedWord
+import, Token::kImport
+in, Token::kIn
+instanceof, Token::kInstanceOf
+interface, Token::kFutureStrictReservedWord
+let, Token::kLet
+new, Token::kNew
+null, Token::kNullLiteral
+of, Token::kOf
+package, Token::kFutureStrictReservedWord
+private, Token::kFutureStrictReservedWord
+protected, Token::kFutureStrictReservedWord
+public, Token::kFutureStrictReservedWord
+return, Token::kReturn
+set, Token::kSet
+static, Token::kStatic
+super, Token::kSuper
+switch, Token::kSwitch
+this, Token::kThis
+throw, Token::kThrow
+true, Token::kTrueLiteral
+try, Token::kTry
+typeof, Token::kTypeOf
+using, Token::kUsing
+var, Token::kVar
+void, Token::kVoid
+while, Token::kWhile
+with, Token::kWith
+yield, Token::kYield

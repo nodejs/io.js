@@ -41,11 +41,10 @@ class Operand {
       : rm_(no_reg), rmode_(RelocInfo::EXTERNAL_REFERENCE) {
     value_.immediate = static_cast<int64_t>(f.address());
   }
+  V8_INLINE explicit Operand(Tagged<Smi> value)
+      : Operand(static_cast<intptr_t>(value.ptr())) {}
+
   explicit Operand(Handle<HeapObject> handle);
-  V8_INLINE explicit Operand(Smi value)
-      : rm_(no_reg), rmode_(RelocInfo::NO_INFO) {
-    value_.immediate = static_cast<intptr_t>(value.ptr());
-  }
 
   static Operand EmbeddedNumber(double number);  // Smi or HeapNumber.
 
@@ -169,7 +168,12 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // but it may be bound only once.
   void bind(Label* L);  // Binds an unbound label L to current code position.
 
-  enum OffsetSize : int { kOffset26 = 26, kOffset21 = 21, kOffset16 = 16 };
+  enum OffsetSize : int {
+    kOffset26 = 26,
+    kOffset21 = 21,
+    kOffset20 = 20,
+    kOffset16 = 16
+  };
 
   // Determines if Label is bound and near enough so that branch instruction
   // can be used to reach it, instead of jump instruction.
@@ -805,7 +809,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
 
   static bool IsJump(Instr instr);
   static bool IsMov(Instr instr, Register rd, Register rs);
-  static bool IsPcAddi(Instr instr, Register rd, int32_t si20);
+  static bool IsPcAddi(Instr instr);
 
   static bool IsJ(Instr instr);
   static bool IsLu12i_w(Instr instr);

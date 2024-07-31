@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset=utf-8>
+<title>localStorage: partitioned storage test</title>
+<meta name=help href="https://privacycg.github.io/storage-partitioning/">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<iframe id="shared-iframe" src="http://{{host}}:{{ports[http][0]}}/webstorage/resources/localstorage-about-blank-partitioned-iframe.html"></iframe>
+<body>
+<script>
+// Here's the set-up for this test:
+// Step 1. (window) set up listeners for main window.
+// Step 2. (window) set up load listener for same-site iframe.
+// Step 3. (same-site iframe) loads, send it a message to createOrGet a "userID".
+// Step 4. (same-site iframe) receives the message, creates the "userID".
+// Step 5. (window) receives "storage got set" message from same-site iframe.
+// Step 6. (window) opens cross-site window w/ shared (same-site to us currently) iframe.
+// Step 7. (cross-site iframe) loads, sends back the userID key from the iframe.
+// Step 8. (window) asserts that the IDs should be different, as they should have a different StorageKey.
+const altOrigin = "http://{{hosts[alt][]}}:{{ports[http][0]}}";
+
+async_test(t => {
+  let crossSiteWindow;
+  let crossSiteID;
+  let sameSiteID;
+  const iframe = document.getElementById("shared-iframe");
+
+  iframe.addEventListener("load", t.step_func(e => {
+    const payload = {
+      command: "create ID",
+      key: "userID",
+    };
+    iframe.contentWindow.postMessage(payload, iframe.origin);
+  }), {once: true});
+
+  window.addEventListener("message", t.step_func(e => {
+    if (e.data.message === "ID created") {
+      sameSiteID = e.data.userID;
+      assert_true(typeof sameSiteID === "string");
+
+      if (location.origin !== altOrigin) {
+        crossSiteWindow = window.open(`${altOrigin}/webstorage/localstorage-basic-partitioned.tentative.sub.html`, "", "noopener=false");
+        t.add_cleanup(() => crossSiteWindow.close());
+      }
+    }
+
+    if (e.data.message === "cross-site window iframe loaded") {
+      crossSiteID = e.data.userID;
+      t.step(() => {
+        assert_true(typeof crossSiteID === "string");
+        assert_true(sameSiteID !== crossSiteID, "IDs pulled from two partitioned iframes are different.")
+      });
+
+      // clean up after ourselves.
+      iframe.contentWindow.localStorage.clear();
+      crossSiteWindow.postMessage({command: "clearStorage"}, altOrigin);
+      t.done();
+    };
+  }));
+}, "Simple test for partitioned localStorage");
+</script>
+</body>

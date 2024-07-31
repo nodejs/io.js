@@ -48,7 +48,7 @@
 //    To move the .text section, perform the following steps:
 //      * Map a new, temporary area and copy the original code there.
 //      * Use mmap using the start address with MAP_FIXED so we get exactly the
-//        same virtual address (except on OSX). On platforms other than Linux,
+//        same virtual address (except on macOS). On platforms other than Linux,
 //        use mmap flags to request hugepages.
 //      * On Linux use madvise with MADV_HUGEPAGE to use anonymous 2MB pages.
 //      * If successful copy the code to the newly mapped area and protect it to

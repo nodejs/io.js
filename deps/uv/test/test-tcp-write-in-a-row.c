@@ -45,7 +45,7 @@ static void close_cb(uv_handle_t* handle) {
 
 static void write_cb(uv_write_t* w, int status) {
   /* the small write should finish immediately after the big write */
-  ASSERT_EQ(0, uv_stream_get_write_queue_size((uv_stream_t*) &client));
+  ASSERT_OK(uv_stream_get_write_queue_size((uv_stream_t*) &client));
 
   write_cb_called++;
 
@@ -62,13 +62,13 @@ static void connect_cb(uv_connect_t* _, int status) {
   uv_buf_t buf;
   size_t write_queue_size0, write_queue_size1;
 
-  ASSERT_EQ(0, status);
+  ASSERT_OK(status);
   connect_cb_called++;
 
   /* fire a big write */
   buf = uv_buf_init(data, sizeof(data));
   r = uv_write(&small_write, (uv_stream_t*) &client, &buf, 1, write_cb);
-  ASSERT_EQ(0, r);
+  ASSERT_OK(r);
 
   /* check that the write process gets stuck */
   write_queue_size0 = uv_stream_get_write_queue_size((uv_stream_t*) &client);
@@ -77,7 +77,7 @@ static void connect_cb(uv_connect_t* _, int status) {
   /* fire a small write, which should be queued */
   buf = uv_buf_init("A", 1);
   r = uv_write(&big_write, (uv_stream_t*) &client, &buf, 1, write_cb);
-  ASSERT_EQ(0, r);
+  ASSERT_OK(r);
 
   write_queue_size1 = uv_stream_get_write_queue_size((uv_stream_t*) &client);
   ASSERT_EQ(write_queue_size1, write_queue_size0 + 1);
@@ -93,43 +93,44 @@ static void alloc_cb(uv_handle_t* handle, size_t size, uv_buf_t* buf) {
 static void read_cb(uv_stream_t* tcp, ssize_t nread, const uv_buf_t* buf) {}
 
 static void connection_cb(uv_stream_t* tcp, int status) {
-  ASSERT_EQ(0, status);
+  ASSERT_OK(status);
   connection_cb_called++;
 
-  ASSERT_EQ(0, uv_tcp_init(tcp->loop, &incoming));
-  ASSERT_EQ(0, uv_accept(tcp, (uv_stream_t*) &incoming));
-  ASSERT_EQ(0, uv_read_start((uv_stream_t*) &incoming, alloc_cb, read_cb));
+  ASSERT_OK(uv_tcp_init(tcp->loop, &incoming));
+  ASSERT_OK(uv_accept(tcp, (uv_stream_t*) &incoming));
+  ASSERT_OK(uv_read_start((uv_stream_t*) &incoming, alloc_cb, read_cb));
 }
 
 static void start_server(void) {
   struct sockaddr_in addr;
 
-  ASSERT_EQ(0, uv_ip4_addr("0.0.0.0", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("0.0.0.0", TEST_PORT, &addr));
 
-  ASSERT_EQ(0, uv_tcp_init(uv_default_loop(), &server));
-  ASSERT_EQ(0, uv_tcp_bind(&server, (struct sockaddr*) &addr, 0));
-  ASSERT_EQ(0, uv_listen((uv_stream_t*) &server, 128, connection_cb));
+  ASSERT_OK(uv_tcp_init(uv_default_loop(), &server));
+  ASSERT_OK(uv_tcp_bind(&server, (struct sockaddr*) &addr, 0));
+  ASSERT_OK(uv_listen((uv_stream_t*) &server, 128, connection_cb));
 }
 
 TEST_IMPL(tcp_write_in_a_row) {
 #if defined(_WIN32)
   RETURN_SKIP("tcp_write_in_a_row does not work on Windows");
+#elif defined(__PASE__)
+  RETURN_SKIP("tcp_write_in_a_row does not work on IBM i PASE");
 #else
-
   uv_connect_t connect_req;
   struct sockaddr_in addr;
 
   start_server();
 
-  ASSERT_EQ(0, uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
 
-  ASSERT_EQ(0, uv_tcp_init(uv_default_loop(), &client));
-  ASSERT_EQ(0, uv_tcp_connect(&connect_req,
-                              &client,
-                              (struct sockaddr*) &addr,
-                              connect_cb));
+  ASSERT_OK(uv_tcp_init(uv_default_loop(), &client));
+  ASSERT_OK(uv_tcp_connect(&connect_req,
+                           &client,
+                           (struct sockaddr*) &addr,
+                           connect_cb));
 
-  ASSERT_EQ(0, uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
 
   ASSERT_EQ(1, connect_cb_called);
   ASSERT_EQ(3, close_cb_called);

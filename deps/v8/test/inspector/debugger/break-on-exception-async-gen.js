@@ -36,6 +36,15 @@ async function* yieldThrows() {
   yield thrower();
 }
 
+async function* yieldThrowsCaughtInGenerator() {
+  try {
+    yield 1;
+    yield thrower();
+  } catch {
+    throw new Error();
+  }
+}
+
 async function* awaitThrows() {
   yield 1;
   await thrower();
@@ -49,6 +58,20 @@ async function runGenWithCatch(gen) {
 
 async function runGenWithoutCatch(gen) {
   for await (const val of gen());
+}
+
+async function injectExceptionIntoGen(gen) {
+  const g = gen();
+  await gen.next();
+  await gen.throw(new Error());
+}
+
+async function injectExceptionIntoGenWithCatch(gen) {
+  try {
+    const g = gen();
+    await gen.next();
+    await gen.throw(new Error());
+  } catch {}
 }
 
 async function thrower() {
@@ -109,10 +132,22 @@ InspectorTest.runAsyncTestSuite([
   async function testYieldThrowsUncaught() {
     await runTest('runGenWithoutCatch(yieldThrows)');
   },
+  async function testYieldThrowsCaughtInGenerator() {
+    await runTest('runGenWithoutCatch(yieldThrowsCaughtInGenerator)');
+  },
   async function testAwaitThrowsCaught() {
     await runTest('runGenWithCatch(awaitThrows)');
   },
   async function testAwaitThrowsUncaught() {
     await runTest('runGenWithoutCatch(awaitThrows)');
+  },
+  async function testYieldThrowMethodCaught() {
+    await runTest('injectExceptionIntoGenWithCatch(yieldThrows)');
+  },
+  async function testYieldThrowMethodUncaught() {
+    await runTest('injectExceptionIntoGen(yieldThrows)');
+  },
+  async function testYieldThrowMethodCaughtInGenerator() {
+    await runTest('injectExceptionIntoGen(yieldThrowsCaughtInGenerator)');
   },
 ]);

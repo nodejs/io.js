@@ -11,6 +11,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <limits>
 #include <sstream>
@@ -23,11 +24,12 @@ using v8::Integer;
 using v8::Isolate;
 using v8::Local;
 using v8::Map;
+using v8::Name;
+using v8::Null;
 using v8::Number;
 using v8::Object;
 using v8::Undefined;
 using v8::Value;
-
 namespace node {
 
 namespace per_process {
@@ -105,14 +107,6 @@ void PerIsolateOptions::CheckOptions(std::vector<std::string>* errors,
 
 void EnvironmentOptions::CheckOptions(std::vector<std::string>* errors,
                                       std::vector<std::string>* argv) {
-  if (has_policy_integrity_string && experimental_policy.empty()) {
-    errors->push_back("--policy-integrity requires "
-                      "--experimental-policy be enabled");
-  }
-  if (has_policy_integrity_string && experimental_policy_integrity.empty()) {
-    errors->push_back("--policy-integrity cannot be empty");
-  }
-
   if (!input_type.empty()) {
     if (input_type != "commonjs" && input_type != "module") {
       errors->push_back("--input-type must be \"module\" or \"commonjs\"");
@@ -178,6 +172,9 @@ void EnvironmentOptions::CheckOptions(std::vector<std::string>* errors,
       errors->push_back("either --watch or --eval can be used, not both");
     } else if (force_repl) {
       errors->push_back("either --watch or --interactive "
+                        "can be used, not both");
+    } else if (test_runner_force_exit) {
+      errors->push_back("either --watch or --test-force-exit "
                         "can be used, not both");
     } else if (!test_runner && (argv->size() < 1 || (*argv)[1].empty())) {
       errors->push_back("--watch requires specifying a file");
@@ -334,6 +331,14 @@ DebugOptionsParser::DebugOptionsParser() {
   Implies("--inspect-brk-node", "--inspect");
   AddAlias("--inspect-brk-node=", { "--inspect-port", "--inspect-brk-node" });
 
+  AddOption(
+      "--inspect-wait",
+      "activate inspector on host:port and wait for debugger to be attached",
+      &DebugOptions::inspect_wait,
+      kAllowedInEnvvar);
+  Implies("--inspect-wait", "--inspect");
+  AddAlias("--inspect-wait=", {"--inspect-port", "--inspect-wait"});
+
   AddOption("--inspect-publish-uid",
             "comma separated list of destinations for inspector uid"
             "(default: stderr,http)",
@@ -351,6 +356,18 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             "when ambiguous modules fail to evaluate because they contain "
             "ES module syntax, try again to evaluate them as ES modules",
             &EnvironmentOptions::detect_module,
+            kAllowedInEnvvar,
+            true);
+  AddOption("--experimental-print-required-tla",
+            "Print pending top-level await. If --experimental-require-module "
+            "is true, evaluate asynchronous graphs loaded by `require()` but "
+            "do not run the microtasks, in order to to find and print "
+            "top-level await in the graph",
+            &EnvironmentOptions::print_required_tla,
+            kAllowedInEnvvar);
+  AddOption("--experimental-require-module",
+            "Allow loading explicit ES Modules in require().",
+            &EnvironmentOptions::require_module,
             kAllowedInEnvvar);
   AddOption("--diagnostic-dir",
             "set dir for all output files"
@@ -360,6 +377,7 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
   AddOption("--dns-result-order",
             "set default value of verbatim in dns.lookup. Options are "
             "'ipv4first' (IPv4 addresses are placed before IPv6 addresses) "
+            "'ipv6first' (IPv6 addresses are placed before IPv4 addresses) "
             "'verbatim' (addresses are in the order the DNS resolver "
             "returned)",
             &EnvironmentOptions::dns_result_order,
@@ -369,6 +387,11 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             &EnvironmentOptions::network_family_autoselection,
             kAllowedInEnvvar,
             true);
+  AddOption("--network-family-autoselection-attempt-timeout",
+            "Sets the default value for the network family autoselection "
+            "attempt timeout.",
+            &EnvironmentOptions::network_family_autoselection_attempt_timeout,
+            kAllowedInEnvvar);
   AddAlias("--enable-network-family-autoselection",
            "--network-family-autoselection");
   AddOption("--enable-source-maps",
@@ -376,26 +399,36 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             &EnvironmentOptions::enable_source_maps,
             kAllowedInEnvvar);
   AddOption("--experimental-abortcontroller", "", NoOp{}, kAllowedInEnvvar);
-  AddOption("--experimental-fetch",
-            "experimental Fetch API",
-            &EnvironmentOptions::experimental_fetch,
+  AddOption("--experimental-eventsource",
+            "experimental EventSource API",
+            &EnvironmentOptions::experimental_eventsource,
             kAllowedInEnvvar,
-            true);
+            false);
+  AddOption("--experimental-fetch", "", NoOp{}, kAllowedInEnvvar);
   AddOption("--experimental-websocket",
             "experimental WebSocket API",
             &EnvironmentOptions::experimental_websocket,
             kAllowedInEnvvar,
             true);
-  AddOption("--experimental-global-customevent",
-            "expose experimental CustomEvent on the global scope",
-            &EnvironmentOptions::experimental_global_customevent,
+  AddOption("--experimental-global-customevent", "", NoOp{}, kAllowedInEnvvar);
+  AddOption("--experimental-sqlite",
+            "experimental node:sqlite module",
+            &EnvironmentOptions::experimental_sqlite,
+            kAllowedInEnvvar);
+  AddOption("--experimental-webstorage",
+            "experimental Web Storage API",
+            &EnvironmentOptions::experimental_webstorage,
+            kAllowedInEnvvar);
+  AddOption("--localstorage-file",
+            "file used to persist localStorage data",
+            &EnvironmentOptions::localstorage_file,
+            kAllowedInEnvvar);
+  AddOption("--experimental-global-navigator",
+            "expose experimental Navigator API on the global scope",
+            &EnvironmentOptions::experimental_global_navigator,
             kAllowedInEnvvar,
             true);
-  AddOption("--experimental-global-webcrypto",
-            "expose experimental Web Crypto API on the global scope",
-            &EnvironmentOptions::experimental_global_web_crypto,
-            kAllowedInEnvvar,
-            true);
+  AddOption("--experimental-global-webcrypto", "", NoOp{}, kAllowedInEnvvar);
   AddOption("--experimental-json-modules", "", NoOp{}, kAllowedInEnvvar);
   AddOption("--experimental-loader",
             "use the specified module as a custom loader",
@@ -403,10 +436,6 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             kAllowedInEnvvar);
   AddAlias("--loader", "--experimental-loader");
   AddOption("--experimental-modules", "", NoOp{}, kAllowedInEnvvar);
-  AddOption("--experimental-network-imports",
-            "experimental https: support for the ES Module loader",
-            &EnvironmentOptions::experimental_https_modules,
-            kAllowedInEnvvar);
   AddOption("--experimental-wasm-modules",
             "experimental ES Module support for webassembly modules",
             &EnvironmentOptions::experimental_wasm_modules,
@@ -420,20 +449,6 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             &EnvironmentOptions::experimental_permission,
             kAllowedInEnvvar,
             false);
-  AddOption("--experimental-policy",
-            "use the specified file as a "
-            "security policy",
-            &EnvironmentOptions::experimental_policy,
-            kAllowedInEnvvar);
-  AddOption("[has_policy_integrity_string]",
-            "",
-            &EnvironmentOptions::has_policy_integrity_string);
-  AddOption("--policy-integrity",
-            "ensure the security policy contents match "
-            "the specified integrity",
-            &EnvironmentOptions::experimental_policy_integrity,
-            kAllowedInEnvvar);
-  Implies("--policy-integrity", "[has_policy_integrity_string]");
   AddOption("--allow-fs-read",
             "allow permissions to read the filesystem",
             &EnvironmentOptions::allow_fs_read,
@@ -442,9 +457,17 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             "allow permissions to write in the filesystem",
             &EnvironmentOptions::allow_fs_write,
             kAllowedInEnvvar);
+  AddOption("--allow-addons",
+            "allow use of addons when any permissions are set",
+            &EnvironmentOptions::allow_addons,
+            kAllowedInEnvvar);
   AddOption("--allow-child-process",
             "allow use of child process when any permissions are set",
             &EnvironmentOptions::allow_child_process,
+            kAllowedInEnvvar);
+  AddOption("--allow-wasi",
+            "allow wasi when any permissions are set",
+            &EnvironmentOptions::allow_wasi,
             kAllowedInEnvvar);
   AddOption("--allow-worker",
             "allow worker threads when any permissions are set",
@@ -463,6 +486,7 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
   AddOption("--experimental-report", "", NoOp{}, kAllowedInEnvvar);
   AddOption(
       "--experimental-wasi-unstable-preview1", "", NoOp{}, kAllowedInEnvvar);
+  AddOption("--expose-gc", "expose gc extension", V8Option{}, kAllowedInEnvvar);
   AddOption("--expose-internals", "", &EnvironmentOptions::expose_internals);
   AddOption("--frozen-intrinsics",
             "experimental frozen intrinsics support",
@@ -522,6 +546,10 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             &EnvironmentOptions::warnings,
             kAllowedInEnvvar,
             true);
+  AddOption("--disable-warning",
+            "silence specific process warnings",
+            &EnvironmentOptions::disable_warnings,
+            kAllowedInEnvvar);
   AddOption("--force-context-aware",
             "disable loading non-context-aware addons",
             &EnvironmentOptions::force_context_aware,
@@ -545,7 +573,7 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             "process V8 profiler output generated using --prof",
             &EnvironmentOptions::prof_process);
   // Options after --prof-process are passed through to the prof processor.
-  AddAlias("--prof-process", { "--prof-process", "--" });
+  AddAlias("--prof-process", {"--prof-process", "--"});
 #if HAVE_INSPECTOR
   AddOption("--cpu-prof",
             "Start the V8 CPU profiler on start up, and write the CPU profile "
@@ -564,6 +592,9 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             "Directory where the V8 profiles generated by --cpu-prof will be "
             "placed. Does not affect --prof.",
             &EnvironmentOptions::cpu_prof_dir);
+  AddOption("--experimental-network-inspection",
+            "experimental network inspection support",
+            &EnvironmentOptions::experimental_network_inspection);
   AddOption(
       "--heap-prof",
       "Start the V8 heap profiler on start up, and write the heap profile "
@@ -603,9 +634,24 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
   AddOption("--test-concurrency",
             "specify test runner concurrency",
             &EnvironmentOptions::test_runner_concurrency);
+  AddOption("--test-force-exit",
+            "force test runner to exit upon completion",
+            &EnvironmentOptions::test_runner_force_exit);
+  AddOption("--test-timeout",
+            "specify test runner timeout",
+            &EnvironmentOptions::test_runner_timeout);
+  AddOption("--test-update-snapshots",
+            "regenerate test snapshots",
+            &EnvironmentOptions::test_runner_update_snapshots);
   AddOption("--experimental-test-coverage",
             "enable code coverage in the test runner",
             &EnvironmentOptions::test_runner_coverage);
+  AddOption("--experimental-test-module-mocks",
+            "enable module mocking in the test runner",
+            &EnvironmentOptions::test_runner_module_mocks);
+  AddOption("--experimental-test-snapshots",
+            "enable snapshot testing in the test runner",
+            &EnvironmentOptions::test_runner_snapshots);
   AddOption("--test-name-pattern",
             "run tests whose name matches this regular expression",
             &EnvironmentOptions::test_name_pattern);
@@ -625,15 +671,22 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             "run test at specific shard",
             &EnvironmentOptions::test_shard,
             kAllowedInEnvvar);
+  AddOption("--test-skip-pattern",
+            "run tests whose name do not match this regular expression",
+            &EnvironmentOptions::test_skip_pattern);
+  AddOption("--test-coverage-include",
+            "include files in coverage report that match this glob pattern",
+            &EnvironmentOptions::coverage_include_pattern,
+            kAllowedInEnvvar);
+  AddOption("--test-coverage-exclude",
+            "exclude files from coverage report that match this glob pattern",
+            &EnvironmentOptions::coverage_exclude_pattern,
+            kAllowedInEnvvar);
   AddOption("--test-udp-no-try-send", "",  // For testing only.
             &EnvironmentOptions::test_udp_no_try_send);
   AddOption("--throw-deprecation",
             "throw an exception on deprecations",
             &EnvironmentOptions::throw_deprecation,
-            kAllowedInEnvvar);
-  AddOption("--trace-atomics-wait",
-            "(deprecated) trace Atomics.wait() operations",
-            &EnvironmentOptions::trace_atomics_wait,
             kAllowedInEnvvar);
   AddOption("--trace-deprecation",
             "show stack traces on deprecations",
@@ -659,6 +712,10 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
   AddOption("--trace-warnings",
             "show stack traces on process warnings",
             &EnvironmentOptions::trace_warnings,
+            kAllowedInEnvvar);
+  AddOption("--trace-promises",
+            "show stack traces on promise initialization and resolution",
+            &EnvironmentOptions::trace_promises,
             kAllowedInEnvvar);
   AddOption("--experimental-default-type",
             "set module system to use by default",
@@ -724,6 +781,10 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             "ES module to preload (option can be repeated)",
             &EnvironmentOptions::preload_esm_modules,
             kAllowedInEnvvar);
+  AddOption("--experimental-strip-types",
+            "Experimental type-stripping for TypeScript files.",
+            &EnvironmentOptions::experimental_strip_types,
+            kAllowedInEnvvar);
   AddOption("--interactive",
             "always enter the REPL even if stdin does not appear "
             "to be a terminal",
@@ -764,6 +825,12 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
   AddOption("--tls-max-v1.3",
             "set default TLS maximum to TLSv1.3 (default: TLSv1.3)",
             &EnvironmentOptions::tls_max_v1_3,
+            kAllowedInEnvvar);
+
+  AddOption("--report-exclude-network",
+            "exclude network interface diagnostics."
+            " (default: false)",
+            &EnvironmentOptions::report_exclude_network,
             kAllowedInEnvvar);
 }
 
@@ -838,6 +905,12 @@ PerIsolateOptionsParser::PerIsolateOptionsParser(
             "Generate a snapshot blob when the process exits.",
             &PerIsolateOptions::build_snapshot,
             kDisallowedInEnvvar);
+  AddOption("--build-snapshot-config",
+            "Generate a snapshot blob when the process exits using a"
+            "JSON configuration in the specified path.",
+            &PerIsolateOptions::build_snapshot_config,
+            kDisallowedInEnvvar);
+  Implies("--build-snapshot-config", "--build-snapshot");
 
   Insert(eop, &PerIsolateOptions::get_per_env_options);
 }
@@ -1024,6 +1097,17 @@ PerProcessOptionsParser::PerProcessOptionsParser(
             "Generate a blob that can be embedded into the single executable "
             "application",
             &PerProcessOptions::experimental_sea_config);
+
+  AddOption("--run",
+            "Run a script specified in package.json",
+            &PerProcessOptions::run);
+  AddOption(
+      "--disable-wasm-trap-handler",
+      "Disable trap-handler-based WebAssembly bound checks. V8 will insert "
+      "inline bound checks when compiling WebAssembly which may slow down "
+      "performance.",
+      &PerProcessOptions::disable_wasm_trap_handler,
+      kAllowedInEnvvar);
 }
 
 inline std::string RemoveBrackets(const std::string& host) {
@@ -1108,11 +1192,32 @@ std::string GetBashCompletion() {
   return out.str();
 }
 
+struct IterateCLIOptionsScope {
+  explicit IterateCLIOptionsScope(Environment* env) {
+    // Temporarily act as if the current Environment's/IsolateData's options
+    // were the default options, i.e. like they are the ones we'd access for
+    // global options parsing, so that all options are available from the main
+    // parser.
+    original_per_isolate = per_process::cli_options->per_isolate;
+    per_process::cli_options->per_isolate = env->isolate_data()->options();
+    original_per_env = per_process::cli_options->per_isolate->per_env;
+    per_process::cli_options->per_isolate->per_env = env->options();
+  }
+  ~IterateCLIOptionsScope() {
+    per_process::cli_options->per_isolate->per_env = original_per_env;
+    per_process::cli_options->per_isolate = original_per_isolate;
+  }
+  std::shared_ptr<node::EnvironmentOptions> original_per_env;
+  std::shared_ptr<node::PerIsolateOptions> original_per_isolate;
+};
+
 // Return a map containing all the options and their metadata as well
 // as the aliases
-void GetCLIOptions(const FunctionCallbackInfo<Value>& args) {
-  Mutex::ScopedLock lock(per_process::cli_options_mutex);
-  Environment* env = Environment::GetCurrent(args);
+void GetCLIOptionsValues(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  Local<Context> context = isolate->GetCurrentContext();
+  Environment* env = Environment::GetCurrent(context);
+
   if (!env->has_run_bootstrapping_code()) {
     // No code because this is an assertion.
     return env->ThrowError(
@@ -1120,49 +1225,49 @@ void GetCLIOptions(const FunctionCallbackInfo<Value>& args) {
   }
   env->set_has_serialized_options(true);
 
-  Isolate* isolate = env->isolate();
-  Local<Context> context = env->context();
+  Mutex::ScopedLock lock(per_process::cli_options_mutex);
+  IterateCLIOptionsScope s(env);
 
-  // Temporarily act as if the current Environment's/IsolateData's options were
-  // the default options, i.e. like they are the ones we'd access for global
-  // options parsing, so that all options are available from the main parser.
-  auto original_per_isolate = per_process::cli_options->per_isolate;
-  per_process::cli_options->per_isolate = env->isolate_data()->options();
-  auto original_per_env = per_process::cli_options->per_isolate->per_env;
-  per_process::cli_options->per_isolate->per_env = env->options();
-  auto on_scope_leave = OnScopeLeave([&]() {
-    per_process::cli_options->per_isolate->per_env = original_per_env;
-    per_process::cli_options->per_isolate = original_per_isolate;
-  });
+  std::vector<Local<Name>> option_names;
+  std::vector<Local<Value>> option_values;
+  option_names.reserve(_ppop_instance.options_.size() * 2);
+  option_values.reserve(_ppop_instance.options_.size() * 2);
 
-  Local<Map> options = Map::New(isolate);
-  if (options
-          ->SetPrototype(context, env->primordials_safe_map_prototype_object())
-          .IsNothing()) {
-    return;
-  }
+  Local<Value> undefined_value = Undefined(isolate);
+  Local<Value> null_value = Null(isolate);
 
   for (const auto& item : _ppop_instance.options_) {
     Local<Value> value;
     const auto& option_info = item.second;
     auto field = option_info.field;
     PerProcessOptions* opts = per_process::cli_options.get();
+
     switch (option_info.type) {
       case kNoOp:
       case kV8Option:
         // Special case for --abort-on-uncaught-exception which is also
         // respected by Node.js internals
         if (item.first == "--abort-on-uncaught-exception") {
-          value = Boolean::New(
-            isolate, original_per_env->abort_on_uncaught_exception);
+          value = Boolean::New(isolate,
+                               s.original_per_env->abort_on_uncaught_exception);
         } else {
-          value = Undefined(isolate);
+          value = undefined_value;
         }
         break;
-      case kBoolean:
-        value = Boolean::New(isolate,
-                             *_ppop_instance.Lookup<bool>(field, opts));
+      case kBoolean: {
+        bool original_value = *_ppop_instance.Lookup<bool>(field, opts);
+        value = Boolean::New(isolate, original_value);
+
+        // Add --no-* entries.
+        std::string negated_name =
+            "--no" + item.first.substr(1, item.first.size());
+        Local<Value> negated_value = Boolean::New(isolate, !original_value);
+        Local<Name> negated_name_v8 =
+            ToV8Value(context, negated_name).ToLocalChecked().As<Name>();
+        option_names.push_back(negated_name_v8);
+        option_values.push_back(negated_value);
         break;
+      }
       case kInteger:
         value = Number::New(
             isolate,
@@ -1189,46 +1294,86 @@ void GetCLIOptions(const FunctionCallbackInfo<Value>& args) {
         break;
       case kHostPort: {
         const HostPort& host_port =
-          *_ppop_instance.Lookup<HostPort>(field, opts);
-        Local<Object> obj = Object::New(isolate);
+            *_ppop_instance.Lookup<HostPort>(field, opts);
         Local<Value> host;
-        if (!ToV8Value(context, host_port.host()).ToLocal(&host) ||
-            obj->Set(context, env->host_string(), host).IsNothing() ||
-            obj->Set(context,
-                     env->port_string(),
-                     Integer::New(isolate, host_port.port()))
-                .IsNothing()) {
+        if (!ToV8Value(context, host_port.host()).ToLocal(&host)) {
           return;
         }
-        value = obj;
+        constexpr size_t kHostPortLength = 2;
+        std::array<Local<Name>, kHostPortLength> names = {env->host_string(),
+                                                          env->port_string()};
+        std::array<Local<Value>, kHostPortLength> values = {
+            host, Integer::New(isolate, host_port.port())};
+        value = Object::New(
+            isolate, null_value, names.data(), values.data(), kHostPortLength);
         break;
       }
       default:
         UNREACHABLE();
     }
     CHECK(!value.IsEmpty());
+    Local<Name> name =
+        ToV8Value(context, item.first).ToLocalChecked().As<Name>();
+    option_names.push_back(name);
+    option_values.push_back(value);
+  }
 
-    Local<Value> name = ToV8Value(context, item.first).ToLocalChecked();
-    Local<Object> info = Object::New(isolate);
+  Local<Object> options = Object::New(isolate,
+                                      null_value,
+                                      option_names.data(),
+                                      option_values.data(),
+                                      option_values.size());
+  args.GetReturnValue().Set(options);
+}
+
+void GetCLIOptionsInfo(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  Local<Context> context = isolate->GetCurrentContext();
+  Environment* env = Environment::GetCurrent(context);
+
+  if (!env->has_run_bootstrapping_code()) {
+    // No code because this is an assertion.
+    return env->ThrowError(
+        "Should not query options before bootstrapping is done");
+  }
+
+  Mutex::ScopedLock lock(per_process::cli_options_mutex);
+  IterateCLIOptionsScope s(env);
+
+  Local<Map> options = Map::New(isolate);
+  if (options
+          ->SetPrototype(context, env->primordials_safe_map_prototype_object())
+          .IsNothing()) {
+    return;
+  }
+
+  Local<Value> null_value = Null(isolate);
+  for (const auto& item : _ppop_instance.options_) {
+    const auto& option_info = item.second;
+    auto field = option_info.field;
+
+    Local<Name> name =
+        ToV8Value(context, item.first).ToLocalChecked().As<Name>();
     Local<Value> help_text;
-    if (!ToV8Value(context, option_info.help_text).ToLocal(&help_text) ||
-        !info->Set(context, env->help_text_string(), help_text)
-             .FromMaybe(false) ||
-        !info->Set(context,
-                   env->env_var_settings_string(),
-                   Integer::New(isolate,
-                                static_cast<int>(option_info.env_setting)))
-             .FromMaybe(false) ||
-        !info->Set(context,
-                   env->type_string(),
-                   Integer::New(isolate, static_cast<int>(option_info.type)))
-             .FromMaybe(false) ||
-        !info->Set(context,
-                   env->default_is_true_string(),
-                   Boolean::New(isolate, option_info.default_is_true))
-             .FromMaybe(false) ||
-        info->Set(context, env->value_string(), value).IsNothing() ||
-        options->Set(context, name, info).IsEmpty()) {
+    if (!ToV8Value(context, option_info.help_text).ToLocal(&help_text)) {
+      return;
+    }
+    constexpr size_t kInfoSize = 4;
+    std::array<Local<Name>, kInfoSize> names = {
+        env->help_text_string(),
+        env->env_var_settings_string(),
+        env->type_string(),
+        env->default_is_true_string(),
+    };
+    std::array<Local<Value>, kInfoSize> values = {
+        help_text,
+        Integer::New(isolate, static_cast<int>(option_info.env_setting)),
+        Integer::New(isolate, static_cast<int>(option_info.type)),
+        Boolean::New(isolate, option_info.default_is_true),
+    };
+    Local<Object> info = Object::New(
+        isolate, null_value, names.data(), values.data(), kInfoSize);
+    if (options->Set(context, name, info).IsEmpty()) {
       return;
     }
   }
@@ -1242,12 +1387,12 @@ void GetCLIOptions(const FunctionCallbackInfo<Value>& args) {
     return;
   }
 
-  Local<Object> ret = Object::New(isolate);
-  if (ret->Set(context, env->options_string(), options).IsNothing() ||
-      ret->Set(context, env->aliases_string(), aliases).IsNothing()) {
-    return;
-  }
-
+  constexpr size_t kRetLength = 2;
+  std::array<Local<Name>, kRetLength> names = {env->options_string(),
+                                               env->aliases_string()};
+  std::array<Local<Value>, kRetLength> values = {options, aliases};
+  Local<Value> ret =
+      Object::New(isolate, null_value, names.data(), values.data(), kRetLength);
   args.GetReturnValue().Set(ret);
 }
 
@@ -1259,24 +1404,22 @@ void GetEmbedderOptions(const FunctionCallbackInfo<Value>& args) {
         "Should not query options before bootstrapping is done");
   }
   Isolate* isolate = args.GetIsolate();
-  Local<Context> context = env->context();
-  Local<Object> ret = Object::New(isolate);
 
-  if (ret->Set(context,
-           FIXED_ONE_BYTE_STRING(env->isolate(), "shouldNotRegisterESMLoader"),
-           Boolean::New(isolate, env->should_not_register_esm_loader()))
-      .IsNothing()) return;
+  constexpr size_t kOptionsSize = 4;
+  std::array<Local<Name>, kOptionsSize> names = {
+      FIXED_ONE_BYTE_STRING(env->isolate(), "shouldNotRegisterESMLoader"),
+      FIXED_ONE_BYTE_STRING(env->isolate(), "noGlobalSearchPaths"),
+      FIXED_ONE_BYTE_STRING(env->isolate(), "noBrowserGlobals"),
+      FIXED_ONE_BYTE_STRING(env->isolate(), "hasEmbedderPreload")};
 
-  if (ret->Set(context,
-           FIXED_ONE_BYTE_STRING(env->isolate(), "noGlobalSearchPaths"),
-           Boolean::New(isolate, env->no_global_search_paths()))
-      .IsNothing()) return;
+  std::array<Local<Value>, kOptionsSize> values = {
+      Boolean::New(isolate, env->should_not_register_esm_loader()),
+      Boolean::New(isolate, env->no_global_search_paths()),
+      Boolean::New(isolate, env->no_browser_globals()),
+      Boolean::New(isolate, env->embedder_preload() != nullptr)};
 
-  if (ret->Set(context,
-               FIXED_ONE_BYTE_STRING(env->isolate(), "noBrowserGlobals"),
-               Boolean::New(isolate, env->no_browser_globals()))
-          .IsNothing())
-    return;
+  Local<Object> ret = Object::New(
+      isolate, Null(isolate), names.data(), values.data(), kOptionsSize);
 
   args.GetReturnValue().Set(ret);
 }
@@ -1287,7 +1430,10 @@ void Initialize(Local<Object> target,
                 void* priv) {
   Environment* env = Environment::GetCurrent(context);
   Isolate* isolate = env->isolate();
-  SetMethodNoSideEffect(context, target, "getCLIOptions", GetCLIOptions);
+  SetMethodNoSideEffect(
+      context, target, "getCLIOptionsValues", GetCLIOptionsValues);
+  SetMethodNoSideEffect(
+      context, target, "getCLIOptionsInfo", GetCLIOptionsInfo);
   SetMethodNoSideEffect(
       context, target, "getEmbedderOptions", GetEmbedderOptions);
 
@@ -1313,7 +1459,8 @@ void Initialize(Local<Object> target,
 }
 
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
-  registry->Register(GetCLIOptions);
+  registry->Register(GetCLIOptionsValues);
+  registry->Register(GetCLIOptionsInfo);
   registry->Register(GetEmbedderOptions);
 }
 }  // namespace options_parser

@@ -5,6 +5,7 @@
 #ifndef V8_OBJECTS_PROPERTY_CELL_H_
 #define V8_OBJECTS_PROPERTY_CELL_H_
 
+#include "src/objects/dependent-code.h"
 #include "src/objects/heap-object.h"
 
 // Has to be the last include (doesn't have include guards):
@@ -93,6 +94,30 @@ class PropertyCell
   bool CanTransitionTo(PropertyDetails new_details,
                        Tagged<Object> new_value) const;
 #endif  // DEBUG
+};
+
+class ConstTrackingLetCell
+    : public TorqueGeneratedConstTrackingLetCell<ConstTrackingLetCell,
+                                                 HeapObject> {
+ public:
+  static constexpr Tagged<Smi> kConstMarker = Smi::FromInt(1);
+  static constexpr Tagged<Smi> kNonConstMarker = Smi::FromInt(0);
+
+  static inline bool IsNotConst(Tagged<Object> object);
+
+  // [dependent_code]: code that depends on the constness of the value.
+  DECL_ACCESSORS(dependent_code, Tagged<DependentCode>)
+
+  DECL_PRINTER(ConstTrackingLetCell)
+  DECL_VERIFIER(ConstTrackingLetCell)
+
+  using BodyDescriptor =
+      FixedBodyDescriptor<kDependentCodeOffset, kSize, kSize>;
+
+  TQ_OBJECT_CONSTRUCTORS(ConstTrackingLetCell)
+
+ private:
+  friend class Factory;
 };
 
 }  // namespace internal

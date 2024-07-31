@@ -10,9 +10,31 @@ namespace v8 {
 namespace internal {
 namespace wasm {
 
+// static
+void JumpTableAssembler::GenerateLazyCompileTable(
+    Address base, uint32_t num_slots, uint32_t num_imported_functions,
+    Address wasm_compile_lazy_target) {
+  uint32_t lazy_compile_table_size = num_slots * kLazyCompileTableSlotSize;
+  WritableJitAllocation jit_allocation = ThreadIsolation::LookupJitAllocation(
+      base, RoundUp<kCodeAlignment>(lazy_compile_table_size),
+      ThreadIsolation::JitAllocationType::kWasmLazyCompileTable);
+  // Assume enough space, so the Assembler does not try to grow the buffer.
+  JumpTableAssembler jtasm(base, lazy_compile_table_size + 256);
+  for (uint32_t slot_index = 0; slot_index < num_slots; ++slot_index) {
+    DCHECK_EQ(slot_index * kLazyCompileTableSlotSize, jtasm.pc_offset());
+    jtasm.EmitLazyCompileJumpSlot(slot_index + num_imported_functions,
+                                  wasm_compile_lazy_target);
+  }
+  DCHECK_EQ(lazy_compile_table_size, jtasm.pc_offset());
+  FlushInstructionCache(base, lazy_compile_table_size);
+}
+
 void JumpTableAssembler::InitializeJumpsToLazyCompileTable(
     Address base, uint32_t num_slots, Address lazy_compile_table_start) {
   uint32_t jump_table_size = SizeForNumberOfSlots(num_slots);
+  WritableJitAllocation jit_allocation = ThreadIsolation::LookupJitAllocation(
+      base, RoundUp<kCodeAlignment>(jump_table_size),
+      ThreadIsolation::JitAllocationType::kWasmJumpTable);
   JumpTableAssembler jtasm(base, jump_table_size + 256);
 
   for (uint32_t slot_index = 0; slot_index < num_slots; ++slot_index) {
@@ -53,27 +75,32 @@ void JumpTableAssembler::InitializeJumpsToLazyCompileTable(
 void JumpTableAssembler::EmitLazyCompileJumpSlot(uint32_t func_index,
                                                  Address lazy_compile_target) {
   // Use a push, because mov to an extended register takes 6 bytes.
-  pushq_imm32(func_index);            // 5 bytes
-  EmitJumpSlot(lazy_compile_target);  // 5 bytes
+  pushq_imm32(func_index);  // 5 bytes
+  intptr_t displacement =
+      static_cast<intptr_t>(reinterpret_cast<uint8_t*>(lazy_compile_target) -
+                            (pc_ + kNearJmpInstrSize));
+  DCHECK(is_int32(displacement));
+  near_jmp(displacement, RelocInfo::NO_INFO);  // 5 bytes
 }
 
 bool JumpTableAssembler::EmitJumpSlot(Address target) {
-  intptr_t displacement = static_cast<intptr_t>(
-      reinterpret_cast<uint8_t*>(target) - pc_ - kNearJmpInstrSize);
+  intptr_t displacement =
+      static_cast<intptr_t>(reinterpret_cast<uint8_t*>(target) -
+                            (pc_ + kEndbrSize + kNearJmpInstrSize));
   if (!is_int32(displacement)) return false;
+  CodeEntry();                                 // kEndbrSize bytes (0 or 4)
   near_jmp(displacement, RelocInfo::NO_INFO);  // 5 bytes
   return true;
 }
 
 void JumpTableAssembler::EmitFarJumpSlot(Address target) {
   Label data;
-  int start_offset = pc_offset();
+  [[maybe_unused]] int start_offset = pc_offset();
   jmp(Operand(&data));  // 6 bytes
   Nop(2);               // 2 bytes
   // The data must be properly aligned, so it can be patched atomically (see
   // {PatchFarJumpSlot}).
   DCHECK_EQ(start_offset + kSystemPointerSize, pc_offset());
-  USE(start_offset);
   bind(&data);
   dq(target);  // 8 bytes
 }

@@ -54,8 +54,8 @@ rm ./*_demo.cpp
 
 curl -sL -o "$SIMDUTF_LICENSE" "https://raw.githubusercontent.com/simdutf/simdutf/HEAD/LICENSE-MIT"
 
-echo "Replacing existing simdutf (except GYP build files)"
-mv "$DEPS_DIR/simdutf/"*.gyp "$DEPS_DIR/simdutf/README.md" "$WORKSPACE/"
+echo "Replacing existing simdutf (except GYP and GN build files)"
+mv "$DEPS_DIR/simdutf/"*.gyp "$DEPS_DIR/simdutf/"*.gn "$DEPS_DIR/simdutf/"*.gni "$DEPS_DIR/simdutf/README.md" "$WORKSPACE/"
 rm -rf "$DEPS_DIR/simdutf"
 mv "$WORKSPACE" "$DEPS_DIR/simdutf"
 

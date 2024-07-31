@@ -1,0 +1,28 @@
+# Copyright 2018 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("utility") {
+  public = [ "utility.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:base_internal",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+}
+
+absl_source_set("if_constexpr") {
+  public = [ "internal/if_constexpr.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+  ]
+}
+
+absl_test("if_constexpr_test") {
+  sources = [ "internal/if_constexpr_test.cc" ]
+  deps = [
+    ":if_constexpr",
+  ]
+}

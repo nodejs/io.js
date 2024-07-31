@@ -32,6 +32,7 @@
 #include "src/base/utils/random-number-generator.h"
 #include "src/codegen/assembler-inl.h"
 #include "src/codegen/macro-assembler.h"
+#include "src/compiler/access-builder.h"
 #include "src/deoptimizer/deoptimizer.h"
 #include "src/execution/simulator.h"
 #include "src/objects/objects-inl.h"
@@ -934,7 +935,8 @@ TEST(min_max_nan) {
   auto handle_dnan = [masm](FPURegister dst, Label* nan, Label* back) {
     __ bind(nan);
     __ LoadRoot(t8, RootIndex::kNanValue);
-    __ Ldc1(dst, FieldMemOperand(t8, HeapNumber::kValueOffset));
+    __ Ldc1(dst, FieldMemOperand(
+                     t8, compiler::AccessBuilder::ForHeapNumberValue().offset));
     __ Branch(back);
   };
 

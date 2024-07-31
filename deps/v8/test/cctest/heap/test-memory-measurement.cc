@@ -90,6 +90,7 @@ TEST(NativeContextStatsArrayBuffers) {
                       *i_array_buffer, 10);
   CHECK_EQ(1010, stats.Get(native_context->ptr()));
 }
+
 namespace {
 
 class TestResource : public v8::String::ExternalStringResource {

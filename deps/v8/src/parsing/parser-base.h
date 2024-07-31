@@ -16,7 +16,6 @@
 #include "src/base/flags.h"
 #include "src/base/hashmap.h"
 #include "src/base/pointer-with-payload.h"
-#include "src/base/v8-fallthrough.h"
 #include "src/codegen/bailout-reason.h"
 #include "src/common/globals.h"
 #include "src/common/message-template.h"
@@ -642,23 +641,23 @@ class ParserBase {
       // previous token was in fact a name and not a modifier (like the "get" in
       // "get x").
       switch (token) {
-        case Token::COLON:
+        case Token::kColon:
           kind = ParsePropertyKind::kValue;
           return true;
-        case Token::COMMA:
+        case Token::kComma:
           kind = ParsePropertyKind::kShorthand;
           return true;
-        case Token::RBRACE:
+        case Token::kRightBrace:
           kind = ParsePropertyKind::kShorthandOrClassField;
           return true;
-        case Token::ASSIGN:
+        case Token::kAssign:
           kind = ParsePropertyKind::kAssign;
           return true;
-        case Token::LPAREN:
+        case Token::kLeftParen:
           kind = ParsePropertyKind::kMethod;
           return true;
-        case Token::MUL:
-        case Token::SEMICOLON:
+        case Token::kMul:
+        case Token::kSemicolon:
           kind = ParsePropertyKind::kClassField;
           return true;
         default:
@@ -866,7 +865,7 @@ class ParserBase {
   // Returns the position past the following semicolon (if it exists), and the
   // position past the end of the current token otherwise.
   int PositionAfterSemicolon() {
-    return (peek() == Token::SEMICOLON) ? peek_end_position() : end_position();
+    return (peek() == Token::kSemicolon) ? peek_end_position() : end_position();
   }
 
   V8_INLINE Token::Value PeekAhead() { return scanner()->PeekAhead(); }
@@ -900,7 +899,7 @@ class ParserBase {
     // Check for automatic semicolon insertion according to
     // the rules given in ECMA-262, section 7.9, page 21.
     Token::Value tok = peek();
-    if (V8_LIKELY(tok == Token::SEMICOLON)) {
+    if (V8_LIKELY(tok == Token::kSemicolon)) {
       Next();
       return;
     }
@@ -909,7 +908,7 @@ class ParserBase {
       return;
     }
 
-    if (scanner()->current_token() == Token::AWAIT && !is_async_function()) {
+    if (scanner()->current_token() == Token::kAwait && !is_async_function()) {
       if (flags().parsing_while_debugging() == ParsingWhileDebugging::kYes) {
         ReportMessageAt(scanner()->location(),
                         MessageTemplate::kAwaitNotInDebugEvaluate);
@@ -926,14 +925,26 @@ class ParserBase {
   bool peek_any_identifier() { return Token::IsAnyIdentifier(peek()); }
 
   bool PeekContextualKeyword(const AstRawString* name) {
-    return peek() == Token::IDENTIFIER &&
+    return peek() == Token::kIdentifier &&
            !scanner()->next_literal_contains_escapes() &&
            scanner()->NextSymbol(ast_value_factory()) == name;
   }
 
+  bool PeekContextualKeyword(Token::Value token) {
+    return peek() == token && !scanner()->next_literal_contains_escapes();
+  }
+
   bool CheckContextualKeyword(const AstRawString* name) {
     if (PeekContextualKeyword(name)) {
-      Consume(Token::IDENTIFIER);
+      Consume(Token::kIdentifier);
+      return true;
+    }
+    return false;
+  }
+
+  bool CheckContextualKeyword(Token::Value token) {
+    if (PeekContextualKeyword(token)) {
+      Consume(token);
       return true;
     }
     return false;
@@ -941,7 +952,7 @@ class ParserBase {
 
   void ExpectContextualKeyword(const AstRawString* name,
                                const char* fullname = nullptr, int pos = -1) {
-    Expect(Token::IDENTIFIER);
+    Expect(Token::kIdentifier);
     if (V8_UNLIKELY(scanner()->CurrentSymbol(ast_value_factory()) != name)) {
       ReportUnexpectedToken(scanner()->current_token());
     }
@@ -956,11 +967,23 @@ class ParserBase {
     }
   }
 
+  void ExpectContextualKeyword(Token::Value token) {
+    // Token Should be in range of Token::kIdentifier + 1 to Token::kAsync
+    DCHECK(base::IsInRange(token, Token::kGet, Token::kAsync));
+    Token::Value next = Next();
+    if (V8_UNLIKELY(next != token)) {
+      ReportUnexpectedToken(next);
+    }
+    if (V8_UNLIKELY(scanner()->literal_contains_escapes())) {
+      impl()->ReportUnexpectedToken(Token::kEscapedKeyword);
+    }
+  }
+
   bool CheckInOrOf(ForEachStatement::VisitMode* visit_mode) {
-    if (Check(Token::IN)) {
+    if (Check(Token::kIn)) {
       *visit_mode = ForEachStatement::ENUMERATE;
       return true;
-    } else if (CheckContextualKeyword(ast_value_factory()->of_string())) {
+    } else if (CheckContextualKeyword(Token::kOf)) {
       *visit_mode = ForEachStatement::ITERATE;
       return true;
     }
@@ -968,8 +991,7 @@ class ParserBase {
   }
 
   bool PeekInOrOf() {
-    return peek() == Token::IN ||
-           PeekContextualKeyword(ast_value_factory()->of_string());
+    return peek() == Token::kIn || PeekContextualKeyword(Token::kOf);
   }
 
   // Checks whether an octal literal was last seen between beg_pos and end_pos.
@@ -1060,6 +1082,33 @@ class ParserBase {
   bool is_await_as_identifier_disallowed() {
     return flags().is_module() ||
            IsAwaitAsIdentifierDisallowed(function_state_->kind());
+  }
+  bool is_using_allowed() const {
+    // UsingDeclaration is a Syntax Error if the goal symbol is Script and
+    // UsingDeclaration is not contained, either directly or indirectly, within
+    // a Block, CaseBlock, ForStatement, ForInOfStatement, FunctionBody,
+    // GeneratorBody, AsyncGeneratorBody, AsyncFunctionBody,
+    // ClassStaticBlockBody, or ClassBody.
+    // Unless the current scope's ScopeType is ScriptScope, the current position
+    // is directly or indirectly within one of the productions listed above
+    // since they open a new scope.
+    return scope()->scope_type() != SCRIPT_SCOPE;
+  }
+  bool IfNextUsingKeyword() {
+    // If the token after `using` is `of` or `in`, `using` is an identifier
+    // and not a declaration token.
+    // `of`: for ( [lookahead ≠ using of] ForDeclaration[?Yield, ?Await, +Using]
+    //       of AssignmentExpression[+In, ?Yield, ?Await] )
+    // `in`: for ( ForDeclaration[?Yield, ?Await, ~Using] in
+    //       Expression[+In, ?Yield, ?Await] )
+    // If the token after `using` is `{` or `[`, it
+    // shows a pattern after `using` which is not applicable.
+    // `{` or `[`: using [no LineTerminator here] [lookahead ≠ await]
+    // ForBinding[?Yield, ?Await, ~Pattern]
+    return (v8_flags.js_explicit_resource_management &&
+            PeekAhead() != Token::kLeftBracket &&
+            PeekAhead() != Token::kLeftBrace && PeekAhead() != Token::kOf &&
+            PeekAhead() != Token::kIn);
   }
   const PendingCompilationErrorHandler* pending_error_handler() const {
     return pending_error_handler_;
@@ -1158,6 +1207,7 @@ class ParserBase {
   // a pattern.
   V8_INLINE ExpressionT ParseExpression();
   V8_INLINE ExpressionT ParseAssignmentExpression();
+  V8_INLINE ExpressionT ParseConditionalChainAssignmentExpression();
 
   // These methods do not wrap the parsing of the expression inside a new
   // expression_scope; they use the outer expression_scope instead. They should
@@ -1168,6 +1218,9 @@ class ParserBase {
   // specification).
   ExpressionT ParseExpressionCoverGrammar();
   ExpressionT ParseAssignmentExpressionCoverGrammar();
+  ExpressionT ParseAssignmentExpressionCoverGrammarContinuation(
+      int lhs_beg_pos, ExpressionT expression);
+  ExpressionT ParseConditionalChainAssignmentExpressionCoverGrammar();
 
   ExpressionT ParseArrowParametersWithRest(ExpressionListT* list,
                                            AccumulationScope* scope,
@@ -1199,6 +1252,8 @@ class ParserBase {
 
   ExpressionT ParseYieldExpression();
   V8_INLINE ExpressionT ParseConditionalExpression();
+  ExpressionT ParseConditionalChainExpression(ExpressionT condition,
+                                              int condition_pos);
   ExpressionT ParseConditionalContinuation(ExpressionT expression, int pos);
   ExpressionT ParseLogicalExpression();
   ExpressionT ParseCoalesceExpression(ExpressionT expression);
@@ -1650,7 +1705,7 @@ template <typename Impl>
 bool ParserBase<Impl>::ClassifyPropertyIdentifier(
     Token::Value next, ParsePropertyInfo* prop_info) {
   // Updates made here must be reflected on ParseAndClassifyIdentifier.
-  if (V8_LIKELY(base::IsInRange(next, Token::IDENTIFIER, Token::ASYNC))) {
+  if (V8_LIKELY(base::IsInRange(next, Token::kIdentifier, Token::kAsync))) {
     if (V8_UNLIKELY(impl()->IsArguments(prop_info->name) &&
                     scope()->ShouldBanArguments())) {
       ReportMessage(
@@ -1668,7 +1723,7 @@ bool ParserBase<Impl>::ClassifyPropertyIdentifier(
 
   DCHECK(!prop_info->is_computed_name);
 
-  if (next == Token::AWAIT) {
+  if (next == Token::kAwait) {
     DCHECK(!is_async_function());
     expression_scope()->RecordAsyncArrowParametersError(
         scanner()->peek_location(), MessageTemplate::kAwaitBindingIdentifier);
@@ -1681,7 +1736,7 @@ typename ParserBase<Impl>::IdentifierT
 ParserBase<Impl>::ParseAndClassifyIdentifier(Token::Value next) {
   // Updates made here must be reflected on ClassifyPropertyIdentifier.
   DCHECK_EQ(scanner()->current_token(), next);
-  if (V8_LIKELY(base::IsInRange(next, Token::IDENTIFIER, Token::ASYNC))) {
+  if (V8_LIKELY(base::IsInRange(next, Token::kIdentifier, Token::kAsync))) {
     IdentifierT name = impl()->GetIdentifier();
     if (V8_UNLIKELY(impl()->IsArguments(name) &&
                     scope()->ShouldBanArguments())) {
@@ -1698,7 +1753,7 @@ ParserBase<Impl>::ParseAndClassifyIdentifier(Token::Value next) {
     return impl()->EmptyIdentifierString();
   }
 
-  if (next == Token::AWAIT) {
+  if (next == Token::kAwait) {
     expression_scope()->RecordAsyncArrowParametersError(
         scanner()->location(), MessageTemplate::kAwaitBindingIdentifier);
     return impl()->GetIdentifier();
@@ -1744,7 +1799,7 @@ template <typename Impl>
 typename ParserBase<Impl>::IdentifierT ParserBase<Impl>::ParsePropertyName() {
   Token::Value next = Next();
   if (V8_LIKELY(Token::IsPropertyName(next))) {
-    if (peek() == Token::COLON) return impl()->GetSymbol();
+    if (peek() == Token::kColon) return impl()->GetSymbol();
     return impl()->GetIdentifier();
   }
 
@@ -1795,7 +1850,7 @@ ParserBase<Impl>::ParsePropertyOrPrivatePropertyName() {
   if (V8_LIKELY(Token::IsPropertyName(next))) {
     name = impl()->GetSymbol();
     key = factory()->NewStringLiteral(name, pos);
-  } else if (next == Token::PRIVATE_NAME) {
+  } else if (next == Token::kPrivateName) {
     // In the case of a top level function, we completely skip
     // analysing it's scope, meaning, we don't have a chance to
     // resolve private names and find that they are not enclosed in a
@@ -1902,9 +1957,9 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseBindingPattern() {
 
   CheckStackOverflow();
 
-  if (token == Token::LBRACK) {
+  if (token == Token::kLeftBracket) {
     result = ParseArrayLiteral();
-  } else if (token == Token::LBRACE) {
+  } else if (token == Token::kLeftBrace) {
     result = ParseObjectLiteral();
   } else {
     ReportUnexpectedToken(Next());
@@ -1944,21 +1999,21 @@ ParserBase<Impl>::ParsePrimaryExpression() {
 
     FunctionKind kind = FunctionKind::kArrowFunction;
 
-    if (V8_UNLIKELY(token == Token::ASYNC &&
+    if (V8_UNLIKELY(token == Token::kAsync &&
                     !scanner()->HasLineTerminatorBeforeNext() &&
                     !scanner()->literal_contains_escapes())) {
       // async function ...
-      if (peek() == Token::FUNCTION) return ParseAsyncFunctionLiteral();
+      if (peek() == Token::kFunction) return ParseAsyncFunctionLiteral();
 
       // async Identifier => ...
-      if (peek_any_identifier() && PeekAhead() == Token::ARROW) {
+      if (peek_any_identifier() && PeekAhead() == Token::kArrow) {
         token = Next();
         beg_pos = position();
         kind = FunctionKind::kAsyncArrowFunction;
       }
     }
 
-    if (V8_UNLIKELY(peek() == Token::ARROW)) {
+    if (V8_UNLIKELY(peek() == Token::kArrow)) {
       ArrowHeadParsingScope parsing_scope(impl(), kind);
       IdentifierT name = ParseAndClassifyIdentifier(token);
       ClassifyParameter(name, beg_pos, end_position());
@@ -1978,48 +2033,48 @@ ParserBase<Impl>::ParsePrimaryExpression() {
   }
 
   switch (token) {
-    case Token::NEW:
+    case Token::kNew:
       return ParseMemberWithPresentNewPrefixesExpression();
 
-    case Token::THIS: {
-      Consume(Token::THIS);
+    case Token::kThis: {
+      Consume(Token::kThis);
       // Not necessary for this.x, this.x(), this?.x and this?.x() to
       // store the source position for ThisExpression.
-      if (peek() == Token::PERIOD || peek() == Token::QUESTION_PERIOD) {
+      if (peek() == Token::kPeriod || peek() == Token::kQuestionPeriod) {
         return impl()->ThisExpression();
       }
       return impl()->NewThisExpression(beg_pos);
     }
 
-    case Token::ASSIGN_DIV:
-    case Token::DIV:
+    case Token::kAssignDiv:
+    case Token::kDiv:
       return ParseRegExpLiteral();
 
-    case Token::FUNCTION:
+    case Token::kFunction:
       return ParseFunctionExpression();
 
-    case Token::SUPER: {
+    case Token::kSuper: {
       return ParseSuperExpression();
     }
-    case Token::IMPORT:
+    case Token::kImport:
       return ParseImportExpressions();
 
-    case Token::LBRACK:
+    case Token::kLeftBracket:
       return ParseArrayLiteral();
 
-    case Token::LBRACE:
+    case Token::kLeftBrace:
       return ParseObjectLiteral();
 
-    case Token::LPAREN: {
-      Consume(Token::LPAREN);
+    case Token::kLeftParen: {
+      Consume(Token::kLeftParen);
 
-      if (Check(Token::RPAREN)) {
+      if (Check(Token::kRightParen)) {
         // clear last next_arrow_function_info tracked strict parameters error.
         next_arrow_function_info_.ClearStrictParameterError();
 
         // ()=>x.  The continuation that consumes the => is in
         // ParseAssignmentExpressionCoverGrammar.
-        if (peek() != Token::ARROW) ReportUnexpectedToken(Token::RPAREN);
+        if (peek() != Token::kArrow) ReportUnexpectedToken(Token::kRightParen);
         next_arrow_function_info_.scope =
             NewFunctionScope(FunctionKind::kArrowFunction);
         return factory()->NewEmptyParentheses(beg_pos);
@@ -2028,16 +2083,16 @@ ParserBase<Impl>::ParsePrimaryExpression() {
       ArrowHeadParsingScope maybe_arrow(impl(), FunctionKind::kArrowFunction);
       // Heuristically try to detect immediately called functions before
       // seeing the call parentheses.
-      if (peek() == Token::FUNCTION ||
-          (peek() == Token::ASYNC && PeekAhead() == Token::FUNCTION)) {
+      if (peek() == Token::kFunction ||
+          (peek() == Token::kAsync && PeekAhead() == Token::kFunction)) {
         function_state_->set_next_function_is_likely_called();
       }
       AcceptINScope scope(this, true);
       ExpressionT expr = ParseExpressionCoverGrammar();
       expr->mark_parenthesized();
-      Expect(Token::RPAREN);
+      Expect(Token::kRightParen);
 
-      if (peek() == Token::ARROW) {
+      if (peek() == Token::kArrow) {
         next_arrow_function_info_.scope = maybe_arrow.ValidateAndCreateScope();
         scope_snapshot.Reparent(next_arrow_function_info_.scope);
       } else {
@@ -2047,15 +2102,15 @@ ParserBase<Impl>::ParsePrimaryExpression() {
       return expr;
     }
 
-    case Token::CLASS: {
+    case Token::kClass: {
       return ParseClassExpression(scope());
     }
 
-    case Token::TEMPLATE_SPAN:
-    case Token::TEMPLATE_TAIL:
+    case Token::kTemplateSpan:
+    case Token::kTemplateTail:
       return ParseTemplateLiteral(impl()->NullExpression(), beg_pos, false);
 
-    case Token::MOD:
+    case Token::kMod:
       if (flags().allow_natives_syntax() || impl()->ParsingExtension()) {
         return ParseV8Intrinsic();
       }
@@ -2074,6 +2129,15 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseExpression() {
   ExpressionParsingScope expression_scope(impl());
   AcceptINScope scope(this, true);
   ExpressionT result = ParseExpressionCoverGrammar();
+  expression_scope.ValidateExpression();
+  return result;
+}
+
+template <typename Impl>
+typename ParserBase<Impl>::ExpressionT
+ParserBase<Impl>::ParseConditionalChainAssignmentExpression() {
+  ExpressionParsingScope expression_scope(impl());
+  ExpressionT result = ParseConditionalChainAssignmentExpressionCoverGrammar();
   expression_scope.ValidateExpression();
   return result;
 }
@@ -2099,7 +2163,7 @@ ParserBase<Impl>::ParseExpressionCoverGrammar() {
   AccumulationScope accumulation_scope(expression_scope());
   int variable_index = 0;
   while (true) {
-    if (V8_UNLIKELY(peek() == Token::ELLIPSIS)) {
+    if (V8_UNLIKELY(peek() == Token::kEllipsis)) {
       return ParseArrowParametersWithRest(&list, &accumulation_scope,
                                           variable_index);
     }
@@ -2113,16 +2177,16 @@ ParserBase<Impl>::ParseExpressionCoverGrammar() {
     variable_index =
         expression_scope()->SetInitializers(variable_index, peek_position());
 
-    if (!Check(Token::COMMA)) break;
+    if (!Check(Token::kComma)) break;
 
-    if (peek() == Token::RPAREN && PeekAhead() == Token::ARROW) {
+    if (peek() == Token::kRightParen && PeekAhead() == Token::kArrow) {
       // a trailing comma is allowed at the end of an arrow parameter list
       break;
     }
 
     // Pass on the 'set_next_function_is_likely_called' flag if we have
     // several function literals separated by comma.
-    if (peek() == Token::FUNCTION &&
+    if (peek() == Token::kFunction &&
         function_state_->previous_function_was_likely_called()) {
       function_state_->set_next_function_is_likely_called();
     }
@@ -2141,7 +2205,7 @@ typename ParserBase<Impl>::ExpressionT
 ParserBase<Impl>::ParseArrowParametersWithRest(
     typename ParserBase<Impl>::ExpressionListT* list,
     AccumulationScope* accumulation_scope, int seen_variables) {
-  Consume(Token::ELLIPSIS);
+  Consume(Token::kEllipsis);
 
   Scanner::Location ellipsis = scanner()->location();
   int pattern_pos = peek_position();
@@ -2150,14 +2214,14 @@ ParserBase<Impl>::ParseArrowParametersWithRest(
 
   expression_scope()->RecordNonSimpleParameter();
 
-  if (V8_UNLIKELY(peek() == Token::ASSIGN)) {
+  if (V8_UNLIKELY(peek() == Token::kAssign)) {
     ReportMessage(MessageTemplate::kRestDefaultInitializer);
     return impl()->FailureExpression();
   }
 
   ExpressionT spread =
       factory()->NewSpread(pattern, ellipsis.beg_pos, pattern_pos);
-  if (V8_UNLIKELY(peek() == Token::COMMA)) {
+  if (V8_UNLIKELY(peek() == Token::kComma)) {
     ReportMessage(MessageTemplate::kParamAfterRest);
     return impl()->FailureExpression();
   }
@@ -2167,8 +2231,8 @@ ParserBase<Impl>::ParseArrowParametersWithRest(
   // 'x, y, ...z' in CoverParenthesizedExpressionAndArrowParameterList only
   // as the formal parameters of'(x, y, ...z) => foo', and is not itself a
   // valid expression.
-  if (peek() != Token::RPAREN || PeekAhead() != Token::ARROW) {
-    impl()->ReportUnexpectedTokenAt(ellipsis, Token::ELLIPSIS);
+  if (peek() != Token::kRightParen || PeekAhead() != Token::kArrow) {
+    impl()->ReportUnexpectedTokenAt(ellipsis, Token::kEllipsis);
     return impl()->FailureExpression();
   }
 
@@ -2184,15 +2248,15 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseArrayLiteral() {
   int pos = peek_position();
   ExpressionListT values(pointer_buffer());
   int first_spread_index = -1;
-  Consume(Token::LBRACK);
+  Consume(Token::kLeftBracket);
 
   AccumulationScope accumulation_scope(expression_scope());
 
-  while (!Check(Token::RBRACK)) {
+  while (!Check(Token::kRightBracket)) {
     ExpressionT elem;
-    if (peek() == Token::COMMA) {
+    if (peek() == Token::kComma) {
       elem = factory()->NewTheHoleLiteral();
-    } else if (Check(Token::ELLIPSIS)) {
+    } else if (Check(Token::kEllipsis)) {
       int start_pos = position();
       int expr_pos = peek_position();
       AcceptINScope scope(this, true);
@@ -2210,7 +2274,7 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseArrayLiteral() {
             MessageTemplate::kInvalidDestructuringTarget);
       }
 
-      if (peek() == Token::COMMA) {
+      if (peek() == Token::kComma) {
         expression_scope()->RecordPatternError(
             Scanner::Location(start_pos, end_position()),
             MessageTemplate::kElementAfterRest);
@@ -2220,8 +2284,8 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseArrayLiteral() {
       elem = ParsePossibleDestructuringSubPattern(&accumulation_scope);
     }
     values.Add(elem);
-    if (peek() != Token::RBRACK) {
-      Expect(Token::COMMA);
+    if (peek() != Token::kRightBracket) {
+      Expect(Token::kComma);
       if (elem->IsFailureExpression()) return elem;
     }
   }
@@ -2236,28 +2300,29 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseProperty(
   DCHECK_EQ(prop_info->function_flags, ParseFunctionFlag::kIsNormal);
   DCHECK(!prop_info->is_computed_name);
 
-  if (Check(Token::ASYNC)) {
+  if (Check(Token::kAsync)) {
     Token::Value token = peek();
-    if ((token != Token::MUL && prop_info->ParsePropertyKindFromToken(token)) ||
+    if ((token != Token::kMul &&
+         prop_info->ParsePropertyKindFromToken(token)) ||
         scanner()->HasLineTerminatorBeforeNext()) {
       prop_info->name = impl()->GetIdentifier();
       impl()->PushLiteralName(prop_info->name);
       return factory()->NewStringLiteral(prop_info->name, position());
     }
     if (V8_UNLIKELY(scanner()->literal_contains_escapes())) {
-      impl()->ReportUnexpectedToken(Token::ESCAPED_KEYWORD);
+      impl()->ReportUnexpectedToken(Token::kEscapedKeyword);
     }
     prop_info->function_flags = ParseFunctionFlag::kIsAsync;
     prop_info->kind = ParsePropertyKind::kMethod;
   }
 
-  if (Check(Token::MUL)) {
+  if (Check(Token::kMul)) {
     prop_info->function_flags |= ParseFunctionFlag::kIsGenerator;
     prop_info->kind = ParsePropertyKind::kMethod;
   }
 
   if (prop_info->kind == ParsePropertyKind::kNotSet &&
-      base::IsInRange(peek(), Token::GET, Token::SET)) {
+      base::IsInRange(peek(), Token::kGet, Token::kSet)) {
     Token::Value token = Next();
     if (prop_info->ParsePropertyKindFromToken(peek())) {
       prop_info->name = impl()->GetIdentifier();
@@ -2265,11 +2330,11 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseProperty(
       return factory()->NewStringLiteral(prop_info->name, position());
     }
     if (V8_UNLIKELY(scanner()->literal_contains_escapes())) {
-      impl()->ReportUnexpectedToken(Token::ESCAPED_KEYWORD);
+      impl()->ReportUnexpectedToken(Token::kEscapedKeyword);
     }
-    if (token == Token::GET) {
+    if (token == Token::kGet) {
       prop_info->kind = ParsePropertyKind::kAccessorGetter;
-    } else if (token == Token::SET) {
+    } else if (token == Token::kSet) {
       prop_info->kind = ParsePropertyKind::kAccessorSetter;
     }
   }
@@ -2288,68 +2353,68 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseProperty(
   bool is_array_index;
   uint32_t index;
   switch (peek()) {
-    case Token::PRIVATE_NAME:
+    case Token::kPrivateName:
       prop_info->is_private = true;
       is_array_index = false;
-      Consume(Token::PRIVATE_NAME);
+      Consume(Token::kPrivateName);
       if (prop_info->kind == ParsePropertyKind::kNotSet) {
         prop_info->ParsePropertyKindFromToken(peek());
       }
       prop_info->name = impl()->GetIdentifier();
       if (V8_UNLIKELY(prop_info->position ==
                       PropertyPosition::kObjectLiteral)) {
-        ReportUnexpectedToken(Token::PRIVATE_NAME);
+        ReportUnexpectedToken(Token::kPrivateName);
         prop_info->kind = ParsePropertyKind::kNotSet;
         return impl()->FailureExpression();
       }
       break;
 
-    case Token::STRING:
-      Consume(Token::STRING);
-      prop_info->name = peek() == Token::COLON ? impl()->GetSymbol()
-                                               : impl()->GetIdentifier();
+    case Token::kString:
+      Consume(Token::kString);
+      prop_info->name = peek() == Token::kColon ? impl()->GetSymbol()
+                                                : impl()->GetIdentifier();
       is_array_index = impl()->IsArrayIndex(prop_info->name, &index);
       break;
 
-    case Token::SMI:
-      Consume(Token::SMI);
+    case Token::kSmi:
+      Consume(Token::kSmi);
       index = scanner()->smi_value();
       is_array_index = true;
-      // Token::SMI were scanned from their canonical representation.
+      // Token::kSmi were scanned from their canonical representation.
       prop_info->name = impl()->GetSymbol();
       break;
 
-    case Token::NUMBER: {
-      Consume(Token::NUMBER);
+    case Token::kNumber: {
+      Consume(Token::kNumber);
       prop_info->name = impl()->GetNumberAsSymbol();
       is_array_index = impl()->IsArrayIndex(prop_info->name, &index);
       break;
     }
 
-    case Token::BIGINT: {
-      Consume(Token::BIGINT);
+    case Token::kBigInt: {
+      Consume(Token::kBigInt);
       prop_info->name = impl()->GetBigIntAsSymbol();
       is_array_index = impl()->IsArrayIndex(prop_info->name, &index);
       break;
     }
 
-    case Token::LBRACK: {
+    case Token::kLeftBracket: {
       prop_info->name = impl()->NullIdentifier();
       prop_info->is_computed_name = true;
-      Consume(Token::LBRACK);
+      Consume(Token::kLeftBracket);
       AcceptINScope scope(this, true);
       ExpressionT expression = ParseAssignmentExpression();
-      Expect(Token::RBRACK);
+      Expect(Token::kRightBracket);
       if (prop_info->kind == ParsePropertyKind::kNotSet) {
         prop_info->ParsePropertyKindFromToken(peek());
       }
       return expression;
     }
 
-    case Token::ELLIPSIS:
+    case Token::kEllipsis:
       if (prop_info->kind == ParsePropertyKind::kNotSet) {
         prop_info->name = impl()->NullIdentifier();
-        Consume(Token::ELLIPSIS);
+        Consume(Token::kEllipsis);
         AcceptINScope scope(this, true);
         int start_pos = peek_position();
         ExpressionT expression =
@@ -2365,13 +2430,13 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseProperty(
               MessageTemplate::kInvalidRestAssignmentPattern);
         }
 
-        if (peek() != Token::RBRACE) {
+        if (peek() != Token::kRightBrace) {
           expression_scope()->RecordPatternError(
               scanner()->location(), MessageTemplate::kElementAfterRest);
         }
         return expression;
       }
-      V8_FALLTHROUGH;
+      [[fallthrough]];
 
     default:
       prop_info->name = ParsePropertyName();
@@ -2399,17 +2464,17 @@ ParserBase<Impl>::ParseClassPropertyDefinition(ClassInfo* class_info,
   int property_beg_pos = scanner()->peek_location().beg_pos;
   int name_token_position = property_beg_pos;
   ExpressionT name_expression;
-  if (name_token == Token::STATIC) {
-    Consume(Token::STATIC);
+  if (name_token == Token::kStatic) {
+    Consume(Token::kStatic);
     name_token_position = scanner()->peek_location().beg_pos;
-    if (peek() == Token::LPAREN) {
+    if (peek() == Token::kLeftParen) {
       prop_info->kind = ParsePropertyKind::kMethod;
       // TODO(bakkot) specialize on 'static'
       prop_info->name = impl()->GetIdentifier();
       name_expression =
           factory()->NewStringLiteral(prop_info->name, position());
-    } else if (peek() == Token::ASSIGN || peek() == Token::SEMICOLON ||
-               peek() == Token::RBRACE) {
+    } else if (peek() == Token::kAssign || peek() == Token::kSemicolon ||
+               peek() == Token::kRightBrace) {
       // TODO(bakkot) specialize on 'static'
       prop_info->name = impl()->GetIdentifier();
       name_expression =
@@ -2560,7 +2625,7 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseMemberInitializer(
   }
 
   ExpressionT initializer;
-  if (Check(Token::ASSIGN)) {
+  if (Check(Token::kAssign)) {
     FunctionState initializer_state(&function_state_, &scope_,
                                     initializer_scope);
 
@@ -2585,7 +2650,7 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseMemberInitializer(
 template <typename Impl>
 typename ParserBase<Impl>::BlockT ParserBase<Impl>::ParseClassStaticBlock(
     ClassInfo* class_info) {
-  Consume(Token::STATIC);
+  Consume(Token::kStatic);
 
   DeclarationScope* initializer_scope = class_info->static_elements_scope;
   if (initializer_scope == nullptr) {
@@ -2596,6 +2661,7 @@ typename ParserBase<Impl>::BlockT ParserBase<Impl>::ParseClassStaticBlock(
   }
 
   FunctionState initializer_state(&function_state_, &scope_, initializer_scope);
+  FunctionParsingScope body_parsing_scope(impl());
   AcceptINScope accept_in(this, true);
 
   // Each static block has its own var and lexical scope, so make a new var
@@ -2616,7 +2682,7 @@ ParserBase<Impl>::ParseObjectPropertyDefinition(ParsePropertyInfo* prop_info,
 
   ExpressionT name_expression = ParseProperty(prop_info);
 
-  DCHECK_IMPLIES(name_token == Token::PRIVATE_NAME, has_error());
+  DCHECK_IMPLIES(name_token == Token::kPrivateName, has_error());
 
   IdentifierT name = prop_info->name;
   ParseFunctionFlags function_flags = prop_info->function_flags;
@@ -2625,7 +2691,7 @@ ParserBase<Impl>::ParseObjectPropertyDefinition(ParsePropertyInfo* prop_info,
     case ParsePropertyKind::kSpread:
       DCHECK_EQ(function_flags, ParseFunctionFlag::kIsNormal);
       DCHECK(!prop_info->is_computed_name);
-      DCHECK_EQ(Token::ELLIPSIS, name_token);
+      DCHECK_EQ(Token::kEllipsis, name_token);
 
       prop_info->is_computed_name = true;
       prop_info->is_rest = true;
@@ -2645,7 +2711,7 @@ ParserBase<Impl>::ParseObjectPropertyDefinition(ParsePropertyInfo* prop_info,
         }
         *has_seen_proto = true;
       }
-      Consume(Token::COLON);
+      Consume(Token::kColon);
       AcceptINScope scope(this, true);
       ExpressionT value =
           ParsePossibleDestructuringSubPattern(prop_info->accumulation_scope);
@@ -2679,12 +2745,12 @@ ParserBase<Impl>::ParseObjectPropertyDefinition(ParsePropertyInfo* prop_info,
       }
 
       ExpressionT value;
-      if (peek() == Token::ASSIGN) {
-        Consume(Token::ASSIGN);
+      if (peek() == Token::kAssign) {
+        Consume(Token::kAssign);
         {
           AcceptINScope scope(this, true);
           ExpressionT rhs = ParseAssignmentExpression();
-          value = factory()->NewAssignment(Token::ASSIGN, lhs, rhs,
+          value = factory()->NewAssignment(Token::kAssign, lhs, rhs,
                                            kNoSourcePosition);
           impl()->SetFunctionNameFromIdentifierRef(rhs, lhs);
         }
@@ -2794,7 +2860,7 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseObjectLiteral() {
   bool has_rest_property = false;
   bool has_seen_proto = false;
 
-  Consume(Token::LBRACE);
+  Consume(Token::kLeftBrace);
   AccumulationScope accumulation_scope(expression_scope());
 
   // If methods appear inside the object literal, we'll enter this scope.
@@ -2802,7 +2868,7 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseObjectLiteral() {
   block_scope->set_start_position(pos);
   BlockState object_literal_scope_state(&object_literal_scope_, block_scope);
 
-  while (!Check(Token::RBRACE)) {
+  while (!Check(Token::kRightBrace)) {
     FuncNameInferrerState fni_state(&fni_);
 
     ParsePropertyInfo prop_info(this, &accumulation_scope);
@@ -2827,8 +2893,8 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseObjectLiteral() {
 
     properties.Add(property);
 
-    if (peek() != Token::RBRACE) {
-      Expect(Token::COMMA);
+    if (peek() != Token::kRightBrace) {
+      Expect(Token::kComma);
     }
 
     fni_.Infer();
@@ -2866,13 +2932,13 @@ void ParserBase<Impl>::ParseArguments(
   //   '(' (AssignmentExpression)*[','] ')'
 
   *has_spread = false;
-  Consume(Token::LPAREN);
+  Consume(Token::kLeftParen);
   AccumulationScope accumulation_scope(expression_scope());
 
   int variable_index = 0;
-  while (peek() != Token::RPAREN) {
+  while (peek() != Token::kRightParen) {
     int start_pos = peek_position();
-    bool is_spread = Check(Token::ELLIPSIS);
+    bool is_spread = Check(Token::kEllipsis);
     int expr_pos = peek_position();
 
     AcceptINScope scope(this, true);
@@ -2886,7 +2952,7 @@ void ParserBase<Impl>::ParseArguments(
           expression_scope()->RecordAsyncArrowParametersError(
               scanner()->location(), MessageTemplate::kRestDefaultInitializer);
         }
-        if (peek() == Token::COMMA) {
+        if (peek() == Token::kComma) {
           expression_scope()->RecordAsyncArrowParametersError(
               scanner()->peek_location(), MessageTemplate::kParamAfterRest);
         }
@@ -2901,7 +2967,7 @@ void ParserBase<Impl>::ParseArguments(
     variable_index =
         expression_scope()->SetInitializers(variable_index, peek_position());
 
-    if (!Check(Token::COMMA)) break;
+    if (!Check(Token::kComma)) break;
   }
 
   if (args->length() > Code::kMaxArguments) {
@@ -2910,9 +2976,37 @@ void ParserBase<Impl>::ParseArguments(
   }
 
   Scanner::Location location = scanner_->location();
-  if (!Check(Token::RPAREN)) {
+  if (!Check(Token::kRightParen)) {
     impl()->ReportMessageAt(location, MessageTemplate::kUnterminatedArgList);
   }
+}
+
+template <typename Impl>
+typename ParserBase<Impl>::ExpressionT
+ParserBase<Impl>::ParseConditionalChainAssignmentExpressionCoverGrammar() {
+  // AssignmentExpression ::
+  //   ArrowFunction
+  //   YieldExpression
+  //   LeftHandSideExpression AssignmentOperator AssignmentExpression
+  int lhs_beg_pos = peek_position();
+
+  if (peek() == Token::kYield && is_generator()) {
+    return ParseYieldExpression();
+  }
+
+  FuncNameInferrerState fni_state(&fni_);
+
+  DCHECK_IMPLIES(!has_error(), next_arrow_function_info_.HasInitialState());
+
+  ExpressionT expression = ParseLogicalExpression();
+
+  Token::Value op = peek();
+
+  if (!Token::IsArrowOrAssignmentOp(op) || peek() == Token::kConditional)
+    return expression;
+
+  return ParseAssignmentExpressionCoverGrammarContinuation(lhs_beg_pos,
+                                                           expression);
 }
 
 // Precedence = 2
@@ -2926,7 +3020,7 @@ ParserBase<Impl>::ParseAssignmentExpressionCoverGrammar() {
   //   LeftHandSideExpression AssignmentOperator AssignmentExpression
   int lhs_beg_pos = peek_position();
 
-  if (peek() == Token::YIELD && is_generator()) {
+  if (peek() == Token::kYield && is_generator()) {
     return ParseYieldExpression();
   }
 
@@ -2940,8 +3034,24 @@ ParserBase<Impl>::ParseAssignmentExpressionCoverGrammar() {
 
   if (!Token::IsArrowOrAssignmentOp(op)) return expression;
 
+  return ParseAssignmentExpressionCoverGrammarContinuation(lhs_beg_pos,
+                                                           expression);
+}
+
+// Precedence = 2
+template <typename Impl>
+typename ParserBase<Impl>::ExpressionT
+ParserBase<Impl>::ParseAssignmentExpressionCoverGrammarContinuation(
+    int lhs_beg_pos, ExpressionT expression) {
+  // AssignmentExpression ::
+  //   ConditionalExpression
+  //   ArrowFunction
+  //   YieldExpression
+  //   LeftHandSideExpression AssignmentOperator AssignmentExpression
+  Token::Value op = peek();
+
   // Arrow functions.
-  if (V8_UNLIKELY(op == Token::ARROW)) {
+  if (V8_UNLIKELY(op == Token::kArrow)) {
     Scanner::Location loc(lhs_beg_pos, end_position());
 
     if (!impl()->IsIdentifier(expression) && !expression->is_parenthesized()) {
@@ -2980,7 +3090,7 @@ ParserBase<Impl>::ParseAssignmentExpressionCoverGrammar() {
         Scanner::Location(lhs_beg_pos, end_position()),
         MessageTemplate::kInvalidPropertyBindingPattern);
     expression_scope()->ValidateAsExpression();
-  } else if (expression->IsPattern() && op == Token::ASSIGN) {
+  } else if (expression->IsPattern() && op == Token::kAssign) {
     // Destructuring assignmment.
     if (expression->is_parenthesized()) {
       Scanner::Location loc(lhs_beg_pos, end_position());
@@ -3013,7 +3123,7 @@ ParserBase<Impl>::ParseAssignmentExpressionCoverGrammar() {
   ExpressionT right = ParseAssignmentExpression();
 
   // Anonymous function name inference applies to =, ||=, &&=, and ??=.
-  if (op == Token::ASSIGN || Token::IsLogicalAssignmentOp(op)) {
+  if (op == Token::kAssign || Token::IsLogicalAssignmentOp(op)) {
     impl()->CheckAssigningFunctionLiteralToProperty(expression, right);
 
     // Check if the right hand side is a call to avoid inferring a
@@ -3030,7 +3140,7 @@ ParserBase<Impl>::ParseAssignmentExpressionCoverGrammar() {
     fni_.RemoveLastFunction();
   }
 
-  if (op == Token::ASSIGN) {
+  if (op == Token::kAssign) {
     // We try to estimate the set of properties set by constructors. We define a
     // new property whenever there is an assignment to a property of 'this'. We
     // should probably only add properties if we haven't seen them before.
@@ -3054,9 +3164,9 @@ ParserBase<Impl>::ParseYieldExpression() {
   int pos = peek_position();
   expression_scope()->RecordParameterInitializerError(
       scanner()->peek_location(), MessageTemplate::kYieldInParameter);
-  Consume(Token::YIELD);
+  Consume(Token::kYield);
   if (V8_UNLIKELY(scanner()->literal_contains_escapes())) {
-    impl()->ReportUnexpectedToken(Token::ESCAPED_KEYWORD);
+    impl()->ReportUnexpectedToken(Token::kEscapedKeyword);
   }
 
   CheckStackOverflow();
@@ -3065,23 +3175,23 @@ ParserBase<Impl>::ParseYieldExpression() {
   ExpressionT expression = impl()->NullExpression();
   bool delegating = false;  // yield*
   if (!scanner()->HasLineTerminatorBeforeNext()) {
-    if (Check(Token::MUL)) delegating = true;
+    if (Check(Token::kMul)) delegating = true;
     switch (peek()) {
-      case Token::EOS:
-      case Token::SEMICOLON:
-      case Token::RBRACE:
-      case Token::RBRACK:
-      case Token::RPAREN:
-      case Token::COLON:
-      case Token::COMMA:
-      case Token::IN:
+      case Token::kEos:
+      case Token::kSemicolon:
+      case Token::kRightBrace:
+      case Token::kRightBracket:
+      case Token::kRightParen:
+      case Token::kColon:
+      case Token::kComma:
+      case Token::kIn:
         // The above set of tokens is the complete set of tokens that can appear
         // after an AssignmentExpression, and none of them can start an
         // AssignmentExpression.  This allows us to avoid looking for an RHS for
         // a regular yield, given only one look-ahead token.
         if (!delegating) break;
         // Delegating yields require an RHS; fall through.
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       default:
         expression = ParseAssignmentExpressionCoverGrammar();
         break;
@@ -3120,8 +3230,8 @@ ParserBase<Impl>::ParseConditionalExpression() {
   //
   int pos = peek_position();
   ExpressionT expression = ParseLogicalExpression();
-  return peek() == Token::CONDITIONAL
-             ? ParseConditionalContinuation(expression, pos)
+  return peek() == Token::kConditional
+             ? ParseConditionalChainExpression(expression, pos)
              : expression;
 }
 
@@ -3135,11 +3245,11 @@ ParserBase<Impl>::ParseLogicalExpression() {
   // Both LogicalORExpression and CoalesceExpression start with BitwiseOR.
   // Parse for binary expressions >= 6 (BitwiseOR);
   ExpressionT expression = ParseBinaryExpression(6);
-  if (peek() == Token::AND || peek() == Token::OR) {
+  if (peek() == Token::kAnd || peek() == Token::kOr) {
     // LogicalORExpression, pickup parsing where we left off.
     int prec1 = Token::Precedence(peek(), accept_IN_);
     expression = ParseBinaryContinuation(expression, 4, prec1);
-  } else if (V8_UNLIKELY(peek() == Token::NULLISH)) {
+  } else if (V8_UNLIKELY(peek() == Token::kNullish)) {
     expression = ParseCoalesceExpression(expression);
   }
   return expression;
@@ -3158,28 +3268,109 @@ ParserBase<Impl>::ParseCoalesceExpression(ExpressionT expression) {
   // We create a binary operation for the first nullish, otherwise collapse
   // into an nary expresion.
   bool first_nullish = true;
-  while (peek() == Token::NULLISH) {
+  while (peek() == Token::kNullish) {
     SourceRange right_range;
     int pos;
     ExpressionT y;
     {
       SourceRangeScope right_range_scope(scanner(), &right_range);
-      Consume(Token::NULLISH);
+      Consume(Token::kNullish);
       pos = peek_position();
       // Parse BitwiseOR or higher.
       y = ParseBinaryExpression(6);
     }
     if (first_nullish) {
       expression =
-          factory()->NewBinaryOperation(Token::NULLISH, expression, y, pos);
+          factory()->NewBinaryOperation(Token::kNullish, expression, y, pos);
       impl()->RecordBinaryOperationSourceRange(expression, right_range);
       first_nullish = false;
     } else {
-      impl()->CollapseNaryExpression(&expression, y, Token::NULLISH, pos,
+      impl()->CollapseNaryExpression(&expression, y, Token::kNullish, pos,
                                      right_range);
     }
   }
   return expression;
+}
+
+template <typename Impl>
+typename ParserBase<Impl>::ExpressionT
+ParserBase<Impl>::ParseConditionalChainExpression(ExpressionT condition,
+                                                  int condition_pos) {
+  // ConditionalChainExpression ::
+  // ConditionalExpression_1 ? AssignmentExpression_1 :
+  // ConditionalExpression_2 ? AssignmentExpression_2 :
+  // ConditionalExpression_3 ? AssignmentExpression_3 :
+  // ...
+  // ConditionalExpression_n ? AssignmentExpression_n
+
+  ExpressionT expr = impl()->NullExpression();
+  ExpressionT else_expression = impl()->NullExpression();
+  bool else_found = false;
+  ZoneVector<int> else_ranges_beg_pos(impl()->zone());
+  do {
+    SourceRange then_range;
+    ExpressionT then_expression;
+    {
+      SourceRangeScope range_scope(scanner(), &then_range);
+      Consume(Token::kConditional);
+      // In parsing the first assignment expression in conditional
+      // expressions we always accept the 'in' keyword; see ECMA-262,
+      // section 11.12, page 58.
+      AcceptINScope scope(this, true);
+      then_expression = ParseAssignmentExpression();
+    }
+
+    else_ranges_beg_pos.emplace_back(scanner()->peek_location().beg_pos);
+    int condition_or_else_pos = peek_position();
+    SourceRange condition_or_else_range = SourceRange();
+    ExpressionT condition_or_else_expression;
+    {
+      SourceRangeScope condition_or_else_range_scope(scanner(),
+                                                     &condition_or_else_range);
+      Expect(Token::kColon);
+      condition_or_else_expression =
+          ParseConditionalChainAssignmentExpression();
+    }
+
+    else_found = (peek() != Token::kConditional);
+
+    if (else_found) {
+      else_expression = condition_or_else_expression;
+
+      if (impl()->IsNull(expr)) {
+        // When we have a single conditional expression, we don't create a
+        // conditional chain expression. Instead, we just return a conditional
+        // expression.
+        SourceRange else_range = condition_or_else_range;
+        expr = factory()->NewConditional(condition, then_expression,
+                                         else_expression, condition_pos);
+        impl()->RecordConditionalSourceRange(expr, then_range, else_range);
+        return expr;
+      }
+    }
+
+    if (impl()->IsNull(expr)) {
+      // For the first conditional expression, we create a conditional chain.
+      expr = factory()->NewConditionalChain(1, condition_pos);
+    }
+
+    impl()->CollapseConditionalChain(&expr, condition, then_expression,
+                                     else_expression, condition_pos,
+                                     then_range);
+
+    if (!else_found) {
+      condition = condition_or_else_expression;
+      condition_pos = condition_or_else_pos;
+    }
+  } while (!else_found);
+
+  int end_pos = scanner()->location().end_pos;
+  for (const auto& else_range_beg_pos : else_ranges_beg_pos) {
+    impl()->AppendConditionalChainElse(
+        &expr, SourceRange(else_range_beg_pos, end_pos));
+  }
+
+  return expr;
 }
 
 template <typename Impl>
@@ -3191,7 +3382,7 @@ ParserBase<Impl>::ParseConditionalContinuation(ExpressionT expression,
   ExpressionT left;
   {
     SourceRangeScope range_scope(scanner(), &then_range);
-    Consume(Token::CONDITIONAL);
+    Consume(Token::kConditional);
     // In parsing the first assignment expression in conditional
     // expressions we always accept the 'in' keyword; see ECMA-262,
     // section 11.12, page 58.
@@ -3201,7 +3392,7 @@ ParserBase<Impl>::ParseConditionalContinuation(ExpressionT expression,
   ExpressionT right;
   {
     SourceRangeScope range_scope(scanner(), &else_range);
-    Expect(Token::COLON);
+    Expect(Token::kColon);
     right = ParseAssignmentExpression();
   }
   ExpressionT expr = factory()->NewConditional(expression, left, right, pos);
@@ -3224,7 +3415,7 @@ ParserBase<Impl>::ParseBinaryContinuation(ExpressionT x, int prec, int prec1) {
         SourceRangeScope right_range_scope(scanner(), &right_range);
         op = Next();
 
-        const bool is_right_associative = op == Token::EXP;
+        const bool is_right_associative = op == Token::kExp;
         const int next_prec = is_right_associative ? prec1 : prec1 + 1;
         y = ParseBinaryExpression(next_prec);
       }
@@ -3236,21 +3427,25 @@ ParserBase<Impl>::ParseBinaryContinuation(ExpressionT x, int prec, int prec1) {
         // We have a comparison.
         Token::Value cmp = op;
         switch (op) {
-          case Token::NE: cmp = Token::EQ; break;
-          case Token::NE_STRICT: cmp = Token::EQ_STRICT; break;
+          case Token::kNotEq:
+            cmp = Token::kEq;
+            break;
+          case Token::kNotEqStrict:
+            cmp = Token::kEqStrict;
+            break;
           default: break;
         }
         x = factory()->NewCompareOperation(cmp, x, y, pos);
         if (cmp != op) {
-          // The comparison was negated - add a NOT.
-          x = factory()->NewUnaryOperation(Token::NOT, x, pos);
+          // The comparison was negated - add a kNot.
+          x = factory()->NewUnaryOperation(Token::kNot, x, pos);
         }
       } else if (!impl()->ShortcutNumericLiteralBinaryExpression(&x, y, op,
                                                                  pos) &&
                  !impl()->CollapseNaryExpression(&x, y, op, pos, right_range)) {
         // We have a "normal" binary operation.
         x = factory()->NewBinaryOperation(op, x, y, pos);
-        if (op == Token::OR || op == Token::AND) {
+        if (op == Token::kOr || op == Token::kAnd) {
           impl()->RecordBinaryOperationSourceRange(x, right_range);
         }
       }
@@ -3269,11 +3464,11 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseBinaryExpression(
 
   // "#foo in ShiftExpression" needs to be parsed separately, since private
   // identifiers are not valid PrimaryExpressions.
-  if (V8_UNLIKELY(peek() == Token::PRIVATE_NAME)) {
+  if (V8_UNLIKELY(peek() == Token::kPrivateName)) {
     ExpressionT x = ParsePropertyOrPrivatePropertyName();
     int prec1 = Token::Precedence(peek(), accept_IN_);
-    if (peek() != Token::IN || prec1 < prec) {
-      ReportUnexpectedToken(Token::PRIVATE_NAME);
+    if (peek() != Token::kIn || prec1 < prec) {
+      ReportUnexpectedToken(Token::kPrivateName);
       return impl()->FailureExpression();
     }
     return ParseBinaryContinuation(x, prec, prec1);
@@ -3294,7 +3489,7 @@ ParserBase<Impl>::ParseUnaryOrPrefixExpression() {
   int pos = position();
 
   // Assume "! function ..." indicates the function is likely to be called.
-  if (op == Token::NOT && peek() == Token::FUNCTION) {
+  if (op == Token::kNot && peek() == Token::kFunction) {
     function_state_->set_next_function_is_likely_called();
   }
 
@@ -3304,7 +3499,7 @@ ParserBase<Impl>::ParseUnaryOrPrefixExpression() {
   ExpressionT expression = ParseUnaryExpression();
 
   if (Token::IsUnaryOp(op)) {
-    if (op == Token::DELETE) {
+    if (op == Token::kDelete) {
       if (impl()->IsIdentifier(expression) && is_strict(language_mode())) {
         // "delete identifier" is a syntax error in strict mode.
         ReportMessage(MessageTemplate::kStrictDelete);
@@ -3317,7 +3512,7 @@ ParserBase<Impl>::ParseUnaryOrPrefixExpression() {
       }
     }
 
-    if (peek() == Token::EXP) {
+    if (peek() == Token::kExp) {
       impl()->ReportMessageAt(
           Scanner::Location(pos, peek_end_position()),
           MessageTemplate::kUnexpectedTokenUnaryExponentiation);
@@ -3352,9 +3547,9 @@ ParserBase<Impl>::ParseAwaitExpression() {
       scanner()->peek_location(),
       MessageTemplate::kAwaitExpressionFormalParameter);
   int await_pos = peek_position();
-  Consume(Token::AWAIT);
+  Consume(Token::kAwait);
   if (V8_UNLIKELY(scanner()->literal_contains_escapes())) {
-    impl()->ReportUnexpectedToken(Token::ESCAPED_KEYWORD);
+    impl()->ReportUnexpectedToken(Token::kEscapedKeyword);
   }
 
   CheckStackOverflow();
@@ -3363,7 +3558,7 @@ ParserBase<Impl>::ParseAwaitExpression() {
 
   // 'await' is a unary operator according to the spec, even though it's treated
   // specially in the parser.
-  if (peek() == Token::EXP) {
+  if (peek() == Token::kExp) {
     impl()->ReportMessageAt(
         Scanner::Location(await_pos, peek_end_position()),
         MessageTemplate::kUnexpectedTokenUnaryExponentiation);
@@ -3394,7 +3589,7 @@ ParserBase<Impl>::ParseUnaryExpression() {
 
   Token::Value op = peek();
   if (Token::IsUnaryOrCountOp(op)) return ParseUnaryOrPrefixExpression();
-  if (is_await_allowed() && op == Token::AWAIT) {
+  if (is_await_allowed() && op == Token::kAwait) {
     return ParseAwaitExpression();
   }
   return ParsePostfixExpression();
@@ -3450,8 +3645,8 @@ typename ParserBase<Impl>::ExpressionT
 ParserBase<Impl>::ParseLeftHandSideContinuation(ExpressionT result) {
   DCHECK(Token::IsPropertyOrCall(peek()));
 
-  if (V8_UNLIKELY(peek() == Token::LPAREN && impl()->IsIdentifier(result) &&
-                  scanner()->current_token() == Token::ASYNC &&
+  if (V8_UNLIKELY(peek() == Token::kLeftParen && impl()->IsIdentifier(result) &&
+                  scanner()->current_token() == Token::kAsync &&
                   !scanner()->HasLineTerminatorBeforeNext() &&
                   !scanner()->literal_contains_escapes())) {
     DCHECK(impl()->IsAsync(impl()->AsIdentifier(result)));
@@ -3464,7 +3659,7 @@ ParserBase<Impl>::ParseLeftHandSideContinuation(ExpressionT result) {
     ExpressionListT args(pointer_buffer());
     bool has_spread;
     ParseArguments(&args, &has_spread, kMaybeArrowHead);
-    if (V8_LIKELY(peek() == Token::ARROW)) {
+    if (V8_LIKELY(peek() == Token::kArrow)) {
       fni_.RemoveAsyncKeywordFromEnd();
       next_arrow_function_info_.scope = maybe_arrow.ValidateAndCreateScope();
       scope_snapshot.Reparent(next_arrow_function_info_.scope);
@@ -3489,14 +3684,14 @@ ParserBase<Impl>::ParseLeftHandSideContinuation(ExpressionT result) {
   int optional_link_begin;
   do {
     switch (peek()) {
-      case Token::QUESTION_PERIOD: {
+      case Token::kQuestionPeriod: {
         if (is_optional) {
           ReportUnexpectedToken(peek());
           return impl()->FailureExpression();
         }
         // Include the ?. in the source range position.
         optional_link_begin = scanner()->peek_location().beg_pos;
-        Consume(Token::QUESTION_PERIOD);
+        Consume(Token::kQuestionPeriod);
         is_optional = true;
         optional_chaining = true;
         if (Token::IsPropertyOrCall(peek())) continue;
@@ -3507,23 +3702,23 @@ ParserBase<Impl>::ParseLeftHandSideContinuation(ExpressionT result) {
       }
 
       /* Property */
-      case Token::LBRACK: {
-        Consume(Token::LBRACK);
+      case Token::kLeftBracket: {
+        Consume(Token::kLeftBracket);
         int pos = position();
         AcceptINScope scope(this, true);
         ExpressionT index = ParseExpressionCoverGrammar();
         result = factory()->NewProperty(result, index, pos, is_optional);
-        Expect(Token::RBRACK);
+        Expect(Token::kRightBracket);
         break;
       }
 
       /* Property */
-      case Token::PERIOD: {
+      case Token::kPeriod: {
         if (is_optional) {
           ReportUnexpectedToken(Next());
           return impl()->FailureExpression();
         }
-        Consume(Token::PERIOD);
+        Consume(Token::kPeriod);
         int pos = position();
         ExpressionT key = ParsePropertyOrPrivatePropertyName();
         result = factory()->NewProperty(result, key, pos, is_optional);
@@ -3531,7 +3726,7 @@ ParserBase<Impl>::ParseLeftHandSideContinuation(ExpressionT result) {
       }
 
       /* Call */
-      case Token::LPAREN: {
+      case Token::kLeftParen: {
         int pos;
         if (Token::IsCallable(scanner()->current_token())) {
           // For call of an identifier we want to report position of
@@ -3617,17 +3812,17 @@ ParserBase<Impl>::ParseMemberWithPresentNewPrefixesExpression() {
   // new new foo() means new (new foo())
   // new new foo().bar().baz means (new (new foo()).bar()).baz
   // new super.x means new (super.x)
-  Consume(Token::NEW);
+  Consume(Token::kNew);
   int new_pos = position();
   ExpressionT result;
 
   CheckStackOverflow();
 
-  if (peek() == Token::IMPORT && PeekAhead() == Token::LPAREN) {
+  if (peek() == Token::kImport && PeekAhead() == Token::kLeftParen) {
     impl()->ReportMessageAt(scanner()->peek_location(),
                             MessageTemplate::kImportCallNotNewExpression);
     return impl()->FailureExpression();
-  } else if (peek() == Token::PERIOD) {
+  } else if (peek() == Token::kPeriod) {
     result = ParseNewTargetExpression();
     return ParseMemberExpressionContinuation(result);
   } else {
@@ -3639,7 +3834,7 @@ ParserBase<Impl>::ParseMemberWithPresentNewPrefixesExpression() {
       return impl()->FailureExpression();
     }
   }
-  if (peek() == Token::LPAREN) {
+  if (peek() == Token::kLeftParen) {
     // NewExpression with arguments.
     {
       ExpressionListT args(pointer_buffer());
@@ -3652,7 +3847,7 @@ ParserBase<Impl>::ParseMemberWithPresentNewPrefixesExpression() {
     return ParseMemberExpressionContinuation(result);
   }
 
-  if (peek() == Token::QUESTION_PERIOD) {
+  if (peek() == Token::kQuestionPeriod) {
     impl()->ReportMessageAt(scanner()->peek_location(),
                             MessageTemplate::kOptionalChainingNoNew);
     return impl()->FailureExpression();
@@ -3666,10 +3861,10 @@ ParserBase<Impl>::ParseMemberWithPresentNewPrefixesExpression() {
 template <typename Impl>
 typename ParserBase<Impl>::ExpressionT
 ParserBase<Impl>::ParseFunctionExpression() {
-  Consume(Token::FUNCTION);
+  Consume(Token::kFunction);
   int function_token_position = position();
 
-  FunctionKind function_kind = Check(Token::MUL)
+  FunctionKind function_kind = Check(Token::kMul)
                                    ? FunctionKind::kGeneratorFunction
                                    : FunctionKind::kNormalFunction;
   IdentifierT name = impl()->NullIdentifier();
@@ -3680,7 +3875,7 @@ ParserBase<Impl>::ParseFunctionExpression() {
   if (impl()->ParsingDynamicFunctionDeclaration()) {
     // We don't want dynamic functions to actually declare their name
     // "anonymous". We just want that name in the toString().
-    Consume(Token::IDENTIFIER);
+    Consume(Token::kIdentifier);
     DCHECK_IMPLIES(!has_error(),
                    scanner()->CurrentSymbol(ast_value_factory()) ==
                        ast_value_factory()->anonymous_string());
@@ -3723,9 +3918,9 @@ ParserBase<Impl>::ParseMemberExpression() {
 template <typename Impl>
 typename ParserBase<Impl>::ExpressionT
 ParserBase<Impl>::ParseImportExpressions() {
-  Consume(Token::IMPORT);
+  Consume(Token::kImport);
   int pos = position();
-  if (Check(Token::PERIOD)) {
+  if (Check(Token::kPeriod)) {
     ExpectContextualKeyword(ast_value_factory()->meta_string(), "import.meta",
                             pos);
     if (!flags().is_module()) {
@@ -3737,7 +3932,7 @@ ParserBase<Impl>::ParseImportExpressions() {
     return impl()->ImportMetaExpression(pos);
   }
 
-  if (V8_UNLIKELY(peek() != Token::LPAREN)) {
+  if (V8_UNLIKELY(peek() != Token::kLeftParen)) {
     if (!flags().is_module()) {
       impl()->ReportMessageAt(scanner()->location(),
                               MessageTemplate::kImportOutsideModule);
@@ -3747,8 +3942,8 @@ ParserBase<Impl>::ParseImportExpressions() {
     return impl()->FailureExpression();
   }
 
-  Consume(Token::LPAREN);
-  if (peek() == Token::RPAREN) {
+  Consume(Token::kLeftParen);
+  if (peek() == Token::kRightParen) {
     impl()->ReportMessageAt(scanner()->location(),
                             MessageTemplate::kImportMissingSpecifier);
     return impl()->FailureExpression();
@@ -3759,28 +3954,27 @@ ParserBase<Impl>::ParseImportExpressions() {
 
   if ((v8_flags.harmony_import_assertions ||
        v8_flags.harmony_import_attributes) &&
-      Check(Token::COMMA)) {
-    if (Check(Token::RPAREN)) {
+      Check(Token::kComma)) {
+    if (Check(Token::kRightParen)) {
       // A trailing comma allowed after the specifier.
       return factory()->NewImportCallExpression(specifier, pos);
     } else {
-      ExpressionT import_assertions = ParseAssignmentExpressionCoverGrammar();
-      Check(Token::COMMA);  // A trailing comma is allowed after the import
-                            // assertions.
-      Expect(Token::RPAREN);
-      return factory()->NewImportCallExpression(specifier, import_assertions,
-                                                pos);
+      ExpressionT import_options = ParseAssignmentExpressionCoverGrammar();
+      Check(Token::kComma);  // A trailing comma is allowed after the import
+                             // assertions.
+      Expect(Token::kRightParen);
+      return factory()->NewImportCallExpression(specifier, import_options, pos);
     }
   }
 
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
   return factory()->NewImportCallExpression(specifier, pos);
 }
 
 template <typename Impl>
 typename ParserBase<Impl>::ExpressionT
 ParserBase<Impl>::ParseSuperExpression() {
-  Consume(Token::SUPER);
+  Consume(Token::kSuper);
   int pos = position();
 
   DeclarationScope* scope = GetReceiverScope();
@@ -3788,26 +3982,26 @@ ParserBase<Impl>::ParseSuperExpression() {
   if (IsConciseMethod(kind) || IsAccessorFunction(kind) ||
       IsClassConstructor(kind)) {
     if (Token::IsProperty(peek())) {
-      if (peek() == Token::PERIOD && PeekAhead() == Token::PRIVATE_NAME) {
-        Consume(Token::PERIOD);
-        Consume(Token::PRIVATE_NAME);
+      if (peek() == Token::kPeriod && PeekAhead() == Token::kPrivateName) {
+        Consume(Token::kPeriod);
+        Consume(Token::kPrivateName);
 
         impl()->ReportMessage(MessageTemplate::kUnexpectedPrivateField);
         return impl()->FailureExpression();
       }
-      if (peek() == Token::QUESTION_PERIOD) {
-        Consume(Token::QUESTION_PERIOD);
+      if (peek() == Token::kQuestionPeriod) {
+        Consume(Token::kQuestionPeriod);
         impl()->ReportMessage(MessageTemplate::kOptionalChainingNoSuper);
         return impl()->FailureExpression();
       }
-      Scope* home_object_scope = scope->RecordSuperPropertyUsage();
+      scope->RecordSuperPropertyUsage();
       UseThis();
-      return impl()->NewSuperPropertyReference(home_object_scope, pos);
+      return impl()->NewSuperPropertyReference(pos);
     }
     // super() is only allowed in derived constructor. new super() is never
     // allowed; it's reported as an error by
     // ParseMemberWithPresentNewPrefixesExpression.
-    if (peek() == Token::LPAREN && IsDerivedConstructor(kind)) {
+    if (peek() == Token::kLeftParen && IsDerivedConstructor(kind)) {
       // TODO(rossberg): This might not be the correct FunctionState for the
       // method here.
       expression_scope()->RecordThisUse();
@@ -3825,7 +4019,7 @@ template <typename Impl>
 typename ParserBase<Impl>::ExpressionT
 ParserBase<Impl>::ParseNewTargetExpression() {
   int pos = position();
-  Consume(Token::PERIOD);
+  Consume(Token::kPeriod);
   ExpectContextualKeyword(ast_value_factory()->target_string(), "new.target",
                           pos);
 
@@ -3846,18 +4040,18 @@ ParserBase<Impl>::DoParseMemberExpressionContinuation(ExpressionT expression) {
   // ('[' Expression ']' | '.' Identifier | TemplateLiteral)*
   do {
     switch (peek()) {
-      case Token::LBRACK: {
-        Consume(Token::LBRACK);
+      case Token::kLeftBracket: {
+        Consume(Token::kLeftBracket);
         int pos = position();
         AcceptINScope scope(this, true);
         ExpressionT index = ParseExpressionCoverGrammar();
         expression = factory()->NewProperty(expression, index, pos);
         impl()->PushPropertyName(index);
-        Expect(Token::RBRACK);
+        Expect(Token::kRightBracket);
         break;
       }
-      case Token::PERIOD: {
-        Consume(Token::PERIOD);
+      case Token::kPeriod: {
+        Consume(Token::kPeriod);
         int pos = peek_position();
         ExpressionT key = ParsePropertyOrPrivatePropertyName();
         expression = factory()->NewProperty(expression, key, pos);
@@ -3866,7 +4060,7 @@ ParserBase<Impl>::DoParseMemberExpressionContinuation(ExpressionT expression) {
       default: {
         DCHECK(Token::IsTemplate(peek()));
         int pos;
-        if (scanner()->current_token() == Token::IDENTIFIER) {
+        if (scanner()->current_token() == Token::kIdentifier) {
           pos = position();
         } else {
           pos = peek_position();
@@ -3899,7 +4093,7 @@ void ParserBase<Impl>::ParseFormalParameter(FormalParametersT* parameters) {
   }
 
   ExpressionT initializer = impl()->NullExpression();
-  if (Check(Token::ASSIGN)) {
+  if (Check(Token::kAssign)) {
     parameters->is_simple = false;
 
     if (parameters->has_rest) {
@@ -3950,27 +4144,27 @@ void ParserBase<Impl>::ParseFormalParameterList(FormalParametersT* parameters) {
 
   DCHECK_EQ(0, parameters->arity);
 
-  if (peek() != Token::RPAREN) {
+  if (peek() != Token::kRightParen) {
     while (true) {
       // Add one since we're going to be adding a parameter.
       if (parameters->arity + 1 > Code::kMaxArguments) {
         ReportMessage(MessageTemplate::kTooManyParameters);
         return;
       }
-      parameters->has_rest = Check(Token::ELLIPSIS);
+      parameters->has_rest = Check(Token::kEllipsis);
       ParseFormalParameter(parameters);
 
       if (parameters->has_rest) {
         parameters->is_simple = false;
-        if (peek() == Token::COMMA) {
+        if (peek() == Token::kComma) {
           impl()->ReportMessageAt(scanner()->peek_location(),
                                   MessageTemplate::kParamAfterRest);
           return;
         }
         break;
       }
-      if (!Check(Token::COMMA)) break;
-      if (peek() == Token::RPAREN) {
+      if (!Check(Token::kComma)) break;
+      if (peek() == Token::kRightParen) {
         // allow the trailing comma
         break;
       }
@@ -3986,7 +4180,8 @@ void ParserBase<Impl>::ParseVariableDeclarations(
     DeclarationParsingResult* parsing_result,
     ZonePtrList<const AstRawString>* names) {
   // VariableDeclarations ::
-  //   ('var' | 'const' | 'let') (Identifier ('=' AssignmentExpression)?)+[',']
+  //   ('var' | 'const' | 'let' | 'using') (Identifier ('='
+  //   AssignmentExpression)?)+[',']
   //
   // ES6:
   // FIXME(marja, nikolaos): Add an up-to-date comment about ES6 variable
@@ -3998,19 +4193,32 @@ void ParserBase<Impl>::ParseVariableDeclarations(
   parsing_result->descriptor.initialization_pos = peek_position();
 
   switch (peek()) {
-    case Token::VAR:
+    case Token::kVar:
       parsing_result->descriptor.mode = VariableMode::kVar;
-      Consume(Token::VAR);
+      Consume(Token::kVar);
       break;
-    case Token::CONST:
-      Consume(Token::CONST);
+    case Token::kConst:
+      Consume(Token::kConst);
       DCHECK_NE(var_context, kStatement);
       parsing_result->descriptor.mode = VariableMode::kConst;
       break;
-    case Token::LET:
-      Consume(Token::LET);
+    case Token::kLet:
+      Consume(Token::kLet);
       DCHECK_NE(var_context, kStatement);
       parsing_result->descriptor.mode = VariableMode::kLet;
+      break;
+    case Token::kUsing:
+      // using [no LineTerminator here] [lookahead ≠ await] BindingList[?In,
+      // ?Yield, ?Await, ~Pattern] ;
+      Consume(Token::kUsing);
+      DCHECK_NE(var_context, kStatement);
+      DCHECK(v8_flags.js_explicit_resource_management);
+      DCHECK(is_using_allowed());
+      DCHECK(peek() != Token::kAwait);
+      DCHECK(!scanner()->HasLineTerminatorBeforeNext());
+      DCHECK(PeekAhead() != Token::kLeftBracket &&
+             PeekAhead() != Token::kLeftBrace);
+      parsing_result->descriptor.mode = VariableMode::kUsing;
       break;
     default:
       UNREACHABLE();  // by current callers
@@ -4044,7 +4252,7 @@ void ParserBase<Impl>::ParseVariableDeclarations(
                                 MessageTemplate::kStrictEvalArguments);
         return;
       }
-      if (peek() == Token::ASSIGN ||
+      if (peek() == Token::kAssign ||
           (var_context == kForStatement && PeekInOrOf()) ||
           parsing_result->descriptor.mode == VariableMode::kLet) {
         // Assignments need the variable expression for the assignment LHS, and
@@ -4055,7 +4263,7 @@ void ParserBase<Impl>::ParseVariableDeclarations(
         impl()->DeclareIdentifier(name, decl_pos);
         pattern = impl()->NullExpression();
       }
-    } else {
+    } else if (parsing_result->descriptor.mode != VariableMode::kUsing) {
       name = impl()->NullIdentifier();
       pattern = ParseBindingPattern();
       DCHECK(!impl()->IsIdentifier(pattern));
@@ -4065,7 +4273,7 @@ void ParserBase<Impl>::ParseVariableDeclarations(
 
     ExpressionT value = impl()->NullExpression();
     int value_beg_pos = kNoSourcePosition;
-    if (Check(Token::ASSIGN)) {
+    if (Check(Token::kAssign)) {
       DCHECK(!impl()->IsNull(pattern));
       {
         value_beg_pos = peek_position();
@@ -4142,7 +4350,7 @@ void ParserBase<Impl>::ParseVariableDeclarations(
     decl.value_beg_pos = value_beg_pos;
 
     parsing_result->declarations.push_back(decl);
-  } while (Check(Token::COMMA));
+  } while (Check(Token::kComma));
 
   parsing_result->bindings_loc =
       Scanner::Location(bindings_start, end_position());
@@ -4151,11 +4359,11 @@ void ParserBase<Impl>::ParseVariableDeclarations(
 template <typename Impl>
 typename ParserBase<Impl>::StatementT
 ParserBase<Impl>::ParseFunctionDeclaration() {
-  Consume(Token::FUNCTION);
+  Consume(Token::kFunction);
 
   int pos = position();
   ParseFunctionFlags flags = ParseFunctionFlag::kIsNormal;
-  if (Check(Token::MUL)) {
+  if (Check(Token::kMul)) {
     impl()->ReportMessageAt(
         scanner()->location(),
         MessageTemplate::kGeneratorInSingleStatementContext);
@@ -4168,11 +4376,11 @@ template <typename Impl>
 typename ParserBase<Impl>::StatementT
 ParserBase<Impl>::ParseHoistableDeclaration(
     ZonePtrList<const AstRawString>* names, bool default_export) {
-  Consume(Token::FUNCTION);
+  Consume(Token::kFunction);
 
   int pos = position();
   ParseFunctionFlags flags = ParseFunctionFlag::kIsNormal;
-  if (Check(Token::MUL)) {
+  if (Check(Token::kMul)) {
     flags |= ParseFunctionFlag::kIsGenerator;
   }
   return ParseHoistableDeclaration(pos, flags, names, default_export);
@@ -4199,7 +4407,7 @@ ParserBase<Impl>::ParseHoistableDeclaration(
   DCHECK_IMPLIES((flags & ParseFunctionFlag::kIsAsync) != 0,
                  (flags & ParseFunctionFlag::kIsGenerator) == 0);
 
-  if ((flags & ParseFunctionFlag::kIsAsync) != 0 && Check(Token::MUL)) {
+  if ((flags & ParseFunctionFlag::kIsAsync) != 0 && Check(Token::kMul)) {
     // Async generator
     flags |= ParseFunctionFlag::kIsGenerator;
   }
@@ -4207,7 +4415,7 @@ ParserBase<Impl>::ParseHoistableDeclaration(
   IdentifierT name;
   FunctionNameValidity name_validity;
   IdentifierT variable_name;
-  if (peek() == Token::LPAREN) {
+  if (peek() == Token::kLeftParen) {
     if (default_export) {
       impl()->GetDefaultStrings(&name, &variable_name);
       name_validity = kSkipFunctionNameCheck;
@@ -4278,7 +4486,8 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseClassDeclaration(
   IdentifierT name = impl()->NullIdentifier();
   bool is_strict_reserved = Token::IsStrictReservedWord(peek());
   IdentifierT variable_name = impl()->NullIdentifier();
-  if (default_export && (peek() == Token::EXTENDS || peek() == Token::LBRACE)) {
+  if (default_export &&
+      (peek() == Token::kExtends || peek() == Token::kLeftBrace)) {
     impl()->GetDefaultStrings(&name, &variable_name);
   } else {
     name = ParseIdentifier();
@@ -4304,17 +4513,17 @@ ParserBase<Impl>::ParseNativeDeclaration() {
   function_state_->DisableOptimization(BailoutReason::kNativeFunctionLiteral);
 
   int pos = peek_position();
-  Consume(Token::FUNCTION);
+  Consume(Token::kFunction);
   // Allow "eval" or "arguments" for backward compatibility.
   IdentifierT name = ParseIdentifier();
-  Expect(Token::LPAREN);
-  if (peek() != Token::RPAREN) {
+  Expect(Token::kLeftParen);
+  if (peek() != Token::kRightParen) {
     do {
       ParseIdentifier();
-    } while (Check(Token::COMMA));
+    } while (Check(Token::kComma));
   }
-  Expect(Token::RPAREN);
-  Expect(Token::SEMICOLON);
+  Expect(Token::kRightParen);
+  Expect(Token::kSemicolon);
   return impl()->DeclareNative(name, pos);
 }
 
@@ -4325,13 +4534,13 @@ ParserBase<Impl>::ParseAsyncFunctionDeclaration(
   // AsyncFunctionDeclaration ::
   //   async [no LineTerminator here] function BindingIdentifier[Await]
   //       ( FormalParameters[Await] ) { AsyncFunctionBody }
-  DCHECK_EQ(scanner()->current_token(), Token::ASYNC);
+  DCHECK_EQ(scanner()->current_token(), Token::kAsync);
   if (V8_UNLIKELY(scanner()->literal_contains_escapes())) {
-    impl()->ReportUnexpectedToken(Token::ESCAPED_KEYWORD);
+    impl()->ReportUnexpectedToken(Token::kEscapedKeyword);
   }
   int pos = position();
   DCHECK(!scanner()->HasLineTerminatorBeforeNext());
-  Consume(Token::FUNCTION);
+  Consume(Token::kFunction);
   ParseFunctionFlags flags = ParseFunctionFlag::kIsAsync;
   return ParseHoistableDeclaration(pos, flags, names, default_export);
 }
@@ -4384,8 +4593,9 @@ void ParserBase<Impl>::ParseFunctionBody(
       // If we are parsing the source as if it is wrapped in a function, the
       // source ends without a closing brace.
       Token::Value closing_token =
-          function_syntax_kind == FunctionSyntaxKind::kWrapped ? Token::EOS
-                                                               : Token::RBRACE;
+          function_syntax_kind == FunctionSyntaxKind::kWrapped
+              ? Token::kEos
+              : Token::kRightBrace;
 
       if (IsAsyncGeneratorFunction(kind)) {
         impl()->ParseAndRewriteAsyncGeneratorFunctionBody(pos, kind,
@@ -4397,11 +4607,11 @@ void ParserBase<Impl>::ParseFunctionBody(
       } else {
         ParseStatementList(&inner_body, closing_token);
       }
-
       if (IsDerivedConstructor(kind)) {
+        // Derived constructors are implemented by returning `this` when the
+        // original return value is undefined, so always use `this`.
         ExpressionParsingScope expression_scope(impl());
-        inner_body.Add(factory()->NewReturnStatement(impl()->ThisExpression(),
-                                                     kNoSourcePosition));
+        UseThis();
         expression_scope.ValidateExpression();
       }
       Expect(closing_token);
@@ -4501,26 +4711,28 @@ void ParserBase<Impl>::CheckArityRestrictions(int param_count,
 
 template <typename Impl>
 bool ParserBase<Impl>::IsNextLetKeyword() {
-  DCHECK_EQ(Token::LET, peek());
+  DCHECK_EQ(Token::kLet, peek());
   Token::Value next_next = PeekAhead();
   switch (next_next) {
-    case Token::LBRACE:
-    case Token::LBRACK:
-    case Token::IDENTIFIER:
-    case Token::STATIC:
-    case Token::LET:  // `let let;` is disallowed by static semantics, but the
-                      // token must be first interpreted as a keyword in order
-                      // for those semantics to apply. This ensures that ASI is
-                      // not honored when a LineTerminator separates the
-                      // tokens.
-    case Token::YIELD:
-    case Token::AWAIT:
-    case Token::GET:
-    case Token::SET:
-    case Token::ASYNC:
+    case Token::kLeftBrace:
+    case Token::kLeftBracket:
+    case Token::kIdentifier:
+    case Token::kStatic:
+    case Token::kLet:  // `let let;` is disallowed by static semantics, but the
+                       // token must be first interpreted as a keyword in order
+                       // for those semantics to apply. This ensures that ASI is
+                       // not honored when a LineTerminator separates the
+                       // tokens.
+    case Token::kYield:
+    case Token::kAwait:
+    case Token::kGet:
+    case Token::kSet:
+    case Token::kOf:
+    case Token::kUsing:
+    case Token::kAsync:
       return true;
-    case Token::FUTURE_STRICT_RESERVED_WORD:
-    case Token::ESCAPED_STRICT_RESERVED_WORD:
+    case Token::kFutureStrictReservedWord:
+    case Token::kEscapedStrictReservedWord:
       // The early error rule for future reserved keywords
       // (ES#sec-identifiers-static-semantics-early-errors) uses the static
       // semantics StringValue of IdentifierName, which normalizes escape
@@ -4544,12 +4756,14 @@ ParserBase<Impl>::ParseArrowFunctionLiteral(
   base::ElapsedTimer timer;
   if (V8_UNLIKELY(v8_flags.log_function_events)) timer.Start();
 
-  DCHECK_IMPLIES(!has_error(), peek() == Token::ARROW);
+  DCHECK_IMPLIES(!has_error(), peek() == Token::kArrow);
   if (!impl()->HasCheckedSyntax() && scanner_->HasLineTerminatorBeforeNext()) {
-    // ASI inserts `;` after arrow parameters if a line terminator is found.
-    // `=> ...` is never a valid expression, so report as syntax error.
-    // If next token is not `=>`, it's a syntax error anyways.
-    impl()->ReportUnexpectedTokenAt(scanner_->peek_location(), Token::ARROW);
+    // No line terminator allowed between the parameters and the arrow:
+    // ArrowFunction[In, Yield, Await] :
+    //   ArrowParameters[?Yield, ?Await] [no LineTerminator here] =>
+    //   ConciseBody[?In]
+    // If the next token is not `=>`, it's a syntax error anyway.
+    impl()->ReportUnexpectedTokenAt(scanner_->peek_location(), Token::kArrow);
     return impl()->FailureExpression();
   }
 
@@ -4578,9 +4792,9 @@ ParserBase<Impl>::ParseArrowFunctionLiteral(
     FunctionState function_state(&function_state_, &scope_,
                                  formal_parameters.scope);
 
-    Consume(Token::ARROW);
+    Consume(Token::kArrow);
 
-    if (peek() == Token::LBRACE) {
+    if (peek() == Token::kLeftBrace) {
       // Multiple statement body
       DCHECK_EQ(scope(), formal_parameters.scope);
 
@@ -4632,8 +4846,8 @@ ParserBase<Impl>::ParseArrowFunctionLiteral(
                                                        loc);
           next_arrow_function_info_.Reset();
 
-          Consume(Token::ARROW);
-          Consume(Token::LBRACE);
+          Consume(Token::kArrow);
+          Consume(Token::kLeftBrace);
 
           AcceptINScope scope(this, true);
           FunctionParsingScope body_parsing_scope(impl());
@@ -4645,7 +4859,7 @@ ParserBase<Impl>::ParseArrowFunctionLiteral(
           return impl()->FailureExpression();
         }
       } else {
-        Consume(Token::LBRACE);
+        Consume(Token::kLeftBrace);
         AcceptINScope scope(this, true);
         FunctionParsingScope body_parsing_scope(impl());
         ParseFunctionBody(&body, impl()->NullIdentifier(), kNoSourcePosition,
@@ -4708,7 +4922,7 @@ ParserBase<Impl>::ParseArrowFunctionLiteral(
 template <typename Impl>
 typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseClassExpression(
     Scope* outer_scope) {
-  Consume(Token::CLASS);
+  Consume(Token::kClass);
   int class_token_pos = position();
   IdentifierT name = impl()->NullIdentifier();
   bool is_strict_reserved_name = false;
@@ -4753,7 +4967,7 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseClassLiteral(
   class_info.is_anonymous = is_anonymous;
 
   scope()->set_start_position(class_token_pos);
-  if (Check(Token::EXTENDS)) {
+  if (Check(Token::kExtends)) {
     ClassScope::HeritageParsingScope heritage(class_scope);
     FuncNameInferrerState fni_state(&fni_);
     ExpressionParsingScope scope(impl());
@@ -4769,14 +4983,14 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseClassLiteralBody(
     int class_token_pos) {
   bool has_extends = !impl()->IsNull(class_info.extends);
 
-  Expect(Token::LBRACE);
+  Expect(Token::kLeftBrace);
   int start_pos = position();
 
-  while (peek() != Token::RBRACE) {
-    if (Check(Token::SEMICOLON)) continue;
+  while (peek() != Token::kRightBrace) {
+    if (Check(Token::kSemicolon)) continue;
 
     // Either we're parsing a `static { }` initialization block or a property.
-    if (peek() == Token::STATIC && PeekAhead() == Token::LBRACE) {
+    if (peek() == Token::kStatic && PeekAhead() == Token::kLeftBrace) {
       BlockT static_block = ParseClassStaticBlock(&class_info);
       impl()->AddClassStaticBlock(static_block, &class_info);
       continue;
@@ -4834,7 +5048,7 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseClassLiteralBody(
     impl()->InferFunctionName();
   }
 
-  Expect(Token::RBRACE);
+  Expect(Token::kRightBrace);
   int end_pos = end_position();
   class_scope->set_end_position(end_pos);
   if (class_info.static_elements_scope != nullptr) {
@@ -4892,7 +5106,7 @@ void ParserBase<Impl>::ParseAsyncFunctionBody(Scope* scope,
   BlockT block = impl()->NullBlock();
   {
     StatementListT statements(pointer_buffer());
-    ParseStatementList(&statements, Token::RBRACE);
+    ParseStatementList(&statements, Token::kRightBrace);
     block = factory()->NewBlock(true, statements);
   }
   impl()->RewriteAsyncFunctionBody(
@@ -4909,17 +5123,17 @@ ParserBase<Impl>::ParseAsyncFunctionLiteral() {
   //
   //   async [no LineTerminator here] function BindingIdentifier[Await]
   //       ( FormalParameters[Await] ) { AsyncFunctionBody }
-  DCHECK_EQ(scanner()->current_token(), Token::ASYNC);
+  DCHECK_EQ(scanner()->current_token(), Token::kAsync);
   if (V8_UNLIKELY(scanner()->literal_contains_escapes())) {
-    impl()->ReportUnexpectedToken(Token::ESCAPED_KEYWORD);
+    impl()->ReportUnexpectedToken(Token::kEscapedKeyword);
   }
   int pos = position();
-  Consume(Token::FUNCTION);
+  Consume(Token::kFunction);
   IdentifierT name = impl()->NullIdentifier();
   FunctionSyntaxKind syntax_kind = FunctionSyntaxKind::kAnonymousExpression;
 
   ParseFunctionFlags flags = ParseFunctionFlag::kIsAsync;
-  if (Check(Token::MUL)) flags |= ParseFunctionFlag::kIsGenerator;
+  if (Check(Token::kMul)) flags |= ParseFunctionFlag::kIsGenerator;
   const FunctionKind kind = FunctionKindFor(flags);
   bool is_strict_reserved = Token::IsStrictReservedWord(peek());
 
@@ -4927,9 +5141,9 @@ ParserBase<Impl>::ParseAsyncFunctionLiteral() {
     // We don't want dynamic functions to actually declare their name
     // "anonymous". We just want that name in the toString().
 
-    // Consuming token we did not peek yet, which could lead to a ILLEGAL token
+    // Consuming token we did not peek yet, which could lead to a kIllegal token
     // in the case of a stackoverflow.
-    Consume(Token::IDENTIFIER);
+    Consume(Token::kIdentifier);
     DCHECK_IMPLIES(!has_error(),
                    scanner()->CurrentSymbol(ast_value_factory()) ==
                        ast_value_factory()->anonymous_string());
@@ -4949,17 +5163,17 @@ ParserBase<Impl>::ParseAsyncFunctionLiteral() {
 template <typename Impl>
 typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseTemplateLiteral(
     ExpressionT tag, int start, bool tagged) {
-  // A TemplateLiteral is made up of 0 or more TEMPLATE_SPAN tokens (literal
+  // A TemplateLiteral is made up of 0 or more kTemplateSpan tokens (literal
   // text followed by a substitution expression), finalized by a single
-  // TEMPLATE_TAIL.
+  // kTemplateTail.
   //
-  // In terms of draft language, TEMPLATE_SPAN may be either the TemplateHead or
-  // TemplateMiddle productions, while TEMPLATE_TAIL is either TemplateTail, or
+  // In terms of draft language, kTemplateSpan may be either the TemplateHead or
+  // TemplateMiddle productions, while kTemplateTail is either TemplateTail, or
   // NoSubstitutionTemplate.
   //
   // When parsing a TemplateLiteral, we must have scanned either an initial
-  // TEMPLATE_SPAN, or a TEMPLATE_TAIL.
-  DCHECK(peek() == Token::TEMPLATE_SPAN || peek() == Token::TEMPLATE_TAIL);
+  // kTemplateSpan, or a kTemplateTail.
+  DCHECK(peek() == Token::kTemplateSpan || peek() == Token::kTemplateTail);
 
   if (tagged) {
     // TaggedTemplate expressions prevent the eval compilation cache from being
@@ -4969,11 +5183,11 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseTemplateLiteral(
 
   bool forbid_illegal_escapes = !tagged;
 
-  // If we reach a TEMPLATE_TAIL first, we are parsing a NoSubstitutionTemplate.
+  // If we reach a kTemplateTail first, we are parsing a NoSubstitutionTemplate.
   // In this case we may simply consume the token and build a template with a
-  // single TEMPLATE_SPAN and no expressions.
-  if (peek() == Token::TEMPLATE_TAIL) {
-    Consume(Token::TEMPLATE_TAIL);
+  // single kTemplateSpan and no expressions.
+  if (peek() == Token::kTemplateTail) {
+    Consume(Token::kTemplateTail);
     int pos = position();
     typename Impl::TemplateLiteralState ts = impl()->OpenTemplateLiteral(pos);
     bool is_valid = CheckTemplateEscapes(forbid_illegal_escapes);
@@ -4981,15 +5195,15 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseTemplateLiteral(
     return impl()->CloseTemplateLiteral(&ts, start, tag);
   }
 
-  Consume(Token::TEMPLATE_SPAN);
+  Consume(Token::kTemplateSpan);
   int pos = position();
   typename Impl::TemplateLiteralState ts = impl()->OpenTemplateLiteral(pos);
   bool is_valid = CheckTemplateEscapes(forbid_illegal_escapes);
   impl()->AddTemplateSpan(&ts, is_valid, false);
   Token::Value next;
 
-  // If we open with a TEMPLATE_SPAN, we must scan the subsequent expression,
-  // and repeat if the following token is a TEMPLATE_SPAN as well (in this
+  // If we open with a kTemplateSpan, we must scan the subsequent expression,
+  // and repeat if the following token is a kTemplateSpan as well (in this
   // case, representing a TemplateMiddle).
 
   do {
@@ -5000,24 +5214,24 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseTemplateLiteral(
     ExpressionT expression = ParseExpressionCoverGrammar();
     impl()->AddTemplateExpression(&ts, expression);
 
-    if (peek() != Token::RBRACE) {
+    if (peek() != Token::kRightBrace) {
       impl()->ReportMessageAt(Scanner::Location(expr_pos, peek_position()),
                               MessageTemplate::kUnterminatedTemplateExpr);
       return impl()->FailureExpression();
     }
 
     // If we didn't die parsing that expression, our next token should be a
-    // TEMPLATE_SPAN or TEMPLATE_TAIL.
+    // kTemplateSpan or kTemplateTail.
     next = scanner()->ScanTemplateContinuation();
     Next();
     pos = position();
 
     is_valid = CheckTemplateEscapes(forbid_illegal_escapes);
-    impl()->AddTemplateSpan(&ts, is_valid, next == Token::TEMPLATE_TAIL);
-  } while (next == Token::TEMPLATE_SPAN);
+    impl()->AddTemplateSpan(&ts, is_valid, next == Token::kTemplateTail);
+  } while (next == Token::kTemplateSpan);
 
-  DCHECK_IMPLIES(!has_error(), next == Token::TEMPLATE_TAIL);
-  // Once we've reached a TEMPLATE_TAIL, we can close the TemplateLiteral.
+  DCHECK_IMPLIES(!has_error(), next == Token::kTemplateTail);
+  // Once we've reached a kTemplateTail, we can close the TemplateLiteral.
   return impl()->CloseTemplateLiteral(&ts, start, tag);
 }
 
@@ -5135,10 +5349,10 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseV8Intrinsic() {
   //   '%' Identifier Arguments
 
   int pos = peek_position();
-  Consume(Token::MOD);
+  Consume(Token::kMod);
   // Allow "eval" or "arguments" for backward compatibility.
   IdentifierT name = ParseIdentifier();
-  if (peek() != Token::LPAREN) {
+  if (peek() != Token::kLeftParen) {
     impl()->ReportUnexpectedToken(peek());
     return impl()->FailureExpression();
   }
@@ -5162,7 +5376,7 @@ void ParserBase<Impl>::ParseStatementList(StatementListT* body,
   //   (StatementListItem)* <end_token>
   DCHECK_NOT_NULL(body);
 
-  while (peek() == Token::STRING) {
+  while (peek() == Token::kString) {
     bool use_strict = false;
 #if V8_ENABLE_WEBASSEMBLY
     bool use_asm = false;
@@ -5235,27 +5449,37 @@ ParserBase<Impl>::ParseStatementListItem() {
   //   FunctionDeclaration[?Yield, ?Default]
   //   GeneratorDeclaration[?Yield, ?Default]
   //
-  // LexicalDeclaration[In, Yield] :
-  //   LetOrConst BindingList[?In, ?Yield] ;
+  // LexicalDeclaration[In, Yield, Await] :
+  //   LetOrConst BindingList[?In, ?Yield, ?Await, +Pattern] ;
+  //   UsingDeclaration[?In, ?Yield, ?Await, ~Pattern];
 
   switch (peek()) {
-    case Token::FUNCTION:
+    case Token::kFunction:
       return ParseHoistableDeclaration(nullptr, false);
-    case Token::CLASS:
-      Consume(Token::CLASS);
+    case Token::kClass:
+      Consume(Token::kClass);
       return ParseClassDeclaration(nullptr, false);
-    case Token::VAR:
-    case Token::CONST:
+    case Token::kVar:
+    case Token::kConst:
       return ParseVariableStatement(kStatementListItem, nullptr);
-    case Token::LET:
+    case Token::kLet:
       if (IsNextLetKeyword()) {
         return ParseVariableStatement(kStatementListItem, nullptr);
       }
       break;
-    case Token::ASYNC:
-      if (PeekAhead() == Token::FUNCTION &&
+    case Token::kUsing:
+      if (!v8_flags.js_explicit_resource_management) break;
+      if (!is_using_allowed()) break;
+      if (!(scanner()->HasLineTerminatorAfterNext()) &&
+          PeekAhead() != Token::kAwait && PeekAhead() != Token::kLeftBracket &&
+          PeekAhead() != Token::kLeftBrace) {
+        return ParseVariableStatement(kStatementListItem, nullptr);
+      }
+      break;
+    case Token::kAsync:
+      if (PeekAhead() == Token::kFunction &&
           !scanner()->HasLineTerminatorAfterNext()) {
-        Consume(Token::ASYNC);
+        Consume(Token::kAsync);
         return ParseAsyncFunctionDeclaration(nullptr, false);
       }
       break;
@@ -5297,31 +5521,31 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseStatement(
   // trivial labeled break statements 'label: break label' which is
   // parsed into an empty statement.
   switch (peek()) {
-    case Token::LBRACE:
+    case Token::kLeftBrace:
       return ParseBlock(labels);
-    case Token::SEMICOLON:
+    case Token::kSemicolon:
       Next();
       return factory()->EmptyStatement();
-    case Token::IF:
+    case Token::kIf:
       return ParseIfStatement(labels);
-    case Token::DO:
+    case Token::kDo:
       return ParseDoWhileStatement(labels, own_labels);
-    case Token::WHILE:
+    case Token::kWhile:
       return ParseWhileStatement(labels, own_labels);
-    case Token::FOR:
-      if (V8_UNLIKELY(is_await_allowed() && PeekAhead() == Token::AWAIT)) {
+    case Token::kFor:
+      if (V8_UNLIKELY(is_await_allowed() && PeekAhead() == Token::kAwait)) {
         return ParseForAwaitStatement(labels, own_labels);
       }
       return ParseForStatement(labels, own_labels);
-    case Token::CONTINUE:
+    case Token::kContinue:
       return ParseContinueStatement();
-    case Token::BREAK:
+    case Token::kBreak:
       return ParseBreakStatement(labels);
-    case Token::RETURN:
+    case Token::kReturn:
       return ParseReturnStatement();
-    case Token::THROW:
+    case Token::kThrow:
       return ParseThrowStatement();
-    case Token::TRY: {
+    case Token::kTry: {
       // It is somewhat complicated to have labels on try-statements.
       // When breaking out of a try-finally statement, one must take
       // great care not to treat it as a fall-through. It is much easier
@@ -5337,11 +5561,11 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseStatement(
       result->InitializeStatements(statements, zone());
       return result;
     }
-    case Token::WITH:
+    case Token::kWith:
       return ParseWithStatement(labels);
-    case Token::SWITCH:
+    case Token::kSwitch:
       return ParseSwitchStatement(labels);
-    case Token::FUNCTION:
+    case Token::kFunction:
       // FunctionDeclaration only allowed as a StatementListItem, not in
       // an arbitrary Statement position. Exceptions such as
       // ES#sec-functiondeclarations-in-ifstatement-statement-clauses
@@ -5352,20 +5576,20 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseStatement(
                                   ? MessageTemplate::kStrictFunction
                                   : MessageTemplate::kSloppyFunction);
       return impl()->NullStatement();
-    case Token::DEBUGGER:
+    case Token::kDebugger:
       return ParseDebuggerStatement();
-    case Token::VAR:
+    case Token::kVar:
       return ParseVariableStatement(kStatement, nullptr);
-    case Token::ASYNC:
+    case Token::kAsync:
       if (!impl()->HasCheckedSyntax() &&
           !scanner()->HasLineTerminatorAfterNext() &&
-          PeekAhead() == Token::FUNCTION) {
+          PeekAhead() == Token::kFunction) {
         impl()->ReportMessageAt(
             scanner()->peek_location(),
             MessageTemplate::kAsyncFunctionInSingleStatementContext);
         return impl()->NullStatement();
       }
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     default:
       return ParseExpressionOrLabelledStatement(labels, own_labels,
                                                 allow_function);
@@ -5389,16 +5613,16 @@ typename ParserBase<Impl>::BlockT ParserBase<Impl>::ParseBlock(
     scope()->set_start_position(peek_position());
     Target target(this, body, labels, nullptr, Target::TARGET_FOR_NAMED_ONLY);
 
-    Expect(Token::LBRACE);
+    Expect(Token::kLeftBrace);
 
-    while (peek() != Token::RBRACE) {
+    while (peek() != Token::kRightBrace) {
       StatementT stat = ParseStatementListItem();
       if (impl()->IsNull(stat)) return body;
       if (stat->IsEmptyStatement()) continue;
       statements.Add(stat);
     }
 
-    Expect(Token::RBRACE);
+    Expect(Token::kRightBrace);
 
     int end_pos = end_position();
     scope()->set_end_position(end_pos);
@@ -5420,7 +5644,7 @@ typename ParserBase<Impl>::BlockT ParserBase<Impl>::ParseBlock(
 template <typename Impl>
 typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseScopedStatement(
     ZonePtrList<const AstRawString>* labels) {
-  if (is_strict(language_mode()) || peek() != Token::FUNCTION) {
+  if (is_strict(language_mode()) || peek() != Token::kFunction) {
     return ParseStatement(labels, nullptr);
   } else {
     // Make a block around the statement for a lexical binding
@@ -5471,7 +5695,7 @@ ParserBase<Impl>::ParseDebuggerStatement() {
   //   'debugger' ';'
 
   int pos = peek_position();
-  Consume(Token::DEBUGGER);
+  Consume(Token::kDebugger);
   ExpectSemicolon();
   return factory()->NewDebuggerStatement(pos);
 }
@@ -5492,19 +5716,20 @@ ParserBase<Impl>::ParseExpressionOrLabelledStatement(
   int pos = peek_position();
 
   switch (peek()) {
-    case Token::FUNCTION:
-    case Token::LBRACE:
+    case Token::kFunction:
+    case Token::kLeftBrace:
       UNREACHABLE();  // Always handled by the callers.
-    case Token::CLASS:
+    case Token::kClass:
       ReportUnexpectedToken(Next());
       return impl()->NullStatement();
-    case Token::LET: {
+    case Token::kLet: {
       Token::Value next_next = PeekAhead();
       // "let" followed by either "[", "{" or an identifier means a lexical
       // declaration, which should not appear here.
       // However, ASI may insert a line break before an identifier or a brace.
-      if (next_next != Token::LBRACK &&
-          ((next_next != Token::LBRACE && next_next != Token::IDENTIFIER) ||
+      if (next_next != Token::kLeftBracket &&
+          ((next_next != Token::kLeftBrace &&
+            next_next != Token::kIdentifier) ||
            scanner_->HasLineTerminatorAfterNext())) {
         break;
       }
@@ -5527,7 +5752,7 @@ ParserBase<Impl>::ParseExpressionOrLabelledStatement(
     expr = ParseExpressionCoverGrammar();
     expression_scope.ValidateExpression();
 
-    if (peek() == Token::COLON && starts_with_identifier &&
+    if (peek() == Token::kColon && starts_with_identifier &&
         impl()->IsIdentifier(expr)) {
       // The whole expression was a single identifier, and not, e.g.,
       // something starting with an identifier or a parenthesized identifier.
@@ -5540,9 +5765,9 @@ ParserBase<Impl>::ParseExpressionOrLabelledStatement(
       // processing.
       this->scope()->DeleteUnresolved(label);
 
-      Consume(Token::COLON);
+      Consume(Token::kColon);
       // ES#sec-labelled-function-declarations Labelled Function Declarations
-      if (peek() == Token::FUNCTION && is_sloppy(language_mode()) &&
+      if (peek() == Token::kFunction && is_sloppy(language_mode()) &&
           allow_function == kAllowLabelledFunctionStatement) {
         return ParseFunctionDeclaration();
       }
@@ -5553,7 +5778,7 @@ ParserBase<Impl>::ParseExpressionOrLabelledStatement(
   // We allow a native function declaration if we're parsing the source for an
   // extension. A native function declaration starts with "native function"
   // with no line-terminator between the two words.
-  if (impl()->ParsingExtension() && peek() == Token::FUNCTION &&
+  if (impl()->ParsingExtension() && peek() == Token::kFunction &&
       !scanner()->HasLineTerminatorBeforeNext() && impl()->IsNative(expr) &&
       !scanner()->literal_contains_escapes()) {
     return ParseNativeDeclaration();
@@ -5572,10 +5797,10 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseIfStatement(
   //   'if' '(' Expression ')' Statement ('else' Statement)?
 
   int pos = peek_position();
-  Consume(Token::IF);
-  Expect(Token::LPAREN);
+  Consume(Token::kIf);
+  Expect(Token::kLeftParen);
   ExpressionT condition = ParseExpression();
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
 
   SourceRange then_range, else_range;
   StatementT then_statement = impl()->NullStatement();
@@ -5592,7 +5817,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseIfStatement(
   }
 
   StatementT else_statement = impl()->NullStatement();
-  if (Check(Token::ELSE)) {
+  if (Check(Token::kElse)) {
     else_statement = ParseScopedStatement(labels);
     else_range = SourceRange::ContinuationOf(then_range, end_position());
   } else {
@@ -5611,7 +5836,7 @@ ParserBase<Impl>::ParseContinueStatement() {
   //   'continue' Identifier? ';'
 
   int pos = peek_position();
-  Consume(Token::CONTINUE);
+  Consume(Token::kContinue);
   IdentifierT label = impl()->NullIdentifier();
   Token::Value tok = peek();
   if (!scanner()->HasLineTerminatorBeforeNext() &&
@@ -5645,7 +5870,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseBreakStatement(
   //   'break' Identifier? ';'
 
   int pos = peek_position();
-  Consume(Token::BREAK);
+  Consume(Token::kBreak);
   IdentifierT label = impl()->NullIdentifier();
   Token::Value tok = peek();
   if (!scanner()->HasLineTerminatorBeforeNext() &&
@@ -5684,7 +5909,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseReturnStatement() {
   // Consume the return token. It is necessary to do that before
   // reporting any errors on it, because of the way errors are
   // reported (underlining).
-  Consume(Token::RETURN);
+  Consume(Token::kReturn);
   Scanner::Location loc = scanner()->location();
 
   switch (GetDeclarationScope()->scope_type()) {
@@ -5708,18 +5933,12 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseReturnStatement() {
 
   Token::Value tok = peek();
   ExpressionT return_value = impl()->NullExpression();
-  if (scanner()->HasLineTerminatorBeforeNext() || Token::IsAutoSemicolon(tok)) {
-    if (IsDerivedConstructor(function_state_->kind())) {
-      ExpressionParsingScope expression_scope(impl());
-      return_value = impl()->ThisExpression();
-      expression_scope.ValidateExpression();
-    }
-  } else {
+  if (!scanner()->HasLineTerminatorBeforeNext() &&
+      !Token::IsAutoSemicolon(tok)) {
     return_value = ParseExpression();
   }
   ExpectSemicolon();
 
-  return_value = impl()->RewriteReturn(return_value, loc.beg_pos);
   int continuation_pos = end_position();
   StatementT stmt =
       BuildReturnStatement(return_value, loc.beg_pos, continuation_pos);
@@ -5733,7 +5952,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseWithStatement(
   // WithStatement ::
   //   'with' '(' Expression ')' Statement
 
-  Consume(Token::WITH);
+  Consume(Token::kWith);
   int pos = position();
 
   if (is_strict(language_mode())) {
@@ -5741,9 +5960,9 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseWithStatement(
     return impl()->NullStatement();
   }
 
-  Expect(Token::LPAREN);
+  Expect(Token::kLeftParen);
   ExpressionT expr = ParseExpression();
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
 
   Scope* with_scope = NewScope(WITH_SCOPE);
   StatementT body = impl()->NullStatement();
@@ -5770,24 +5989,24 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseDoWhileStatement(
   SourceRange body_range;
   StatementT body = impl()->NullStatement();
 
-  Consume(Token::DO);
+  Consume(Token::kDo);
 
   CheckStackOverflow();
   {
     SourceRangeScope range_scope(scanner(), &body_range);
     body = ParseStatement(nullptr, nullptr);
   }
-  Expect(Token::WHILE);
-  Expect(Token::LPAREN);
+  Expect(Token::kWhile);
+  Expect(Token::kLeftParen);
 
   ExpressionT cond = ParseExpression();
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
 
   // Allow do-statements to be terminated with and without
   // semi-colons. This allows code such as 'do;while(0)return' to
   // parse, which would not be the case if we had used the
   // ExpectSemicolon() functionality here.
-  Check(Token::SEMICOLON);
+  Check(Token::kSemicolon);
 
   loop->Initialize(cond, body);
   impl()->RecordIterationStatementSourceRange(loop, body_range);
@@ -5809,10 +6028,10 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseWhileStatement(
   SourceRange body_range;
   StatementT body = impl()->NullStatement();
 
-  Consume(Token::WHILE);
-  Expect(Token::LPAREN);
+  Consume(Token::kWhile);
+  Expect(Token::kLeftParen);
   ExpressionT cond = ParseExpression();
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
   {
     SourceRangeScope range_scope(scanner(), &body_range);
     body = ParseStatement(nullptr, nullptr);
@@ -5829,7 +6048,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseThrowStatement() {
   // ThrowStatement ::
   //   'throw' Expression ';'
 
-  Consume(Token::THROW);
+  Consume(Token::kThrow);
   int pos = position();
   if (scanner()->HasLineTerminatorBeforeNext()) {
     ReportMessage(MessageTemplate::kNewlineAfterThrow);
@@ -5854,10 +6073,10 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseSwitchStatement(
   //   'default' ':' StatementList
   int switch_pos = peek_position();
 
-  Consume(Token::SWITCH);
-  Expect(Token::LPAREN);
+  Consume(Token::kSwitch);
+  Expect(Token::kLeftParen);
   ExpressionT tag = ParseExpression();
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
 
   auto switch_statement = factory()->NewSwitchStatement(tag, switch_pos);
 
@@ -5869,27 +6088,27 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseSwitchStatement(
                   Target::TARGET_FOR_ANONYMOUS);
 
     bool default_seen = false;
-    Expect(Token::LBRACE);
-    while (peek() != Token::RBRACE) {
+    Expect(Token::kLeftBrace);
+    while (peek() != Token::kRightBrace) {
       // An empty label indicates the default case.
       ExpressionT label = impl()->NullExpression();
       StatementListT statements(pointer_buffer());
       SourceRange clause_range;
       {
         SourceRangeScope range_scope(scanner(), &clause_range);
-        if (Check(Token::CASE)) {
+        if (Check(Token::kCase)) {
           label = ParseExpression();
         } else {
-          Expect(Token::DEFAULT);
+          Expect(Token::kDefault);
           if (default_seen) {
             ReportMessage(MessageTemplate::kMultipleDefaultsInSwitch);
             return impl()->NullStatement();
           }
           default_seen = true;
         }
-        Expect(Token::COLON);
-        while (peek() != Token::CASE && peek() != Token::DEFAULT &&
-               peek() != Token::RBRACE) {
+        Expect(Token::kColon);
+        while (peek() != Token::kCase && peek() != Token::kDefault &&
+               peek() != Token::kRightBrace) {
           StatementT stat = ParseStatementListItem();
           if (impl()->IsNull(stat)) return stat;
           if (stat->IsEmptyStatement()) continue;
@@ -5900,7 +6119,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseSwitchStatement(
       impl()->RecordCaseClauseSourceRange(clause, clause_range);
       switch_statement->cases()->Add(clause, zone());
     }
-    Expect(Token::RBRACE);
+    Expect(Token::kRightBrace);
 
     int end_pos = end_position();
     scope()->set_end_position(end_pos);
@@ -5926,14 +6145,14 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseTryStatement() {
   // Finally ::
   //   'finally' Block
 
-  Consume(Token::TRY);
+  Consume(Token::kTry);
   int pos = position();
 
   BlockT try_block = ParseBlock(nullptr);
 
   CatchInfo catch_info(this);
 
-  if (peek() != Token::CATCH && peek() != Token::FINALLY) {
+  if (peek() != Token::kCatch && peek() != Token::kFinally) {
     ReportMessage(MessageTemplate::kNoCatchOrFinally);
     return impl()->NullStatement();
   }
@@ -5943,9 +6162,9 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseTryStatement() {
   BlockT catch_block = impl()->NullBlock();
   {
     SourceRangeScope catch_range_scope(scanner(), &catch_range);
-    if (Check(Token::CATCH)) {
+    if (Check(Token::kCatch)) {
       bool has_binding;
-      has_binding = Check(Token::LPAREN);
+      has_binding = Check(Token::kLeftParen);
 
       if (has_binding) {
         catch_info.scope = NewScope(CATCH_SCOPE);
@@ -5987,7 +6206,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseTryStatement() {
               catch_statements.Add(impl()->RewriteCatchPattern(&catch_info));
             }
 
-            Expect(Token::RPAREN);
+            Expect(Token::kRightParen);
 
             BlockT inner_block = ParseBlock(nullptr);
             catch_statements.Add(inner_block);
@@ -6024,11 +6243,11 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseTryStatement() {
   }
 
   BlockT finally_block = impl()->NullBlock();
-  DCHECK(has_error() || peek() == Token::FINALLY ||
+  DCHECK(has_error() || peek() == Token::kFinally ||
          !impl()->IsNull(catch_block));
   {
     SourceRangeScope range_scope(scanner(), &finally_range);
-    if (Check(Token::FINALLY)) {
+    if (Check(Token::kFinally)) {
       finally_block = ParseBlock(nullptr);
     }
   }
@@ -6055,11 +6274,25 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForStatement(
   int stmt_pos = peek_position();
   ForInfo for_info(this);
 
-  Consume(Token::FOR);
-  Expect(Token::LPAREN);
+  Consume(Token::kFor);
+  Expect(Token::kLeftParen);
 
-  bool starts_with_let = peek() == Token::LET;
-  if (peek() == Token::CONST || (starts_with_let && IsNextLetKeyword())) {
+  bool starts_with_let = peek() == Token::kLet;
+
+  // If the token after `using` is `of` or `in`, `using` is an identifier
+  // and not a declaration token.
+  // `of`: for ( [lookahead ≠ using of] ForDeclaration[?Yield, ?Await, +Using]
+  //       of AssignmentExpression[+In, ?Yield, ?Await] )
+  // `in`: for ( ForDeclaration[?Yield, ?Await, ~Using] in
+  //       Expression[+In, ?Yield, ?Await] )
+  // If the token after `using` is `{` or `[`, it
+  // shows a pattern after `using` which is not applicable.
+  // `{` or `[`: using [no LineTerminator here] [lookahead ≠ await]
+  // ForBinding[?Yield, ?Await, ~Pattern]
+  bool starts_with_using_keyword =
+      (peek() == Token::kUsing) && IfNextUsingKeyword();
+  if (peek() == Token::kConst || (starts_with_let && IsNextLetKeyword()) ||
+      starts_with_using_keyword) {
     // The initializer contains lexical declarations,
     // so create an in-between scope.
     BlockState for_state(zone(), &scope_);
@@ -6084,11 +6317,16 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForStatement(
 
     if (CheckInOrOf(&for_info.mode)) {
       scope()->set_is_hidden();
+      if (starts_with_using_keyword &&
+          for_info.mode == ForEachStatement::ENUMERATE) {
+        impl()->ReportMessageAt(scanner()->location(),
+                                MessageTemplate::kInvalidUsingInForInLoop);
+      }
       return ParseForEachStatementWithDeclarations(
           stmt_pos, &for_info, labels, own_labels, inner_block_scope);
     }
 
-    Expect(Token::SEMICOLON);
+    Expect(Token::kSemicolon);
 
     // Parse the remaining code in the inner block scope since the declaration
     // above was parsed there. We'll finalize the unnecessary outer block scope
@@ -6110,7 +6348,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForStatement(
   }
 
   StatementT init = impl()->NullStatement();
-  if (peek() == Token::VAR) {
+  if (peek() == Token::kVar) {
     ParseVariableDeclarations(kForStatement, &for_info.parsing_result,
                               &for_info.bound_names);
     DCHECK_EQ(for_info.parsing_result.descriptor.mode, VariableMode::kVar);
@@ -6122,7 +6360,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForStatement(
     }
 
     init = impl()->BuildInitializationBlock(&for_info.parsing_result);
-  } else if (peek() != Token::SEMICOLON) {
+  } else if (peek() != Token::kSemicolon) {
     // The initializer does not contain declarations.
     Scanner::Location next_loc = scanner()->peek_location();
     int lhs_beg_pos = next_loc.beg_pos;
@@ -6135,8 +6373,8 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForStatement(
       AcceptINScope scope(this, false);
       expression = ParseExpressionCoverGrammar();
       // `for (async of` is disallowed but `for (async.x of` is allowed, so
-      // check if the token is ASYNC after parsing the expression.
-      bool expression_is_async = scanner()->current_token() == Token::ASYNC &&
+      // check if the token is kAsync after parsing the expression.
+      bool expression_is_async = scanner()->current_token() == Token::kAsync &&
                                  !scanner()->literal_contains_escapes();
       // Initializer is reference followed by in/of.
       lhs_end_pos = end_position();
@@ -6169,7 +6407,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForStatement(
     init = factory()->NewExpressionStatement(expression, lhs_beg_pos);
   }
 
-  Expect(Token::SEMICOLON);
+  Expect(Token::kSemicolon);
 
   // Standard 'for' loop, we have parsed the initializer at this point.
   ExpressionT cond = impl()->NullExpression();
@@ -6219,7 +6457,7 @@ ParserBase<Impl>::ParseForEachStatementWithDeclarations(
     enumerable = ParseExpression();
   }
 
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
 
   if (IsLexicalVariableMode(for_info->parsing_result.descriptor.mode)) {
     inner_block_scope->set_start_position(position());
@@ -6282,7 +6520,7 @@ ParserBase<Impl>::ParseForEachStatementWithoutDeclarations(
     enumerable = ParseExpression();
   }
 
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
 
   StatementT body = impl()->NullStatement();
   SourceRange body_range;
@@ -6364,16 +6602,16 @@ typename ParserBase<Impl>::ForStatementT ParserBase<Impl>::ParseStandardForLoop(
   ForStatementT loop = factory()->NewForStatement(stmt_pos);
   Target target(this, loop, labels, own_labels, Target::TARGET_FOR_ANONYMOUS);
 
-  if (peek() != Token::SEMICOLON) {
+  if (peek() != Token::kSemicolon) {
     *cond = ParseExpression();
   }
-  Expect(Token::SEMICOLON);
+  Expect(Token::kSemicolon);
 
-  if (peek() != Token::RPAREN) {
+  if (peek() != Token::kRightParen) {
     ExpressionT exp = ParseExpression();
     *next = factory()->NewExpressionStatement(exp, exp->position());
   }
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
 
   SourceRange body_range;
   {
@@ -6400,9 +6638,9 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForAwaitStatement(
 
   // Create an in-between scope for let-bound iteration variables.
   BlockState for_state(zone(), &scope_);
-  Expect(Token::FOR);
-  Expect(Token::AWAIT);
-  Expect(Token::LPAREN);
+  Expect(Token::kFor);
+  Expect(Token::kAwait);
+  Expect(Token::kLeftParen);
   scope()->set_start_position(scanner()->location().beg_pos);
   scope()->set_is_hidden();
 
@@ -6418,8 +6656,8 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForAwaitStatement(
   bool has_declarations = false;
   Scope* inner_block_scope = NewScope(BLOCK_SCOPE);
 
-  bool starts_with_let = peek() == Token::LET;
-  if (peek() == Token::VAR || peek() == Token::CONST ||
+  bool starts_with_let = peek() == Token::kLet;
+  if (peek() == Token::kVar || peek() == Token::kConst ||
       (starts_with_let && IsNextLetKeyword())) {
     // The initializer contains declarations
     // 'for' 'await' '(' ForDeclaration 'of' AssignmentExpression ')'
@@ -6473,7 +6711,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForAwaitStatement(
     }
   }
 
-  ExpectContextualKeyword(ast_value_factory()->of_string());
+  ExpectContextualKeyword(Token::kOf);
 
   const bool kAllowIn = true;
   ExpressionT iterable = impl()->NullExpression();
@@ -6483,7 +6721,7 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseForAwaitStatement(
     iterable = ParseAssignmentExpression();
   }
 
-  Expect(Token::RPAREN);
+  Expect(Token::kRightParen);
 
   StatementT body = impl()->NullStatement();
   {

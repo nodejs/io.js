@@ -1,4 +1,4 @@
-.TH "NPM-PRUNE" "1" "October 2023" "" ""
+.TH "NPM-PRUNE" "1" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBnpm-prune\fR - Remove extraneous packages
 .SS "Synopsis"
@@ -14,7 +14,7 @@ This command removes "extraneous" packages. If a package name is provided, then 
 .P
 Extraneous packages are those present in the \fBnode_modules\fR folder that are not listed as any package's dependency list.
 .P
-If the \fB--production\fR flag is specified or the \fBNODE_ENV\fR environment variable is set to \fBproduction\fR, this command will remove the packages specified in your \fBdevDependencies\fR. Setting \fB--no-production\fR will negate \fBNODE_ENV\fR being set to \fBproduction\fR.
+If the \fB--omit=dev\fR flag is specified or the \fBNODE_ENV\fR environment variable is set to \fBproduction\fR, this command will remove the packages specified in your \fBdevDependencies\fR.
 .P
 If the \fB--dry-run\fR flag is used then no changes will actually be made.
 .P
@@ -84,7 +84,7 @@ Not supported by all npm commands.
 .SS "\fBforeground-scripts\fR"
 .RS 0
 .IP \(bu 4
-Default: false
+Default: \fBfalse\fR unless when using \fBnpm pack\fR or \fBnpm publish\fR where it defaults to \fBtrue\fR
 .IP \(bu 4
 Type: Boolean
 .RE 0

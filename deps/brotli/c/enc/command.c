@@ -4,7 +4,7 @@
    See file LICENSE for detail or copy at https://opensource.org/licenses/MIT
 */
 
-#include "./command.h"
+#include "command.h"
 
 #include <brotli/types.h>
 

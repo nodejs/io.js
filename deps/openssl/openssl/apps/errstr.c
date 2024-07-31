@@ -62,7 +62,7 @@ int errstr_main(int argc, char **argv)
     /* All remaining arg are error code. */
     ret = 0;
     for (argv = opt_rest(); *argv != NULL; argv++) {
-        if (sscanf(*argv, "%lx", &l) == 0) {
+        if (sscanf(*argv, "%lx", &l) <= 0) {
             ret++;
         } else {
             ERR_error_string_n(l, buf, sizeof(buf));

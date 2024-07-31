@@ -13,12 +13,13 @@
 #include "../common/context.h"
 #include "../common/dictionary.h"
 #include "../common/platform.h"
+#include "../common/shared_dictionary_internal.h"
 #include "../common/transform.h"
 #include "../common/version.h"
-#include "./bit_reader.h"
-#include "./huffman.h"
-#include "./prefix.h"
-#include "./state.h"
+#include "bit_reader.h"
+#include "huffman.h"
+#include "prefix.h"
+#include "state.h"
 
 #if defined(BROTLI_TARGET_NEON)
 #include <arm_neon.h>
@@ -42,8 +43,8 @@ extern "C" {
 /* We need the slack region for the following reasons:
     - doing up to two 16-byte copies for fast backward copying
     - inserting transformed dictionary word:
-        5 prefix + 24 base + 8 suffix */
-static const uint32_t kRingBufferWriteAheadSlack = 42;
+        255 prefix + 32 base + 255 suffix */
+static const brotli_reg_t kRingBufferWriteAheadSlack = 542;
 
 static const uint8_t kCodeLengthCodeOrder[BROTLI_CODE_LENGTH_CODES] = {
   1, 2, 3, 4, 0, 5, 17, 6, 16, 7, 8, 9, 10, 11, 12, 13, 14, 15,
@@ -112,8 +113,13 @@ void BrotliDecoderDestroyInstance(BrotliDecoderState* state) {
 
 /* Saves error code and converts it to BrotliDecoderResult. */
 static BROTLI_NOINLINE BrotliDecoderResult SaveErrorCode(
-    BrotliDecoderState* s, BrotliDecoderErrorCode e) {
+    BrotliDecoderState* s, BrotliDecoderErrorCode e, size_t consumed_input) {
   s->error_code = (int)e;
+  s->used_input += consumed_input;
+  if ((s->buffer_length != 0) && (s->br.next_in == s->br.last_in)) {
+    /* If internal buffer is depleted at last, reset it. */
+    s->buffer_length = 0;
+  }
   switch (e) {
     case BROTLI_DECODER_SUCCESS:
       return BROTLI_DECODER_RESULT_SUCCESS;
@@ -133,7 +139,7 @@ static BROTLI_NOINLINE BrotliDecoderResult SaveErrorCode(
    Precondition: bit-reader accumulator has at least 8 bits. */
 static BrotliDecoderErrorCode DecodeWindowBits(BrotliDecoderState* s,
                                                BrotliBitReader* br) {
-  uint32_t n;
+  brotli_reg_t n;
   BROTLI_BOOL large_window = s->large_window;
   s->large_window = BROTLI_FALSE;
   BrotliTakeBits(br, 1, &n);
@@ -143,7 +149,7 @@ static BrotliDecoderErrorCode DecodeWindowBits(BrotliDecoderState* s,
   }
   BrotliTakeBits(br, 3, &n);
   if (n != 0) {
-    s->window_bits = 17 + n;
+    s->window_bits = (17u + n) & 63u;
     return BROTLI_DECODER_SUCCESS;
   }
   BrotliTakeBits(br, 3, &n);
@@ -160,7 +166,7 @@ static BrotliDecoderErrorCode DecodeWindowBits(BrotliDecoderState* s,
     }
   }
   if (n != 0) {
-    s->window_bits = 8 + n;
+    s->window_bits = (8u + n) & 63u;
     return BROTLI_DECODER_SUCCESS;
   }
   s->window_bits = 17;
@@ -179,8 +185,8 @@ static BROTLI_INLINE void memmove16(uint8_t* dst, uint8_t* src) {
 
 /* Decodes a number in the range [0..255], by reading 1 - 11 bits. */
 static BROTLI_NOINLINE BrotliDecoderErrorCode DecodeVarLenUint8(
-    BrotliDecoderState* s, BrotliBitReader* br, uint32_t* value) {
-  uint32_t bits;
+    BrotliDecoderState* s, BrotliBitReader* br, brotli_reg_t* value) {
+  brotli_reg_t bits;
   switch (s->substate_decode_uint8) {
     case BROTLI_STATE_DECODE_UINT8_NONE:
       if (BROTLI_PREDICT_FALSE(!BrotliSafeReadBits(br, 1, &bits))) {
@@ -217,14 +223,14 @@ static BROTLI_NOINLINE BrotliDecoderErrorCode DecodeVarLenUint8(
 
     default:
       return
-          BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);
+          BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);  /* COV_NF_LINE */
   }
 }
 
 /* Decodes a metablock length and flags by reading 2 - 31 bits. */
 static BrotliDecoderErrorCode BROTLI_NOINLINE DecodeMetaBlockLength(
     BrotliDecoderState* s, BrotliBitReader* br) {
-  uint32_t bits;
+  brotli_reg_t bits;
   int i;
   for (;;) {
     switch (s->substate_metablock_header) {
@@ -338,7 +344,7 @@ static BrotliDecoderErrorCode BROTLI_NOINLINE DecodeMetaBlockLength(
 
       default:
         return
-            BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);
+            BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);  /* COV_NF_LINE */
     }
   }
 }
@@ -347,13 +353,13 @@ static BrotliDecoderErrorCode BROTLI_NOINLINE DecodeMetaBlockLength(
    This method doesn't read data from the bit reader, BUT drops the amount of
    bits that correspond to the decoded symbol.
    bits MUST contain at least 15 (BROTLI_HUFFMAN_MAX_CODE_LENGTH) valid bits. */
-static BROTLI_INLINE uint32_t DecodeSymbol(uint32_t bits,
-                                           const HuffmanCode* table,
-                                           BrotliBitReader* br) {
+static BROTLI_INLINE brotli_reg_t DecodeSymbol(brotli_reg_t bits,
+                                               const HuffmanCode* table,
+                                               BrotliBitReader* br) {
   BROTLI_HC_MARK_TABLE_FOR_FAST_LOAD(table);
   BROTLI_HC_ADJUST_TABLE_INDEX(table, bits & HUFFMAN_TABLE_MASK);
   if (BROTLI_HC_FAST_LOAD_BITS(table) > HUFFMAN_TABLE_BITS) {
-    uint32_t nbits = BROTLI_HC_FAST_LOAD_BITS(table) - HUFFMAN_TABLE_BITS;
+    brotli_reg_t nbits = BROTLI_HC_FAST_LOAD_BITS(table) - HUFFMAN_TABLE_BITS;
     BrotliDropBits(br, HUFFMAN_TABLE_BITS);
     BROTLI_HC_ADJUST_TABLE_INDEX(table,
         BROTLI_HC_FAST_LOAD_VALUE(table) +
@@ -365,17 +371,17 @@ static BROTLI_INLINE uint32_t DecodeSymbol(uint32_t bits,
 
 /* Reads and decodes the next Huffman code from bit-stream.
    This method peeks 16 bits of input and drops 0 - 15 of them. */
-static BROTLI_INLINE uint32_t ReadSymbol(const HuffmanCode* table,
-                                         BrotliBitReader* br) {
+static BROTLI_INLINE brotli_reg_t ReadSymbol(const HuffmanCode* table,
+                                             BrotliBitReader* br) {
   return DecodeSymbol(BrotliGet16BitsUnmasked(br), table, br);
 }
 
 /* Same as DecodeSymbol, but it is known that there is less than 15 bits of
    input are currently available. */
 static BROTLI_NOINLINE BROTLI_BOOL SafeDecodeSymbol(
-    const HuffmanCode* table, BrotliBitReader* br, uint32_t* result) {
-  uint32_t val;
-  uint32_t available_bits = BrotliGetAvailableBits(br);
+    const HuffmanCode* table, BrotliBitReader* br, brotli_reg_t* result) {
+  brotli_reg_t val;
+  brotli_reg_t available_bits = BrotliGetAvailableBits(br);
   BROTLI_HC_MARK_TABLE_FOR_FAST_LOAD(table);
   if (available_bits == 0) {
     if (BROTLI_HC_FAST_LOAD_BITS(table) == 0) {
@@ -384,7 +390,7 @@ static BROTLI_NOINLINE BROTLI_BOOL SafeDecodeSymbol(
     }
     return BROTLI_FALSE;  /* No valid bits at all. */
   }
-  val = (uint32_t)BrotliGetBitsUnmasked(br);
+  val = BrotliGetBitsUnmasked(br);
   BROTLI_HC_ADJUST_TABLE_INDEX(table, val & HUFFMAN_TABLE_MASK);
   if (BROTLI_HC_FAST_LOAD_BITS(table) <= HUFFMAN_TABLE_BITS) {
     if (BROTLI_HC_FAST_LOAD_BITS(table) <= available_bits) {
@@ -413,8 +419,8 @@ static BROTLI_NOINLINE BROTLI_BOOL SafeDecodeSymbol(
 }
 
 static BROTLI_INLINE BROTLI_BOOL SafeReadSymbol(
-    const HuffmanCode* table, BrotliBitReader* br, uint32_t* result) {
-  uint32_t val;
+    const HuffmanCode* table, BrotliBitReader* br, brotli_reg_t* result) {
+  brotli_reg_t val;
   if (BROTLI_PREDICT_TRUE(BrotliSafeGetBits(br, 15, &val))) {
     *result = DecodeSymbol(val, table, br);
     return BROTLI_TRUE;
@@ -426,8 +432,8 @@ static BROTLI_INLINE BROTLI_BOOL SafeReadSymbol(
 static BROTLI_INLINE void PreloadSymbol(int safe,
                                         const HuffmanCode* table,
                                         BrotliBitReader* br,
-                                        uint32_t* bits,
-                                        uint32_t* value) {
+                                        brotli_reg_t* bits,
+                                        brotli_reg_t* value) {
   if (safe) {
     return;
   }
@@ -439,15 +445,15 @@ static BROTLI_INLINE void PreloadSymbol(int safe,
 
 /* Decodes the next Huffman code using data prepared by PreloadSymbol.
    Reads 0 - 15 bits. Also peeks 8 following bits. */
-static BROTLI_INLINE uint32_t ReadPreloadedSymbol(const HuffmanCode* table,
+static BROTLI_INLINE brotli_reg_t ReadPreloadedSymbol(const HuffmanCode* table,
                                                   BrotliBitReader* br,
-                                                  uint32_t* bits,
-                                                  uint32_t* value) {
-  uint32_t result = *value;
+                                                  brotli_reg_t* bits,
+                                                  brotli_reg_t* value) {
+  brotli_reg_t result = *value;
   if (BROTLI_PREDICT_FALSE(*bits > HUFFMAN_TABLE_BITS)) {
-    uint32_t val = BrotliGet16BitsUnmasked(br);
+    brotli_reg_t val = BrotliGet16BitsUnmasked(br);
     const HuffmanCode* ext = table + (val & HUFFMAN_TABLE_MASK) + *value;
-    uint32_t mask = BitMask((*bits - HUFFMAN_TABLE_BITS));
+    brotli_reg_t mask = BitMask((*bits - HUFFMAN_TABLE_BITS));
     BROTLI_HC_MARK_TABLE_FOR_FAST_LOAD(ext);
     BrotliDropBits(br, HUFFMAN_TABLE_BITS);
     BROTLI_HC_ADJUST_TABLE_INDEX(ext, (val >> HUFFMAN_TABLE_BITS) & mask);
@@ -460,8 +466,8 @@ static BROTLI_INLINE uint32_t ReadPreloadedSymbol(const HuffmanCode* table,
   return result;
 }
 
-static BROTLI_INLINE uint32_t Log2Floor(uint32_t x) {
-  uint32_t result = 0;
+static BROTLI_INLINE brotli_reg_t Log2Floor(brotli_reg_t x) {
+  brotli_reg_t result = 0;
   while (x) {
     x >>= 1;
     ++result;
@@ -473,16 +479,16 @@ static BROTLI_INLINE uint32_t Log2Floor(uint32_t x) {
    Totally 1..4 symbols are read, 1..11 bits each.
    The list of symbols MUST NOT contain duplicates. */
 static BrotliDecoderErrorCode ReadSimpleHuffmanSymbols(
-    uint32_t alphabet_size_max, uint32_t alphabet_size_limit,
+    brotli_reg_t alphabet_size_max, brotli_reg_t alphabet_size_limit,
     BrotliDecoderState* s) {
   /* max_bits == 1..11; symbol == 0..3; 1..44 bits will be read. */
   BrotliBitReader* br = &s->br;
   BrotliMetablockHeaderArena* h = &s->arena.header;
-  uint32_t max_bits = Log2Floor(alphabet_size_max - 1);
-  uint32_t i = h->sub_loop_counter;
-  uint32_t num_symbols = h->symbol;
+  brotli_reg_t max_bits = Log2Floor(alphabet_size_max - 1);
+  brotli_reg_t i = h->sub_loop_counter;
+  brotli_reg_t num_symbols = h->symbol;
   while (i <= num_symbols) {
-    uint32_t v;
+    brotli_reg_t v;
     if (BROTLI_PREDICT_FALSE(!BrotliSafeReadBits(br, max_bits, &v))) {
       h->sub_loop_counter = i;
       h->substate_huffman = BROTLI_STATE_HUFFMAN_SIMPLE_READ;
@@ -498,7 +504,7 @@ static BrotliDecoderErrorCode ReadSimpleHuffmanSymbols(
   }
 
   for (i = 0; i < num_symbols; ++i) {
-    uint32_t k = i + 1;
+    brotli_reg_t k = i + 1;
     for (; k <= num_symbols; ++k) {
       if (h->symbols_lists_array[i] == h->symbols_lists_array[k]) {
         return BROTLI_FAILURE(BROTLI_DECODER_ERROR_FORMAT_SIMPLE_HUFFMAN_SAME);
@@ -515,9 +521,9 @@ static BrotliDecoderErrorCode ReadSimpleHuffmanSymbols(
     C) extend corresponding index-chain
     D) reduce the Huffman space
     E) update the histogram */
-static BROTLI_INLINE void ProcessSingleCodeLength(uint32_t code_len,
-    uint32_t* symbol, uint32_t* repeat, uint32_t* space,
-    uint32_t* prev_code_len, uint16_t* symbol_lists,
+static BROTLI_INLINE void ProcessSingleCodeLength(brotli_reg_t code_len,
+    brotli_reg_t* symbol, brotli_reg_t* repeat, brotli_reg_t* space,
+    brotli_reg_t* prev_code_len, uint16_t* symbol_lists,
     uint16_t* code_length_histo, int* next_symbol) {
   *repeat = 0;
   if (code_len != 0) {  /* code_len == 1..15 */
@@ -542,14 +548,14 @@ static BROTLI_INLINE void ProcessSingleCodeLength(uint32_t code_len,
 
    PRECONDITION: code_len == BROTLI_REPEAT_PREVIOUS_CODE_LENGTH or
                  code_len == BROTLI_REPEAT_ZERO_CODE_LENGTH */
-static BROTLI_INLINE void ProcessRepeatedCodeLength(uint32_t code_len,
-    uint32_t repeat_delta, uint32_t alphabet_size, uint32_t* symbol,
-    uint32_t* repeat, uint32_t* space, uint32_t* prev_code_len,
-    uint32_t* repeat_code_len, uint16_t* symbol_lists,
+static BROTLI_INLINE void ProcessRepeatedCodeLength(brotli_reg_t code_len,
+    brotli_reg_t repeat_delta, brotli_reg_t alphabet_size, brotli_reg_t* symbol,
+    brotli_reg_t* repeat, brotli_reg_t* space, brotli_reg_t* prev_code_len,
+    brotli_reg_t* repeat_code_len, uint16_t* symbol_lists,
     uint16_t* code_length_histo, int* next_symbol) {
-  uint32_t old_repeat;
-  uint32_t extra_bits = 3;  /* for BROTLI_REPEAT_ZERO_CODE_LENGTH */
-  uint32_t new_len = 0;  /* for BROTLI_REPEAT_ZERO_CODE_LENGTH */
+  brotli_reg_t old_repeat;
+  brotli_reg_t extra_bits = 3;  /* for BROTLI_REPEAT_ZERO_CODE_LENGTH */
+  brotli_reg_t new_len = 0;  /* for BROTLI_REPEAT_ZERO_CODE_LENGTH */
   if (code_len == BROTLI_REPEAT_PREVIOUS_CODE_LENGTH) {
     new_len = *prev_code_len;
     extra_bits = 2;
@@ -574,7 +580,7 @@ static BROTLI_INLINE void ProcessRepeatedCodeLength(uint32_t code_len,
   BROTLI_LOG(("[ReadHuffmanCode] code_length[%d..%d] = %d\n",
       (int)*symbol, (int)(*symbol + repeat_delta - 1), (int)*repeat_code_len));
   if (*repeat_code_len != 0) {
-    unsigned last = *symbol + repeat_delta;
+    brotli_reg_t last = *symbol + repeat_delta;
     int next = next_symbol[*repeat_code_len];
     do {
       symbol_lists[next] = (uint16_t)*symbol;
@@ -591,14 +597,14 @@ static BROTLI_INLINE void ProcessRepeatedCodeLength(uint32_t code_len,
 
 /* Reads and decodes symbol codelengths. */
 static BrotliDecoderErrorCode ReadSymbolCodeLengths(
-    uint32_t alphabet_size, BrotliDecoderState* s) {
+    brotli_reg_t alphabet_size, BrotliDecoderState* s) {
   BrotliBitReader* br = &s->br;
   BrotliMetablockHeaderArena* h = &s->arena.header;
-  uint32_t symbol = h->symbol;
-  uint32_t repeat = h->repeat;
-  uint32_t space = h->space;
-  uint32_t prev_code_len = h->prev_code_len;
-  uint32_t repeat_code_len = h->repeat_code_len;
+  brotli_reg_t symbol = h->symbol;
+  brotli_reg_t repeat = h->repeat;
+  brotli_reg_t space = h->space;
+  brotli_reg_t prev_code_len = h->prev_code_len;
+  brotli_reg_t repeat_code_len = h->repeat_code_len;
   uint16_t* symbol_lists = h->symbol_lists;
   uint16_t* code_length_histo = h->code_length_histo;
   int* next_symbol = h->next_symbol;
@@ -607,9 +613,9 @@ static BrotliDecoderErrorCode ReadSymbolCodeLengths(
   }
   while (symbol < alphabet_size && space > 0) {
     const HuffmanCode* p = h->table;
-    uint32_t code_len;
+    brotli_reg_t code_len;
     BROTLI_HC_MARK_TABLE_FOR_FAST_LOAD(p);
-    if (!BrotliCheckInputAmount(br, BROTLI_SHORT_FILL_BIT_WINDOW_READ)) {
+    if (!BrotliCheckInputAmount(br)) {
       h->symbol = symbol;
       h->repeat = repeat;
       h->prev_code_len = prev_code_len;
@@ -626,10 +632,10 @@ static BrotliDecoderErrorCode ReadSymbolCodeLengths(
       ProcessSingleCodeLength(code_len, &symbol, &repeat, &space,
           &prev_code_len, symbol_lists, code_length_histo, next_symbol);
     } else {  /* code_len == 16..17, extra_bits == 2..3 */
-      uint32_t extra_bits =
+      brotli_reg_t extra_bits =
           (code_len == BROTLI_REPEAT_PREVIOUS_CODE_LENGTH) ? 2 : 3;
-      uint32_t repeat_delta =
-          (uint32_t)BrotliGetBitsUnmasked(br) & BitMask(extra_bits);
+      brotli_reg_t repeat_delta =
+          BrotliGetBitsUnmasked(br) & BitMask(extra_bits);
       BrotliDropBits(br, extra_bits);
       ProcessRepeatedCodeLength(code_len, repeat_delta, alphabet_size,
           &symbol, &repeat, &space, &prev_code_len, &repeat_code_len,
@@ -641,15 +647,15 @@ static BrotliDecoderErrorCode ReadSymbolCodeLengths(
 }
 
 static BrotliDecoderErrorCode SafeReadSymbolCodeLengths(
-    uint32_t alphabet_size, BrotliDecoderState* s) {
+    brotli_reg_t alphabet_size, BrotliDecoderState* s) {
   BrotliBitReader* br = &s->br;
   BrotliMetablockHeaderArena* h = &s->arena.header;
   BROTLI_BOOL get_byte = BROTLI_FALSE;
   while (h->symbol < alphabet_size && h->space > 0) {
     const HuffmanCode* p = h->table;
-    uint32_t code_len;
-    uint32_t available_bits;
-    uint32_t bits = 0;
+    brotli_reg_t code_len;
+    brotli_reg_t available_bits;
+    brotli_reg_t bits = 0;
     BROTLI_HC_MARK_TABLE_FOR_FAST_LOAD(p);
     if (get_byte && !BrotliPullByte(br)) return BROTLI_DECODER_NEEDS_MORE_INPUT;
     get_byte = BROTLI_FALSE;
@@ -670,8 +676,8 @@ static BrotliDecoderErrorCode SafeReadSymbolCodeLengths(
           &h->prev_code_len, h->symbol_lists, h->code_length_histo,
           h->next_symbol);
     } else {  /* code_len == 16..17, extra_bits == 2..3 */
-      uint32_t extra_bits = code_len - 14U;
-      uint32_t repeat_delta = (bits >> BROTLI_HC_FAST_LOAD_BITS(p)) &
+      brotli_reg_t extra_bits = code_len - 14U;
+      brotli_reg_t repeat_delta = (bits >> BROTLI_HC_FAST_LOAD_BITS(p)) &
           BitMask(extra_bits);
       if (available_bits < BROTLI_HC_FAST_LOAD_BITS(p) + extra_bits) {
         get_byte = BROTLI_TRUE;
@@ -692,15 +698,15 @@ static BrotliDecoderErrorCode SafeReadSymbolCodeLengths(
 static BrotliDecoderErrorCode ReadCodeLengthCodeLengths(BrotliDecoderState* s) {
   BrotliBitReader* br = &s->br;
   BrotliMetablockHeaderArena* h = &s->arena.header;
-  uint32_t num_codes = h->repeat;
-  unsigned space = h->space;
-  uint32_t i = h->sub_loop_counter;
+  brotli_reg_t num_codes = h->repeat;
+  brotli_reg_t space = h->space;
+  brotli_reg_t i = h->sub_loop_counter;
   for (; i < BROTLI_CODE_LENGTH_CODES; ++i) {
     const uint8_t code_len_idx = kCodeLengthCodeOrder[i];
-    uint32_t ix;
-    uint32_t v;
+    brotli_reg_t ix;
+    brotli_reg_t v;
     if (BROTLI_PREDICT_FALSE(!BrotliSafeGetBits(br, 4, &ix))) {
-      uint32_t available_bits = BrotliGetAvailableBits(br);
+      brotli_reg_t available_bits = BrotliGetAvailableBits(br);
       if (available_bits != 0) {
         ix = BrotliGetBitsUnmasked(br) & 0xF;
       } else {
@@ -745,10 +751,10 @@ static BrotliDecoderErrorCode ReadCodeLengthCodeLengths(BrotliDecoderState* s) {
          encoded with predefined entropy code. 32 - 74 bits are used.
     B.2) Decoded table is used to decode code lengths of symbols in resulting
          Huffman table. In worst case 3520 bits are read. */
-static BrotliDecoderErrorCode ReadHuffmanCode(uint32_t alphabet_size_max,
-                                              uint32_t alphabet_size_limit,
+static BrotliDecoderErrorCode ReadHuffmanCode(brotli_reg_t alphabet_size_max,
+                                              brotli_reg_t alphabet_size_limit,
                                               HuffmanCode* table,
-                                              uint32_t* opt_table_size,
+                                              brotli_reg_t* opt_table_size,
                                               BrotliDecoderState* s) {
   BrotliBitReader* br = &s->br;
   BrotliMetablockHeaderArena* h = &s->arena.header;
@@ -794,9 +800,9 @@ static BrotliDecoderErrorCode ReadHuffmanCode(uint32_t alphabet_size_max,
       /* Fall through. */
 
       case BROTLI_STATE_HUFFMAN_SIMPLE_BUILD: {
-        uint32_t table_size;
+        brotli_reg_t table_size;
         if (h->symbol == 3) {
-          uint32_t bits;
+          brotli_reg_t bits;
           if (!BrotliSafeReadBits(br, 1, &bits)) {
             h->substate_huffman = BROTLI_STATE_HUFFMAN_SIMPLE_BUILD;
             return BROTLI_DECODER_NEEDS_MORE_INPUT;
@@ -804,8 +810,9 @@ static BrotliDecoderErrorCode ReadHuffmanCode(uint32_t alphabet_size_max,
           h->symbol += bits;
         }
         BROTLI_LOG_UINT(h->symbol);
-        table_size = BrotliBuildSimpleHuffmanTable(
-            table, HUFFMAN_TABLE_BITS, h->symbols_lists_array, h->symbol);
+        table_size = BrotliBuildSimpleHuffmanTable(table, HUFFMAN_TABLE_BITS,
+                                                   h->symbols_lists_array,
+                                                   (uint32_t)h->symbol);
         if (opt_table_size) {
           *opt_table_size = table_size;
         }
@@ -815,7 +822,7 @@ static BrotliDecoderErrorCode ReadHuffmanCode(uint32_t alphabet_size_max,
 
       /* Decode Huffman-coded code lengths. */
       case BROTLI_STATE_HUFFMAN_COMPLEX: {
-        uint32_t i;
+        brotli_reg_t i;
         BrotliDecoderErrorCode result = ReadCodeLengthCodeLengths(s);
         if (result != BROTLI_DECODER_SUCCESS) {
           return result;
@@ -839,7 +846,7 @@ static BrotliDecoderErrorCode ReadHuffmanCode(uint32_t alphabet_size_max,
       /* Fall through. */
 
       case BROTLI_STATE_HUFFMAN_LENGTH_SYMBOLS: {
-        uint32_t table_size;
+        brotli_reg_t table_size;
         BrotliDecoderErrorCode result = ReadSymbolCodeLengths(
             alphabet_size_limit, s);
         if (result == BROTLI_DECODER_NEEDS_MORE_INPUT) {
@@ -864,16 +871,16 @@ static BrotliDecoderErrorCode ReadHuffmanCode(uint32_t alphabet_size_max,
 
       default:
         return
-            BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);
+            BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);  /* COV_NF_LINE */
     }
   }
 }
 
 /* Decodes a block length by reading 3..39 bits. */
-static BROTLI_INLINE uint32_t ReadBlockLength(const HuffmanCode* table,
-                                              BrotliBitReader* br) {
-  uint32_t code;
-  uint32_t nbits;
+static BROTLI_INLINE brotli_reg_t ReadBlockLength(const HuffmanCode* table,
+                                                  BrotliBitReader* br) {
+  brotli_reg_t code;
+  brotli_reg_t nbits;
   code = ReadSymbol(table, br);
   nbits = _kBrotliPrefixCodeRanges[code].nbits;  /* nbits == 2..24 */
   return _kBrotliPrefixCodeRanges[code].offset + BrotliReadBits24(br, nbits);
@@ -882,9 +889,9 @@ static BROTLI_INLINE uint32_t ReadBlockLength(const HuffmanCode* table,
 /* WARNING: if state is not BROTLI_STATE_READ_BLOCK_LENGTH_NONE, then
    reading can't be continued with ReadBlockLength. */
 static BROTLI_INLINE BROTLI_BOOL SafeReadBlockLength(
-    BrotliDecoderState* s, uint32_t* result, const HuffmanCode* table,
+    BrotliDecoderState* s, brotli_reg_t* result, const HuffmanCode* table,
     BrotliBitReader* br) {
-  uint32_t index;
+  brotli_reg_t index;
   if (s->substate_read_block_length == BROTLI_STATE_READ_BLOCK_LENGTH_NONE) {
     if (!SafeReadSymbol(table, br, &index)) {
       return BROTLI_FALSE;
@@ -893,9 +900,9 @@ static BROTLI_INLINE BROTLI_BOOL SafeReadBlockLength(
     index = s->block_length_index;
   }
   {
-    uint32_t bits;
-    uint32_t nbits = _kBrotliPrefixCodeRanges[index].nbits;
-    uint32_t offset = _kBrotliPrefixCodeRanges[index].offset;
+    brotli_reg_t bits;
+    brotli_reg_t nbits = _kBrotliPrefixCodeRanges[index].nbits;
+    brotli_reg_t offset = _kBrotliPrefixCodeRanges[index].offset;
     if (!BrotliSafeReadBits(br, nbits, &bits)) {
       s->block_length_index = index;
       s->substate_read_block_length = BROTLI_STATE_READ_BLOCK_LENGTH_SUFFIX;
@@ -922,10 +929,10 @@ static BROTLI_INLINE BROTLI_BOOL SafeReadBlockLength(
    Most of input values are 0 and 1. To reduce number of branches, we replace
    inner for loop with do-while. */
 static BROTLI_NOINLINE void InverseMoveToFrontTransform(
-    uint8_t* v, uint32_t v_len, BrotliDecoderState* state) {
+    uint8_t* v, brotli_reg_t v_len, BrotliDecoderState* state) {
   /* Reinitialize elements that could have been changed. */
-  uint32_t i = 1;
-  uint32_t upper_bound = state->mtf_upper_bound;
+  brotli_reg_t i = 1;
+  brotli_reg_t upper_bound = state->mtf_upper_bound;
   uint32_t* mtf = &state->mtf[1];  /* Make mtf[-1] addressable. */
   uint8_t* mtf_u8 = (uint8_t*)mtf;
   /* Load endian-aware constant. */
@@ -968,7 +975,7 @@ static BrotliDecoderErrorCode HuffmanTreeGroupDecode(
     h->substate_tree_group = BROTLI_STATE_TREE_GROUP_LOOP;
   }
   while (h->htree_index < group->num_htrees) {
-    uint32_t table_size;
+    brotli_reg_t table_size;
     BrotliDecoderErrorCode result = ReadHuffmanCode(group->alphabet_size_max,
         group->alphabet_size_limit, h->next, &table_size, s);
     if (result != BROTLI_DECODER_SUCCESS) return result;
@@ -988,8 +995,8 @@ static BrotliDecoderErrorCode HuffmanTreeGroupDecode(
        This table will be used for reading context map items.
     3) Read context map items; "0" values could be run-length encoded.
     4) Optionally, apply InverseMoveToFront transform to the resulting map. */
-static BrotliDecoderErrorCode DecodeContextMap(uint32_t context_map_size,
-                                               uint32_t* num_htrees,
+static BrotliDecoderErrorCode DecodeContextMap(brotli_reg_t context_map_size,
+                                               brotli_reg_t* num_htrees,
                                                uint8_t** context_map_arg,
                                                BrotliDecoderState* s) {
   BrotliBitReader* br = &s->br;
@@ -1019,7 +1026,7 @@ static BrotliDecoderErrorCode DecodeContextMap(uint32_t context_map_size,
     /* Fall through. */
 
     case BROTLI_STATE_CONTEXT_MAP_READ_PREFIX: {
-      uint32_t bits;
+      brotli_reg_t bits;
       /* In next stage ReadHuffmanCode uses at least 4 bits, so it is safe
          to peek 4 bits ahead. */
       if (!BrotliSafeGetBits(br, 5, &bits)) {
@@ -1038,7 +1045,7 @@ static BrotliDecoderErrorCode DecodeContextMap(uint32_t context_map_size,
     /* Fall through. */
 
     case BROTLI_STATE_CONTEXT_MAP_HUFFMAN: {
-      uint32_t alphabet_size = *num_htrees + h->max_run_length_prefix;
+      brotli_reg_t alphabet_size = *num_htrees + h->max_run_length_prefix;
       result = ReadHuffmanCode(alphabet_size, alphabet_size,
                                h->context_map_table, NULL, s);
       if (result != BROTLI_DECODER_SUCCESS) return result;
@@ -1048,10 +1055,10 @@ static BrotliDecoderErrorCode DecodeContextMap(uint32_t context_map_size,
     /* Fall through. */
 
     case BROTLI_STATE_CONTEXT_MAP_DECODE: {
-      uint32_t context_index = h->context_index;
-      uint32_t max_run_length_prefix = h->max_run_length_prefix;
+      brotli_reg_t context_index = h->context_index;
+      brotli_reg_t max_run_length_prefix = h->max_run_length_prefix;
       uint8_t* context_map = *context_map_arg;
-      uint32_t code = h->code;
+      brotli_reg_t code = h->code;
       BROTLI_BOOL skip_preamble = (code != 0xFFFF);
       while (context_index < context_map_size || skip_preamble) {
         if (!skip_preamble) {
@@ -1076,7 +1083,7 @@ static BrotliDecoderErrorCode DecodeContextMap(uint32_t context_map_size,
         }
         /* RLE sub-stage. */
         {
-          uint32_t reps;
+          brotli_reg_t reps;
           if (!BrotliSafeReadBits(br, code, &reps)) {
             h->code = code;
             h->context_index = context_index;
@@ -1097,7 +1104,7 @@ static BrotliDecoderErrorCode DecodeContextMap(uint32_t context_map_size,
     /* Fall through. */
 
     case BROTLI_STATE_CONTEXT_MAP_TRANSFORM: {
-      uint32_t bits;
+      brotli_reg_t bits;
       if (!BrotliSafeReadBits(br, 1, &bits)) {
         h->substate_context_map = BROTLI_STATE_CONTEXT_MAP_TRANSFORM;
         return BROTLI_DECODER_NEEDS_MORE_INPUT;
@@ -1111,7 +1118,7 @@ static BrotliDecoderErrorCode DecodeContextMap(uint32_t context_map_size,
 
     default:
       return
-          BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);
+          BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);  /* COV_NF_LINE */
   }
 }
 
@@ -1119,14 +1126,14 @@ static BrotliDecoderErrorCode DecodeContextMap(uint32_t context_map_size,
    Reads 3..54 bits. */
 static BROTLI_INLINE BROTLI_BOOL DecodeBlockTypeAndLength(
     int safe, BrotliDecoderState* s, int tree_type) {
-  uint32_t max_block_type = s->num_block_types[tree_type];
+  brotli_reg_t max_block_type = s->num_block_types[tree_type];
   const HuffmanCode* type_tree = &s->block_type_trees[
       tree_type * BROTLI_HUFFMAN_MAX_SIZE_258];
   const HuffmanCode* len_tree = &s->block_len_trees[
       tree_type * BROTLI_HUFFMAN_MAX_SIZE_26];
   BrotliBitReader* br = &s->br;
-  uint32_t* ringbuffer = &s->block_type_rb[tree_type * 2];
-  uint32_t block_type;
+  brotli_reg_t* ringbuffer = &s->block_type_rb[tree_type * 2];
+  brotli_reg_t block_type;
   if (max_block_type <= 1) {
     return BROTLI_FALSE;
   }
@@ -1171,7 +1178,8 @@ static BROTLI_INLINE void DetectTrivialLiteralBlockTypes(
     size_t sample = s->context_map[offset];
     size_t j;
     for (j = 0; j < (1u << BROTLI_LITERAL_CONTEXT_BITS);) {
-      BROTLI_REPEAT(4, error |= s->context_map[offset + j++] ^ sample;)
+      /* NOLINTNEXTLINE(bugprone-macro-repeated-side-effects) */
+      BROTLI_REPEAT_4({ error |= s->context_map[offset + j++] ^ sample; })
     }
     if (error == 0) {
       s->trivial_literal_contexts[i >> 5] |= 1u << (i & 31);
@@ -1182,8 +1190,8 @@ static BROTLI_INLINE void DetectTrivialLiteralBlockTypes(
 static BROTLI_INLINE void PrepareLiteralDecoding(BrotliDecoderState* s) {
   uint8_t context_mode;
   size_t trivial;
-  uint32_t block_type = s->block_type_rb[1];
-  uint32_t context_offset = block_type << BROTLI_LITERAL_CONTEXT_BITS;
+  brotli_reg_t block_type = s->block_type_rb[1];
+  brotli_reg_t context_offset = block_type << BROTLI_LITERAL_CONTEXT_BITS;
   s->context_map_slice = s->context_map + context_offset;
   trivial = s->trivial_literal_contexts[block_type >> 5];
   s->trivial_literal_context = (trivial >> (block_type & 31)) & 1;
@@ -1352,10 +1360,61 @@ static BROTLI_BOOL BROTLI_NOINLINE BrotliEnsureRingBuffer(
   return BROTLI_TRUE;
 }
 
+static BrotliDecoderErrorCode BROTLI_NOINLINE
+SkipMetadataBlock(BrotliDecoderState* s) {
+  BrotliBitReader* br = &s->br;
+
+  if (s->meta_block_remaining_len == 0) {
+    return BROTLI_DECODER_SUCCESS;
+  }
+
+  BROTLI_DCHECK((BrotliGetAvailableBits(br) & 7) == 0);
+
+  /* Drain accumulator. */
+  if (BrotliGetAvailableBits(br) >= 8) {
+    uint8_t buffer[8];
+    int nbytes = (int)(BrotliGetAvailableBits(br)) >> 3;
+    BROTLI_DCHECK(nbytes <= 8);
+    if (nbytes > s->meta_block_remaining_len) {
+      nbytes = s->meta_block_remaining_len;
+    }
+    BrotliCopyBytes(buffer, br, (size_t)nbytes);
+    if (s->metadata_chunk_func) {
+      s->metadata_chunk_func(s->metadata_callback_opaque, buffer,
+                             (size_t)nbytes);
+    }
+    s->meta_block_remaining_len -= nbytes;
+    if (s->meta_block_remaining_len == 0) {
+      return BROTLI_DECODER_SUCCESS;
+    }
+  }
+
+  /* Direct access to metadata is possible. */
+  int nbytes = (int)BrotliGetRemainingBytes(br);
+  if (nbytes > s->meta_block_remaining_len) {
+    nbytes = s->meta_block_remaining_len;
+  }
+  if (nbytes > 0) {
+    if (s->metadata_chunk_func) {
+      s->metadata_chunk_func(s->metadata_callback_opaque, br->next_in,
+                             (size_t)nbytes);
+    }
+    BrotliDropBytes(br, (size_t)nbytes);
+    s->meta_block_remaining_len -= nbytes;
+    if (s->meta_block_remaining_len == 0) {
+      return BROTLI_DECODER_SUCCESS;
+    }
+  }
+
+  BROTLI_DCHECK(BrotliGetRemainingBytes(br) == 0);
+
+  return BROTLI_DECODER_NEEDS_MORE_INPUT;
+}
+
 static BrotliDecoderErrorCode BROTLI_NOINLINE CopyUncompressedBlockToOutput(
     size_t* available_out, uint8_t** next_out, size_t* total_out,
     BrotliDecoderState* s) {
-  /* TODO: avoid allocation for single uncompressed block. */
+  /* TODO(eustas): avoid allocation for single uncompressed block. */
   if (!BrotliEnsureRingBuffer(s)) {
     return BROTLI_FAILURE(BROTLI_DECODER_ERROR_ALLOC_RING_BUFFER_1);
   }
@@ -1401,6 +1460,115 @@ static BrotliDecoderErrorCode BROTLI_NOINLINE CopyUncompressedBlockToOutput(
     }
   }
   BROTLI_DCHECK(0);  /* Unreachable */
+}
+
+static BROTLI_BOOL AttachCompoundDictionary(
+    BrotliDecoderState* state, const uint8_t* data, size_t size) {
+  BrotliDecoderCompoundDictionary* addon = state->compound_dictionary;
+  if (state->state != BROTLI_STATE_UNINITED) return BROTLI_FALSE;
+  if (!addon) {
+    addon = (BrotliDecoderCompoundDictionary*)BROTLI_DECODER_ALLOC(
+        state, sizeof(BrotliDecoderCompoundDictionary));
+    if (!addon) return BROTLI_FALSE;
+    addon->num_chunks = 0;
+    addon->total_size = 0;
+    addon->br_length = 0;
+    addon->br_copied = 0;
+    addon->block_bits = -1;
+    addon->chunk_offsets[0] = 0;
+    state->compound_dictionary = addon;
+  }
+  if (addon->num_chunks == 15) return BROTLI_FALSE;
+  addon->chunks[addon->num_chunks] = data;
+  addon->num_chunks++;
+  addon->total_size += (int)size;
+  addon->chunk_offsets[addon->num_chunks] = addon->total_size;
+  return BROTLI_TRUE;
+}
+
+static void EnsureCoumpoundDictionaryInitialized(BrotliDecoderState* state) {
+  BrotliDecoderCompoundDictionary* addon = state->compound_dictionary;
+  /* 256 = (1 << 8) slots in block map. */
+  int block_bits = 8;
+  int cursor = 0;
+  int index = 0;
+  if (addon->block_bits != -1) return;
+  while (((addon->total_size - 1) >> block_bits) != 0) block_bits++;
+  block_bits -= 8;
+  addon->block_bits = block_bits;
+  while (cursor < addon->total_size) {
+    while (addon->chunk_offsets[index + 1] < cursor) index++;
+    addon->block_map[cursor >> block_bits] = (uint8_t)index;
+    cursor += 1 << block_bits;
+  }
+}
+
+static BROTLI_BOOL InitializeCompoundDictionaryCopy(BrotliDecoderState* s,
+    int address, int length) {
+  BrotliDecoderCompoundDictionary* addon = s->compound_dictionary;
+  int index;
+  EnsureCoumpoundDictionaryInitialized(s);
+  index = addon->block_map[address >> addon->block_bits];
+  while (address >= addon->chunk_offsets[index + 1]) index++;
+  if (addon->total_size < address + length) return BROTLI_FALSE;
+  /* Update the recent distances cache. */
+  s->dist_rb[s->dist_rb_idx & 3] = s->distance_code;
+  ++s->dist_rb_idx;
+  s->meta_block_remaining_len -= length;
+  addon->br_index = index;
+  addon->br_offset = address - addon->chunk_offsets[index];
+  addon->br_length = length;
+  addon->br_copied = 0;
+  return BROTLI_TRUE;
+}
+
+static int GetCompoundDictionarySize(BrotliDecoderState* s) {
+  return s->compound_dictionary ? s->compound_dictionary->total_size : 0;
+}
+
+static int CopyFromCompoundDictionary(BrotliDecoderState* s, int pos) {
+  BrotliDecoderCompoundDictionary* addon = s->compound_dictionary;
+  int orig_pos = pos;
+  while (addon->br_length != addon->br_copied) {
+    uint8_t* copy_dst = &s->ringbuffer[pos];
+    const uint8_t* copy_src =
+        addon->chunks[addon->br_index] + addon->br_offset;
+    int space = s->ringbuffer_size - pos;
+    int rem_chunk_length = (addon->chunk_offsets[addon->br_index + 1] -
+        addon->chunk_offsets[addon->br_index]) - addon->br_offset;
+    int length = addon->br_length - addon->br_copied;
+    if (length > rem_chunk_length) length = rem_chunk_length;
+    if (length > space) length = space;
+    memcpy(copy_dst, copy_src, (size_t)length);
+    pos += length;
+    addon->br_offset += length;
+    addon->br_copied += length;
+    if (length == rem_chunk_length) {
+      addon->br_index++;
+      addon->br_offset = 0;
+    }
+    if (pos == s->ringbuffer_size) break;
+  }
+  return pos - orig_pos;
+}
+
+BROTLI_BOOL BrotliDecoderAttachDictionary(
+    BrotliDecoderState* state, BrotliSharedDictionaryType type,
+    size_t data_size, const uint8_t data[BROTLI_ARRAY_PARAM(data_size)]) {
+  brotli_reg_t i;
+  brotli_reg_t num_prefix_before = state->dictionary->num_prefix;
+  if (state->state != BROTLI_STATE_UNINITED) return BROTLI_FALSE;
+  if (!BrotliSharedDictionaryAttach(state->dictionary, type, data_size, data)) {
+    return BROTLI_FALSE;
+  }
+  for (i = num_prefix_before; i < state->dictionary->num_prefix; i++) {
+    if (!AttachCompoundDictionary(
+        state, state->dictionary->prefix[i],
+        state->dictionary->prefix_size[i])) {
+      return BROTLI_FALSE;
+    }
+  }
+  return BROTLI_TRUE;
 }
 
 /* Calculates the smallest feasible ring buffer.
@@ -1454,7 +1622,7 @@ static BrotliDecoderErrorCode ReadContextModes(BrotliDecoderState* s) {
   int i = s->loop_counter;
 
   while (i < (int)s->num_block_types[0]) {
-    uint32_t bits;
+    brotli_reg_t bits;
     if (!BrotliSafeReadBits(br, 2, &bits)) {
       s->loop_counter = i;
       return BROTLI_DECODER_NEEDS_MORE_INPUT;
@@ -1494,7 +1662,7 @@ static BROTLI_INLINE void TakeDistanceFromRingBuffer(BrotliDecoderState* s) {
 }
 
 static BROTLI_INLINE BROTLI_BOOL SafeReadBits(
-    BrotliBitReader* const br, uint32_t n_bits, uint32_t* val) {
+    BrotliBitReader* const br, brotli_reg_t n_bits, brotli_reg_t* val) {
   if (n_bits != 0) {
     return BrotliSafeReadBits(br, n_bits, val);
   } else {
@@ -1504,7 +1672,7 @@ static BROTLI_INLINE BROTLI_BOOL SafeReadBits(
 }
 
 static BROTLI_INLINE BROTLI_BOOL SafeReadBits32(
-    BrotliBitReader* const br, uint32_t n_bits, uint32_t* val) {
+    BrotliBitReader* const br, brotli_reg_t n_bits, brotli_reg_t* val) {
   if (n_bits != 0) {
     return BrotliSafeReadBits32(br, n_bits, val);
   } else {
@@ -1582,16 +1750,16 @@ static BROTLI_INLINE BROTLI_BOOL SafeReadBits32(
    NB: it is possible to have all 64 tables precalculated. */
 static void CalculateDistanceLut(BrotliDecoderState* s) {
   BrotliMetablockBodyArena* b = &s->arena.body;
-  uint32_t npostfix = s->distance_postfix_bits;
-  uint32_t ndirect = s->num_direct_distance_codes;
-  uint32_t alphabet_size_limit = s->distance_hgroup.alphabet_size_limit;
-  uint32_t postfix = 1u << npostfix;
-  uint32_t j;
-  uint32_t bits = 1;
-  uint32_t half = 0;
+  brotli_reg_t npostfix = s->distance_postfix_bits;
+  brotli_reg_t ndirect = s->num_direct_distance_codes;
+  brotli_reg_t alphabet_size_limit = s->distance_hgroup.alphabet_size_limit;
+  brotli_reg_t postfix = 1u << npostfix;
+  brotli_reg_t j;
+  brotli_reg_t bits = 1;
+  brotli_reg_t half = 0;
 
   /* Skip short codes. */
-  uint32_t i = BROTLI_NUM_DISTANCE_SHORT_CODES;
+  brotli_reg_t i = BROTLI_NUM_DISTANCE_SHORT_CODES;
 
   /* Fill direct codes. */
   for (j = 0; j < ndirect; ++j) {
@@ -1602,7 +1770,7 @@ static void CalculateDistanceLut(BrotliDecoderState* s) {
 
   /* Fill regular distance codes. */
   while (i < alphabet_size_limit) {
-    uint32_t base = ndirect + ((((2 + half) << bits) - 4) << npostfix) + 1;
+    brotli_reg_t base = ndirect + ((((2 + half) << bits) - 4) << npostfix) + 1;
     /* Always fill the complete group. */
     for (j = 0; j < postfix; ++j) {
       b->dist_extra_bits[i] = (uint8_t)bits;
@@ -1618,8 +1786,8 @@ static void CalculateDistanceLut(BrotliDecoderState* s) {
 static BROTLI_INLINE BROTLI_BOOL ReadDistanceInternal(
     int safe, BrotliDecoderState* s, BrotliBitReader* br) {
   BrotliMetablockBodyArena* b = &s->arena.body;
-  uint32_t code;
-  uint32_t bits;
+  brotli_reg_t code;
+  brotli_reg_t bits;
   BrotliBitReaderState memento;
   HuffmanCode* distance_tree = s->distance_hgroup.htrees[s->dist_htree_index];
   if (!safe) {
@@ -1665,9 +1833,9 @@ static BROTLI_INLINE BROTLI_BOOL SafeReadDistance(
 
 static BROTLI_INLINE BROTLI_BOOL ReadCommandInternal(
     int safe, BrotliDecoderState* s, BrotliBitReader* br, int* insert_length) {
-  uint32_t cmd_code;
-  uint32_t insert_len_extra = 0;
-  uint32_t copy_length;
+  brotli_reg_t cmd_code;
+  brotli_reg_t insert_len_extra = 0;
+  brotli_reg_t copy_length;
   CmdLutElement v;
   BrotliBitReaderState memento;
   if (!safe) {
@@ -1712,11 +1880,11 @@ static BROTLI_INLINE BROTLI_BOOL SafeReadCommand(
 }
 
 static BROTLI_INLINE BROTLI_BOOL CheckInputAmount(
-    int safe, BrotliBitReader* const br, size_t num) {
+    int safe, BrotliBitReader* const br) {
   if (safe) {
     return BROTLI_TRUE;
   }
-  return BrotliCheckInputAmount(br, num);
+  return BrotliCheckInputAmount(br);
 }
 
 #define BROTLI_SAFE(METHOD)                       \
@@ -1737,8 +1905,9 @@ static BROTLI_INLINE BrotliDecoderErrorCode ProcessCommandsInternal(
   int i = s->loop_counter;
   BrotliDecoderErrorCode result = BROTLI_DECODER_SUCCESS;
   BrotliBitReader* br = &s->br;
+  int compound_dictionary_size = GetCompoundDictionarySize(s);
 
-  if (!CheckInputAmount(safe, br, 28)) {
+  if (!CheckInputAmount(safe, br)) {
     result = BROTLI_DECODER_NEEDS_MORE_INPUT;
     goto saveStateAndReturn;
   }
@@ -1756,14 +1925,14 @@ static BROTLI_INLINE BrotliDecoderErrorCode ProcessCommandsInternal(
   } else if (s->state == BROTLI_STATE_COMMAND_POST_WRAP_COPY) {
     goto CommandPostWrapCopy;
   } else {
-    return BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);
+    return BROTLI_FAILURE(BROTLI_DECODER_ERROR_UNREACHABLE);  /* COV_NF_LINE */
   }
 
 CommandBegin:
   if (safe) {
     s->state = BROTLI_STATE_COMMAND_BEGIN;
   }
-  if (!CheckInputAmount(safe, br, 28)) {  /* 156 bits + 7 bytes */
+  if (!CheckInputAmount(safe, br)) {
     s->state = BROTLI_STATE_COMMAND_BEGIN;
     result = BROTLI_DECODER_NEEDS_MORE_INPUT;
     goto saveStateAndReturn;
@@ -1787,25 +1956,23 @@ CommandInner:
   }
   /* Read the literals in the command. */
   if (s->trivial_literal_context) {
-    uint32_t bits;
-    uint32_t value;
+    brotli_reg_t bits;
+    brotli_reg_t value;
     PreloadSymbol(safe, s->literal_htree, br, &bits, &value);
     do {
-      if (!CheckInputAmount(safe, br, 28)) {  /* 162 bits + 7 bytes */
+      if (!CheckInputAmount(safe, br)) {
         s->state = BROTLI_STATE_COMMAND_INNER;
         result = BROTLI_DECODER_NEEDS_MORE_INPUT;
         goto saveStateAndReturn;
       }
       if (BROTLI_PREDICT_FALSE(s->block_length[0] == 0)) {
-        BROTLI_SAFE(DecodeLiteralBlockSwitch(s));
-        PreloadSymbol(safe, s->literal_htree, br, &bits, &value);
-        if (!s->trivial_literal_context) goto CommandInner;
+        goto NextLiteralBlock;
       }
       if (!safe) {
         s->ringbuffer[pos] =
             (uint8_t)ReadPreloadedSymbol(s->literal_htree, br, &bits, &value);
       } else {
-        uint32_t literal;
+        brotli_reg_t literal;
         if (!SafeReadSymbol(s->literal_htree, br, &literal)) {
           result = BROTLI_DECODER_NEEDS_MORE_INPUT;
           goto saveStateAndReturn;
@@ -1827,14 +1994,13 @@ CommandInner:
     do {
       const HuffmanCode* hc;
       uint8_t context;
-      if (!CheckInputAmount(safe, br, 28)) {  /* 162 bits + 7 bytes */
+      if (!CheckInputAmount(safe, br)) {
         s->state = BROTLI_STATE_COMMAND_INNER;
         result = BROTLI_DECODER_NEEDS_MORE_INPUT;
         goto saveStateAndReturn;
       }
       if (BROTLI_PREDICT_FALSE(s->block_length[0] == 0)) {
-        BROTLI_SAFE(DecodeLiteralBlockSwitch(s));
-        if (s->trivial_literal_context) goto CommandInner;
+        goto NextLiteralBlock;
       }
       context = BROTLI_CONTEXT(p1, p2, s->context_lookup);
       BROTLI_LOG_UINT(context);
@@ -1843,7 +2009,7 @@ CommandInner:
       if (!safe) {
         p1 = (uint8_t)ReadSymbol(hc, br);
       } else {
-        uint32_t literal;
+        brotli_reg_t literal;
         if (!SafeReadSymbol(hc, br, &literal)) {
           result = BROTLI_DECODER_NEEDS_MORE_INPUT;
           goto saveStateAndReturn;
@@ -1903,20 +2069,75 @@ CommandPostDecodeLiterals:
           pos, s->distance_code, i, s->meta_block_remaining_len));
       return BROTLI_FAILURE(BROTLI_DECODER_ERROR_FORMAT_DISTANCE);
     }
-    if (i >= BROTLI_MIN_DICTIONARY_WORD_LENGTH &&
-        i <= BROTLI_MAX_DICTIONARY_WORD_LENGTH) {
-      int address = s->distance_code - s->max_distance - 1;
-      const BrotliDictionary* words = s->dictionary;
-      const BrotliTransforms* transforms = s->transforms;
-      int offset = (int)s->dictionary->offsets_by_length[i];
-      uint32_t shift = s->dictionary->size_bits_by_length[i];
-
+    if (s->distance_code - s->max_distance - 1 < compound_dictionary_size) {
+      int address = compound_dictionary_size -
+          (s->distance_code - s->max_distance);
+      if (!InitializeCompoundDictionaryCopy(s, address, i)) {
+        return BROTLI_FAILURE(BROTLI_DECODER_ERROR_COMPOUND_DICTIONARY);
+      }
+      pos += CopyFromCompoundDictionary(s, pos);
+      if (pos >= s->ringbuffer_size) {
+        s->state = BROTLI_STATE_COMMAND_POST_WRITE_1;
+        goto saveStateAndReturn;
+      }
+    } else if (i >= SHARED_BROTLI_MIN_DICTIONARY_WORD_LENGTH &&
+               i <= SHARED_BROTLI_MAX_DICTIONARY_WORD_LENGTH) {
+      uint8_t p1 = s->ringbuffer[(pos - 1) & s->ringbuffer_mask];
+      uint8_t p2 = s->ringbuffer[(pos - 2) & s->ringbuffer_mask];
+      uint8_t dict_id = s->dictionary->context_based ?
+          s->dictionary->context_map[BROTLI_CONTEXT(p1, p2, s->context_lookup)]
+          : 0;
+      const BrotliDictionary* words = s->dictionary->words[dict_id];
+      const BrotliTransforms* transforms = s->dictionary->transforms[dict_id];
+      int offset = (int)words->offsets_by_length[i];
+      brotli_reg_t shift = words->size_bits_by_length[i];
+      int address =
+          s->distance_code - s->max_distance - 1 - compound_dictionary_size;
       int mask = (int)BitMask(shift);
       int word_idx = address & mask;
       int transform_idx = address >> shift;
       /* Compensate double distance-ring-buffer roll. */
       s->dist_rb_idx += s->distance_context;
       offset += word_idx * i;
+      /* If the distance is out of bound, select a next static dictionary if
+         there exist multiple. */
+      if ((transform_idx >= (int)transforms->num_transforms ||
+          words->size_bits_by_length[i] == 0) &&
+          s->dictionary->num_dictionaries > 1) {
+        uint8_t dict_id2;
+        int dist_remaining = address -
+            (int)(((1u << shift) & ~1u)) * (int)transforms->num_transforms;
+        for (dict_id2 = 0; dict_id2 < s->dictionary->num_dictionaries;
+            dict_id2++) {
+          const BrotliDictionary* words2 = s->dictionary->words[dict_id2];
+          if (dict_id2 != dict_id && words2->size_bits_by_length[i] != 0) {
+            const BrotliTransforms* transforms2 =
+                s->dictionary->transforms[dict_id2];
+            brotli_reg_t shift2 = words2->size_bits_by_length[i];
+            int num = (int)((1u << shift2) & ~1u) *
+                (int)transforms2->num_transforms;
+            if (dist_remaining < num) {
+              dict_id = dict_id2;
+              words = words2;
+              transforms = transforms2;
+              address = dist_remaining;
+              shift = shift2;
+              mask = (int)BitMask(shift);
+              word_idx = address & mask;
+              transform_idx = address >> shift;
+              offset = (int)words->offsets_by_length[i] + word_idx * i;
+              break;
+            }
+            dist_remaining -= num;
+          }
+        }
+      }
+      if (BROTLI_PREDICT_FALSE(words->size_bits_by_length[i] == 0)) {
+        BROTLI_LOG(("Invalid backward reference. pos: %d distance: %d "
+            "len: %d bytes left: %d\n",
+            pos, s->distance_code, i, s->meta_block_remaining_len));
+        return BROTLI_FAILURE(BROTLI_DECODER_ERROR_FORMAT_DICTIONARY);
+      }
       if (BROTLI_PREDICT_FALSE(!words->data)) {
         return BROTLI_FAILURE(BROTLI_DECODER_ERROR_DICTIONARY_NOT_SET);
       }
@@ -1933,6 +2154,10 @@ CommandPostDecodeLiterals:
           BROTLI_LOG(("[ProcessCommandsInternal] dictionary word: [%.*s],"
                       " transform_idx = %d, transformed: [%.*s]\n",
                       i, word, transform_idx, len, &s->ringbuffer[pos]));
+          if (len == 0 && s->distance_code <= 120) {
+            BROTLI_LOG(("Invalid length-0 dictionary word after transform\n"));
+            return BROTLI_FAILURE(BROTLI_DECODER_ERROR_FORMAT_TRANSFORM);
+          }
         }
         pos += len;
         s->meta_block_remaining_len -= len;
@@ -2014,6 +2239,10 @@ CommandPostWrapCopy:
     goto CommandBegin;
   }
 
+NextLiteralBlock:
+  BROTLI_SAFE(DecodeLiteralBlockSwitch(s));
+  goto CommandInner;
+
 saveStateAndReturn:
   s->pos = pos;
   s->loop_counter = i;
@@ -2033,8 +2262,10 @@ static BROTLI_NOINLINE BrotliDecoderErrorCode SafeProcessCommands(
 }
 
 BrotliDecoderResult BrotliDecoderDecompress(
-    size_t encoded_size, const uint8_t* encoded_buffer, size_t* decoded_size,
-    uint8_t* decoded_buffer) {
+    size_t encoded_size,
+    const uint8_t encoded_buffer[BROTLI_ARRAY_PARAM(encoded_size)],
+    size_t* decoded_size,
+    uint8_t decoded_buffer[BROTLI_ARRAY_PARAM(*decoded_size)]) {
   BrotliDecoderState s;
   BrotliDecoderResult result;
   size_t total_out = 0;
@@ -2071,6 +2302,9 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
     size_t* available_out, uint8_t** next_out, size_t* total_out) {
   BrotliDecoderErrorCode result = BROTLI_DECODER_SUCCESS;
   BrotliBitReader* br = &s->br;
+  size_t input_size = *available_in;
+#define BROTLI_SAVE_ERROR_CODE(code) \
+    SaveErrorCode(s, (code), input_size - *available_in)
   /* Ensure that |total_out| is set, even if no data will ever be pushed out. */
   if (total_out) {
     *total_out = s->partial_pos_out;
@@ -2080,19 +2314,18 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
     return BROTLI_DECODER_RESULT_ERROR;
   }
   if (*available_out && (!next_out || !*next_out)) {
-    return SaveErrorCode(
-        s, BROTLI_FAILURE(BROTLI_DECODER_ERROR_INVALID_ARGUMENTS));
+    return BROTLI_SAVE_ERROR_CODE(
+        BROTLI_FAILURE(BROTLI_DECODER_ERROR_INVALID_ARGUMENTS));
   }
   if (!*available_out) next_out = 0;
   if (s->buffer_length == 0) {  /* Just connect bit reader to input stream. */
-    br->avail_in = *available_in;
-    br->next_in = *next_in;
+    BrotliBitReaderSetInput(br, *next_in, *available_in);
   } else {
     /* At least one byte of input is required. More than one byte of input may
        be required to complete the transaction -> reading more data must be
        done in a loop -> do it in a main loop. */
     result = BROTLI_DECODER_NEEDS_MORE_INPUT;
-    br->next_in = &s->buffer.u8[0];
+    BrotliBitReaderSetInput(br, &s->buffer.u8[0], s->buffer_length);
   }
   /* State machine */
   for (;;) {
@@ -2109,23 +2342,23 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
           }
         }
         if (s->buffer_length != 0) {  /* Used with internal buffer. */
-          if (br->avail_in == 0) {
+          if (br->next_in == br->last_in) {
             /* Successfully finished read transaction.
                Accumulator contains less than 8 bits, because internal buffer
                is expanded byte-by-byte until it is enough to complete read. */
             s->buffer_length = 0;
             /* Switch to input stream and restart. */
             result = BROTLI_DECODER_SUCCESS;
-            br->avail_in = *available_in;
-            br->next_in = *next_in;
+            BrotliBitReaderSetInput(br, *next_in, *available_in);
             continue;
           } else if (*available_in != 0) {
             /* Not enough data in buffer, but can take one more byte from
                input stream. */
             result = BROTLI_DECODER_SUCCESS;
+            BROTLI_DCHECK(s->buffer_length < 8);
             s->buffer.u8[s->buffer_length] = **next_in;
             s->buffer_length++;
-            br->avail_in = s->buffer_length;
+            BrotliBitReaderSetInput(br, &s->buffer.u8[0], s->buffer_length);
             (*next_in)++;
             (*available_in)--;
             /* Retry with more data in buffer. */
@@ -2136,7 +2369,7 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
         } else {  /* Input stream doesn't contain enough input. */
           /* Copy tail to internal buffer and return. */
           *next_in = br->next_in;
-          *available_in = br->avail_in;
+          *available_in = BrotliBitReaderGetAvailIn(br);
           while (*available_in) {
             s->buffer.u8[s->buffer_length] = **next_in;
             s->buffer_length++;
@@ -2159,7 +2392,7 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
            stream it has less than 8 bits in accumulator, so it is safe to
            return unused accumulator bits there. */
         BrotliBitReaderUnload(br);
-        *available_in = br->avail_in;
+        *available_in = BrotliBitReaderGetAvailIn(br);
         *next_in = br->next_in;
       }
       break;
@@ -2183,17 +2416,20 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
         s->state = BROTLI_STATE_INITIALIZE;
         break;
 
-      case BROTLI_STATE_LARGE_WINDOW_BITS:
-        if (!BrotliSafeReadBits(br, 6, &s->window_bits)) {
+      case BROTLI_STATE_LARGE_WINDOW_BITS: {
+        brotli_reg_t bits;
+        if (!BrotliSafeReadBits(br, 6, &bits)) {
           result = BROTLI_DECODER_NEEDS_MORE_INPUT;
           break;
         }
+        s->window_bits = bits & 63u;
         if (s->window_bits < BROTLI_LARGE_MIN_WBITS ||
             s->window_bits > BROTLI_LARGE_MAX_WBITS) {
           result = BROTLI_FAILURE(BROTLI_DECODER_ERROR_FORMAT_WINDOW_BITS);
           break;
         }
         s->state = BROTLI_STATE_INITIALIZE;
+      }
       /* Fall through. */
 
       case BROTLI_STATE_INITIALIZE:
@@ -2238,6 +2474,10 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
         }
         if (s->is_metadata) {
           s->state = BROTLI_STATE_METADATA;
+          if (s->metadata_start_func) {
+            s->metadata_start_func(s->metadata_callback_opaque,
+                                   (size_t)s->meta_block_remaining_len);
+          }
           break;
         }
         if (s->meta_block_remaining_len == 0) {
@@ -2287,7 +2527,7 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
       /* Fall through. */
 
       case BROTLI_STATE_HUFFMAN_CODE_1: {
-        uint32_t alphabet_size = s->num_block_types[s->loop_counter] + 2;
+        brotli_reg_t alphabet_size = s->num_block_types[s->loop_counter] + 2;
         int tree_offset = s->loop_counter * BROTLI_HUFFMAN_MAX_SIZE_258;
         result = ReadHuffmanCode(alphabet_size, alphabet_size,
             &s->block_type_trees[tree_offset], NULL, s);
@@ -2297,7 +2537,7 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
       /* Fall through. */
 
       case BROTLI_STATE_HUFFMAN_CODE_2: {
-        uint32_t alphabet_size = BROTLI_NUM_BLOCK_LEN_SYMBOLS;
+        brotli_reg_t alphabet_size = BROTLI_NUM_BLOCK_LEN_SYMBOLS;
         int tree_offset = s->loop_counter * BROTLI_HUFFMAN_MAX_SIZE_26;
         result = ReadHuffmanCode(alphabet_size, alphabet_size,
             &s->block_len_trees[tree_offset], NULL, s);
@@ -2330,21 +2570,15 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
       }
 
       case BROTLI_STATE_METADATA:
-        for (; s->meta_block_remaining_len > 0; --s->meta_block_remaining_len) {
-          uint32_t bits;
-          /* Read one byte and ignore it. */
-          if (!BrotliSafeReadBits(br, 8, &bits)) {
-            result = BROTLI_DECODER_NEEDS_MORE_INPUT;
-            break;
-          }
+        result = SkipMetadataBlock(s);
+        if (result != BROTLI_DECODER_SUCCESS) {
+          break;
         }
-        if (result == BROTLI_DECODER_SUCCESS) {
-          s->state = BROTLI_STATE_METABLOCK_DONE;
-        }
+        s->state = BROTLI_STATE_METABLOCK_DONE;
         break;
 
       case BROTLI_STATE_METABLOCK_HEADER_2: {
-        uint32_t bits;
+        brotli_reg_t bits;
         if (!BrotliSafeReadBits(br, 6, &bits)) {
           result = BROTLI_DECODER_NEEDS_MORE_INPUT;
           break;
@@ -2385,15 +2619,16 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
       /* Fall through. */
 
       case BROTLI_STATE_CONTEXT_MAP_2: {
-        uint32_t npostfix = s->distance_postfix_bits;
-        uint32_t ndirect = s->num_direct_distance_codes;
-        uint32_t distance_alphabet_size_max = BROTLI_DISTANCE_ALPHABET_SIZE(
+        brotli_reg_t npostfix = s->distance_postfix_bits;
+        brotli_reg_t ndirect = s->num_direct_distance_codes;
+        brotli_reg_t distance_alphabet_size_max = BROTLI_DISTANCE_ALPHABET_SIZE(
             npostfix, ndirect, BROTLI_MAX_DISTANCE_BITS);
-        uint32_t distance_alphabet_size_limit = distance_alphabet_size_max;
+        brotli_reg_t distance_alphabet_size_limit = distance_alphabet_size_max;
         BROTLI_BOOL allocation_success = BROTLI_TRUE;
         if (s->large_window) {
           BrotliDistanceCodeLimit limit = BrotliCalculateDistanceCodeLimit(
-              BROTLI_MAX_ALLOWED_DISTANCE, npostfix, ndirect);
+              BROTLI_MAX_ALLOWED_DISTANCE, (uint32_t)npostfix,
+              (uint32_t)ndirect);
           distance_alphabet_size_max = BROTLI_DISTANCE_ALPHABET_SIZE(
               npostfix, ndirect, BROTLI_LARGE_MAX_DISTANCE_BITS);
           distance_alphabet_size_limit = limit.max_alphabet_size;
@@ -2414,7 +2649,7 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
             s, &s->distance_hgroup, distance_alphabet_size_max,
             distance_alphabet_size_limit, s->num_dist_htrees);
         if (!allocation_success) {
-          return SaveErrorCode(s,
+          return BROTLI_SAVE_ERROR_CODE(
               BROTLI_FAILURE(BROTLI_DECODER_ERROR_ALLOC_TREE_GROUPS));
         }
         s->loop_counter = 0;
@@ -2428,8 +2663,8 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
           case 0: hgroup = &s->literal_hgroup; break;
           case 1: hgroup = &s->insert_copy_hgroup; break;
           case 2: hgroup = &s->distance_hgroup; break;
-          default: return SaveErrorCode(s, BROTLI_FAILURE(
-              BROTLI_DECODER_ERROR_UNREACHABLE));
+          default: return BROTLI_SAVE_ERROR_CODE(BROTLI_FAILURE(
+              BROTLI_DECODER_ERROR_UNREACHABLE));  /* COV_NF_LINE */
         }
         result = HuffmanTreeGroupDecode(hgroup, s);
         if (result != BROTLI_DECODER_SUCCESS) break;
@@ -2481,6 +2716,11 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
           s->max_distance = s->max_backward_distance;
         }
         if (s->state == BROTLI_STATE_COMMAND_POST_WRITE_1) {
+          BrotliDecoderCompoundDictionary* addon = s->compound_dictionary;
+          if (addon && (addon->br_length != addon->br_copied)) {
+            s->pos += CopyFromCompoundDictionary(s, s->pos);
+            if (s->pos >= s->ringbuffer_size) continue;
+          }
           if (s->meta_block_remaining_len == 0) {
             /* Next metablock, if any. */
             s->state = BROTLI_STATE_METABLOCK_DONE;
@@ -2519,7 +2759,7 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
         }
         if (s->buffer_length == 0) {
           BrotliBitReaderUnload(br);
-          *available_in = br->avail_in;
+          *available_in = BrotliBitReaderGetAvailIn(br);
           *next_in = br->next_in;
         }
         s->state = BROTLI_STATE_DONE;
@@ -2533,10 +2773,11 @@ BrotliDecoderResult BrotliDecoderDecompressStream(
             break;
           }
         }
-        return SaveErrorCode(s, result);
+        return BROTLI_SAVE_ERROR_CODE(result);
     }
   }
-  return SaveErrorCode(s, result);
+  return BROTLI_SAVE_ERROR_CODE(result);
+#undef BROTLI_SAVE_ERROR_CODE
 }
 
 BROTLI_BOOL BrotliDecoderHasMoreOutput(const BrotliDecoderState* s) {
@@ -2566,7 +2807,7 @@ const uint8_t* BrotliDecoderTakeOutput(BrotliDecoderState* s, size_t* size) {
   } else {
     /* ... or stream is broken. Normally this should be caught by
        BrotliDecoderDecompressStream, this is just a safeguard. */
-    if ((int)status < 0) SaveErrorCode(s, status);
+    if ((int)status < 0) SaveErrorCode(s, status, 0);
     *size = 0;
     result = 0;
   }
@@ -2590,7 +2831,7 @@ BrotliDecoderErrorCode BrotliDecoderGetErrorCode(const BrotliDecoderState* s) {
 const char* BrotliDecoderErrorString(BrotliDecoderErrorCode c) {
   switch (c) {
 #define BROTLI_ERROR_CODE_CASE_(PREFIX, NAME, CODE) \
-    case BROTLI_DECODER ## PREFIX ## NAME: return #NAME;
+    case BROTLI_DECODER ## PREFIX ## NAME: return #PREFIX #NAME;
 #define BROTLI_NOTHING_
     BROTLI_DECODER_ERROR_CODES_LIST(BROTLI_ERROR_CODE_CASE_, BROTLI_NOTHING_)
 #undef BROTLI_ERROR_CODE_CASE_
@@ -2599,9 +2840,35 @@ const char* BrotliDecoderErrorString(BrotliDecoderErrorCode c) {
   }
 }
 
-uint32_t BrotliDecoderVersion() {
+uint32_t BrotliDecoderVersion(void) {
   return BROTLI_VERSION;
 }
+
+void BrotliDecoderSetMetadataCallbacks(
+    BrotliDecoderState* state,
+    brotli_decoder_metadata_start_func start_func,
+    brotli_decoder_metadata_chunk_func chunk_func, void* opaque) {
+  state->metadata_start_func = start_func;
+  state->metadata_chunk_func = chunk_func;
+  state->metadata_callback_opaque = opaque;
+}
+
+/* Escalate internal functions visibility; for testing purposes only. */
+#if defined(BROTLI_TEST)
+BROTLI_BOOL SafeReadSymbolForTest(
+    const HuffmanCode*, BrotliBitReader*, brotli_reg_t*);
+BROTLI_BOOL SafeReadSymbolForTest(
+    const HuffmanCode* table, BrotliBitReader* br, brotli_reg_t* result) {
+  return SafeReadSymbol(table, br, result);
+}
+
+void InverseMoveToFrontTransformForTest(
+    uint8_t*, brotli_reg_t, BrotliDecoderState*);
+void InverseMoveToFrontTransformForTest(
+    uint8_t* v, brotli_reg_t l, BrotliDecoderState* s) {
+  InverseMoveToFrontTransform(v, l, s);
+}
+#endif
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */

@@ -13,6 +13,7 @@
 #define BROTLI_DEC_DECODE_H_
 
 #include <brotli/port.h>
+#include <brotli/shared_dictionary.h>
 #include <brotli/types.h>
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -85,8 +86,9 @@ typedef enum {
   BROTLI_ERROR_CODE(_ERROR_FORMAT_, PADDING_2, -15) SEPARATOR              \
   BROTLI_ERROR_CODE(_ERROR_FORMAT_, DISTANCE, -16) SEPARATOR               \
                                                                            \
-  /* -17..-18 codes are reserved */                                        \
+  /* -17 code is reserved */                                               \
                                                                            \
+  BROTLI_ERROR_CODE(_ERROR_, COMPOUND_DICTIONARY, -18) SEPARATOR           \
   BROTLI_ERROR_CODE(_ERROR_, DICTIONARY_NOT_SET, -19) SEPARATOR            \
   BROTLI_ERROR_CODE(_ERROR_, INVALID_ARGUMENTS, -20) SEPARATOR             \
                                                                            \
@@ -153,6 +155,28 @@ typedef enum BrotliDecoderParameter {
  */
 BROTLI_DEC_API BROTLI_BOOL BrotliDecoderSetParameter(
     BrotliDecoderState* state, BrotliDecoderParameter param, uint32_t value);
+
+/**
+ * Adds LZ77 prefix dictionary, adds or replaces built-in static dictionary and
+ * transforms.
+ *
+ * Attached dictionary ownership is not transferred.
+ * Data provided to this method should be kept accessible until
+ * decoding is finished and decoder instance is destroyed.
+ *
+ * @note Dictionaries can NOT be attached after actual decoding is started.
+ *
+ * @param state decoder instance
+ * @param type dictionary data format
+ * @param data_size length of memory region pointed by @p data
+ * @param data dictionary data in format corresponding to @p type
+ * @returns ::BROTLI_FALSE if dictionary is corrupted,
+ *          or dictionary count limit is reached
+ * @returns ::BROTLI_TRUE if dictionary is accepted / attached
+ */
+BROTLI_DEC_API BROTLI_BOOL BrotliDecoderAttachDictionary(
+    BrotliDecoderState* state, BrotliSharedDictionaryType type,
+    size_t data_size, const uint8_t data[BROTLI_ARRAY_PARAM(data_size)]);
 
 /**
  * Creates an instance of ::BrotliDecoderState and initializes it.
@@ -333,9 +357,50 @@ BROTLI_DEC_API const char* BrotliDecoderErrorString(BrotliDecoderErrorCode c);
 /**
  * Gets a decoder library version.
  *
- * Look at BROTLI_VERSION for more information.
+ * Look at BROTLI_MAKE_HEX_VERSION for more information.
  */
 BROTLI_DEC_API uint32_t BrotliDecoderVersion(void);
+
+/**
+ * Callback to fire on metadata block start.
+ *
+ * After this callback is fired, if @p size is not @c 0, it is followed by
+ * ::brotli_decoder_metadata_chunk_func as more metadata block contents become
+ * accessible.
+ *
+ * @param opaque callback handle
+ * @param size size of metadata block
+ */
+typedef void (*brotli_decoder_metadata_start_func)(void* opaque, size_t size);
+
+/**
+ * Callback to fire on metadata block chunk becomes available.
+ *
+ * This function can be invoked multiple times per metadata block; block should
+ * be considered finished when sum of @p size matches the announced metadata
+ * block size. Chunks contents pointed by @p data are transient and shouln not
+ * be accessed after leaving the callback.
+ *
+ * @param opaque callback handle
+ * @param data pointer to metadata contents
+ * @param size size of metadata block chunk, at least @c 1
+ */
+typedef void (*brotli_decoder_metadata_chunk_func)(void* opaque,
+                                                   const uint8_t* data,
+                                                   size_t size);
+
+/**
+ * Sets callback for receiving metadata blocks.
+ *
+ * @param state decoder instance
+ * @param start_func callback on metadata block start
+ * @param chunk_func callback on metadata block chunk
+ * @param opaque callback handle
+ */
+BROTLI_DEC_API void BrotliDecoderSetMetadataCallbacks(
+    BrotliDecoderState* state,
+    brotli_decoder_metadata_start_func start_func,
+    brotli_decoder_metadata_chunk_func chunk_func, void* opaque);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 } /* extern "C" */

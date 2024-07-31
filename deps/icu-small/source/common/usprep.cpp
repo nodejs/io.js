@@ -228,7 +228,7 @@ loadData(UStringPrepProfile* profile,
          const char* type, 
          UErrorCode* errorCode) {
     /* load Unicode SPREP data from file */    
-    UTrie _sprepTrie={ 0,0,0,0,0,0,0 };
+    UTrie _sprepTrie = {nullptr, nullptr, nullptr, 0, 0, 0, 0};
     UDataMemory *dataMemory;
     const int32_t *p=nullptr;
     const uint8_t *pb;

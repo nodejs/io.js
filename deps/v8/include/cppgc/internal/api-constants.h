@@ -32,7 +32,7 @@ static constexpr uint16_t kFullyConstructedBitMask = uint16_t{1};
 
 static constexpr size_t kPageSize = size_t{1} << 17;
 
-#if defined(V8_TARGET_ARCH_ARM64) && defined(V8_OS_DARWIN)
+#if defined(V8_HOST_ARCH_ARM64) && defined(V8_OS_DARWIN)
 constexpr size_t kGuardPageSize = 0;
 #else
 constexpr size_t kGuardPageSize = 4096;

@@ -8,9 +8,11 @@
  */
 
 #include <openssl/evp.h>
+#include <openssl/conf.h>
 #include "testutil.h"
 
 static char *configfile = NULL;
+static char *recurseconfigfile = NULL;
 
 /*
  * Test to make sure there are no leaks or failures from loading the config
@@ -44,6 +46,30 @@ static int test_double_config(void)
     return testresult;
 }
 
+static int test_recursive_config(void)
+{
+    OSSL_LIB_CTX *ctx = OSSL_LIB_CTX_new();
+    int testresult = 0;
+    unsigned long err;
+
+    if (!TEST_ptr(recurseconfigfile))
+        goto err;
+
+    if (!TEST_ptr(ctx))
+        goto err;
+
+    if (!TEST_false(OSSL_LIB_CTX_load_config(ctx, recurseconfigfile)))
+        goto err;
+
+    err = ERR_peek_error();
+    /* We expect to get a recursion error here */
+    if (ERR_GET_REASON(err) == CONF_R_RECURSIVE_SECTION_REFERENCE)
+        testresult = 1;
+ err:
+    OSSL_LIB_CTX_free(ctx);
+    return testresult;
+}
+
 OPT_TEST_DECLARE_USAGE("configfile\n")
 
 int setup_tests(void)
@@ -56,6 +82,10 @@ int setup_tests(void)
     if (!TEST_ptr(configfile = test_get_argument(0)))
         return 0;
 
+    if (!TEST_ptr(recurseconfigfile = test_get_argument(1)))
+        return 0;
+
+    ADD_TEST(test_recursive_config);
     ADD_TEST(test_double_config);
     return 1;
 }

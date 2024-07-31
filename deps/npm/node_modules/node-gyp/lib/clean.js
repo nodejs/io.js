@@ -1,14 +1,14 @@
 'use strict'
 
-const rm = require('rimraf')
-const log = require('npmlog')
+const fs = require('graceful-fs').promises
+const log = require('./log')
 
-function clean (gyp, argv, callback) {
+async function clean (gyp, argv) {
   // Remove the 'build' dir
-  var buildDir = 'build'
+  const buildDir = 'build'
 
   log.verbose('clean', 'removing "%s" directory', buildDir)
-  rm(buildDir, callback)
+  await fs.rm(buildDir, { recursive: true, force: true })
 }
 
 module.exports = clean

@@ -279,9 +279,9 @@ UnicodeSet* TransliteratorIDParser::parseGlobalFilter(const UnicodeString& id, i
         UErrorCode ec = U_ZERO_ERROR;
         filter = new UnicodeSet(id, ppos, USET_IGNORE_SPACE, nullptr, ec);
         /* test for nullptr */
-        if (filter == 0) {
+        if (filter == nullptr) {
             pos = start;
-            return 0;
+            return nullptr;
         }
         if (U_FAILURE(ec)) {
             delete filter;

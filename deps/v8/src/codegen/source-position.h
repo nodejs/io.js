@@ -178,6 +178,8 @@ struct InliningPosition {
 struct WasmInliningPosition {
   // Non-canonicalized (module-specific) index of the inlined function.
   int inlinee_func_index;
+  // Whether the call was a tail call.
+  bool was_tail_call;
   // Source location of the caller.
   SourcePosition caller_pos;
 };

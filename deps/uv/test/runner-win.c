@@ -185,7 +185,7 @@ int process_wait(process_info_t *vec, int n, int timeout) {
   if (n == 0)
     return 0;
 
-  ASSERT(n <= MAXIMUM_WAIT_OBJECTS);
+  ASSERT_LE(n, MAXIMUM_WAIT_OBJECTS);
 
   for (i = 0; i < n; i++)
     handles[i] = vec[i].process;
@@ -245,7 +245,7 @@ int process_read_last_line(process_info_t *p,
   DWORD start;
   OVERLAPPED overlapped;
 
-  ASSERT(buffer_len > 0);
+  ASSERT_GT(buffer_len, 0);
 
   size = GetFileSize(p->stdio_out, NULL);
   if (size == INVALID_FILE_SIZE)
@@ -310,7 +310,7 @@ static int clear_line(void) {
   COORD coord;
   DWORD written;
 
-  handle = (HANDLE)_get_osfhandle(fileno(stderr));
+  handle = (HANDLE)_get_osfhandle(_fileno(stderr));
   if (handle == INVALID_HANDLE_VALUE)
     return -1;
 

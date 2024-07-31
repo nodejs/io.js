@@ -119,9 +119,15 @@ function spawnSyncAndExit(...args) {
 }
 
 function spawnSyncAndExitWithoutError(...args) {
-  const spawnArgs = args.slice(0, args.length);
-  const expectations = args[args.length - 1];
-  const child = spawnSync(...spawnArgs);
+  return expectSyncExit(spawnSync(...args), {
+    status: 0,
+    signal: null,
+  });
+}
+
+function spawnSyncAndAssert(...args) {
+  const expectations = args.pop();
+  const child = spawnSync(...args);
   return expectSyncExit(child, {
     status: 0,
     signal: null,
@@ -134,6 +140,7 @@ module.exports = {
   logAfterTime,
   kExpiringChildRunTime,
   kExpiringParentTimer,
+  spawnSyncAndAssert,
   spawnSyncAndExit,
   spawnSyncAndExitWithoutError,
 };

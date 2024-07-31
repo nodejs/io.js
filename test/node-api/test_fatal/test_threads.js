@@ -18,4 +18,4 @@ const p = child_process.spawnSync(
 assert.ifError(p.error);
 assert.ok(p.stderr.toString().includes(
   'FATAL ERROR: work_thread foobar'));
-assert.ok(p.status === 134 || p.signal === 'SIGABRT');
+assert(common.nodeProcessAborted(p.status, p.signal));

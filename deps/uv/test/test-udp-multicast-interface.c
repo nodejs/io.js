@@ -27,7 +27,7 @@
 #include <string.h>
 
 #define CHECK_HANDLE(handle) \
-  ASSERT((uv_udp_t*)(handle) == &server || (uv_udp_t*)(handle) == &client)
+  ASSERT_NE((uv_udp_t*)(handle) == &server || (uv_udp_t*)(handle) == &client, 0)
 
 static uv_udp_t server;
 static uv_udp_t client;
@@ -65,17 +65,17 @@ TEST_IMPL(udp_multicast_interface) {
   struct sockaddr_in addr;
   struct sockaddr_in baddr;
 
-  ASSERT(0 == uv_ip4_addr("239.255.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("239.255.0.1", TEST_PORT, &addr));
 
   r = uv_udp_init(uv_default_loop(), &server);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(0 == uv_ip4_addr("0.0.0.0", 0, &baddr));
+  ASSERT_OK(uv_ip4_addr("0.0.0.0", 0, &baddr));
   r = uv_udp_bind(&server, (const struct sockaddr*)&baddr, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_udp_set_multicast_interface(&server, "0.0.0.0");
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   /* server sends "PING" */
   buf = uv_buf_init("PING", 4);
@@ -85,19 +85,19 @@ TEST_IMPL(udp_multicast_interface) {
                   1,
                   (const struct sockaddr*)&addr,
                   sv_send_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(close_cb_called == 0);
-  ASSERT(sv_send_cb_called == 0);
+  ASSERT_OK(close_cb_called);
+  ASSERT_OK(sv_send_cb_called);
 
   /* run the loop till all events are processed */
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(sv_send_cb_called == 1);
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(1, sv_send_cb_called);
+  ASSERT_EQ(1, close_cb_called);
 
-  ASSERT(client.send_queue_size == 0);
-  ASSERT(server.send_queue_size == 0);
+  ASSERT_OK(client.send_queue_size);
+  ASSERT_OK(server.send_queue_size);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

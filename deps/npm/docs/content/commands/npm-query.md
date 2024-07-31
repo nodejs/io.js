@@ -135,19 +135,32 @@ npm query ":type(git)" | jq 'map(.name)' | xargs -I {} npm why {}
   },
   ...
 ```
+
+### Expecting a certain number of results
+
+One common use of `npm query` is to make sure there is only one version of
+a certain dependency in your tree.  This is especially common for
+ecosystems like that rely on `typescript` where having state split
+across two different but identically-named packages causes bugs.  You
+can use the `--expect-results` or `--expect-result-count` in your setup
+to ensure that npm will exit with an exit code if your tree doesn't look
+like you want it to.
+
+
+```sh
+$ npm query '#react' --expect-result-count=1
+```
+
+Perhaps you want to quickly check if there are any production
+dependencies that could be updated:
+
+```sh
+$ npm query ':root>:outdated(in-range).prod' --no-expect-results
+```
+
 ### Package lock only mode
 
-If package-lock-only is enabled, only the information in the package
-lock (or shrinkwrap) is loaded.  This means that information from the
-package.json files of your dependencies will not be included in the
-result set (e.g. description, homepage, engines).
-
-### Package lock only mode
-
-If package-lock-only is enabled, only the information in the package
-lock (or shrinkwrap) is loaded.  This means that information from the
-package.json files of your dependencies will not be included in the
-result set (e.g. description, homepage, engines).
+If package-lock-only is enabled, only the information in the package lock (or shrinkwrap) is loaded.  This means that information from the package.json files of your dependencies will not be included in the result set (e.g. description, homepage, engines).
 
 ### Configuration
 
@@ -235,6 +248,25 @@ For `list` this means the output will be based on the tree described by the
 `package-lock.json`, rather than the contents of `node_modules`.
 
 
+
+#### `expect-results`
+
+* Default: null
+* Type: null or Boolean
+
+Tells npm whether or not to expect results from the command. Can be either
+true (expect some results) or false (expect no results).
+
+This config can not be used with: `expect-result-count`
+
+#### `expect-result-count`
+
+* Default: null
+* Type: null or Number
+
+Tells to expect a specific number of results from the command.
+
+This config can not be used with: `expect-results`
 ## See Also
 
 * [dependency selectors](/using-npm/dependency-selectors)

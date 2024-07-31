@@ -36,11 +36,19 @@ async function awaitThrow() {
   throw "e";  // Exception e
 }
 
-function constructorThrow() {
+function constructorReject() {
   return new Promise((resolve, reject) =>
     Promise.resolve().then(() =>
       reject("f")  // Exception f
     )
+  );
+}
+
+function constructorThrow() {
+  return new Promise((resolve, reject) =>
+    Promise.resolve().then(() => {
+      throw "g";  // Exception g
+    })
   );
 }
 
@@ -136,10 +144,10 @@ let lateCatches = [dotCatch,
                    indirectAwaitDotCatch,
                    nestedDotCatch];
 
-let throws = [thrower, reject, argThrower, suppressThrow];
+let throws = [rejectConstructor, thrower, reject, argThrower, suppressThrow];
 let nonthrows = [awaitReturn, scalar, nothing];
-let lateThrows = [awaitThrow, constructorThrow];
-let uncatchable = [rejectConstructor];
+let lateThrows = [awaitThrow, constructorReject];
+let uncatchable = [constructorThrow];
 
 let cases = [];
 

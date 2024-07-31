@@ -1,11 +1,15 @@
 'use strict'
 
-const log = require('npmlog')
+const log = require('./log')
 const semver = require('semver')
-const cp = require('child_process')
-const extend = require('util')._extend // eslint-disable-line
+const { execFile } = require('./util')
 const win = process.platform === 'win32'
-const logWithPrefix = require('./util').logWithPrefix
+
+function getOsUserInfo () {
+  try {
+    return require('os').userInfo().username
+  } catch {}
+}
 
 const systemDrive = process.env.SystemDrive || 'C:'
 const username = process.env.USERNAME || process.env.USER || getOsUserInfo()
@@ -15,7 +19,7 @@ const programFiles = process.env.ProgramW6432 || process.env.ProgramFiles || `${
 const programFilesX86 = process.env['ProgramFiles(x86)'] || `${programFiles} (x86)`
 
 const winDefaultLocationsArray = []
-for (const majorMinor of ['39', '38', '37', '36']) {
+for (const majorMinor of ['311', '310', '39', '38']) {
   if (foundLocalAppData) {
     winDefaultLocationsArray.push(
       `${localAppData}\\Programs\\Python\\Python${majorMinor}\\python.exe`,
@@ -33,45 +37,39 @@ for (const majorMinor of ['39', '38', '37', '36']) {
   }
 }
 
-function getOsUserInfo () {
-  try {
-    return require('os').userInfo().username
-  } catch (e) {}
-}
+class PythonFinder {
+  static findPython = (...args) => new PythonFinder(...args).findPython()
 
-function PythonFinder (configPython, callback) {
-  this.callback = callback
-  this.configPython = configPython
-  this.errorLog = []
-}
-
-PythonFinder.prototype = {
-  log: logWithPrefix(log, 'find Python'),
-  argsExecutable: ['-c', 'import sys; print(sys.executable);'],
-  argsVersion: ['-c', 'import sys; print("%s.%s.%s" % sys.version_info[:3]);'],
-  semverRange: '>=3.6.0',
+  log = log.withPrefix('find Python')
+  argsExecutable = ['-c', 'import sys; sys.stdout.buffer.write(sys.executable.encode(\'utf-8\'));']
+  argsVersion = ['-c', 'import sys; print("%s.%s.%s" % sys.version_info[:3]);']
+  semverRange = '>=3.6.0'
 
   // These can be overridden for testing:
-  execFile: cp.execFile,
-  env: process.env,
-  win: win,
-  pyLauncher: 'py.exe',
-  winDefaultLocations: winDefaultLocationsArray,
+  execFile = execFile
+  env = process.env
+  win = win
+  pyLauncher = 'py.exe'
+  winDefaultLocations = winDefaultLocationsArray
+
+  constructor (configPython) {
+    this.configPython = configPython
+    this.errorLog = []
+  }
 
   // Logs a message at verbose level, but also saves it to be displayed later
   // at error level if an error occurs. This should help diagnose the problem.
-  addLog: function addLog (message) {
+  addLog (message) {
     this.log.verbose(message)
     this.errorLog.push(message)
-  },
+  }
 
   // Find Python by trying a sequence of possibilities.
   // Ignore errors, keep trying until Python is found.
-  findPython: function findPython () {
-    const SKIP = 0; const FAIL = 1
-    var toCheck = getChecks.apply(this)
-
-    function getChecks () {
+  async findPython () {
+    const SKIP = 0
+    const FAIL = 1
+    const toCheck = (() => {
       if (this.env.NODE_GYP_FORCE_PYTHON) {
         return [{
           before: () => {
@@ -80,12 +78,11 @@ PythonFinder.prototype = {
             this.addLog('- process.env.NODE_GYP_FORCE_PYTHON is ' +
               `"${this.env.NODE_GYP_FORCE_PYTHON}"`)
           },
-          check: this.checkCommand,
-          arg: this.env.NODE_GYP_FORCE_PYTHON
+          check: () => this.checkCommand(this.env.NODE_GYP_FORCE_PYTHON)
         }]
       }
 
-      var checks = [
+      const checks = [
         {
           before: () => {
             if (!this.configPython) {
@@ -98,8 +95,7 @@ PythonFinder.prototype = {
             this.addLog('- "--python=" or "npm config get python" is ' +
               `"${this.configPython}"`)
           },
-          check: this.checkCommand,
-          arg: this.configPython
+          check: () => this.checkCommand(this.configPython)
         },
         {
           before: () => {
@@ -112,78 +108,69 @@ PythonFinder.prototype = {
               'variable PYTHON')
             this.addLog(`- process.env.PYTHON is "${this.env.PYTHON}"`)
           },
-          check: this.checkCommand,
-          arg: this.env.PYTHON
-        },
-        {
-          before: () => { this.addLog('checking if "python3" can be used') },
-          check: this.checkCommand,
-          arg: 'python3'
-        },
-        {
-          before: () => { this.addLog('checking if "python" can be used') },
-          check: this.checkCommand,
-          arg: 'python'
+          check: () => this.checkCommand(this.env.PYTHON)
         }
       ]
 
       if (this.win) {
-        for (var i = 0; i < this.winDefaultLocations.length; ++i) {
-          const location = this.winDefaultLocations[i]
-          checks.push({
-            before: () => {
-              this.addLog('checking if Python is ' +
-                `${location}`)
-            },
-            check: this.checkExecPath,
-            arg: location
-          })
-        }
         checks.push({
           before: () => {
             this.addLog(
               'checking if the py launcher can be used to find Python 3')
           },
-          check: this.checkPyLauncher
+          check: () => this.checkPyLauncher()
         })
       }
 
-      return checks
-    }
+      checks.push(...[
+        {
+          before: () => { this.addLog('checking if "python3" can be used') },
+          check: () => this.checkCommand('python3')
+        },
+        {
+          before: () => { this.addLog('checking if "python" can be used') },
+          check: () => this.checkCommand('python')
+        }
+      ])
 
-    function runChecks (err) {
-      this.log.silly('runChecks: err = %j', (err && err.stack) || err)
-
-      const check = toCheck.shift()
-      if (!check) {
-        return this.fail()
+      if (this.win) {
+        for (let i = 0; i < this.winDefaultLocations.length; ++i) {
+          const location = this.winDefaultLocations[i]
+          checks.push({
+            before: () => this.addLog(`checking if Python is ${location}`),
+            check: () => this.checkExecPath(location)
+          })
+        }
       }
 
-      const before = check.before.apply(this)
+      return checks
+    })()
+
+    for (const check of toCheck) {
+      const before = check.before()
       if (before === SKIP) {
-        return runChecks.apply(this)
+        continue
       }
       if (before === FAIL) {
         return this.fail()
       }
-
-      const args = [runChecks.bind(this)]
-      if (check.arg) {
-        args.unshift(check.arg)
+      try {
+        return await check.check()
+      } catch (err) {
+        this.log.silly('runChecks: err = %j', (err && err.stack) || err)
       }
-      check.check.apply(this, args)
     }
 
-    runChecks.apply(this)
-  },
+    return this.fail()
+  }
 
   // Check if command is a valid Python to use.
   // Will exit the Python finder on success.
   // If on Windows, run in a CMD shell to support BAT/CMD launchers.
-  checkCommand: function checkCommand (command, errorCallback) {
-    var exec = command
-    var args = this.argsExecutable
-    var shell = false
+  async checkCommand (command) {
+    let exec = command
+    let args = this.argsExecutable
+    let shell = false
     if (this.win) {
       // Arguments have to be manually quoted
       exec = `"${exec}"`
@@ -192,19 +179,19 @@ PythonFinder.prototype = {
     }
 
     this.log.verbose(`- executing "${command}" to get executable path`)
-    this.run(exec, args, shell, function (err, execPath) {
-      // Possible outcomes:
-      // - Error: not in PATH, not executable or execution fails
-      // - Gibberish: the next command to check version will fail
-      // - Absolute path to executable
-      if (err) {
-        this.addLog(`- "${command}" is not in PATH or produced an error`)
-        return errorCallback(err)
-      }
+    // Possible outcomes:
+    // - Error: not in PATH, not executable or execution fails
+    // - Gibberish: the next command to check version will fail
+    // - Absolute path to executable
+    try {
+      const execPath = await this.run(exec, args, shell)
       this.addLog(`- executable path is "${execPath}"`)
-      this.checkExecPath(execPath, errorCallback)
-    }.bind(this))
-  },
+      return this.checkExecPath(execPath)
+    } catch (err) {
+      this.addLog(`- "${command}" is not in PATH or produced an error`)
+      throw err
+    }
+  }
 
   // Check if the py launcher can find a valid Python to use.
   // Will exit the Python finder on success.
@@ -216,97 +203,86 @@ PythonFinder.prototype = {
   // the first command line argument. Since "py.exe -3" would be an invalid
   // executable for "execFile", we have to use the launcher to figure out
   // where the actual "python.exe" executable is located.
-  checkPyLauncher: function checkPyLauncher (errorCallback) {
-    this.log.verbose(
-      `- executing "${this.pyLauncher}" to get Python 3 executable path`)
-    this.run(this.pyLauncher, ['-3', ...this.argsExecutable], false,
-      function (err, execPath) {
-      // Possible outcomes: same as checkCommand
-        if (err) {
-          this.addLog(
-            `- "${this.pyLauncher}" is not in PATH or produced an error`)
-          return errorCallback(err)
-        }
-        this.addLog(`- executable path is "${execPath}"`)
-        this.checkExecPath(execPath, errorCallback)
-      }.bind(this))
-  },
+  async checkPyLauncher () {
+    this.log.verbose(`- executing "${this.pyLauncher}" to get Python 3 executable path`)
+    // Possible outcomes: same as checkCommand
+    try {
+      const execPath = await this.run(this.pyLauncher, ['-3', ...this.argsExecutable], false)
+      this.addLog(`- executable path is "${execPath}"`)
+      return this.checkExecPath(execPath)
+    } catch (err) {
+      this.addLog(`- "${this.pyLauncher}" is not in PATH or produced an error`)
+      throw err
+    }
+  }
 
   // Check if a Python executable is the correct version to use.
   // Will exit the Python finder on success.
-  checkExecPath: function checkExecPath (execPath, errorCallback) {
+  async checkExecPath (execPath) {
     this.log.verbose(`- executing "${execPath}" to get version`)
-    this.run(execPath, this.argsVersion, false, function (err, version) {
-      // Possible outcomes:
-      // - Error: executable can not be run (likely meaning the command wasn't
-      //   a Python executable and the previous command produced gibberish)
-      // - Gibberish: somehow the last command produced an executable path,
-      //   this will fail when verifying the version
-      // - Version of the Python executable
-      if (err) {
-        this.addLog(`- "${execPath}" could not be run`)
-        return errorCallback(err)
-      }
+    // Possible outcomes:
+    // - Error: executable can not be run (likely meaning the command wasn't
+    //   a Python executable and the previous command produced gibberish)
+    // - Gibberish: somehow the last command produced an executable path,
+    //   this will fail when verifying the version
+    // - Version of the Python executable
+    try {
+      const version = await this.run(execPath, this.argsVersion, false)
       this.addLog(`- version is "${version}"`)
 
       const range = new semver.Range(this.semverRange)
-      var valid = false
+      let valid = false
       try {
         valid = range.test(version)
       } catch (err) {
         this.log.silly('range.test() threw:\n%s', err.stack)
         this.addLog(`- "${execPath}" does not have a valid version`)
         this.addLog('- is it a Python executable?')
-        return errorCallback(err)
+        throw err
       }
-
       if (!valid) {
         this.addLog(`- version is ${version} - should be ${this.semverRange}`)
         this.addLog('- THIS VERSION OF PYTHON IS NOT SUPPORTED')
-        return errorCallback(new Error(
-          `Found unsupported Python version ${version}`))
+        throw new Error(`Found unsupported Python version ${version}`)
       }
-      this.succeed(execPath, version)
-    }.bind(this))
-  },
+      return this.succeed(execPath, version)
+    } catch (err) {
+      this.addLog(`- "${execPath}" could not be run`)
+      throw err
+    }
+  }
 
   // Run an executable or shell command, trimming the output.
-  run: function run (exec, args, shell, callback) {
-    var env = extend({}, this.env)
+  async run (exec, args, shell) {
+    const env = Object.assign({}, this.env)
     env.TERM = 'dumb'
-    const opts = { env: env, shell: shell }
+    const opts = { env, shell }
 
     this.log.silly('execFile: exec = %j', exec)
     this.log.silly('execFile: args = %j', args)
     this.log.silly('execFile: opts = %j', opts)
     try {
-      this.execFile(exec, args, opts, execFileCallback.bind(this))
-    } catch (err) {
-      this.log.silly('execFile: threw:\n%s', err.stack)
-      return callback(err)
-    }
-
-    function execFileCallback (err, stdout, stderr) {
+      const [err, stdout, stderr] = await this.execFile(exec, args, opts)
       this.log.silly('execFile result: err = %j', (err && err.stack) || err)
       this.log.silly('execFile result: stdout = %j', stdout)
       this.log.silly('execFile result: stderr = %j', stderr)
-      if (err) {
-        return callback(err)
-      }
-      const execPath = stdout.trim()
-      callback(null, execPath)
+      return stdout.trim()
+    } catch (err) {
+      this.log.silly('execFile: threw:\n%s', err.stack)
+      throw err
     }
-  },
+  }
 
-  succeed: function succeed (execPath, version) {
+  succeed (execPath, version) {
     this.log.info(`using Python version ${version} found at "${execPath}"`)
-    process.nextTick(this.callback.bind(null, null, execPath))
-  },
+    return execPath
+  }
 
-  fail: function fail () {
+  fail () {
     const errorLog = this.errorLog.join('\n')
 
-    const pathExample = this.win ? 'C:\\Path\\To\\python.exe'
+    const pathExample = this.win
+      ? 'C:\\Path\\To\\python.exe'
       : '/path/to/pythonexecutable'
     // For Windows 80 col console, use up to the column before the one marked
     // with X (total 79 chars including logger prefix, 58 chars usable here):
@@ -327,18 +303,8 @@ PythonFinder.prototype = {
     ].join('\n')
 
     this.log.error(`\n${errorLog}\n\n${info}\n`)
-    process.nextTick(this.callback.bind(null, new Error(
-      'Could not find any Python installation to use')))
+    throw new Error('Could not find any Python installation to use')
   }
 }
 
-function findPython (configPython, callback) {
-  var finder = new PythonFinder(configPython, callback)
-  finder.findPython()
-}
-
-module.exports = findPython
-module.exports.test = {
-  PythonFinder: PythonFinder,
-  findPython: findPython
-}
+module.exports = PythonFinder

@@ -7,7 +7,7 @@ if ((!common.hasCrypto) || (!common.hasIntl)) {
 
 common.skipIfEslintMissing();
 
-const RuleTester = require('../../tools/node_modules/eslint').RuleTester;
+const RuleTester = require('../../tools/eslint/node_modules/eslint').RuleTester;
 const rule = require('../../tools/eslint-rules/eslint-check');
 
 const message = 'Please add a skipIfEslintMissing() call to allow this ' +
@@ -19,16 +19,16 @@ new RuleTester().run('eslint-check', rule, {
     'foo;',
     'require("common")\n' +
       'common.skipIfEslintMissing();\n' +
-      'require("../../tools/node_modules/eslint")',
+      'require("../../tools/eslint/node_modules/eslint")',
   ],
   invalid: [
     {
       code: 'require("common")\n' +
-            'require("../../tools/node_modules/eslint").RuleTester',
+            'require("../../tools/eslint/node_modules/eslint").RuleTester',
       errors: [{ message }],
       output: 'require("common")\n' +
               'common.skipIfEslintMissing();\n' +
-              'require("../../tools/node_modules/eslint").RuleTester'
+              'require("../../tools/eslint/node_modules/eslint").RuleTester'
     },
   ]
 });

@@ -74,7 +74,7 @@ NGHTTP2_SRC := nghttp2_pq.c \
   nghttp2_session.c \
   nghttp2_submit.c \
   nghttp2_helper.c \
-  nghttp2_npn.c \
+  nghttp2_alpn.c \
   nghttp2_hd.c \
   nghttp2_hd_huffman.c \
   nghttp2_hd_huffman_data.c \

@@ -10,9 +10,8 @@
 #include "numparse_types.h"
 #include "number_decimfmtprops.h"
 
-U_NAMESPACE_BEGIN namespace number {
-namespace impl {
-
+U_NAMESPACE_BEGIN
+namespace number::impl {
 
 /**
  * Wraps a {@link Multiplier} for use in the number formatting pipeline.
@@ -48,9 +47,7 @@ static inline Scale scaleFromProperties(const DecimalFormatProperties& propertie
     }
 }
 
-
-} // namespace impl
-} // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 #endif //__SOURCE_NUMBER_MULTIPLIER_H__

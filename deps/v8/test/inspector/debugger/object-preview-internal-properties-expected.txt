@@ -392,6 +392,23 @@ expression: /123/
 
 expression: ({})
 
+expression: Boolean.prototype
+{
+    name : [[PrimitiveValue]]
+    type : boolean
+    value : false
+}
+{
+    name : toString
+    type : function
+    value :
+}
+{
+    name : valueOf
+    type : function
+    value :
+}
+
 
 Running test: overridenArrayGetter
 expression: Promise.resolve(42)
@@ -457,3 +474,4 @@ expression: new Proxy(() => {}, { get: () => x++ })
     type : string
     value :
 }
+

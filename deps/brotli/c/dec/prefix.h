@@ -10,8 +10,9 @@
 #ifndef BROTLI_DEC_PREFIX_H_
 #define BROTLI_DEC_PREFIX_H_
 
-#include "../common/constants.h"
 #include <brotli/types.h>
+
+#include "../common/constants.h"
 
 typedef struct CmdLutElement {
   uint8_t insert_len_extra_bits;

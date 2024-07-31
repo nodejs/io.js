@@ -40,7 +40,7 @@ static void close_cb(uv_handle_t* handle) {
 
 static void poll_cb(uv_poll_t* handle, int status, int events) {
   /* Not a bound socket, linux immediately reports UV_READABLE, other OS do not */
-  ASSERT(events == UV_READABLE);
+  ASSERT_EQ(events, UV_READABLE);
 }
 
 TEST_IMPL(poll_multiple_handles) {
@@ -51,20 +51,24 @@ TEST_IMPL(poll_multiple_handles) {
   {
     struct WSAData wsa_data;
     int r = WSAStartup(MAKEWORD(2, 2), &wsa_data);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
   }
 #endif
 
   sock = socket(AF_INET, SOCK_STREAM, 0);
 #ifdef _WIN32
-  ASSERT(sock != INVALID_SOCKET);
+  ASSERT_NE(sock, INVALID_SOCKET);
 #else
-  ASSERT(sock != -1);
+  ASSERT_NE(sock, -1);
 #endif
-  ASSERT(0 == uv_poll_init_socket(uv_default_loop(), &first_poll_handle, sock));
-  ASSERT(0 == uv_poll_init_socket(uv_default_loop(), &second_poll_handle, sock));
+  ASSERT_OK(uv_poll_init_socket(uv_default_loop(),
+                                &first_poll_handle,
+                                sock));
+  ASSERT_OK(uv_poll_init_socket(uv_default_loop(),
+                                &second_poll_handle,
+                                sock));
 
-  ASSERT(0 == uv_poll_start(&first_poll_handle, UV_READABLE, poll_cb));
+  ASSERT_OK(uv_poll_start(&first_poll_handle, UV_READABLE, poll_cb));
 
   /* We may not start polling while another polling handle is active
    * on that fd.
@@ -73,26 +77,27 @@ TEST_IMPL(poll_multiple_handles) {
   /* We do not track handles in an O(1) lookupable way on Windows,
    * so not checking that here.
    */
-  ASSERT(uv_poll_start(&second_poll_handle, UV_READABLE, poll_cb) == UV_EEXIST);
+  ASSERT_EQ(uv_poll_start(&second_poll_handle, UV_READABLE, poll_cb),
+            UV_EEXIST);
 #endif
 
   /* After stopping the other polling handle, we now should be able to poll */
-  ASSERT(0 == uv_poll_stop(&first_poll_handle));
-  ASSERT(0 == uv_poll_start(&second_poll_handle, UV_READABLE, poll_cb));
+  ASSERT_OK(uv_poll_stop(&first_poll_handle));
+  ASSERT_OK(uv_poll_start(&second_poll_handle, UV_READABLE, poll_cb));
 
   /* Closing an already stopped polling handle is safe in any case */
   uv_close((uv_handle_t*) &first_poll_handle, close_cb);
 
   uv_unref((uv_handle_t*) &second_poll_handle);
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
-  ASSERT(close_cb_called == 1);
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_EQ(1, close_cb_called);
   uv_ref((uv_handle_t*) &second_poll_handle);
 
   ASSERT(uv_is_active((uv_handle_t*) &second_poll_handle));
   uv_close((uv_handle_t*) &second_poll_handle, close_cb);
 
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
-  ASSERT(close_cb_called == 2);
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_EQ(2, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

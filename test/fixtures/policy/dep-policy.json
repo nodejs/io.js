@@ -1,7 +1,0 @@
-{
-  "resources": {
-    "./dep.js": {
-      "integrity": "sha512-7CMcc2oytFfMnGQaXbJk84gYWF2J7p/fmWPW7dsnJyniD+vgxtK9VAZ/22UxFOA4q5d27RoGLxSqNZ/nGCJkMw== sha512-scgN9Td0bGMlGH2lUHvEeHtz92Hx6AO+sYhU3WRI6bn3jEUCXbXJs68nOOsGzRWR7a2tbqGoETnOCpHHf1Njhw=="
-    }
-  }
-}

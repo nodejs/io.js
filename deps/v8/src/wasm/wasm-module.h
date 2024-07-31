@@ -83,6 +83,7 @@ struct WasmGlobal {
     // for value-typed globals, and in tagged words for reference-typed globals.
     uint32_t offset;
   };
+  bool shared;
   bool imported;  // true if imported.
   bool exported;  // true if exported.
 };
@@ -131,6 +132,11 @@ struct WasmMemory {
   uintptr_t min_memory_size = 0;  // smallest size of any memory in bytes
   uintptr_t max_memory_size = 0;  // largest size of any memory in bytes
   BoundsCheckStrategy bounds_checks = kExplicitBoundsChecks;
+
+  inline int GetMemory64GuardsShift() const {
+    return GetMemory64GuardsShift(maximum_pages * kWasmPageSize);
+  }
+  static int GetMemory64GuardsShift(uint64_t max_memory_size);
 };
 
 inline void UpdateComputedInformation(WasmMemory* memory, ModuleOrigin origin) {
@@ -151,10 +157,11 @@ inline void UpdateComputedInformation(WasmMemory* memory, ModuleOrigin origin) {
   } else if (origin != kWasmOrigin) {
     // Asm.js modules can't use trap handling.
     memory->bounds_checks = kExplicitBoundsChecks;
-  } else if (memory->is_memory64) {
+  } else if (memory->is_memory64 && !v8_flags.wasm_memory64_trap_handling) {
     // Memory64 currently always requires explicit bounds checks.
     memory->bounds_checks = kExplicitBoundsChecks;
   } else if (trap_handler::IsTrapHandlerEnabled()) {
+    if constexpr (kSystemPointerSize == 4) UNREACHABLE();
     memory->bounds_checks = kTrapHandler;
   } else {
     // If the trap handler is not enabled, fall back to explicit bounds checks.
@@ -170,18 +177,21 @@ struct WasmStringRefLiteral {
 
 // Static representation of a wasm data segment.
 struct WasmDataSegment {
-  explicit WasmDataSegment(bool is_active, uint32_t memory_index,
-                           ConstantExpression dest_addr, WireBytesRef source)
+  explicit WasmDataSegment(bool is_active, bool is_shared,
+                           uint32_t memory_index, ConstantExpression dest_addr,
+                           WireBytesRef source)
       : active(is_active),
+        shared(is_shared),
         memory_index(memory_index),
         dest_addr(dest_addr),
         source(source) {}
 
   static WasmDataSegment PassiveForTesting() {
-    return WasmDataSegment{false, 0, {}, {}};
+    return WasmDataSegment{false, false, 0, {}, {}};
   }
 
   bool active = true;     // true if copied automatically during instantiation.
+  bool shared = false;    // true if shared.
   uint32_t memory_index;  // memory index (if active).
   ConstantExpression dest_addr;  // destination memory address (if active).
   WireBytesRef source;           // start offset in the module bytes.
@@ -197,10 +207,11 @@ struct WasmElemSegment {
   enum ElementType { kFunctionIndexElements, kExpressionElements };
 
   // Construct an active segment.
-  WasmElemSegment(ValueType type, uint32_t table_index,
+  WasmElemSegment(bool shared, ValueType type, uint32_t table_index,
                   ConstantExpression offset, ElementType element_type,
                   uint32_t element_count, uint32_t elements_wire_bytes_offset)
       : status(kStatusActive),
+        shared(shared),
         type(type),
         table_index(table_index),
         offset(std::move(offset)),
@@ -210,9 +221,11 @@ struct WasmElemSegment {
 
   // Construct a passive or declarative segment, which has no table index or
   // offset.
-  WasmElemSegment(ValueType type, Status status, ElementType element_type,
-                  uint32_t element_count, uint32_t elements_wire_bytes_offset)
+  WasmElemSegment(Status status, bool shared, ValueType type,
+                  ElementType element_type, uint32_t element_count,
+                  uint32_t elements_wire_bytes_offset)
       : status(status),
+        shared(shared),
         type(type),
         table_index(0),
         element_type(element_type),
@@ -224,6 +237,7 @@ struct WasmElemSegment {
   // Default constructor. Constucts an invalid segment.
   WasmElemSegment()
       : status(kStatusActive),
+        shared(false),
         type(kWasmBottom),
         table_index(0),
         element_type(kFunctionIndexElements),
@@ -236,6 +250,7 @@ struct WasmElemSegment {
   WasmElemSegment& operator=(WasmElemSegment&&) V8_NOEXCEPT = default;
 
   Status status;
+  bool shared;
   ValueType type;
   uint32_t table_index;
   ConstantExpression offset;
@@ -415,40 +430,38 @@ constexpr uint32_t kNoSuperType = std::numeric_limits<uint32_t>::max();
 struct TypeDefinition {
   enum Kind : int8_t { kFunction, kStruct, kArray };
 
-  TypeDefinition(const FunctionSig* sig, uint32_t supertype, bool is_final)
+  constexpr TypeDefinition(const FunctionSig* sig, uint32_t supertype,
+                           bool is_final, bool is_shared)
       : function_sig(sig),
         supertype(supertype),
         kind(kFunction),
-        is_final(is_final) {}
-  TypeDefinition(const StructType* type, uint32_t supertype, bool is_final)
+        is_final(is_final),
+        is_shared(is_shared) {}
+  constexpr TypeDefinition(const StructType* type, uint32_t supertype,
+                           bool is_final, bool is_shared)
       : struct_type(type),
         supertype(supertype),
         kind(kStruct),
-        is_final(is_final) {}
-  TypeDefinition(const ArrayType* type, uint32_t supertype, bool is_final)
+        is_final(is_final),
+        is_shared(is_shared) {}
+  constexpr TypeDefinition(const ArrayType* type, uint32_t supertype,
+                           bool is_final, bool is_shared)
       : array_type(type),
         supertype(supertype),
         kind(kArray),
-        is_final(is_final) {}
-  TypeDefinition()
-      : function_sig(nullptr),
-        supertype(kNoSuperType),
-        kind(kFunction),
-        is_final(false) {}
+        is_final(is_final),
+        is_shared(is_shared) {}
+  constexpr TypeDefinition() = default;
 
   bool operator==(const TypeDefinition& other) const {
-    if (supertype != other.supertype || kind != other.kind ||
-        is_final != other.is_final) {
-      return false;
-    }
-    switch (kind) {
-      case kFunction:
-        return *function_sig == *other.function_sig;
-      case kStruct:
-        return *struct_type == *other.struct_type;
-      case kArray:
-        return *array_type == *other.array_type;
-    }
+    if (supertype != other.supertype) return false;
+    if (kind != other.kind) return false;
+    if (is_final != other.is_final) return false;
+    if (is_shared != other.is_shared) return false;
+    if (kind == kFunction) return *function_sig == *other.function_sig;
+    if (kind == kStruct) return *struct_type == *other.struct_type;
+    DCHECK_EQ(kArray, kind);
+    return *array_type == *other.array_type;
   }
 
   bool operator!=(const TypeDefinition& other) const {
@@ -456,13 +469,14 @@ struct TypeDefinition {
   }
 
   union {
-    const FunctionSig* function_sig;
+    const FunctionSig* function_sig = nullptr;
     const StructType* struct_type;
     const ArrayType* array_type;
   };
-  uint32_t supertype;
-  Kind kind;
-  bool is_final;
+  uint32_t supertype = kNoSuperType;
+  Kind kind = kFunction;
+  bool is_final = false;
+  bool is_shared = false;
   uint8_t subtyping_depth = 0;
 };
 
@@ -586,7 +600,18 @@ struct TypeFeedbackStorage {
   size_t EstimateCurrentMemoryConsumption() const;
 };
 
-struct WasmTable;
+struct WasmTable {
+  MOVE_ONLY_WITH_DEFAULT_CONSTRUCTORS(WasmTable);
+
+  ValueType type = kWasmVoid;     // table type.
+  uint32_t initial_size = 0;      // initial table size.
+  uint32_t maximum_size = 0;      // maximum table size.
+  bool has_maximum_size = false;  // true if there is a maximum size.
+  bool shared = false;            // true if the table lives in the shared heap.
+  bool imported = false;          // true if imported.
+  bool exported = false;          // true if exported.
+  ConstantExpression initial_value;
+};
 
 // Static representation of a module.
 struct V8_EXPORT_PRIVATE WasmModule {
@@ -604,6 +629,7 @@ struct V8_EXPORT_PRIVATE WasmModule {
   uint32_t num_imported_tables = 0;
   uint32_t num_imported_tags = 0;
   uint32_t num_declared_functions = 0;  // excluding imported
+  uint32_t num_small_functions = 0;
   uint32_t num_exported_functions = 0;
   uint32_t num_declared_data_segments = 0;  // From the DataCount section.
   // Position and size of the code section (payload only, i.e. without section
@@ -613,6 +639,8 @@ struct V8_EXPORT_PRIVATE WasmModule {
   // Position and size of the name section (payload only, i.e. without section
   // ID and length).
   WireBytesRef name_section = {0, 0};
+  // Set to true if this module has wasm-gc types in its type section.
+  bool is_wasm_gc = false;
 
   std::vector<TypeDefinition> types;  // by type index
   // Maps each type index to its global (cross-module) canonical index as per
@@ -659,8 +687,10 @@ struct V8_EXPORT_PRIVATE WasmModule {
   WasmModule(const WasmModule&) = delete;
   WasmModule& operator=(const WasmModule&) = delete;
 
-  // ================ Accessors ================================================
-  void add_type(TypeDefinition type) {
+  // ================ Interface for tests ======================================
+  // Tests sometimes add times iteratively instead of all at once via module
+  // decoding.
+  void AddTypeForTesting(TypeDefinition type) {
     types.push_back(type);
     if (type.supertype != kNoSuperType) {
       // Set the subtyping depth. Outside of unit tests this is done by the
@@ -673,13 +703,27 @@ struct V8_EXPORT_PRIVATE WasmModule {
     isorecursive_canonical_type_ids.push_back(kNoSuperType);
   }
 
+  void AddSignatureForTesting(const FunctionSig* sig, uint32_t supertype,
+                              bool is_final, bool is_shared) {
+    DCHECK_NOT_NULL(sig);
+    AddTypeForTesting(TypeDefinition(sig, supertype, is_final, is_shared));
+  }
+
+  void AddStructTypeForTesting(const StructType* type, uint32_t supertype,
+                               bool is_final, bool is_shared) {
+    DCHECK_NOT_NULL(type);
+    AddTypeForTesting(TypeDefinition(type, supertype, is_final, is_shared));
+  }
+
+  void AddArrayTypeForTesting(const ArrayType* type, uint32_t supertype,
+                              bool is_final, bool is_shared) {
+    DCHECK_NOT_NULL(type);
+    AddTypeForTesting(TypeDefinition(type, supertype, is_final, is_shared));
+  }
+
+  // ================ Accessors ================================================
   bool has_type(uint32_t index) const { return index < types.size(); }
 
-  void add_signature(const FunctionSig* sig, uint32_t supertype,
-                     bool is_final) {
-    DCHECK_NOT_NULL(sig);
-    add_type(TypeDefinition(sig, supertype, is_final));
-  }
   bool has_signature(uint32_t index) const {
     return index < types.size() &&
            types[index].kind == TypeDefinition::kFunction;
@@ -691,14 +735,10 @@ struct V8_EXPORT_PRIVATE WasmModule {
     return types[index].function_sig;
   }
 
-  void add_struct_type(const StructType* type, uint32_t supertype,
-                       bool is_final) {
-    DCHECK_NOT_NULL(type);
-    add_type(TypeDefinition(type, supertype, is_final));
-  }
   bool has_struct(uint32_t index) const {
     return index < types.size() && types[index].kind == TypeDefinition::kStruct;
   }
+
   const StructType* struct_type(uint32_t index) const {
     DCHECK(has_struct(index));
     size_t num_types = types.size();
@@ -706,11 +746,6 @@ struct V8_EXPORT_PRIVATE WasmModule {
     return types[index].struct_type;
   }
 
-  void add_array_type(const ArrayType* type, uint32_t supertype,
-                      bool is_final) {
-    DCHECK_NOT_NULL(type);
-    add_type(TypeDefinition(type, supertype, is_final));
-  }
   bool has_array(uint32_t index) const {
     return index < types.size() && types[index].kind == TypeDefinition::kArray;
   }
@@ -781,19 +816,6 @@ struct V8_EXPORT_PRIVATE WasmModule {
 
   size_t EstimateStoredSize() const;                // No tracing.
   size_t EstimateCurrentMemoryConsumption() const;  // With tracing.
-};
-
-// Static representation of a wasm indirect call table.
-struct WasmTable {
-  MOVE_ONLY_WITH_DEFAULT_CONSTRUCTORS(WasmTable);
-
-  ValueType type = kWasmVoid;     // table type.
-  uint32_t initial_size = 0;      // initial table size.
-  uint32_t maximum_size = 0;      // maximum table size.
-  bool has_maximum_size = false;  // true if there is a maximum size.
-  bool imported = false;          // true if imported.
-  bool exported = false;          // true if exported.
-  ConstantExpression initial_value;
 };
 
 inline bool is_asmjs_module(const WasmModule* module) {

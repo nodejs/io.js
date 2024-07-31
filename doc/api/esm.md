@@ -7,10 +7,15 @@
 <!-- YAML
 added: v8.5.0
 changes:
-  - version: v21.0.0
+  - version:
+    - v21.0.0
+    - v20.10.0
+    - v18.20.0
     pr-url: https://github.com/nodejs/node/pull/50140
     description: Add experimental support for import attributes.
-  - version: v20.0.0
+  - version:
+    - v20.0.0
+    - v18.19.0
     pr-url: https://github.com/nodejs/node/pull/44710
     description: Module customization hooks are executed off the main thread.
   - version:
@@ -257,7 +262,10 @@ added:
   - v17.1.0
   - v16.14.0
 changes:
-  - version: v21.0.0
+  - version:
+    - v21.0.0
+    - v20.10.0
+    - v18.20.0
     pr-url: https://github.com/nodejs/node/pull/50140
     description: Switch from Import Assertions to Import Attributes.
 -->
@@ -285,12 +293,12 @@ mandatory:
 | ---------------- | ---------------- |
 | `'json'`         | [JSON modules][] |
 
-## Builtin modules
+## Built-in modules
 
-[Core modules][] provide named exports of their public API. A
+[Built-in modules][] provide named exports of their public API. A
 default export is also provided which is the value of the CommonJS exports.
 The default export can be used for, among other things, modifying the named
-exports. Named exports of builtin modules are updated only by calling
+exports. Named exports of built-in modules are updated only by calling
 [`module.syncBuiltinESMExports()`][].
 
 ```js
@@ -332,6 +340,39 @@ modules it can be used to load ES modules.
 The `import.meta` meta property is an `Object` that contains the following
 properties.
 
+### `import.meta.dirname`
+
+<!-- YAML
+added:
+  - v21.2.0
+  - v20.11.0
+-->
+
+> Stability: 1.2 - Release candidate
+
+* {string} The directory name of the current module. This is the same as the
+  [`path.dirname()`][] of the [`import.meta.filename`][].
+
+> **Caveat**: only present on `file:` modules.
+
+### `import.meta.filename`
+
+<!-- YAML
+added:
+  - v21.2.0
+  - v20.11.0
+-->
+
+> Stability: 1.2 - Release candidate
+
+* {string} The full absolute path and filename of the current module, with
+  symlinks resolved.
+* This is the same as the [`url.fileURLToPath()`][] of the
+  [`import.meta.url`][].
+
+> **Caveat** only local modules support this property. Modules not using the
+> `file:` protocol will not provide it.
+
 ### `import.meta.url`
 
 * {string} The absolute `file:` URL of the module.
@@ -353,15 +394,21 @@ added:
   - v13.9.0
   - v12.16.2
 changes:
-  - version: v20.6.0
+  - version:
+    - v20.6.0
+    - v18.19.0
     pr-url: https://github.com/nodejs/node/pull/49028
-    description: Unflag `import.meta.resolve``, with `parentURL` parameter still
+    description: Unflag `import.meta.resolve`, with `parentURL` parameter still
                  flagged.
-  - version: v20.6.0
+  - version:
+    - v20.6.0
+    - v18.19.0
     pr-url: https://github.com/nodejs/node/pull/49038
     description: This API no longer throws when targeting `file:` URLs that do
                  not map to an existing file on the local FS.
-  - version: v20.0.0
+  - version:
+    - v20.0.0
+    - v18.19.0
     pr-url: https://github.com/nodejs/node/pull/44710
     description: This API now returns a string synchronously instead of a Promise.
   - version:
@@ -420,11 +467,10 @@ compatibility.
 
 ### `require`
 
-The CommonJS module `require` always treats the files it references as CommonJS.
+The CommonJS module `require` currently only supports loading synchronous ES
+modules when `--experimental-require-module` is enabled.
 
-Using `require` to load an ES module is not supported because ES modules have
-asynchronous execution. Instead, use [`import()`][] to load an ES module
-from a CommonJS module.
+See [Loading ECMAScript modules using `require()`][] for details.
 
 ### CommonJS Namespaces
 
@@ -526,7 +572,7 @@ If needed, a `require` function can be constructed within an ES module using
 These CommonJS variables are not available in ES modules.
 
 `__filename` and `__dirname` use cases can be replicated via
-[`import.meta.url`][].
+[`import.meta.filename`][] and [`import.meta.dirname`][].
 
 #### No Addon Loading
 
@@ -651,71 +697,6 @@ spawn(execPath, [
 });
 ```
 
-## HTTPS and HTTP imports
-
-> Stability: 1 - Experimental
-
-Importing network based modules using `https:` and `http:` is supported under
-the `--experimental-network-imports` flag. This allows web browser-like imports
-to work in Node.js with a few differences due to application stability and
-security concerns that are different when running in a privileged environment
-instead of a browser sandbox.
-
-### Imports are limited to HTTP/1
-
-Automatic protocol negotiation for HTTP/2 and HTTP/3 is not yet supported.
-
-### HTTP is limited to loopback addresses
-
-`http:` is vulnerable to man-in-the-middle attacks and is not allowed to be
-used for addresses outside of the IPv4 address `127.0.0.0/8` (`127.0.0.1` to
-`127.255.255.255`) and the IPv6 address `::1`. Support for `http:` is intended
-to be used for local development.
-
-### Authentication is never sent to the destination server.
-
-`Authorization`, `Cookie`, and `Proxy-Authorization` headers are not sent to the
-server. Avoid including user info in parts of imported URLs. A security model
-for safely using these on the server is being worked on.
-
-### CORS is never checked on the destination server
-
-CORS is designed to allow a server to limit the consumers of an API to a
-specific set of hosts. This is not supported as it does not make sense for a
-server-based implementation.
-
-### Cannot load non-network dependencies
-
-These modules cannot access other modules that are not over `http:` or `https:`.
-To still access local modules while avoiding the security concern, pass in
-references to the local dependencies:
-
-```mjs
-// file.mjs
-import worker_threads from 'node:worker_threads';
-import { configure, resize } from 'https://example.com/imagelib.mjs';
-configure({ worker_threads });
-```
-
-```mjs
-// https://example.com/imagelib.mjs
-let worker_threads;
-export function configure(opts) {
-  worker_threads = opts.worker_threads;
-}
-export function resize(img, size) {
-  // Perform resizing in worker_thread to avoid main thread blocking
-}
-```
-
-### Network-based loading is not enabled by default
-
-For now, the `--experimental-network-imports` flag is required to enable loading
-resources over `http:` or `https:`. In the future, a different mechanism will be
-used to enforce this. Opt-in is required to prevent transitive dependencies
-inadvertently using potentially mutable state that could affect reliability
-of Node.js applications.
-
 <i id="esm_experimental_loaders"></i>
 
 ## Loaders
@@ -758,8 +739,7 @@ does not determine whether the resolved URL protocol can be loaded,
 or whether the file extensions are permitted, instead these validations
 are applied by Node.js during the load phase
 (for example, if it was asked to load a URL that has a protocol that is
-not `file:`, `data:`, `node:`, or if `--experimental-network-imports`
-is enabled, `https:`).
+not `file:`, `data:` or `node:`.
 
 The algorithm also tries to determine the format of the file based
 on the extension (see `ESM_FILE_FORMAT` algorithm below). If it does
@@ -904,9 +884,9 @@ The resolver can throw the following errors:
 >       2. If _resolved_ is not **null** or **undefined**, return _resolved_.
 > 3. Otherwise, if _exports_ is an Object and all keys of _exports_ start with
 >    _"."_, then
->    1. Let _matchKey_ be the string _"./"_ concatenated with _subpath_.
+>    1. Assert: _subpath_ begins with _"./"_.
 >    2. Let _resolved_ be the result of **PACKAGE\_IMPORTS\_EXPORTS\_RESOLVE**(
->       _matchKey_, _exports_, _packageURL_, **false**, _conditions_).
+>       _subpath_, _exports_, _packageURL_, **false**, _conditions_).
 >    3. If _resolved_ is not **null** or **undefined**, return _resolved_.
 > 4. Throw a _Package Path Not Exported_ error.
 
@@ -954,19 +934,15 @@ _isImports_, _conditions_)
 
 **PATTERN\_KEY\_COMPARE**(_keyA_, _keyB_)
 
-> 1. Assert: _keyA_ ends with _"/"_ or contains only a single _"\*"_.
-> 2. Assert: _keyB_ ends with _"/"_ or contains only a single _"\*"_.
-> 3. Let _baseLengthA_ be the index of _"\*"_ in _keyA_ plus one, if _keyA_
->    contains _"\*"_, or the length of _keyA_ otherwise.
-> 4. Let _baseLengthB_ be the index of _"\*"_ in _keyB_ plus one, if _keyB_
->    contains _"\*"_, or the length of _keyB_ otherwise.
+> 1. Assert: _keyA_ contains only a single _"\*"_.
+> 2. Assert: _keyB_ contains only a single _"\*"_.
+> 3. Let _baseLengthA_ be the index of _"\*"_ in _keyA_.
+> 4. Let _baseLengthB_ be the index of _"\*"_ in _keyB_.
 > 5. If _baseLengthA_ is greater than _baseLengthB_, return -1.
 > 6. If _baseLengthB_ is greater than _baseLengthA_, return 1.
-> 7. If _keyA_ does not contain _"\*"_, return 1.
-> 8. If _keyB_ does not contain _"\*"_, return -1.
-> 9. If the length of _keyA_ is greater than the length of _keyB_, return -1.
-> 10. If the length of _keyB_ is greater than the length of _keyA_, return 1.
-> 11. Return 0.
+> 7. If the length of _keyA_ is greater than the length of _keyB_, return -1.
+> 8. If the length of _keyB_ is greater than the length of _keyA_, return 1.
+> 9. Return 0.
 
 **PACKAGE\_TARGET\_RESOLVE**(_packageURL_, _target_, _patternMatch_,
 _isImports_, _conditions_)
@@ -986,7 +962,7 @@ _isImports_, _conditions_)
 >       Package Target_ error.
 >    3. Let _resolvedTarget_ be the URL resolution of the concatenation of
 >       _packageURL_ and _target_.
->    4. Assert: _resolvedTarget_ is contained in _packageURL_.
+>    4. Assert: _packageURL_ is contained in _resolvedTarget_.
 >    5. If _patternMatch_ is **null**, then
 >       1. Return _resolvedTarget_.
 >    6. If _patternMatch_ split on _"/"_ or _"\\"_ contains any _""_, _"."_,
@@ -995,7 +971,7 @@ _isImports_, _conditions_)
 >    7. Return the URL resolution of _resolvedTarget_ with every instance of
 >       _"\*"_ replaced with _patternMatch_.
 > 2. Otherwise, if _target_ is a non-null Object, then
->    1. If _exports_ contains any index property keys, as defined in ECMA-262
+>    1. If _target_ contains any index property keys, as defined in ECMA-262
 >       [6.1.7 Array Index][], throw an _Invalid Package Configuration_ error.
 >    2. For each property _p_ of _target_, in object insertion order as,
 >       1. If _p_ equals _"default"_ or _conditions_ contains an entry for _p_,
@@ -1040,8 +1016,7 @@ _isImports_, _conditions_)
 > 10. If _url_ ends in _".js"_, then
 >     1. If _packageType_ is not **null**, then
 >        1. Return _packageType_.
->     2. If `--experimental-detect-module` is enabled and the source of
->        module contains static import or export syntax, then
+>     2. If the result of **DETECT\_MODULE\_SYNTAX**(_source_) is true, then
 >        1. Return _"module"_.
 >     3. Return _"commonjs"_.
 > 11. If _url_ does not have any extension, then
@@ -1051,8 +1026,7 @@ _isImports_, _conditions_)
 >        1. Return _"wasm"_.
 >     2. If _packageType_ is not **null**, then
 >        1. Return _packageType_.
->     3. If `--experimental-detect-module` is enabled and the source of
->        module contains static import or export syntax, then
+>     3. If the result of **DETECT\_MODULE\_SYNTAX**(_source_) is true, then
 >        1. Return _"module"_.
 >     4. Return _"commonjs"_.
 > 12. Return **undefined** (will throw during load phase).
@@ -1078,6 +1052,17 @@ _isImports_, _conditions_)
 >    1. Throw an _Invalid Package Configuration_ error.
 > 4. Return the parsed JSON source of the file at _pjsonURL_.
 
+**DETECT\_MODULE\_SYNTAX**(_source_)
+
+> 1. Parse _source_ as an ECMAScript module.
+> 2. If the parse is successful, then
+>    1. If _source_ contains top-level `await`, static `import` or `export`
+>       statements, or `import.meta`, return **true**.
+>    2. If _source_ contains a top-level lexical declaration (`const`, `let`,
+>       or `class`) of any of the CommonJS wrapper variables (`require`,
+>       `exports`, `module`, `__filename`, or `__dirname`) then return **true**.
+> 3. Else return **false**.
+
 ### Customizing ESM specifier resolution algorithm
 
 [Module customization hooks][] provide a mechanism for customizing the ESM
@@ -1088,14 +1073,15 @@ resolution for ESM specifiers is [commonjs-extension-resolution-loader][].
 
 [6.1.7 Array Index]: https://tc39.es/ecma262/#integer-index
 [Addons]: addons.md
+[Built-in modules]: modules.md#built-in-modules
 [CommonJS]: modules.md
-[Core modules]: modules.md#core-modules
 [Determining module system]: packages.md#determining-module-system
 [Dynamic `import()`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import
 [ES Module Integration Proposal for WebAssembly]: https://github.com/webassembly/esm-integration
 [Import Attributes]: #import-attributes
 [Import Attributes proposal]: https://github.com/tc39/proposal-import-attributes
 [JSON modules]: #json-modules
+[Loading ECMAScript modules using `require()`]: modules.md#loading-ecmascript-modules-using-require
 [Module customization hooks]: module.md#customization-hooks
 [Node.js Module Resolution And Loading Algorithm]: #resolution-algorithm-specification
 [Terminology]: #terminology
@@ -1107,13 +1093,17 @@ resolution for ESM specifiers is [commonjs-extension-resolution-loader][].
 [`data:` URLs]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs
 [`export`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/export
 [`import()`]: #import-expressions
+[`import.meta.dirname`]: #importmetadirname
+[`import.meta.filename`]: #importmetafilename
 [`import.meta.resolve`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta/resolve
 [`import.meta.url`]: #importmetaurl
 [`import`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import
 [`module.createRequire()`]: module.md#modulecreaterequirefilename
 [`module.syncBuiltinESMExports()`]: module.md#modulesyncbuiltinesmexports
 [`package.json`]: packages.md#nodejs-packagejson-field-definitions
+[`path.dirname()`]: path.md#pathdirnamepath
 [`process.dlopen`]: process.md#processdlopenmodule-filename-flags
+[`url.fileURLToPath()`]: url.md#urlfileurltopathurl-options
 [cjs-module-lexer]: https://github.com/nodejs/cjs-module-lexer/tree/1.2.2
 [commonjs-extension-resolution-loader]: https://github.com/nodejs/loaders-test/tree/main/commonjs-extension-resolution-loader
 [custom https loader]: module.md#import-from-https
@@ -1122,4 +1112,4 @@ resolution for ESM specifiers is [commonjs-extension-resolution-loader][].
 [special scheme]: https://url.spec.whatwg.org/#special-scheme
 [status code]: process.md#exit-codes
 [the official standard format]: https://tc39.github.io/ecma262/#sec-modules
-[url.pathToFileURL]: url.md#urlpathtofileurlpath
+[url.pathToFileURL]: url.md#urlpathtofileurlpath-options

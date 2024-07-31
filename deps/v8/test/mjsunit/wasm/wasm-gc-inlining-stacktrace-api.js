@@ -2,9 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --allow-natives-syntax --turbofan
+// Flags: --allow-natives-syntax --turbofan
 // Flags: --no-always-turbofan --no-always-sparkplug --expose-gc
-// Flags: --experimental-wasm-js-inlining
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -31,14 +30,14 @@ function testOptimized(run, fctToOptimize) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('getElement', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGet, struct, 0])
     .exportFunc();

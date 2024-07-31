@@ -21,7 +21,7 @@ Throughout the documentation are indications of a section's stability. Some APIs
 are so proven and so relied upon that they are unlikely to ever change at all.
 Others are brand new and experimental, or known to be hazardous.
 
-The stability indices are as follows:
+The stability indexes are as follows:
 
 > Stability: 0 - Deprecated. The feature may emit warnings. Backward
 > compatibility is not guaranteed.

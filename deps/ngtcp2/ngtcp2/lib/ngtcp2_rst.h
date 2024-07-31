@@ -34,6 +34,7 @@
 #include "ngtcp2_window_filter.h"
 
 typedef struct ngtcp2_rtb_entry ngtcp2_rtb_entry;
+typedef struct ngtcp2_conn_stat ngtcp2_conn_stat;
 
 /**
  * @struct
@@ -76,8 +77,8 @@ void ngtcp2_rst_init(ngtcp2_rst *rst);
 
 void ngtcp2_rst_on_pkt_sent(ngtcp2_rst *rst, ngtcp2_rtb_entry *ent,
                             const ngtcp2_conn_stat *cstat);
-int ngtcp2_rst_on_ack_recv(ngtcp2_rst *rst, ngtcp2_conn_stat *cstat,
-                           uint64_t pkt_delivered);
+void ngtcp2_rst_on_ack_recv(ngtcp2_rst *rst, ngtcp2_conn_stat *cstat,
+                            uint64_t pkt_delivered);
 void ngtcp2_rst_update_rate_sample(ngtcp2_rst *rst, const ngtcp2_rtb_entry *ent,
                                    ngtcp2_tstamp ts);
 void ngtcp2_rst_update_app_limited(ngtcp2_rst *rst, ngtcp2_conn_stat *cstat);

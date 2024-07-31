@@ -155,7 +155,7 @@ t.test('deprecates all versions when no range is specified', async t => {
 })
 
 t.test('does nothing if version does not actually exist', async t => {
-  const { npm, joinedOutput } = await loadMockNpm(t, { config: { ...auth } })
+  const { npm, logs, joinedOutput } = await loadMockNpm(t, { config: { ...auth } })
   const registry = new MockRegistry({
     tap: t,
     registry: npm.config.get('registry'),
@@ -168,4 +168,5 @@ t.test('does nothing if version does not actually exist', async t => {
   await registry.package({ manifest, query: { write: true } })
   await npm.exec('deprecate', ['foo@1.0.99', 'this should be ignored'])
   t.match(joinedOutput(), '')
+  t.equal(logs.warn[0], 'deprecate No version found for 1.0.99')
 })

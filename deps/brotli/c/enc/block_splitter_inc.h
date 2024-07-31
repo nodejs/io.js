@@ -46,17 +46,17 @@ static void FN(RandomSample)(uint32_t* seed,
 static void FN(RefineEntropyCodes)(const DataType* data, size_t length,
                                    size_t stride,
                                    size_t num_histograms,
-                                   HistogramType* histograms) {
+                                   HistogramType* histograms,
+                                   HistogramType* tmp) {
   size_t iters =
       kIterMulForRefining * length / stride + kMinItersForRefining;
   uint32_t seed = 7;
   size_t iter;
   iters = ((iters + num_histograms - 1) / num_histograms) * num_histograms;
   for (iter = 0; iter < iters; ++iter) {
-    HistogramType sample;
-    FN(HistogramClear)(&sample);
-    FN(RandomSample)(&seed, data, length, stride, &sample);
-    FN(HistogramAddHistogram)(&histograms[iter % num_histograms], &sample);
+    FN(HistogramClear)(tmp);
+    FN(RandomSample)(&seed, data, length, stride, tmp);
+    FN(HistogramAddHistogram)(&histograms[iter % num_histograms], tmp);
   }
 }
 
@@ -71,46 +71,56 @@ static size_t FN(FindBlocks)(const DataType* data, const size_t length,
                              double* cost,
                              uint8_t* switch_signal,
                              uint8_t* block_id) {
-  const size_t data_size = FN(HistogramDataSize)();
-  const size_t bitmaplen = (num_histograms + 7) >> 3;
+  const size_t alphabet_size = FN(HistogramDataSize)();
+  const size_t bitmap_len = (num_histograms + 7) >> 3;
   size_t num_blocks = 1;
+  size_t byte_ix;
   size_t i;
   size_t j;
   BROTLI_DCHECK(num_histograms <= 256);
+
+  /* Trivial case: single historgram -> single block type. */
   if (num_histograms <= 1) {
     for (i = 0; i < length; ++i) {
       block_id[i] = 0;
     }
     return 1;
   }
-  memset(insert_cost, 0, sizeof(insert_cost[0]) * data_size * num_histograms);
+
+  /* Fill bitcost for each symbol of all histograms.
+   * Non-existing symbol cost: 2 + log2(total_count).
+   * Regular symbol cost: -log2(symbol_count / total_count). */
+  memset(insert_cost, 0,
+         sizeof(insert_cost[0]) * alphabet_size * num_histograms);
   for (i = 0; i < num_histograms; ++i) {
     insert_cost[i] = FastLog2((uint32_t)histograms[i].total_count_);
   }
-  for (i = data_size; i != 0;) {
+  for (i = alphabet_size; i != 0;) {
+    /* Reverse order to use the 0-th row as a temporary storage. */
     --i;
     for (j = 0; j < num_histograms; ++j) {
       insert_cost[i * num_histograms + j] =
           insert_cost[j] - BitCost(histograms[j].data_[i]);
     }
   }
-  memset(cost, 0, sizeof(cost[0]) * num_histograms);
-  memset(switch_signal, 0, sizeof(switch_signal[0]) * length * bitmaplen);
+
   /* After each iteration of this loop, cost[k] will contain the difference
      between the minimum cost of arriving at the current byte position using
      entropy code k, and the minimum cost of arriving at the current byte
      position. This difference is capped at the block switch cost, and if it
      reaches block switch cost, it means that when we trace back from the last
      position, we need to switch here. */
-  for (i = 0; i < length; ++i) {
-    const size_t byte_ix = i;
-    size_t ix = byte_ix * bitmaplen;
-    size_t insert_cost_ix = data[byte_ix] * num_histograms;
+  memset(cost, 0, sizeof(cost[0]) * num_histograms);
+  memset(switch_signal, 0, sizeof(switch_signal[0]) * length * bitmap_len);
+  for (byte_ix = 0; byte_ix < length; ++byte_ix) {
+    size_t ix = byte_ix * bitmap_len;
+    size_t symbol = data[byte_ix];
+    size_t insert_cost_ix = symbol * num_histograms;
     double min_cost = 1e99;
     double block_switch_cost = block_switch_bitcost;
     size_t k;
     for (k = 0; k < num_histograms; ++k) {
-      /* We are coding the symbol in data[byte_ix] with entropy code k. */
+      /* We are coding the symbol with entropy code k. */
       cost[k] += insert_cost[insert_cost_ix + k];
       if (cost[k] < min_cost) {
         min_cost = cost[k];
@@ -126,20 +136,21 @@ static size_t FN(FindBlocks)(const DataType* data, const size_t length,
       if (cost[k] >= block_switch_cost) {
         const uint8_t mask = (uint8_t)(1u << (k & 7));
         cost[k] = block_switch_cost;
-        BROTLI_DCHECK((k >> 3) < bitmaplen);
+        BROTLI_DCHECK((k >> 3) < bitmap_len);
         switch_signal[ix + (k >> 3)] |= mask;
       }
     }
   }
+
+  byte_ix = length - 1;
   {  /* Trace back from the last position and switch at the marked places. */
-    size_t byte_ix = length - 1;
-    size_t ix = byte_ix * bitmaplen;
+    size_t ix = byte_ix * bitmap_len;
     uint8_t cur_id = block_id[byte_ix];
     while (byte_ix > 0) {
       const uint8_t mask = (uint8_t)(1u << (cur_id & 7));
-      BROTLI_DCHECK(((size_t)cur_id >> 3) < bitmaplen);
+      BROTLI_DCHECK(((size_t)cur_id >> 3) < bitmap_len);
       --byte_ix;
-      ix -= bitmaplen;
+      ix -= bitmap_len;
       if (switch_signal[ix + (cur_id >> 3)] & mask) {
         if (cur_id != block_id[byte_ix]) {
           cur_id = block_id[byte_ix];
@@ -185,13 +196,16 @@ static void FN(BuildBlockHistograms)(const DataType* data, const size_t length,
   }
 }
 
+/* Given the initial partitioning build partitioning with limited number
+ * of histograms (and block types). */
 static void FN(ClusterBlocks)(MemoryManager* m,
                               const DataType* data, const size_t length,
                               const size_t num_blocks,
                               uint8_t* block_ids,
                               BlockSplit* split) {
   uint32_t* histogram_symbols = BROTLI_ALLOC(m, uint32_t, num_blocks);
-  uint32_t* block_lengths = BROTLI_ALLOC(m, uint32_t, num_blocks);
+  uint32_t* u32 =
+      BROTLI_ALLOC(m, uint32_t, num_blocks + 4 * HISTOGRAMS_PER_BATCH);
   const size_t expected_num_clusters = CLUSTERS_PER_BATCH *
       (num_blocks + HISTOGRAMS_PER_BATCH - 1) / HISTOGRAMS_PER_BATCH;
   size_t all_histograms_size = 0;
@@ -214,20 +228,25 @@ static void FN(ClusterBlocks)(MemoryManager* m,
   static const uint32_t kInvalidIndex = BROTLI_UINT32_MAX;
   uint32_t* new_index;
   size_t i;
-  uint32_t sizes[HISTOGRAMS_PER_BATCH] = { 0 };
-  uint32_t new_clusters[HISTOGRAMS_PER_BATCH] = { 0 };
-  uint32_t symbols[HISTOGRAMS_PER_BATCH] = { 0 };
-  uint32_t remap[HISTOGRAMS_PER_BATCH] = { 0 };
+  uint32_t* BROTLI_RESTRICT const sizes = u32 + 0 * HISTOGRAMS_PER_BATCH;
+  uint32_t* BROTLI_RESTRICT const new_clusters = u32 + 1 * HISTOGRAMS_PER_BATCH;
+  uint32_t* BROTLI_RESTRICT const symbols = u32 + 2 * HISTOGRAMS_PER_BATCH;
+  uint32_t* BROTLI_RESTRICT const remap = u32 + 3 * HISTOGRAMS_PER_BATCH;
+  uint32_t* BROTLI_RESTRICT const block_lengths =
+      u32 + 4 * HISTOGRAMS_PER_BATCH;
+  /* TODO(eustas): move to arena? */
+  HistogramType* tmp = BROTLI_ALLOC(m, HistogramType, 2);
 
   if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(histogram_symbols) ||
-      BROTLI_IS_NULL(block_lengths) || BROTLI_IS_NULL(all_histograms) ||
+      BROTLI_IS_NULL(u32) || BROTLI_IS_NULL(all_histograms) ||
       BROTLI_IS_NULL(cluster_size) || BROTLI_IS_NULL(histograms) ||
-      BROTLI_IS_NULL(pairs)) {
+      BROTLI_IS_NULL(pairs) || BROTLI_IS_NULL(tmp)) {
     return;
   }
 
-  memset(block_lengths, 0, num_blocks * sizeof(uint32_t));
+  memset(u32, 0, (num_blocks + 4 * HISTOGRAMS_PER_BATCH) * sizeof(uint32_t));
 
+  /* Calculate block lengths (convert repeating values -> series length). */
   {
     size_t block_idx = 0;
     for (i = 0; i < length; ++i) {
@@ -240,6 +259,7 @@ static void FN(ClusterBlocks)(MemoryManager* m,
     BROTLI_DCHECK(block_idx == num_blocks);
   }
 
+  /* Pre-cluster blocks (cluster batches). */
   for (i = 0; i < num_blocks; i += HISTOGRAMS_PER_BATCH) {
     const size_t num_to_combine =
         BROTLI_MIN(size_t, num_blocks - i, HISTOGRAMS_PER_BATCH);
@@ -247,8 +267,9 @@ static void FN(ClusterBlocks)(MemoryManager* m,
     size_t j;
     for (j = 0; j < num_to_combine; ++j) {
       size_t k;
+      size_t block_length = block_lengths[i + j];
       FN(HistogramClear)(&histograms[j]);
-      for (k = 0; k < block_lengths[i + j]; ++k) {
+      for (k = 0; k < block_length; ++k) {
         FN(HistogramAdd)(&histograms[j], data[pos++]);
       }
       histograms[j].bit_cost_ = FN(BrotliPopulationCost)(&histograms[j]);
@@ -257,7 +278,7 @@ static void FN(ClusterBlocks)(MemoryManager* m,
       sizes[j] = 1;
     }
     num_new_clusters = FN(BrotliHistogramCombine)(
-        histograms, sizes, symbols, new_clusters, pairs, num_to_combine,
+        histograms, tmp, sizes, symbols, new_clusters, pairs, num_to_combine,
         num_to_combine, HISTOGRAMS_PER_BATCH, max_num_pairs);
     BROTLI_ENSURE_CAPACITY(m, HistogramType, all_histograms,
         all_histograms_capacity, all_histograms_size + num_new_clusters);
@@ -278,6 +299,7 @@ static void FN(ClusterBlocks)(MemoryManager* m,
   }
   BROTLI_FREE(m, histograms);
 
+  /* Final clustering. */
   max_num_pairs =
       BROTLI_MIN(size_t, 64 * num_clusters, (num_clusters / 2) * num_clusters);
   if (pairs_capacity < max_num_pairs + 1) {
@@ -285,19 +307,19 @@ static void FN(ClusterBlocks)(MemoryManager* m,
     pairs = BROTLI_ALLOC(m, HistogramPair, max_num_pairs + 1);
     if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(pairs)) return;
   }
-
   clusters = BROTLI_ALLOC(m, uint32_t, num_clusters);
   if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(clusters)) return;
   for (i = 0; i < num_clusters; ++i) {
     clusters[i] = (uint32_t)i;
   }
   num_final_clusters = FN(BrotliHistogramCombine)(
-      all_histograms, cluster_size, histogram_symbols, clusters, pairs,
+      all_histograms, tmp, cluster_size, histogram_symbols, clusters, pairs,
       num_clusters, num_blocks, BROTLI_MAX_NUMBER_OF_BLOCK_TYPES,
       max_num_pairs);
   BROTLI_FREE(m, pairs);
   BROTLI_FREE(m, cluster_size);
 
+  /* Assign blocks to final histograms. */
   new_index = BROTLI_ALLOC(m, uint32_t, num_clusters);
   if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(new_index)) return;
   for (i = 0; i < num_clusters; ++i) new_index[i] = kInvalidIndex;
@@ -305,20 +327,21 @@ static void FN(ClusterBlocks)(MemoryManager* m,
   {
     uint32_t next_index = 0;
     for (i = 0; i < num_blocks; ++i) {
-      HistogramType histo;
       size_t j;
       uint32_t best_out;
       double best_bits;
-      FN(HistogramClear)(&histo);
+      FN(HistogramClear)(tmp);
       for (j = 0; j < block_lengths[i]; ++j) {
-        FN(HistogramAdd)(&histo, data[pos++]);
+        FN(HistogramAdd)(tmp, data[pos++]);
       }
+      /* Among equally good histograms prefer last used. */
+      /* TODO(eustas): should we give a block-switch discount here? */
       best_out = (i == 0) ? histogram_symbols[0] : histogram_symbols[i - 1];
-      best_bits =
-          FN(BrotliHistogramBitCostDistance)(&histo, &all_histograms[best_out]);
+      best_bits = FN(BrotliHistogramBitCostDistance)(
+          tmp, &all_histograms[best_out], tmp + 1);
       for (j = 0; j < num_final_clusters; ++j) {
         const double cur_bits = FN(BrotliHistogramBitCostDistance)(
-            &histo, &all_histograms[clusters[j]]);
+            tmp, &all_histograms[clusters[j]], tmp + 1);
         if (cur_bits < best_bits) {
           best_bits = cur_bits;
           best_out = clusters[j];
@@ -330,6 +353,7 @@ static void FN(ClusterBlocks)(MemoryManager* m,
       }
     }
   }
+  BROTLI_FREE(m, tmp);
   BROTLI_FREE(m, clusters);
   BROTLI_FREE(m, all_histograms);
   BROTLI_ENSURE_CAPACITY(
@@ -337,6 +361,9 @@ static void FN(ClusterBlocks)(MemoryManager* m,
   BROTLI_ENSURE_CAPACITY(
       m, uint32_t, split->lengths, split->lengths_alloc_size, num_blocks);
   if (BROTLI_IS_OOM(m)) return;
+
+  /* Rewrite final assignment to block-split. There might be less blocks
+   * than |num_blocks| due to clustering. */
   {
     uint32_t cur_length = 0;
     size_t block_idx = 0;
@@ -357,28 +384,41 @@ static void FN(ClusterBlocks)(MemoryManager* m,
     split->num_types = (size_t)max_type + 1;
   }
   BROTLI_FREE(m, new_index);
-  BROTLI_FREE(m, block_lengths);
+  BROTLI_FREE(m, u32);
   BROTLI_FREE(m, histogram_symbols);
 }
 
+/* Create BlockSplit (partitioning) given the limits, estimates and "effort"
+ * parameters.
+ *
+ * NB: max_histograms is often less than number of histograms allowed by format;
+ *     this is done intentionally, to save some "space" for context-aware
+ *     clustering (here entropy is estimated for context-free symbols). */
 static void FN(SplitByteVector)(MemoryManager* m,
                                 const DataType* data, const size_t length,
-                                const size_t literals_per_histogram,
+                                const size_t symbols_per_histogram,
                                 const size_t max_histograms,
                                 const size_t sampling_stride_length,
                                 const double block_switch_cost,
                                 const BrotliEncoderParams* params,
                                 BlockSplit* split) {
   const size_t data_size = FN(HistogramDataSize)();
-  size_t num_histograms = length / literals_per_histogram + 1;
   HistogramType* histograms;
+  HistogramType* tmp;
+  /* Calculate number of histograms; initial estimate is one histogram per
+   * specified amount of symbols; however, this value is capped. */
+  size_t num_histograms = length / symbols_per_histogram + 1;
   if (num_histograms > max_histograms) {
     num_histograms = max_histograms;
   }
+
+  /* Corner case: no input. */
   if (length == 0) {
     split->num_types = 1;
     return;
-  } else if (length < kMinLengthForBlockSplitting) {
+  }
+
+  if (length < kMinLengthForBlockSplitting) {
     BROTLI_ENSURE_CAPACITY(m, uint8_t,
         split->types, split->types_alloc_size, split->num_blocks + 1);
     BROTLI_ENSURE_CAPACITY(m, uint32_t,
@@ -390,7 +430,8 @@ static void FN(SplitByteVector)(MemoryManager* m,
     split->num_blocks++;
     return;
   }
-  histograms = BROTLI_ALLOC(m, HistogramType, num_histograms);
+  histograms = BROTLI_ALLOC(m, HistogramType, num_histograms + 1);
+  tmp = histograms + num_histograms;
   if (BROTLI_IS_OOM(m) || BROTLI_IS_NULL(histograms)) return;
   /* Find good entropy codes. */
   FN(InitialEntropyCodes)(data, length,
@@ -398,7 +439,7 @@ static void FN(SplitByteVector)(MemoryManager* m,
                           num_histograms, histograms);
   FN(RefineEntropyCodes)(data, length,
                          sampling_stride_length,
-                         num_histograms, histograms);
+                         num_histograms, histograms, tmp);
   {
     /* Find a good path through literals with the good entropy codes. */
     uint8_t* block_ids = BROTLI_ALLOC(m, uint8_t, length);

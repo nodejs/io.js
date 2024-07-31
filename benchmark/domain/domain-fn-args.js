@@ -4,7 +4,7 @@ const domain = require('domain');
 
 const bench = common.createBenchmark(main, {
   args: [0, 1, 2, 3],
-  n: [10],
+  n: [1e4],
 });
 
 const bdomain = domain.create();

@@ -1,11 +1,12 @@
 // GENERATED CONTENT - DO NOT EDIT
 // Content was automatically extracted by Reffy into webref
 // (https://github.com/w3c/webref)
-// Source: Resource Timing Level 2 (https://w3c.github.io/resource-timing/)
+// Source: Resource Timing (https://w3c.github.io/resource-timing/)
 
 [Exposed=(Window,Worker)]
 interface PerformanceResourceTiming : PerformanceEntry {
     readonly attribute DOMString initiatorType;
+    readonly attribute DOMString deliveryType;
     readonly attribute ByteString nextHopProtocol;
     readonly attribute DOMHighResTimeStamp workerStart;
     readonly attribute DOMHighResTimeStamp redirectStart;
@@ -17,12 +18,21 @@ interface PerformanceResourceTiming : PerformanceEntry {
     readonly attribute DOMHighResTimeStamp connectEnd;
     readonly attribute DOMHighResTimeStamp secureConnectionStart;
     readonly attribute DOMHighResTimeStamp requestStart;
+    readonly attribute DOMHighResTimeStamp firstInterimResponseStart;
     readonly attribute DOMHighResTimeStamp responseStart;
     readonly attribute DOMHighResTimeStamp responseEnd;
     readonly attribute unsigned long long  transferSize;
     readonly attribute unsigned long long  encodedBodySize;
     readonly attribute unsigned long long  decodedBodySize;
+    readonly attribute unsigned short responseStatus;
+    readonly attribute RenderBlockingStatusType renderBlockingStatus;
+    readonly attribute DOMString contentType;
     [Default] object toJSON();
+};
+
+enum RenderBlockingStatusType {
+    "blocking",
+    "non-blocking"
 };
 
 partial interface Performance {

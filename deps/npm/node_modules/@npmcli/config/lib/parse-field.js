@@ -1,7 +1,7 @@
 // Parse a field, coercing it to the best type available.
 const typeDefs = require('./type-defs.js')
 const envReplace = require('./env-replace.js')
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 
 const { parse: umaskParse } = require('./umask.js')
 

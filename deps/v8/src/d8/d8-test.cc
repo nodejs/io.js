@@ -158,8 +158,8 @@ class FastCApiObject {
 
     // For Wasm call, we don't pass FastCApiObject as the receiver, so we need
     // to retrieve the FastCApiObject instance from a static variable.
-    if (IsJSGlobalProxy(*Utils::OpenHandle(*receiver)) ||
-        IsUndefined(*Utils::OpenHandle(*receiver))) {
+    if (IsJSGlobalProxy(*Utils::OpenDirectHandle(*receiver)) ||
+        IsUndefined(*Utils::OpenDirectHandle(*receiver))) {
       // Note: FastCApiObject::instance() returns the reference of an object
       // allocated in thread-local storage, its value cannot be stored in a
       // static variable here.
@@ -316,10 +316,7 @@ class FastCApiObject {
       v8::MaybeLocal<v8::Value> maybe_element =
           seq_arg->Get(isolate->GetCurrentContext(),
                        v8::Integer::NewFromUnsigned(isolate, i));
-      if (maybe_element.IsEmpty()) {
-        isolate->ThrowError("invalid element in JSArray");
-        return;
-      }
+      if (maybe_element.IsEmpty()) return;
 
       v8::Local<v8::Value> element = maybe_element.ToLocalChecked();
       if (element->IsNumber()) {
@@ -1890,6 +1887,23 @@ Local<FunctionTemplate> Shell::CreateTestFastCApiTemplate(Isolate* isolate) {
         FunctionTemplate::New(isolate, FastCApiObject::ResetCounts,
                               Local<Value>(), signature, 1,
                               ConstructorBehavior::kThrow));
+
+    CFunction add_all_32bit_int_5args_enforce_range_c_func =
+        CFunctionBuilder()
+            .Fn(FastCApiObject::AddAll32BitIntFastCallback_5Args)
+            .Arg<3, v8::CTypeInfo::Flags::kEnforceRangeBit>()
+            .Arg<5, v8::CTypeInfo::Flags::kEnforceRangeBit>()
+#ifdef V8_USE_SIMULATOR_WITH_GENERIC_C_CALLS
+            .Patch(FastCApiObject::AddAll32BitIntFastCallback_5ArgsPatch)
+#endif  // V8_USE_SIMULATOR_WITH_GENERIC_C_CALLS
+            .Build();
+    api_obj_ctor->PrototypeTemplate()->Set(
+        isolate, "add_all_5args_enforce_range",
+        FunctionTemplate::New(
+            isolate, FastCApiObject::AddAll32BitIntSlowCallback, Local<Value>(),
+            signature, 1, ConstructorBehavior::kThrow,
+            SideEffectType::kHasNoSideEffect,
+            &add_all_32bit_int_5args_enforce_range_c_func));
   }
   api_obj_ctor->InstanceTemplate()->SetInternalFieldCount(
       FastCApiObject::kV8WrapperObjectIndex + 1);

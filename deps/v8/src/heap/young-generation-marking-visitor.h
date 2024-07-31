@@ -90,7 +90,8 @@ class YoungGenerationMarkingVisitor final
     return marking_worklists_local_;
   }
 
-  V8_INLINE void IncrementLiveBytesCached(MemoryChunk* chunk, intptr_t by);
+  V8_INLINE void IncrementLiveBytesCached(MutablePageMetadata* chunk,
+                                          intptr_t by);
 
   void PublishWorklists() {
     marking_worklists_local_.Publish();
@@ -109,7 +110,8 @@ class YoungGenerationMarkingVisitor final
                                    TSlot end);
 
 #ifdef V8_MINORMS_STRING_SHORTCUTTING
-  V8_INLINE bool ShortCutStrings(HeapObjectSlot slot, HeapObject* heap_object);
+  V8_INLINE bool ShortCutStrings(HeapObjectSlot slot,
+                                 Tagged<HeapObject>* heap_object);
 #endif  // V8_MINORMS_STRING_SHORTCUTTING
 
   template <typename T>
@@ -120,7 +122,8 @@ class YoungGenerationMarkingVisitor final
   static constexpr size_t kEntriesMask = kNumEntries - 1;
   // Fixed-size hashmap that caches live bytes. Hashmap entries are evicted to
   // the global counters on collision.
-  std::array<std::pair<MemoryChunk*, size_t>, kNumEntries> live_bytes_data_;
+  std::array<std::pair<MutablePageMetadata*, size_t>, kNumEntries>
+      live_bytes_data_;
 
   Isolate* const isolate_;
   MarkingWorklists::Local marking_worklists_local_;

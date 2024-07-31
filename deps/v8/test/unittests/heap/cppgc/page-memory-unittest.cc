@@ -4,6 +4,8 @@
 
 #include "src/heap/cppgc/page-memory.h"
 
+#include <algorithm>
+
 #include "src/base/page-allocator.h"
 #include "src/heap/cppgc/platform.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -76,42 +78,6 @@ TEST(PageMemoryDeathTest, ConstructNonContainedRegions) {
 
 #endif  // DEBUG
 
-TEST(PageMemoryRegionTest, NormalPageMemoryRegion) {
-  v8::base::PageAllocator allocator;
-  auto pmr = NormalPageMemoryRegion::Create(allocator);
-  pmr->UnprotectForTesting();
-  MemoryRegion prev_overall;
-  for (size_t i = 0; i < NormalPageMemoryRegion::kNumPageRegions; ++i) {
-    const PageMemory pm = pmr->GetPageMemory(i);
-    // Previous PageMemory aligns with the current one.
-    if (prev_overall.base()) {
-      EXPECT_EQ(prev_overall.end(), pm.overall_region().base());
-    }
-    prev_overall =
-        MemoryRegion(pm.overall_region().base(), pm.overall_region().size());
-    // Writeable region is contained in overall region.
-    EXPECT_TRUE(pm.overall_region().Contains(pm.writeable_region()));
-    EXPECT_EQ(0u, pm.writeable_region().base()[0]);
-    EXPECT_EQ(0u, pm.writeable_region().end()[-1]);
-    // Front guard page.
-    EXPECT_EQ(pm.writeable_region().base(),
-              pm.overall_region().base() + kGuardPageSize);
-    // Back guard page.
-    EXPECT_EQ(pm.overall_region().end(),
-              pm.writeable_region().end() + kGuardPageSize);
-  }
-}
-
-TEST(PageMemoryRegionTest, LargePageMemoryRegion) {
-  v8::base::PageAllocator allocator;
-  auto pmr = LargePageMemoryRegion::Create(allocator, 1024);
-  pmr->UnprotectForTesting();
-  const PageMemory pm = pmr->GetPageMemory();
-  EXPECT_LE(1024u, pm.writeable_region().size());
-  EXPECT_EQ(0u, pm.writeable_region().base()[0]);
-  EXPECT_EQ(0u, pm.writeable_region().end()[-1]);
-}
-
 // See the comment in globals.h when setting |kGuardPageSize| for details.
 #if !(defined(V8_TARGET_ARCH_ARM64) && defined(V8_OS_MACOS))
 TEST(PageMemoryRegionTest, PlatformUsesGuardPages) {
@@ -139,109 +105,169 @@ V8_NOINLINE uint8_t access(volatile const uint8_t& u) { return u; }
 
 }  // namespace
 
-TEST(PageMemoryRegionDeathTest, ReservationIsFreed) {
+TEST(PageBackendDeathTest, ReservationIsFreed) {
   // Full sequence as part of the death test macro as otherwise, the macro
   // may expand to statements that re-purpose the previously freed memory
   // and thus not crash.
   EXPECT_DEATH_IF_SUPPORTED(
       v8::base::PageAllocator allocator; Address base; {
-        auto pmr = LargePageMemoryRegion::Create(allocator, 1024);
-        base = pmr->reserved_region().base();
-      } access(base[0]);
+        PageBackend backend(allocator, allocator);
+        base = backend.TryAllocateLargePageMemory(1024);
+      } access(*base);
       , "");
 }
 
-TEST(PageMemoryRegionDeathTest, FrontGuardPageAccessCrashes) {
+TEST(PageBackendDeathTest, FrontGuardPageAccessCrashes) {
   v8::base::PageAllocator allocator;
-  auto pmr = NormalPageMemoryRegion::Create(allocator);
+  PageBackend backend(allocator, allocator);
+  auto* base = backend.TryAllocateNormalPageMemory();
   if (SupportsCommittingGuardPages(allocator)) {
-    EXPECT_DEATH_IF_SUPPORTED(
-        access(pmr->GetPageMemory(0).overall_region().base()[0]), "");
+    EXPECT_DEATH_IF_SUPPORTED(access(base[-kGuardPageSize]), "");
   }
 }
 
-TEST(PageMemoryRegionDeathTest, BackGuardPageAccessCrashes) {
+TEST(PageBackendDeathTest, BackGuardPageAccessCrashes) {
   v8::base::PageAllocator allocator;
-  auto pmr = NormalPageMemoryRegion::Create(allocator);
+  PageBackend backend(allocator, allocator);
+  auto* base = backend.TryAllocateNormalPageMemory();
   if (SupportsCommittingGuardPages(allocator)) {
-    EXPECT_DEATH_IF_SUPPORTED(
-        access(pmr->GetPageMemory(0).writeable_region().end()[0]), "");
+    EXPECT_DEATH_IF_SUPPORTED(access(base[kPageSize - 2 * kGuardPageSize]), "");
   }
 }
 
-TEST(PageMemoryRegionTreeTest, AddNormalLookupRemove) {
+TEST(PageBackendTreeTest, AddNormalLookupRemove) {
   v8::base::PageAllocator allocator;
-  auto pmr = NormalPageMemoryRegion::Create(allocator);
-  PageMemoryRegionTree tree;
-  tree.Add(pmr.get());
-  ASSERT_EQ(pmr.get(), tree.Lookup(pmr->reserved_region().base()));
-  ASSERT_EQ(pmr.get(), tree.Lookup(pmr->reserved_region().end() - 1));
-  ASSERT_EQ(nullptr, tree.Lookup(pmr->reserved_region().base() - 1));
-  ASSERT_EQ(nullptr, tree.Lookup(pmr->reserved_region().end()));
-  tree.Remove(pmr.get());
-  ASSERT_EQ(nullptr, tree.Lookup(pmr->reserved_region().base()));
-  ASSERT_EQ(nullptr, tree.Lookup(pmr->reserved_region().end() - 1));
+  PageBackend backend(allocator, allocator);
+  auto* writable_base = backend.TryAllocateNormalPageMemory();
+  auto* reserved_base = writable_base - kGuardPageSize;
+  auto& tree = backend.get_page_memory_region_tree_for_testing();
+  ASSERT_EQ(
+      reserved_base,
+      tree.Lookup(reserved_base)->GetPageMemory().overall_region().base());
+  ASSERT_EQ(reserved_base, tree.Lookup(reserved_base + kPageSize - 1)
+                               ->GetPageMemory()
+                               .overall_region()
+                               .base());
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_base - 1));
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_base + kPageSize));
+  backend.FreeNormalPageMemory(writable_base,
+                               FreeMemoryHandling::kDoNotDiscard);
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_base));
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_base + kPageSize - 1));
 }
 
-TEST(PageMemoryRegionTreeTest, AddLargeLookupRemove) {
+TEST(PageBackendTreeTest, AddLargeLookupRemove) {
   v8::base::PageAllocator allocator;
   constexpr size_t kLargeSize = 5012;
-  auto pmr = LargePageMemoryRegion::Create(allocator, kLargeSize);
-  PageMemoryRegionTree tree;
-  tree.Add(pmr.get());
-  ASSERT_EQ(pmr.get(), tree.Lookup(pmr->reserved_region().base()));
-  ASSERT_EQ(pmr.get(), tree.Lookup(pmr->reserved_region().end() - 1));
-  ASSERT_EQ(nullptr, tree.Lookup(pmr->reserved_region().base() - 1));
-  ASSERT_EQ(nullptr, tree.Lookup(pmr->reserved_region().end()));
-  tree.Remove(pmr.get());
-  ASSERT_EQ(nullptr, tree.Lookup(pmr->reserved_region().base()));
-  ASSERT_EQ(nullptr, tree.Lookup(pmr->reserved_region().end() - 1));
+  const size_t allocated_page_size =
+      RoundUp(kLargeSize + 2 * kGuardPageSize, allocator.AllocatePageSize());
+  PageBackend backend(allocator, allocator);
+  auto* writable_base = backend.TryAllocateLargePageMemory(kLargeSize);
+  auto* reserved_base = writable_base - kGuardPageSize;
+  auto& tree = backend.get_page_memory_region_tree_for_testing();
+  ASSERT_EQ(
+      reserved_base,
+      tree.Lookup(reserved_base)->GetPageMemory().overall_region().base());
+  ASSERT_EQ(reserved_base, tree.Lookup(reserved_base + allocated_page_size - 1)
+                               ->GetPageMemory()
+                               .overall_region()
+                               .base());
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_base - 1));
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_base + allocated_page_size));
+  backend.FreeLargePageMemory(writable_base);
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_base));
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_base + allocated_page_size - 1));
 }
 
-TEST(PageMemoryRegionTreeTest, AddLookupRemoveMultiple) {
+TEST(PageBackendTreeTest, AddLookupRemoveMultiple) {
   v8::base::PageAllocator allocator;
-  auto pmr1 = NormalPageMemoryRegion::Create(allocator);
   constexpr size_t kLargeSize = 3127;
-  auto pmr2 = LargePageMemoryRegion::Create(allocator, kLargeSize);
-  PageMemoryRegionTree tree;
-  tree.Add(pmr1.get());
-  tree.Add(pmr2.get());
-  ASSERT_EQ(pmr1.get(), tree.Lookup(pmr1->reserved_region().base()));
-  ASSERT_EQ(pmr1.get(), tree.Lookup(pmr1->reserved_region().end() - 1));
-  ASSERT_EQ(pmr2.get(), tree.Lookup(pmr2->reserved_region().base()));
-  ASSERT_EQ(pmr2.get(), tree.Lookup(pmr2->reserved_region().end() - 1));
-  tree.Remove(pmr1.get());
-  ASSERT_EQ(pmr2.get(), tree.Lookup(pmr2->reserved_region().base()));
-  ASSERT_EQ(pmr2.get(), tree.Lookup(pmr2->reserved_region().end() - 1));
-  tree.Remove(pmr2.get());
-  ASSERT_EQ(nullptr, tree.Lookup(pmr2->reserved_region().base()));
-  ASSERT_EQ(nullptr, tree.Lookup(pmr2->reserved_region().end() - 1));
+  const size_t allocated_page_size =
+      RoundUp(kLargeSize + 2 * kGuardPageSize, allocator.AllocatePageSize());
+
+  PageBackend backend(allocator, allocator);
+  auto& tree = backend.get_page_memory_region_tree_for_testing();
+
+  auto* writable_normal_base = backend.TryAllocateNormalPageMemory();
+  auto* reserved_normal_base = writable_normal_base - kGuardPageSize;
+  auto* writable_large_base = backend.TryAllocateLargePageMemory(kLargeSize);
+  auto* reserved_large_base = writable_large_base - kGuardPageSize;
+
+  ASSERT_EQ(reserved_normal_base, tree.Lookup(reserved_normal_base)
+                                      ->GetPageMemory()
+                                      .overall_region()
+                                      .base());
+  ASSERT_EQ(reserved_normal_base,
+            tree.Lookup(reserved_normal_base + kPageSize - 1)
+                ->GetPageMemory()
+                .overall_region()
+                .base());
+  ASSERT_EQ(reserved_large_base, tree.Lookup(reserved_large_base)
+                                     ->GetPageMemory()
+                                     .overall_region()
+                                     .base());
+  ASSERT_EQ(reserved_large_base,
+            tree.Lookup(reserved_large_base + allocated_page_size - 1)
+                ->GetPageMemory()
+                .overall_region()
+                .base());
+
+  backend.FreeNormalPageMemory(writable_normal_base,
+                               FreeMemoryHandling::kDoNotDiscard);
+
+  ASSERT_EQ(reserved_large_base, tree.Lookup(reserved_large_base)
+                                     ->GetPageMemory()
+                                     .overall_region()
+                                     .base());
+  ASSERT_EQ(reserved_large_base,
+            tree.Lookup(reserved_large_base + allocated_page_size - 1)
+                ->GetPageMemory()
+                .overall_region()
+                .base());
+
+  backend.FreeLargePageMemory(writable_large_base);
+
+  ASSERT_EQ(nullptr, tree.Lookup(reserved_large_base));
+  ASSERT_EQ(nullptr,
+            tree.Lookup(reserved_large_base + allocated_page_size - 1));
 }
 
-TEST(NormalPageMemoryPool, ConstructorEmpty) {
+TEST(PageBackendPoolTest, ConstructorEmpty) {
   v8::base::PageAllocator allocator;
-  NormalPageMemoryPool pool;
-  EXPECT_EQ(NormalPageMemoryPool::Result(nullptr, nullptr), pool.Take());
+  PageBackend backend(allocator, allocator);
+  auto& pool = backend.get_page_pool_for_testing();
+  EXPECT_EQ(nullptr, pool.Take());
 }
 
-TEST(NormalPageMemoryPool, AddTake) {
+TEST(PageBackendPoolTest, AddTake) {
   v8::base::PageAllocator allocator;
-  auto pmr = NormalPageMemoryRegion::Create(allocator);
-  const PageMemory pm = pmr->GetPageMemory(0);
-  NormalPageMemoryPool pool;
-  pool.Add(pmr.get(), pm.writeable_region().base());
-  EXPECT_EQ(
-      NormalPageMemoryPool::Result(pmr.get(), pm.writeable_region().base()),
-      pool.Take());
+  PageBackend backend(allocator, allocator);
+  auto& pool = backend.get_page_pool_for_testing();
+  auto& raw_pool = pool.get_raw_pool_for_testing();
+
+  EXPECT_TRUE(raw_pool.empty());
+  auto* writable_base1 = backend.TryAllocateNormalPageMemory();
+  EXPECT_TRUE(raw_pool.empty());
+
+  backend.FreeNormalPageMemory(writable_base1,
+                               FreeMemoryHandling::kDoNotDiscard);
+  EXPECT_FALSE(raw_pool.empty());
+  EXPECT_TRUE(raw_pool[0]);
+  EXPECT_EQ(raw_pool[0]->GetPageMemory().writeable_region().base(),
+            writable_base1);
+
+  auto* writable_base2 = backend.TryAllocateNormalPageMemory();
+  EXPECT_TRUE(raw_pool.empty());
+  EXPECT_EQ(writable_base1, writable_base2);
 }
 
 TEST(PageBackendTest, AllocateNormalUsesPool) {
   v8::base::PageAllocator allocator;
   PageBackend backend(allocator, allocator);
-  constexpr size_t kBucket = 0;
   Address writeable_base1 = backend.TryAllocateNormalPageMemory();
   EXPECT_NE(nullptr, writeable_base1);
-  backend.FreeNormalPageMemory(kBucket, writeable_base1);
+  backend.FreeNormalPageMemory(writeable_base1,
+                               FreeMemoryHandling::kDoNotDiscard);
   Address writeable_base2 = backend.TryAllocateNormalPageMemory();
   EXPECT_NE(nullptr, writeable_base2);
   EXPECT_EQ(writeable_base1, writeable_base2);

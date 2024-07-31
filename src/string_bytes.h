@@ -98,13 +98,6 @@ class StringBytes {
                                           enum encoding encoding,
                                           v8::Local<v8::Value>* error);
 
-  static size_t hex_encode(const char* src,
-                           size_t slen,
-                           char* dst,
-                           size_t dlen);
-
-  static std::string hex_encode(const char* src, size_t slen);
-
  private:
   static size_t WriteUCS2(v8::Isolate* isolate,
                           char* buf,

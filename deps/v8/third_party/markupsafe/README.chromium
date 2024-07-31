@@ -23,4 +23,9 @@ Also includes install script (get_markupsafe.sh) and files of hashes (MD5 is
 also posted on website, SHA-512 computed locally); script checks hash then
 unpacks archive and installs desired files.
 Retrieve or update by executing markupsafe/get_markupsafe.sh from third_party.
-We also add markupsafe.gni to list sources.
+Additional chromium-specific files are:
+* README.chromium (this file)
+* OWNERS
+* DIR_METADATA
+* markupsafe.gni
+* .gitignore

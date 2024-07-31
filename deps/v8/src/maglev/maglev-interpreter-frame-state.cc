@@ -26,6 +26,17 @@ void KnownNodeAspects::Merge(const KnownNodeAspects& other, Zone* zone) {
                            return !lhs.no_info_available();
                          });
 
+  if (effect_epoch_ != other.effect_epoch_) {
+    effect_epoch_ = std::max(effect_epoch_, other.effect_epoch_) + 1;
+  }
+  DestructivelyIntersect(
+      available_expressions, other.available_expressions,
+      [&](const AvailableExpression& lhs, const AvailableExpression& rhs) {
+        DCHECK_IMPLIES(lhs.node == rhs.node,
+                       lhs.effect_epoch == rhs.effect_epoch);
+        return lhs.node == rhs.node && lhs.effect_epoch >= effect_epoch_;
+      });
+
   this->any_map_for_any_node_is_unstable = any_merged_map_is_unstable;
 
   auto merge_loaded_properties =
@@ -416,7 +427,9 @@ ValueNode* FromFloat64ToTagged(MaglevGraphBuilder* builder, NodeType node_type,
   DCHECK(!value->properties().is_conversion());
 
   // Create a tagged version, and insert it at the end of the predecessor.
-  ValueNode* tagged = Node::New<Float64ToTagged>(builder->zone(), {value});
+  ValueNode* tagged = Node::New<Float64ToTagged>(
+      builder->zone(), {value},
+      Float64ToTagged::ConversionMode::kCanonicalizeSmi);
 
   predecessor->nodes().Add(tagged);
   builder->compilation_unit()->RegisterNodeInGraphLabeller(tagged);
@@ -431,7 +444,9 @@ ValueNode* FromHoleyFloat64ToTagged(MaglevGraphBuilder* builder,
   DCHECK(!value->properties().is_conversion());
 
   // Create a tagged version, and insert it at the end of the predecessor.
-  ValueNode* tagged = Node::New<HoleyFloat64ToTagged>(builder->zone(), {value});
+  ValueNode* tagged = Node::New<HoleyFloat64ToTagged>(
+      builder->zone(), {value},
+      HoleyFloat64ToTagged::ConversionMode::kCanonicalizeSmi);
 
   predecessor->nodes().Add(tagged);
   builder->compilation_unit()->RegisterNodeInGraphLabeller(tagged);
@@ -441,7 +456,7 @@ ValueNode* FromHoleyFloat64ToTagged(MaglevGraphBuilder* builder,
 ValueNode* NonTaggedToTagged(MaglevGraphBuilder* builder, NodeType node_type,
                              ValueNode* value, BasicBlock* predecessor) {
   switch (value->properties().value_representation()) {
-    case ValueRepresentation::kWord64:
+    case ValueRepresentation::kIntPtr:
     case ValueRepresentation::kTagged:
       UNREACHABLE();
     case ValueRepresentation::kInt32:
@@ -590,7 +605,7 @@ ValueNode* MergePointInterpreterFrameState::MergeValue(
   result = Node::New<Phi>(builder->zone(), predecessor_count_, this, owner);
   if (v8_flags.trace_maglev_graph_building) {
     for (int i = 0; i < predecessor_count_; i++) {
-      result->set_input(i, nullptr);
+      result->initialize_input_null(i);
     }
   }
 
@@ -669,7 +684,7 @@ ValueNode* MergePointInterpreterFrameState::NewLoopPhi(
 
   if (v8_flags.trace_maglev_graph_building) {
     for (int i = 0; i < predecessor_count_; i++) {
-      result->set_input(i, nullptr);
+      result->initialize_input_null(i);
     }
   }
   phis_.Add(result);
@@ -677,7 +692,7 @@ ValueNode* MergePointInterpreterFrameState::NewLoopPhi(
 }
 
 void MergePointInterpreterFrameState::ReducePhiPredecessorCount(
-    interpreter::Register owner, ValueNode* merged) {
+    interpreter::Register owner, ValueNode* merged, unsigned num) {
   // If the merged node is null, this is a pre-created loop header merge
   // frame with null values for anything that isn't a loop Phi.
   if (merged == nullptr) {
@@ -691,7 +706,7 @@ void MergePointInterpreterFrameState::ReducePhiPredecessorCount(
     // It's possible that merged == unmerged at this point since loop-phis are
     // not dropped if they are only assigned to themselves in the loop.
     DCHECK_EQ(result->owner(), owner);
-    result->reduce_input_count();
+    result->reduce_input_count(num);
   }
 }
 }  // namespace maglev

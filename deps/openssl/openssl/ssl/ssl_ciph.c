@@ -465,7 +465,8 @@ DEFINE_RUN_ONCE_STATIC(do_load_builtin_compressions)
             comp->method = method;
             comp->id = SSL_COMP_ZLIB_IDX;
             comp->name = COMP_get_name(method);
-            sk_SSL_COMP_push(ssl_comp_methods, comp);
+            if (!sk_SSL_COMP_push(ssl_comp_methods, comp))
+                OPENSSL_free(comp);
             sk_SSL_COMP_sort(ssl_comp_methods);
         }
     }

@@ -18,11 +18,12 @@ namespace v8 {
 namespace internal {
 
 class SharedToCounterMap
-    : public base::TemplateHashMapImpl<SharedFunctionInfo, uint32_t,
-                                       base::KeyEqualityMatcher<Object>,
+    : public base::TemplateHashMapImpl<Tagged<SharedFunctionInfo>, uint32_t,
+                                       base::KeyEqualityMatcher<Tagged<Object>>,
                                        base::DefaultAllocationPolicy> {
  public:
-  using Entry = base::TemplateHashMapEntry<SharedFunctionInfo, uint32_t>;
+  using Entry =
+      base::TemplateHashMapEntry<Tagged<SharedFunctionInfo>, uint32_t>;
   inline void Add(Tagged<SharedFunctionInfo> key, uint32_t count) {
     Entry* entry = LookupOrInsert(key, Hash(key), []() { return 0; });
     uint32_t old_count = entry->value;
@@ -513,8 +514,8 @@ void CollectAndMaybeResetCounts(Isolate* isolate,
           *isolate->factory()->feedback_vectors_for_profiling_tools()));
       Handle<ArrayList> list = Handle<ArrayList>::cast(
           isolate->factory()->feedback_vectors_for_profiling_tools());
-      for (int i = 0; i < list->Length(); i++) {
-        Tagged<FeedbackVector> vector = FeedbackVector::cast(list->Get(i));
+      for (int i = 0; i < list->length(); i++) {
+        Tagged<FeedbackVector> vector = FeedbackVector::cast(list->get(i));
         Tagged<SharedFunctionInfo> shared = vector->shared_function_info();
         DCHECK(shared->IsSubjectToDebugging());
         uint32_t count = static_cast<uint32_t>(vector->invocation_count());

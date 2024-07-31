@@ -12,11 +12,7 @@ So sad to see you go.
 sudo npm uninstall npm -g
 ```
 
-Or, if that fails, get the npm source code, and do:
-
-```bash
-sudo make uninstall
-```
+Or, if that fails, please proceed to more severe uninstalling methods.
 
 ### More Severe Uninstalling
 

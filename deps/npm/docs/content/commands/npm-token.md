@@ -22,24 +22,14 @@ This lets you list, create and revoke authentication tokens.
   Shows a table of all active authentication tokens. You can request
   this as JSON with `--json` or tab-separated values with `--parseable`.
 
-```bash
-+--------+---------+------------+----------+----------------+
-| id     | token   | created    | read-only | CIDR whitelist |
-+--------+---------+------------+----------+----------------+
-| 7f3134 | 1fa9ba… | 2017-10-02 | yes      |                |
-+--------+---------+------------+----------+----------------+
-| c03241 | af7aef… | 2017-10-02 | no       | 192.168.0.1/24 |
-+--------+---------+------------+----------+----------------+
-| e0cf92 | 3a436a… | 2017-10-02 | no       |                |
-+--------+---------+------------+----------+----------------+
-| 63eb9d | 74ef35… | 2017-09-28 | no       |                |
-+--------+---------+------------+----------+----------------+
-| 2daaa8 | cbad5f… | 2017-09-26 | no       |                |
-+--------+---------+------------+----------+----------------+
-| 68c2fe | 127e51… | 2017-09-23 | no       |                |
-+--------+---------+------------+----------+----------------+
-| 6334e1 | 1dadd1… | 2017-09-23 | no       |                |
-+--------+---------+------------+----------+----------------+
+```
+Read only token npm_1f… with id 7f3134 created 2017-10-21
+
+Publish token npm_af…  with id c03241 created 2017-10-02
+with IP Whitelist: 192.168.0.1/24
+
+Publish token npm_… with id e0cf92 created 2017-10-02
+
 ```
 
 * `npm token create [--read-only] [--cidr=<cidr-ranges>]`:
@@ -55,16 +45,8 @@ This lets you list, create and revoke authentication tokens.
   website](https://docs.npmjs.com/creating-and-viewing-access-tokens)
   for more information on generating automation tokens.
 
-```bash
-+----------------+--------------------------------------+
-| token          | a73c9572-f1b9-8983-983d-ba3ac3cc913d |
-+----------------+--------------------------------------+
-| cidr_whitelist |                                      |
-+----------------+--------------------------------------+
-| readonly       | false                                |
-+----------------+--------------------------------------+
-| created        | 2017-10-02T07:52:24.838Z             |
-+----------------+--------------------------------------+
+```
+Created publish token a73c9572-f1b9-8983-983d-ba3ac3cc913d
 ```
 
 * `npm token revoke <token|id>`:

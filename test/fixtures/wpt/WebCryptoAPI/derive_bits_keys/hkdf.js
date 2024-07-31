@@ -140,6 +140,15 @@ function define_tests() {
                         }, testName + " with missing info");
 
                         // length null (OperationError)
+                        // "Null" is not valid per the current spec
+                        //   - https://github.com/w3c/webcrypto/issues/322
+                        //   - https://github.com/w3c/webcrypto/issues/329
+                        //
+                        // Proposal for a spec change:
+                        //   - https://github.com/w3c/webcrypto/pull/345
+                        //
+                        // This test case may be replaced by these new tests:
+                        //   - https://github.com/web-platform-tests/wpt/pull/43400
                         subsetTest(promise_test, function(test) {
                             return subtle.deriveBits(algorithm, baseKeys[derivedKeySize], null)
                             .then(function(derivation) {

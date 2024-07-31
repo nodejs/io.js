@@ -212,6 +212,14 @@ UnlocalizedNumberRangeFormatter::UnlocalizedNumberRangeFormatter(NFS<UNF>&& src)
     // No additional fields to assign
 }
 
+UnlocalizedNumberRangeFormatter::UnlocalizedNumberRangeFormatter(const impl::RangeMacroProps &macros) {
+    fMacros = macros;
+}
+
+UnlocalizedNumberRangeFormatter::UnlocalizedNumberRangeFormatter(impl::RangeMacroProps &&macros) {
+    fMacros = macros;
+}
+
 UnlocalizedNumberRangeFormatter& UnlocalizedNumberRangeFormatter::operator=(const UNF& other) {
     NFS<UNF>::operator=(static_cast<const NFS<UNF>&>(other));
     // No additional fields to assign
@@ -286,13 +294,26 @@ LocalizedNumberRangeFormatter UnlocalizedNumberRangeFormatter::locale(const Loca
 }
 
 
+UnlocalizedNumberRangeFormatter LocalizedNumberRangeFormatter::withoutLocale() const & {
+    RangeMacroProps macros(fMacros);
+    macros.locale = Locale();
+    return UnlocalizedNumberRangeFormatter(macros);
+}
+
+UnlocalizedNumberRangeFormatter LocalizedNumberRangeFormatter::withoutLocale() && {
+    RangeMacroProps macros(std::move(fMacros));
+    macros.locale = Locale();
+    return UnlocalizedNumberRangeFormatter(std::move(macros));
+}
+
+
 FormattedNumberRange LocalizedNumberRangeFormatter::formatFormattableRange(
         const Formattable& first, const Formattable& second, UErrorCode& status) const {
     if (U_FAILURE(status)) {
         return FormattedNumberRange(U_ILLEGAL_ARGUMENT_ERROR);
     }
 
-    auto results = new UFormattedNumberRangeData();
+    auto* results = new UFormattedNumberRangeData();
     if (results == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         return FormattedNumberRange(status);
@@ -321,7 +342,7 @@ FormattedNumberRange LocalizedNumberRangeFormatter::formatFormattableRange(
 
 void LocalizedNumberRangeFormatter::formatImpl(
         UFormattedNumberRangeData& results, bool equalBeforeRounding, UErrorCode& status) const {
-    auto* impl = getFormatter(status);
+    const auto* impl = getFormatter(status);
     if (U_FAILURE(status)) {
         return;
     }

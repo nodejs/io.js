@@ -9,14 +9,15 @@
 #ifndef BROTLI_ENC_BACKWARD_REFERENCES_H_
 #define BROTLI_ENC_BACKWARD_REFERENCES_H_
 
+#include <brotli/types.h>
+
 #include "../common/constants.h"
 #include "../common/context.h"
 #include "../common/dictionary.h"
 #include "../common/platform.h"
-#include <brotli/types.h>
-#include "./command.h"
-#include "./hash.h"
-#include "./quality.h"
+#include "command.h"
+#include "hash.h"
+#include "quality.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {

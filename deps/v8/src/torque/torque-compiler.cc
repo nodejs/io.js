@@ -78,7 +78,7 @@ void CompileCurrentAst(TorqueCompilerOptions options) {
   std::string output_directory = options.output_directory;
 
   ImplementationVisitor implementation_visitor;
-  implementation_visitor.SetDryRun(output_directory.length() == 0);
+  implementation_visitor.SetDryRun(output_directory.empty());
 
   implementation_visitor.GenerateInstanceTypes(output_directory);
   implementation_visitor.BeginGeneratedFiles();

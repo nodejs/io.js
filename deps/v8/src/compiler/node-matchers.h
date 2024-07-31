@@ -20,9 +20,7 @@
 #include "src/compiler/operator.h"
 #include "src/objects/heap-object.h"
 
-namespace v8 {
-namespace internal {
-namespace compiler {
+namespace v8::internal::compiler {
 
 class JSHeapBroker;
 
@@ -160,8 +158,10 @@ using Int32Matcher = IntMatcher<int32_t, IrOpcode::kInt32Constant>;
 using Uint32Matcher = IntMatcher<uint32_t, IrOpcode::kInt32Constant>;
 using Int64Matcher = IntMatcher<int64_t, IrOpcode::kInt64Constant>;
 using Uint64Matcher = IntMatcher<uint64_t, IrOpcode::kInt64Constant>;
+#if V8_ENABLE_WEBASSEMBLY
 using V128ConstMatcher =
     ValueMatcher<S128ImmediateParameter, IrOpcode::kS128Const>;
+#endif  // V8_ENABLE_WEBASSEMBLY
 #if V8_HOST_ARCH_32_BIT
 using IntPtrMatcher = Int32Matcher;
 using UintPtrMatcher = Uint32Matcher;
@@ -828,6 +828,7 @@ struct V8_EXPORT_PRIVATE DiamondMatcher
   Node* if_false_;
 };
 
+#if V8_ENABLE_WEBASSEMBLY
 struct LoadTransformMatcher
     : ValueMatcher<LoadTransformParameters, IrOpcode::kLoadTransform> {
   explicit LoadTransformMatcher(Node* node) : ValueMatcher(node) {}
@@ -835,9 +836,8 @@ struct LoadTransformMatcher
     return HasResolvedValue() && ResolvedValue().transformation == t;
   }
 };
+#endif  // V8_ENABLE_WEBASSEMBLY
 
-}  // namespace compiler
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::compiler
 
 #endif  // V8_COMPILER_NODE_MATCHERS_H_

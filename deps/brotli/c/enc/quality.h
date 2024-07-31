@@ -10,9 +10,10 @@
 #ifndef BROTLI_ENC_QUALITY_H_
 #define BROTLI_ENC_QUALITY_H_
 
-#include "../common/platform.h"
 #include <brotli/encode.h>
-#include "./params.h"
+
+#include "../common/platform.h"
+#include "params.h"
 
 #define FAST_ONE_PASS_COMPRESSION_QUALITY 0
 #define FAST_TWO_PASS_COMPRESSION_QUALITY 1
@@ -118,6 +119,41 @@ static BROTLI_INLINE size_t LiteralSpreeLengthForSparseSearch(
   return params->quality < 9 ? 64 : 512;
 }
 
+/* Quality to hasher mapping:
+
+   - q02: h02 (longest_match_quickly), b16, l5
+
+   - q03: h03 (longest_match_quickly), b17, l5
+
+   - q04: h04 (longest_match_quickly), b17, l5
+   - q04: h54 (longest_match_quickly), b20, l7 | for large files
+
+   - q05: h05 (longest_match        ), b14, l4
+   - q05: h06 (longest_match64      ), b15, l5 | for large files
+   - q05: h40 (forgetful_chain      ), b15, l4 | for small window
+
+   - q06: h05 (longest_match        ), b14, l4
+   - q06: h06 (longest_match64      ), b15, l5 | for large files
+   - q06: h40 (forgetful_chain      ), b15, l4 | for small window
+
+   - q07: h05 (longest_match        ), b15, l4
+   - q07: h06 (longest_match64      ), b15, l5 | for large files
+   - q07: h41 (forgetful_chain      ), b15, l4 | for small window
+
+   - q08: h05 (longest_match        ), b15, l4
+   - q08: h06 (longest_match64      ), b15, l5 | for large files
+   - q08: h41 (forgetful_chain      ), b15, l4 | for small window
+
+   - q09: h05 (longest_match        ), b15, l4
+   - q09: h06 (longest_match64      ), b15, l5 | for large files
+   - q09: h42 (forgetful_chain      ), b15, l4 | for small window
+
+   - q10: t10 (to_binary_tree       ), b17, l128
+
+   - q11: t10 (to_binary_tree       ), b17, l128
+
+  Where "q" is quality, "h" is hasher type, "b" is bucket bits,
+  "l" is source len. */
 static BROTLI_INLINE void ChooseHasher(const BrotliEncoderParams* params,
                                        BrotliHasherParams* hparams) {
   if (params->quality > 9) {
@@ -132,10 +168,11 @@ static BROTLI_INLINE void ChooseHasher(const BrotliEncoderParams* params,
     hparams->type = 6;
     hparams->block_bits = params->quality - 1;
     hparams->bucket_bits = 15;
-    hparams->hash_len = 5;
     hparams->num_last_distances_to_check =
         params->quality < 7 ? 4 : params->quality < 9 ? 10 : 16;
   } else {
+    /* TODO(eustas): often previous setting (H6) is faster and denser; consider
+                     adding an option to use it. */
     hparams->type = 5;
     hparams->block_bits = params->quality - 1;
     hparams->bucket_bits = params->quality < 7 ? 14 : 15;

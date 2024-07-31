@@ -446,16 +446,16 @@ void ErrorStackData::EnsureStackFrameInfos(Isolate* isolate,
     stack_frame_infos->set(index++, *stack_frame_info);
   }
   stack_frame_infos =
-      FixedArray::ShrinkOrEmpty(isolate, stack_frame_infos, index);
+      FixedArray::RightTrimOrEmpty(isolate, stack_frame_infos, index);
   if (limit < 0 && -limit < index) {
     // Negative limit encodes cap to be applied to |stack_frame_infos|.
     stack_frame_infos =
-        FixedArray::ShrinkOrEmpty(isolate, stack_frame_infos, -limit);
+        FixedArray::RightTrimOrEmpty(isolate, stack_frame_infos, -limit);
   } else if (limit >= 0 && limit < call_site_infos->length()) {
     // Positive limit means we need to cap the |call_site_infos|
     // to that number before exposing them to the world.
     call_site_infos =
-        FixedArray::ShrinkOrEmpty(isolate, call_site_infos, limit);
+        FixedArray::RightTrimOrEmpty(isolate, call_site_infos, limit);
     error_stack->set_call_site_infos(*call_site_infos);
   }
   error_stack->set_limit_or_stack_frame_infos(*stack_frame_infos);

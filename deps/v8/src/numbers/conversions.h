@@ -7,6 +7,7 @@
 
 #include "src/base/export-template.h"
 #include "src/base/logging.h"
+#include "src/base/macros.h"
 #include "src/base/optional.h"
 #include "src/base/strings.h"
 #include "src/base/vector.h"
@@ -16,6 +17,46 @@ namespace v8 {
 namespace internal {
 
 class BigInt;
+class SharedStringAccessGuardIfNeeded;
+
+// uint64_t constants prefixed with kFP64 are bit patterns of doubles.
+// uint64_t constants prefixed with kFP16 are bit patterns of doubles encoding
+// limits of half-precision floating point values.
+constexpr int kFP64ExponentBits = 11;
+constexpr int kFP64MantissaBits = 52;
+constexpr uint64_t kFP64ExponentBias = 1023;
+constexpr uint64_t kFP64SignMask = uint64_t{1}
+                                   << (kFP64ExponentBits + kFP64MantissaBits);
+constexpr uint64_t kFP64Infinity = uint64_t{2047} << kFP64MantissaBits;
+constexpr uint64_t kFP16InfinityAndNaNInfimum = (kFP64ExponentBias + 16)
+                                                << kFP64MantissaBits;
+constexpr uint64_t kFP16MinExponent = kFP64ExponentBias - 14;
+constexpr uint64_t kFP16DenormalThreshold = kFP16MinExponent
+                                            << kFP64MantissaBits;
+
+constexpr int kFP16MantissaBits = 10;
+constexpr uint16_t kFP16qNaN = 0x7e00;
+constexpr uint16_t kFP16Infinity = 0x7c00;
+
+// A value that, when added, has the effect that if any of the lower 41 bits of
+// the mantissa are set, the 11th mantissa bit from the front becomes set. Used
+// for rounding when converting from double to half-precision.
+constexpr uint64_t kFP64To16RoundingAddend =
+    (uint64_t{1} << ((kFP64MantissaBits - kFP16MantissaBits) - 1)) - 1;
+// A value that, when added, rebiases the exponent of a double to the range of
+// the half precision and performs rounding as described above in
+// kFP64To16RoundingAddend. Note that 15-kFP64ExponentBias overflows into the
+// sign bit, but that bit is implicitly cut off when assigning the 64-bit double
+// to a 16-bit output.
+constexpr uint64_t kFP64To16RebiasExponentAndRound =
+    ((uint64_t{15} - kFP64ExponentBias) << kFP64MantissaBits) +
+    kFP64To16RoundingAddend;
+// A magic value that aligns 10 mantissa bits at the bottom of the double when
+// added to a double using floating point addition. Depends on floating point
+// addition being round-to-nearest-even.
+constexpr uint64_t kFP64To16DenormalMagic =
+    (kFP16MinExponent + (kFP64MantissaBits - kFP16MantissaBits))
+    << kFP64MantissaBits;
 
 // The limit for the the fractionDigits/precision for toFixed, toPrecision
 // and toExponential.
@@ -59,14 +100,18 @@ inline double FastUI2D(unsigned x) {
 
 // This function should match the exact semantics of ECMA-262 20.2.2.17.
 inline float DoubleToFloat32(double x);
-float DoubleToFloat32_NoInline(double x);
+V8_EXPORT_PRIVATE float DoubleToFloat32_NoInline(double x);
+
+// This function should match the exact semantics of truncating x to
+// IEEE 754-2019 binary16 format using roundTiesToEven mode.
+inline uint16_t DoubleToFloat16(double x);
 
 // This function should match the exact semantics of ECMA-262 9.4.
 inline double DoubleToInteger(double x);
 
 // This function should match the exact semantics of ECMA-262 9.5.
 inline int32_t DoubleToInt32(double x);
-int32_t DoubleToInt32_NoInline(double x);
+V8_EXPORT_PRIVATE int32_t DoubleToInt32_NoInline(double x);
 
 // This function should match the exact semantics of ECMA-262 9.6.
 inline uint32_t DoubleToUint32(double x);
@@ -190,6 +235,8 @@ inline bool TryNumberToSize(Tagged<Object> number, size_t* result);
 inline size_t NumberToSize(Tagged<Object> number);
 
 // returns DoubleToString(StringToDouble(string)) == string
+V8_EXPORT_PRIVATE bool IsSpecialIndex(
+    Tagged<String> string, SharedStringAccessGuardIfNeeded& access_guard);
 V8_EXPORT_PRIVATE bool IsSpecialIndex(Tagged<String> string);
 
 }  // namespace internal

@@ -105,11 +105,8 @@ constexpr int kNumRegs = 16;
 
 #ifdef V8_TARGET_OS_WIN
 // Windows calling convention
-constexpr Register arg_reg_1 = rcx;
-constexpr Register arg_reg_2 = rdx;
-constexpr Register arg_reg_3 = r8;
-constexpr Register arg_reg_4 = r9;
-constexpr int kRegisterPassedArguments = 4;
+constexpr Register kCArgRegs[] = {rcx, rdx, r8, r9};
+
 // The Windows 64 ABI always reserves spill slots on the stack for the four
 // register arguments even if the function takes fewer than four arguments.
 // These stack slots are sometimes called 'home space', sometimes 'shadow
@@ -118,12 +115,10 @@ constexpr int kRegisterPassedArguments = 4;
 constexpr int kWindowsHomeStackSlots = 4;
 #else
 // AMD64 calling convention
-constexpr Register arg_reg_1 = rdi;
-constexpr Register arg_reg_2 = rsi;
-constexpr Register arg_reg_3 = rdx;
-constexpr Register arg_reg_4 = rcx;
-constexpr int kRegisterPassedArguments = 6;
+constexpr Register kCArgRegs[] = {rdi, rsi, rdx, rcx, r8, r9};
 #endif  // V8_TARGET_OS_WIN
+
+constexpr int kRegisterPassedArguments = arraysize(kCArgRegs);
 
 #define DOUBLE_REGISTERS(V) \
   V(xmm0)                   \
@@ -267,6 +262,7 @@ DEFINE_REGISTER_NAMES(XMMRegister, DOUBLE_REGISTERS)
 DEFINE_REGISTER_NAMES(YMMRegister, YMM_REGISTERS)
 
 // Give alias names to registers for calling conventions.
+constexpr Register kStackPointerRegister = rsp;
 constexpr Register kReturnRegister0 = rax;
 constexpr Register kReturnRegister1 = rdx;
 constexpr Register kReturnRegister2 = r8;
@@ -287,7 +283,9 @@ constexpr Register kJavaScriptCallExtraArg1Register = rbx;
 constexpr Register kRuntimeCallFunctionRegister = rbx;
 constexpr Register kRuntimeCallArgCountRegister = rax;
 constexpr Register kRuntimeCallArgvRegister = r15;
+// TODO(14499): Rename to kWasmInstanceDataRegister.
 constexpr Register kWasmInstanceRegister = rsi;
+constexpr Register kWasmTrapHandlerFaultAddressRegister = r10;
 
 // Default scratch register used by MacroAssembler (and other code that needs
 // a spare register). The register isn't callee save, and not used by the

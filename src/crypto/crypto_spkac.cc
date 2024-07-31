@@ -39,8 +39,7 @@ bool VerifySpkac(const ArrayBufferOrViewContents<char>& input) {
 void VerifySpkac(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   ArrayBufferOrViewContents<char> input(args[0]);
-  if (input.size() == 0)
-    return args.GetReturnValue().SetEmptyString();
+  if (input.empty()) return args.GetReturnValue().SetEmptyString();
 
   if (UNLIKELY(!input.CheckSizeInt32()))
     return THROW_ERR_OUT_OF_RANGE(env, "spkac is too large");
@@ -76,7 +75,7 @@ void ExportPublicKey(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   ArrayBufferOrViewContents<char> input(args[0]);
-  if (input.size() == 0) return args.GetReturnValue().SetEmptyString();
+  if (input.empty()) return args.GetReturnValue().SetEmptyString();
 
   if (UNLIKELY(!input.CheckSizeInt32()))
     return THROW_ERR_OUT_OF_RANGE(env, "spkac is too large");
@@ -109,8 +108,7 @@ void ExportChallenge(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   ArrayBufferOrViewContents<char> input(args[0]);
-  if (input.size() == 0)
-    return args.GetReturnValue().SetEmptyString();
+  if (input.empty()) return args.GetReturnValue().SetEmptyString();
 
   if (UNLIKELY(!input.CheckSizeInt32()))
     return THROW_ERR_OUT_OF_RANGE(env, "spkac is too large");

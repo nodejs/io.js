@@ -10,6 +10,9 @@ namespace promise {
 
 struct PromiseAllWrapResultAsFulfilledFunctor {
   macro Call(_nativeContext: NativeContext, value: JSAny): JSAny {
+    // Make sure that we never see the PromiseHole here as a result.
+    // The other functors are safe as they return JSObjects by construction.
+    check(value != PromiseHole);
     return value;
   }
 }
@@ -85,31 +88,8 @@ const kPropertyArrayHashFieldMax: constexpr int31
     generates 'PropertyArray::HashField::kMax';
 
 transitioning macro PromiseAllResolveElementClosure<F: type>(
-    implicit context: PromiseAllResolveElementContext|NativeContext)(
-    value: JSAny, function: JSFunction, wrapResultFunctor: F,
-    hasResolveAndRejectClosures: constexpr bool): JSAny {
-  // We use the {function}s context as the marker to remember whether this
-  // resolve element closure was already called. It points to the resolve
-  // element context (which is a FunctionContext) until it was called the
-  // first time, in which case we make it point to the native context here
-  // to mark this resolve element closure as done.
-  let promiseContext: PromiseAllResolveElementContext;
-  typeswitch (context) {
-    case (NativeContext): deferred {
-      return Undefined;
-    }
-    case (context: PromiseAllResolveElementContext): {
-      promiseContext = context;
-    }
-  }
-
-  dcheck(
-      promiseContext.length ==
-      SmiTag(PromiseAllResolveElementContextSlots::
-                 kPromiseAllResolveElementLength));
-  const nativeContext = LoadNativeContext(promiseContext);
-  function.context = nativeContext;
-
+    implicit context: PromiseAllResolveElementContext)(value: JSAny,
+    function: JSFunction, wrapResultFunctor: F): JSAny {
   // Determine the index from the {function}.
   dcheck(kPropertyArrayNoHashSentinel == 0);
   const identityHash =
@@ -118,42 +98,40 @@ transitioning macro PromiseAllResolveElementClosure<F: type>(
   const index = Signed(ChangeUint32ToWord(identityHash)) - 1;
 
   let remainingElementsCount = *ContextSlot(
-      promiseContext,
+      context,
       PromiseAllResolveElementContextSlots::
           kPromiseAllResolveElementRemainingSlot);
 
+  // If all promises were already resolved (and/or rejected for allSettled), the
+  // remaining count will already be 0.
+  if (remainingElementsCount == 0) deferred {
+      return Undefined;
+    }
+
   let values = *ContextSlot(
-      promiseContext,
+      context,
       PromiseAllResolveElementContextSlots::
           kPromiseAllResolveElementValuesSlot);
   const newCapacity = index + 1;
   if (newCapacity > values.length_intptr) deferred {
       // This happens only when the promises are resolved during iteration.
-      values = ExtractFixedArray(values, 0, values.length_intptr, newCapacity);
+      values = ExtractFixedArray(
+          values, 0, values.length_intptr, newCapacity, PromiseHole);
       *ContextSlot(
-          promiseContext,
+          context,
           PromiseAllResolveElementContextSlots::
               kPromiseAllResolveElementValuesSlot) = values;
     }
 
-  // Promise.allSettled, for each input element, has both a resolve and a reject
-  // closure that share an [[AlreadyCalled]] boolean. That is, the input element
-  // can only be settled once: after resolve is called, reject returns early,
-  // and vice versa. Using {function}'s context as the marker only tracks
-  // per-closure instead of per-element. When the second resolve/reject closure
-  // is called on the same index, values.object[index] will already exist and
-  // will not be the hole value. In that case, return early. Everything up to
-  // this point is not yet observable to user code. This is not a problem for
-  // Promise.all since Promise.all has a single resolve closure (no reject) per
-  // element.
-  if (hasResolveAndRejectClosures) {
-    if (values.objects[index] != TheHole) deferred {
-        return Undefined;
-      }
+  // Check whether a reject or resolve closure was already called for this
+  // promise.
+  if (values.objects[index] != PromiseHole) {
+    return Undefined;
   }
 
   // Update the value depending on whether Promise.all or
   // Promise.allSettled is called.
+  const nativeContext = LoadNativeContext(context);
   const updatedValue = wrapResultFunctor.Call(nativeContext, value);
 
   values.objects[index] = updatedValue;
@@ -162,12 +140,12 @@ transitioning macro PromiseAllResolveElementClosure<F: type>(
   check(remainingElementsCount >= 0);
 
   *ContextSlot(
-      promiseContext,
+      context,
       PromiseAllResolveElementContextSlots::
           kPromiseAllResolveElementRemainingSlot) = remainingElementsCount;
   if (remainingElementsCount == 0) {
     const capability = *ContextSlot(
-        promiseContext,
+        context,
         PromiseAllResolveElementContextSlots::
             kPromiseAllResolveElementCapabilitySlot);
     const resolve = UnsafeCast<JSAny>(capability.resolve);
@@ -175,24 +153,14 @@ transitioning macro PromiseAllResolveElementClosure<F: type>(
         *NativeContextSlot(
         nativeContext, ContextSlot::JS_ARRAY_PACKED_ELEMENTS_MAP_INDEX);
 
-    // After this point, values escapes to user code.
-    //
-    // If resolve and reject handlers close over values to keep track of
-    // whether an input promise is already settled, mark the values array as
-    // COW. The original values array is still needed to guard against resolve
-    // or reject being called multiple times for an element.
-    //
-    // Otherwise, clear the slot.
-    if (hasResolveAndRejectClosures) {
-      MakeFixedArrayCOW(values);
-    } else {
-      *ContextSlot(
-          promiseContext,
-          PromiseAllResolveElementContextSlots::
-              kPromiseAllResolveElementValuesSlot) = kEmptyFixedArray;
-    }
+    // After this point, values escapes to user code. Clear the slot.
+    *ContextSlot(
+        context,
+        PromiseAllResolveElementContextSlots::
+            kPromiseAllResolveElementValuesSlot) = kEmptyFixedArray;
+
     const valuesArray = NewJSArray(arrayMap, values);
-    Call(promiseContext, resolve, Undefined, valuesArray);
+    Call(context, resolve, Undefined, valuesArray);
   }
   return Undefined;
 }
@@ -200,27 +168,24 @@ transitioning macro PromiseAllResolveElementClosure<F: type>(
 transitioning javascript builtin PromiseAllResolveElementClosure(
     js-implicit context: Context, receiver: JSAny, target: JSFunction)(
     value: JSAny): JSAny {
-  const context =
-      %RawDownCast<PromiseAllResolveElementContext|NativeContext>(context);
+  const context = %RawDownCast<PromiseAllResolveElementContext>(context);
   return PromiseAllResolveElementClosure(
-      value, target, PromiseAllWrapResultAsFulfilledFunctor{}, false);
+      value, target, PromiseAllWrapResultAsFulfilledFunctor{});
 }
 
 transitioning javascript builtin PromiseAllSettledResolveElementClosure(
     js-implicit context: Context, receiver: JSAny, target: JSFunction)(
     value: JSAny): JSAny {
-  const context =
-      %RawDownCast<PromiseAllResolveElementContext|NativeContext>(context);
+  const context = %RawDownCast<PromiseAllResolveElementContext>(context);
   return PromiseAllResolveElementClosure(
-      value, target, PromiseAllSettledWrapResultAsFulfilledFunctor{}, true);
+      value, target, PromiseAllSettledWrapResultAsFulfilledFunctor{});
 }
 
 transitioning javascript builtin PromiseAllSettledRejectElementClosure(
     js-implicit context: Context, receiver: JSAny, target: JSFunction)(
     value: JSAny): JSAny {
-  const context =
-      %RawDownCast<PromiseAllResolveElementContext|NativeContext>(context);
+  const context = %RawDownCast<PromiseAllResolveElementContext>(context);
   return PromiseAllResolveElementClosure(
-      value, target, PromiseAllSettledWrapResultAsRejectedFunctor{}, true);
+      value, target, PromiseAllSettledWrapResultAsRejectedFunctor{});
 }
 }

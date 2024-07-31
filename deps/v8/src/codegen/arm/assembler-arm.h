@@ -211,13 +211,15 @@ class V8_EXPORT_PRIVATE MemOperand {
     return MemOperand(array, key, LSL, kPointerSizeLog2 - kSmiTagSize, am);
   }
 
+  bool IsImmediateOffset() const { return rm_ == no_reg; }
+
   void set_offset(int32_t offset) {
-    DCHECK(rm_ == no_reg);
+    DCHECK(IsImmediateOffset());
     offset_ = offset;
   }
 
-  uint32_t offset() const {
-    DCHECK(rm_ == no_reg);
+  int32_t offset() const {
+    DCHECK(IsImmediateOffset());
     return offset_;
   }
 

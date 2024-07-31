@@ -43,6 +43,7 @@ static const char* const UNINITIALIZED_HEAP_OBJECT_TYPE_STRING =
 static const char* const RAWPTR_TYPE_STRING = "RawPtr";
 static const char* const EXTERNALPTR_TYPE_STRING = "ExternalPointer";
 static const char* const INDIRECTPTR_TYPE_STRING = "IndirectPointer";
+static const char* const PROTECTEDPTR_TYPE_STRING = "ProtectedPointer";
 static const char* const CONST_STRING_TYPE_STRING = "constexpr string";
 static const char* const STRING_TYPE_STRING = "String";
 static const char* const NUMBER_TYPE_STRING = "Number";
@@ -62,6 +63,7 @@ static const char* const UINT8_TYPE_STRING = "uint8";
 static const char* const BINT_TYPE_STRING = "bint";
 static const char* const CHAR8_TYPE_STRING = "char8";
 static const char* const CHAR16_TYPE_STRING = "char16";
+static const char* const FLOAT16_TYPE_STRING = "float16";
 static const char* const FLOAT32_TYPE_STRING = "float32";
 static const char* const FLOAT64_TYPE_STRING = "float64";
 static const char* const FLOAT64_OR_HOLE_TYPE_STRING = "float64_or_hole";
@@ -114,8 +116,11 @@ static const char* const ANNOTATION_USE_PARENT_TYPE_CHECKER =
     "@useParentTypeChecker";
 static const char* const ANNOTATION_CPP_OBJECT_DEFINITION =
     "@cppObjectDefinition";
+static const char* const ANNOTATION_CPP_OBJECT_LAYOUT_DEFINITION =
+    "@cppObjectLayoutDefinition";
+static const char* const ANNOTATION_SAME_ENUM_VALUE_AS = "@sameEnumValueAs";
 // Generate C++ accessors with relaxed store semantics.
-// Weak<T> and MaybeObject fields always use relaxed store.
+// Weak<T> and Tagged<MaybeObject> fields always use relaxed store.
 static const char* const ANNOTATION_CPP_RELAXED_STORE = "@cppRelaxedStore";
 // Generate C++ accessors with relaxed load semantics.
 static const char* const ANNOTATION_CPP_RELAXED_LOAD = "@cppRelaxedLoad";
@@ -169,6 +174,7 @@ enum class ClassFlag {
   kGenerateUniqueMap = 1 << 12,
   kGenerateFactoryFunction = 1 << 13,
   kCppObjectDefinition = 1 << 14,
+  kCppObjectLayoutDefinition = 1 << 15,
 };
 using ClassFlags = base::Flags<ClassFlag>;
 

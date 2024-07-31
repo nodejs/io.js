@@ -3,12 +3,11 @@
 // found in the LICENSE file.
 
 @abstract
-extern class TemplateInfo extends Struct {
-  tag: Smi;
+extern class TemplateInfo extends HeapObject {
   serial_number: Smi;
   number_of_properties: Smi;
-  property_list: TemplateList|Undefined;
-  property_accessors: TemplateList|Undefined;
+  property_list: ArrayList|Undefined;
+  property_accessors: ArrayList|Undefined;
 }
 
 extern class FunctionTemplateRareData extends Struct {
@@ -19,12 +18,16 @@ extern class FunctionTemplateRareData extends Struct {
   named_property_handler: InterceptorInfo|Undefined;
   indexed_property_handler: InterceptorInfo|Undefined;
   instance_template: ObjectTemplateInfo|Undefined;
-  instance_call_handler: CallHandlerInfo|Undefined;
+  instance_call_handler: FunctionTemplateInfo|Undefined;
   access_check_info: AccessCheckInfo|Undefined;
   c_function_overloads: FixedArray;
 }
 
-bitfield struct FunctionTemplateInfoFlags extends uint31 {
+bitfield struct FunctionTemplateInfoFlags extends uint32 {
+  // True in case this FunctionTemplateInfo object is used as a call handler
+  // for callable ObjectTemplateInfo.
+  is_object_template_call_handler: bool: 1 bit;
+  has_side_effects: bool: 1 bit;
   undetectable: bool: 1 bit;
   needs_access_check: bool: 1 bit;
   read_only_prototype: bool: 1 bit;
@@ -34,14 +37,12 @@ bitfield struct FunctionTemplateInfoFlags extends uint31 {
   // Allowed receiver ranges are used for instance type checking to check
   // whether the receiver calling the associated JSFunction is a compatible
   // receiver.
-  allowed_receiver_instance_type_range_start: int16: 12 bit;
-  allowed_receiver_instance_type_range_end: int16: 12 bit;
+  allowed_receiver_instance_type_range_start: InstanceType: 12 bit;
+  allowed_receiver_instance_type_range_end: InstanceType: 12 bit;
 }
 
+@generateUniqueMap
 extern class FunctionTemplateInfo extends TemplateInfo {
-  // Handler invoked when calling an instance of this FunctionTemplateInfo.
-  // Either CallHandlerInfo or Undefined.
-  @cppAcquireLoad @cppReleaseStore call_code: CallHandlerInfo|Undefined;
   class_name: String|Undefined;
   // If the signature is a FunctionTemplateInfo it is used to check whether the
   // receiver calling the associated JSFunction is a compatible receiver, i.e.
@@ -55,17 +56,31 @@ extern class FunctionTemplateInfo extends TemplateInfo {
   @cppReleaseStore
   rare_data: FunctionTemplateRareData|Undefined;
   shared_function_info: SharedFunctionInfo|Undefined;
-  // Internal field to store a flag bitfield.
-  @cppRelaxedLoad @cppRelaxedStore flag: SmiTagged<FunctionTemplateInfoFlags>;
-  // "length" property of the final JSFunction.
-  length: Smi;
   // Either the_hole or a private symbol. Used to cache the result on
   // the receiver under the the cached_property_name when this
   // FunctionTemplateInfo is used as a getter.
   cached_property_name: Object;
+
+  // A data value passed to the callback C function. This field is initialized
+  // with |the_hole_value| until the callback is initialized.
+  // This field is used as a synchronization point for accessing |callback_data|
+  // and |maybe_redirected_callback| from background compilation thread, thus
+  // Acquire/Release semantics.
+  @cppAcquireLoad @cppReleaseStore callback_data: Object;
+
+  // Internal field to store a flag bitfield.
+  flag: FunctionTemplateInfoFlags;
+  // "length" property of the final JSFunction.
+  length: int16;
   // This will be set as the instance type of the objects that are created from
   // this FunctionTemplateInfo.
-  instance_type: Smi;
+  instance_type: InstanceType;
+
+  // A callback invoked when calling an instance of this FunctionTemplateInfo.
+  // For simulator builds this field contains the address of the trampoline
+  // callable from generated code and for native builds - the address of
+  // the callback C function.
+  maybe_redirected_callback: ExternalPointer;
 }
 
 bitfield struct ObjectTemplateInfoFlags extends uint31 {
@@ -74,7 +89,14 @@ bitfield struct ObjectTemplateInfoFlags extends uint31 {
   embedder_field_count: int32: 28 bit;
 }
 
+@generateUniqueMap
 extern class ObjectTemplateInfo extends TemplateInfo {
   constructor: FunctionTemplateInfo|Undefined;
   data: SmiTagged<ObjectTemplateInfoFlags>;
+}
+
+@generateBodyDescriptor
+extern class DictionaryTemplateInfo extends HeapObject {
+  property_names: FixedArray;
+  serial_number: Smi;
 }

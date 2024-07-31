@@ -17,9 +17,8 @@
 #include "formattedval_impl.h"
 #include "pluralranges.h"
 
-U_NAMESPACE_BEGIN namespace number {
-namespace impl {
-
+U_NAMESPACE_BEGIN
+namespace number::impl {
 
 /**
  * Class similar to UFormattedNumberData.
@@ -80,9 +79,7 @@ class NumberRangeFormatterImpl : public UMemory {
 const UFormattedNumberRangeData* validateUFormattedNumberRange(
     const UFormattedNumberRange* uresult, UErrorCode& status);
 
-
-} // namespace impl
-} // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 #endif //__SOURCE_NUMRANGE_TYPES_H__

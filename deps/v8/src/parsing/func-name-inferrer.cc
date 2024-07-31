@@ -46,7 +46,7 @@ void FuncNameInferrer::RemoveAsyncKeywordFromEnd() {
 }
 
 AstConsString* FuncNameInferrer::MakeNameFromStack() {
-  if (names_stack_.size() == 0) {
+  if (names_stack_.empty()) {
     return ast_value_factory_->empty_cons_string();
   }
   AstConsString* result = ast_value_factory_->NewConsString();

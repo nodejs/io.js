@@ -1,43 +1,41 @@
-diff --git a/contrib/minizip/iowin32.c b/contrib/minizip/iowin32.c
-index 274f39eb1dd2..246ceb91a139 100644
---- a/contrib/minizip/iowin32.c
-+++ b/contrib/minizip/iowin32.c
-@@ -26,12 +26,19 @@
+diff --git a/contrib/minizip/ioapi.c b/contrib/minizip/ioapi.c
+index 782d32469ae5d..a38881dca90a2 100644
+--- a/contrib/minizip/ioapi.c
++++ b/contrib/minizip/ioapi.c
+@@ -14,7 +14,7 @@
+         #define _CRT_SECURE_NO_WARNINGS
  #endif
  
+-#if defined(__APPLE__) || defined(IOAPI_NO_64) || defined(__HAIKU__) || defined(MINIZIP_FOPEN_NO_64)
++#if defined(__APPLE__) || defined(__Fuchsia__) || defined(IOAPI_NO_64) || defined(__HAIKU__) || defined(MINIZIP_FOPEN_NO_64)
+ // In darwin and perhaps other BSD variants off_t is a 64 bit value, hence no need for specific 64 bit functions
+ #define FOPEN_FUNC(filename, mode) fopen(filename, mode)
+ #define FTELLO_FUNC(stream) ftello(stream)
+diff --git a/contrib/minizip/iowin32.c b/contrib/minizip/iowin32.c
+index 08536e94b8a28..bbd7773e67146 100644
+--- a/contrib/minizip/iowin32.c
++++ b/contrib/minizip/iowin32.c
+@@ -25,7 +25,12 @@
+ #define INVALID_SET_FILE_POINTER ((DWORD)-1)
+ #endif
  
 +#ifdef _WIN32_WINNT
 +#undef _WIN32_WINNT
 +#define _WIN32_WINNT 0x601
 +#endif
-+
+ 
 +#if _WIN32_WINNT >= _WIN32_WINNT_WIN8
  // see Include/shared/winapifamily.h in the Windows Kit
  #if defined(WINAPI_FAMILY_PARTITION) && (!(defined(IOWIN32_USING_WINRT_API)))
- #if WINAPI_FAMILY_ONE_PARTITION(WINAPI_FAMILY, WINAPI_PARTITION_APP)
+ 
+@@ -37,6 +42,7 @@
  #define IOWIN32_USING_WINRT_API 1
  #endif
  #endif
 +#endif
  
- voidpf  ZCALLBACK win32_open_file_func  OF((voidpf opaque, const char* filename, int mode));
- uLong   ZCALLBACK win32_read_file_func  OF((voidpf opaque, voidpf stream, void* buf, uLong size));
-diff --git a/contrib/minizip/unzip.c b/contrib/minizip/unzip.c
-index bcfb9416ec35..199b4723fcfc 100644
---- a/contrib/minizip/unzip.c
-+++ b/contrib/minizip/unzip.c
-@@ -1705,11 +1705,6 @@ extern int ZEXPORT unzReadCurrentFile  (unzFile file, voidp buf, unsigned len)
- 
-     pfile_in_zip_read_info->stream.avail_out = (uInt)len;
- 
--    if ((len>pfile_in_zip_read_info->rest_read_uncompressed) &&
--        (!(pfile_in_zip_read_info->raw)))
--        pfile_in_zip_read_info->stream.avail_out =
--            (uInt)pfile_in_zip_read_info->rest_read_uncompressed;
--
-     if ((len>pfile_in_zip_read_info->rest_read_compressed+
-            pfile_in_zip_read_info->stream.avail_in) &&
-          (pfile_in_zip_read_info->raw))
+ typedef struct
+ {
 diff --git a/gzread.c b/gzread.c
 index 956b91ea7d9e..832d3ef98c59 100644
 --- a/gzread.c

@@ -54,17 +54,23 @@ inline BranchHint NegateBranchHint(BranchHint hint) {
   UNREACHABLE();
 }
 
-enum class TrapId : uint32_t {
-#define DEF_ENUM(Name, ...) k##Name,
+#if V8_ENABLE_WEBASSEMBLY
+enum class TrapId : int32_t {
+#define DEF_ENUM(Name, ...) \
+  k##Name = static_cast<uint32_t>(Builtin::kThrowWasm##Name),
   FOREACH_WASM_TRAPREASON(DEF_ENUM)
 #undef DEF_ENUM
 };
+
+static_assert(std::is_same_v<std::underlying_type_t<Builtin>,
+                             std::underlying_type_t<TrapId>>);
 
 inline size_t hash_value(TrapId id) { return static_cast<uint32_t>(id); }
 
 std::ostream& operator<<(std::ostream&, TrapId trap_id);
 
 TrapId TrapIdOf(const Operator* const op);
+#endif
 
 class BranchParameters final {
  public:
@@ -94,6 +100,34 @@ V8_EXPORT_PRIVATE const BranchParameters& BranchParametersOf(
 
 V8_EXPORT_PRIVATE BranchHint BranchHintOf(const Operator* const)
     V8_WARN_UNUSED_RESULT;
+
+class AssertParameters final {
+ public:
+  AssertParameters(BranchSemantics semantics, const char* condition_string,
+                   const char* file, int line)
+      : semantics_(semantics),
+        condition_string_(condition_string),
+        file_(file),
+        line_(line) {}
+
+  BranchSemantics semantics() const { return semantics_; }
+  const char* condition_string() const { return condition_string_; }
+  const char* file() const { return file_; }
+  int line() const { return line_; }
+
+ private:
+  const BranchSemantics semantics_;
+  const char* condition_string_;
+  const char* file_;
+  const int line_;
+};
+
+bool operator==(const AssertParameters& lhs, const AssertParameters& rhs);
+size_t hash_value(const AssertParameters& p);
+std::ostream& operator<<(std::ostream&, const AssertParameters& p);
+
+V8_EXPORT_PRIVATE const AssertParameters& AssertParametersOf(
+    const Operator* const) V8_WARN_UNUSED_RESULT;
 
 // Helper function for return nodes, because returns have a hidden value input.
 int ValueInputCountOfReturn(Operator const* const op);
@@ -550,8 +584,14 @@ class V8_EXPORT_PRIVATE CommonOperatorBuilder final
                                FeedbackSource const& feedback);
   const Operator* DeoptimizeUnless(DeoptimizeReason reason,
                                    FeedbackSource const& feedback);
+  const Operator* Assert(BranchSemantics semantics,
+                         const char* condition_string, const char* file,
+                         int line);
+
+#if V8_ENABLE_WEBASSEMBLY
   const Operator* TrapIf(TrapId trap_id, bool has_frame_state);
   const Operator* TrapUnless(TrapId trap_id, bool has_frame_state);
+#endif
   const Operator* Return(int value_input_count = 1);
   const Operator* Terminate();
 

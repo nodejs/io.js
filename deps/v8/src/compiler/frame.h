@@ -90,7 +90,7 @@ class CallDescriptor;
 //
 class V8_EXPORT_PRIVATE Frame : public ZoneObject {
  public:
-  explicit Frame(int fixed_frame_size_in_slots);
+  explicit Frame(int fixed_frame_size_in_slots, Zone* zone);
   Frame(const Frame&) = delete;
   Frame& operator=(const Frame&) = delete;
 
@@ -135,9 +135,11 @@ class V8_EXPORT_PRIVATE Frame : public ZoneObject {
     slot_allocator_.AllocateUnaligned(count);
   }
 
-  int AllocateSpillSlot(int width, int alignment = 0) {
+  int AllocateSpillSlot(int width, int alignment = 0, bool is_tagged = false) {
     DCHECK_EQ(GetTotalFrameSlotCount(),
               fixed_slot_count_ + spill_slot_count_ + return_slot_count_);
+    DCHECK_IMPLIES(is_tagged, width == sizeof(uintptr_t));
+    DCHECK_IMPLIES(is_tagged, alignment == sizeof(uintptr_t));
     // Never allocate spill slots after the callee-saved slots are defined.
     DCHECK(!spill_slots_finished_);
     DCHECK(!frame_aligned_);
@@ -163,7 +165,9 @@ class V8_EXPORT_PRIVATE Frame : public ZoneObject {
     int end = slot_allocator_.Size();
 
     spill_slot_count_ += end - old_end;
-    return slot + slots - 1;
+    int result_slot = slot + slots - 1;
+    if (is_tagged) tagged_slots_bits_.Add(result_slot, zone_);
+    return result_slot;
   }
 
   void EnsureReturnSlots(int count) {
@@ -181,6 +185,8 @@ class V8_EXPORT_PRIVATE Frame : public ZoneObject {
     return slot_allocator_.Size() - 1;
   }
 
+  const GrowableBitVector& tagged_slots() const { return tagged_slots_bits_; }
+
  private:
   int fixed_slot_count_;
   int spill_slot_count_ = 0;
@@ -190,6 +196,8 @@ class V8_EXPORT_PRIVATE Frame : public ZoneObject {
   AlignedSlotAllocator slot_allocator_;
   BitVector* allocated_registers_;
   BitVector* allocated_double_registers_;
+  Zone* zone_;
+  GrowableBitVector tagged_slots_bits_;
 #if DEBUG
   bool spill_slots_finished_ = false;
   bool frame_aligned_ = false;
@@ -229,11 +237,14 @@ class FrameAccessState : public ZoneObject {
   explicit FrameAccessState(const Frame* const frame)
       : frame_(frame),
         access_frame_with_fp_(false),
+        fp_relative_only_(false),
         sp_delta_(0),
         has_frame_(false) {}
 
   const Frame* frame() const { return frame_; }
   V8_EXPORT_PRIVATE void MarkHasFrame(bool state);
+  void SetFPRelativeOnly(bool state);
+  bool FPRelativeOnly() { return fp_relative_only_; }
 
   int sp_delta() const { return sp_delta_; }
   void ClearSPDelta() { sp_delta_ = 0; }
@@ -268,6 +279,7 @@ class FrameAccessState : public ZoneObject {
  private:
   const Frame* const frame_;
   bool access_frame_with_fp_;
+  bool fp_relative_only_;
   int sp_delta_;
   bool has_frame_;
 };

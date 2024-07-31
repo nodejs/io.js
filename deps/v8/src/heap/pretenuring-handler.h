@@ -23,7 +23,7 @@ class PretenuringHandler final {
   static constexpr int kInitialFeedbackCapacity = 256;
 
   using PretenuringFeedbackMap =
-      std::unordered_map<AllocationSite, size_t, Object::Hasher>;
+      std::unordered_map<Tagged<AllocationSite>, size_t, Object::Hasher>;
   enum FindMementoMode { kForRuntime, kForGC };
 
   explicit PretenuringHandler(Heap* heap);

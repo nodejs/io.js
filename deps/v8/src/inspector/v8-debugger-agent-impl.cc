@@ -61,6 +61,7 @@ static const char breakpointHintText[] = "text";
 static const char breakpointHintPrefixHash[] = "prefixHash";
 static const char breakpointHintPrefixLength[] = "prefixLen";
 static const char instrumentationBreakpoints[] = "instrumentationBreakpoints";
+static const char maxScriptCacheSize[] = "maxScriptCacheSize";
 
 }  // namespace DebuggerAgentState
 
@@ -464,6 +465,8 @@ Response V8DebuggerAgentImpl::enable(Maybe<double> maxScriptsCacheSize,
     return Response::ServerError("Debugger is stopping");
   m_maxScriptCacheSize = v8::base::saturated_cast<size_t>(
       maxScriptsCacheSize.value_or(std::numeric_limits<double>::max()));
+  m_state->setDouble(DebuggerAgentState::maxScriptCacheSize,
+                     static_cast<double>(m_maxScriptCacheSize));
   *outDebuggerId =
       m_debugger->debuggerIdFor(m_session->contextGroupId()).toString();
   if (enabled()) return Response::Success();
@@ -499,6 +502,8 @@ Response V8DebuggerAgentImpl::disable() {
   m_scripts.clear();
   m_cachedScripts.clear();
   m_cachedScriptSize = 0;
+  m_maxScriptCacheSize = 0;
+  m_state->setDouble(DebuggerAgentState::maxScriptCacheSize, 0);
   for (const auto& it : m_debuggerBreakpointIdToBreakpointId) {
     m_debugger->removeBreakpoint(it.first);
   }
@@ -525,6 +530,11 @@ void V8DebuggerAgentImpl::restore() {
     return;
 
   enableImpl();
+
+  double maxScriptCacheSize = 0;
+  m_state->getDouble(DebuggerAgentState::maxScriptCacheSize,
+                     &maxScriptCacheSize);
+  m_maxScriptCacheSize = v8::base::saturated_cast<size_t>(maxScriptCacheSize);
 
   int pauseState = v8::debug::NoBreakOnException;
   m_state->getInteger(DebuggerAgentState::pauseOnExceptionsState, &pauseState);
@@ -1181,7 +1191,9 @@ Response V8DebuggerAgentImpl::restartFrame(
     return Response::ServerError(
         "Restarting frame without 'mode' not supported");
   }
-  CHECK_EQ(mode.value(), protocol::Debugger::RestartFrame::ModeEnum::StepInto);
+  if (mode.value() != protocol::Debugger::RestartFrame::ModeEnum::StepInto) {
+    return Response::InvalidParams("'StepInto' is the only valid mode");
+  }
 
   InjectedScript::CallFrameScope scope(m_session, callFrameId);
   Response response = scope.initialize();
@@ -2058,7 +2070,7 @@ void V8DebuggerAgentImpl::didPauseOnInstrumentation(
   if (m_debuggerBreakpointIdToBreakpointId.find(instrumentationId) !=
       m_debuggerBreakpointIdToBreakpointId.end()) {
     DCHECK_GT(protocolCallFrames->size(), 0);
-    if (protocolCallFrames->size() > 0) {
+    if (!protocolCallFrames->empty()) {
       m_instrumentationFinished = false;
       breakReason = protocol::Debugger::Paused::ReasonEnum::Instrumentation;
       const String16 scriptId =

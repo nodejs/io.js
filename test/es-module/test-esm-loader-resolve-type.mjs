@@ -5,6 +5,8 @@ import { deepStrictEqual } from 'node:assert';
 import { mkdir, rm, cp } from 'node:fs/promises';
 import { execPath } from 'node:process';
 
+tmpdir.refresh();
+
 const base = tmpdir.fileURL(`test-esm-loader-resolve-type-${(Math.random() * Date.now()).toFixed(0)}`);
 const moduleName = 'module-counter-by-type';
 const moduleURL = new URL(`${base}/node_modules/${moduleName}`);

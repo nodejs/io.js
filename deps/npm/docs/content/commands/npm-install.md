@@ -138,6 +138,8 @@ into a tarball (b).
 
     * `-D, --save-dev`: Package will appear in your `devDependencies`.
 
+    * `--save-peer`: Package will appear in your `peerDependencies`.
+
     * `-O, --save-optional`: Package will appear in your
       `optionalDependencies`.
 
@@ -582,7 +584,8 @@ For `list` this means the output will be based on the tree described by the
 
 #### `foreground-scripts`
 
-* Default: false
+* Default: `false` unless when using `npm pack` or `npm publish` where it
+  defaults to `true`
 * Type: Boolean
 
 Run all build scripts (ie, `preinstall`, `install`, and `postinstall`)
@@ -677,6 +680,16 @@ are same as `cpu` field of package.json, which comes from `process.arch`.
 
 Override OS of native modules to install. Acceptable values are same as `os`
 field of package.json, which comes from `process.platform`.
+
+
+
+#### `libc`
+
+* Default: null
+* Type: null or String
+
+Override libc of native modules to install. Acceptable values are same as
+`libc` field of package.json
 
 
 

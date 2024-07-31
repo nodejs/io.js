@@ -20,51 +20,49 @@ transitioning javascript builtin SetPrototypeIsDisjointFrom(
   // 3. Let otherRec be ? GetSetRecord(other).
   let otherRec = GetSetRecord(other, methodName);
 
-  const table = Cast<OrderedHashSet>(o.table) otherwise unreachable;
+  let table = NewStableBackingTableWitness(o);
 
   // 4. Let thisSize be the number of elements in O.[[SetData]].
-  const thisSize =
-      LoadOrderedHashTableMetadata(table, kOrderedHashSetNumberOfElementsIndex);
+  const thisSize = table.LoadSize();
 
   try {
     typeswitch (other) {
       case (otherSet: JSSetWithNoCustomIteration): {
         CheckSetRecordHasJSSetMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashSet>(otherSet.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherSet);
 
-        const otherSize = LoadOrderedHashTableMetadata(
-            otherTable, kOrderedHashSetNumberOfElementsIndex);
+        const otherSize = otherTable.LoadSize();
 
         if (thisSize <= otherSize) {
-          return FastIsDisjointFrom<OrderedHashSet>(table, otherTable);
+          return FastIsDisjointFrom<StableJSSetBackingTableWitness>(
+              table, otherTable);
         }
 
-        return FastIsDisjointFrom<OrderedHashSet>(otherTable, table);
+        return FastIsDisjointFrom<StableJSSetBackingTableWitness>(
+            otherTable, table);
       }
       case (otherMap: JSMapWithNoCustomIteration): {
         CheckSetRecordHasJSMapMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashMap>(otherMap.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherMap);
 
-        const otherSize = LoadOrderedHashTableMetadata(
-            otherTable, kOrderedHashSetNumberOfElementsIndex);
+        const otherSize = otherTable.LoadSize();
 
         if (thisSize <= otherSize) {
-          return FastIsDisjointFrom<OrderedHashMap>(table, otherTable);
+          return FastIsDisjointFrom<StableJSMapBackingTableWitness>(
+              table, otherTable);
         }
 
         // TODO(v8:13556): Change `FastIsDisjointFrom` macro to be able to
         // handle this case as well.
-        let otherIterator =
-            collections::NewUnmodifiedOrderedHashMapIterator(otherTable);
+        let otherIterator = collections::NewUnmodifiedOrderedHashMapIterator(
+            otherTable.GetTable());
 
         while (true) {
           const nextValue = otherIterator.Next() otherwise Done;
 
-          if (TableHasKey(table, nextValue.key)) {
+          if (table.HasKey(nextValue.key)) {
             return False;
           }
         }
@@ -77,7 +75,7 @@ transitioning javascript builtin SetPrototypeIsDisjointFrom(
     // 5. If thisSize ≤ otherRec.[[Size]], then
     if (thisSize <= Convert<int32>(otherRec.size)) {
       // a. Let index be 0.
-      let thisIter = collections::NewOrderedHashSetIterator(table);
+      let thisIter = collections::NewOrderedHashSetIterator(table.GetTable());
 
       // b. Repeat, while index < thisSize,
       while (true) {
@@ -121,7 +119,8 @@ transitioning javascript builtin SetPrototypeIsDisjointFrom(
             iterator::IteratorValue(nextRecord, fastIteratorResultMap);
 
         // 2. If SetDataHas(O.[[SetData]], nextValue) is true, then
-        if (TableHasKey(table, nextValue)) {
+        table.ReloadTable();
+        if (table.HasKey(nextValue)) {
           //   a. Perform ? IteratorClose(keysIter, NormalCompletion(unused)).
           //   b. Return false.
           iterator::IteratorClose(keysIter);
@@ -140,16 +139,17 @@ transitioning javascript builtin SetPrototypeIsDisjointFrom(
 // (collectionToIterate), lookup each value of the iterator in a table that
 // needs to be checked (tableToLookup), and return if the two collections
 // are disjoint from each other or not.
-macro FastIsDisjointFrom<T : type extends FixedArray>(
-    implicit context: Context)(collectionToIterate: OrderedHashSet,
+macro FastIsDisjointFrom<T: type>(
+    implicit context: Context)(
+    collectionToIterate: StableJSSetBackingTableWitness,
     tableToLookup: T): Boolean {
-  let iter =
-      collections::NewUnmodifiedOrderedHashSetIterator(collectionToIterate);
+  let iter = collections::NewUnmodifiedOrderedHashSetIterator(
+      collectionToIterate.GetTable());
   try {
     while (true) {
       const nextValue = iter.Next() otherwise Done;
 
-      if (TableHasKey(tableToLookup, nextValue)) {
+      if (tableToLookup.HasKey(nextValue)) {
         return False;
       }
     }

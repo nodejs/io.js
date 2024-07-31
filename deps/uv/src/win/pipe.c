@@ -49,7 +49,7 @@ static const int default_pending_pipe_instances = 4;
 
 /* Pipe prefix */
 static char pipe_prefix[] = "\\\\?\\pipe";
-static const int pipe_prefix_len = sizeof(pipe_prefix) - 1;
+static const size_t pipe_prefix_len = sizeof(pipe_prefix) - 1;
 
 /* IPC incoming xfer queue item. */
 typedef struct {
@@ -96,6 +96,14 @@ static void eof_timer_stop(uv_pipe_t* pipe);
 static void eof_timer_cb(uv_timer_t* timer);
 static void eof_timer_destroy(uv_pipe_t* pipe);
 static void eof_timer_close_cb(uv_handle_t* handle);
+
+
+/* Does the file path contain embedded nul bytes? */
+static int includes_nul(const char *s, size_t n) {
+  if (n == 0)
+    return 0;
+  return NULL != memchr(s, '\0', n);
+}
 
 
 static void uv__unique_pipe_name(char* ptr, char* name, size_t size) {
@@ -191,7 +199,7 @@ static void close_pipe(uv_pipe_t* pipe) {
   if (pipe->u.fd == -1)
     CloseHandle(pipe->handle);
   else
-    close(pipe->u.fd);
+    _close(pipe->u.fd);
 
   pipe->u.fd = -1;
   pipe->handle = INVALID_HANDLE_VALUE;
@@ -703,8 +711,9 @@ int uv_pipe_bind2(uv_pipe_t* handle,
                   size_t namelen,
                   unsigned int flags) {
   uv_loop_t* loop = handle->loop;
-  int i, err, nameSize;
+  int i, err;
   uv_pipe_accept_t* req;
+  char* name_copy;
 
   if (flags & ~UV_PIPE_NO_TRUNCATE) {
     return UV_EINVAL;
@@ -718,14 +727,8 @@ int uv_pipe_bind2(uv_pipe_t* handle,
     return UV_EINVAL;
   }
 
-  if (*name == '\0') {
+  if (includes_nul(name, namelen)) {
     return UV_EINVAL;
-  }
-
-  if (flags & UV_PIPE_NO_TRUNCATE) {
-    if (namelen > 256) {
-      return UV_EINVAL;
-    }
   }
 
   if (handle->flags & UV_HANDLE_BOUND) {
@@ -736,14 +739,23 @@ int uv_pipe_bind2(uv_pipe_t* handle,
     return UV_EINVAL;
   }
 
+  name_copy = uv__malloc(namelen + 1);
+  if (name_copy == NULL) {
+    return UV_ENOMEM;
+  }
+
+  memcpy(name_copy, name, namelen);
+  name_copy[namelen] = '\0';
+
   if (!(handle->flags & UV_HANDLE_PIPESERVER)) {
     handle->pipe.serv.pending_instances = default_pending_pipe_instances;
   }
 
+  err = UV_ENOMEM;
   handle->pipe.serv.accept_reqs = (uv_pipe_accept_t*)
     uv__malloc(sizeof(uv_pipe_accept_t) * handle->pipe.serv.pending_instances);
-  if (!handle->pipe.serv.accept_reqs) {
-    uv_fatal_error(ERROR_OUTOFMEMORY, "uv__malloc");
+  if (handle->pipe.serv.accept_reqs == NULL) {
+    goto error;
   }
 
   for (i = 0; i < handle->pipe.serv.pending_instances; i++) {
@@ -754,20 +766,12 @@ int uv_pipe_bind2(uv_pipe_t* handle,
     req->next_pending = NULL;
   }
 
-  /* Convert name to UTF16. */
-  nameSize = MultiByteToWideChar(CP_UTF8, 0, name, -1, NULL, 0) * sizeof(WCHAR);
-  handle->name = uv__malloc(nameSize);
-  if (!handle->name) {
-    uv_fatal_error(ERROR_OUTOFMEMORY, "uv__malloc");
-  }
+  /* TODO(bnoordhuis) Add converters that take a |length| parameter. */
+  err = uv__convert_utf8_to_utf16(name_copy, &handle->name);
+  uv__free(name_copy);
+  name_copy = NULL;
 
-  if (!MultiByteToWideChar(CP_UTF8,
-                           0,
-                           name,
-                           -1,
-                           handle->name,
-                           nameSize / sizeof(WCHAR))) {
-    err = GetLastError();
+  if (err) {
     goto error;
   }
 
@@ -781,9 +785,11 @@ int uv_pipe_bind2(uv_pipe_t* handle,
                          TRUE)) {
     err = GetLastError();
     if (err == ERROR_ACCESS_DENIED) {
-      err = WSAEADDRINUSE;  /* Translates to UV_EADDRINUSE. */
+      err = UV_EADDRINUSE;
     } else if (err == ERROR_PATH_NOT_FOUND || err == ERROR_INVALID_NAME) {
-      err = WSAEACCES;  /* Translates to UV_EACCES. */
+      err = UV_EACCES;
+    } else {
+      err = uv_translate_sys_error(err);
     }
     goto error;
   }
@@ -795,12 +801,13 @@ int uv_pipe_bind2(uv_pipe_t* handle,
   return 0;
 
 error:
-  if (handle->name) {
-    uv__free(handle->name);
-    handle->name = NULL;
-  }
+  uv__free(handle->pipe.serv.accept_reqs);
+  uv__free(handle->name);
+  uv__free(name_copy);
+  handle->pipe.serv.accept_reqs = NULL;
+  handle->name = NULL;
 
-  return uv_translate_sys_error(err);
+  return err;
 }
 
 
@@ -850,7 +857,19 @@ void uv_pipe_connect(uv_connect_t* req,
                     uv_pipe_t* handle,
                     const char* name,
                     uv_connect_cb cb) {
-  uv_pipe_connect2(req, handle, name, strlen(name), 0, cb);
+  uv_loop_t* loop;
+  int err;
+
+  err = uv_pipe_connect2(req, handle, name, strlen(name), 0, cb);
+
+  if (err) {
+    loop = handle->loop;
+    /* Make this req pending reporting an error. */
+    SET_REQ_ERROR(req, err);
+    uv__insert_pending_req(loop, (uv_req_t*) req);
+    handle->reqs_pending++;
+    REGISTER_HANDLE_REQ(loop, handle, req);
+  }
 }
 
 
@@ -860,10 +879,20 @@ int uv_pipe_connect2(uv_connect_t* req,
                      size_t namelen,
                      unsigned int flags,
                      uv_connect_cb cb) {
-  uv_loop_t* loop = handle->loop;
-  int err, nameSize;
+  uv_loop_t* loop;
+  int err;
+  size_t nameSize;
   HANDLE pipeHandle = INVALID_HANDLE_VALUE;
   DWORD duplex_flags;
+  char* name_copy;
+
+  loop = handle->loop;
+  UV_REQ_INIT(req, UV_CONNECT);
+  req->handle = (uv_stream_t*) handle;
+  req->cb = cb;
+  req->u.connect.pipeHandle = INVALID_HANDLE_VALUE;
+  req->u.connect.duplex_flags = 0;
+  req->u.connect.name = NULL;
 
   if (flags & ~UV_PIPE_NO_TRUNCATE) {
     return UV_EINVAL;
@@ -877,22 +906,17 @@ int uv_pipe_connect2(uv_connect_t* req,
     return UV_EINVAL;
   }
 
-  if (*name == '\0') {
+  if (includes_nul(name, namelen)) {
     return UV_EINVAL;
   }
 
-  if (flags & UV_PIPE_NO_TRUNCATE) {
-    if (namelen > 256) {
-      return UV_EINVAL;
-    }
+  name_copy = uv__malloc(namelen + 1);
+  if (name_copy == NULL) {
+    return UV_ENOMEM;
   }
 
-  UV_REQ_INIT(req, UV_CONNECT);
-  req->handle = (uv_stream_t*) handle;
-  req->cb = cb;
-  req->u.connect.pipeHandle = INVALID_HANDLE_VALUE;
-  req->u.connect.duplex_flags = 0;
-  req->u.connect.name = NULL;
+  memcpy(name_copy, name, namelen);
+  name_copy[namelen] = '\0';
 
   if (handle->flags & UV_HANDLE_PIPESERVER) {
     err = ERROR_INVALID_PARAMETER;
@@ -904,26 +928,20 @@ int uv_pipe_connect2(uv_connect_t* req,
   }
   uv__pipe_connection_init(handle);
 
-  /* Convert name to UTF16. */
-  nameSize = MultiByteToWideChar(CP_UTF8, 0, name, -1, NULL, 0) * sizeof(WCHAR);
-  handle->name = uv__malloc(nameSize);
-  if (!handle->name) {
-    uv_fatal_error(ERROR_OUTOFMEMORY, "uv__malloc");
-  }
+  /* TODO(bnoordhuis) Add converters that take a |length| parameter. */
+  err = uv__convert_utf8_to_utf16(name_copy, &handle->name);
+  uv__free(name_copy);
+  name_copy = NULL;
 
-  if (!MultiByteToWideChar(CP_UTF8,
-                           0,
-                           name,
-                           -1,
-                           handle->name,
-                           nameSize / sizeof(WCHAR))) {
-    err = GetLastError();
+  if (err) {
+    err = ERROR_NO_UNICODE_TRANSLATION;
     goto error;
   }
 
   pipeHandle = open_named_pipe(handle->name, &duplex_flags);
   if (pipeHandle == INVALID_HANDLE_VALUE) {
     if (GetLastError() == ERROR_PIPE_BUSY) {
+      nameSize = (wcslen(handle->name) + 1) * sizeof(WCHAR);
       req->u.connect.name = uv__malloc(nameSize);
       if (!req->u.connect.name) {
         uv_fatal_error(ERROR_OUTOFMEMORY, "uv__malloc");
@@ -960,6 +978,8 @@ int uv_pipe_connect2(uv_connect_t* req,
   return 0;
 
 error:
+  uv__free(name_copy);
+
   if (handle->name) {
     uv__free(handle->name);
     handle->name = NULL;
@@ -2439,7 +2459,6 @@ static int uv__pipe_getname(const uv_pipe_t* handle, char* buffer, size_t* size)
   FILE_NAME_INFORMATION tmp_name_info;
   FILE_NAME_INFORMATION* name_info;
   WCHAR* name_buf;
-  unsigned int addrlen;
   unsigned int name_size;
   unsigned int name_len;
   int err;
@@ -2450,46 +2469,7 @@ static int uv__pipe_getname(const uv_pipe_t* handle, char* buffer, size_t* size)
   if (handle->name != NULL) {
     /* The user might try to query the name before we are connected,
      * and this is just easier to return the cached value if we have it. */
-    name_buf = handle->name;
-    name_len = wcslen(name_buf);
-
-    /* check how much space we need */
-    addrlen = WideCharToMultiByte(CP_UTF8,
-                                  0,
-                                  name_buf,
-                                  name_len,
-                                  NULL,
-                                  0,
-                                  NULL,
-                                  NULL);
-    if (!addrlen) {
-      *size = 0;
-      err = uv_translate_sys_error(GetLastError());
-      return err;
-    } else if (addrlen >= *size) {
-      *size = addrlen + 1;
-      err = UV_ENOBUFS;
-      goto error;
-    }
-
-    addrlen = WideCharToMultiByte(CP_UTF8,
-                                  0,
-                                  name_buf,
-                                  name_len,
-                                  buffer,
-                                  addrlen,
-                                  NULL,
-                                  NULL);
-    if (!addrlen) {
-      *size = 0;
-      err = uv_translate_sys_error(GetLastError());
-      return err;
-    }
-
-    *size = addrlen;
-    buffer[addrlen] = '\0';
-
-    return 0;
+    return uv__copy_utf16_to_utf8(handle->name, -1, buffer, size);
   }
 
   if (handle->handle == INVALID_HANDLE_VALUE) {
@@ -2517,8 +2497,7 @@ static int uv__pipe_getname(const uv_pipe_t* handle, char* buffer, size_t* size)
     name_info = uv__malloc(name_size);
     if (!name_info) {
       *size = 0;
-      err = UV_ENOMEM;
-      goto cleanup;
+      return UV_ENOMEM;
     }
 
     nt_status = pNtQueryInformationFile(handle->handle,
@@ -2551,51 +2530,19 @@ static int uv__pipe_getname(const uv_pipe_t* handle, char* buffer, size_t* size)
 
   name_len /= sizeof(WCHAR);
 
-  /* check how much space we need */
-  addrlen = WideCharToMultiByte(CP_UTF8,
-                                0,
-                                name_buf,
-                                name_len,
-                                NULL,
-                                0,
-                                NULL,
-                                NULL);
-  if (!addrlen) {
+  /* "\\\\.\\pipe" + name */
+  if (*size < pipe_prefix_len) {
     *size = 0;
-    err = uv_translate_sys_error(GetLastError());
-    goto error;
-  } else if (pipe_prefix_len + addrlen >= *size) {
-    /* "\\\\.\\pipe" + name */
-    *size = pipe_prefix_len + addrlen + 1;
-    err = UV_ENOBUFS;
-    goto error;
   }
-
-  memcpy(buffer, pipe_prefix, pipe_prefix_len);
-  addrlen = WideCharToMultiByte(CP_UTF8,
-                                0,
-                                name_buf,
-                                name_len,
-                                buffer+pipe_prefix_len,
-                                *size-pipe_prefix_len,
-                                NULL,
-                                NULL);
-  if (!addrlen) {
-    *size = 0;
-    err = uv_translate_sys_error(GetLastError());
-    goto error;
+  else {
+    memcpy(buffer, pipe_prefix, pipe_prefix_len);
+    *size -= pipe_prefix_len;
   }
-
-  addrlen += pipe_prefix_len;
-  *size = addrlen;
-  buffer[addrlen] = '\0';
-
-  err = 0;
+  err = uv__copy_utf16_to_utf8(name_buf, name_len, buffer+pipe_prefix_len, size);
+  *size += pipe_prefix_len;
 
 error:
   uv__free(name_info);
-
-cleanup:
   return err;
 }
 

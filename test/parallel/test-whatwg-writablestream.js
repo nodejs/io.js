@@ -60,6 +60,18 @@ class Sink {
   assert.strictEqual(typeof stream.getWriter, 'function');
 }
 
+['a', false, 1, null].forEach((sink) => {
+  assert.throws(() => new WritableStream(sink), {
+    code: 'ERR_INVALID_ARG_TYPE',
+  });
+});
+
+['a', false, 1].forEach((strategy) => {
+  assert.throws(() => new WritableStream({}, strategy), {
+    code: 'ERR_INVALID_ARG_TYPE',
+  });
+});
+
 [1, false, ''].forEach((type) => {
   assert.throws(() => new WritableStream({ type }), {
     code: 'ERR_INVALID_ARG_VALUE',
@@ -79,9 +91,11 @@ class Sink {
 });
 
 {
-  new WritableStream({}, 1);
-  new WritableStream({}, 'a');
+  new WritableStream({});
+  new WritableStream([]);
   new WritableStream({}, null);
+  new WritableStream({}, {});
+  new WritableStream({}, []);
 }
 
 {

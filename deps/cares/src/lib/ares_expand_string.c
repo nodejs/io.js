@@ -25,7 +25,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
+#include "ares_private.h"
 
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
@@ -33,46 +33,76 @@
 
 #include "ares_nameser.h"
 
-#include "ares.h"
-#include "ares_private.h" /* for the memdebug */
-
 /* Simply decodes a length-encoded character string. The first byte of the
  * input is the length of the string to be returned and the bytes thereafter
  * are the characters of the string. The returned result will be NULL
  * terminated.
  */
-int ares_expand_string(const unsigned char *encoded,
-                       const unsigned char *abuf,
-                       int alen,
-                       unsigned char **s,
-                       long *enclen)
+ares_status_t ares_expand_string_ex(const unsigned char *encoded,
+                                    const unsigned char *abuf, size_t alen,
+                                    unsigned char **s, size_t *enclen)
 {
-  unsigned char *q;
-  union {
-    ares_ssize_t sig;
-     size_t uns;
-  } elen;
+  ares_status_t status;
+  ares__buf_t  *buf = NULL;
+  size_t        start_len;
+  size_t        len = 0;
 
-  if (encoded == abuf+alen)
-    return ARES_EBADSTR;
+  if (encoded == NULL || abuf == NULL || alen == 0 || enclen == NULL) {
+    return ARES_EBADSTR; /* EFORMERR would be better */
+  }
 
-  elen.uns = *encoded;
-  if (encoded+elen.sig+1 > abuf+alen)
-    return ARES_EBADSTR;
+  if (encoded < abuf || encoded >= abuf + alen) {
+    return ARES_EBADSTR; /* EFORMERR would be better */
+  }
 
-  encoded++;
+  *enclen = 0;
 
-  *s = ares_malloc(elen.uns+1);
-  if (*s == NULL)
+  /* NOTE: we allow 's' to be NULL to skip it */
+  if (s) {
+    *s = NULL;
+  }
+
+  buf = ares__buf_create_const(abuf, alen);
+
+  if (buf == NULL) {
     return ARES_ENOMEM;
-  q = *s;
-  strncpy((char *)q, (char *)encoded, elen.uns);
-  q[elen.uns] = '\0';
+  }
 
-  *s = q;
+  status = ares__buf_set_position(buf, (size_t)(encoded - abuf));
+  if (status != ARES_SUCCESS) {
+    goto done;
+  }
 
-  *enclen = (long)(elen.sig+1);
+  start_len = ares__buf_len(buf);
+  status =
+    ares__buf_parse_dns_binstr(buf, ares__buf_len(buf), s, &len);
+  /* hrm, no way to pass back 'len' with the prototype */
+  if (status != ARES_SUCCESS) {
+    goto done;
+  }
 
-  return ARES_SUCCESS;
+  *enclen = start_len - ares__buf_len(buf);
+
+done:
+  ares__buf_destroy(buf);
+  if (status == ARES_EBADNAME || status == ARES_EBADRESP) {
+    status = ARES_EBADSTR;
+  }
+  return status;
 }
 
+int ares_expand_string(const unsigned char *encoded, const unsigned char *abuf,
+                       int alen, unsigned char **s, long *enclen)
+{
+  ares_status_t status;
+  size_t        temp_enclen = 0;
+
+  if (encoded == NULL || abuf == NULL || alen <= 0 || enclen == NULL) {
+    return ARES_EBADRESP;
+  }
+
+  status = ares_expand_string_ex(encoded, abuf, (size_t)alen, s, &temp_enclen);
+
+  *enclen = (long)temp_enclen;
+  return (int)status;
+}

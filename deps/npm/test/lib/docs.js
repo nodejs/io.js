@@ -1,6 +1,6 @@
 const t = require('tap')
-const { join, resolve, basename, extname } = require('path')
-const fs = require('fs/promises')
+const { join, resolve, basename, extname } = require('node:path')
+const fs = require('node:fs/promises')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
 const docs = require('@npmcli/docs')
 
@@ -22,7 +22,7 @@ t.test('shorthands', async t => {
 
 t.test('config', async t => {
   const keys = Object.keys(definitions)
-  const flat = Object.entries(definitions).filter(([_, d]) => d.flatten).map(([k]) => k)
+  const flat = Object.entries(definitions).filter(([, d]) => d.flatten).map(([k]) => k)
   const notFlat = keys.filter(k => !flat.includes(k))
   t.matchSnapshot(keys, 'all keys')
   t.matchSnapshot(flat, 'keys that are flattened')
@@ -74,7 +74,7 @@ t.test('basic usage', async t => {
   // are generated in the following test
   const { npm } = await loadMockNpm(t, {
     mocks: {
-      '{LIB}/utils/cmd-list.js': { commands: [] },
+      '{LIB}/utils/cmd-list.js': { ...cmdList, commands: [] },
     },
     config: { userconfig: '/some/config/file/.npmrc' },
     globals: { process: { platform: 'posix' } },

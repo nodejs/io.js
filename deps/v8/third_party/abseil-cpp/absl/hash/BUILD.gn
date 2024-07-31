@@ -1,0 +1,126 @@
+# Copyright 2018 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build_overrides/build.gni")
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("hash") {
+  sources = [
+    "internal/hash.cc",
+    "internal/hash.h",
+  ]
+  public = [ "hash.h" ]
+  deps = [
+    ":city",
+    ":low_level_hash",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:endian",
+    "//third_party/abseil-cpp/absl/container:fixed_array",
+    "//third_party/abseil-cpp/absl/functional:function_ref",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/abseil-cpp/absl/types:optional",
+    "//third_party/abseil-cpp/absl/types:variant",
+    "//third_party/abseil-cpp/absl/utility",
+  ]
+}
+
+absl_source_set("hash_testing") {
+  testonly = true
+  public = [ "hash_testing.h" ]
+  deps = [
+    ":spy_hash_state",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/types:variant",
+    "//third_party/googletest:gtest",
+  ]
+}
+
+absl_test("hash_test") {
+  sources = [
+    "hash_test.cc",
+    "internal/hash_test.h",
+  ]
+  deps = [
+    ":hash",
+    ":hash_testing",
+    ":spy_hash_state",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/container:btree",
+    "//third_party/abseil-cpp/absl/container:flat_hash_map",
+    "//third_party/abseil-cpp/absl/container:flat_hash_set",
+    "//third_party/abseil-cpp/absl/container:node_hash_map",
+    "//third_party/abseil-cpp/absl/container:node_hash_set",
+    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+    "//third_party/abseil-cpp/absl/strings:cord_test_helpers",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/abseil-cpp/absl/types:optional",
+    "//third_party/abseil-cpp/absl/types:variant",
+  ]
+}
+
+absl_test("hash_instantiated_test") {
+  sources = [
+    "hash_instantiated_test.cc",
+    "internal/hash_test.h",
+  ]
+  deps = [
+    ":hash",
+    ":hash_testing",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/container:btree",
+    "//third_party/abseil-cpp/absl/container:flat_hash_map",
+    "//third_party/abseil-cpp/absl/container:flat_hash_set",
+    "//third_party/abseil-cpp/absl/container:node_hash_map",
+    "//third_party/abseil-cpp/absl/container:node_hash_set",
+  ]
+}
+
+absl_source_set("spy_hash_state") {
+  testonly = true
+  public = [ "internal/spy_hash_state.h" ]
+  deps = [
+    ":hash",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:str_format",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("city") {
+  public = [ "internal/city.h" ]
+  sources = [ "internal/city.cc" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:endian",
+  ]
+}
+
+absl_source_set("low_level_hash") {
+  public = [ "internal/low_level_hash.h" ]
+  sources = [ "internal/low_level_hash.cc" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:endian",
+    "//third_party/abseil-cpp/absl/base:prefetch",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+  ]
+  visibility = [ ":*" ]
+}
+
+absl_test("low_level_hash_test") {
+  sources = [ "internal/low_level_hash_test.cc" ]
+  deps = [
+    ":low_level_hash",
+    "//third_party/abseil-cpp/absl/strings",
+  ]
+}

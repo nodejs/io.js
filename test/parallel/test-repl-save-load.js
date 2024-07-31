@@ -24,7 +24,6 @@ const common = require('../common');
 const ArrayStream = require('../common/arraystream');
 const assert = require('assert');
 const fs = require('fs');
-
 const tmpdir = require('../common/tmpdir');
 tmpdir.refresh();
 
@@ -139,3 +138,27 @@ putIn.run([`.save ${invalidFileName}`]);
   assert.strictEqual(fs.readFileSync(saveFileName, 'utf8'),
                      `${cmds.join('\n')}\n`);
 }
+
+// Check if the file is present when using save
+
+// Clear the REPL.
+putIn.run(['.clear']);
+
+// Error message when using save without a file
+putIn.write = common.mustCall(function(data) {
+  assert.strictEqual(data, 'The "file" argument must be specified\n');
+  putIn.write = () => {};
+});
+putIn.run(['.save']);
+
+// Check if the file is present when using load
+
+// Clear the REPL.
+putIn.run(['.clear']);
+
+// Error message when using load without a file
+putIn.write = common.mustCall(function(data) {
+  assert.strictEqual(data, 'The "file" argument must be specified\n');
+  putIn.write = () => {};
+});
+putIn.run(['.load']);

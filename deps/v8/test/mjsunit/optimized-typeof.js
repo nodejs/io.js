@@ -45,3 +45,12 @@ typeofViaVariable();
 typeofViaVariable();
 %OptimizeFunctionOnNextCall(typeofViaVariable);
 typeofViaVariable();
+
+function typeofMinifiedDirectly() {
+  return typeof{}>'u';
+};
+%PrepareFunctionForOptimization(typeofMinifiedDirectly);
+typeofMinifiedDirectly();
+typeofMinifiedDirectly();
+%OptimizeFunctionOnNextCall(typeofMinifiedDirectly);
+typeofMinifiedDirectly();

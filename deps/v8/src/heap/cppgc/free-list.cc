@@ -102,6 +102,7 @@ std::pair<Address, Address> FreeList::AddReturningUnusedBounds(Block block) {
 }
 
 void FreeList::Append(FreeList&& other) {
+  DCHECK_NE(this, &other);
 #if DEBUG
   const size_t expected_size = Size() + other.Size();
 #endif

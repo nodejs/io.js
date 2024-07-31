@@ -5,7 +5,7 @@ import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
 
-describe('ESM: non-js extensions fail', { concurrency: true }, () => {
+describe('ESM: non-js extensions fail', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it(async () => {
     const { code, stderr, signal } = await spawnPromisified(execPath, [
       '--input-type=module',

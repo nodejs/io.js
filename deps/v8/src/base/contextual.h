@@ -105,6 +105,27 @@ class V8_EXPORT_PRIVATE ContextualVariable {
 template <class T>
 using ContextualClass = ContextualVariable<T, T>;
 
+// {ContextualVariableWithDefault} is similar to a {ContextualVariable},
+// with the difference that a default value is used if there is no active
+// {Scope} object.
+template <class Derived, class VarType, auto... default_args>
+class V8_EXPORT_PRIVATE ContextualVariableWithDefault
+    : public ContextualVariable<Derived, VarType> {
+ public:
+  static VarType& Get() {
+    return Base::HasScope() ? Base::Get() : default_value_;
+  }
+
+ private:
+  using Base = ContextualVariable<Derived, VarType>;
+  inline static thread_local VarType default_value_{default_args...};
+};
+
+// Usage: DECLARE_CONTEXTUAL_VARIABLE_WITH_DEFAULT(VarName, VarType, Args...)
+#define DECLARE_CONTEXTUAL_VARIABLE_WITH_DEFAULT(VarName, ...) \
+  struct VarName                                               \
+      : ::v8::base::ContextualVariableWithDefault<VarName, __VA_ARGS__> {}
+
 }  // namespace v8::base
 
 #endif  // V8_BASE_CONTEXTUAL_H_

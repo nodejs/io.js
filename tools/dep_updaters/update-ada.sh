@@ -54,8 +54,8 @@ rm "$ADA_ZIP"
 
 curl -sL -o "$ADA_LICENSE" "https://raw.githubusercontent.com/ada-url/ada/HEAD/LICENSE-MIT"
 
-echo "Replacing existing ada (except GYP build files)"
-mv "$DEPS_DIR/ada/"*.gyp "$DEPS_DIR/ada/README.md" "$WORKSPACE/"
+echo "Replacing existing ada (except GYP and GN build files)"
+mv "$DEPS_DIR/ada/"*.gyp "$DEPS_DIR/ada/"*.gn "$DEPS_DIR/ada/"*.gni "$DEPS_DIR/ada/README.md" "$WORKSPACE/"
 rm -rf "$DEPS_DIR/ada"
 mv "$WORKSPACE" "$DEPS_DIR/ada"
 

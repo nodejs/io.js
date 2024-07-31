@@ -1,26 +1,29 @@
-// https://github.com/npm/rfcs/pull/183
-
-const envVal = val => Array.isArray(val) ? val.map(v => envVal(v)).join('\n\n')
-  : val === null || val === false ? ''
-  : String(val)
-
-const packageEnvs = (env, vals, prefix) => {
+const packageEnvs = (vals, prefix, env = {}) => {
   for (const [key, val] of Object.entries(vals)) {
     if (val === undefined) {
       continue
-    } else if (val && !Array.isArray(val) && typeof val === 'object') {
-      packageEnvs(env, val, `${prefix}${key}_`)
+    } else if (val === null || val === false) {
+      env[`${prefix}${key}`] = ''
+    } else if (Array.isArray(val)) {
+      val.forEach((item, index) => {
+        packageEnvs({ [`${key}_${index}`]: item }, `${prefix}`, env)
+      })
+    } else if (typeof val === 'object') {
+      packageEnvs(val, `${prefix}${key}_`, env)
     } else {
-      env[`${prefix}${key}`] = envVal(val)
+      env[`${prefix}${key}`] = String(val)
     }
   }
   return env
 }
 
-module.exports = (env, pkg) => packageEnvs({ ...env }, {
-  name: pkg.name,
-  version: pkg.version,
-  config: pkg.config,
-  engines: pkg.engines,
-  bin: pkg.bin,
-}, 'npm_package_')
+// https://github.com/npm/rfcs/pull/183 defines which fields we put into the environment
+module.exports = pkg => {
+  return packageEnvs({
+    name: pkg.name,
+    version: pkg.version,
+    config: pkg.config,
+    engines: pkg.engines,
+    bin: pkg.bin,
+  }, 'npm_package_')
+}

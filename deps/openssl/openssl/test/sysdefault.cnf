@@ -18,5 +18,6 @@ new-sig-oid = 1.1.1.1.1.1.1.1.1.1.1.1.1.1
 system_default = ssl_default_sect
 
 [ssl_default_sect]
+SignatureAlgorithms = RSA+SHA256:nonex
 MaxProtocol = TLSv1.2
 MinProtocol = TLSv1.2

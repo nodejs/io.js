@@ -11,6 +11,8 @@
 
 #if !UCONFIG_NO_FORMATTING
 
+#include <utility>
+
 #include "unicode/decimfmt.h"
 #include "unicode/localpointer.h"
 #include "plurrule_impl.h"
@@ -19,6 +21,7 @@
 #include "cmemory.h"
 #include "cstring.h"
 #include "hash.h"
+#include "ulocimp.h"
 #include "uresimp.h"
 #include "ureslocs.h"
 #include "unicode/msgfmt.h"
@@ -556,14 +559,12 @@ TimeUnitFormat::searchInLocaleChain(UTimeUnitFormatStyle style, const char* key,
         return;
     }
     UErrorCode status = U_ZERO_ERROR;
-    char parentLocale[ULOC_FULLNAME_CAPACITY];
-    uprv_strcpy(parentLocale, localeName);
-    int32_t locNameLen;
+    CharString parentLocale(localeName, status);
     U_ASSERT(countToPatterns != nullptr);
-    while ((locNameLen = uloc_getParent(parentLocale, parentLocale,
-                                        ULOC_FULLNAME_CAPACITY, &status)) >= 0){
+    for (;;) {
+        parentLocale = ulocimp_getParent(parentLocale.data(), status);
         // look for pattern for srcPluralCount in locale tree
-        LocalUResourceBundlePointer rb(ures_open(U_ICUDATA_UNIT, parentLocale, &status));
+        LocalUResourceBundlePointer rb(ures_open(U_ICUDATA_UNIT, parentLocale.data(), &status));
         LocalUResourceBundlePointer unitsRes(ures_getByKey(rb.getAlias(), key, nullptr, &status));
         const char* timeUnitName = getTimeUnitName(srcTimeUnitField, status);
         LocalUResourceBundlePointer countsToPatternRB(ures_getByKey(unitsRes.getAlias(), timeUnitName, nullptr, &status));
@@ -594,14 +595,14 @@ TimeUnitFormat::searchInLocaleChain(UTimeUnitFormatStyle style, const char* key,
             return;
         }
         status = U_ZERO_ERROR;
-        if (locNameLen == 0) {
+        if (parentLocale.isEmpty()) {
             break;
         }
     }
 
     // if no unitsShort resource was found even after fallback to root locale
     // then search the units resource fallback from the current level to root
-    if ( locNameLen == 0 && uprv_strcmp(key, gShortUnitsTag) == 0) {
+    if ( parentLocale.isEmpty() && uprv_strcmp(key, gShortUnitsTag) == 0) {
 #ifdef TMUTFMT_DEBUG
         std::cout << "loop into searchInLocaleChain since Short-Long-Alternative \n";
 #endif

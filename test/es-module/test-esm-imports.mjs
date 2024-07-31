@@ -124,7 +124,7 @@ requireFixture('#cjs').then(mustCall((actual) => {
 }));
 
 function assertStartsWith(actual, expected) {
-  const start = actual.toString().substr(0, expected.length);
+  const start = actual.toString().slice(0, expected.length);
   strictEqual(start, expected);
 }
 

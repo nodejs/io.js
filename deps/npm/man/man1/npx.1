@@ -1,4 +1,4 @@
-.TH "NPX" "1" "October 2023" "" ""
+.TH "NPX" "1" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBnpx\fR - Run a command from a local or remote npm package
 .SS "Synopsis"
@@ -128,7 +128,7 @@ The \fB--ignore-existing\fR option is removed. Locally installed bins are always
 .IP \(bu 4
 The \fB--npm\fR option is removed. \fBnpx\fR will always use the \fBnpm\fR it ships with.
 .IP \(bu 4
-The \fB--node-arg\fR and \fB-n\fR options are removed.
+The \fB--node-arg\fR and \fB-n\fR options have been removed. Use \fB\fBNODE_OPTIONS\fR\fR \fI\(lahttps://nodejs.org/api/cli.html#node_optionsoptions\(ra\fR instead: e.g., \fBNODE_OPTIONS="--trace-warnings --trace-exit" npx foo --random=true\fR
 .IP \(bu 4
 The \fB--always-spawn\fR option is redundant, and thus removed.
 .IP \(bu 4

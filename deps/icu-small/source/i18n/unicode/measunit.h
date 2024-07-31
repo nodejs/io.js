@@ -33,11 +33,9 @@ U_NAMESPACE_BEGIN
 class StringEnumeration;
 class MeasureUnitImpl;
 
-namespace number {
-namespace impl {
+namespace number::impl {
 class LongNameHandler;
-}
-} // namespace number
+} // namespace number::impl
 
 /**
  * Enumeration for unit complexity. There are three levels:
@@ -107,13 +105,34 @@ typedef enum UMeasurePrefix {
      */
     UMEASURE_PREFIX_YOTTA = UMEASURE_PREFIX_ONE + 24,
 
+#ifndef U_HIDE_DRAFT_API
+    /**
+     * SI prefix: ronna, 10^27.
+     *
+     * @draft ICU 75
+     */
+    UMEASURE_PREFIX_RONNA = UMEASURE_PREFIX_ONE + 27,
+
+    /**
+     * SI prefix: quetta, 10^30.
+     *
+     * @draft ICU 75
+     */
+    UMEASURE_PREFIX_QUETTA = UMEASURE_PREFIX_ONE + 30,
+#endif  /* U_HIDE_DRAFT_API */
+
 #ifndef U_HIDE_INTERNAL_API
     /**
      * ICU use only.
      * Used to determine the set of base-10 SI prefixes.
      * @internal
      */
+#ifndef U_HIDE_DRAFT_API
+    UMEASURE_PREFIX_INTERNAL_MAX_SI = UMEASURE_PREFIX_QUETTA,
+#else  /* U_HIDE_DRAFT_API */
     UMEASURE_PREFIX_INTERNAL_MAX_SI = UMEASURE_PREFIX_YOTTA,
+#endif  /* U_HIDE_DRAFT_API */
+
 #endif  /* U_HIDE_INTERNAL_API */
 
     /**
@@ -249,13 +268,34 @@ typedef enum UMeasurePrefix {
      */
     UMEASURE_PREFIX_YOCTO = UMEASURE_PREFIX_ONE + -24,
 
+#ifndef U_HIDE_DRAFT_API
+    /**
+     * SI prefix: ronto, 10^-27.
+     *
+     * @draft ICU 75
+     */
+    UMEASURE_PREFIX_RONTO = UMEASURE_PREFIX_ONE + -27,
+
+    /**
+     * SI prefix: quecto, 10^-30.
+     *
+     * @draft ICU 75
+     */
+    UMEASURE_PREFIX_QUECTO = UMEASURE_PREFIX_ONE + -30,
+#endif  /* U_HIDE_DRAFT_API */
+
 #ifndef U_HIDE_INTERNAL_API
     /**
      * ICU use only.
      * Used to determine the set of base-10 SI prefixes.
      * @internal
      */
+#ifndef U_HIDE_DRAFT_API
+    UMEASURE_PREFIX_INTERNAL_MIN_SI = UMEASURE_PREFIX_QUECTO,
+#else  /* U_HIDE_DRAFT_API */
     UMEASURE_PREFIX_INTERNAL_MIN_SI = UMEASURE_PREFIX_YOCTO,
+#endif  /* U_HIDE_DRAFT_API */
+
 #endif  // U_HIDE_INTERNAL_API
 
     // Cannot conditionalize the following with #ifndef U_HIDE_INTERNAL_API,
@@ -371,7 +411,8 @@ class U_I18N_API MeasureUnit: public UObject {
 
     /**
      * Default constructor.
-     * Populates the instance with the base dimensionless unit.
+     * Populates the instance with the base dimensionless unit, which means that there will be
+     * no unit on the formatted number.
      * @stable ICU 3.0
      */
     MeasureUnit();
@@ -647,7 +688,7 @@ class U_I18N_API MeasureUnit: public UObject {
      * @return          The class ID for all objects of this class.
      * @stable ICU 53
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
     /**
      * Returns a unique class ID POLYMORPHICALLY. Pure virtual override. This
@@ -660,7 +701,7 @@ class U_I18N_API MeasureUnit: public UObject {
      *                  other classes have different class IDs.
      * @stable ICU 53
      */
-    virtual UClassID getDynamicClassID(void) const override;
+    virtual UClassID getDynamicClassID() const override;
 
 #ifndef U_HIDE_INTERNAL_API
     /**
@@ -1527,23 +1568,21 @@ class U_I18N_API MeasureUnit: public UObject {
      */
     static MeasureUnit getNanosecond();
 
-#ifndef U_HIDE_DRAFT_API
     /**
      * Returns by pointer, unit of duration: quarter.
      * Caller owns returned value and must free it.
      * Also see {@link #getQuarter()}.
      * @param status ICU error code.
-     * @draft ICU 72
+     * @stable ICU 72
      */
     static MeasureUnit *createQuarter(UErrorCode &status);
 
     /**
      * Returns by value, unit of duration: quarter.
      * Also see {@link #createQuarter()}.
-     * @draft ICU 72
+     * @stable ICU 72
      */
     static MeasureUnit getQuarter();
-#endif /* U_HIDE_DRAFT_API */
 
     /**
      * Returns by pointer, unit of duration: second.
@@ -2737,23 +2776,21 @@ class U_I18N_API MeasureUnit: public UObject {
      */
     static MeasureUnit getTon();
 
-#ifndef U_HIDE_DRAFT_API
     /**
      * Returns by pointer, unit of mass: tonne.
      * Caller owns returned value and must free it.
      * Also see {@link #getTonne()}.
      * @param status ICU error code.
-     * @draft ICU 72
+     * @stable ICU 72
      */
     static MeasureUnit *createTonne(UErrorCode &status);
 
     /**
      * Returns by value, unit of mass: tonne.
      * Also see {@link #createTonne()}.
-     * @draft ICU 72
+     * @stable ICU 72
      */
     static MeasureUnit getTonne();
-#endif /* U_HIDE_DRAFT_API */
 
     /**
      * Returns by pointer, unit of power: gigawatt.
@@ -2883,6 +2920,24 @@ class U_I18N_API MeasureUnit: public UObject {
      */
     static MeasureUnit getBar();
 
+#ifndef U_HIDE_DRAFT_API
+    /**
+     * Returns by pointer, unit of pressure: gasoline-energy-density.
+     * Caller owns returned value and must free it.
+     * Also see {@link #getGasolineEnergyDensity()}.
+     * @param status ICU error code.
+     * @draft ICU 74
+     */
+    static MeasureUnit *createGasolineEnergyDensity(UErrorCode &status);
+
+    /**
+     * Returns by value, unit of pressure: gasoline-energy-density.
+     * Also see {@link #createGasolineEnergyDensity()}.
+     * @draft ICU 74
+     */
+    static MeasureUnit getGasolineEnergyDensity();
+#endif /* U_HIDE_DRAFT_API */
+
     /**
      * Returns by pointer, unit of pressure: hectopascal.
      * Caller owns returned value and must free it.
@@ -3011,23 +3066,21 @@ class U_I18N_API MeasureUnit: public UObject {
      */
     static MeasureUnit getPoundPerSquareInch();
 
-#ifndef U_HIDE_DRAFT_API
     /**
      * Returns by pointer, unit of speed: beaufort.
      * Caller owns returned value and must free it.
      * Also see {@link #getBeaufort()}.
      * @param status ICU error code.
-     * @draft ICU 73
+     * @stable ICU 73
      */
     static MeasureUnit *createBeaufort(UErrorCode &status);
 
     /**
      * Returns by value, unit of speed: beaufort.
      * Also see {@link #createBeaufort()}.
-     * @draft ICU 73
+     * @stable ICU 73
      */
     static MeasureUnit getBeaufort();
-#endif /* U_HIDE_DRAFT_API */
 
     /**
      * Returns by pointer, unit of speed: kilometer-per-hour.

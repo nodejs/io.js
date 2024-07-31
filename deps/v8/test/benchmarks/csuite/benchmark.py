@@ -30,6 +30,8 @@ class BenchmarkSuite(object):
     self.name = name
     self.results = {}
     self.tests = []
+    self.memoryresults = []
+    self.nummemory = 0
     self.avgresult = {}
     self.sigmaresult = {}
     self.numresult = {}
@@ -43,6 +45,9 @@ class BenchmarkSuite(object):
       self.results[test] = []
     self.results[test] += [int(result)]
 
+  def RecordMemory(self, result):
+    self.memoryresults += [int(result)]
+
   def ThrowAwayWorstResult(self, results):
     if len(results) <= 1: return
     if self.name in self.kClassicScoreSuites:
@@ -50,24 +55,33 @@ class BenchmarkSuite(object):
     elif self.name in self.kGeometricScoreSuites:
       del results[0]
 
+  def ComputeResults(self, results):
+    if len(results) == 0:
+      return (0.0, 0.0, 0)
+    results.sort()
+    self.ThrowAwayWorstResult(results)
+    count = len(results)
+    mean = sum(results) * 1.0 / count
+    sigma = math.sqrt(sum(
+        (x - mean)**2 for x in results) / (count - 1)) if count > 1 else 0.0
+
+    return (mean, sigma, count)
+
   def ProcessResults(self, opts):
     for test in self.tests:
-      results = self.results[test]
-      results.sort()
-      self.ThrowAwayWorstResult(results)
-      mean = sum(results) * 1.0 / len(results)
-      self.avgresult[test] = mean
-      sigma_divisor = len(results) - 1
-      if sigma_divisor == 0:
-        sigma_divisor = 1
-      self.sigmaresult[test] = math.sqrt(
-          sum((x - mean) ** 2 for x in results) / sigma_divisor)
-      self.numresult[test] = len(results)
+      (self.avgresult[test], self.sigmaresult[test],
+       self.numresult[test]) = self.ComputeResults(self.results[test])
       if opts.verbose:
         if not test in ["Octane"]:
           print("%s,%.1f,%.2f,%d" %
               (test, self.avgresult[test],
                self.sigmaresult[test], self.numresult[test]))
+
+  def ProcessMemory(self):
+    if (len(self.memoryresults)) == 0:
+      return
+    (self.avgmemory, self.sigmamemory,
+     self.nummemory) = self.ComputeResults(self.memoryresults)
 
   def ComputeScoreGeneric(self):
     self.score = 0
@@ -153,6 +167,11 @@ class BenchmarkRunner(object):
     if line == "----":
       return (None, None)
 
+    # Retrieve peak memory usage if available
+    g = re.match("System peak.*: (?P<peak_memory>\d+)", line)
+    if g != None:
+      return ("memory", g.group('peak_memory'))
+
     # Kraken or Sunspider?
     g = re.match("(?P<test_name>\w+(-\w+)*)\(RunTime\): (?P<score>\d+) ms\.", \
         line)
@@ -178,10 +197,17 @@ class BenchmarkRunner(object):
         for line in f:
           (test, result) = self.ProcessLine(line)
           if test is not None:
-            suite.RecordResult(test, result)
+            if test == "memory":
+              suite.RecordMemory(result)
+            else:
+              suite.RecordResult(test, result)
 
     suite.ProcessResults(self.opts)
+    suite.ProcessMemory()
     suite.ComputeScore()
+    if suite.nummemory > 0:
+      print(("PeakMemory,%.1f,%.2f,%d " %
+             (suite.avgmemory, suite.sigmamemory, suite.nummemory)))
     print(("%s,%.1f,%.2f,%d " %
         (suite.name, suite.score, suite.sigma, suite.num)), end='')
     if self.opts.verbose:

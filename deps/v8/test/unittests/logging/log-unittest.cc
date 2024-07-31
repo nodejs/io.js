@@ -83,15 +83,13 @@ class V8_NODISCARD ScopedLoggerInitializer {
         isolate_(isolate),
         isolate_scope_(isolate),
         scope_(isolate),
-        env_(v8::Context::New(isolate)),
-        v8_file_logger_(
-            reinterpret_cast<i::Isolate*>(isolate)->v8_file_logger()) {
+        env_(v8::Context::New(isolate)) {
     env_->Enter();
   }
 
   ~ScopedLoggerInitializer() {
     env_->Exit();
-    FILE* log_file = v8_file_logger_->TearDownAndGetLogFile();
+    FILE* log_file = v8_file_logger()->TearDownAndGetLogFile();
     if (log_file != nullptr) fclose(log_file);
   }
 
@@ -104,7 +102,9 @@ class V8_NODISCARD ScopedLoggerInitializer {
 
   i::Isolate* i_isolate() { return reinterpret_cast<i::Isolate*>(isolate()); }
 
-  V8FileLogger* v8_file_logger() { return v8_file_logger_; }
+  V8FileLogger* v8_file_logger() { return i_isolate()->v8_file_logger(); }
+
+  i::Logger* logger() { return i_isolate()->logger(); }
 
   v8::Local<v8::String> GetLogString() {
     int length = static_cast<int>(raw_log_.size());
@@ -203,16 +203,16 @@ class V8_NODISCARD ScopedLoggerInitializer {
     return result;
   }
 
-  void LogCodeObjects() { v8_file_logger_->LogCodeObjects(); }
-  void LogCompiledFunctions() { v8_file_logger_->LogCompiledFunctions(); }
+  void LogCodeObjects() { v8_file_logger()->LogCodeObjects(); }
+  void LogCompiledFunctions() { v8_file_logger()->LogCompiledFunctions(); }
 
   void StringEvent(const char* name, const char* value) {
-    v8_file_logger_->StringEvent(name, value);
+    v8_file_logger()->StringEvent(name, value);
   }
 
  private:
   FILE* StopLoggingGetTempFile() {
-    temp_file_ = v8_file_logger_->TearDownAndGetLogFile();
+    temp_file_ = v8_file_logger()->TearDownAndGetLogFile();
     CHECK(temp_file_);
     rewind(temp_file_);
     return temp_file_;
@@ -223,7 +223,6 @@ class V8_NODISCARD ScopedLoggerInitializer {
   v8::Isolate::Scope isolate_scope_;
   v8::HandleScope scope_;
   v8::Local<v8::Context> env_;
-  V8FileLogger* v8_file_logger_;
 
   std::string raw_log_;
   std::vector<std::string> log_;
@@ -317,7 +316,7 @@ TEST_F(TestWithIsolate, Issue23768) {
   CHECK(!evil_script.IsEmpty());
   CHECK(!evil_script->Run(env).IsEmpty());
   i::Handle<i::ExternalTwoByteString> i_source(
-      i::ExternalTwoByteString::cast(*v8::Utils::OpenHandle(*source)),
+      i::ExternalTwoByteString::cast(*v8::Utils::OpenDirectHandle(*source)),
       i_isolate());
   // This situation can happen if source was an external string disposed
   // by its owner.
@@ -367,14 +366,14 @@ TEST_F(LogTest, LogCallbacks) {
   }
 }
 
-static void Prop1Getter(v8::Local<v8::String> property,
+static void Prop1Getter(v8::Local<v8::Name> property,
                         const v8::PropertyCallbackInfo<v8::Value>& info) {}
 
-static void Prop1Setter(v8::Local<v8::String> property,
+static void Prop1Setter(v8::Local<v8::Name> property,
                         v8::Local<v8::Value> value,
                         const v8::PropertyCallbackInfo<void>& info) {}
 
-static void Prop2Getter(v8::Local<v8::String> property,
+static void Prop2Getter(v8::Local<v8::Name> property,
                         const v8::PropertyCallbackInfo<v8::Value>& info) {}
 
 TEST_F(LogTest, LogAccessorCallbacks) {
@@ -445,7 +444,7 @@ TEST_F(LogTest, Issue539892) {
 
   {
     ScopedLoggerInitializer logger(isolate());
-    logger.v8_file_logger()->AddLogEventListener(&code_event_logger);
+    logger.logger()->AddListener(&code_event_logger);
 
     // Function with a really large name.
     const char* source_text =
@@ -473,7 +472,7 @@ TEST_F(LogTest, Issue539892) {
 
     // Must not crash.
     logger.LogCompiledFunctions();
-    logger.v8_file_logger()->RemoveLogEventListener(&code_event_logger);
+    logger.logger()->RemoveListener(&code_event_logger);
   }
 }
 
@@ -618,7 +617,7 @@ TEST_F(LogInterpretedFramesNativeStackWithSerializationTest,
       v8::Local<v8::String> source = NewString(
           "function eyecatcher() { return a * a; } return eyecatcher();");
       v8::Local<v8::String> arg_str = NewString("a");
-      v8::ScriptOrigin origin(isolate, NewString("filename"));
+      v8::ScriptOrigin origin(NewString("filename"));
 
       i::DisallowCompilation* no_compile_expected =
           has_cache ? new i::DisallowCompilation(
@@ -747,7 +746,7 @@ TEST_F(LogExternalLogEventListenerInnerFunctionTest,
     code_event_handler.Enable();
 
     v8::Local<v8::String> source_string = NewString(source_cstring);
-    v8::ScriptOrigin origin(isolate1, NewString("test"));
+    v8::ScriptOrigin origin(NewString("test"));
     v8::ScriptCompiler::Source source(source_string, origin);
     v8::Local<v8::UnboundScript> script =
         v8::ScriptCompiler::CompileUnboundScript(isolate1, &source)
@@ -773,7 +772,7 @@ TEST_F(LogExternalLogEventListenerInnerFunctionTest,
     code_event_handler.Enable();
 
     v8::Local<v8::String> source_string = NewString(source_cstring);
-    v8::ScriptOrigin origin(isolate2, NewString("test"));
+    v8::ScriptOrigin origin(NewString("test"));
     v8::ScriptCompiler::Source source(source_string, origin, cache);
     {
       i::DisallowCompilation no_compile_expected(
@@ -808,7 +807,7 @@ TEST_F(LogExternalInterpretedFramesNativeStackTest,
     context->Enter();
 
     i::FakeCodeEventLogger code_event_logger(i_isolate());
-    i_isolate()->v8_file_logger()->AddLogEventListener(&code_event_logger);
+    CHECK(i_isolate()->logger()->AddListener(&code_event_logger));
 
     TestCodeEventHandler code_event_handler(isolate());
 
@@ -841,7 +840,7 @@ TEST_F(LogExternalInterpretedFramesNativeStackTest,
         1);
 
     context->Exit();
-    i_isolate()->v8_file_logger()->RemoveLogEventListener(&code_event_logger);
+    CHECK(i_isolate()->logger()->RemoveListener(&code_event_logger));
   }
 }
 #endif  // V8_TARGET_ARCH_ARM

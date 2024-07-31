@@ -1,7 +1,8 @@
-const { resolve, basename } = require('path')
-const { unlink } = require('fs').promises
-const log = require('../utils/log-shim')
-const BaseCommand = require('../base-command.js')
+const { resolve, basename } = require('node:path')
+const { unlink } = require('node:fs/promises')
+const { log } = require('proc-log')
+const BaseCommand = require('../base-cmd.js')
+
 class Shrinkwrap extends BaseCommand {
   static description = 'Lock down dependency versions for publication'
   static name = 'shrinkwrap'
@@ -68,4 +69,5 @@ class Shrinkwrap extends BaseCommand {
     }
   }
 }
+
 module.exports = Shrinkwrap

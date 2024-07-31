@@ -20,7 +20,22 @@ latest: 1.0.0
 `
 
 exports[`test/lib/commands/dist-tag.js TAP ls on missing package > should log no dist-tag found msg 1`] = `
-dist-tag ls Couldn't get dist-tag data for foo@*
+dist-tag ls Couldn't get dist-tag data for Result {
+dist-tag ls   type: 'range',
+dist-tag ls   registry: true,
+dist-tag ls   where: undefined,
+dist-tag ls   raw: 'foo',
+dist-tag ls   name: 'foo',
+dist-tag ls   escapedName: 'foo',
+dist-tag ls   scope: undefined,
+dist-tag ls   rawSpec: '*',
+dist-tag ls   saveSpec: null,
+dist-tag ls   fetchSpec: '*',
+dist-tag ls   gitRange: undefined,
+dist-tag ls   gitCommittish: undefined,
+dist-tag ls   gitSubdir: undefined,
+dist-tag ls   hosted: undefined
+dist-tag ls }
 `
 
 exports[`test/lib/commands/dist-tag.js TAP ls on named package > should list tags for the specified package 1`] = `

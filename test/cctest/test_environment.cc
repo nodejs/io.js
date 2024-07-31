@@ -620,12 +620,9 @@ TEST_F(EnvironmentTest, SetImmediateMicrotasks) {
 
 #ifndef _WIN32  // No SIGINT on Windows.
 TEST_F(NodeZeroIsolateTestFixture, CtrlCWithOnlySafeTerminationTest) {
-  // We need to go through the whole setup dance here because we want to
-  // set only_terminate_in_safe_scope.
   // Allocate and initialize Isolate.
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = allocator.get();
-  create_params.only_terminate_in_safe_scope = true;
   v8::Isolate* isolate = v8::Isolate::Allocate();
   CHECK_NOT_NULL(isolate);
   platform->RegisterIsolate(isolate, &current_loop);
@@ -686,8 +683,13 @@ TEST_F(EnvironmentTest, NestedMicrotaskQueue) {
 
   std::unique_ptr<v8::MicrotaskQueue> queue = v8::MicrotaskQueue::New(
       isolate_, v8::MicrotasksPolicy::kExplicit);
-  v8::Local<v8::Context> context = v8::Context::New(
-      isolate_, nullptr, {}, {}, {}, queue.get());
+  v8::Local<v8::Context> context =
+      v8::Context::New(isolate_,
+                       nullptr,
+                       {},
+                       {},
+                       v8::DeserializeInternalFieldsCallback(),
+                       queue.get());
   node::InitializeContext(context);
   v8::Context::Scope context_scope(context);
 
@@ -772,4 +774,32 @@ TEST_F(EnvironmentTest, RequestInterruptAtExit) {
   EXPECT_TRUE(interrupted);
 
   context->Exit();
+}
+
+TEST_F(EnvironmentTest, EmbedderPreload) {
+  v8::HandleScope handle_scope(isolate_);
+  v8::Local<v8::Context> context = node::NewContext(isolate_);
+  v8::Context::Scope context_scope(context);
+
+  node::EmbedderPreloadCallback preload = [](node::Environment* env,
+                                             v8::Local<v8::Value> process,
+                                             v8::Local<v8::Value> require) {
+    CHECK(process->IsObject());
+    CHECK(require->IsFunction());
+    process.As<v8::Object>()
+        ->Set(env->context(),
+              v8::String::NewFromUtf8Literal(env->isolate(), "prop"),
+              v8::String::NewFromUtf8Literal(env->isolate(), "preload"))
+        .Check();
+  };
+
+  std::unique_ptr<node::Environment, decltype(&node::FreeEnvironment)> env(
+      node::CreateEnvironment(isolate_data_, context, {}, {}),
+      node::FreeEnvironment);
+
+  v8::Local<v8::Value> main_ret =
+      node::LoadEnvironment(env.get(), "return process.prop;", preload)
+          .ToLocalChecked();
+  node::Utf8Value main_ret_str(isolate_, main_ret);
+  EXPECT_EQ(std::string(*main_ret_str), "preload");
 }

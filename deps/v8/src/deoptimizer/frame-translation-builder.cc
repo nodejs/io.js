@@ -213,7 +213,7 @@ FrameTranslationBuilder::ToFrameTranslation(LocalFactory* factory) {
     CHECK_EQ(
         zlib_internal::CompressHelper(
             zlib_internal::ZRAW, compressed_data.data(), &compressed_data_size,
-            base::bit_cast<const Bytef*>(contents_for_compression_.data()),
+            reinterpret_cast<const Bytef*>(contents_for_compression_.data()),
             input_size, Z_DEFAULT_COMPRESSION, nullptr, nullptr),
         Z_OK);
 
@@ -225,9 +225,9 @@ FrameTranslationBuilder::ToFrameTranslation(LocalFactory* factory) {
 
     result->set_int(DeoptimizationFrameTranslation::kUncompressedSizeOffset,
                     Size());
-    std::memcpy(result->GetDataStartAddress() +
-                    DeoptimizationFrameTranslation::kCompressedDataOffset,
-                compressed_data.data(), compressed_data_size);
+    std::memcpy(
+        result->begin() + DeoptimizationFrameTranslation::kCompressedDataOffset,
+        compressed_data.data(), compressed_data_size);
 
     return result;
   }
@@ -237,8 +237,7 @@ FrameTranslationBuilder::ToFrameTranslation(LocalFactory* factory) {
   Handle<DeoptimizationFrameTranslation> result =
       factory->NewDeoptimizationFrameTranslation(SizeInBytes());
   if (SizeInBytes() == 0) return result;
-  memcpy(result->GetDataStartAddress(), contents_.data(),
-         contents_.size() * sizeof(uint8_t));
+  memcpy(result->begin(), contents_.data(), contents_.size() * sizeof(uint8_t));
 #ifdef ENABLE_SLOW_DCHECKS
   if (v8_flags.enable_slow_asserts) {
     // Check that we can read back all of the same content we intended to write.

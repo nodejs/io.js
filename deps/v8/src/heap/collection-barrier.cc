@@ -51,7 +51,12 @@ class BackgroundCollectionInterruptTask : public CancelableTask {
 
  private:
   // v8::internal::CancelableTask overrides.
-  void RunInternal() override { heap_->CheckCollectionRequested(); }
+  void RunInternal() override {
+    // In case multi-cage pointer compression mode is enabled ensure that
+    // current thread's cage base values are properly initialized.
+    PtrComprCageAccessScope ptr_compr_cage_access_scope(heap_->isolate());
+    heap_->CheckCollectionRequested();
+  }
 
   Heap* heap_;
 };

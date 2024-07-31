@@ -826,6 +826,17 @@
             }
         },
         {
+            "comment": "Stuff after a ? delimiter is ignored, trailing 'port'",
+            "href": "http://example.net/path",
+            "new_value": "example.com?stuff:8080",
+            "expected": {
+                "href": "http://example.com/path",
+                "host": "example.com",
+                "hostname": "example.com",
+                "port": ""
+            }
+        },
+        {
             "comment": "Stuff after a ? delimiter is ignored",
             "href": "http://example.net/path",
             "new_value": "example.com:8080?stuff",
@@ -921,6 +932,39 @@
                 "href": "http://example.com:8080/path",
                 "host": "example.com:8080",
                 "hostname": "example.com",
+                "port": "8080"
+            }
+        },
+        {
+            "comment": "Anything other than ASCII digit stops the port parser in a setter but is not an error",
+            "href": "http://example.net:8080",
+            "new_value": "example.com:invalid",
+            "expected": {
+                "href": "http://example.com:8080/",
+                "host": "example.com:8080",
+                "hostname": "example.com",
+                "port": "8080"
+            }
+        },
+        {
+            "comment": "Anything other than ASCII digit stops the port parser in a setter but is not an error",
+            "href": "http://example.net:8080/test",
+            "new_value": "[::1]:invalid",
+            "expected": {
+                "href": "http://[::1]:8080/test",
+                "host": "[::1]:8080",
+                "hostname": "[::1]",
+                "port": "8080"
+            }
+        },
+        {
+            "comment": "IPv6 without port",
+            "href": "http://example.net:8080/test",
+            "new_value": "[::1]",
+            "expected": {
+                "href": "http://[::1]:8080/test",
+                "host": "[::1]:8080",
+                "hostname": "[::1]",
                 "port": "8080"
             }
         },

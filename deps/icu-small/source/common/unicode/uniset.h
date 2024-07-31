@@ -333,7 +333,7 @@ public:
      * @see setToBogus()
      * @stable ICU 4.0
      */
-    inline UBool isBogus(void) const;
+    inline UBool isBogus() const;
 
     /**
      * Make this UnicodeSet object invalid.
@@ -522,7 +522,7 @@ public:
      * @see Object#hashCode()
      * @stable ICU 2.0
      */
-    virtual int32_t hashCode(void) const;
+    virtual int32_t hashCode() const;
 
     /**
      * Get a UnicodeSet pointer from a USet
@@ -792,7 +792,7 @@ public:
      * @stable ICU 2.0
      * @see getRangeCount
      */
-    virtual int32_t size(void) const;
+    virtual int32_t size() const;
 
     /**
      * Returns <tt>true</tt> if this set contains no elements.
@@ -800,7 +800,7 @@ public:
      * @return <tt>true</tt> if this set contains no elements.
      * @stable ICU 2.0
      */
-    virtual UBool isEmpty(void) const;
+    virtual UBool isEmpty() const;
 
     /**
      * @return true if this set contains multi-character strings or the empty string.
@@ -1394,7 +1394,7 @@ public:
      * A frozen set will not be modified.
      * @stable ICU 2.0
      */
-    virtual UnicodeSet& clear(void);
+    virtual UnicodeSet& clear();
 
     /**
      * Close this set over the given attribute.  For the attribute
@@ -1440,7 +1440,7 @@ public:
      * @see #getRangeEnd
      * @stable ICU 2.4
      */
-    virtual int32_t getRangeCount(void) const;
+    virtual int32_t getRangeCount() const;
 
     /**
      * Iteration method that returns the first character in the
@@ -1529,7 +1529,7 @@ public:
      * @return          The class ID for all objects of this class.
      * @stable ICU 2.0
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
     /**
      * Implement UnicodeFunctor API.
@@ -1539,9 +1539,9 @@ public:
      * different class IDs.
      * @stable ICU 2.4
      */
-    virtual UClassID getDynamicClassID(void) const override;
+    virtual UClassID getDynamicClassID() const override;
 
-private:
+  private:
 
     // Private API for the USet API
 
@@ -1602,7 +1602,7 @@ private:
 
     bool ensureBufferCapacity(int32_t newLen);
 
-    void swapBuffers(void);
+    void swapBuffers();
 
     UBool allocateStrings(UErrorCode &status);
     int32_t stringsSize() const;

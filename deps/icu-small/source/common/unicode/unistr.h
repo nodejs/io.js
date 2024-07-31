@@ -1611,9 +1611,9 @@ public:
    * @stable ICU 2.0
    */
   inline int32_t extract(int32_t start,
-                 int32_t startLength,
-                 char *target,
-                 const char *codepage = 0) const;
+                         int32_t startLength,
+                         char* target,
+                         const char* codepage = nullptr) const;
 
   /**
    * Copy the characters in the range
@@ -1759,7 +1759,7 @@ public:
    * @see countChar32
    * @stable ICU 2.0
    */
-  inline int32_t length(void) const;
+  inline int32_t length() const;
 
   /**
    * Count Unicode code points in the length char16_t code units of the string.
@@ -1808,7 +1808,7 @@ public:
    * @return true if this string contains 0 characters, false otherwise.
    * @stable ICU 2.0
    */
-  inline UBool isEmpty(void) const;
+  inline UBool isEmpty() const;
 
   /**
    * Return the capacity of the internal buffer of the UnicodeString object.
@@ -1819,7 +1819,7 @@ public:
    * @see getBuffer
    * @stable ICU 2.0
    */
-  inline int32_t getCapacity(void) const;
+  inline int32_t getCapacity() const;
 
   /* Other operations */
 
@@ -1828,7 +1828,7 @@ public:
    * @return The hash code of this UnicodeString.
    * @stable ICU 2.0
    */
-  inline int32_t hashCode(void) const;
+  inline int32_t hashCode() const;
 
   /**
    * Determine if this object contains a valid string.
@@ -1842,8 +1842,7 @@ public:
    * @see setToBogus()
    * @stable ICU 2.0
    */
-  inline UBool isBogus(void) const;
-
+  inline UBool isBogus() const;
 
   //========================================
   // Write operations
@@ -2624,8 +2623,7 @@ public:
    * @return a reference to this
    * @stable ICU 2.0
    */
-  UnicodeString& trim(void);
-
+  UnicodeString& trim();
 
   /* Miscellaneous operations */
 
@@ -2634,7 +2632,7 @@ public:
    * @return a reference to this
    * @stable ICU 2.0
    */
-  inline UnicodeString& reverse(void);
+  inline UnicodeString& reverse();
 
   /**
    * Reverse the range [`start`, `start + length`) in
@@ -2653,7 +2651,7 @@ public:
    * @return A reference to this.
    * @stable ICU 2.0
    */
-  UnicodeString& toUpper(void);
+  UnicodeString& toUpper();
 
   /**
    * Convert the characters in this to UPPER CASE following the conventions of
@@ -2670,7 +2668,7 @@ public:
    * @return A reference to this.
    * @stable ICU 2.0
    */
-  UnicodeString& toLower(void);
+  UnicodeString& toLower();
 
   /**
    * Convert the characters in this to lower case following the conventions of
@@ -3590,12 +3588,12 @@ private:
                int32_t length);
 
   // calculate hash code
-  int32_t doHashCode(void) const;
+  int32_t doHashCode() const;
 
   // get pointer to start of array
   // these do not check for kOpenGetBuffer, unlike the public getBuffer() function
-  inline char16_t* getArrayStart(void);
-  inline const char16_t* getArrayStart(void) const;
+  inline char16_t* getArrayStart();
+  inline const char16_t* getArrayStart() const;
 
   inline UBool hasShortLength() const;
   inline int32_t getShortLength() const;
@@ -3622,7 +3620,7 @@ private:
   UBool allocate(int32_t capacity);
 
   // release the array if owned
-  void releaseArray(void);
+  void releaseArray();
 
   // turn a bogus string into an empty one
   void unBogus();
@@ -3684,10 +3682,10 @@ private:
    * Return false if memory could not be allocated.
    */
   UBool cloneArrayIfNeeded(int32_t newCapacity = -1,
-                            int32_t growCapacity = -1,
-                            UBool doCopyArray = true,
-                            int32_t **pBufferToDelete = 0,
-                            UBool forceClone = false);
+                           int32_t growCapacity = -1,
+                           UBool doCopyArray = true,
+                           int32_t** pBufferToDelete = nullptr,
+                           UBool forceClone = false);
 
   /**
    * Common function for UnicodeString case mappings.
@@ -3702,9 +3700,9 @@ private:
           UStringCaseMapper *stringCaseMapper);
 
   // ref counting
-  void addRef(void);
-  int32_t removeRef(void);
-  int32_t refCount(void) const;
+  void addRef();
+  int32_t removeRef();
+  int32_t refCount() const;
 
   // constants
   enum {
@@ -4510,7 +4508,7 @@ UnicodeString::extract(int32_t start,
 
 {
   // This dstSize value will be checked explicitly
-  return extract(start, _length, dst, dst!=0 ? 0xffffffff : 0, codepage);
+  return extract(start, _length, dst, dst != nullptr ? 0xffffffff : 0, codepage);
 }
 
 #endif

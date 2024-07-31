@@ -21,7 +21,7 @@ namespace v8::internal {
 class WasmModuleObject;
 }
 
-namespace v8::internal::wasm::fuzzer {
+namespace v8::internal::wasm::fuzzing {
 
 class AsyncFuzzerResolver : public CompilationResultResolver {
  public:
@@ -54,12 +54,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
   Isolate* i_isolate = reinterpret_cast<Isolate*>(isolate);
 
-  // Clear any pending exceptions from a prior run.
-  if (i_isolate->has_pending_exception()) {
-    i_isolate->clear_pending_exception();
+  v8::Isolate::Scope isolate_scope(isolate);
+
+  // Clear any exceptions from a prior run.
+  if (i_isolate->has_exception()) {
+    i_isolate->clear_exception();
   }
 
-  v8::Isolate::Scope isolate_scope(isolate);
   v8::HandleScope handle_scope(isolate);
   v8::Context::Scope context_scope(support->GetContext());
 
@@ -75,7 +76,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   auto enabled_features = WasmFeatures::FromIsolate(i_isolate);
   constexpr const char* kAPIMethodName = "WasmAsyncFuzzer.compile";
   GetWasmEngine()->AsyncCompile(
-      i_isolate, enabled_features,
+      i_isolate, enabled_features, CompileTimeImports{},
       std::make_shared<AsyncFuzzerResolver>(i_isolate, &done),
       ModuleWireBytes(data, data + size), false, kAPIMethodName);
 
@@ -87,4 +88,4 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   return 0;
 }
 
-}  // namespace v8::internal::wasm::fuzzer
+}  // namespace v8::internal::wasm::fuzzing

@@ -1176,8 +1176,8 @@ MaybeHandle<JSTemporalTimeZone> CreateTemporalTimeZone(
       ParseTimeZoneOffsetString(isolate, identifier);
   // 4. If offsetNanosecondsResult is an abrupt completion, then
   if (maybe_offset_nanoseconds.IsNothing()) {
-    DCHECK(isolate->has_pending_exception());
-    isolate->clear_pending_exception();
+    DCHECK(isolate->has_exception());
+    isolate->clear_exception();
     // a. Assert: ! CanonicalizeTimeZoneName(identifier) is identifier.
     DCHECK(String::Equals(isolate, identifier,
                           CanonicalizeTimeZoneName(isolate, identifier)));
@@ -1765,7 +1765,7 @@ MaybeHandle<JSTemporalInstant> DisambiguatePossibleInstants(
   // 3. If n = 1, then
   if (n == 1) {
     // a. Return possibleInstants[0].
-    Handle<Object> ret_obj = FixedArray::get(*possible_instants, 0, isolate);
+    Handle<Object> ret_obj(possible_instants->get(0), isolate);
     DCHECK(IsJSTemporalInstant(*ret_obj));
     return Handle<JSTemporalInstant>::cast(ret_obj);
   }
@@ -1775,15 +1775,14 @@ MaybeHandle<JSTemporalInstant> DisambiguatePossibleInstants(
     if (disambiguation == Disambiguation::kEarlier ||
         disambiguation == Disambiguation::kCompatible) {
       // i. Return possibleInstants[0].
-      Handle<Object> ret_obj = FixedArray::get(*possible_instants, 0, isolate);
+      Handle<Object> ret_obj(possible_instants->get(0), isolate);
       DCHECK(IsJSTemporalInstant(*ret_obj));
       return Handle<JSTemporalInstant>::cast(ret_obj);
     }
     // b. If disambiguation is "later", then
     if (disambiguation == Disambiguation::kLater) {
       // i. Return possibleInstants[n − 1].
-      Handle<Object> ret_obj =
-          FixedArray::get(*possible_instants, n - 1, isolate);
+      Handle<Object> ret_obj(possible_instants->get(n - 1), isolate);
       DCHECK(IsJSTemporalInstant(*ret_obj));
       return Handle<JSTemporalInstant>::cast(ret_obj);
     }
@@ -1903,7 +1902,7 @@ MaybeHandle<JSTemporalInstant> DisambiguatePossibleInstants(
                       JSTemporalInstant);
     }
     // e. Return possibleInstants[0].
-    Handle<Object> ret_obj = FixedArray::get(*possible_instants, 0, isolate);
+    Handle<Object> ret_obj(possible_instants->get(0), isolate);
     DCHECK(IsJSTemporalInstant(*ret_obj));
     return Handle<JSTemporalInstant>::cast(ret_obj);
   }
@@ -1955,7 +1954,7 @@ MaybeHandle<JSTemporalInstant> DisambiguatePossibleInstants(
                     JSTemporalInstant);
   }
   // 20. Return possibleInstants[n − 1].
-  Handle<Object> ret_obj = FixedArray::get(*possible_instants, n - 1, isolate);
+  Handle<Object> ret_obj(possible_instants->get(n - 1), isolate);
   DCHECK(IsJSTemporalInstant(*ret_obj));
   return Handle<JSTemporalInstant>::cast(ret_obj);
 }
@@ -2028,7 +2027,7 @@ V8_WARN_UNUSED_RESULT MaybeHandle<JSReceiver> PrepareTemporalFieldsOrPartial(
   // 3. For each value property of fieldNames, do
   int length = field_names->length();
   for (int i = 0; i < length; i++) {
-    Handle<Object> property_obj = Handle<Object>(field_names->get(i), isolate);
+    Handle<Object> property_obj(field_names->get(i), isolate);
     Handle<String> property = Handle<String>::cast(property_obj);
     // a. Let value be ? Get(fields, property).
     Handle<Object> value;
@@ -4048,8 +4047,8 @@ MaybeHandle<String> ParseTemporalCalendarString(Isolate* isolate,
     }
     // 3. Else,
   } else {
-    DCHECK(isolate->has_pending_exception());
-    isolate->clear_pending_exception();
+    DCHECK(isolate->has_exception());
+    isolate->clear_exception();
     // a. Set parseResult to ParseText(StringToCodePoints(isoString),
     // CalendarName).
     base::Optional<ParsedISO8601Result> parsed =
@@ -4244,7 +4243,7 @@ MaybeHandle<JSReceiver> DefaultMergeFields(
       Handle<Object> prop_value;
       ASSIGN_RETURN_ON_EXCEPTION(
           isolate, prop_value,
-          JSReceiver::GetPropertyOrElement(isolate, fields, next_key_string),
+          Object::GetPropertyOrElement(isolate, fields, next_key_string),
           JSReceiver);
       // ii. If propValue is not undefined, then
       if (!IsUndefined(*prop_value)) {
@@ -4273,7 +4272,7 @@ MaybeHandle<JSReceiver> DefaultMergeFields(
     // a. Let propValue be ? Get(additionalFields, nextKey).
     Handle<Object> prop_value;
     ASSIGN_RETURN_ON_EXCEPTION(isolate, prop_value,
-                               JSReceiver::GetPropertyOrElement(
+                               Object::GetPropertyOrElement(
                                    isolate, additional_fields, next_key_string),
                                JSReceiver);
     // b. If propValue is not undefined, then
@@ -13806,8 +13805,8 @@ MaybeHandle<JSTemporalPlainDate> PlainMonthDayOrYearMonthToPlainDate(
       added = StringSet::Add(isolate, added, string);
     }
   }
-  merged_field_names = FixedArray::ShrinkOrEmpty(isolate, merged_field_names,
-                                                 added->NumberOfElements());
+  merged_field_names = FixedArray::RightTrimOrEmpty(isolate, merged_field_names,
+                                                    added->NumberOfElements());
 
   // 11. Set mergedFields to ? PrepareTemporalFields(mergedFields,
   // mergedFieldNames, «»).
@@ -15982,7 +15981,7 @@ MaybeHandle<JSTemporalZonedDateTime> ToTemporalZonedDateTime(
     // e. Append "offset" to fieldNames.
     field_names = FixedArray::SetAndGrow(isolate, field_names, field_length++,
                                          factory->offset_string());
-    field_names->Shrink(isolate, field_length);
+    field_names->RightTrim(isolate, field_length);
 
     // f. Let fields be ? PrepareTemporalFields(item, fieldNames, « "timeZone"
     // »).
@@ -16443,7 +16442,7 @@ MaybeHandle<JSTemporalZonedDateTime> JSTemporalZonedDateTime::With(
   int32_t field_length = field_names->length();
   field_names = FixedArray::SetAndGrow(isolate, field_names, field_length++,
                                        factory->offset_string());
-  field_names->Shrink(isolate, field_length);
+  field_names->RightTrim(isolate, field_length);
 
   // 8. Let partialZonedDateTime be ?
   // PreparePartialTemporalFields(temporalZonedDateTimeLike, fieldNames).
@@ -16480,7 +16479,7 @@ MaybeHandle<JSTemporalZonedDateTime> JSTemporalZonedDateTime::With(
   field_length = field_names->length();
   field_names = FixedArray::SetAndGrow(isolate, field_names, field_length++,
                                        factory->timeZone_string());
-  field_names->Shrink(isolate, field_length);
+  field_names->RightTrim(isolate, field_length);
 
   // 14. Let fields be ? PrepareTemporalFields(zonedDateTime, fieldNames, «
   // "timeZone", "offset"»).

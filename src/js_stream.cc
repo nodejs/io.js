@@ -20,6 +20,7 @@ using v8::Int32;
 using v8::Isolate;
 using v8::Local;
 using v8::Object;
+using v8::TryCatch;
 using v8::Value;
 
 
@@ -163,11 +164,13 @@ void JSStream::Finish(const FunctionCallbackInfo<Value>& args) {
 
 void JSStream::ReadBuffer(const FunctionCallbackInfo<Value>& args) {
   JSStream* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
 
   ArrayBufferViewContents<char> buffer(args[0]);
   const char* data = buffer.data();
   int len = buffer.length();
+
+  TryCatch try_catch(args.GetIsolate());
 
   // Repeatedly ask the stream's owner for memory, copy the data that we
   // just read from JS into those buffers and emit them as reads.
@@ -182,12 +185,16 @@ void JSStream::ReadBuffer(const FunctionCallbackInfo<Value>& args) {
     len -= static_cast<int>(avail);
     wrap->EmitRead(avail, buf);
   }
+
+  if (try_catch.HasCaught()) {
+    try_catch.ReThrow();
+  }
 }
 
 
 void JSStream::EmitEOF(const FunctionCallbackInfo<Value>& args) {
   JSStream* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
 
   wrap->EmitRead(UV_EOF);
 }

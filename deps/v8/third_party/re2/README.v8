@@ -1,0 +1,13 @@
+Name: re2 - an efficient, principled regular expression library
+Short Name: re2
+URL: https://github.com/google/re2
+Version: 1e44e72d31ddc66b783a545e9d9fcaa876a146b7
+Date: 2023-05-31
+License: BSD 3-Clause
+License File: LICENSE
+Security Critical: no
+Shipped: no
+
+Description:
+RE2 is a fast, safe, thread-friendly alternative to backtracking regular
+expression engines like those used in PCRE, Perl, and Python.

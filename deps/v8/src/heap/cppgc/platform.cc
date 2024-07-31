@@ -89,7 +89,7 @@ TracingController* Platform::GetTracingController() {
 
 void InitializeProcess(PageAllocator* page_allocator,
                        size_t desired_heap_size) {
-#if defined(V8_USE_ADDRESS_SANITIZER) && defined(V8_TARGET_ARCH_64_BIT)
+#if defined(V8_USE_ADDRESS_SANITIZER) && defined(V8_HOST_ARCH_64_BIT)
   // Retrieve asan's internal shadow memory granularity and check that Oilpan's
   // object alignment/sizes are multiple of this granularity. This is needed to
   // perform poisoness checks.

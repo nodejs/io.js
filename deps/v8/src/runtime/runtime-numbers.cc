@@ -74,7 +74,7 @@ RUNTIME_FUNCTION(Runtime_MaxSmi) {
 RUNTIME_FUNCTION(Runtime_IsSmi) {
   SealHandleScope shs(isolate);
   DCHECK_EQ(1, args.length());
-  Object obj = args[0];
+  Tagged<Object> obj = args[0];
   return isolate->heap()->ToBoolean(IsSmi(obj));
 }
 

@@ -369,7 +369,7 @@ constant pool: [
   FIXED_ARRAY_TYPE,
   Smi [10],
   Smi [7],
-  FIXED_ARRAY_TYPE,
+  CLASS_BOILERPLATE_TYPE,
   SHARED_FUNCTION_INFO_TYPE,
 ]
 handlers: [

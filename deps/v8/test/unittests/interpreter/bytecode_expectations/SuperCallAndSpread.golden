@@ -17,23 +17,20 @@ snippet: "
     test = new B(1, 2, 3).constructor;
   })();
 "
-frame size: 9
+frame size: 7
 parameter count: 1
-bytecode array length: 38
+bytecode array length: 31
 bytecodes: [
-  /*   93 E> */ B(CreateRestParameter),
-                B(Star2),
                 B(Mov), R(closure), R(1),
-  /*   93 S> */ B(FindNonDefaultConstructorOrConstruct), R(1), R(0), R(7),
-                B(Mov), R(2), R(5),
-                B(Ldar), R(7),
-                B(Mov), R(1), R(3),
-                B(Mov), R(0), R(6),
-                B(Mov), R(8), R(4),
-                B(JumpIfTrue), U8(12),
+  /*   93 S> */ B(FindNonDefaultConstructorOrConstruct), R(1), R(0), R(5),
+                B(Ldar), R(5),
+                B(Mov), R(1), R(2),
+                B(Mov), R(0), R(3),
+                B(Mov), R(6), R(4),
+                B(JumpIfTrue), U8(10),
                 B(ThrowIfNotSuperConstructor), R(4),
-                B(Ldar), R(6),
-  /*   93 E> */ B(ConstructWithSpread), R(4), R(5), U8(1), U8(0),
+                B(Ldar), R(3),
+  /*   93 E> */ B(ConstructForwardAllArgs), R(4), U8(0),
                 B(Star4),
                 B(Ldar), R(4),
   /*   93 S> */ B(Return),
@@ -56,31 +53,32 @@ snippet: "
     test = new B(1, 2, 3).constructor;
   })();
 "
-frame size: 11
+frame size: 12
 parameter count: 1
-bytecode array length: 50
+bytecode array length: 51
 bytecodes: [
   /*  128 E> */ B(CreateRestParameter),
                 B(Star3),
                 B(Mov), R(closure), R(1),
                 B(Mov), R(3), R(2),
   /*  140 S> */ B(LdaSmi), I8(1),
-                B(Star6),
-  /*  140 E> */ B(FindNonDefaultConstructorOrConstruct), R(closure), R(0), R(9),
-                B(Mov), R(3), R(7),
-                B(Ldar), R(9),
-                B(Mov), R(1), R(4),
-                B(Mov), R(0), R(8),
-                B(Mov), R(10), R(5),
+                B(Star7),
+  /*  140 E> */ B(FindNonDefaultConstructorOrConstruct), R(closure), R(0), R(10),
+                B(Mov), R(3), R(8),
+                B(Ldar), R(10),
+                B(Mov), R(1), R(5),
+                B(Mov), R(0), R(9),
+                B(Mov), R(11), R(6),
                 B(JumpIfTrue), U8(12),
-                B(ThrowIfNotSuperConstructor), R(5),
-                B(Ldar), R(8),
-  /*  140 E> */ B(ConstructWithSpread), R(5), R(6), U8(2), U8(0),
-                B(Star5),
+                B(ThrowIfNotSuperConstructor), R(6),
+                B(Ldar), R(9),
+  /*  140 E> */ B(ConstructWithSpread), R(6), R(7), U8(2), U8(0),
+                B(Star6),
                 B(Ldar), R(this),
                 B(ThrowSuperAlreadyCalledIfNotHole),
-                B(Mov), R(5), R(this),
+                B(Mov), R(6), R(this),
                 B(Ldar), R(this),
+                B(ThrowSuperNotCalledIfHole),
   /*  159 S> */ B(Return),
 ]
 constant pool: [
@@ -101,49 +99,50 @@ snippet: "
     test = new B(1, 2, 3).constructor;
   })();
 "
-frame size: 11
+frame size: 12
 parameter count: 1
-bytecode array length: 100
+bytecode array length: 101
 bytecodes: [
   /*  128 E> */ B(CreateRestParameter),
                 B(Star3),
                 B(Mov), R(closure), R(1),
                 B(Mov), R(3), R(2),
   /*  140 S> */ B(CreateArrayLiteral), U8(0), U8(0), U8(37),
-                B(Star6),
+                B(Star7),
                 B(LdaSmi), I8(1),
-                B(Star7),
-  /*  152 E> */ B(GetIterator), R(3), U8(1), U8(3),
-                B(Star9),
-                B(GetNamedProperty), R(9), U8(1), U8(5),
                 B(Star8),
-                B(Mov), R(1), R(4),
-                B(CallProperty0), R(8), R(9), U8(14),
+  /*  152 E> */ B(GetIterator), R(3), U8(1), U8(3),
                 B(Star10),
+                B(GetNamedProperty), R(10), U8(1), U8(5),
+                B(Star9),
+                B(Mov), R(1), R(5),
+                B(CallProperty0), R(9), R(10), U8(14),
+                B(Star11),
                 B(JumpIfJSReceiver), U8(7),
-                B(CallRuntime), U16(Runtime::kThrowIteratorResultNotAnObject), R(10), U8(1),
-                B(GetNamedProperty), R(10), U8(2), U8(16),
+                B(CallRuntime), U16(Runtime::kThrowIteratorResultNotAnObject), R(11), U8(1),
+                B(GetNamedProperty), R(11), U8(2), U8(16),
                 B(JumpIfToBooleanTrue), U8(19),
-                B(GetNamedProperty), R(10), U8(3), U8(7),
-                B(StaInArrayLiteral), R(6), R(7), U8(12),
-                B(Ldar), R(7),
+                B(GetNamedProperty), R(11), U8(3), U8(7),
+                B(StaInArrayLiteral), R(7), R(8), U8(12),
+                B(Ldar), R(8),
                 B(Inc), U8(11),
-                B(Star7),
+                B(Star8),
                 B(JumpLoop), U8(31), I8(0), U8(18),
                 B(LdaSmi), I8(1),
-                B(StaInArrayLiteral), R(6), R(7), U8(12),
-  /*  140 E> */ B(FindNonDefaultConstructorOrConstruct), R(4), R(0), R(8),
-                B(Ldar), R(8),
-                B(Mov), R(0), R(7),
-                B(Mov), R(9), R(5),
+                B(StaInArrayLiteral), R(7), R(8), U8(12),
+  /*  140 E> */ B(FindNonDefaultConstructorOrConstruct), R(5), R(0), R(9),
+                B(Ldar), R(9),
+                B(Mov), R(0), R(8),
+                B(Mov), R(10), R(6),
                 B(JumpIfTrue), U8(9),
-                B(ThrowIfNotSuperConstructor), R(5),
-                B(CallJSRuntime), U8(%reflect_construct), R(5), U8(3),
-                B(Star5),
+                B(ThrowIfNotSuperConstructor), R(6),
+                B(CallJSRuntime), U8(%reflect_construct), R(6), U8(3),
+                B(Star6),
                 B(Ldar), R(this),
                 B(ThrowSuperAlreadyCalledIfNotHole),
-                B(Mov), R(5), R(this),
+                B(Mov), R(6), R(this),
                 B(Ldar), R(this),
+                B(ThrowSuperNotCalledIfHole),
   /*  162 S> */ B(Return),
 ]
 constant pool: [

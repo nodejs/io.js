@@ -712,6 +712,13 @@ ActionNode* ActionNode::EmptyMatchCheck(int start_register,
   return result;
 }
 
+ActionNode* ActionNode::ModifyFlags(RegExpFlags flags, RegExpNode* on_success) {
+  ActionNode* result =
+      on_success->zone()->New<ActionNode>(MODIFY_FLAGS, on_success);
+  result->data_.u_modify_flags.flags = flags;
+  return result;
+}
+
 #define DEFINE_ACCEPT(Type) \
   void Type##Node::Accept(NodeVisitor* visitor) { visitor->Visit##Type(this); }
 FOR_EACH_NODE_TYPE(DEFINE_ACCEPT)
@@ -914,7 +921,7 @@ inline bool EmitAtomLetter(Isolate* isolate, RegExpCompiler* compiler,
     }
     case 4:
       macro_assembler->CheckCharacter(chars[3], &ok);
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case 3:
       macro_assembler->CheckCharacter(chars[0], &ok);
       macro_assembler->CheckCharacter(chars[1], &ok);
@@ -1365,6 +1372,14 @@ bool RegExpNode::KeepRecursing(RegExpCompiler* compiler) {
 
 void ActionNode::FillInBMInfo(Isolate* isolate, int offset, int budget,
                               BoyerMooreLookahead* bm, bool not_at_start) {
+  base::Optional<RegExpFlags> old_flags;
+  if (action_type_ == MODIFY_FLAGS) {
+    // It is not guaranteed that we hit the resetting modify flags node, due to
+    // recursion budget limitation for filling in BMInfo. Therefore we reset the
+    // flags manually to the previous state after recursing.
+    old_flags = bm->compiler()->flags();
+    bm->compiler()->set_flags(flags());
+  }
   if (action_type_ == POSITIVE_SUBMATCH_SUCCESS) {
     // Anything may follow a positive submatch success, thus we need to accept
     // all characters from this position onwards.
@@ -1373,6 +1388,9 @@ void ActionNode::FillInBMInfo(Isolate* isolate, int offset, int budget,
     on_success()->FillInBMInfo(isolate, offset, budget - 1, bm, not_at_start);
   }
   SaveBMInfo(bm, not_at_start, offset);
+  if (old_flags.has_value()) {
+    bm->compiler()->set_flags(*old_flags);
+  }
 }
 
 void ActionNode::GetQuickCheckDetails(QuickCheckDetails* details,
@@ -1382,6 +1400,9 @@ void ActionNode::GetQuickCheckDetails(QuickCheckDetails* details,
     on_success()->GetQuickCheckDetailsFromLoopEntry(details, compiler,
                                                     filled_in, not_at_start);
   } else {
+    if (action_type() == MODIFY_FLAGS) {
+      compiler->set_flags(flags());
+    }
     on_success()->GetQuickCheckDetails(details, compiler, filled_in,
                                        not_at_start);
   }
@@ -2872,7 +2893,7 @@ int BoyerMooreLookahead::GetSkipTable(int min_lookahead, int max_lookahead,
   const int kSkipArrayEntry = 0;
   const int kDontSkipArrayEntry = 1;
 
-  std::memset(boolean_skip_table->GetDataStartAddress(), kSkipArrayEntry,
+  std::memset(boolean_skip_table->begin(), kSkipArrayEntry,
               boolean_skip_table->length());
 
   for (int i = max_lookahead; i >= min_lookahead; i--) {
@@ -3459,6 +3480,11 @@ void ActionNode::Emit(RegExpCompiler* compiler, Trace* trace) {
       assembler->Backtrack();
       return;
     }
+    case MODIFY_FLAGS: {
+      compiler->set_flags(flags());
+      on_success()->Emit(compiler, trace);
+      break;
+    }
     default:
       UNREACHABLE();
   }
@@ -3478,8 +3504,8 @@ void BackReferenceNode::Emit(RegExpCompiler* compiler, Trace* trace) {
   RecursionCheck rc(compiler);
 
   DCHECK_EQ(start_reg_ + 1, end_reg_);
-  if (IsIgnoreCase(flags_)) {
-    bool unicode = IsEitherUnicode(flags_);
+  if (IsIgnoreCase(compiler->flags())) {
+    bool unicode = IsEitherUnicode(compiler->flags());
     assembler->CheckNotBackReferenceIgnoreCase(start_reg_, read_backward(),
                                                unicode, trace->backtrack());
   } else {
@@ -3490,7 +3516,7 @@ void BackReferenceNode::Emit(RegExpCompiler* compiler, Trace* trace) {
   if (read_backward()) trace->set_at_start(Trace::UNKNOWN);
 
   // Check that the back reference does not end inside a surrogate pair.
-  if (IsEitherUnicode(flags_) && !compiler->one_byte()) {
+  if (IsEitherUnicode(compiler->flags()) && !compiler->one_byte()) {
     assembler->CheckNotInSurrogatePair(trace->cp_offset(), trace->backtrack());
   }
   on_success()->Emit(compiler, trace);
@@ -3712,7 +3738,7 @@ class Analysis : public NodeVisitor {
   } while (false)
 
   void VisitText(TextNode* that) override {
-    that->MakeCaseIndependent(isolate(), is_one_byte_, flags_);
+    that->MakeCaseIndependent(isolate(), is_one_byte_, flags());
     EnsureAnalyzed(that->on_success());
     if (has_failed()) return;
     that->CalculateOffsets();
@@ -3720,6 +3746,9 @@ class Analysis : public NodeVisitor {
   }
 
   void VisitAction(ActionNode* that) override {
+    if (that->action_type() == ActionNode::MODIFY_FLAGS) {
+      set_flags(that->flags());
+    }
     EnsureAnalyzed(that->on_success());
     if (has_failed()) return;
     STATIC_FOR_EACH(Propagators::VisitAction(that));
@@ -3778,9 +3807,12 @@ class Analysis : public NodeVisitor {
 #undef STATIC_FOR_EACH
 
  private:
+  RegExpFlags flags() const { return flags_; }
+  void set_flags(RegExpFlags flags) { flags_ = flags; }
+
   Isolate* isolate_;
   const bool is_one_byte_;
-  const RegExpFlags flags_;
+  RegExpFlags flags_;
   RegExpError error_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Analysis);
@@ -3908,13 +3940,12 @@ RegExpNode* RegExpCompiler::OptionallyStepBackToLeadSurrogate(
 }
 
 RegExpNode* RegExpCompiler::PreprocessRegExp(RegExpCompileData* data,
-                                             RegExpFlags flags,
                                              bool is_one_byte) {
   // Wrap the body of the regexp in capture #0.
   RegExpNode* captured_body =
       RegExpCapture::ToNode(data->tree, 0, this, accept());
   RegExpNode* node = captured_body;
-  if (!data->tree->IsAnchoredAtStart() && !IsSticky(flags)) {
+  if (!data->tree->IsAnchoredAtStart() && !IsSticky(flags())) {
     // Add a .*? at the beginning, outside the body capture, unless
     // this expression is anchored at the beginning or sticky.
     RegExpNode* loop_node = RegExpQuantifier::ToNode(
@@ -3936,13 +3967,14 @@ RegExpNode* RegExpCompiler::PreprocessRegExp(RegExpCompileData* data,
     }
   }
   if (is_one_byte) {
-    node = node->FilterOneByte(RegExpCompiler::kMaxRecursion, flags);
+    node = node->FilterOneByte(RegExpCompiler::kMaxRecursion, flags());
     // Do it again to propagate the new nodes to places where they were not
     // put because they had not been calculated yet.
     if (node != nullptr) {
-      node = node->FilterOneByte(RegExpCompiler::kMaxRecursion, flags);
+      node = node->FilterOneByte(RegExpCompiler::kMaxRecursion, flags());
     }
-  } else if (IsEitherUnicode(flags) && (IsGlobal(flags) || IsSticky(flags))) {
+  } else if (IsEitherUnicode(flags()) &&
+             (IsGlobal(flags()) || IsSticky(flags()))) {
     node = OptionallyStepBackToLeadSurrogate(node);
   }
 

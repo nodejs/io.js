@@ -9,7 +9,7 @@
 // found 37 vulnerabilities (5 low, 7 moderate, 25 high)
 //   run `npm audit fix` to fix them, or `npm audit` for details
 
-const log = require('./log-shim.js')
+const { log, output } = require('proc-log')
 const { depth } = require('treeverse')
 const ms = require('ms')
 const npmAuditReport = require('npm-audit-report')
@@ -41,17 +41,31 @@ const reifyOutput = (npm, arb) => {
   }
 
   if (diff) {
+    const showDiff = npm.config.get('dry-run') || npm.config.get('long')
+    const chalk = npm.chalk
+
     depth({
       tree: diff,
       visit: d => {
         switch (d.action) {
           case 'REMOVE':
+            if (showDiff) {
+              /* eslint-disable-next-line max-len */
+              output.standard(`${chalk.blue('remove')} ${d.actual.name} ${d.actual.package.version}`)
+            }
             summary.removed++
             break
           case 'ADD':
+            if (showDiff) {
+              output.standard(`${chalk.green('add')} ${d.ideal.name} ${d.ideal.package.version}`)
+            }
             actualTree.inventory.has(d.ideal) && summary.added++
             break
           case 'CHANGE':
+            if (showDiff) {
+              /* eslint-disable-next-line max-len */
+              output.standard(`${chalk.cyan('change')} ${d.actual.name} ${d.actual.package.version} => ${d.ideal.package.version}`)
+            }
             summary.changed++
             break
           default:
@@ -76,7 +90,7 @@ const reifyOutput = (npm, arb) => {
       summary.audit = npm.command === 'audit' ? auditReport
         : auditReport.toJSON().metadata
     }
-    npm.output(JSON.stringify(summary, 0, 2))
+    output.buffer(summary)
   } else {
     packagesChangedMessage(npm, summary)
     packagesFundingMessage(npm, summary)
@@ -95,7 +109,7 @@ const printAuditReport = (npm, report) => {
   if (!res || !res.report) {
     return
   }
-  npm.output(`\n${res.report}`)
+  output.standard(`\n${res.report}`)
 }
 
 const getAuditReport = (npm, report) => {
@@ -167,7 +181,7 @@ const packagesChangedMessage = (npm, { added, removed, changed, audited }) => {
   }
 
   msg.push(` in ${ms(Date.now() - npm.started)}`)
-  npm.output(msg.join(''))
+  output.standard(msg.join(''))
 }
 
 const packagesFundingMessage = (npm, { funding }) => {
@@ -175,11 +189,11 @@ const packagesFundingMessage = (npm, { funding }) => {
     return
   }
 
-  npm.output('')
+  output.standard('')
   const pkg = funding === 1 ? 'package' : 'packages'
   const is = funding === 1 ? 'is' : 'are'
-  npm.output(`${funding} ${pkg} ${is} looking for funding`)
-  npm.output('  run `npm fund` for details')
+  output.standard(`${funding} ${pkg} ${is} looking for funding`)
+  output.standard('  run `npm fund` for details')
 }
 
 module.exports = reifyOutput

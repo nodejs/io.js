@@ -1,0 +1,1 @@
+Checks that Object.prototype.then is not called for REPL mode results

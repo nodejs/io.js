@@ -9,80 +9,26 @@ cleanup() {
   exit $EXIT_CODE
 }
 
-download_v1() {
-  LATEST_V1_TAG_NAME="$("$NODE" --input-type=module <<'EOF'
-const res = await fetch('https://api.github.com/repos/quictls/openssl/git/matching-refs/tags/OpenSSL_1');
-if (!res.ok) throw new Error(`FetchError: ${res.status} ${res.statusText}`, { cause: res });
-const releases = await res.json()
-const latest = releases.findLast(({ ref }) => ref.includes('quic'));
-if(!latest) throw new Error(`Could not find latest release for v1`);
-console.log(latest.ref.replace('refs/tags/',''));
-EOF
-)"
-
-  NEW_VERSION_V1=$(echo "$LATEST_V1_TAG_NAME" | sed 's/OpenSSL_//;s/_/./g;s/-/+/g')
-
-  case "$NEW_VERSION_V1" in
-    *quic1) NEW_VERSION_V1_NO_RELEASE="${NEW_VERSION_V1%1}" ;;
-    *) NEW_VERSION_V1_NO_RELEASE="$NEW_VERSION_V1" ;;
-  esac
-
-  VERSION_H="$DEPS_DIR/openssl/openssl/include/openssl/opensslv.h"
-  CURRENT_VERSION=$(grep "OPENSSL_VERSION_TEXT" "$VERSION_H" | sed -n "s/.*OpenSSL \([^\"]*\).*/\1/p" | cut -d ' ' -f 1)
-
-  # This function exit with 0 if new version and current version are the same
-  compare_dependency_version "openssl" "$NEW_VERSION_V1_NO_RELEASE" "$CURRENT_VERSION"
-
-  echo "Making temporary workspace..."
-  WORKSPACE=$(mktemp -d 2> /dev/null || mktemp -d -t 'tmp')
-  cd "$WORKSPACE"
-
-  echo "Fetching OpenSSL source archive..."
-  OPENSSL_TARBALL="openssl.tar.gz"
-  curl -sL -o "$OPENSSL_TARBALL" "https://api.github.com/repos/quictls/openssl/tarball/$LATEST_V1_TAG_NAME"
-  log_and_verify_sha256sum "openssl" "$OPENSSL_TARBALL"
-  gzip -dc "$OPENSSL_TARBALL" | tar xf -
-  rm "$OPENSSL_TARBALL"
-
-  mv quictls-openssl-* openssl
-
-  echo "Replacing existing OpenSSL..."
-  rm -rf "$DEPS_DIR/openssl/openssl"
-  mv "$WORKSPACE/openssl" "$DEPS_DIR/openssl/"
-  
-  echo "All done!"
-  echo ""
-  echo "Please git add openssl, and commit the new version:"
-  echo ""
-  echo "$ git add -A deps/openssl/openssl"
-  echo "$ git add doc/contributing/maintaining/maintaining-dependencies.md"
-  echo "$ git commit -m \"deps: upgrade openssl sources to quictls/openssl-$NEW_VERSION_V1\""
-  echo ""
-  # The last line of the script should always print the new version,
-  # as we need to add it to $GITHUB_ENV variable.
-  echo "NEW_VERSION=$NEW_VERSION_V1"
-}
-
-download_v3() {
-  LATEST_V3_TAG_NAME="$("$NODE" --input-type=module <<'EOF'
+download() {
+  LATEST_TAG_NAME="$("$NODE" --input-type=module <<'EOF'
 const res = await fetch('https://api.github.com/repos/quictls/openssl/git/matching-refs/tags/openssl-3.0');
 if (!res.ok) throw new Error(`FetchError: ${res.status} ${res.statusText}`, { cause: res });
 const releases = await res.json()
 const latest = releases.findLast(({ ref }) => ref.includes('quic'));
-if(!latest) throw new Error(`Could not find latest release for v3.0`);
+if(!latest) throw new Error(`Could not find latest release`);
 console.log(latest.ref.replace('refs/tags/',''));
 EOF
 )"
-  NEW_VERSION_V3=$(echo "$LATEST_V3_TAG_NAME" | sed 's/openssl-//;s/-/+/g')
+  NEW_VERSION=$(echo "$LATEST_TAG_NAME" | sed 's/openssl-//;s/-/+/g')
 
-  case "$NEW_VERSION_V3" in
-    *quic1) NEW_VERSION_V3_NO_RELEASE="${NEW_VERSION_V3%1}" ;;
-    *) NEW_VERSION_V3_NO_RELEASE="$NEW_VERSION_V3" ;;
+  case "$NEW_VERSION" in
+    *quic1) NEW_VERSION_NO_RELEASE="${NEW_VERSION%1}" ;;
+    *) NEW_VERSION_NO_RELEASE="$NEW_VERSION" ;;
   esac
   VERSION_H="./deps/openssl/config/archs/linux-x86_64/asm/include/openssl/opensslv.h"
   CURRENT_VERSION=$(grep "OPENSSL_FULL_VERSION_STR" $VERSION_H | sed -n "s/^.*VERSION_STR \"\(.*\)\"/\1/p")
   # This function exit with 0 if new version and current version are the same
-  compare_dependency_version "openssl" "$NEW_VERSION_V3_NO_RELEASE" "$CURRENT_VERSION"
+  compare_dependency_version "openssl" "$NEW_VERSION_NO_RELEASE" "$CURRENT_VERSION"
 
   echo "Making temporary workspace..."
 
@@ -93,7 +39,7 @@ EOF
 
   OPENSSL_TARBALL="openssl.tar.gz"
 
-  curl -sL -o "$OPENSSL_TARBALL" "https://api.github.com/repos/quictls/openssl/tarball/$LATEST_V3_TAG_NAME"
+  curl -sL -o "$OPENSSL_TARBALL" "https://api.github.com/repos/quictls/openssl/tarball/$LATEST_TAG_NAME"
 
   log_and_verify_sha256sum "openssl" "$OPENSSL_TARBALL"
 
@@ -105,19 +51,16 @@ EOF
   rm -rf "$DEPS_DIR/openssl/openssl"
   mv "$WORKSPACE/openssl" "$DEPS_DIR/openssl/"
 
-  # Update the version number
-  update_dependency_version "openssl" "$NEW_VERSION_V3"
   echo "All done!"
   echo ""
   echo "Please git add openssl, and commit the new version:"
   echo ""
   echo "$ git add -A deps/openssl/openssl"
-  echo "$ git add doc/contributing/maintaining/maintaining-dependencies.md"
-  echo "$ git commit -m \"deps: upgrade openssl sources to quictls/openssl-$NEW_VERSION_V3\""
+  echo "$ git commit -m \"deps: upgrade openssl sources to quictls/openssl-$NEW_VERSION\""
   echo ""
   # The last line of the script should always print the new version,
   # as we need to add it to $GITHUB_ENV variable.
-  echo "NEW_VERSION=$NEW_VERSION_V3"
+  echo "NEW_VERSION=$NEW_VERSION"
 }
 
 regenerate() {
@@ -171,12 +114,14 @@ main() {
   . "$BASE_DIR/tools/dep_updaters/utils.sh"
 
   case ${1} in
-    help | regenerate | download_v1 | download_v3 )
+    help | regenerate | download )
       $1 "${2}"
     ;;
     * )
       echo "unknown command: $1"
       help 1
+
+      # shellcheck disable=SC2317
       exit 1
     ;;
   esac

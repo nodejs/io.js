@@ -15,6 +15,9 @@
 namespace v8 {
 namespace internal {
 
+class AbstractCode;
+class ClosureFeedbackCellArray;
+
 #include "torque-generated/src/objects/js-function-tq.inc"
 
 // An abstract superclass for classes representing JavaScript function values.
@@ -119,17 +122,17 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // optimized code object, or when reading from the background thread.
   // Storing a builtin doesn't require release semantics because these objects
   // are fully initialized.
-  DECL_ACCESSORS(code, Tagged<Code>)
-  DECL_RELEASE_ACQUIRE_ACCESSORS(code, Tagged<Code>)
+  DECL_CODE_POINTER_ACCESSORS(code)
 
   // Returns the raw content of the Code field. When reading from a background
   // thread, the code field may still be uninitialized, in which case the field
   // contains Smi::zero().
-  inline Tagged<Object> raw_code() const;
-  inline Tagged<Object> raw_code(AcquireLoadTag) const;
+  inline Tagged<Object> raw_code(IsolateForSandbox isolate) const;
+  inline Tagged<Object> raw_code(IsolateForSandbox isolate,
+                                 AcquireLoadTag) const;
 
   // Returns the address of the function code's instruction start.
-  inline Address instruction_start() const;
+  inline Address instruction_start(IsolateForSandbox isolate) const;
 
   // Get the abstract code associated with the function, which will either be
   // a InstructionStream object or a BytecodeArray.
@@ -153,35 +156,38 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // been already deoptimized but its code() still needs to be unlinked, which
   // will happen on its next activation.
 
-  bool HasAvailableHigherTierCodeThan(CodeKind kind) const;
+  bool HasAvailableHigherTierCodeThan(IsolateForSandbox isolate,
+                                      CodeKind kind) const;
   // As above but only considers available code kinds passing the filter mask.
-  bool HasAvailableHigherTierCodeThanWithFilter(CodeKind kind,
+  bool HasAvailableHigherTierCodeThanWithFilter(IsolateForSandbox isolate,
+                                                CodeKind kind,
                                                 CodeKinds filter_mask) const;
 
   // True, iff any generated code kind is attached/available to this function.
-  V8_EXPORT_PRIVATE bool HasAttachedOptimizedCode() const;
-  bool HasAvailableOptimizedCode() const;
+  V8_EXPORT_PRIVATE bool HasAttachedOptimizedCode(
+      IsolateForSandbox isolate) const;
+  bool HasAvailableOptimizedCode(IsolateForSandbox isolate) const;
 
-  bool HasAttachedCodeKind(CodeKind kind) const;
-  bool HasAvailableCodeKind(CodeKind kind) const;
+  bool HasAttachedCodeKind(IsolateForSandbox isolate, CodeKind kind) const;
+  bool HasAvailableCodeKind(IsolateForSandbox isolate, CodeKind kind) const;
 
-  base::Optional<CodeKind> GetActiveTier() const;
-  V8_EXPORT_PRIVATE bool ActiveTierIsIgnition() const;
-  bool ActiveTierIsBaseline() const;
-  bool ActiveTierIsMaglev() const;
-  bool ActiveTierIsTurbofan() const;
+  base::Optional<CodeKind> GetActiveTier(IsolateForSandbox isolate) const;
+  V8_EXPORT_PRIVATE bool ActiveTierIsIgnition(IsolateForSandbox isolate) const;
+  bool ActiveTierIsBaseline(IsolateForSandbox isolate) const;
+  bool ActiveTierIsMaglev(IsolateForSandbox isolate) const;
+  bool ActiveTierIsTurbofan(IsolateForSandbox isolate) const;
 
   // Similar to SharedFunctionInfo::CanDiscardCompiled. Returns true, if the
   // attached code can be recreated at a later point by replacing it with
   // CompileLazy.
-  bool CanDiscardCompiled() const;
+  bool CanDiscardCompiled(IsolateForSandbox isolate) const;
 
   // Tells whether function's code object checks its tiering state (some code
   // kinds, e.g. TURBOFAN, ignore the tiering state).
-  inline bool ChecksTieringState();
+  inline bool ChecksTieringState(IsolateForSandbox isolate);
 
   inline TieringState tiering_state() const;
-  inline void set_tiering_state(TieringState state);
+  inline void set_tiering_state(IsolateForSandbox isolate, TieringState state);
   inline void reset_tiering_state();
 
   // Mark this function for lazy recompilation. The function will be recompiled
@@ -250,8 +256,9 @@ class JSFunction : public TorqueGeneratedJSFunction<
   void ClearAllTypeFeedbackInfoForTesting();
 
   // Resets function to clear compiled data after bytecode has been flushed.
-  inline bool NeedsResetDueToFlushedBytecode();
+  inline bool NeedsResetDueToFlushedBytecode(IsolateForSandbox isolate);
   inline void ResetIfCodeFlushed(
+      IsolateForSandbox isolate,
       base::Optional<
           std::function<void(Tagged<HeapObject> object, ObjectSlot slot,
                              Tagged<HeapObject> target)>>
@@ -259,7 +266,7 @@ class JSFunction : public TorqueGeneratedJSFunction<
 
   // Returns if the closure's code field has to be updated because it has
   // stale baseline code.
-  inline bool NeedsResetDueToFlushedBaselineCode();
+  inline bool NeedsResetDueToFlushedBaselineCode(IsolateForSandbox isolate);
 
   // Returns if baseline code is a candidate for flushing. This method is called
   // from concurrent marking so we should be careful when accessing data fields.
@@ -311,7 +318,7 @@ class JSFunction : public TorqueGeneratedJSFunction<
   static void SetPrototype(Handle<JSFunction> function, Handle<Object> value);
 
   // Returns if this function has been compiled to native code yet.
-  inline bool is_compiled() const;
+  inline bool is_compiled(IsolateForSandbox isolate) const;
 
   static int GetHeaderSize(bool function_has_prototype_slot) {
     return function_has_prototype_slot ? JSFunction::kSizeWithPrototype
@@ -374,12 +381,12 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // TODO(jgruber): Currently at most one code kind can be attached. Consider
   // adding a NOT_COMPILED kind and changing this function to simply return the
   // kind if this becomes more convenient in the future.
-  CodeKinds GetAttachedCodeKinds() const;
+  CodeKinds GetAttachedCodeKinds(IsolateForSandbox isolate) const;
 
   // As above, but also considers locations outside of this JSFunction. For
   // example the optimized code cache slot in the feedback vector, and the
   // shared function info.
-  CodeKinds GetAvailableCodeKinds() const;
+  CodeKinds GetAvailableCodeKinds(IsolateForSandbox isolate) const;
 
  public:
   static constexpr int kSizeWithoutPrototype = kPrototypeOrInitialMapOffset;

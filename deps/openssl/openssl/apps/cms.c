@@ -620,7 +620,8 @@ int cms_main(int argc, char **argv)
                                  "recipient certificate file");
                 if (cert == NULL)
                     goto end;
-                sk_X509_push(encerts, cert);
+                if (!sk_X509_push(encerts, cert))
+                    goto end;
                 cert = NULL;
             } else {
                 recipfile = opt_arg();
@@ -831,7 +832,8 @@ int cms_main(int argc, char **argv)
                              "recipient certificate file");
             if (cert == NULL)
                 goto end;
-            sk_X509_push(encerts, cert);
+            if (!sk_X509_push(encerts, cert))
+                goto end;
             cert = NULL;
         }
     }
@@ -1413,6 +1415,7 @@ static CMS_ReceiptRequest
                       STACK_OF(OPENSSL_STRING) *rr_from)
 {
     STACK_OF(GENERAL_NAMES) *rct_to = NULL, *rct_from = NULL;
+    CMS_ReceiptRequest *rr;
 
     rct_to = make_names_stack(rr_to);
     if (rct_to == NULL)
@@ -1424,10 +1427,14 @@ static CMS_ReceiptRequest
     } else {
         rct_from = NULL;
     }
-    return CMS_ReceiptRequest_create0_ex(NULL, -1, rr_allorfirst, rct_from,
-                                         rct_to, app_get0_libctx());
+    rr = CMS_ReceiptRequest_create0_ex(NULL, -1, rr_allorfirst, rct_from,
+                                       rct_to, app_get0_libctx());
+    if (rr == NULL)
+        goto err;
+    return rr;
  err:
     sk_GENERAL_NAMES_pop_free(rct_to, GENERAL_NAMES_free);
+    sk_GENERAL_NAMES_pop_free(rct_from, GENERAL_NAMES_free);
     return NULL;
 }
 

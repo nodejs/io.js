@@ -1,18 +1,5 @@
 .\"
 .\" Copyright 1998 by the Massachusetts Institute of Technology.
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_CANCEL 3 "31 March 2004"
@@ -22,7 +9,7 @@ ares_cancel \- Cancel a resolve
 .nf
 #include <ares.h>
 
-void ares_cancel(ares_channel \fIchannel\fP)
+void ares_cancel(ares_channel_t *\fIchannel\fP)
 .fi
 .SH DESCRIPTION
 The \fBares_cancel(3)\fP function cancels all lookups/requests made on the the
@@ -44,5 +31,3 @@ c-ares 1.6.0 and earlier pass a status of
 .BR ARES_ETIMEOUT
 instead of
 .BR ARES_ECANCELLED .
-.SH AUTHOR
-Dirk Manske

@@ -38,6 +38,8 @@ licenseText="$(cat "${rootdir}/deps/cjs-module-lexer/LICENSE")"
 addlicense "cjs-module-lexer" "deps/cjs-module-lexer" "$licenseText"
 licenseText="$(cat "${rootdir}/deps/v8/third_party/ittapi/LICENSES/BSD-3-Clause.txt")"
 addlicense "ittapi" "deps/v8/third_party/ittapi" "$licenseText"
+licenseText="$(cat "${rootdir}/deps/amaro/LICENSE.md")"
+addlicense "amaro" "deps/amaro" "$licenseText"
 if [ -f "${rootdir}/deps/icu/LICENSE" ]; then
   # ICU 57 and following. Drop the BOM
   licenseText="$(sed -e '1s/^[^a-zA-Z ]*ICU/ICU/' -e :a -e 's/<[^>]*>//g;s/	/ /g;s/ +$//;/</N;//ba' "${rootdir}/deps/icu/LICENSE")"
@@ -79,6 +81,8 @@ licenseText="$(sed -e '/You should have received a copy of the CC0/,$d' -e 's/^\
 addlicense "SipHash" "deps/v8/src/third_party/siphash" "$licenseText"
 licenseText="$(sed -e '/The data format used by the zlib library/,$d' -e 's/^\/\* *//' -e 's/^ *//' "${rootdir}/deps/zlib/zlib.h")"
 addlicense "zlib" "deps/zlib" "$licenseText"
+licenseText="$(cat "${rootdir}/deps/simdjson/LICENSE")"
+addlicense "simdjson" "deps/simdjson" "$licenseText"
 licenseText="$(cat "${rootdir}/deps/simdutf/LICENSE-MIT")"
 addlicense "simdutf" "deps/simdutf" "$licenseText"
 licenseText="$(curl -sL https://raw.githubusercontent.com/ada-url/ada/HEAD/LICENSE-MIT)"
@@ -103,8 +107,10 @@ addlicense "markupsafe" "tools/inspector_protocol/markupsafe" "$licenseText"
 # Testing tools
 licenseText="$(sed -e '/^$/,$d' -e 's/^#$//' -e 's/^# //' "${rootdir}/tools/cpplint.py" | tail -n +3)"
 addlicense "cpplint.py" "tools/cpplint.py" "$licenseText"
-licenseText="$(cat "${rootdir}/tools/node_modules/eslint/LICENSE")"
-addlicense "ESLint" "tools/node_modules/eslint" "$licenseText"
+licenseText="$(sed -e '/^$/,$d' -e 's/^#$//' -e 's/^# //' "${rootdir}/tools/gypi_to_gn.py" | tail -n +3)"
+addlicense "gypi_to_gn.py" "tools/gypi_to_gn.py" "$licenseText"
+licenseText="$(cat "${rootdir}/tools/eslint/node_modules/eslint/LICENSE")"
+addlicense "ESLint" "tools/eslint/node_modules/eslint" "$licenseText"
 licenseText="$(cat "${rootdir}/deps/googletest/LICENSE")"
 addlicense "gtest" "deps/googletest" "$licenseText"
 
@@ -127,9 +133,6 @@ addlicense "brotli" "deps/brotli" "$licenseText"
 licenseText="$(cat "${rootdir}/deps/histogram/LICENSE.txt")"
 addlicense "HdrHistogram" "deps/histogram" "$licenseText"
 
-licenseText="$(curl -sL https://raw.githubusercontent.com/highlightjs/highlight.js/63f367c46f2eeb6f9b7a3545e325eeeb917f9942/LICENSE)"
-addlicense "highlight.js" "doc/api_assets/highlight.pack.js" "$licenseText"
-
 licenseText="$(curl -sL https://raw.githubusercontent.com/bnoordhuis/node-heapdump/0ca52441e46241ffbea56a389e2856ec01c48c97/LICENSE)"
 addlicense "node-heapdump" "src/heap_utils.cc" "$licenseText"
 
@@ -146,6 +149,7 @@ addlicense "nghttp3" "deps/ngtcp2/nghttp3/" "$licenseText"
 licenseText="$(curl -sL https://raw.githubusercontent.com/jprichardson/node-fs-extra/b34da2762a4865b025cac06d02d6a2f1f1027b65/LICENSE)"
 addlicense "node-fs-extra" "lib/internal/fs/cp" "$licenseText"
 
-addlicense "base64" "deps/base64/base64/" "$(cat "${rootdir}/deps/base64/base64/LICENSE" || true)"
+licenseText="$(curl -sL https://raw.githubusercontent.com/mcollina/on-exit-leak-free/2a01c7e66c690aca17187b10b0cecbe43e083eb2/LICENSE)"
+addlicense "on-exit-leak-free" "lib/internal/process/finalization" "$licenseText"
 
 mv "$tmplicense" "$licensefile"

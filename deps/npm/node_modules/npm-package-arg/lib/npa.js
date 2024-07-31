@@ -10,7 +10,7 @@ const semver = require('semver')
 const path = global.FAKE_WINDOWS ? require('path').win32 : require('path')
 const validatePackageName = require('validate-npm-package-name')
 const { homedir } = require('os')
-const log = require('proc-log')
+const { log } = require('proc-log')
 
 const isWindows = process.platform === 'win32' || global.FAKE_WINDOWS
 const hasSlashes = isWindows ? /\\|[/]/ : /[/]/

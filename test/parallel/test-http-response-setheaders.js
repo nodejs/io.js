@@ -129,3 +129,46 @@ const assert = require('assert');
     });
   }));
 }
+
+{
+  const server = http.createServer({ requireHostHeader: false }, common.mustCall((req, res) => {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'a=b');
+    headers.append('Set-Cookie', 'c=d');
+    res.setHeaders(headers);
+    res.end();
+  }));
+
+  server.listen(0, common.mustCall(() => {
+    http.get({ port: server.address().port }, (res) => {
+      assert(Array.isArray(res.headers['set-cookie']));
+      assert.strictEqual(res.headers['set-cookie'].length, 2);
+      assert.strictEqual(res.headers['set-cookie'][0], 'a=b');
+      assert.strictEqual(res.headers['set-cookie'][1], 'c=d');
+      res.resume().on('end', common.mustCall(() => {
+        server.close();
+      }));
+    });
+  }));
+}
+
+{
+  const server = http.createServer({ requireHostHeader: false }, common.mustCall((req, res) => {
+    const headers = new Map();
+    headers.set('Set-Cookie', ['a=b', 'c=d']);
+    res.setHeaders(headers);
+    res.end();
+  }));
+
+  server.listen(0, common.mustCall(() => {
+    http.get({ port: server.address().port }, (res) => {
+      assert(Array.isArray(res.headers['set-cookie']));
+      assert.strictEqual(res.headers['set-cookie'].length, 2);
+      assert.strictEqual(res.headers['set-cookie'][0], 'a=b');
+      assert.strictEqual(res.headers['set-cookie'][1], 'c=d');
+      res.resume().on('end', common.mustCall(() => {
+        server.close();
+      }));
+    });
+  }));
+}

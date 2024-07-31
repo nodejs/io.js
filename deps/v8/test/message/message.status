@@ -35,6 +35,11 @@
   # Modules which are only meant to be imported from by other tests, not to be
   # tested standalone.
   'fail/modules-skip*': [SKIP],
+
+  # Tests that need to run sequentially (e.g. due to memory consumption).
+  'fail/map-grow-failed': [PASS, HEAVY],
+  'fail/set-grow-failed': [PASS, HEAVY],
+  'wasm-trace-memory64*': [PASS, HEAVY],
 }],  # ALWAYS
 
 # Skip Liftoff tests on platforms that don't support Liftoff.
@@ -127,5 +132,18 @@
   # Maglev doesn't support inlining of Wasm code.
   'wasm-inlining-into-js': [FAIL],
 }],  # variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)
+
+##############################################################################
+['verify_predictable', {
+  # https://crbug.com/v8/14397
+  'wasm-finish-compilation': [PASS, FAIL],
+}],  # 'verify_predictable'
+
+##############################################################################
+['variant == future', {
+  # Turboshaft and Turbofan outputs do not match.
+  # TODO(14108): Update output and reenable test.
+  'wasm-recognize-imports': [FAIL],
+}],  # variant == future
 
 ]

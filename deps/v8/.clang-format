@@ -3,4 +3,13 @@
 BasedOnStyle: Google
 DerivePointerAlignment: false
 MaxEmptyLinesToKeep: 1
-IfMacros: ['IF', 'IF_NOT', 'ELSE', 'ELSE_IF']
+IfMacros:
+  - IF
+  - IF_NOT
+Macros:
+  # Make clang-format think TurboShaft `ELSE` expands to just `else`, so that
+  # it formats well alongside `if`
+  - ELSE=else
+StatementMacros:
+  - DECL_CAST
+  - DECL_VERIFIER

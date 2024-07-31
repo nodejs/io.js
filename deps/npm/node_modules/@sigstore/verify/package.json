@@ -1,0 +1,36 @@
+{
+  "name": "@sigstore/verify",
+  "version": "1.2.1",
+  "description": "Verification of Sigstore signatures",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "clean": "shx rm -rf dist *.tsbuildinfo",
+    "build": "tsc --build",
+    "test": "jest"
+  },
+  "files": [
+    "dist"
+  ],
+  "author": "bdehamer@github.com",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sigstore/sigstore-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sigstore/sigstore-js/issues"
+  },
+  "homepage": "https://github.com/sigstore/sigstore-js/tree/main/packages/verify#readme",
+  "publishConfig": {
+    "provenance": true
+  },
+  "dependencies": {
+    "@sigstore/protobuf-specs": "^0.3.2",
+    "@sigstore/bundle": "^2.3.2",
+    "@sigstore/core": "^1.1.0"
+  },
+  "engines": {
+    "node": "^16.14.0 || >=18.0.0"
+  }
+}

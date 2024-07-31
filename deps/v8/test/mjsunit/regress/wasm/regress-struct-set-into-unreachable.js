@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --no-wasm-lazy-compilation --no-liftoff
+// Flags: --no-wasm-lazy-compilation --no-liftoff
 
 // Tests the following scenario:
 // - Wasm load elimination puts an immutable struct.get in its state.

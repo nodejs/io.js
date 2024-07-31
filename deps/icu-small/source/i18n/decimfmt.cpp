@@ -498,7 +498,7 @@ DecimalFormat* DecimalFormat::clone() const {
 }
 
 bool DecimalFormat::operator==(const Format& other) const {
-    auto* otherDF = dynamic_cast<const DecimalFormat*>(&other);
+    const auto* otherDF = dynamic_cast<const DecimalFormat*>(&other);
     if (otherDF == nullptr) {
         return false;
     }

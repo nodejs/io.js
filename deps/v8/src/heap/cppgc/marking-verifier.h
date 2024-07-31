@@ -25,7 +25,7 @@ class VerificationState {
   // No parent means parent was on stack.
   bool IsParentOnStack() const { return !parent_; }
 
- private:
+ protected:
   const HeapObjectHeader* parent_ = nullptr;
 };
 

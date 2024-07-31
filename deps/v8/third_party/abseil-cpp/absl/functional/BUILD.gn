@@ -1,0 +1,83 @@
+# Copyright 2020 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("any_invocable") {
+  sources = [ "internal/any_invocable.h" ]
+  public = [ "any_invocable.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:base_internal",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/utility",
+  ]
+}
+
+absl_test("any_invocable_test") {
+  sources = [
+    "any_invocable_test.cc",
+    "internal/any_invocable.h",
+  ]
+  deps = [
+    ":any_invocable",
+    "//third_party/abseil-cpp/absl/base:base_internal",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/utility",
+  ]
+}
+
+absl_source_set("bind_front") {
+  sources = [ "internal/front_binder.h" ]
+  public = [ "bind_front.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:base_internal",
+    "//third_party/abseil-cpp/absl/container:compressed_tuple",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/utility",
+  ]
+}
+
+absl_source_set("function_ref") {
+  sources = [ "internal/function_ref.h" ]
+  public = [ "function_ref.h" ]
+  deps = [
+    ":any_invocable",
+    "//third_party/abseil-cpp/absl/base:base_internal",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+}
+
+absl_test("function_ref_test") {
+  sources = [ "function_ref_test.cc" ]
+  deps = [
+    ":any_invocable",
+    ":function_ref",
+    "//third_party/abseil-cpp/absl/container:test_instance_tracker",
+    "//third_party/abseil-cpp/absl/memory",
+  ]
+}
+
+absl_source_set("overload") {
+  public = [ "overload.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+}
+
+absl_test("overload_test") {
+  sources = [ "overload_test.cc" ]
+  deps = [
+    ":overload",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/abseil-cpp/absl/types:variant",
+  ]
+}

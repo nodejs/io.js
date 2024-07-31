@@ -1,6 +1,6 @@
 const t = require('tap')
-const { resolve } = require('path')
-const fs = require('fs/promises')
+const { resolve } = require('node:path')
+const fs = require('node:fs/promises')
 const { load: _loadMockNpm } = require('../../fixtures/mock-npm.js')
 const mockGlobals = require('@npmcli/mock-globals')
 const tmock = require('../../fixtures/tmock')
@@ -40,7 +40,7 @@ const loadMockNpm = async (t, { errorMocks, ...opts } = {}) => {
   })
   return {
     ...res,
-    errorMessage: (er) => mockError(er, res.npm),
+    errorMessage: (er) => mockError.errorMessage(er, res.npm),
   }
 }
 
@@ -93,17 +93,12 @@ t.test('just simple messages', async t => {
 
 t.test('replace message/stack sensistive info', async t => {
   const { errorMessage } = await loadMockNpm(t, { command: 'audit' })
-  const path = '/some/path'
-  const pkgid = 'some@package'
-  const file = '/some/file'
-  const stack = 'dummy stack trace at https://user:pass@registry.npmjs.org/'
-  const message = 'Error at registry: https://user:pass@registry.npmjs.org/'
-  const er = Object.assign(new Error(message), {
+  const er = Object.assign(new Error('Error at registry: https://user:pass@registry.npmjs.org/'), {
     code: 'ENOAUDIT',
-    path,
-    pkgid,
-    file,
-    stack,
+    path: '/some/path',
+    pkgid: 'some@package',
+    file: '/some/file',
+    stack: 'dummy stack trace at https://user:pass@registry.npmjs.org/',
   })
   t.matchSnapshot(errorMessage(er))
 })

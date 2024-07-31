@@ -1,20 +1,13 @@
+const fs = require('node:fs')
+const path = require('node:path')
 const t = require('tap')
-const { load: _loadMockNpm } = require('../../fixtures/mock-npm')
-const MockRegistry = require('@npmcli/mock-registry')
 
-const path = require('path')
-const fs = require('fs')
+const {
+  loadNpmWithRegistry: loadMockNpm,
+  workspaceMock,
+} = require('../../fixtures/mock-npm')
 
 // t.cleanSnapshot = str => str.replace(/ in [0-9ms]+/g, ' in {TIME}')
-
-const loadMockNpm = async (t, opts) => {
-  const mock = await _loadMockNpm(t, opts)
-  const registry = new MockRegistry({
-    tap: t,
-    registry: mock.npm.config.get('registry'),
-  })
-  return { registry, ...mock }
-}
 
 const packageJson = {
   name: 'test-package',
@@ -56,6 +49,26 @@ const abbrev = {
   test: 'test file',
 }
 
+t.test('reifies, but doesn\'t remove node_modules because --dry-run', async t => {
+  const { npm, joinedOutput } = await loadMockNpm(t, {
+    config: {
+      'dry-run': true,
+    },
+    prefixDir: {
+      abbrev: abbrev,
+      'package.json': JSON.stringify(packageJson),
+      'package-lock.json': JSON.stringify(packageLock),
+      node_modules: { test: 'test file that will not be removed' },
+    },
+  })
+  await npm.exec('ci', [])
+  t.match(joinedOutput(), 'added 1 package, and removed 1 package in')
+  const nmTest = path.join(npm.prefix, 'node_modules', 'test')
+  t.equal(fs.existsSync(nmTest), true, 'existing node_modules is not removed')
+  const nmAbbrev = path.join(npm.prefix, 'node_modules', 'abbrev')
+  t.equal(fs.existsSync(nmAbbrev), false, 'does not install abbrev')
+})
+
 t.test('reifies, audits, removes node_modules', async t => {
   const { npm, joinedOutput, registry } = await loadMockNpm(t, {
     prefixDir: {
@@ -90,9 +103,15 @@ t.test('reifies, audits, removes node_modules on repeat run', async t => {
   })
   const manifest = registry.manifest({ name: 'abbrev' })
   await registry.tarball({
+    times: 2,
     manifest: manifest.versions['1.0.0'],
     tarball: path.join(npm.prefix, 'abbrev'),
   })
+  await registry.tarball({
+    manifest: manifest.versions['1.0.0'],
+    tarball: path.join(npm.prefix, 'abbrev'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
   registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
   await npm.exec('ci', [])
   await npm.exec('ci', [])
@@ -122,9 +141,6 @@ t.test('--no-audit and --ignore-scripts', async t => {
       'package-lock.json': JSON.stringify(packageLock),
     },
   })
-  require('nock').emitter.on('no match', req => {
-    t.fail('Should not audit')
-  })
   const manifest = registry.manifest({ name: 'abbrev' })
   await registry.tarball({
     manifest: manifest.versions['1.0.0'],
@@ -144,7 +160,6 @@ t.test('lifecycle scripts', async t => {
     },
     mocks: {
       '@npmcli/run-script': (opts) => {
-        t.ok(opts.banner)
         scripts.push(opts.event)
       },
     },
@@ -210,4 +225,86 @@ t.test('should throw error when ideal inventory mismatches virtual', async t => 
   )
   const nmTestFile = path.join(npm.prefix, 'node_modules', 'test-file')
   t.equal(fs.existsSync(nmTestFile), true, 'does not remove node_modules')
+})
+
+t.test('should remove dirty node_modules with unhoisted workspace module', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    prefixDir: workspaceMock(t, {
+      clean: false,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { },
+        },
+        'workspace-b': {
+          'abbrev@1.1.1': { hoist: false },
+        },
+      },
+    }),
+  })
+  await registry.setup({
+    'abbrev@1.1.0': path.join(npm.prefix, 'tarballs/abbrev@1.1.0'),
+    'abbrev@1.1.1': path.join(npm.prefix, 'tarballs/abbrev@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageDirty('node_modules/abbrev@1.1.0')
+  assert.packageDirty('workspace-b/node_modules/abbrev@1.1.1')
+  await npm.exec('ci', [])
+  assert.packageInstalled('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('workspace-b/node_modules/abbrev@1.1.1')
+})
+
+t.test('should remove dirty node_modules with hoisted workspace modules', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    prefixDir: workspaceMock(t, {
+      clean: false,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { },
+        },
+        'workspace-b': {
+          'lodash@1.1.1': { },
+        },
+      },
+    }),
+  })
+  await registry.setup({
+    'abbrev@1.1.0': path.join(npm.prefix, 'tarballs/abbrev@1.1.0'),
+    'lodash@1.1.1': path.join(npm.prefix, 'tarballs/lodash@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageDirty('node_modules/abbrev@1.1.0')
+  assert.packageDirty('node_modules/lodash@1.1.1')
+  await npm.exec('ci', [])
+  assert.packageInstalled('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('node_modules/lodash@1.1.1')
+})
+
+/** this behaves the same way as install but will remove all workspace node_modules */
+t.test('should use --workspace flag', async t => {
+  t.saveFixture = true
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    config: {
+      workspace: 'workspace-b',
+    },
+    prefixDir: workspaceMock(t, {
+      clean: false,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { },
+        },
+        'workspace-b': {
+          'lodash@1.1.1': { },
+        },
+      },
+    }),
+  })
+  await registry.setup({
+    'lodash@1.1.1': path.join(npm.prefix, 'tarballs/lodash@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageDirty('node_modules/abbrev@1.1.0')
+  assert.packageDirty('node_modules/lodash@1.1.1')
+  await npm.exec('ci', [])
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('node_modules/lodash@1.1.1')
 })

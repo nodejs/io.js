@@ -25,63 +25,124 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
-
-#ifdef HAVE_LIMITS_H
-#include <limits.h>
-#endif
-
-#include "ares.h"
 #include "ares_private.h"
 
-/* return time offset between now and (future) check, in milliseconds */
-static long timeoffset(struct timeval *now, struct timeval *check)
+#ifdef HAVE_LIMITS_H
+#  include <limits.h>
+#endif
+
+
+void ares__timeval_remaining(ares_timeval_t       *remaining,
+                             const ares_timeval_t *now,
+                             const ares_timeval_t *tout)
 {
-  return (check->tv_sec - now->tv_sec)*1000 +
-         (check->tv_usec - now->tv_usec)/1000;
+  memset(remaining, 0, sizeof(*remaining));
+
+  /* Expired! */
+  if (tout->sec < now->sec ||
+      (tout->sec == now->sec && tout->usec < now->usec)) {
+    return;
+  }
+
+  remaining->sec = tout->sec - now->sec;
+  if (tout->usec < now->usec) {
+    remaining->sec  -= 1;
+    remaining->usec  = (tout->usec + 1000000) - now->usec;
+  } else {
+    remaining->usec = tout->usec - now->usec;
+  }
 }
 
-struct timeval *ares_timeout(ares_channel channel, struct timeval *maxtv,
-                             struct timeval *tvbuf)
+void ares__timeval_diff(ares_timeval_t *tvdiff, const ares_timeval_t *tvstart,
+                        const ares_timeval_t *tvstop)
 {
-  struct query       *query;
+  tvdiff->sec = tvstop->sec - tvstart->sec;
+  if (tvstop->usec > tvstart->usec) {
+    tvdiff->usec = tvstop->usec - tvstart->usec;
+  } else {
+    tvdiff->sec  -= 1;
+    tvdiff->usec  = tvstop->usec + 1000000 - tvstart->usec;
+  }
+}
+
+static void ares_timeval_to_struct_timeval(struct timeval *tv, const ares_timeval_t *atv)
+{
+#ifdef USE_WINSOCK
+  tv->tv_sec = (long)atv->sec;
+#else
+  tv->tv_sec = (time_t)atv->sec;
+#endif
+
+  tv->tv_usec = (int)atv->usec;
+}
+
+static void struct_timeval_to_ares_timeval(ares_timeval_t *atv, const struct timeval *tv)
+{
+  atv->sec  = (ares_int64_t)tv->tv_sec;
+  atv->usec = (unsigned int)tv->tv_usec;
+}
+
+static struct timeval *ares_timeout_int(const ares_channel_t *channel,
+                                        struct timeval *maxtv,
+                                        struct timeval *tvbuf)
+{
+  const struct query *query;
   ares__slist_node_t *node;
-  struct timeval      now;
-  long                offset;
+  ares_timeval_t      now;
+  ares_timeval_t      atvbuf;
+  ares_timeval_t      amaxtv;
 
   /* The minimum timeout of all queries is always the first entry in
    * channel->queries_by_timeout */
   node = ares__slist_node_first(channel->queries_by_timeout);
   /* no queries/timeout */
   if (node == NULL) {
-    return maxtv; /* <-- maxtv can be null though, hrm */
+    return maxtv;
   }
 
   query = ares__slist_node_val(node);
 
-  now = ares__tvnow();
+  ares__tvnow(&now);
 
-  offset = timeoffset(&now, &query->timeout);
-  if (offset < 0)
-    offset = 0;
-  if (offset > (long)INT_MAX)
-    offset = INT_MAX;
+  ares__timeval_remaining(&atvbuf, &now, &query->timeout);
 
-  tvbuf->tv_sec = offset / 1000;
-  tvbuf->tv_usec = (offset % 1000) * 1000;
+  ares_timeval_to_struct_timeval(tvbuf, &atvbuf);
 
-  if (maxtv == NULL)
+  if (maxtv == NULL) {
     return tvbuf;
+  }
 
   /* Return the minimum time between maxtv and tvbuf */
+  struct_timeval_to_ares_timeval(&amaxtv, maxtv);
 
-  if (tvbuf->tv_sec > maxtv->tv_sec)
+  if (atvbuf.sec > amaxtv.sec) {
     return maxtv;
-  if (tvbuf->tv_sec < maxtv->tv_sec)
+  }
+
+  if (atvbuf.sec < amaxtv.sec) {
     return tvbuf;
+  }
 
-  if (tvbuf->tv_usec > maxtv->tv_usec)
+  if (atvbuf.usec > amaxtv.usec) {
     return maxtv;
+  }
 
   return tvbuf;
+}
+
+struct timeval *ares_timeout(const ares_channel_t *channel,
+                             struct timeval *maxtv, struct timeval *tvbuf)
+{
+  struct timeval *rv;
+
+  if (channel == NULL || tvbuf == NULL)
+    return NULL;
+
+  ares__channel_lock(channel);
+
+  rv = ares_timeout_int(channel, maxtv, tvbuf);
+
+  ares__channel_unlock(channel);
+
+  return rv;
 }

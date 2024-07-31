@@ -46,10 +46,10 @@ class WasmInitExpr : public ZoneObject {
     kArrayNew,
     kArrayNewDefault,
     kArrayNewFixed,
-    kI31New,
+    kRefI31,
     kStringConst,
-    kExternInternalize,
-    kExternExternalize
+    kAnyConvertExtern,
+    kExternConvertAny
   };
 
   union Immediate {
@@ -138,8 +138,8 @@ class WasmInitExpr : public ZoneObject {
     return expr;
   }
 
-  static WasmInitExpr I31New(Zone* zone, WasmInitExpr value) {
-    WasmInitExpr expr(zone, kI31New, {value});
+  static WasmInitExpr RefI31(Zone* zone, WasmInitExpr value) {
+    WasmInitExpr expr(zone, kRefI31, {value});
     return expr;
   }
 
@@ -149,12 +149,12 @@ class WasmInitExpr : public ZoneObject {
     return expr;
   }
 
-  static WasmInitExpr ExternInternalize(Zone* zone, WasmInitExpr arg) {
-    return WasmInitExpr(zone, kExternInternalize, {arg});
+  static WasmInitExpr AnyConvertExtern(Zone* zone, WasmInitExpr arg) {
+    return WasmInitExpr(zone, kAnyConvertExtern, {arg});
   }
 
-  static WasmInitExpr ExternExternalize(Zone* zone, WasmInitExpr arg) {
-    return WasmInitExpr(zone, kExternExternalize, {arg});
+  static WasmInitExpr ExternConvertAny(Zone* zone, WasmInitExpr arg) {
+    return WasmInitExpr(zone, kExternConvertAny, {arg});
   }
 
   Immediate immediate() const { return immediate_; }
@@ -205,9 +205,9 @@ class WasmInitExpr : public ZoneObject {
           if (operands()[i] != other.operands()[i]) return false;
         }
         return true;
-      case kI31New:
-      case kExternInternalize:
-      case kExternExternalize:
+      case kRefI31:
+      case kAnyConvertExtern:
+      case kExternConvertAny:
         return operands_[0] == other.operands_[0];
     }
   }

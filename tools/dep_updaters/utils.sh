@@ -1,6 +1,7 @@
 #!/bin/sh
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+export ROOT
 
 # This function compare new version with current version of a depdendency and
 # exit the script if the versions are the same
@@ -34,15 +35,11 @@ finalize_version_update() {
   new_version="$2"
   extra_files="$3"
 
-  # Update the version number on maintaining-dependencies.md
-  update_dependency_version "$package_name" "$new_version"
-
   echo "All done!"
   echo ""
   echo "Please git add $package_name and commit the new version:"
   echo ""
   echo "$ git add -A deps/$package_name $extra_files"
-  echo "$ git add doc/contributing/maintaining/maintaining-dependencies.md"
   echo "$ git commit -m \"deps: update $package_name to $new_version\""
   echo ""
 
@@ -81,19 +78,10 @@ log_and_verify_sha256sum() {
   fi
 }
 
-# This function update the version of a maintained dependency in
-# https://github.com/nodejs/node/blob/main/doc/contributing/maintaining/maintaining-dependencies.md
-#
-# $1 is the package name e.g. 'acorn', 'ada', 'base64' etc. See that file
-# for a complete list of package name
-# $2 is the new version.
-update_dependency_version() {
-  package_name="$1"
-  new_version="$2"
-  deps_file_path="$ROOT/doc/contributing/maintaining/maintaining-dependencies.md"
-  # Remove version dots for anchor markdown
-  version_no_dots=$(echo "$new_version" | sed -e 's/\.//g')
-  perl -i -pe 's|^\* \['"$package_name"'.*|* ['"$package_name"' '"$new_version"'][]|' "$deps_file_path"
-  perl -i -pe 's|^\['"$package_name"'.*\]: #'"$package_name"'.*|['"$package_name"' '"$new_version"']: #'"$package_name"'-'"$version_no_dots"'|' "$deps_file_path"
-  perl -i -pe 's|^### '"$package_name"'.*|### '"$package_name"' '"$new_version"'|' "$deps_file_path"
+# This function replaces the directory of a dependency with the new one.
+replace_dir() {
+  old_dir="$1"
+  new_dir="$2"
+  rm -rf "$old_dir"
+  mv "$new_dir" "$old_dir"
 }

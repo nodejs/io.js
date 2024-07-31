@@ -61,7 +61,7 @@ TEST_F(ScannerTest, Bookmarks) {
     auto scanner = make_scanner(src_simple);
     do {
       tokens.push_back(scanner->Next());
-    } while (scanner->current_token() != Token::EOS);
+    } while (scanner->current_token() != Token::kEos);
   }
 
   // For each position:
@@ -94,19 +94,20 @@ TEST_F(ScannerTest, AllThePushbacks) {
     const char* src;
     const Token::Value tokens[5];  // Large enough for any of the test cases.
   } test_cases[] = {
-      {"<-x", {Token::LT, Token::SUB, Token::IDENTIFIER, Token::EOS}},
-      {"<!x", {Token::LT, Token::NOT, Token::IDENTIFIER, Token::EOS}},
+      {"<-x", {Token::kLessThan, Token::kSub, Token::kIdentifier, Token::kEos}},
+      {"<!x", {Token::kLessThan, Token::kNot, Token::kIdentifier, Token::kEos}},
       {"<!-x",
-       {Token::LT, Token::NOT, Token::SUB, Token::IDENTIFIER, Token::EOS}},
-      {"<!-- xx -->\nx", {Token::IDENTIFIER, Token::EOS}},
+       {Token::kLessThan, Token::kNot, Token::kSub, Token::kIdentifier,
+        Token::kEos}},
+      {"<!-- xx -->\nx", {Token::kIdentifier, Token::kEos}},
   };
 
   for (const auto& test_case : test_cases) {
     auto scanner = make_scanner(test_case.src);
-    for (size_t i = 0; test_case.tokens[i] != Token::EOS; i++) {
+    for (size_t i = 0; test_case.tokens[i] != Token::kEos; i++) {
       CHECK_TOK(test_case.tokens[i], scanner->Next());
     }
-    CHECK_TOK(Token::EOS, scanner->Next());
+    CHECK_TOK(Token::kEos, scanner->Next());
   }
 }
 

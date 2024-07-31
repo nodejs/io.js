@@ -165,7 +165,7 @@ Token::Value Scanner::Next() {
   // simply becomes next_. In that case we use current_ as new next_next_ and
   // clear its token to indicate that it wasn't scanned yet. Otherwise we use
   // current_ as next_ and scan into it, leaving next_next_ uninitialized.
-  if (V8_LIKELY(next_next().token == Token::UNINITIALIZED)) {
+  if (V8_LIKELY(next_next().token == Token::kUninitialized)) {
     next_ = previous;
     // User 'previous' instead of 'next_' because for some reason the compiler
     // thinks 'next_' could be modified before the entry into Scan.
@@ -174,17 +174,17 @@ Token::Value Scanner::Next() {
   } else {
     next_ = next_next_;
     next_next_ = previous;
-    previous->token = Token::UNINITIALIZED;
-    DCHECK_NE(Token::UNINITIALIZED, current().token);
+    previous->token = Token::kUninitialized;
+    DCHECK_NE(Token::kUninitialized, current().token);
   }
   return current().token;
 }
 
 Token::Value Scanner::PeekAhead() {
-  DCHECK(next().token != Token::DIV);
-  DCHECK(next().token != Token::ASSIGN_DIV);
+  DCHECK(next().token != Token::kDiv);
+  DCHECK(next().token != Token::kAssignDiv);
 
-  if (next_next().token != Token::UNINITIALIZED) {
+  if (next_next().token != Token::kUninitialized) {
     return next_next().token;
   }
   TokenDesc* temp = next_;
@@ -199,7 +199,7 @@ Token::Value Scanner::PeekAhead() {
 Token::Value Scanner::SkipSingleHTMLComment() {
   if (flags_.is_module()) {
     ReportScannerError(source_pos(), MessageTemplate::kHtmlCommentInModule);
-    return Token::ILLEGAL;
+    return Token::kIllegal;
   }
   return SkipSingleLineComment();
 }
@@ -212,18 +212,18 @@ Token::Value Scanner::SkipSingleLineComment() {
   // ECMA-262, section 7.4).
   AdvanceUntil([](base::uc32 c0) { return unibrow::IsLineTerminator(c0); });
 
-  return Token::WHITESPACE;
+  return Token::kWhitespace;
 }
 
-Token::Value Scanner::SkipMagicComment() {
-  TryToParseMagicComment();
+Token::Value Scanner::SkipMagicComment(base::uc32 hash_or_at_sign) {
+  TryToParseMagicComment(hash_or_at_sign);
   if (unibrow::IsLineTerminator(c0_) || c0_ == kEndOfInput) {
-    return Token::WHITESPACE;
+    return Token::kWhitespace;
   }
   return SkipSingleLineComment();
 }
 
-void Scanner::TryToParseMagicComment() {
+void Scanner::TryToParseMagicComment(base::uc32 hash_or_at_sign) {
   // Magic comments are of the form: //[#@]\s<name>=\s*<value>\s*.* and this
   // function will just return if it cannot parse a magic comment.
   DCHECK(!IsWhiteSpaceOrLineTerminator(kEndOfInput));
@@ -245,6 +245,8 @@ void Scanner::TryToParseMagicComment() {
     value = &source_url_;
   } else if (name_literal == base::StaticOneByteVector("sourceMappingURL")) {
     value = &source_mapping_url_;
+    DCHECK(hash_or_at_sign == '#' || hash_or_at_sign == '@');
+    saw_source_mapping_url_magic_comment_at_sign_ = hash_or_at_sign == '@';
   } else if (name_literal ==
              base::StaticOneByteVector("experimentalChromiumCompileHints")) {
     value = &compile_hints_value;
@@ -300,7 +302,7 @@ Token::Value Scanner::SkipMultiLineComment() {
         Advance();
         if (c0_ == '/') {
           Advance();
-          return Token::WHITESPACE;
+          return Token::kWhitespace;
         }
       }
 
@@ -319,12 +321,12 @@ Token::Value Scanner::SkipMultiLineComment() {
       Advance();
       if (c0_ == '/') {
         Advance();
-        return Token::WHITESPACE;
+        return Token::kWhitespace;
       }
     }
   }
 
-  return Token::ILLEGAL;
+  return Token::kIllegal;
 }
 
 Token::Value Scanner::ScanHtmlComment() {
@@ -333,7 +335,7 @@ Token::Value Scanner::ScanHtmlComment() {
   Advance();
   if (c0_ != '-' || Peek() != '-') {
     PushBack('!');  // undo Advance()
-    return Token::LT;
+    return Token::kLessThan;
   }
   Advance();
 
@@ -344,14 +346,14 @@ Token::Value Scanner::ScanHtmlComment() {
 #ifdef DEBUG
 void Scanner::SanityCheckTokenDesc(const TokenDesc& token) const {
   // Only TEMPLATE_* tokens can have a invalid_template_escape_message.
-  // ILLEGAL and UNINITIALIZED can have garbage for the field.
+  // kIllegal and kUninitialized can have garbage for the field.
 
   switch (token.token) {
-    case Token::UNINITIALIZED:
-    case Token::ILLEGAL:
+    case Token::kUninitialized:
+    case Token::kIllegal:
       // token.literal_chars & other members might be garbage. That's ok.
-    case Token::TEMPLATE_SPAN:
-    case Token::TEMPLATE_TAIL:
+    case Token::kTemplateSpan:
+    case Token::kTemplateTail:
       break;
     default:
       DCHECK_EQ(token.invalid_template_escape_message, MessageTemplate::kNone);
@@ -485,18 +487,18 @@ Token::Value Scanner::ScanString() {
       Advance();
       // TODO(verwaest): Check whether we can remove the additional check.
       if (V8_UNLIKELY(c0_ == kEndOfInput || !ScanEscape<false>())) {
-        return Token::ILLEGAL;
+        return Token::kIllegal;
       }
     }
 
     if (c0_ == quote) {
       Advance();
-      return Token::STRING;
+      return Token::kString;
     }
 
     if (V8_UNLIKELY(c0_ == kEndOfInput ||
                     unibrow::IsStringLiteralLineTerminator(c0_))) {
-      return Token::ILLEGAL;
+      return Token::kIllegal;
     }
 
     AddLiteralChar(c0_);
@@ -513,25 +515,25 @@ Token::Value Scanner::ScanPrivateName() {
       (CombineSurrogatePair() && IsIdentifierStart(c0_))) {
     AddLiteralChar('#');
     Token::Value token = ScanIdentifierOrKeywordInner();
-    return token == Token::ILLEGAL ? Token::ILLEGAL : Token::PRIVATE_NAME;
+    return token == Token::kIllegal ? Token::kIllegal : Token::kPrivateName;
   }
 
   ReportScannerError(pos, MessageTemplate::kInvalidOrUnexpectedToken);
-  return Token::ILLEGAL;
+  return Token::kIllegal;
 }
 
 Token::Value Scanner::ScanTemplateSpan() {
   // When scanning a TemplateSpan, we are looking for the following construct:
-  // TEMPLATE_SPAN ::
+  // kTemplateSpan ::
   //     ` LiteralChars* ${
   //   | } LiteralChars* ${
   //
-  // TEMPLATE_TAIL ::
+  // kTemplateTail ::
   //     ` LiteralChars* `
   //   | } LiteralChar* `
   //
-  // A TEMPLATE_SPAN should always be followed by an Expression, while a
-  // TEMPLATE_TAIL terminates a TemplateLiteral and does not need to be
+  // A kTemplateSpan should always be followed by an Expression, while a
+  // kTemplateTail terminates a TemplateLiteral and does not need to be
   // followed by an Expression.
 
   // These scoped helpers save and restore the original error state, so that we
@@ -540,7 +542,7 @@ Token::Value Scanner::ScanTemplateSpan() {
   ErrorState scanner_error_state(&scanner_error_, &scanner_error_location_);
   ErrorState octal_error_state(&octal_message_, &octal_pos_);
 
-  Token::Value result = Token::TEMPLATE_SPAN;
+  Token::Value result = Token::kTemplateSpan;
   next().literal_chars.Start();
   next().raw_literal_chars.Start();
   const bool capture_raw = true;
@@ -548,7 +550,7 @@ Token::Value Scanner::ScanTemplateSpan() {
     base::uc32 c = c0_;
     if (c == '`') {
       Advance();  // Consume '`'
-      result = Token::TEMPLATE_TAIL;
+      result = Token::kTemplateTail;
       break;
     } else if (c == '$' && Peek() == '{') {
       Advance();  // Consume '$'
@@ -763,10 +765,10 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
     // we have already seen a decimal point of the float
     AddLiteralChar('.');
     if (c0_ == '_') {
-      return Token::ILLEGAL;
+      return Token::kIllegal;
     }
     // we know we have at least one digit
-    if (!ScanDecimalDigits(true)) return Token::ILLEGAL;
+    if (!ScanDecimalDigits(true)) return Token::kIllegal;
   } else {
     // if the first character is '0' we must check for octals and hex
     if (c0_ == '0') {
@@ -777,19 +779,19 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
       if (AsciiAlphaToLower(c0_) == 'x') {
         AddLiteralCharAdvance();
         kind = HEX;
-        if (!ScanHexDigits()) return Token::ILLEGAL;
+        if (!ScanHexDigits()) return Token::kIllegal;
       } else if (AsciiAlphaToLower(c0_) == 'o') {
         AddLiteralCharAdvance();
         kind = OCTAL;
-        if (!ScanOctalDigits()) return Token::ILLEGAL;
+        if (!ScanOctalDigits()) return Token::kIllegal;
       } else if (AsciiAlphaToLower(c0_) == 'b') {
         AddLiteralCharAdvance();
         kind = BINARY;
-        if (!ScanBinaryDigits()) return Token::ILLEGAL;
+        if (!ScanBinaryDigits()) return Token::kIllegal;
       } else if (IsOctalDigit(c0_)) {
         kind = IMPLICIT_OCTAL;
         if (!ScanImplicitOctalDigits(start_pos, &kind)) {
-          return Token::ILLEGAL;
+          return Token::kIllegal;
         }
         if (kind == DECIMAL_WITH_LEADING_ZERO) {
           at_start = false;
@@ -799,7 +801,7 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
       } else if (c0_ == '_') {
         ReportScannerError(Location(source_pos(), source_pos() + 1),
                            MessageTemplate::kZeroDigitNumericSeparator);
-        return Token::ILLEGAL;
+        return Token::kIllegal;
       }
     }
 
@@ -811,7 +813,7 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
         uint64_t value = 0;
         // scan subsequent decimal digits
         if (!ScanDecimalAsSmi(&value, allow_numeric_separator)) {
-          return Token::ILLEGAL;
+          return Token::kIllegal;
         }
 
         if (next().literal_chars.one_byte_literal().length() <= 10 &&
@@ -822,20 +824,20 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
             octal_pos_ = Location(start_pos, source_pos());
             octal_message_ = MessageTemplate::kStrictDecimalWithLeadingZero;
           }
-          return Token::SMI;
+          return Token::kSmi;
         }
       }
 
       if (!ScanDecimalDigits(allow_numeric_separator)) {
-        return Token::ILLEGAL;
+        return Token::kIllegal;
       }
       if (c0_ == '.') {
         seen_period = true;
         AddLiteralCharAdvance();
         if (c0_ == '_') {
-          return Token::ILLEGAL;
+          return Token::kIllegal;
         }
-        if (!ScanDecimalDigits(true)) return Token::ILLEGAL;
+        if (!ScanDecimalDigits(true)) return Token::kIllegal;
       }
     }
   }
@@ -850,7 +852,7 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
     if (length > kMaxBigIntCharacters) {
       ReportScannerError(Location(start_pos, source_pos()),
                          MessageTemplate::kBigIntTooBig);
-      return Token::ILLEGAL;
+      return Token::kIllegal;
     }
 
     is_bigint = true;
@@ -859,12 +861,12 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
     // scan exponent, if any
     DCHECK(kind != HEX);  // 'e'/'E' must be scanned as part of the hex number
 
-    if (!IsDecimalNumberKind(kind)) return Token::ILLEGAL;
+    if (!IsDecimalNumberKind(kind)) return Token::kIllegal;
 
     // scan exponent
     AddLiteralCharAdvance();
 
-    if (!ScanSignedInteger()) return Token::ILLEGAL;
+    if (!ScanSignedInteger()) return Token::kIllegal;
   }
 
   // The source character immediately following a numeric literal must
@@ -872,7 +874,7 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
   // section 7.8.3, page 17 (note that we read only one decimal digit
   // if the value is 0).
   if (IsDecimalDigit(c0_) || IsIdentifierStart(c0_)) {
-    return Token::ILLEGAL;
+    return Token::kIllegal;
   }
 
   if (kind == DECIMAL_WITH_LEADING_ZERO) {
@@ -880,7 +882,7 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
     octal_message_ = MessageTemplate::kStrictDecimalWithLeadingZero;
   }
 
-  return is_bigint ? Token::BIGINT : Token::NUMBER;
+  return is_bigint ? Token::kBigInt : Token::kNumber;
 }
 
 base::uc32 Scanner::ScanIdentifierUnicodeEscape() {
@@ -922,7 +924,7 @@ Token::Value Scanner::ScanIdentifierOrKeywordInnerSlow(bool escaped,
       // DCHECK(!IsIdentifierPart('\'));
       DCHECK(!IsIdentifierPart(Invalid()));
       if (c == '\\' || !IsIdentifierPart(c)) {
-        return Token::ILLEGAL;
+        return Token::kIllegal;
       }
       can_be_keyword = can_be_keyword && CharCanBeKeyword(c);
       AddLiteralChar(c);
@@ -939,28 +941,28 @@ Token::Value Scanner::ScanIdentifierOrKeywordInnerSlow(bool escaped,
     base::Vector<const uint8_t> chars = next().literal_chars.one_byte_literal();
     Token::Value token =
         KeywordOrIdentifierToken(chars.begin(), chars.length());
-    if (base::IsInRange(token, Token::IDENTIFIER, Token::YIELD)) return token;
+    if (base::IsInRange(token, Token::kIdentifier, Token::kYield)) return token;
 
-    if (token == Token::FUTURE_STRICT_RESERVED_WORD) {
-      if (escaped) return Token::ESCAPED_STRICT_RESERVED_WORD;
+    if (token == Token::kFutureStrictReservedWord) {
+      if (escaped) return Token::kEscapedStrictReservedWord;
       return token;
     }
 
     if (!escaped) return token;
 
-    static_assert(Token::LET + 1 == Token::STATIC);
-    if (base::IsInRange(token, Token::LET, Token::STATIC)) {
-      return Token::ESCAPED_STRICT_RESERVED_WORD;
+    static_assert(Token::kLet + 1 == Token::kStatic);
+    if (base::IsInRange(token, Token::kLet, Token::kStatic)) {
+      return Token::kEscapedStrictReservedWord;
     }
-    return Token::ESCAPED_KEYWORD;
+    return Token::kEscapedKeyword;
   }
 
-  return Token::IDENTIFIER;
+  return Token::kIdentifier;
 }
 
 bool Scanner::ScanRegExpPattern() {
-  DCHECK_EQ(Token::UNINITIALIZED, next_next().token);
-  DCHECK(next().token == Token::DIV || next().token == Token::ASSIGN_DIV);
+  DCHECK_EQ(Token::kUninitialized, next_next().token);
+  DCHECK(next().token == Token::kDiv || next().token == Token::kAssignDiv);
 
   // Scan: ('/' | '/=') RegularExpressionBody '/' RegularExpressionFlags
   bool in_character_class = false;
@@ -969,7 +971,7 @@ bool Scanner::ScanRegExpPattern() {
   // the scanner should pass uninterpreted bodies to the RegExp
   // constructor.
   next().literal_chars.Start();
-  if (next().token == Token::ASSIGN_DIV) {
+  if (next().token == Token::kAssignDiv) {
     AddLiteralChar('=');
   }
 
@@ -998,12 +1000,12 @@ bool Scanner::ScanRegExpPattern() {
   }
   Advance();  // consume '/'
 
-  next().token = Token::REGEXP_LITERAL;
+  next().token = Token::kRegExpLiteral;
   return true;
 }
 
 base::Optional<RegExpFlags> Scanner::ScanRegExpFlags() {
-  DCHECK_EQ(Token::REGEXP_LITERAL, next().token);
+  DCHECK_EQ(Token::kRegExpLiteral, next().token);
 
   RegExpFlags flags;
   next().literal_chars.Start();
@@ -1071,7 +1073,7 @@ void Scanner::SeekNext(size_t position) {
   //    (next_ + next_next_ will be overwrittem by Next(),
   //     current_ will remain unchanged, so overwrite it fully.)
   for (TokenDesc& token : token_storage_) {
-    token.token = Token::UNINITIALIZED;
+    token.token = Token::kUninitialized;
     token.invalid_template_escape_message = MessageTemplate::kNone;
   }
   // 2, reset the source to the desired position,

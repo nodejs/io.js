@@ -5,6 +5,7 @@
 #ifndef V8_HEAP_MEMORY_BALANCER_H_
 #define V8_HEAP_MEMORY_BALANCER_H_
 
+#include "src/base/platform/time.h"
 #include "src/tasks/cancelable-task.h"
 
 namespace v8 {
@@ -19,35 +20,32 @@ class Heap;
 // Calculate heap limit and update it accordingly.
 class MemoryBalancer {
  public:
-  constexpr static int kSecondsToNanoseconds = 1e9;
-  constexpr static int kMillisecondsToNanoseconds = 1e6;
+  MemoryBalancer(Heap* heap, base::TimeTicks startup_time);
 
-  explicit MemoryBalancer(Heap* heap) : heap_(heap) {}
-
-  void TracerUpdate(size_t live_memory, double major_allocation_bytes,
-                    double major_allocation_duration, double major_gc_bytes,
-                    double major_gc_duration);
+  void UpdateAllocationRate(size_t major_allocation_bytes,
+                            base::TimeDelta major_allocation_duration);
+  void UpdateGCSpeed(size_t major_gc_bytes, base::TimeDelta major_gc_duration);
 
   void HeartbeatUpdate();
 
-  void UpdateExternalAllocationLimit(size_t external_allocation_limit) {
-    external_allocation_limit_ = external_allocation_limit;
-  }
-
-  void NotifyGC();
+  void RecomputeLimits(size_t embedder_allocation_limit, base::TimeTicks time);
 
  private:
-  struct SmoothedBytesAndDuration {
-    void Update(double bytes, double duration, double decay_rate) {
-      this->bytes = this->bytes * decay_rate + bytes * (1 - decay_rate);
-      this->duration =
-          this->duration * decay_rate + duration * (1 - decay_rate);
+  class SmoothedBytesAndDuration {
+   public:
+    SmoothedBytesAndDuration(size_t bytes, double duration)
+        : bytes_(static_cast<double>(bytes)), duration_(duration) {}
+    void Update(size_t bytes, double duration, double decay_rate) {
+      bytes_ =
+          bytes_ * decay_rate + static_cast<double>(bytes) * (1 - decay_rate);
+      duration_ = duration_ * decay_rate + duration * (1 - decay_rate);
     }
-    // Return memory (in bytes) over time (in nanoseconds).
-    double rate() const { return bytes / duration; }
+    // Return memory (in bytes) over time (in millis).
+    double rate() const { return bytes_ / duration_; }
 
-    double bytes;
-    double duration;
+   private:
+    double bytes_;
+    double duration_;
   };
 
   static constexpr double kMajorAllocationDecayRate = 0.95;
@@ -55,13 +53,6 @@ class MemoryBalancer {
 
   void RefreshLimit();
   void PostHeartbeatTask();
-  // Also touch global allocation limit
-  void UpdateHeapLimit(size_t new_limit);
-
-  void UpdateLiveMemory(size_t live_memory);
-  void UpdateMajorAllocation(double major_allocation_bytes,
-                             double major_allocation_duration);
-  void UpdateMajorGC(double major_gc_bytes, double major_gc_duration);
 
   Heap* heap_;
 
@@ -78,7 +69,7 @@ class MemoryBalancer {
   // membalancer. We can also replace global_allocation_limit_ in heap.cc with
   // external_allocation_limit_. Then we can recover global_allocation_limit_
   // via old_generation_allocation_limit_ + external_allocation_limit_.
-  size_t external_allocation_limit_ = 0;
+  size_t embedder_allocation_limit_ = 0;
 
   // Our estimate of major allocation rate and major GC speed.
   base::Optional<SmoothedBytesAndDuration> major_allocation_rate_;
@@ -86,8 +77,8 @@ class MemoryBalancer {
 
   // HeartbeatTask uses the diff between last observed time/memory and
   // current time/memory to calculate the allocation rate.
-  base::Optional<double> last_measured_memory_ = 0;
-  base::Optional<size_t> last_measured_at_ = 0;
+  size_t last_measured_memory_ = 0;
+  base::TimeTicks last_measured_at_;
   bool heartbeat_task_started_ = false;
 };
 

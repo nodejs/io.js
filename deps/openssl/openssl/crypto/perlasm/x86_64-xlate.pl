@@ -111,7 +111,12 @@ elsif (`$ENV{CC} -Wa,-v -c -o /dev/null -x assembler /dev/null 2>&1`
     $gnuas=1;
 }
 elsif (`$ENV{CC} --version 2>/dev/null`
-		=~ /clang .*/)
+		=~ /(clang .*|Intel.*oneAPI .*)/)
+{
+    $gnuas=1;
+}
+elsif (`$ENV{CC} -V 2>/dev/null`
+		=~ /nvc .*/)
 {
     $gnuas=1;
 }

@@ -27,6 +27,7 @@
 
 U_NAMESPACE_BEGIN
 
+class CalendarCache;
 /**
  * <code>ChineseCalendar</code> is a concrete subclass of {@link Calendar}
  * that implements a traditional Chinese calendar.  The traditional Chinese
@@ -75,10 +76,6 @@ U_NAMESPACE_BEGIN
  * <li>Dershowitz and Reingold, <i>Calendrical Calculations</i>,
  * Cambridge University Press, 1997</li>
  * 
- * <li>Helmer Aslaksen's
- * <a href="http://www.math.nus.edu.sg/aslaksen/calendar/chinese.shtml">
- * Chinese Calendar page</a></li>
- *
  * <li>The <a href="http://www.tondering.dk/claus/calendar.html">
  * Calendar FAQ</a></li>
  *
@@ -156,23 +153,6 @@ class U_I18N_API ChineseCalendar : public Calendar {
    */
   virtual void setTemporalMonthCode(const char* code, UErrorCode& status) override;
 
- protected:
- 
-   /**
-   * Constructs a ChineseCalendar based on the current time in the default time zone
-   * with the given locale, using the specified epoch year and time zone for
-   * astronomical calculations.
-   *
-   * @param aLocale         The given locale.
-   * @param epochYear       The epoch year to use for calculation.
-   * @param zoneAstroCalc   The TimeZone to use for astronomical calculations. If null,
-   *                        will be set appropriately for Chinese calendar (UTC + 8:00).
-   * @param success         Indicates the status of ChineseCalendar object construction;
-   *                        if successful, will not be changed to an error value.
-   * @internal
-   */
-  ChineseCalendar(const Locale& aLocale, int32_t epochYear, const TimeZone* zoneAstroCalc, UErrorCode &success);
-
  public:
   /**
    * Copy Constructor
@@ -201,9 +181,6 @@ class U_I18N_API ChineseCalendar : public Calendar {
   // this value could be false for a date prior to the Winter Solstice of that
   // year but that year still has a leap month and therefor is a leap year.
   UBool hasLeapMonthBetweenWinterSolstices;
-  int32_t fEpochYear;   // Start year of this Chinese calendar instance.
-  const TimeZone* fZoneAstroCalc;   // Zone used for the astronomical calculation
-                                    // of this Chinese calendar instance.
 
   //----------------------------------------------------------------------
   // Calendar framework
@@ -211,9 +188,9 @@ class U_I18N_API ChineseCalendar : public Calendar {
 
  protected:
   virtual int32_t handleGetLimit(UCalendarDateFields field, ELimitType limitType) const override;
-  virtual int32_t handleGetMonthLength(int32_t extendedYear, int32_t month) const override;
-  virtual int32_t handleComputeMonthStart(int32_t eyear, int32_t month, UBool useMonth) const override;
-  virtual int32_t handleGetExtendedYear() override;
+  virtual int32_t handleGetMonthLength(int32_t extendedYear, int32_t month, UErrorCode& status) const override;
+  virtual int64_t handleComputeMonthStart(int32_t eyear, int32_t month, UBool useMonth, UErrorCode& status) const override;
+  virtual int32_t handleGetExtendedYear(UErrorCode& status) override;
   virtual void handleComputeFields(int32_t julianDay, UErrorCode &status) override;
   virtual const UFieldResolutionTable* getFieldResolutionTable() const override;
 
@@ -245,19 +222,7 @@ class U_I18N_API ChineseCalendar : public Calendar {
 
   static const UFieldResolutionTable CHINESE_DATE_PRECEDENCE[];
 
-  double daysToMillis(double days) const;
-  double millisToDays(double millis) const;
-  virtual int32_t winterSolstice(int32_t gyear) const;
-  virtual int32_t newMoonNear(double days, UBool after) const;
-  virtual int32_t synodicMonthsBetween(int32_t day1, int32_t day2) const;
-  virtual int32_t majorSolarTerm(int32_t days) const;
-  virtual UBool hasNoMajorSolarTerm(int32_t newMoon) const;
-  virtual UBool isLeapMonthBetween(int32_t newMoon1, int32_t newMoon2) const;
-  virtual void computeChineseFields(int32_t days, int32_t gyear,
-                 int32_t gmonth, UBool setAllFields);
-  virtual int32_t newYear(int32_t gyear) const;
-  virtual void offsetMonth(int32_t newMoon, int32_t dom, int32_t delta);
-  const TimeZone* getChineseCalZoneAstroCalc() const;
+  virtual void offsetMonth(int32_t newMoon, int32_t dom, int32_t delta, UErrorCode& status);
 
   // UObject stuff
  public: 
@@ -289,46 +254,29 @@ class U_I18N_API ChineseCalendar : public Calendar {
    */
   virtual const char * getType() const override;
 
+  struct Setting {
+      int32_t epochYear;
+      const TimeZone* zoneAstroCalc;
+      CalendarCache** winterSolsticeCache;
+      CalendarCache** newYearCache;
+  };
  protected:
-  virtual int32_t internalGetMonth(int32_t defaultValue) const override;
+  virtual Setting getSetting(UErrorCode& status) const;
+  virtual int32_t internalGetMonth(int32_t defaultValue, UErrorCode& status) const override;
 
-  virtual int32_t internalGetMonth() const override;
+  virtual int32_t internalGetMonth(UErrorCode& status) const override;
 
  protected:
-  /**
-   * Returns true because the Islamic Calendar does have a default century
-   * @internal
-   */
-  virtual UBool haveDefaultCentury() const override;
 
-  /**
-   * Returns the date of the start of the default century
-   * @return start of century - in milliseconds since epoch, 1970
-   * @internal
-   */
-  virtual UDate defaultCenturyStart() const override;
-
-  /**
-   * Returns the year in which the default century begins
-   * @internal
-   */
-  virtual int32_t defaultCenturyStartYear() const override;
+  DECLARE_OVERRIDE_SYSTEM_DEFAULT_CENTURY
 
  private: // default century stuff.
 
-  /**
-   * Returns the beginning date of the 100-year window that dates 
-   * with 2-digit years are considered to fall within.
-   */
-  UDate         internalGetDefaultCenturyStart() const;
-
-  /**
-   * Returns the first year of the 100-year window that dates with 
-   * 2-digit years are considered to fall within.
-   */
-  int32_t          internalGetDefaultCenturyStartYear() const;
-
   ChineseCalendar() = delete; // default constructor not implemented
+
+#ifdef __CalendarTest__
+  friend void CalendarTest::TestChineseCalendarComputeMonthStart();
+#endif
 };
 
 U_NAMESPACE_END

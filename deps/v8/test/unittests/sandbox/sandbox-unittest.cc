@@ -51,7 +51,7 @@ TEST(SandboxTest, InitializationWithSize) {
   sandbox.TearDown();
 }
 
-TEST(SandboxTest, PartiallyReservedSandboxInitialization) {
+TEST(SandboxTest, PartiallyReservedSandbox) {
   base::VirtualAddressSpace vas;
   Sandbox sandbox;
   // Total size of the sandbox.
@@ -66,6 +66,12 @@ TEST(SandboxTest, PartiallyReservedSandboxInitialization) {
   EXPECT_TRUE(sandbox.is_partially_reserved());
   EXPECT_NE(sandbox.base(), 0UL);
   EXPECT_EQ(sandbox.size(), size);
+  EXPECT_EQ(sandbox.reservation_size(), reserved_size);
+
+  EXPECT_FALSE(sandbox.ReservationContains(sandbox.base() - 1));
+  EXPECT_TRUE(sandbox.ReservationContains(sandbox.base()));
+  EXPECT_TRUE(sandbox.ReservationContains(sandbox.base() + reserved_size - 1));
+  EXPECT_FALSE(sandbox.ReservationContains(sandbox.base() + reserved_size));
 
   sandbox.TearDown();
 
@@ -79,21 +85,39 @@ TEST(SandboxTest, Contains) {
 
   Address base = sandbox.base();
   size_t size = sandbox.size();
-  base::RandomNumberGenerator rng(::testing::FLAGS_gtest_random_seed);
+  base::RandomNumberGenerator rng(GTEST_FLAG_GET(random_seed));
 
   EXPECT_TRUE(sandbox.Contains(base));
   EXPECT_TRUE(sandbox.Contains(base + size - 1));
+
+  EXPECT_TRUE(sandbox.ReservationContains(base));
+  EXPECT_TRUE(sandbox.ReservationContains(base + size - 1));
+
   for (int i = 0; i < 10; i++) {
     size_t offset = rng.NextInt64() % size;
     EXPECT_TRUE(sandbox.Contains(base + offset));
+    EXPECT_TRUE(sandbox.ReservationContains(base + offset));
   }
 
   EXPECT_FALSE(sandbox.Contains(base - 1));
   EXPECT_FALSE(sandbox.Contains(base + size));
+
+  // ReservationContains also takes the guard regions into account.
+  EXPECT_TRUE(sandbox.ReservationContains(base - 1));
+  EXPECT_TRUE(sandbox.ReservationContains(base - kSandboxGuardRegionSize));
+  EXPECT_TRUE(sandbox.ReservationContains(base + size));
+  EXPECT_FALSE(sandbox.ReservationContains(base - kSandboxGuardRegionSize - 1));
+  EXPECT_FALSE(
+      sandbox.ReservationContains(base + size + kSandboxGuardRegionSize));
+
   for (int i = 0; i < 10; i++) {
     Address addr = rng.NextInt64();
     if (addr < base || addr >= base + size) {
       EXPECT_FALSE(sandbox.Contains(addr));
+    }
+    if (addr < base - kSandboxGuardRegionSize ||
+        addr >= base + size + kSandboxGuardRegionSize) {
+      EXPECT_FALSE(sandbox.ReservationContains(addr));
     }
   }
 

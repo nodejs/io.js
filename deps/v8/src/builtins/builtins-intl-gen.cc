@@ -8,7 +8,7 @@
 
 #include "src/builtins/builtins-iterator-gen.h"
 #include "src/builtins/builtins-utils-gen.h"
-#include "src/codegen/code-stub-assembler.h"
+#include "src/codegen/code-stub-assembler-inl.h"
 #include "src/objects/js-list-format-inl.h"
 #include "src/objects/js-list-format.h"
 #include "src/objects/objects-inl.h"
@@ -31,16 +31,17 @@ class IntlBuiltinsAssembler : public CodeStubAssembler {
   TNode<IntPtrT> PointerToSeqStringData(TNode<String> seq_string) {
     CSA_DCHECK(this,
                IsSequentialStringInstanceType(LoadInstanceType(seq_string)));
-    static_assert(SeqOneByteString::kHeaderSize ==
-                  SeqTwoByteString::kHeaderSize);
-    return IntPtrAdd(
-        BitcastTaggedToWord(seq_string),
-        IntPtrConstant(SeqOneByteString::kHeaderSize - kHeapObjectTag));
+    static_assert(OFFSET_OF_DATA_START(SeqOneByteString) ==
+                  OFFSET_OF_DATA_START(SeqTwoByteString));
+    return IntPtrAdd(BitcastTaggedToWord(seq_string),
+                     IntPtrConstant(OFFSET_OF_DATA_START(SeqOneByteString) -
+                                    kHeapObjectTag));
   }
 
   TNode<Uint8T> GetChar(TNode<SeqOneByteString> seq_string, int index) {
-    int effective_offset =
-        SeqOneByteString::kHeaderSize - kHeapObjectTag + index;
+    size_t effective_offset = OFFSET_OF_DATA_START(SeqOneByteString) +
+                              sizeof(SeqOneByteString::Char) * index -
+                              kHeapObjectTag;
     return Load<Uint8T>(seq_string, IntPtrConstant(effective_offset));
   }
 
@@ -48,7 +49,8 @@ class IntlBuiltinsAssembler : public CodeStubAssembler {
   // {pattern} ignoring case.
   void JumpIfStartsWithIgnoreCase(TNode<SeqOneByteString> seq_string,
                                   const char* pattern, Label* target) {
-    int effective_offset = SeqOneByteString::kHeaderSize - kHeapObjectTag;
+    size_t effective_offset =
+        OFFSET_OF_DATA_START(SeqOneByteString) - kHeapObjectTag;
     TNode<Uint16T> raw =
         Load<Uint16T>(seq_string, IntPtrConstant(effective_offset));
     DCHECK_EQ(strlen(pattern), 2);

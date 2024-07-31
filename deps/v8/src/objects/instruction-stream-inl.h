@@ -18,19 +18,30 @@ namespace v8 {
 namespace internal {
 
 CAST_ACCESSOR(InstructionStream)
-OBJECT_CONSTRUCTORS_IMPL(InstructionStream, HeapObject)
+OBJECT_CONSTRUCTORS_IMPL(InstructionStream, TrustedObject)
 NEVER_READ_ONLY_SPACE_IMPL(InstructionStream)
-DEF_PRIMITIVE_ACCESSORS(InstructionStream, body_size, kBodySizeOffset, uint32_t)
+
+uint32_t InstructionStream::body_size() const {
+  return ReadField<uint32_t>(kBodySizeOffset);
+}
 
 // TODO(sroettger): remove unused setter functions once all code writes go
 // through the WritableJitAllocation, e.g. the body_size setter above.
 
+#if V8_EMBEDDED_CONSTANT_POOL_BOOL
+Address InstructionStream::constant_pool() const {
+  return address() + ReadField<int>(kConstantPoolOffsetOffset);
+}
+#else
+Address InstructionStream::constant_pool() const { return kNullAddress; }
+#endif
+
 // static
 Tagged<InstructionStream> InstructionStream::Initialize(
     Tagged<HeapObject> self, Tagged<Map> map, uint32_t body_size,
-    Tagged<ByteArray> reloc_info) {
+    int constant_pool_offset, Tagged<ByteArray> reloc_info) {
   {
-    ThreadIsolation::WritableJitAllocation writable_allocation =
+    WritableJitAllocation writable_allocation =
         ThreadIsolation::RegisterInstructionStreamAllocation(
             self.address(), InstructionStream::SizeFor(body_size));
     CHECK_EQ(InstructionStream::SizeFor(body_size), writable_allocation.size());
@@ -38,6 +49,11 @@ Tagged<InstructionStream> InstructionStream::Initialize(
     writable_allocation.WriteHeaderSlot<Map, kMapOffset>(map, kRelaxedStore);
 
     writable_allocation.WriteHeaderSlot<uint32_t, kBodySizeOffset>(body_size);
+
+    if constexpr (V8_EMBEDDED_CONSTANT_POOL_BOOL) {
+      writable_allocation.WriteHeaderSlot<int, kConstantPoolOffsetOffset>(
+          kHeaderSize + constant_pool_offset);
+    }
 
     // During the Code initialization process, InstructionStream::code is
     // briefly unset (the Code object has not been allocated yet). In this state
@@ -106,11 +122,11 @@ void InstructionStream::Finalize(Tagged<Code> code,
   // Copy the relocation info first before we unlock the Jit allocation.
   // TODO(sroettger): reloc info should live in protected memory.
   DCHECK_EQ(reloc_info->length(), desc.reloc_size);
-  CopyBytes(reloc_info->GetDataStartAddress(), desc.buffer + desc.reloc_offset,
+  CopyBytes(reloc_info->begin(), desc.buffer + desc.reloc_offset,
             static_cast<size_t>(desc.reloc_size));
 
   {
-    ThreadIsolation::WritableJitAllocation writable_allocation =
+    WritableJitAllocation writable_allocation =
         ThreadIsolation::LookupJitAllocation(
             address(), InstructionStream::SizeFor(body_size()),
             ThreadIsolation::JitAllocationType::kInstructionStream);
@@ -126,18 +142,26 @@ void InstructionStream::Finalize(Tagged<Code> code,
     DCHECK_EQ(code->body_size(),
               code->instruction_size() + code->metadata_size());
 
-    promise.emplace(RelocateFromDesc(heap, desc, code->constant_pool(), no_gc));
+    promise.emplace(RelocateFromDesc(writable_allocation, heap, desc,
+                                     code->constant_pool(), no_gc));
 
     // Publish the code pointer after the istream has been fully initialized.
-    writable_allocation.WriteHeaderSlot<Code, kCodeOffset>(code, kReleaseStore);
+    // TODO(sroettger): this write should go through writable_allocation. At
+    // this point, set_code could probably be removed entirely.
+    set_code(code, kReleaseStore);
   }
 
-  // Trigger the write barriers after we dropped  the JIT write permissions.
+  // Trigger the write barriers after we dropped the JIT write permissions.
   RelocateFromDescWriteBarriers(heap, desc, code->constant_pool(), *promise,
                                 no_gc);
-  CONDITIONAL_WRITE_BARRIER(*this, kCodeOffset, code, UPDATE_WRITE_BARRIER);
+  CONDITIONAL_PROTECTED_POINTER_WRITE_BARRIER(*this, kCodeOffset, code,
+                                              UPDATE_WRITE_BARRIER);
 
   code->FlushICache();
+}
+
+bool InstructionStream::IsFullyInitialized() {
+  return raw_code(kAcquireLoad) != Smi::zero();
 }
 
 Address InstructionStream::body_end() const {
@@ -146,10 +170,9 @@ Address InstructionStream::body_end() const {
 }
 
 Tagged<Object> InstructionStream::raw_code(AcquireLoadTag tag) const {
-  PtrComprCageBase cage_base = main_cage_base();
-  Tagged<Object> value =
-      TaggedField<Object, kCodeOffset>::Acquire_Load(cage_base, *this);
+  Tagged<Object> value = RawProtectedPointerField(kCodeOffset).Acquire_Load();
   DCHECK(!ObjectInYoungGeneration(value));
+  DCHECK(IsSmi(value) || IsTrustedSpaceObject(HeapObject::cast(value)));
   return value;
 }
 
@@ -157,10 +180,12 @@ Tagged<Code> InstructionStream::code(AcquireLoadTag tag) const {
   return Code::cast(raw_code(tag));
 }
 
-void InstructionStream::set_code(Tagged<Code> value, ReleaseStoreTag) {
+void InstructionStream::set_code(Tagged<Code> value, ReleaseStoreTag tag) {
   DCHECK(!ObjectInYoungGeneration(value));
-  TaggedField<Code, kCodeOffset>::Release_Store(*this, value);
-  CONDITIONAL_WRITE_BARRIER(*this, kCodeOffset, value, UPDATE_WRITE_BARRIER);
+  DCHECK(IsTrustedSpaceObject(value));
+  WriteProtectedPointerField(kCodeOffset, value, tag);
+  CONDITIONAL_PROTECTED_POINTER_WRITE_BARRIER(*this, kCodeOffset, value,
+                                              UPDATE_WRITE_BARRIER);
 }
 
 bool InstructionStream::TryGetCode(Tagged<Code>* code_out,
@@ -199,11 +224,11 @@ Tagged<ByteArray> InstructionStream::unchecked_relocation_info() const {
 }
 
 uint8_t* InstructionStream::relocation_start() const {
-  return relocation_info()->GetDataStartAddress();
+  return relocation_info()->begin();
 }
 
 uint8_t* InstructionStream::relocation_end() const {
-  return relocation_info()->GetDataEndAddress();
+  return relocation_info()->end();
 }
 
 int InstructionStream::relocation_size() const {

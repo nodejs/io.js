@@ -72,6 +72,37 @@ namespace turboshaft {
 template <class Next>
 class TypeInferenceReducer;
 
+class ScopeCounter {
+ public:
+  void enter() { scopes_++; }
+  void leave() { scopes_--; }
+  bool is_active() { return scopes_ > 0; }
+
+ private:
+  int scopes_{0};
+};
+
+// In rare cases of intentional duplication of instructions, we need to disable
+// value numbering. This scope manages that.
+class DisableValueNumbering {
+ public:
+  template <class Reducer>
+  explicit DisableValueNumbering(Reducer* reducer) {
+    if constexpr (reducer_list_contains<typename Reducer::ReducerList,
+                                        ValueNumberingReducer>::value) {
+      scopes_ = reducer->gvn_disabled_scope();
+      scopes_->enter();
+    }
+  }
+
+  ~DisableValueNumbering() {
+    if (scopes_ != nullptr) scopes_->leave();
+  }
+
+ private:
+  ScopeCounter* scopes_{nullptr};
+};
+
 template <class Next>
 class ValueNumberingReducer : public Next {
 #if defined(__clang__)
@@ -80,20 +111,38 @@ class ValueNumberingReducer : public Next {
 #endif
 
  public:
-  TURBOSHAFT_REDUCER_BOILERPLATE()
+  TURBOSHAFT_REDUCER_BOILERPLATE(ValueNumbering)
 
-#define EMIT_OP(Name)                                                      \
-  template <class... Args>                                                 \
-  OpIndex Reduce##Name(Args... args) {                                     \
-    OpIndex next_index = Asm().output_graph().next_operation_index();      \
-    USE(next_index);                                                       \
-    OpIndex result = Next::Reduce##Name(args...);                          \
-    if (ShouldSkipOptimizationStep()) return result;                       \
-    /* Throwing operations have a non-trivial lowering, so they don't work \
-     * with value numbering. */                                            \
-    if constexpr (MayThrow(Opcode::k##Name)) return result;                \
-    DCHECK_EQ(next_index, result);                                         \
-    return AddOrFind<Name##Op>(result);                                    \
+  template <typename Op>
+  static constexpr bool CanBeGVNed() {
+    constexpr Opcode opcode = operation_to_opcode_map<Op>::value;
+    /* Throwing operations have a non-trivial lowering, so they don't work
+     * with value numbering. */
+    if constexpr (MayThrow(opcode)) return false;
+    if constexpr (opcode == Opcode::kCatchBlockBegin) {
+      /* CatchBlockBegin are never interesting to GVN, but additionally
+       * split-edge can transform CatchBlockBeginOp into PhiOp, which means
+       * that there is no guarantee here than {result} is indeed a
+       * CatchBlockBegin. */
+      return false;
+    }
+    if constexpr (opcode == Opcode::kComment) {
+      /* We don't want to GVN comments. */
+      return false;
+    }
+    return true;
+  }
+
+#define EMIT_OP(Name)                                                 \
+  template <class... Args>                                            \
+  OpIndex Reduce##Name(Args... args) {                                \
+    OpIndex next_index = Asm().output_graph().next_operation_index(); \
+    USE(next_index);                                                  \
+    OpIndex result = Next::Reduce##Name(args...);                     \
+    if (ShouldSkipOptimizationStep()) return result;                  \
+    if constexpr (!CanBeGVNed<Name##Op>()) return result;             \
+    DCHECK_EQ(next_index, result);                                    \
+    return AddOrFind<Name##Op>(result);                               \
   }
   TURBOSHAFT_OPERATION_LIST(EMIT_OP)
 #undef EMIT_OP
@@ -123,6 +172,14 @@ class ValueNumberingReducer : public Next {
     }
   }
 
+  template <class Op>
+  bool WillGVNOp(const Op& op) {
+    Entry* entry = Find(op);
+    return !entry->IsEmpty();
+  }
+
+  ScopeCounter* gvn_disabled_scope() { return &disabled_scope_; }
+
  private:
   // TODO(dmercadier): Once the mapping from Operations to Blocks has been added
   // to turboshaft, remove the `block` field from the `Entry` structure.
@@ -131,10 +188,14 @@ class ValueNumberingReducer : public Next {
     BlockIndex block;
     size_t hash = 0;
     Entry* depth_neighboring_entry = nullptr;
+
+    bool IsEmpty() const { return hash == 0; }
   };
 
   template <class Op>
   OpIndex AddOrFind(OpIndex op_idx) {
+    if (is_disabled()) return op_idx;
+
     const Op& op = Asm().output_graph().Get(op_idx).template Cast<Op>();
     if (std::is_same_v<Op, PendingLoopPhiOp> || op.IsBlockTerminator() ||
         (!op.Effects().repetition_is_eliminatable() &&
@@ -145,18 +206,35 @@ class ValueNumberingReducer : public Next {
     }
     RehashIfNeeded();
 
+    size_t hash;
+    Entry* entry = Find(op, &hash);
+    if (entry->IsEmpty()) {
+      // {op} is not present in the state, inserting it.
+      *entry = Entry{op_idx, Asm().current_block()->index(), hash,
+                     depths_heads_.back()};
+      depths_heads_.back() = entry;
+      ++entry_count_;
+      return op_idx;
+    } else {
+      // {op} is already present, removing it from the graph and returning the
+      // previous one.
+      Next::RemoveLast(op_idx);
+      return entry->value;
+    }
+  }
+
+  template <class Op>
+  Entry* Find(const Op& op, size_t* hash_ret = nullptr) {
     constexpr bool same_block_only = std::is_same<Op, PhiOp>::value;
     size_t hash = ComputeHash<same_block_only>(op);
     size_t start_index = hash & mask_;
     for (size_t i = start_index;; i = NextEntryIndex(i)) {
       Entry& entry = table_[i];
-      if (entry.hash == 0) {
-        // We didn't find {op} in {table_}. Inserting it and returning.
-        table_[i] = Entry{op_idx, Asm().current_block()->index(), hash,
-                          depths_heads_.back()};
-        depths_heads_.back() = &table_[i];
-        ++entry_count_;
-        return op_idx;
+      if (entry.IsEmpty()) {
+        // We didn't find {op} in {table_}. Returning where it could be
+        // inserted.
+        if (hash_ret) *hash_ret = hash;
+        return &entry;
       }
       if (entry.hash == hash) {
         const Operation& entry_op = Asm().output_graph().Get(entry.value);
@@ -164,8 +242,7 @@ class ValueNumberingReducer : public Next {
             (!same_block_only ||
              entry.block == Asm().current_block()->index()) &&
             entry_op.Cast<Op>().EqualsForGVN(op)) {
-          Next::RemoveLast(op_idx);
-          return entry.value;
+          return &entry;
         }
       }
       // Making sure that we don't have an infinite loop.
@@ -262,6 +339,8 @@ class ValueNumberingReducer : public Next {
     return V8_LIKELY(entry > table_.begin()) ? entry - 1 : table_.end() - 1;
   }
 
+  bool is_disabled() { return disabled_scope_.is_active(); }
+
   ZoneVector<Block*> dominator_path_{Asm().phase_zone()};
   base::Vector<Entry> table_ = Asm().phase_zone()->template NewVector<Entry>(
       base::bits::RoundUpToPowerOfTwo(
@@ -269,6 +348,7 @@ class ValueNumberingReducer : public Next {
   size_t mask_ = table_.size() - 1;
   size_t entry_count_ = 0;
   ZoneVector<Entry*> depths_heads_{Asm().phase_zone()};
+  ScopeCounter disabled_scope_;
 };
 
 }  // namespace turboshaft

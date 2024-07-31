@@ -13,7 +13,7 @@ Node.js codebase not related to stylistic issues.
   * [4 spaces of indentation for statement continuations](#4-spaces-of-indentation-for-statement-continuations)
   * [Align function arguments vertically](#align-function-arguments-vertically)
   * [Initialization lists](#initialization-lists)
-  * [CamelCase for methods, functions, and classes](#camelcase-for-methods-functions-and-classes)
+  * [PascalCase for methods, functions, and classes](#pascalcase-for-methods-functions-and-classes)
   * [`snake_case` for local variables and parameters](#snake_case-for-local-variables-and-parameters)
   * [`snake_case_` for private class fields](#snake_case_-for-private-class-fields)
   * [`snake_case` for C-like structs](#snake_case-for-c-like-structs)
@@ -139,7 +139,7 @@ HandleWrap::HandleWrap(Environment* env,
       handle_(handle) {
 ```
 
-### CamelCase for methods, functions, and classes
+### PascalCase for methods, functions, and classes
 
 Exceptions are simple getters/setters, which are named `property_name()` and
 `set_property_name()`, respectively.

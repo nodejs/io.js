@@ -11,7 +11,6 @@
 namespace v8 {
 namespace internal {
 
-class CallHandlerInfo;
 class Isolate;
 
 // The Serializer/Deserializer class is a common superclass for Serializer and
@@ -34,12 +33,12 @@ class SerializerDeserializer : public RootVisitor {
   void RestoreExternalReferenceRedirector(Isolate* isolate,
                                           Tagged<AccessorInfo> accessor_info);
   void RestoreExternalReferenceRedirector(
-      Isolate* isolate, Tagged<CallHandlerInfo> call_handler_info);
+      Isolate* isolate, Tagged<FunctionTemplateInfo> function_template_info);
 
   // clang-format off
 #define UNUSED_SERIALIZER_BYTE_CODES(V)                           \
   /* Free range 0x10..0x1f */                                     \
-  V(0x1b) V(0x1c) V(0x1d) V(0x1e) V(0x1f)                         \
+  V(0x1f)                                                         \
   /* Free range 0x20..0x2f */                                     \
   V(0x20) V(0x21) V(0x22) V(0x23) V(0x24) V(0x25) V(0x26) V(0x27) \
   V(0x28) V(0x29) V(0x2a) V(0x2b) V(0x2c) V(0x2d) V(0x2e) V(0x2f) \
@@ -71,7 +70,7 @@ class SerializerDeserializer : public RootVisitor {
   // The static assert below will trigger when the number of preallocated spaces
   // changed. If that happens, update the kNewObject and kBackref bytecode
   // ranges in the comments below.
-  static_assert(3 == kNumberOfSnapshotSpaces);
+  static_assert(4 == kNumberOfSnapshotSpaces);
 
   // First 32 root array items.
   static const int kRootArrayConstantsCount = 0x20;
@@ -92,7 +91,7 @@ class SerializerDeserializer : public RootVisitor {
     // 0x00..0x03  Allocate new object, in specified space.
     kNewObject = 0x00,
     // Reference to previously allocated object.
-    kBackref = 0x03,
+    kBackref = 0x04,
     // Reference to an object in the read only heap.
     kReadOnlyHeapRef,
     // Object in the startup object cache.
@@ -140,17 +139,28 @@ class SerializerDeserializer : public RootVisitor {
     // Resolves an existing "pending" forward reference to point to the current
     // object.
     kResolvePendingForwardRef,
-    // Special construction bytecode for the metamap. In theory we could re-use
-    // forward-references for this, but then the forward reference would be
-    // registered during object map deserialization, before the object is
+    // Special construction bytecodes for the metamaps. In theory we could
+    // re-use forward-references for this, but then the forward reference would
+    // be registered during object map deserialization, before the object is
     // allocated, so there wouldn't be a allocated object whose map field we can
     // register as the pending field. We could either hack around this, or
     // simply introduce this new bytecode.
-    kNewMetaMap,
+    kNewContextlessMetaMap,
+    kNewContextfulMetaMap,
     // When the sandbox is enabled, a prefix indicating that the following
     // object is referenced through an indirect pointer, i.e. through an entry
     // in a pointer table.
     kIndirectPointerPrefix,
+    // When the sandbox is enabled, this bytecode instructs the deserializer to
+    // initialize the "self" indirect pointer of trusted objects, which
+    // references the object's pointer table entry. As the "self" indirect
+    // pointer is always the first field after the map word, it is guaranteed
+    // that it will be deserialized before any inner objects, which may require
+    // the pointer table entry for back reference to the trusted object.
+    kInitializeSelfIndirectPointer,
+    // A prefix indicating that the following object is referenced through a
+    // protected pointer, i.e. a pointer from one trusted object to another.
+    kProtectedPointerPrefix,
 
     //
     // ---------- byte code range 0x40..0x7f ----------
@@ -263,6 +273,27 @@ class SerializerDeserializer : public RootVisitor {
   // This backing store reference value represents empty backing stores during
   // serialization/deserialization.
   static const uint32_t kEmptyBackingStoreRefSentinel = 0;
+};
+
+struct SerializeEmbedderFieldsCallback {
+  SerializeEmbedderFieldsCallback(v8::SerializeInternalFieldsCallback js_cb =
+                                      v8::SerializeInternalFieldsCallback(),
+                                  v8::SerializeContextDataCallback context_cb =
+                                      v8::SerializeContextDataCallback())
+      : js_object_callback(js_cb), context_callback(context_cb) {}
+  v8::SerializeInternalFieldsCallback js_object_callback;
+  v8::SerializeContextDataCallback context_callback;
+};
+
+struct DeserializeEmbedderFieldsCallback {
+  DeserializeEmbedderFieldsCallback(
+      v8::DeserializeInternalFieldsCallback js_cb =
+          v8::DeserializeInternalFieldsCallback(),
+      v8::DeserializeContextDataCallback context_cb =
+          v8::DeserializeContextDataCallback())
+      : js_object_callback(js_cb), context_callback(context_cb) {}
+  v8::DeserializeInternalFieldsCallback js_object_callback;
+  v8::DeserializeContextDataCallback context_callback;
 };
 
 }  // namespace internal

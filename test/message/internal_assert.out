@@ -12,6 +12,8 @@ Please open an issue with this stack trace at https://github.com/nodejs/node/iss
     at *
     at *
     at *
+    at *
+    at *
     at * {
   code: 'ERR_INTERNAL_ASSERTION'
 }

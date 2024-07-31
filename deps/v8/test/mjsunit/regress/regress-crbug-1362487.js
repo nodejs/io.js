@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-rab-gsab
-
 const rab1 = new ArrayBuffer(2000, {'maxByteLength': 4000});
 class MyInt8Array extends Int8Array {
     constructor() {

@@ -36,7 +36,6 @@ template("inspector_protocol_generate") {
       "$inspector_protocol_dir/lib/encoding_h.template",
       "$inspector_protocol_dir/lib/encoding_cpp.template",
       "$inspector_protocol_dir/lib/Allocator_h.template",
-      "$inspector_protocol_dir/lib/Array_h.template",
       "$inspector_protocol_dir/lib/DispatcherBase_cpp.template",
       "$inspector_protocol_dir/lib/DispatcherBase_h.template",
       "$inspector_protocol_dir/lib/ErrorSupport_cpp.template",

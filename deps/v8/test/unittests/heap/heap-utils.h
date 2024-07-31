@@ -124,8 +124,8 @@ class WithHeapInternals : public TMixin, HeapInternalsBase {
     InvokeMajorGC();
     heap()->EnsureSweepingCompleted(
         Heap::SweepingForcedFinalizationMode::kV8Only);
-    heap()->old_space()->FreeLinearAllocationArea();
-    for (Page* page : *heap()->old_space()) {
+    heap()->FreeMainThreadLinearAllocationAreas();
+    for (PageMetadata* page : *heap()->old_space()) {
       page->MarkNeverAllocateForTesting();
     }
   }
@@ -150,7 +150,7 @@ bool InYoungGeneration(v8::Isolate* isolate, const GlobalOrPersistent& global) {
   CHECK(!v8_flags.single_generation);
   v8::HandleScope scope(isolate);
   auto tmp = global.Get(isolate);
-  return Heap::InYoungGeneration(*v8::Utils::OpenHandle(*tmp));
+  return Heap::InYoungGeneration(*v8::Utils::OpenDirectHandle(*tmp));
 }
 
 bool IsNewObjectInCorrectGeneration(Tagged<HeapObject> object);
@@ -160,7 +160,7 @@ bool IsNewObjectInCorrectGeneration(v8::Isolate* isolate,
                                     const GlobalOrPersistent& global) {
   v8::HandleScope scope(isolate);
   auto tmp = global.Get(isolate);
-  return IsNewObjectInCorrectGeneration(*v8::Utils::OpenHandle(*tmp));
+  return IsNewObjectInCorrectGeneration(*v8::Utils::OpenDirectHandle(*tmp));
 }
 
 // ManualGCScope allows for disabling GC heuristics. This is useful for tests
@@ -182,6 +182,19 @@ class V8_NODISCARD ManualGCScope final {
   const bool flag_parallel_marking_;
   const bool flag_detect_ineffective_gcs_near_heap_limit_;
   const bool flag_cppheap_concurrent_marking_;
+};
+
+// DisableHandleChecksForMockingScope disables the checks for v8::Local and
+// internal::DirectHandle, so that such handles can be allocated off-stack.
+// This is required for mocking functions that take such handles as parameters
+// and/or return them as results. For correctness (with direct handles), when
+// this scope is used, it is important to ensure that the objects stored in
+// handles used for mocking are retained by other means, so that they will not
+// be reclaimed by a garbage collection.
+class V8_NODISCARD DisableHandleChecksForMockingScope final
+    : public StackAllocatedCheck::Scope {
+ public:
+  DisableHandleChecksForMockingScope() : StackAllocatedCheck::Scope(false) {}
 };
 
 }  // namespace internal

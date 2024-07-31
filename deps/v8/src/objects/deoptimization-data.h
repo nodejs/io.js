@@ -25,6 +25,10 @@ class DeoptimizationLiteralArray : public WeakFixedArray {
   inline Tagged<Object> get(int index) const;
   inline Tagged<Object> get(PtrComprCageBase cage_base, int index) const;
 
+  // TODO(jgruber): Swap these names around. It's confusing that this
+  // WeakFixedArray subclass redefines `get` with different semantics.
+  inline Tagged<MaybeObject> get_raw(int index) const;
+
   // Setter for literals. This will set the object as strong or weak depending
   // on InstructionStream::IsWeakObjectInOptimizedCode.
   inline void set(int index, Tagged<Object> value);
@@ -97,7 +101,7 @@ class DeoptimizationFrameTranslation::Iterator {
   void SkipOpcodeAndItsOperandsAtPreviousIndex();
 
   std::vector<int32_t> uncompressed_contents_;
-  DeoptimizationFrameTranslation buffer_;
+  Tagged<DeoptimizationFrameTranslation> buffer_;
   int index_;
 
   // This decrementing counter indicates how many more times to read operations
@@ -119,7 +123,7 @@ class DeoptimizationFrameTranslation::Iterator {
 // the literal array will contain these functions.
 //
 // It can be empty.
-class DeoptimizationData : public FixedArray {
+class DeoptimizationData : public TrustedFixedArray {
  public:
   // Layout description.  Indices in the array.
   static const int kFrameTranslationIndex = 0;
@@ -198,11 +202,10 @@ class DeoptimizationData : public FixedArray {
   Tagged<class SharedFunctionInfo> GetInlinedFunction(int index);
 
   // Allocates a DeoptimizationData.
-  static Handle<DeoptimizationData> New(Isolate* isolate, int deopt_entry_count,
-                                        AllocationType allocation);
+  static Handle<DeoptimizationData> New(Isolate* isolate,
+                                        int deopt_entry_count);
   static Handle<DeoptimizationData> New(LocalIsolate* isolate,
-                                        int deopt_entry_count,
-                                        AllocationType allocation);
+                                        int deopt_entry_count);
 
   // Return an empty DeoptimizationData.
   V8_EXPORT_PRIVATE static Handle<DeoptimizationData> Empty(Isolate* isolate);
@@ -225,7 +228,7 @@ class DeoptimizationData : public FixedArray {
 
   static int LengthFor(int entry_count) { return IndexForEntry(entry_count); }
 
-  OBJECT_CONSTRUCTORS(DeoptimizationData, FixedArray);
+  OBJECT_CONSTRUCTORS(DeoptimizationData, TrustedFixedArray);
 };
 
 }  // namespace internal

@@ -66,7 +66,6 @@ RBBIRuleBuilder::RBBIRuleBuilder(const UnicodeString   &rules,
     fForwardTable       = nullptr;
     fRuleStatusVals     = nullptr;
     fChainRules         = false;
-    fLBCMNoChain        = false;
     fLookAheadHardBreak = false;
     fUSetNodes          = nullptr;
     fRuleStatusVals     = nullptr;
@@ -87,7 +86,8 @@ RBBIRuleBuilder::RBBIRuleBuilder(const UnicodeString   &rules,
     if (U_FAILURE(status)) {
         return;
     }
-    if(fSetBuilder == 0 || fScanner == 0 || fUSetNodes == 0 || fRuleStatusVals == 0) {
+    if (fSetBuilder == nullptr || fScanner == nullptr ||
+        fUSetNodes == nullptr || fRuleStatusVals == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
     }
 }
@@ -157,7 +157,7 @@ RBBIDataHeader *RBBIRuleBuilder::flattenData() {
     int32_t statusTableSize   = align8(fRuleStatusVals->size() * sizeof(int32_t));
 
     int32_t rulesLengthInUTF8 = 0;
-    u_strToUTF8WithSub(0, 0, &rulesLengthInUTF8,
+    u_strToUTF8WithSub(nullptr, 0, &rulesLengthInUTF8,
                        fStrippedRules.getBuffer(), fStrippedRules.length(),
                        0xfffd, nullptr, fStatus);
     *fStatus = U_ZERO_ERROR;

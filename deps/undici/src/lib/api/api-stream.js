@@ -1,14 +1,11 @@
 'use strict'
 
-const { finished, PassThrough } = require('stream')
-const {
-  InvalidArgumentError,
-  InvalidReturnValueError,
-  RequestAbortedError
-} = require('../core/errors')
+const assert = require('node:assert')
+const { finished, PassThrough } = require('node:stream')
+const { InvalidArgumentError, InvalidReturnValueError } = require('../core/errors')
 const util = require('../core/util')
 const { getResolveErrorBodyCallback } = require('./util')
-const { AsyncResource } = require('async_hooks')
+const { AsyncResource } = require('node:async_hooks')
 const { addSignal, removeSignal } = require('./abort-signal')
 
 class StreamHandler extends AsyncResource {
@@ -70,9 +67,12 @@ class StreamHandler extends AsyncResource {
   }
 
   onConnect (abort, context) {
-    if (!this.callback) {
-      throw new RequestAbortedError()
+    if (this.reason) {
+      abort(this.reason)
+      return
     }
+
+    assert(this.callback)
 
     this.abort = abort
     this.context = context
@@ -148,7 +148,7 @@ class StreamHandler extends AsyncResource {
 
     const needDrain = res.writableNeedDrain !== undefined
       ? res.writableNeedDrain
-      : res._writableState && res._writableState.needDrain
+      : res._writableState?.needDrain
 
     return needDrain !== true
   }
@@ -212,7 +212,7 @@ function stream (opts, factory, callback) {
     if (typeof callback !== 'function') {
       throw err
     }
-    const opaque = opts && opts.opaque
+    const opaque = opts?.opaque
     queueMicrotask(() => callback(err, { opaque }))
   }
 }

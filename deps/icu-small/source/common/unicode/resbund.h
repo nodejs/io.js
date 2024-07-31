@@ -209,8 +209,7 @@ public:
      * @return number of resources in a given resource.
      * @stable ICU 2.0
      */
-    int32_t
-      getSize(void) const;
+    int32_t getSize() const;
 
     /**
      * returns a string from a string resource type
@@ -289,16 +288,14 @@ public:
      * @return true if there are more elements, false if there is no more elements
      * @stable ICU 2.0
      */
-    UBool
-      hasNext(void) const;
+    UBool hasNext() const;
 
     /**
      * Resets the internal context of a resource so that iteration starts from the first element.
      *
      * @stable ICU 2.0
      */
-    void
-      resetIterator(void);
+    void resetIterator();
 
     /**
      * Returns the key associated with this resource. Not all the resources have a key - only
@@ -307,8 +304,7 @@ public:
      * @return a key associated to this resource, or nullptr if it doesn't have a key
      * @stable ICU 2.0
      */
-    const char*
-      getKey(void) const;
+    const char* getKey() const;
 
     /**
      * Gets the locale ID of the resource bundle as a string.
@@ -317,9 +313,7 @@ public:
      * @return the locale ID of the resource bundle as a string
      * @stable ICU 2.0
      */
-    const char*
-      getName(void) const;
-
+    const char* getName() const;
 
     /**
      * Returns the type of a resource. Available types are defined in enum UResType
@@ -327,8 +321,7 @@ public:
      * @return type of the given resource.
      * @stable ICU 2.0
      */
-    UResType
-      getType(void) const;
+    UResType getType() const;
 
     /**
      * Returns the next resource in a given resource or nullptr if there are no more resources
@@ -424,8 +417,7 @@ public:
      * @see getVersion
      * @deprecated ICU 2.8 Use getVersion instead.
      */
-    const char*
-      getVersionNumber(void) const;
+    const char* getVersionNumber() const;
 #endif  /* U_HIDE_DEPRECATED_API */
 
     /**
@@ -445,8 +437,7 @@ public:
      * @return a Locale object
      * @deprecated ICU 2.8 Use getLocale(ULocDataLocaleType type, UErrorCode &status) overload instead.
      */
-    const Locale&
-      getLocale(void) const;
+    const Locale& getLocale() const;
 #endif  /* U_HIDE_DEPRECATED_API */
 
     /**

@@ -13,9 +13,7 @@ const kPromiseBuiltinsPromiseContextLength: constexpr int31
 // together with the values array. Since all closures for a single Promise.all
 // call use the same context, we need to store the indices for the individual
 // closures somewhere else (we put them into the identity hash field of the
-// closures), and we also need to have a separate marker for when the closure
-// was called already (we slap the native context onto the closure in that
-// case to mark it's done).
+// closures).
 macro CreatePromiseAllResolveElementContext(
     implicit context: Context)(capability: PromiseCapability,
     nativeContext: NativeContext): PromiseAllResolveElementContext {
@@ -143,8 +141,8 @@ transitioning macro PerformPromiseAll<F1: type, F2: type>(
     implicit context: Context)(nativeContext: NativeContext,
     iter: iterator::IteratorRecord, constructor: Constructor,
     capability: PromiseCapability, promiseResolveFunction: JSAny,
-    createResolveElementFunctor: F1, createRejectElementFunctor: F2,
-    hasResolveAndRejectClosures: constexpr bool): JSAny labels
+    createResolveElementFunctor: F1,
+    createRejectElementFunctor: F2): JSAny labels
 Reject(JSAny) {
   const promise = capability.promise;
   const resolve = capability.resolve;
@@ -299,7 +297,8 @@ Reject(JSAny) {
 
     const oldCapacity = values.length_intptr;
     if (oldCapacity < newCapacity) {
-      *valuesRef = ExtractFixedArray(values, 0, oldCapacity, newCapacity);
+      *valuesRef =
+          ExtractFixedArray(values, 0, oldCapacity, newCapacity, PromiseHole);
     }
   } else
     deferred {
@@ -311,19 +310,8 @@ Reject(JSAny) {
           *NativeContextSlot(
           nativeContext, ContextSlot::JS_ARRAY_PACKED_ELEMENTS_MAP_INDEX);
 
-      // After this point, values escapes to user code.
-      //
-      // If resolve and reject handlers close over values to keep track of
-      // whether an input promise is already settled, mark the values array as
-      // COW. The original values array is still needed to guard against resolve
-      // or reject being called multiple times for an element.
-      //
-      // Otherwise, clear the slot.
-      if (hasResolveAndRejectClosures) {
-        MakeFixedArrayCOW(values);
-      } else {
-        *valuesRef = kEmptyFixedArray;
-      }
+      // After this point, values escapes to user code. Clear the slot.
+      *valuesRef = kEmptyFixedArray;
 
       const valuesArray = NewJSArray(arrayMap, values);
       Call(nativeContext, UnsafeCast<JSAny>(resolve), Undefined, valuesArray);
@@ -336,8 +324,7 @@ Reject(JSAny) {
 transitioning macro GeneratePromiseAll<F1: type, F2: type>(
     implicit context: Context)(receiver: JSAny, iterable: JSAny,
     createResolveElementFunctor: F1, createRejectElementFunctor: F2,
-    message: constexpr string,
-    hasResolveAndRejectClosures: constexpr bool): JSAny {
+    message: constexpr string): JSAny {
   const nativeContext = LoadNativeContext(context);
   // Let C be the this value.
   // If Type(C) is not Object, throw a TypeError exception.
@@ -370,8 +357,7 @@ transitioning macro GeneratePromiseAll<F1: type, F2: type>(
     //    IfAbruptRejectPromise(result, promiseCapability).
     return PerformPromiseAll(
         nativeContext, i, constructor, capability, promiseResolveFunction,
-        createResolveElementFunctor, createRejectElementFunctor,
-        hasResolveAndRejectClosures)
+        createResolveElementFunctor, createRejectElementFunctor)
         otherwise Reject;
   } catch (e, _message) deferred {
     goto Reject(e);
@@ -387,7 +373,7 @@ transitioning javascript builtin PromiseAll(
     js-implicit context: Context, receiver: JSAny)(iterable: JSAny): JSAny {
   return GeneratePromiseAll(
       receiver, iterable, PromiseAllResolveElementFunctor{},
-      PromiseAllRejectElementFunctor{}, 'Promise.all', false);
+      PromiseAllRejectElementFunctor{}, 'Promise.all');
 }
 
 // ES#sec-promise.allsettled
@@ -396,7 +382,7 @@ transitioning javascript builtin PromiseAllSettled(
     js-implicit context: Context, receiver: JSAny)(iterable: JSAny): JSAny {
   return GeneratePromiseAll(
       receiver, iterable, PromiseAllSettledResolveElementFunctor{},
-      PromiseAllSettledRejectElementFunctor{}, 'Promise.allSettled', true);
+      PromiseAllSettledRejectElementFunctor{}, 'Promise.allSettled');
 }
 
 extern macro PromiseAllResolveElementSharedFunConstant(): SharedFunctionInfo;

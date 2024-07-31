@@ -1165,7 +1165,6 @@ endloop:
     pArgs->source=(const char *)source;
     pArgs->target=target;
     pArgs->offsets=offsets;
-    return;
 }
 
 /*
@@ -1363,7 +1362,6 @@ endloop:
     /* write back the updated pointers */
     pArgs->source=(const char *)source;
     pArgs->target=target;
-    return;
 }
 
 /* miscellaneous ------------------------------------------------------------ */

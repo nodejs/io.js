@@ -33,7 +33,7 @@ public:
      * Constructs a transliterator.
      * @param adoptedFilter    the filter for this transliterator.
      */
-    NameUnicodeTransliterator(UnicodeFilter* adoptedFilter = 0);
+    NameUnicodeTransliterator(UnicodeFilter* adoptedFilter = nullptr);
 
     /**
      * Destructor.

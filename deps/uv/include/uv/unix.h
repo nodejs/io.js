@@ -328,7 +328,10 @@ typedef struct {
 
 #define UV_TIMER_PRIVATE_FIELDS                                               \
   uv_timer_cb timer_cb;                                                       \
-  void* heap_node[3];                                                         \
+  union {                                                                     \
+    void* heap[3];                                                            \
+    struct uv__queue queue;                                                   \
+  } node;                                                                     \
   uint64_t timeout;                                                           \
   uint64_t repeat;                                                            \
   uint64_t start_id;

@@ -288,26 +288,19 @@ void ExternalReferenceTable::AddStubCache(Isolate* isolate, int* index) {
                kIsolateAddressReferenceCount,
            *index);
 
-  StubCache* load_stub_cache = isolate->load_stub_cache();
-
   // Stub cache tables
-  Add(load_stub_cache->key_reference(StubCache::kPrimary).address(), index);
-  Add(load_stub_cache->value_reference(StubCache::kPrimary).address(), index);
-  Add(load_stub_cache->map_reference(StubCache::kPrimary).address(), index);
-  Add(load_stub_cache->key_reference(StubCache::kSecondary).address(), index);
-  Add(load_stub_cache->value_reference(StubCache::kSecondary).address(), index);
-  Add(load_stub_cache->map_reference(StubCache::kSecondary).address(), index);
+  std::array<StubCache*, 3> stub_caches{isolate->load_stub_cache(),
+                                        isolate->store_stub_cache(),
+                                        isolate->define_own_stub_cache()};
 
-  StubCache* store_stub_cache = isolate->store_stub_cache();
-
-  // Stub cache tables
-  Add(store_stub_cache->key_reference(StubCache::kPrimary).address(), index);
-  Add(store_stub_cache->value_reference(StubCache::kPrimary).address(), index);
-  Add(store_stub_cache->map_reference(StubCache::kPrimary).address(), index);
-  Add(store_stub_cache->key_reference(StubCache::kSecondary).address(), index);
-  Add(store_stub_cache->value_reference(StubCache::kSecondary).address(),
-      index);
-  Add(store_stub_cache->map_reference(StubCache::kSecondary).address(), index);
+  for (StubCache* stub_cache : stub_caches) {
+    Add(stub_cache->key_reference(StubCache::kPrimary).address(), index);
+    Add(stub_cache->value_reference(StubCache::kPrimary).address(), index);
+    Add(stub_cache->map_reference(StubCache::kPrimary).address(), index);
+    Add(stub_cache->key_reference(StubCache::kSecondary).address(), index);
+    Add(stub_cache->value_reference(StubCache::kSecondary).address(), index);
+    Add(stub_cache->map_reference(StubCache::kSecondary).address(), index);
+  }
 
   CHECK_EQ(kSizeIsolateIndependent + kExternalReferenceCountIsolateDependent +
                kIsolateAddressReferenceCount + kStubCacheReferenceCount,

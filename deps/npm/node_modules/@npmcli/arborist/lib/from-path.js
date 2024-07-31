@@ -3,7 +3,7 @@
 // installed.  directory (ie, symlink) deps also need to be resolved based on
 // their targets, but that's what realpath is
 
-const { dirname } = require('path')
+const { dirname } = require('node:path')
 const npa = require('npm-package-arg')
 
 const fromPath = (node, edge) => {

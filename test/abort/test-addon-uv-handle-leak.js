@@ -88,6 +88,9 @@ if (process.argv[2] === 'child') {
 
   while (lines.length > 0) {
     const line = lines.shift().trim();
+    if (line.length === 0) {
+      continue;  // Skip empty lines.
+    }
 
     switch (state) {
       case 'initial':
@@ -96,7 +99,7 @@ if (process.argv[2] === 'child') {
         break;
       case 'handle-start':
         if (/^uv loop at \[.+\] has \d+ open handles in total$/.test(line)) {
-          state = 'assertion-failure';
+          state = 'source-line';
           break;
         }
         assert.match(line, /^\[.+\] timer( \(active\))?$/);
@@ -116,8 +119,12 @@ if (process.argv[2] === 'child') {
         }
         state = 'handle-start';
         break;
+      case 'source-line':
+        assert.match(line, /CheckedUvLoopClose/);
+        state = 'assertion-failure';
+        break;
       case 'assertion-failure':
-        assert.match(line, /Assertion .+ failed/);
+        assert.match(line, /Assertion failed:/);
         state = 'done';
         break;
       case 'done':

@@ -33,6 +33,8 @@ class BaselineBatchCompiler {
   void InstallBatch();
 
  private:
+  bool concurrent() const;
+
   // Ensure there is enough space in the compilation queue to enqueue another
   // function, growing the queue if necessary.
   void EnsureQueueCapacity();
@@ -55,7 +57,7 @@ class BaselineBatchCompiler {
 
   // Tries to compile |maybe_sfi|. Returns false if compilation was not possible
   // (e.g. bytecode was fushed, weak handle no longer valid, ...).
-  bool MaybeCompileFunction(MaybeObject maybe_sfi);
+  bool MaybeCompileFunction(Tagged<MaybeObject> maybe_sfi);
 
   Isolate* isolate_;
 

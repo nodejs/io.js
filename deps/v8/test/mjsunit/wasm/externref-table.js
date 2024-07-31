@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-typed-funcref --experimental-wasm-type-reflection
+// Flags: --experimental-wasm-type-reflection
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -180,7 +180,8 @@ function getDummy(val) {
 
   let builder = new WasmModuleBuilder();
   let imported_global = builder.addImportedGlobal('m', 'n', extern_type, false);
-  let global = builder.addGlobal(kWasmExternRef, true).exportAs('global');
+  let global =
+    builder.addGlobal(kWasmExternRef, true, false).exportAs('global');
   let table = builder.addTable(extern_type, 2, 10,
                                [kExprGlobalGet, imported_global])
   builder.addFunction(

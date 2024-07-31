@@ -71,6 +71,30 @@ void SetDcheckFunction(void (*dcheck_function)(const char*, int, const char*)) {
   g_dcheck_function = dcheck_function ? dcheck_function : &DefaultDcheckHandler;
 }
 
+void FatalOOM(OOMType type, const char* msg) {
+  // Instead of directly aborting here with a message, it could make sense to
+  // call a global callback function that would then in turn call (the
+  // equivalent of) V8::FatalProcessOutOfMemory. This way, calling this
+  // function directly would not bypass any OOM handler installed by the
+  // embedder. We might still want to keep a function like this though that
+  // contains the fallback implementation if no callback has been installed.
+
+  const char* type_str = type == OOMType::kProcess ? "process" : "JavaScript";
+  OS::PrintError("\n\n#\n# Fatal %s out of memory: %s\n#", type_str, msg);
+
+  if (g_print_stack_trace) v8::base::g_print_stack_trace();
+  fflush(stderr);
+
+#ifdef V8_FUZZILLI
+  // When fuzzing, we generally want to ignore OOM failures.
+  // It's important that we exit with a non-zero exit status here so that the
+  // fuzzer treats it as a failed execution.
+  _exit(1);
+#else
+  OS::Abort();
+#endif  // V8_FUZZILLI
+}
+
 // Define specialization to pretty print characters (escaping non-printable
 // characters) and to print c strings as pointers instead of strings.
 #define DEFINE_PRINT_CHECK_OPERAND_CHAR(type)                    \
@@ -150,14 +174,28 @@ void V8_Fatal(const char* format, ...) {
 
   fflush(stdout);
   fflush(stderr);
+
   // Print the formatted message to stdout without cropping the output.
-  v8::base::OS::PrintError("\n\n#\n# Fatal error in %s, line %d\n# ", file,
-                           line);
+  if (v8::base::g_abort_mode == v8::base::AbortMode::kSoft) {
+    // In this case, instead of crashing the process will be terminated
+    // normally by OS::Abort. Make this clear in the output printed to stderr.
+    v8::base::OS::PrintError(
+        "\n\n#\n# Safely terminating process due to error in %s, line %d\n# ",
+        file, line);
+    // Also prefix the error message (printed below). This has two purposes:
+    // (1) it makes it clear that this error is deemed "safe" (2) it causes
+    // fuzzers that pattern-match on stderr output to ignore these failures.
+    v8::base::OS::PrintError("The following harmless error was encountered: ");
+  } else {
+    v8::base::OS::PrintError("\n\n#\n# Fatal error in %s, line %d\n# ", file,
+                             line);
+  }
 
   // Print the error message.
   va_start(arguments, format);
   v8::base::OS::VPrintError(format, arguments);
   va_end(arguments);
+
   // Print the message object's address to force stack allocation.
   v8::base::OS::PrintError("\n#\n#\n#\n#FailureMessage Object: %p", &message);
 
@@ -168,5 +206,13 @@ void V8_Fatal(const char* format, ...) {
 }
 
 void V8_Dcheck(const char* file, int line, const char* message) {
+  if (v8::base::g_abort_mode == v8::base::AbortMode::kSoft) {
+    // In this mode, DCHECK failures don't lead to process termination.
+    v8::base::OS::PrintError(
+        "# Ignoring debug check failure in %s, line %d: %s\n", file, line,
+        message);
+    return;
+  }
+
   v8::base::g_dcheck_function(file, line, message);
 }

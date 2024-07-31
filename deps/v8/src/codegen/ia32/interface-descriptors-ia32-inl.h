@@ -80,6 +80,21 @@ constexpr Register KeyedLoadWithVectorDescriptor::VectorRegister() {
 }
 
 // static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::EnumIndexRegister() {
+  return ecx;
+}
+
+// static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::CacheTypeRegister() {
+  return no_reg;
+}
+
+// static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::SlotRegister() {
+  return no_reg;
+}
+
+// static
 constexpr Register KeyedHasICBaselineDescriptor::ReceiverRegister() {
   return kInterpreterAccumulatorRegister;
 }
@@ -189,6 +204,14 @@ constexpr auto CallFunctionTemplateDescriptor::registers() {
   // edx : function template info
   // ecx : number of arguments (on the stack)
   return RegisterArray(edx, ecx);
+}
+
+// static
+constexpr auto CallFunctionTemplateGenericDescriptor::registers() {
+  // edx: the function template info
+  // ecx: number of arguments (on the stack)
+  // edi: topmost script-having context
+  return RegisterArray(edx, ecx, edi);
 }
 
 // static
@@ -303,7 +326,13 @@ CallApiCallbackGenericDescriptor::ActualArgumentsCountRegister() {
   return ecx;
 }
 // static
-constexpr Register CallApiCallbackGenericDescriptor::CallHandlerInfoRegister() {
+constexpr Register
+CallApiCallbackGenericDescriptor::TopmostScriptHavingContextRegister() {
+  return eax;
+}
+// static
+constexpr Register
+CallApiCallbackGenericDescriptor::FunctionTemplateInfoRegister() {
   return edx;
 }
 // static
@@ -329,6 +358,12 @@ constexpr auto InterpreterPushArgsThenCallDescriptor::registers() {
 constexpr auto InterpreterPushArgsThenConstructDescriptor::registers() {
   return RegisterArray(eax,   // argument count
                        ecx);  // address of first argument
+}
+
+// static
+constexpr auto ConstructForwardAllArgsDescriptor::registers() {
+  return RegisterArray(edi,   // the constructor
+                       edx);  // the new target
 }
 
 // static

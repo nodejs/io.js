@@ -155,7 +155,7 @@ function testOOBThrows() {
   // Note that this test might be run concurrently in multiple Isolates, which
   // makes an exact comparison of the expected trap count unreliable. But is is
   // still possible to check the lower bound for the expected trap count.
-  for (let offset = 65534; offset < 66536; offset++) {
+  for (let offset = kMemSize - 3; offset <= kMemSize; offset++) {
     const trap_count = %GetWasmRecoveredTrapCount();
     assertTraps(kTrapMemOutOfBounds, () => read(offset));
     assertTraps(kTrapMemOutOfBounds, () => write(offset));

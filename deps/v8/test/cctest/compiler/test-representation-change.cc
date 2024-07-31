@@ -152,7 +152,7 @@ TEST(ToTagged_constant) {
   RepresentationChangerTester r;
 
   for (double i : ValueHelper::float64_vector()) {
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kFloat64, Type::None(), use,
@@ -161,7 +161,7 @@ TEST(ToTagged_constant) {
   }
 
   for (int i : ValueHelper::int32_vector()) {
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kWord32, Type::Signed32(), use,
@@ -170,7 +170,7 @@ TEST(ToTagged_constant) {
   }
 
   for (uint32_t i : ValueHelper::uint32_vector()) {
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kWord32, Type::Unsigned32(), use,
@@ -183,7 +183,7 @@ TEST(ToFloat64_constant) {
   RepresentationChangerTester r;
 
   for (double i : ValueHelper::float64_vector()) {
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kTagged, Type::None(), use,
@@ -192,7 +192,7 @@ TEST(ToFloat64_constant) {
   }
 
   for (int i : ValueHelper::int32_vector()) {
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kWord32, Type::Signed32(), use,
@@ -201,7 +201,7 @@ TEST(ToFloat64_constant) {
   }
 
   for (uint32_t i : ValueHelper::uint32_vector()) {
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kWord32, Type::Unsigned32(), use,
@@ -210,7 +210,7 @@ TEST(ToFloat64_constant) {
   }
 
   {
-    Node* n = r.jsgraph()->Constant(0);
+    Node* n = r.jsgraph()->ConstantNoHole(0);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kWord64, Type::Range(0, 0, r.zone()), use,
@@ -232,7 +232,7 @@ TEST(ToFloat32_constant) {
   RepresentationChangerTester r;
 
   for (double i : ValueHelper::float32_vector()) {
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kTagged, Type::None(), use,
@@ -242,7 +242,7 @@ TEST(ToFloat32_constant) {
 
   for (int i : ValueHelper::int32_vector()) {
     if (!IsFloat32Int32(i)) continue;
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kWord32, Type::Signed32(), use,
@@ -252,7 +252,7 @@ TEST(ToFloat32_constant) {
 
   for (uint32_t i : ValueHelper::uint32_vector()) {
     if (!IsFloat32Uint32(i)) continue;
-    Node* n = r.jsgraph()->Constant(i);
+    Node* n = r.jsgraph()->ConstantNoHole(i);
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
         n, MachineRepresentation::kWord32, Type::Unsigned32(), use,
@@ -266,7 +266,7 @@ TEST(ToInt32_constant) {
   {
     FOR_INT32_INPUTS(i) {
       const double value = static_cast<double>(i);
-      Node* n = r.jsgraph()->Constant(value);
+      Node* n = r.jsgraph()->ConstantNoHole(value);
       NodeProperties::SetType(n, Type::Constant(value, r.zone()));
       Node* use = r.Return(n);
       Node* c = r.changer()->GetRepresentationFor(
@@ -281,7 +281,7 @@ TEST(ToUint32_constant) {
   RepresentationChangerTester r;
   FOR_UINT32_INPUTS(i) {
     const double value = static_cast<double>(i);
-    Node* n = r.jsgraph()->Constant(value);
+    Node* n = r.jsgraph()->ConstantNoHole(value);
     NodeProperties::SetType(n, Type::Constant(value, r.zone()));
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(
@@ -295,7 +295,7 @@ TEST(ToInt64_constant) {
   RepresentationChangerTester r;
   FOR_INT32_INPUTS(i) {
     const double value = static_cast<double>(i);
-    Node* n = r.jsgraph()->Constant(value);
+    Node* n = r.jsgraph()->ConstantNoHole(value);
     NodeProperties::SetType(n, Type::Constant(value, r.zone()));
     Node* use = r.Return(n);
     Node* c = r.changer()->GetRepresentationFor(

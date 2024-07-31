@@ -24,16 +24,16 @@ class Code;
 // class?
 class AbstractCode : public HeapObject {
  public:
-  int SourcePosition(PtrComprCageBase cage_base, int offset);
-  int SourceStatementPosition(PtrComprCageBase cage_base, int offset);
+  int SourcePosition(Isolate* isolate, int offset);
+  int SourceStatementPosition(Isolate* isolate, int offset);
 
   inline Address InstructionStart(PtrComprCageBase cage_base);
   inline Address InstructionEnd(PtrComprCageBase cage_base);
   inline int InstructionSize(PtrComprCageBase cage_base);
 
   // Return the source position table for interpreter code.
-  inline Tagged<ByteArray> SourcePositionTable(Isolate* isolate,
-                                               Tagged<SharedFunctionInfo> sfi);
+  inline Tagged<TrustedByteArray> SourcePositionTable(
+      Isolate* isolate, Tagged<SharedFunctionInfo> sfi);
 
   void DropStackFrameCache(PtrComprCageBase cage_base);
 
@@ -56,11 +56,21 @@ class AbstractCode : public HeapObject {
   inline Tagged<BytecodeArray> GetBytecodeArray();
 
  private:
-  inline Tagged<ByteArray> SourcePositionTableInternal(
-      PtrComprCageBase cage_base);
+  inline Tagged<TrustedByteArray> SourcePositionTableInternal(Isolate* isolate);
 
   OBJECT_CONSTRUCTORS(AbstractCode, HeapObject);
 };
+
+// Currently we must use full-pointer comparisons (instead of
+// compressed-pointer comparisons) when comparing AbstractCode. This is because
+// AbstractCode is either a Code or a BytecodeArray, and the latter lives in
+// trusted space (outside of the main pointer compression cage) while the
+// former still lives inside of the sandbox.
+static_assert(!kAllCodeObjectsLiveInTrustedSpace);
+constexpr bool operator==(const Tagged<AbstractCode> lhs,
+                          const Tagged<AbstractCode> rhs) {
+  return lhs->ptr() == rhs->ptr();
+}
 
 }  // namespace internal
 }  // namespace v8

@@ -9,7 +9,6 @@
 #include "src/compiler/node-properties.h"
 #include "src/compiler/opcodes.h"
 #include "src/compiler/operator.h"
-#include "src/wasm/wasm-code-manager.h"
 
 namespace v8::internal::compiler {
 
@@ -43,8 +42,7 @@ Reduction WasmJSLowering::Reduce(Node* node) {
       gasm_.InitializeEffectControl(nullptr, nullptr);
       gasm_.Bind(&ool_trap);
       TrapId trap_id = TrapIdOf(node->op());
-      Builtin trap = wasm::RuntimeStubIdToBuiltinName(
-          static_cast<wasm::WasmCode::RuntimeStubId>(trap_id));
+      Builtin trap = static_cast<Builtin>(trap_id);
 
       // Create new FrameState with the correct source position (the position
       // of the trap location).

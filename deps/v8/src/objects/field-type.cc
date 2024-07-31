@@ -5,6 +5,7 @@
 #include "src/objects/field-type.h"
 
 #include "src/handles/handles-inl.h"
+#include "src/objects/map.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/smi.h"
 #include "src/utils/ostreams.h"
@@ -45,57 +46,73 @@ Handle<FieldType> FieldType::Class(Handle<Map> map, Isolate* isolate) {
 // static
 Tagged<FieldType> FieldType::cast(Tagged<Object> object) {
   DCHECK(object == None() || object == Any() || IsMap(object));
-  return Tagged<FieldType>(FieldType(object.ptr()).ptr());
+  return Tagged<FieldType>(object.ptr());
 }
 
+// static
 bool IsClass(Tagged<FieldType> obj) { return IsMap(obj); }
 
-Tagged<Map> FieldType::AsClass() const {
-  DCHECK(IsClass(*this));
-  return Map::cast(*this);
+// static
+Tagged<Map> FieldType::AsClass(Tagged<FieldType> type) {
+  DCHECK(IsClass(type));
+  return Map::cast(type);
 }
 
-bool FieldType::NowStable() const {
-  return !IsClass(*this) || AsClass()->is_stable();
+// static
+Handle<Map> FieldType::AsClass(Handle<FieldType> type) {
+  DCHECK(IsClass(*type));
+  return Handle<Map>::cast(type);
 }
 
-bool FieldType::NowIs(Tagged<FieldType> other) const {
+// static
+bool FieldType::NowStable(Tagged<FieldType> type) {
+  return !IsClass(type) || AsClass(type)->is_stable();
+}
+
+// static
+bool FieldType::NowIs(Tagged<FieldType> type, Tagged<FieldType> other) {
   if (IsAny(other)) return true;
-  if (IsNone(*this)) return true;
+  if (IsNone(type)) return true;
   if (IsNone(other)) return false;
-  if (IsAny(*this)) return false;
-  DCHECK(IsClass(*this));
+  if (IsAny(type)) return false;
+  DCHECK(IsClass(type));
   DCHECK(IsClass(other));
-  return *this == other;
+  return type == other;
 }
 
-bool FieldType::Equals(Tagged<FieldType> other) const {
-  if (IsAny(*this) && IsAny(other)) return true;
-  if (IsNone(*this) && IsNone(other)) return true;
-  if (IsClass(*this) && IsClass(other)) {
-    return *this == other;
+// static
+bool FieldType::Equals(Tagged<FieldType> type, Tagged<FieldType> other) {
+  if (IsAny(type) && IsAny(other)) return true;
+  if (IsNone(type) && IsNone(other)) return true;
+  if (IsClass(type) && IsClass(other)) {
+    return type == other;
   }
   return false;
 }
 
-bool FieldType::NowIs(Handle<FieldType> other) const { return NowIs(*other); }
+// static
+bool FieldType::NowIs(Tagged<FieldType> type, Handle<FieldType> other) {
+  return NowIs(type, *other);
+}
 
-void FieldType::PrintTo(std::ostream& os) const {
-  if (IsAny(*this)) {
+// static
+void FieldType::PrintTo(Tagged<FieldType> type, std::ostream& os) {
+  if (IsAny(type)) {
     os << "Any";
-  } else if (IsNone(*this)) {
+  } else if (IsNone(type)) {
     os << "None";
   } else {
-    DCHECK(IsClass(*this));
-    os << "Class(" << reinterpret_cast<void*>(AsClass().ptr()) << ")";
+    DCHECK(IsClass(type));
+    os << "Class(" << reinterpret_cast<void*>(AsClass(type).ptr()) << ")";
   }
 }
 
-bool FieldType::NowContains(Tagged<Object> value) const {
-  if (*this == Any()) return true;
-  if (*this == None()) return false;
+// static
+bool FieldType::NowContains(Tagged<FieldType> type, Tagged<Object> value) {
+  if (type == Any()) return true;
+  if (type == None()) return false;
   if (!IsHeapObject(value)) return false;
-  return HeapObject::cast(value)->map() == Map::cast(*this);
+  return HeapObject::cast(value)->map() == Map::cast(type);
 }
 
 }  // namespace internal

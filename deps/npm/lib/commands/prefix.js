@@ -1,4 +1,5 @@
-const BaseCommand = require('../base-command.js')
+const { output } = require('proc-log')
+const BaseCommand = require('../base-cmd.js')
 
 class Prefix extends BaseCommand {
   static description = 'Display prefix'
@@ -6,8 +7,9 @@ class Prefix extends BaseCommand {
   static params = ['global']
   static usage = ['[-g]']
 
-  async exec (args) {
-    return this.npm.output(this.npm.prefix)
+  async exec () {
+    return output.standard(this.npm.prefix)
   }
 }
+
 module.exports = Prefix

@@ -345,8 +345,10 @@ CallDescriptor* Linkage::GetSimplifiedCDescriptor(Zone* zone,
   LinkageLocation target_loc = LinkageLocation::ForAnyRegister(target_type);
   flags |= CallDescriptor::kNoAllocate;
 
+  // TODO(saelo): here we probably want to use a c-call specific tag.
   return zone->New<CallDescriptor>(  // --
       CallDescriptor::kCallAddress,  // kind
+      kDefaultCodeEntrypointTag,     // tag
       target_type,                   // target MachineType
       target_loc,                    // target location
       locations.Build(),             // location_sig

@@ -1,7 +1,8 @@
 #include "fs_permission.h"
 #include "base_object-inl.h"
 #include "debug_utils-inl.h"
-#include "util.h"
+#include "env.h"
+#include "path.h"
 #include "v8.h"
 
 #include <fcntl.h>
@@ -16,20 +17,12 @@
 namespace {
 
 std::string WildcardIfDir(const std::string& res) noexcept {
-  uv_fs_t req;
-  int rc = uv_fs_stat(nullptr, &req, res.c_str(), nullptr);
-  if (rc == 0) {
-    const uv_stat_t* const s = static_cast<const uv_stat_t*>(req.ptr);
-    if (s->st_mode & S_IFDIR) {
-      // add wildcard when directory
-      if (res.back() == node::kPathSeparator) {
-        return res + "*";
-      }
-      return res + node::kPathSeparator + "*";
-    }
+  auto path = std::filesystem::path(res);
+  auto file_status = std::filesystem::status(path);
+  if (file_status.type() == std::filesystem::file_type::directory) {
+    path /= "*";
   }
-  uv_fs_req_cleanup(&req);
-  return res;
+  return path.string();
 }
 
 void FreeRecursivelyNode(
@@ -50,21 +43,27 @@ void FreeRecursivelyNode(
   delete node;
 }
 
-bool is_tree_granted(node::permission::FSPermission::RadixTree* granted_tree,
-                     const std::string_view& param) {
+bool is_tree_granted(
+    node::Environment* env,
+    const node::permission::FSPermission::RadixTree* granted_tree,
+    const std::string_view& param) {
+  std::string resolved_param = node::PathResolve(env, {param});
 #ifdef _WIN32
-  // is UNC file path
-  if (param.rfind("\\\\", 0) == 0) {
-    // return lookup with normalized param
-    int starting_pos = 4;  // "\\?\"
-    if (param.rfind("\\\\?\\UNC\\") == 0) {
-      starting_pos += 4;  // "UNC\"
-    }
-    auto normalized = param.substr(starting_pos);
-    return granted_tree->Lookup(normalized, true);
+  // Remove leading "\\?\" from UNC path
+  if (resolved_param.substr(0, 4) == "\\\\?\\") {
+    resolved_param.erase(0, 4);
+  }
+
+  // Remove leading "UNC\" from UNC path
+  if (resolved_param.substr(0, 4) == "UNC\\") {
+    resolved_param.erase(0, 4);
+  }
+  // Remove leading "//" from UNC path
+  if (resolved_param.substr(0, 2) == "//") {
+    resolved_param.erase(0, 2);
   }
 #endif
-  return granted_tree->Lookup(param, true);
+  return granted_tree->Lookup(resolved_param, true);
 }
 
 void PrintTree(const node::permission::FSPermission::RadixTree::Node* node,
@@ -116,12 +115,11 @@ namespace permission {
 
 // allow = '*'
 // allow = '/tmp/,/home/example.js'
-void FSPermission::Apply(const std::vector<std::string>& allow,
+void FSPermission::Apply(Environment* env,
+                         const std::vector<std::string>& allow,
                          PermissionScope scope) {
-  using std::string_view_literals::operator""sv;
-
-  for (const std::string_view res : allow) {
-    if (res == "*"sv) {
+  for (const std::string& res : allow) {
+    if (res == "*") {
       if (scope == PermissionScope::kFileSystemRead) {
         deny_all_in_ = false;
         allow_all_in_ = true;
@@ -131,7 +129,7 @@ void FSPermission::Apply(const std::vector<std::string>& allow,
       }
       return;
     }
-    GrantAccess(scope, std::string(res.data(), res.size()));
+    GrantAccess(scope, PathResolve(env, {res}));
   }
 }
 
@@ -146,19 +144,20 @@ void FSPermission::GrantAccess(PermissionScope perm, const std::string& res) {
   }
 }
 
-bool FSPermission::is_granted(PermissionScope perm,
-                              const std::string_view& param = "") {
+bool FSPermission::is_granted(Environment* env,
+                              PermissionScope perm,
+                              const std::string_view& param = "") const {
   switch (perm) {
     case PermissionScope::kFileSystem:
       return allow_all_in_ && allow_all_out_;
     case PermissionScope::kFileSystemRead:
       return !deny_all_in_ &&
              ((param.empty() && allow_all_in_) || allow_all_in_ ||
-              is_tree_granted(&granted_in_fs_, param));
+              is_tree_granted(env, &granted_in_fs_, param));
     case PermissionScope::kFileSystemWrite:
       return !deny_all_out_ &&
              ((param.empty() && allow_all_out_) || allow_all_out_ ||
-              is_tree_granted(&granted_out_fs_, param));
+              is_tree_granted(env, &granted_out_fs_, param));
     default:
       return false;
   }
@@ -171,12 +170,12 @@ FSPermission::RadixTree::~RadixTree() {
 }
 
 bool FSPermission::RadixTree::Lookup(const std::string_view& s,
-                                     bool when_empty_return = false) {
+                                     bool when_empty_return) const {
   FSPermission::RadixTree::Node* current_node = root_node_;
-  if (current_node->children.size() == 0) {
+  if (current_node->children.empty()) {
     return when_empty_return;
   }
-  unsigned int parent_node_prefix_len = current_node->prefix.length();
+  size_t parent_node_prefix_len = current_node->prefix.length();
   const std::string path(s);
   auto path_len = path.length();
 
@@ -202,10 +201,10 @@ bool FSPermission::RadixTree::Lookup(const std::string_view& s,
 void FSPermission::RadixTree::Insert(const std::string& path) {
   FSPermission::RadixTree::Node* current_node = root_node_;
 
-  unsigned int parent_node_prefix_len = current_node->prefix.length();
-  int path_len = path.length();
+  size_t parent_node_prefix_len = current_node->prefix.length();
+  size_t path_len = path.length();
 
-  for (int i = 1; i <= path_len; ++i) {
+  for (size_t i = 1; i <= path_len; ++i) {
     bool is_wildcard_node = path[i - 1] == '*';
     bool is_last_char = i == path_len;
 

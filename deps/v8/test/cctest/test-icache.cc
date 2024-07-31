@@ -33,7 +33,7 @@ static void FloodWithInc(Isolate* isolate, TestingAssemblerBuffer* buffer) {
     __ add(eax, Immediate(1));
   }
 #elif V8_TARGET_ARCH_X64
-  __ movl(rax, arg_reg_1);
+  __ movl(rax, kCArgRegs[0]);
   for (int i = 0; i < kNumInstr; ++i) {
     __ addl(rax, Immediate(1));
   }
@@ -89,7 +89,7 @@ static void FloodWithNop(Isolate* isolate, TestingAssemblerBuffer* buffer) {
 #if V8_TARGET_ARCH_IA32
   __ mov(eax, Operand(esp, kSystemPointerSize));
 #elif V8_TARGET_ARCH_X64
-  __ movl(rax, arg_reg_1);
+  __ movl(rax, kCArgRegs[0]);
 #elif V8_TARGET_ARCH_ARM64
   __ CodeEntry();
 #elif V8_TARGET_ARCH_MIPS

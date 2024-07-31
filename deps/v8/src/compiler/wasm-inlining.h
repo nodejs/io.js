@@ -15,6 +15,7 @@
 namespace v8 {
 namespace internal {
 
+class SourcePosition;
 struct WasmInliningPosition;
 
 namespace wasm {
@@ -58,18 +59,9 @@ class WasmInliner final : public AdvancedReducer {
   // Inlines calls registered by {Reduce}, until an inlining budget is exceeded.
   void Finalize() final;
 
-  static bool graph_size_allows_inlining(size_t graph_size,
-                                         size_t initial_graph_size) {
-    size_t budget =
-        std::max<size_t>(v8_flags.wasm_inlining_min_budget,
-                         v8_flags.wasm_inlining_factor * initial_graph_size);
-    // Independent of the wasm_inlining_budget, for large functions we should
-    // still allow some inlining.
-    size_t full_budget = std::max<size_t>(v8_flags.wasm_inlining_budget,
-                                          initial_graph_size * 1.1);
-    budget = std::min<size_t>(full_budget, budget);
-    return graph_size < budget;
-  }
+  static bool graph_size_allows_inlining(const wasm::WasmModule* module,
+                                         size_t graph_size,
+                                         size_t initial_graph_size);
 
  private:
   struct CandidateInfo {
@@ -109,6 +101,7 @@ class WasmInliner final : public AdvancedReducer {
   Reduction ReduceCall(Node* call);
   void InlineCall(Node* call, Node* callee_start, Node* callee_end,
                   const wasm::FunctionSig* inlinee_sig,
+                  SourcePosition parent_pos,
                   wasm::DanglingExceptions* dangling_exceptions);
   void InlineTailCall(Node* call, Node* callee_start, Node* callee_end);
   void RewireFunctionEntry(Node* call, Node* callee_start);

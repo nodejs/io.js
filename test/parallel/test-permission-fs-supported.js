@@ -90,6 +90,7 @@ const ignoreList = [
   ...syncAndAsyncAPI('readv'),
   ...syncAndAsyncAPI('write'),
   ...syncAndAsyncAPI('writev'),
+  ...syncAndAsyncAPI('glob'),
 ];
 
 {

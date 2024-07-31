@@ -3,7 +3,9 @@ import * as fixtures from '../common/fixtures.mjs';
 import { describe, it } from 'node:test';
 import { match, strictEqual } from 'node:assert';
 
-describe('--experimental-default-type=module should not support extension searching', { concurrency: true }, () => {
+describe('--experimental-default-type=module should not support extension searching', {
+  concurrency: !process.env.TEST_PARALLEL,
+}, () => {
   it('should support extension searching under --experimental-default-type=commonjs', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
       '--experimental-default-type=commonjs',
@@ -26,14 +28,16 @@ describe('--experimental-default-type=module should not support extension search
       cwd: fixtures.path('es-modules/package-without-type'),
     });
 
-    match(stderr, /ENOENT.*Did you mean to import .*index\.js\?/s);
+    match(stderr, /ENOENT.*Did you mean to import .*index\.js"\?/s);
     strictEqual(stdout, '');
     strictEqual(code, 1);
     strictEqual(signal, null);
   });
 });
 
-describe('--experimental-default-type=module should not parse paths as URLs', { concurrency: true }, () => {
+describe('--experimental-default-type=module should not parse paths as URLs', {
+  concurrency: !process.env.TEST_PARALLEL,
+}, () => {
   it('should not parse a `?` in a filename as starting a query string', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
       '--experimental-default-type=module',

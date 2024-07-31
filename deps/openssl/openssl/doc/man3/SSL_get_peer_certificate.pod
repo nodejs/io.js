@@ -10,9 +10,14 @@ SSL_get1_peer_certificate - get the X509 certificate of the peer
 
  #include <openssl/ssl.h>
 
- X509 *SSL_get_peer_certificate(const SSL *ssl);
  X509 *SSL_get0_peer_certificate(const SSL *ssl);
  X509 *SSL_get1_peer_certificate(const SSL *ssl);
+
+The following function has been deprecated since OpenSSL 3.0,
+and can be hidden entirely by defining B<OPENSSL_API_COMPAT> with a suitable
+version value, see L<openssl_user_macros(7)>:
+
+ X509 *SSL_get_peer_certificate(const SSL *ssl);
 
 =head1 DESCRIPTION
 
@@ -69,7 +74,7 @@ SSL_get_peer_certificate() was deprecated in 3.0.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

@@ -4,6 +4,7 @@
 
 #ifndef V8_ZONE_ZONE_ALLOCATOR_H_
 #define V8_ZONE_ZONE_ALLOCATOR_H_
+
 #include <limits>
 
 #include "src/zone/zone.h"
@@ -14,17 +15,7 @@ namespace internal {
 template <typename T>
 class ZoneAllocator {
  public:
-  using pointer = T*;
-  using const_pointer = const T*;
-  using reference = T&;
-  using const_reference = const T&;
   using value_type = T;
-  using size_type = size_t;
-  using difference_type = ptrdiff_t;
-  template <class O>
-  struct rebind {
-    using other = ZoneAllocator<O>;
-  };
 
 #ifdef V8_OS_WIN
   // The exported class ParallelMove derives from ZoneVector, which derives
@@ -48,30 +39,15 @@ class ZoneAllocator {
   }
   template <typename U>
   ZoneAllocator(const ZoneAllocator<U>& other) V8_NOEXCEPT
-      : ZoneAllocator<T>(other.zone_) {
+      : ZoneAllocator<T>(other.zone()) {
     // If we are going to allocate compressed pointers in the zone it must
     // support compression.
     DCHECK_IMPLIES(is_compressed_pointer<T>::value,
                    zone_->supports_compression());
   }
-  template <typename U>
-  friend class ZoneAllocator;
 
   T* allocate(size_t length) { return zone_->AllocateArray<T>(length); }
   void deallocate(T* p, size_t length) { zone_->DeleteArray<T>(p, length); }
-
-  size_t max_size() const {
-    return std::numeric_limits<int>::max() / sizeof(T);
-  }
-  template <typename U, typename... Args>
-  void construct(U* p, Args&&... args) {
-    void* v_p = const_cast<void*>(static_cast<const void*>(p));
-    new (v_p) U(std::forward<Args>(args)...);
-  }
-  template <typename U>
-  void destroy(U* p) {
-    p->~U();
-  }
 
   bool operator==(ZoneAllocator const& other) const {
     return zone_ == other.zone_;
@@ -80,32 +56,25 @@ class ZoneAllocator {
     return zone_ != other.zone_;
   }
 
-  Zone* zone() { return zone_; }
+  Zone* zone() const { return zone_; }
 
  private:
   Zone* zone_;
 };
 
 // A recycling zone allocator maintains a free list of deallocated chunks
-// to reuse on subsiquent allocations. The free list management is purposely
+// to reuse on subsequent allocations. The free list management is purposely
 // very simple and works best for data-structures which regularly allocate and
 // free blocks of similar sized memory (such as std::deque).
 template <typename T>
 class RecyclingZoneAllocator : public ZoneAllocator<T> {
  public:
-  template <class O>
-  struct rebind {
-    using other = RecyclingZoneAllocator<O>;
-  };
-
   explicit RecyclingZoneAllocator(Zone* zone)
       : ZoneAllocator<T>(zone), free_list_(nullptr) {}
   template <typename U>
   RecyclingZoneAllocator(const RecyclingZoneAllocator<U>& other) V8_NOEXCEPT
       : ZoneAllocator<T>(other),
         free_list_(nullptr) {}
-  template <typename U>
-  friend class RecyclingZoneAllocator;
 
   T* allocate(size_t n) {
     // Only check top block in free list, since this will be equal to or larger

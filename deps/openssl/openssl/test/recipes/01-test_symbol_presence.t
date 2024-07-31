@@ -70,17 +70,35 @@ foreach my $libname (@libnames) {
         note "Number of lines in \@def_lines before massaging: ", scalar @def_lines;
 
         # Massage the nm output to only contain defined symbols
+        # Common symbols need separate treatment
+        my %commons;
+        foreach (@nm_lines) {
+            if (m|^(.*) C .*|) {
+                $commons{$1}++;
+            }
+        }
+        foreach (sort keys %commons) {
+            note "Common symbol: $_";
+        }
+
         @nm_lines =
             sort
-            map {
-                # Drop the first space and everything following it
-                s| .*||;
-                # Drop OpenSSL dynamic version information if there is any
-                s|\@\@.+$||;
-                # Return the result
-                $_
-            }
-            grep(m|.* [BCDST] .*|, @nm_lines);
+            ( map {
+                  # Drop the first space and everything following it
+                  s| .*||;
+                  # Drop OpenSSL dynamic version information if there is any
+                  s|\@\@.+$||;
+                  # Return the result
+                  $_
+              }
+              # Drop any symbol starting with a double underscore, they
+              # are reserved for the compiler / system ABI and are none
+              # of our business
+              grep !m|^__|,
+              # Only look at external definitions
+              grep m|.* [BDST] .*|,
+              @nm_lines ),
+            keys %commons;
 
         # Massage the mkdef.pl output to only contain global symbols
         # The output we got is in Unix .map format, which has a global

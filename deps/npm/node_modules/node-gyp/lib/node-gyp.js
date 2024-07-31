@@ -2,10 +2,10 @@
 
 const path = require('path')
 const nopt = require('nopt')
-const log = require('npmlog')
+const log = require('./log')
 const childProcess = require('child_process')
-const EE = require('events').EventEmitter
-const inherits = require('util').inherits
+const { EventEmitter } = require('events')
+
 const commands = [
   // Module build commands
   'build',
@@ -17,199 +17,172 @@ const commands = [
   'list',
   'remove'
 ]
-const aliases = {
-  ls: 'list',
-  rm: 'remove'
-}
 
-// differentiate node-gyp's logs from npm's
-log.heading = 'gyp'
+class Gyp extends EventEmitter {
+  /**
+   * Export the contents of the package.json.
+   */
+  package = require('../package.json')
 
-function gyp () {
-  return new Gyp()
-}
+  /**
+   * nopt configuration definitions
+   */
+  configDefs = {
+    help: Boolean, // everywhere
+    arch: String, // 'configure'
+    cafile: String, // 'install'
+    debug: Boolean, // 'build'
+    directory: String, // bin
+    make: String, // 'build'
+    'msvs-version': String, // 'configure'
+    ensure: Boolean, // 'install'
+    solution: String, // 'build' (windows only)
+    proxy: String, // 'install'
+    noproxy: String, // 'install'
+    devdir: String, // everywhere
+    nodedir: String, // 'configure'
+    loglevel: String, // everywhere
+    python: String, // 'configure'
+    'dist-url': String, // 'install'
+    tarball: String, // 'install'
+    jobs: String, // 'build'
+    thin: String, // 'configure'
+    'force-process-config': Boolean // 'configure'
+  }
 
-function Gyp () {
-  var self = this
+  /**
+   * nopt shorthands
+   */
+  shorthands = {
+    release: '--no-debug',
+    C: '--directory',
+    debug: '--debug',
+    j: '--jobs',
+    silly: '--loglevel=silly',
+    verbose: '--loglevel=verbose',
+    silent: '--loglevel=silent'
+  }
 
-  this.devDir = ''
-  this.commands = {}
+  /**
+   * expose the command aliases for the bin file to use.
+   */
+  aliases = {
+    ls: 'list',
+    rm: 'remove'
+  }
 
-  commands.forEach(function (command) {
-    self.commands[command] = function (argv, callback) {
-      log.verbose('command', command, argv)
-      return require('./' + command)(self, argv, callback)
-    }
-  })
-}
-inherits(Gyp, EE)
-exports.Gyp = Gyp
-var proto = Gyp.prototype
+  constructor (...args) {
+    super(...args)
 
-/**
- * Export the contents of the package.json.
- */
+    this.devDir = ''
 
-proto.package = require('../package.json')
+    this.commands = commands.reduce((acc, command) => {
+      acc[command] = (argv) => require('./' + command)(this, argv)
+      return acc
+    }, {})
 
-/**
- * nopt configuration definitions
- */
+    Object.defineProperty(this, 'version', {
+      enumerable: true,
+      get: function () { return this.package.version }
+    })
+  }
 
-proto.configDefs = {
-  help: Boolean, // everywhere
-  arch: String, // 'configure'
-  cafile: String, // 'install'
-  debug: Boolean, // 'build'
-  directory: String, // bin
-  make: String, // 'build'
-  msvs_version: String, // 'configure'
-  ensure: Boolean, // 'install'
-  solution: String, // 'build' (windows only)
-  proxy: String, // 'install'
-  noproxy: String, // 'install'
-  devdir: String, // everywhere
-  nodedir: String, // 'configure'
-  loglevel: String, // everywhere
-  python: String, // 'configure'
-  'dist-url': String, // 'install'
-  tarball: String, // 'install'
-  jobs: String, // 'build'
-  thin: String, // 'configure'
-  'force-process-config': Boolean // 'configure'
-}
+  /**
+   * Parses the given argv array and sets the 'opts',
+   * 'argv' and 'command' properties.
+   */
+  parseArgv (argv) {
+    this.opts = nopt(this.configDefs, this.shorthands, argv)
+    this.argv = this.opts.argv.remain.slice()
 
-/**
- * nopt shorthands
- */
+    const commands = this.todo = []
 
-proto.shorthands = {
-  release: '--no-debug',
-  C: '--directory',
-  debug: '--debug',
-  j: '--jobs',
-  silly: '--loglevel=silly',
-  verbose: '--loglevel=verbose',
-  silent: '--loglevel=silent'
-}
-
-/**
- * expose the command aliases for the bin file to use.
- */
-
-proto.aliases = aliases
-
-/**
- * Parses the given argv array and sets the 'opts',
- * 'argv' and 'command' properties.
- */
-
-proto.parseArgv = function parseOpts (argv) {
-  this.opts = nopt(this.configDefs, this.shorthands, argv)
-  this.argv = this.opts.argv.remain.slice()
-
-  var commands = this.todo = []
-
-  // create a copy of the argv array with aliases mapped
-  argv = this.argv.map(function (arg) {
+    // create a copy of the argv array with aliases mapped
+    argv = this.argv.map((arg) => {
     // is this an alias?
-    if (arg in this.aliases) {
-      arg = this.aliases[arg]
-    }
-    return arg
-  }, this)
-
-  // process the mapped args into "command" objects ("name" and "args" props)
-  argv.slice().forEach(function (arg) {
-    if (arg in this.commands) {
-      var args = argv.splice(0, argv.indexOf(arg))
-      argv.shift()
-      if (commands.length > 0) {
-        commands[commands.length - 1].args = args
+      if (arg in this.aliases) {
+        arg = this.aliases[arg]
       }
-      commands.push({ name: arg, args: [] })
-    }
-  }, this)
-  if (commands.length > 0) {
-    commands[commands.length - 1].args = argv.splice(0)
-  }
+      return arg
+    })
 
-  // support for inheriting config env variables from npm
-  var npmConfigPrefix = 'npm_config_'
-  Object.keys(process.env).forEach(function (name) {
-    if (name.indexOf(npmConfigPrefix) !== 0) {
-      return
-    }
-    var val = process.env[name]
-    if (name === npmConfigPrefix + 'loglevel') {
-      log.level = val
-    } else {
-      // add the user-defined options to the config
-      name = name.substring(npmConfigPrefix.length)
-      // gyp@741b7f1 enters an infinite loop when it encounters
-      // zero-length options so ensure those don't get through.
-      if (name) {
-        // convert names like force_process_config to force-process-config
-        if (name.includes('_')) {
-          name = name.replace(/_/g, '-')
+    // process the mapped args into "command" objects ("name" and "args" props)
+    argv.slice().forEach((arg) => {
+      if (arg in this.commands) {
+        const args = argv.splice(0, argv.indexOf(arg))
+        argv.shift()
+        if (commands.length > 0) {
+          commands[commands.length - 1].args = args
         }
-        this.opts[name] = val
+        commands.push({ name: arg, args: [] })
       }
+    })
+    if (commands.length > 0) {
+      commands[commands.length - 1].args = argv.splice(0)
     }
-  }, this)
 
-  if (this.opts.loglevel) {
-    log.level = this.opts.loglevel
+    // support for inheriting config env variables from npm
+    const npmConfigPrefix = 'npm_config_'
+    Object.keys(process.env).forEach((name) => {
+      if (name.indexOf(npmConfigPrefix) !== 0) {
+        return
+      }
+      const val = process.env[name]
+      if (name === npmConfigPrefix + 'loglevel') {
+        log.logger.level = val
+      } else {
+      // add the user-defined options to the config
+        name = name.substring(npmConfigPrefix.length)
+        // gyp@741b7f1 enters an infinite loop when it encounters
+        // zero-length options so ensure those don't get through.
+        if (name) {
+        // convert names like force_process_config to force-process-config
+          if (name.includes('_')) {
+            name = name.replace(/_/g, '-')
+          }
+          this.opts[name] = val
+        }
+      }
+    })
+
+    if (this.opts.loglevel) {
+      log.logger.level = this.opts.loglevel
+    }
+    log.resume()
   }
-  log.resume()
+
+  /**
+   * Spawns a child process and emits a 'spawn' event.
+   */
+  spawn (command, args, opts) {
+    if (!opts) {
+      opts = {}
+    }
+    if (!opts.silent && !opts.stdio) {
+      opts.stdio = [0, 1, 2]
+    }
+    const cp = childProcess.spawn(command, args, opts)
+    log.info('spawn', command)
+    log.info('spawn args', args)
+    return cp
+  }
+
+  /**
+   * Returns the usage instructions for node-gyp.
+   */
+  usage () {
+    return [
+      '',
+      '  Usage: node-gyp <command> [options]',
+      '',
+      '  where <command> is one of:',
+      commands.map((c) => '    - ' + c + ' - ' + require('./' + c).usage).join('\n'),
+      '',
+      'node-gyp@' + this.version + '  ' + path.resolve(__dirname, '..'),
+      'node@' + process.versions.node
+    ].join('\n')
+  }
 }
 
-/**
- * Spawns a child process and emits a 'spawn' event.
- */
-
-proto.spawn = function spawn (command, args, opts) {
-  if (!opts) {
-    opts = {}
-  }
-  if (!opts.silent && !opts.stdio) {
-    opts.stdio = [0, 1, 2]
-  }
-  var cp = childProcess.spawn(command, args, opts)
-  log.info('spawn', command)
-  log.info('spawn args', args)
-  return cp
-}
-
-/**
- * Returns the usage instructions for node-gyp.
- */
-
-proto.usage = function usage () {
-  var str = [
-    '',
-    '  Usage: node-gyp <command> [options]',
-    '',
-    '  where <command> is one of:',
-    commands.map(function (c) {
-      return '    - ' + c + ' - ' + require('./' + c).usage
-    }).join('\n'),
-    '',
-    'node-gyp@' + this.version + '  ' + path.resolve(__dirname, '..'),
-    'node@' + process.versions.node
-  ].join('\n')
-  return str
-}
-
-/**
- * Version number getter.
- */
-
-Object.defineProperty(proto, 'version', {
-  get: function () {
-    return this.package.version
-  },
-  enumerable: true
-})
-
-module.exports = exports = gyp
+module.exports = () => new Gyp()
+module.exports.Gyp = Gyp

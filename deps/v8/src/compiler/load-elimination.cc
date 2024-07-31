@@ -940,7 +940,7 @@ Reduction LoadElimination::ReduceLoadField(Node* node,
     DCHECK(IsAnyTagged(access.machine_type.representation()));
     ZoneRefSet<Map> object_maps;
     if (state->LookupMaps(object, &object_maps) && object_maps.size() == 1) {
-      Node* value = jsgraph()->HeapConstant(object_maps[0].object());
+      Node* value = jsgraph()->HeapConstantNoHole(object_maps[0].object());
       NodeProperties::SetType(value, Type::OtherInternal());
       ReplaceWithValue(node, value, effect);
       return Replace(value);

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
-
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 let builder = new WasmModuleBuilder();
@@ -18,7 +16,7 @@ let exportedAny = builder.addFunction("exportedAny", funcSig)
   .addBody([
     kExprLocalGet, 0,
     kExprCallRef, creatorAnySig,
-    kGCPrefix, kExprExternExternalize,
+    kGCPrefix, kExprExternConvertAny,
   ])
 
 builder.addFunction("createStruct", creatorAnySig)
@@ -45,7 +43,7 @@ let wasm2 = (function () {
     .addBody([
       kExprLocalGet, 0,
       kExprCallRef, creatorAnySig,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 

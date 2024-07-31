@@ -146,28 +146,10 @@ ErrorThrower::ErrorThrower(ErrorThrower&& other) V8_NOEXCEPT
 }
 
 ErrorThrower::~ErrorThrower() {
-  if (!error() || isolate_->has_pending_exception()) return;
+  if (!error() || isolate_->has_exception()) return;
 
-  // We don't want to mix pending exceptions and scheduled exceptions, hence
-  // an existing exception should be pending, never scheduled.
-  DCHECK(!isolate_->has_scheduled_exception());
   HandleScope handle_scope{isolate_};
   isolate_->Throw(*Reify());
-}
-
-ScheduledErrorThrower::~ScheduledErrorThrower() {
-  // There should never be both a pending and a scheduled exception.
-  DCHECK(!isolate()->has_scheduled_exception() ||
-         !isolate()->has_pending_exception());
-  // Don't throw another error if there is already a scheduled error.
-  if (isolate()->has_scheduled_exception()) {
-    Reset();
-  } else if (isolate()->has_pending_exception()) {
-    Reset();
-    isolate()->OptionalRescheduleException(false);
-  } else if (error()) {
-    isolate()->ScheduleThrow(*Reify());
-  }
 }
 
 }  // namespace wasm

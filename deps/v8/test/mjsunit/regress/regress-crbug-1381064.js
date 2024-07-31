@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-rab-gsab
-
 (function NonBigIntRegressionTest() {
   const rab = new ArrayBuffer(1050, {"maxByteLength": 2000});
   const ta = new Uint8ClampedArray(rab);

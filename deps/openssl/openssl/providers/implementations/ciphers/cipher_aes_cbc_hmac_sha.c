@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -334,6 +334,16 @@ static void *aes_cbc_hmac_sha1_newctx(void *provctx, size_t kbits,
     return ctx;
 }
 
+static void *aes_cbc_hmac_sha1_dupctx(void *provctx)
+{
+    PROV_AES_HMAC_SHA1_CTX *ctx = provctx;
+
+    if (ctx == NULL)
+        return NULL;
+
+    return OPENSSL_memdup(ctx, sizeof(*ctx));
+}
+
 static void aes_cbc_hmac_sha1_freectx(void *vctx)
 {
     PROV_AES_HMAC_SHA1_CTX *ctx = (PROV_AES_HMAC_SHA1_CTX *)vctx;
@@ -361,6 +371,13 @@ static void *aes_cbc_hmac_sha256_newctx(void *provctx, size_t kbits,
     return ctx;
 }
 
+static void *aes_cbc_hmac_sha256_dupctx(void *provctx)
+{
+    PROV_AES_HMAC_SHA256_CTX *ctx = provctx;
+
+    return OPENSSL_memdup(ctx, sizeof(*ctx));
+}
+
 static void aes_cbc_hmac_sha256_freectx(void *vctx)
 {
     PROV_AES_HMAC_SHA256_CTX *ctx = (PROV_AES_HMAC_SHA256_CTX *)vctx;
@@ -386,6 +403,7 @@ static int nm##_##kbits##_##sub##_get_params(OSSL_PARAM params[])              \
 const OSSL_DISPATCH ossl_##nm##kbits##sub##_functions[] = {                    \
     { OSSL_FUNC_CIPHER_NEWCTX, (void (*)(void))nm##_##kbits##_##sub##_newctx },\
     { OSSL_FUNC_CIPHER_FREECTX, (void (*)(void))nm##_##sub##_freectx },        \
+    { OSSL_FUNC_CIPHER_DUPCTX,  (void (*)(void))nm##_##sub##_dupctx},          \
     { OSSL_FUNC_CIPHER_ENCRYPT_INIT, (void (*)(void))nm##_einit },             \
     { OSSL_FUNC_CIPHER_DECRYPT_INIT, (void (*)(void))nm##_dinit },             \
     { OSSL_FUNC_CIPHER_UPDATE, (void (*)(void))nm##_update },                  \

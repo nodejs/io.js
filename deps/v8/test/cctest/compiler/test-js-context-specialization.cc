@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "src/codegen/tick-counter.h"
+#include "src/compiler/compilation-dependencies.h"
 #include "src/compiler/compiler-source-position-table.h"
 #include "src/compiler/js-context-specialization.h"
 #include "src/compiler/js-graph.h"
@@ -29,6 +30,7 @@ class ContextSpecializationTester : public HandleAndZoneScope,
   explicit ContextSpecializationTester(Maybe<OuterContext> context)
       : HandleAndZoneScope(kCompressGraphZone),
         JSHeapBrokerTestBase(main_isolate(), main_zone()),
+        dependencies_(broker(), main_zone()),
         graph_(main_zone()->New<Graph>(main_zone())),
         common_(main_zone()),
         javascript_(main_zone()),
@@ -43,6 +45,7 @@ class ContextSpecializationTester : public HandleAndZoneScope,
                               CanonicalHandles&& handles)
       : HandleAndZoneScope(kCompressGraphZone),
         JSHeapBrokerTestBase(main_isolate(), main_zone(), std::move(handles)),
+        dependencies_(broker(), main_zone()),
         graph_(main_zone()->New<Graph>(main_zone())),
         common_(main_zone()),
         javascript_(main_zone()),
@@ -71,6 +74,7 @@ class ContextSpecializationTester : public HandleAndZoneScope,
                                         size_t expected_new_depth);
 
  private:
+  CompilationDependencies dependencies_;
   TickCounter tick_counter_;
   Graph* graph_;
   CommonOperatorBuilder common_;
@@ -163,9 +167,9 @@ TEST(ReduceJSLoadContext0) {
   native->set(slot, *expected);
 
   Node* const_context =
-      t.jsgraph()->Constant(MakeRef(t.broker(), native), t.broker());
+      t.jsgraph()->ConstantNoHole(MakeRef(t.broker(), native), t.broker());
   Node* deep_const_context =
-      t.jsgraph()->Constant(MakeRef(t.broker(), subcontext2), t.broker());
+      t.jsgraph()->ConstantNoHole(MakeRef(t.broker(), subcontext2), t.broker());
   Node* param_context = t.graph()->NewNode(t.common()->Parameter(0), start);
 
   {
@@ -290,7 +294,8 @@ TEST(ReduceJSLoadContext2) {
   // The graph's context chain ends in a constant context (context_object1),
   // which has another outer context (context_object0).
   //
-  //   context2 <-- context1 <-- context0 (= HeapConstant(context_object1))
+  //   context2 <-- context1 <-- context0 (=
+  //   HeapConstantNoHole(context_object1))
   //   context_object1 <~~ context_object0
 
   ContextSpecializationTester t(Nothing<OuterContext>());
@@ -313,8 +318,8 @@ TEST(ReduceJSLoadContext2) {
   context_object0->set_extension(*slot_value0);
   context_object1->set_extension(*slot_value1);
 
-  Node* context0 =
-      t.jsgraph()->Constant(MakeRef(t.broker(), context_object1), t.broker());
+  Node* context0 = t.jsgraph()->ConstantNoHole(
+      MakeRef(t.broker(), context_object1), t.broker());
   Node* context1 =
       t.graph()->NewNode(create_function_context, context0, start, start);
   Node* context2 =
@@ -476,9 +481,9 @@ TEST(ReduceJSStoreContext0) {
   native->set(slot, *expected);
 
   Node* const_context =
-      t.jsgraph()->Constant(MakeRef(t.broker(), native), t.broker());
+      t.jsgraph()->ConstantNoHole(MakeRef(t.broker(), native), t.broker());
   Node* deep_const_context =
-      t.jsgraph()->Constant(MakeRef(t.broker(), subcontext2), t.broker());
+      t.jsgraph()->ConstantNoHole(MakeRef(t.broker(), subcontext2), t.broker());
   Node* param_context = t.graph()->NewNode(t.common()->Parameter(0), start);
 
   {
@@ -591,8 +596,8 @@ TEST(ReduceJSStoreContext2) {
   context_object0->set_extension(*slot_value0);
   context_object1->set_extension(*slot_value1);
 
-  Node* context0 =
-      t.jsgraph()->Constant(MakeRef(t.broker(), context_object1), t.broker());
+  Node* context0 = t.jsgraph()->ConstantNoHole(
+      MakeRef(t.broker(), context_object1), t.broker());
   Node* context1 =
       t.graph()->NewNode(create_function_context, context0, start, start);
   Node* context2 =

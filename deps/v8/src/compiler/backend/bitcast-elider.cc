@@ -64,6 +64,8 @@ void BitcastElider::Revisit(Node* node) { to_visit_.push(node); }
 void BitcastElider::VisitNode(Node* node) {
   for (int i = 0; i < node->InputCount(); i++) {
     Node* input = node->InputAt(i);
+    // This can happen as a result of previous replacements.
+    if (input == nullptr) continue;
     if (input->opcode() == IrOpcode::kTruncateInt64ToInt32 &&
         OwnedByWord32Op(input)) {
       Replace(input, input->InputAt(0));

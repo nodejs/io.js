@@ -27,36 +27,21 @@ namespace internal {
 
 #include "torque-generated/src/objects/contexts-tq-inl.inc"
 
-OBJECT_CONSTRUCTORS_IMPL(ScriptContextTable, FixedArray)
+OBJECT_CONSTRUCTORS_IMPL(ScriptContextTable, ScriptContextTable::Super)
 CAST_ACCESSOR(ScriptContextTable)
 
-int ScriptContextTable::used(AcquireLoadTag tag) const {
-  return Smi::ToInt(get(kUsedSlotIndex, tag));
-}
-
-void ScriptContextTable::set_used(int used, ReleaseStoreTag tag) {
-  set(kUsedSlotIndex, Smi::FromInt(used), tag);
-}
-
+RELEASE_ACQUIRE_SMI_ACCESSORS(ScriptContextTable, length, kLengthOffset)
 ACCESSORS(ScriptContextTable, names_to_context_index,
-          Tagged<NameToIndexHashTable>, kHashTableOffset)
+          Tagged<NameToIndexHashTable>, kNamesToContextIndexOffset)
 
-// static
-Handle<Context> ScriptContextTable::GetContext(Isolate* isolate,
-                                               Handle<ScriptContextTable> table,
-                                               int i) {
-  return handle(table->get_context(i), isolate);
+Tagged<Context> ScriptContextTable::get(int i) const {
+  DCHECK_LT(i, length(kAcquireLoad));
+  return Super::get(i);
 }
 
-Tagged<Context> ScriptContextTable::get_context(int i) const {
-  DCHECK_LT(i, used(kAcquireLoad));
-  return Context::cast(get(i + kFirstContextSlotIndex));
-}
-
-Tagged<Context> ScriptContextTable::get_context(int i,
-                                                AcquireLoadTag tag) const {
-  DCHECK_LT(i, used(kAcquireLoad));
-  return Context::cast(get(i + kFirstContextSlotIndex, tag));
+Tagged<Context> ScriptContextTable::get(int i, AcquireLoadTag tag) const {
+  DCHECK_LT(i, length(tag));
+  return Super::get(i, tag);
 }
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(Context)
@@ -188,19 +173,19 @@ bool Context::HasSameSecurityTokenAs(Tagged<Context> that) const {
 bool Context::IsDetached() const { return global_object()->IsDetached(); }
 
 #define NATIVE_CONTEXT_FIELD_ACCESSORS(index, type, name)   \
-  void Context::set_##name(type value) {                    \
+  void Context::set_##name(Tagged<type> value) {            \
     DCHECK(IsNativeContext(*this));                         \
     set(index, value, UPDATE_WRITE_BARRIER, kReleaseStore); \
   }                                                         \
-  bool Context::is_##name(type value) const {               \
+  bool Context::is_##name(Tagged<type> value) const {       \
     DCHECK(IsNativeContext(*this));                         \
     return type::cast(get(index)) == value;                 \
   }                                                         \
-  type Context::name() const {                              \
+  Tagged<type> Context::name() const {                      \
     DCHECK(IsNativeContext(*this));                         \
     return type::cast(get(index));                          \
   }                                                         \
-  type Context::name(AcquireLoadTag tag) const {            \
+  Tagged<type> Context::name(AcquireLoadTag tag) const {    \
     DCHECK(IsNativeContext(*this));                         \
     return type::cast(get(index, tag));                     \
   }

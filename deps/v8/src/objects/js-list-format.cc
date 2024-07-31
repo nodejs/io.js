@@ -203,7 +203,7 @@ Maybe<std::vector<icu::UnicodeString>> ToUnicodeStringArray(
   int length = array->length();
   std::vector<icu::UnicodeString> result;
   for (int i = 0; i < length; i++) {
-    Handle<Object> item = FixedArray::get(*array, i, isolate);
+    Handle<Object> item(array->get(i), isolate);
     DCHECK(IsString(*item));
     Handle<String> item_str = Handle<String>::cast(item);
     if (!item_str->IsFlat()) item_str = String::Flatten(isolate, item_str);

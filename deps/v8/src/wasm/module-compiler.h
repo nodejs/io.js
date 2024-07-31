@@ -41,6 +41,7 @@ class JSPromise;
 class Counters;
 class WasmModuleObject;
 class WasmInstanceObject;
+class WasmTrustedInstanceData;
 
 namespace wasm {
 
@@ -56,13 +57,18 @@ struct WasmModule;
 
 V8_EXPORT_PRIVATE
 std::shared_ptr<NativeModule> CompileToNativeModule(
-    Isolate* isolate, WasmFeatures enabled_features, ErrorThrower* thrower,
+    Isolate* isolate, WasmFeatures enabled_features,
+    CompileTimeImports compile_imports, ErrorThrower* thrower,
     std::shared_ptr<const WasmModule> module, ModuleWireBytes wire_bytes,
     int compilation_id, v8::metrics::Recorder::ContextId context_id,
     ProfileInformation* pgo_info);
 
 V8_EXPORT_PRIVATE
 void CompileJsToWasmWrappers(Isolate* isolate, const WasmModule* module);
+
+V8_EXPORT_PRIVATE WasmError ValidateAndSetBuiltinImports(
+    const WasmModule* module, base::Vector<const uint8_t> wire_bytes,
+    CompileTimeImports imports);
 
 // Compiles the wrapper for this (kind, sig) pair and sets the corresponding
 // cache entry. Assumes the key already exists in the cache but has not been
@@ -76,7 +82,7 @@ WasmCode* CompileImportWrapper(
 // Triggered by the WasmCompileLazy builtin. The return value indicates whether
 // compilation was successful. Lazy compilation can fail only if validation is
 // also lazy.
-bool CompileLazy(Isolate*, Tagged<WasmInstanceObject>, int func_index);
+bool CompileLazy(Isolate*, Tagged<WasmTrustedInstanceData>, int func_index);
 
 // Throws the compilation error after failed lazy compilation.
 void ThrowLazyCompilationError(Isolate* isolate,
@@ -85,11 +91,14 @@ void ThrowLazyCompilationError(Isolate* isolate,
 
 // Trigger tier-up of a particular function to TurboFan. If tier-up was already
 // triggered, we instead increase the priority with exponential back-off.
-V8_EXPORT_PRIVATE void TriggerTierUp(Tagged<WasmInstanceObject> instance,
+V8_EXPORT_PRIVATE void TriggerTierUp(Isolate*, Tagged<WasmTrustedInstanceData>,
                                      int func_index);
 // Synchronous version of the above.
-void TierUpNowForTesting(Isolate* isolate, Tagged<WasmInstanceObject> instance,
+void TierUpNowForTesting(Isolate*, Tagged<WasmTrustedInstanceData>,
                          int func_index);
+// Same, but all functions.
+V8_EXPORT_PRIVATE void TierUpAllForTesting(Isolate*,
+                                           Tagged<WasmTrustedInstanceData>);
 
 template <typename Key, typename KeyInfo, typename Hash>
 class WrapperQueue {
@@ -135,6 +144,7 @@ class WrapperQueue {
 class AsyncCompileJob {
  public:
   AsyncCompileJob(Isolate* isolate, WasmFeatures enabled_features,
+                  CompileTimeImports compile_imports,
                   base::OwnedVector<const uint8_t> bytes,
                   Handle<Context> context,
                   Handle<NativeContext> incumbent_context,
@@ -269,6 +279,7 @@ class AsyncCompileJob {
   Isolate* const isolate_;
   const char* const api_method_name_;
   const WasmFeatures enabled_features_;
+  const CompileTimeImports compile_imports_;
   const DynamicTiering dynamic_tiering_;
   base::TimeTicks start_time_;
   // Copy of the module wire bytes, moved into the {native_module_} on its

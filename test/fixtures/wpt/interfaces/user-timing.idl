@@ -22,13 +22,13 @@ partial interface Performance {
     undefined clearMeasures(optional DOMString measureName);
 };
 
-[Exposed=*]
+[Exposed=(Window,Worker)]
 interface PerformanceMark : PerformanceEntry {
   constructor(DOMString markName, optional PerformanceMarkOptions markOptions = {});
   readonly attribute any detail;
 };
 
-[Exposed=*]
+[Exposed=(Window,Worker)]
 interface PerformanceMeasure : PerformanceEntry {
   readonly attribute any detail;
 };

@@ -33,8 +33,8 @@ void MarkingVerifierBase::VerifyRoots() {
                                       base::EnumSet<SkipRoot>{SkipRoot::kWeak});
 }
 
-void MarkingVerifierBase::VerifyMarkingOnPage(const Page* page, Address start,
-                                              Address end) {
+void MarkingVerifierBase::VerifyMarkingOnPage(const PageMetadata* page,
+                                              Address start, Address end) {
   Address next_object_must_be_here_or_later = start;
 
   for (auto [object, size] : LiveObjectRange(page)) {
@@ -43,7 +43,7 @@ void MarkingVerifierBase::VerifyMarkingOnPage(const Page* page, Address start,
     if (current >= end) break;
     CHECK(IsMarked(object));
     CHECK(current >= next_object_must_be_here_or_later);
-    object.Iterate(cage_base(), this);
+    object->Iterate(cage_base(), this);
     next_object_must_be_here_or_later = current + size;
     // The object is either part of a black area of black allocation or a
     // regular black object
@@ -61,27 +61,19 @@ void MarkingVerifierBase::VerifyMarkingOnPage(const Page* page, Address start,
 
 void MarkingVerifierBase::VerifyMarking(NewSpace* space) {
   if (!space) return;
+
   if (v8_flags.minor_ms) {
     VerifyMarking(PagedNewSpace::From(space)->paged_space());
     return;
   }
-  Address end = space->top();
-  // The bottom position is at the start of its page. Allows us to use
-  // page->area_start() as start of range on all pages.
-  CHECK_EQ(space->first_allocatable_address(),
-           space->first_page()->area_start());
 
-  PageRange range(space->first_allocatable_address(), end);
-  for (auto it = range.begin(); it != range.end();) {
-    Page* page = *(it++);
-    Address limit = it != range.end() ? page->area_end() : end;
-    CHECK(limit == end || !page->Contains(end));
-    VerifyMarkingOnPage(page, page->area_start(), limit);
+  for (PageMetadata* page : *space) {
+    VerifyMarkingOnPage(page, page->area_start(), page->area_end());
   }
 }
 
 void MarkingVerifierBase::VerifyMarking(PagedSpaceBase* space) {
-  for (Page* p : *space) {
+  for (PageMetadata* p : *space) {
     VerifyMarkingOnPage(p, p->area_start(), p->area_end());
   }
 }
@@ -160,11 +152,14 @@ void VerifyRememberedSetsAfterEvacuation(Heap* heap,
   MemoryChunkIterator chunk_iterator(heap);
 
   while (chunk_iterator.HasNext()) {
-    MemoryChunk* chunk = chunk_iterator.Next();
+    MutablePageMetadata* chunk = chunk_iterator.Next();
 
     // Old-to-old slot sets must be empty after evacuation.
     DCHECK_NULL((chunk->slot_set<OLD_TO_OLD, AccessMode::ATOMIC>()));
+    DCHECK_NULL((chunk->slot_set<TRUSTED_TO_TRUSTED, AccessMode::ATOMIC>()));
     DCHECK_NULL((chunk->typed_slot_set<OLD_TO_OLD, AccessMode::ATOMIC>()));
+    DCHECK_NULL(
+        (chunk->typed_slot_set<TRUSTED_TO_TRUSTED, AccessMode::ATOMIC>()));
 
     if (new_space_is_empty &&
         (garbage_collector == GarbageCollector::MARK_COMPACTOR)) {

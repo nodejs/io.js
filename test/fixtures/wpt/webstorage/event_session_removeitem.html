@@ -1,0 +1,44 @@
+<!DOCTYPE HTML>
+<meta charset="utf-8">
+<title>Web Storage Test: event - sessionStorage removeItem</title>
+<link rel="author" title="Intel" href="http://www.intel.com">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+
+<div id="log"></div>
+
+<script>
+
+async_test(function(t) {
+    sessionStorage.clear();
+    t.add_cleanup(function() { sessionStorage.clear() });
+
+    self.step = function(f) { t.step(f); };
+
+    var event_index = 0;
+    window.addEventListener('storage', t.step_func(function(event) {
+        switch(++event_index) {
+            case 1:
+                assert_equals(event.key, "name", "set key");
+                assert_equals(event.oldValue, null, "set oldValue");
+                assert_equals(event.newValue, "user1", "set newValue");
+                assert_equals(event.url, el.contentDocument.documentURI, "set url");
+                assert_equals(event.storageArea, sessionStorage, "set storageArea");
+                break;
+            case 2:
+                assert_equals(event.key, "name", "remove key");
+                assert_equals(event.oldValue, "user1", "remove oldValue");
+                assert_equals(event.newValue, null, "remove newValue");
+                assert_equals(event.url, el.contentDocument.documentURI, "remove url");
+                assert_equals(event.storageArea, sessionStorage, "remove storageArea");
+                t.done();
+                break;
+        }
+    }), false);
+
+    var el = document.createElement("iframe");
+    el.setAttribute('id', 'ifrm');
+    el.setAttribute('src', 'resources/session_set_item_remove_iframe.html');
+    document.body.appendChild(el);
+}, "key property test of session event");
+</script>

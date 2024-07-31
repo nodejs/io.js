@@ -1,26 +1,25 @@
 'use strict'
 
-const fs = require('graceful-fs')
-const log = require('npmlog')
+const fs = require('graceful-fs').promises
+const log = require('./log')
 
-function list (gyp, args, callback) {
-  var devDir = gyp.devDir
+async function list (gyp, args) {
+  const devDir = gyp.devDir
   log.verbose('list', 'using node-gyp dir:', devDir)
 
-  fs.readdir(devDir, onreaddir)
-
-  function onreaddir (err, versions) {
+  let versions = []
+  try {
+    const dir = await fs.readdir(devDir)
+    if (Array.isArray(dir)) {
+      versions = dir.filter((v) => v !== 'current')
+    }
+  } catch (err) {
     if (err && err.code !== 'ENOENT') {
-      return callback(err)
+      throw err
     }
-
-    if (Array.isArray(versions)) {
-      versions = versions.filter(function (v) { return v !== 'current' })
-    } else {
-      versions = []
-    }
-    callback(null, versions)
   }
+
+  return versions
 }
 
 module.exports = list

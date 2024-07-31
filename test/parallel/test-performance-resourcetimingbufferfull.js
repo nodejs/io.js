@@ -34,10 +34,19 @@ const cacheMode = '';
 
 async function main() {
   performance.setResourceTimingBufferSize(1);
-  performance.markResourceTiming(createTimingInfo(1), requestedUrl, initiatorType, globalThis, cacheMode);
+  const args = [
+    requestedUrl,
+    initiatorType,
+    globalThis,
+    cacheMode,
+    {}, // body info
+    200,
+    '',
+  ];
+  performance.markResourceTiming(createTimingInfo(1), ...args);
   // Trigger a resourcetimingbufferfull event.
-  performance.markResourceTiming(createTimingInfo(2), requestedUrl, initiatorType, globalThis, cacheMode);
-  performance.markResourceTiming(createTimingInfo(3), requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(createTimingInfo(2), ...args);
+  performance.markResourceTiming(createTimingInfo(3), ...args);
   assert.strictEqual(performance.getEntriesByType('resource').length, 1);
 
   // Clear resource timings on resourcetimingbufferfull event.
@@ -65,10 +74,10 @@ async function main() {
 
   performance.clearResourceTimings();
   performance.setResourceTimingBufferSize(1);
-  performance.markResourceTiming(createTimingInfo(4), requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(createTimingInfo(4), ...args);
   // Trigger a resourcetimingbufferfull event.
-  performance.markResourceTiming(createTimingInfo(5), requestedUrl, initiatorType, globalThis, cacheMode);
-  performance.markResourceTiming(createTimingInfo(6), requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(createTimingInfo(5), ...args);
+  performance.markResourceTiming(createTimingInfo(6), ...args);
 
   // Increase the buffer size on resourcetimingbufferfull event.
   await new Promise((resolve) => {
@@ -96,10 +105,10 @@ async function main() {
 
   performance.clearResourceTimings();
   performance.setResourceTimingBufferSize(2);
-  performance.markResourceTiming(createTimingInfo(7), requestedUrl, initiatorType, globalThis, cacheMode);
-  performance.markResourceTiming(createTimingInfo(8), requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(createTimingInfo(7), ...args);
+  performance.markResourceTiming(createTimingInfo(8), ...args);
   // Trigger a resourcetimingbufferfull event.
-  performance.markResourceTiming(createTimingInfo(9), requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(createTimingInfo(9), ...args);
 
   // Decrease the buffer size on resourcetimingbufferfull event.
   await new Promise((resolve) => {

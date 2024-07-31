@@ -3,7 +3,7 @@
 const common = require('../common.js');
 
 const bench = common.createBenchmark(main, {
-  n: [1, 5000],
+  n: [1, 500000],
   v: ['crypto', 'tls'],
 });
 

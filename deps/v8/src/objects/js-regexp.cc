@@ -26,16 +26,17 @@ Handle<JSRegExpResultIndices> JSRegExpResultIndices::BuildIndices(
   indices->set_length(Smi::zero());
 
   // Build indices array from RegExpMatchInfo.
-  int num_indices = match_info->NumberOfCaptureRegisters();
+  int num_indices = match_info->number_of_capture_registers();
   int num_results = num_indices >> 1;
   Handle<FixedArray> indices_array =
       isolate->factory()->NewFixedArray(num_results);
   JSArray::SetContent(indices, indices_array);
 
   for (int i = 0; i < num_results; i++) {
-    int base_offset = i * 2;
-    int start_offset = match_info->Capture(base_offset);
-    int end_offset = match_info->Capture(base_offset + 1);
+    const int start_offset =
+        match_info->capture(RegExpMatchInfo::capture_start_index(i));
+    const int end_offset =
+        match_info->capture(RegExpMatchInfo::capture_end_index(i));
 
     // Any unmatched captures are set to undefined, otherwise we set them to a
     // subarray of the indices.
@@ -67,11 +68,13 @@ Handle<JSRegExpResultIndices> JSRegExpResultIndices::BuildIndices(
   Handle<FixedArray> names(Handle<FixedArray>::cast(maybe_names));
   int num_names = names->length() >> 1;
   Handle<HeapObject> group_names;
-  if (V8_ENABLE_SWISS_NAME_DICTIONARY_BOOL) {
+  if constexpr (V8_ENABLE_SWISS_NAME_DICTIONARY_BOOL) {
     group_names = isolate->factory()->NewSwissNameDictionary(num_names);
   } else {
     group_names = isolate->factory()->NewNameDictionary(num_names);
   }
+  Handle<PropertyDictionary> group_names_dict =
+      Handle<PropertyDictionary>::cast(group_names);
   for (int i = 0; i < num_names; i++) {
     int base_offset = i * 2;
     int name_offset = base_offset;
@@ -83,14 +86,23 @@ Handle<JSRegExpResultIndices> JSRegExpResultIndices::BuildIndices(
     if (!IsUndefined(*capture_indices, isolate)) {
       capture_indices = Handle<JSArray>::cast(capture_indices);
     }
-    if (V8_ENABLE_SWISS_NAME_DICTIONARY_BOOL) {
-      group_names = SwissNameDictionary::Add(
-          isolate, Handle<SwissNameDictionary>::cast(group_names), name,
-          capture_indices, PropertyDetails::Empty());
+    InternalIndex group_entry = group_names_dict->FindEntry(isolate, name);
+    // Duplicate group entries are possible if the capture groups are in
+    // different alternatives, i.e. only one of them can actually match.
+    // Therefore when we find a duplicate entry, either the current entry is
+    // undefined (didn't match anything) or the indices for the current capture
+    // are undefined. In the latter case we don't do anything, in the former
+    // case we update the entry.
+    if (group_entry.is_found()) {
+      DCHECK(v8_flags.js_regexp_duplicate_named_groups);
+      if (!IsUndefined(*capture_indices, isolate)) {
+        DCHECK(IsUndefined(group_names_dict->ValueAt(group_entry), isolate));
+        group_names_dict->ValueAtPut(group_entry, *capture_indices);
+      }
     } else {
-      group_names = NameDictionary::Add(
-          isolate, Handle<NameDictionary>::cast(group_names), name,
-          capture_indices, PropertyDetails::Empty());
+      group_names_dict =
+          PropertyDictionary::Add(isolate, group_names_dict, name,
+                                  capture_indices, PropertyDetails::Empty());
     }
   }
 
@@ -150,15 +162,25 @@ MaybeHandle<JSRegExp> JSRegExp::New(Isolate* isolate, Handle<String> pattern,
   return JSRegExp::Initialize(regexp, pattern, flags, backtrack_limit);
 }
 
-Tagged<Object> JSRegExp::code(bool is_latin1) const {
+Tagged<Object> JSRegExp::code(IsolateForSandbox isolate, bool is_latin1) const {
   DCHECK_EQ(type_tag(), JSRegExp::IRREGEXP);
   Tagged<Object> value = DataAt(code_index(is_latin1));
+  DCHECK(IsSmi(value) || IsCodeWrapper(value));
+  // TODO(saelo): it would be nice if we could directly use a code pointer to
+  // reference our Code rather than use the CodeWrapper object. However, this
+  // is currently not possible since we use essentially a FixedArray to store
+  // all our fields, and a code pointer isn't a tagged pointer. Instead, we
+  // should consider adding a trusted pointer field that references either the
+  // bytecode or the native code in a sandbox-compatible way.
+  if (IsCodeWrapper(value)) {
+    value = CodeWrapper::cast(value)->code(isolate);
+  }
   DCHECK(IsSmi(value) || IsCode(value));
   return value;
 }
 
 void JSRegExp::set_code(bool is_latin1, Handle<Code> code) {
-  SetDataAt(code_index(is_latin1), *code);
+  SetDataAt(code_index(is_latin1), code->wrapper());
 }
 
 Tagged<Object> JSRegExp::bytecode(bool is_latin1) const {
@@ -173,8 +195,8 @@ void JSRegExp::set_bytecode_and_trampoline(Isolate* isolate,
   SetDataAt(kIrregexpUC16BytecodeIndex, *bytecode);
 
   Handle<Code> trampoline = BUILTIN_CODE(isolate, RegExpExperimentalTrampoline);
-  SetDataAt(JSRegExp::kIrregexpLatin1CodeIndex, *trampoline);
-  SetDataAt(JSRegExp::kIrregexpUC16CodeIndex, *trampoline);
+  SetDataAt(JSRegExp::kIrregexpLatin1CodeIndex, trampoline->wrapper());
+  SetDataAt(JSRegExp::kIrregexpUC16CodeIndex, trampoline->wrapper());
 }
 
 bool JSRegExp::ShouldProduceBytecode() {

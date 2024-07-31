@@ -36,8 +36,8 @@ extern "C" {
 /**
  * @struct
  *
- * :type:`ngtcp2_crypto_picotls_ctx` contains per-connection state
- * of Picotls objects and must be an object to bet set to
+ * :type:`ngtcp2_crypto_picotls_ctx` contains per-connection state of
+ * Picotls objects and must be an object to bet set to
  * `ngtcp2_conn_set_tls_native_handle`.
  */
 typedef struct ngtcp2_crypto_picotls_ctx {
@@ -65,21 +65,21 @@ ngtcp2_crypto_picotls_ctx_init(ngtcp2_crypto_picotls_ctx *cptls);
  * @function
  *
  * `ngtcp2_crypto_picotls_from_epoch` translates |epoch| to
- * :type:`ngtcp2_crypto_level`.  This function is only available for
- * Picotls backend.
+ * :type:`ngtcp2_encryption_level`.  This function is only available
+ * for Picotls backend.
  */
-NGTCP2_EXTERN ngtcp2_crypto_level
+NGTCP2_EXTERN ngtcp2_encryption_level
 ngtcp2_crypto_picotls_from_epoch(size_t epoch);
 
 /**
  * @function
  *
- * `ngtcp2_crypto_picotls_from_ngtcp2_crypto_level` translates
- * |crypto_level| to epoch.  This function is only available for
+ * `ngtcp2_crypto_picotls_from_ngtcp2_encryption_level` translates
+ * |encryption_level| to epoch.  This function is only available for
  * Picotls backend.
  */
-NGTCP2_EXTERN size_t ngtcp2_crypto_picotls_from_ngtcp2_crypto_level(
-    ngtcp2_crypto_level crypto_level);
+NGTCP2_EXTERN size_t ngtcp2_crypto_picotls_from_ngtcp2_encryption_level(
+    ngtcp2_encryption_level encryption_level);
 
 /**
  * @function
@@ -206,7 +206,7 @@ ngtcp2_crypto_picotls_configure_client_session(ngtcp2_crypto_picotls_ctx *cptls,
  *
  * `ngtcp2_crypto_picotls_deconfigure_session` frees the resources
  * allocated for |cptls| during QUIC connection.  It frees the
- * following data using :manpage:`free(3)`.
+ * following data using :manpage:`free(3)`:
  *
  * - handshake_properties.max_early_data_size
  * - handshake_properties.additional_extensions[0].data.base

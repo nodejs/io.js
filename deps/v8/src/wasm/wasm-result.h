@@ -179,20 +179,6 @@ class V8_EXPORT_PRIVATE ErrorThrower {
   DISALLOW_NEW_AND_DELETE()
 };
 
-// Like an ErrorThrower, but turns all pending exceptions into scheduled
-// exceptions when going out of scope. Use this in API methods.
-// Note that pending exceptions are not necessarily created by the ErrorThrower,
-// but e.g. by the wasm start function. There might also be a scheduled
-// exception, created by another API call (e.g. v8::Object::Get). But there
-// should never be both pending and scheduled exceptions.
-class V8_EXPORT_PRIVATE ScheduledErrorThrower : public ErrorThrower {
- public:
-  ScheduledErrorThrower(i::Isolate* isolate, const char* context)
-      : ErrorThrower(isolate, context) {}
-
-  ~ScheduledErrorThrower();
-};
-
 // Use {nullptr_t} as data value to indicate that this only stores the error,
 // but no result value (the only valid value is {nullptr}).
 // [Storing {void} would require template specialization.]

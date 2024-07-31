@@ -6,8 +6,6 @@ import { describe, it } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 const skipForceColors =
-  process.config.variables.icu_gyp_path !== 'tools/icu/icu-generic.gyp' ||
-  process.config.variables.node_shared_openssl ||
   (common.isWindows && (Number(os.release().split('.')[0]) !== 10 || Number(os.release().split('.')[2]) < 14393)); // See https://github.com/nodejs/node/pull/33132
 
 
@@ -20,7 +18,7 @@ function replaceForceColorsStackTrace(str) {
   return str.replaceAll(/(\[90m\W+)at .*node:.*/g, '$1at *[39m');
 }
 
-describe('errors output', { concurrency: true }, () => {
+describe('errors output', { concurrency: !process.env.TEST_PARALLEL }, () => {
   function normalize(str) {
     return str.replaceAll(snapshot.replaceWindowsPaths(process.cwd()), '')
       .replaceAll(pathToFileURL(process.cwd()).pathname, '')
@@ -76,7 +74,7 @@ describe('errors output', { concurrency: true }, () => {
   ];
   for (const { name, transform = defaultTransform, env, skip = false } of tests) {
     it(name, { skip }, async () => {
-      await snapshot.spawnAndAssert(fixtures.path(name), transform, { env });
+      await snapshot.spawnAndAssert(fixtures.path(name), transform, { env: { ...env, ...process.env } });
     });
   }
 });

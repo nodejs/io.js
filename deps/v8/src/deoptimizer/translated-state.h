@@ -317,10 +317,9 @@ class TranslatedFrame {
 
   static void AdvanceIterator(std::deque<TranslatedValue>::iterator* iter);
 
-  TranslatedFrame(Kind kind,
-                  Tagged<SharedFunctionInfo> shared_info = SharedFunctionInfo(),
-                  int height = 0, int return_value_offset = 0,
-                  int return_value_count = 0)
+  explicit TranslatedFrame(
+      Kind kind, Tagged<SharedFunctionInfo> shared_info = SharedFunctionInfo(),
+      int height = 0, int return_value_offset = 0, int return_value_count = 0)
       : kind_(kind),
         bytecode_offset_(BytecodeOffset::None()),
         raw_shared_info_(shared_info),
@@ -334,7 +333,7 @@ class TranslatedFrame {
 
   Kind kind_;
   BytecodeOffset bytecode_offset_;
-  SharedFunctionInfo raw_shared_info_;
+  Tagged<SharedFunctionInfo> raw_shared_info_;
   Handle<SharedFunctionInfo> shared_info_;
   int height_;
   int return_value_offset_;
@@ -489,7 +488,7 @@ class TranslatedState {
   };
   std::deque<ObjectPosition> object_positions_;
   Handle<FeedbackVector> feedback_vector_handle_;
-  FeedbackVector feedback_vector_;
+  Tagged<FeedbackVector> feedback_vector_;
   FeedbackSlot feedback_slot_;
 };
 

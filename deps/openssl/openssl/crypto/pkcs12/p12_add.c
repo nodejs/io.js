@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -78,6 +78,12 @@ STACK_OF(PKCS12_SAFEBAG) *PKCS12_unpack_p7data(PKCS7 *p7)
         ERR_raise(ERR_LIB_PKCS12, PKCS12_R_CONTENT_TYPE_NOT_DATA);
         return NULL;
     }
+
+    if (p7->d.data == NULL) {
+        ERR_raise(ERR_LIB_PKCS12, PKCS12_R_DECODE_ERROR);
+        return NULL;
+    }
+
     return ASN1_item_unpack(p7->d.data, ASN1_ITEM_rptr(PKCS12_SAFEBAGS));
 }
 
@@ -150,6 +156,12 @@ STACK_OF(PKCS12_SAFEBAG) *PKCS12_unpack_p7encdata(PKCS7 *p7, const char *pass,
 {
     if (!PKCS7_type_is_encrypted(p7))
         return NULL;
+
+    if (p7->d.encrypted == NULL) {
+        ERR_raise(ERR_LIB_PKCS12, PKCS12_R_DECODE_ERROR);
+        return NULL;
+    }
+
     return PKCS12_item_decrypt_d2i_ex(p7->d.encrypted->enc_data->algorithm,
                                    ASN1_ITEM_rptr(PKCS12_SAFEBAGS),
                                    pass, passlen,
@@ -188,6 +200,12 @@ STACK_OF(PKCS7) *PKCS12_unpack_authsafes(const PKCS12 *p12)
         ERR_raise(ERR_LIB_PKCS12, PKCS12_R_CONTENT_TYPE_NOT_DATA);
         return NULL;
     }
+
+    if (p12->authsafes->d.data == NULL) {
+        ERR_raise(ERR_LIB_PKCS12, PKCS12_R_DECODE_ERROR);
+        return NULL;
+    }
+
     p7s = ASN1_item_unpack(p12->authsafes->d.data,
                            ASN1_ITEM_rptr(PKCS12_AUTHSAFES));
     if (p7s != NULL) {

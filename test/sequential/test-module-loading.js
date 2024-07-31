@@ -110,7 +110,7 @@ assert.strictEqual(require('../fixtures/packages/main-index').ok, 'ok');
 common.expectWarning(
   'DeprecationWarning',
   "Invalid 'main' field in '" +
-  require.resolve('../fixtures/packages/missing-main/package.json') +
+  path.toNamespacedPath(require.resolve('../fixtures/packages/missing-main/package.json')) +
   "' of 'doesnotexist.js'. Please either fix that or report it to the" +
   ' module author',
   'DEP0128');

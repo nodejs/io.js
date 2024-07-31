@@ -177,8 +177,8 @@ bool ContainsUpperCase(const std::string& s) {
 // keywords, e.g.: 'True', 'Undefined', etc.
 // These do not need to follow the default naming convention for constants.
 bool IsKeywordLikeName(const std::string& s) {
-  static const char* const keyword_like_constants[]{"True", "False", "TheHole",
-                                                    "Null", "Undefined"};
+  static const char* const keyword_like_constants[]{
+      "True", "False", "TheHole", "PromiseHole", "Null", "Undefined"};
 
   return std::find(std::begin(keyword_like_constants),
                    std::end(keyword_like_constants),
@@ -188,28 +188,19 @@ bool IsKeywordLikeName(const std::string& s) {
 // Untagged/MachineTypes like 'int32', 'intptr' etc. follow a 'all-lowercase'
 // naming convention and are those exempt from the normal type convention.
 bool IsMachineType(const std::string& s) {
-  static const char* const machine_types[]{VOID_TYPE_STRING,
-                                           NEVER_TYPE_STRING,
-                                           INT8_TYPE_STRING,
-                                           UINT8_TYPE_STRING,
-                                           INT16_TYPE_STRING,
-                                           UINT16_TYPE_STRING,
-                                           INT31_TYPE_STRING,
-                                           UINT31_TYPE_STRING,
-                                           INT32_TYPE_STRING,
-                                           UINT32_TYPE_STRING,
-                                           INT64_TYPE_STRING,
-                                           UINT64_TYPE_STRING,
-                                           INTPTR_TYPE_STRING,
-                                           UINTPTR_TYPE_STRING,
-                                           FLOAT32_TYPE_STRING,
-                                           FLOAT64_TYPE_STRING,
-                                           FLOAT64_OR_HOLE_TYPE_STRING,
-                                           BOOL_TYPE_STRING,
-                                           "string",
-                                           BINT_TYPE_STRING,
-                                           CHAR8_TYPE_STRING,
-                                           CHAR16_TYPE_STRING};
+  static const char* const machine_types[]{
+      VOID_TYPE_STRING,    NEVER_TYPE_STRING,
+      INT8_TYPE_STRING,    UINT8_TYPE_STRING,
+      INT16_TYPE_STRING,   UINT16_TYPE_STRING,
+      INT31_TYPE_STRING,   UINT31_TYPE_STRING,
+      INT32_TYPE_STRING,   UINT32_TYPE_STRING,
+      INT64_TYPE_STRING,   UINT64_TYPE_STRING,
+      INTPTR_TYPE_STRING,  UINTPTR_TYPE_STRING,
+      FLOAT16_TYPE_STRING, FLOAT32_TYPE_STRING,
+      FLOAT64_TYPE_STRING, FLOAT64_OR_HOLE_TYPE_STRING,
+      BOOL_TYPE_STRING,    "string",
+      BINT_TYPE_STRING,    CHAR8_TYPE_STRING,
+      CHAR16_TYPE_STRING};
   return std::find(std::begin(machine_types), std::end(machine_types), s) !=
          std::end(machine_types);
 }

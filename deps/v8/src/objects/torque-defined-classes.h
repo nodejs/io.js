@@ -4,6 +4,7 @@
 #ifndef V8_OBJECTS_TORQUE_DEFINED_CLASSES_H_
 #define V8_OBJECTS_TORQUE_DEFINED_CLASSES_H_
 
+#include "src/objects/arguments.h"
 #include "src/objects/descriptor-array.h"
 #include "src/objects/fixed-array.h"
 #include "src/objects/heap-object.h"

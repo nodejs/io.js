@@ -1,17 +1,14 @@
 {
   "name": "validate-npm-package-name",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "Give me a string and I'll tell you if it's a valid npm package name",
   "main": "lib/",
   "directories": {
     "test": "test"
   },
-  "dependencies": {
-    "builtins": "^5.0.0"
-  },
   "devDependencies": {
-    "@npmcli/eslint-config": "^3.0.1",
-    "@npmcli/template-oss": "4.5.1",
+    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/template-oss": "4.22.0",
     "tap": "^16.0.1"
   },
   "scripts": {
@@ -19,7 +16,7 @@
     "test:code": "tap ${TAP_FLAGS:-'--'} test/*.js",
     "test:style": "standard",
     "test": "tap",
-    "lint": "eslint \"**/*.js\"",
+    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
     "postlint": "template-oss-check",
     "template-oss-apply": "template-oss-apply --force",
     "lintfix": "npm run lint -- --fix",
@@ -28,7 +25,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/validate-npm-package-name.git"
+    "url": "git+https://github.com/npm/validate-npm-package-name.git"
   },
   "keywords": [
     "npm",
@@ -51,12 +48,10 @@
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.5.1"
+    "version": "4.22.0",
+    "publish": true
   },
   "tap": {
-    "statements": 88,
-    "branches": 92,
-    "lines": 88,
     "nyc-arg": [
       "--exclude",
       "tap-snapshots/**"

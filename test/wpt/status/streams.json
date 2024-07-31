@@ -1,13 +1,10 @@
 {
-  "idlharness.any.js": {
-    "fail": {
-      "expected": [
-        "ReadableStream interface: async iterable<any>"
-      ]
-    }
+  "idlharness-shadowrealm.window.js": {
+    "skip": "ShadowRealm support is not enabled"
   },
   "piping/general-addition.any.js": {
     "fail": {
+      "note": "Blocked on https://github.com/whatwg/streams/issues/1243",
       "expected": [
         "enqueue() must not synchronously call write algorithm"
       ]
@@ -21,6 +18,7 @@
   },
   "readable-streams/owning-type-message-port.any.js": {
     "fail": {
+      "note": "Readable streams with type owning are not yet supported",
       "expected": [
         "Transferred MessageChannel works as expected",
         "Second branch of owning ReadableStream tee should end up into errors with transfer only values"
@@ -32,6 +30,7 @@
   },
   "readable-streams/owning-type.any.js": {
     "fail": {
+      "note": "Readable streams with type owning are not yet supported",
       "expected": [
         "ReadableStream can be constructed with owning type",
         "ReadableStream of type owning should call start with a ReadableStreamDefaultController",

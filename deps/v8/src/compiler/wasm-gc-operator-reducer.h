@@ -65,7 +65,7 @@ class WasmGCOperatorReducer final
   Reduction ReduceWasmTypeCast(Node* node);
   Reduction ReduceWasmTypeCastAbstract(Node* node);
   Reduction ReduceTypeGuard(Node* node);
-  Reduction ReduceWasmExternInternalize(Node* node);
+  Reduction ReduceWasmAnyConvertExtern(Node* node);
   Reduction ReduceMerge(Node* node);
   Reduction ReduceIf(Node* node, bool condition);
   Reduction ReduceStart(Node* node);

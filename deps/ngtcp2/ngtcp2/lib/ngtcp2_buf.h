@@ -36,7 +36,7 @@ typedef struct ngtcp2_buf {
   uint8_t *begin;
   /* end points to the one beyond of the last byte of the buffer */
   uint8_t *end;
-  /* pos pointers to the start of data.  Typically, this points to the
+  /* pos points to the start of data.  Typically, this points to the
      point that next data should be read.  Initially, it points to
      |begin|. */
   uint8_t *pos;

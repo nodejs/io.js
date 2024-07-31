@@ -223,7 +223,7 @@ void Realm::PrintInfoForSnapshot() {
   fprintf(stderr, "BaseObjects of the Realm:\n");
   size_t i = 0;
   ForEachBaseObject([&](BaseObject* obj) {
-    std::cout << "#" << i++ << " " << obj << ": " << obj->MemoryInfoName()
+    std::cerr << "#" << i++ << " " << obj << ": " << obj->MemoryInfoName()
               << "\n";
   });
 
@@ -344,10 +344,11 @@ MaybeLocal<Value> PrincipalRealm::BootstrapRealm() {
     return MaybeLocal<Value>();
   }
 
+  // Setup process.env proxy.
   Local<String> env_string = FIXED_ONE_BYTE_STRING(isolate_, "env");
   Local<Object> env_proxy;
-  CreateEnvProxyTemplate(isolate_, env_->isolate_data());
-  if (!env_->env_proxy_template()->NewInstance(context()).ToLocal(&env_proxy) ||
+  if (!isolate_data()->env_proxy_template()->NewInstance(context()).ToLocal(
+          &env_proxy) ||
       process_object()->Set(context(), env_string, env_proxy).IsNothing()) {
     return MaybeLocal<Value>();
   }

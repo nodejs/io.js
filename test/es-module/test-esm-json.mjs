@@ -2,7 +2,7 @@ import { spawnPromisified } from '../common/index.mjs';
 import * as fixtures from '../common/fixtures.mjs';
 import assert from 'node:assert';
 import { execPath } from 'node:process';
-import { describe, it, test } from 'node:test';
+import { before, describe, it, test } from 'node:test';
 
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import * as tmpdir from '../common/tmpdir.js';
@@ -10,6 +10,8 @@ import * as tmpdir from '../common/tmpdir.js';
 import secret from '../fixtures/experimental.json' with { type: 'json' };
 
 describe('ESM: importing JSON', () => {
+  before(() => tmpdir.refresh());
+
   it('should load JSON', () => {
     assert.strictEqual(secret.ofLife, 42);
   });

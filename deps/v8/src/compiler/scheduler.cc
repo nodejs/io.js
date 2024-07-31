@@ -710,7 +710,7 @@ class SpecialRPONumberer : public ZoneObject {
     return empty_;
   }
 
-  bool HasLoopBlocks() const { return loops_.size() != 0; }
+  bool HasLoopBlocks() const { return !loops_.empty(); }
 
  private:
   using Backedge = std::pair<BasicBlock*, size_t>;

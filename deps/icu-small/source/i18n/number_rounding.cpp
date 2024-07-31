@@ -437,7 +437,7 @@ void RoundingImpl::apply(impl::DecimalQuantity &value, UErrorCode& status) const
                     uprv_max(0, -getDisplayMagnitudeSignificant(value, fPrecision.fUnion.fracSig.fMinSig));
             // Make sure that digits are displayed on zero.
             if (value.isZeroish() && fPrecision.fUnion.fracSig.fMinSig > 0) {
-                value.setMinInteger(1);
+                value.increaseMinIntegerTo(1);
             }
             break;
 

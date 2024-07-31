@@ -1,0 +1,784 @@
+#
+# Copyright 2019 The Abseil Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Internal-only implementation classes for Abseil Random
+load(
+    "//absl:copts/configure_copts.bzl",
+    "ABSL_DEFAULT_COPTS",
+    "ABSL_DEFAULT_LINKOPTS",
+    "ABSL_RANDOM_RANDEN_COPTS",
+    "ABSL_TEST_COPTS",
+    "absl_random_randen_copts_init",
+)
+
+default_package_visibility = [
+    "//absl/random:__pkg__",
+]
+
+package(
+    default_visibility = default_package_visibility,
+    features = [
+        "header_modules",
+        "layering_check",
+        "parse_headers",
+    ],
+)
+
+licenses(["notice"])
+
+cc_library(
+    name = "traits",
+    hdrs = ["traits.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:config",
+        "//absl/numeric:bits",
+        "//absl/numeric:int128",
+    ],
+)
+
+cc_library(
+    name = "distribution_caller",
+    hdrs = ["distribution_caller.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:config",
+        "//absl/base:fast_type_id",
+        "//absl/utility",
+    ],
+)
+
+cc_library(
+    name = "fast_uniform_bits",
+    hdrs = [
+        "fast_uniform_bits.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":traits",
+        "//absl/base:config",
+        "//absl/meta:type_traits",
+    ],
+)
+
+cc_library(
+    name = "seed_material",
+    srcs = [
+        "seed_material.cc",
+    ],
+    hdrs = [
+        "seed_material.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS + select({
+        "//absl:msvc_compiler": ["-DEFAULTLIB:bcrypt.lib"],
+        "//absl:clang-cl_compiler": ["-DEFAULTLIB:bcrypt.lib"],
+        "//absl:mingw_compiler": [
+            "-DEFAULTLIB:bcrypt.lib",
+            "-lbcrypt",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":fast_uniform_bits",
+        "//absl/base:core_headers",
+        "//absl/base:dynamic_annotations",
+        "//absl/base:raw_logging_internal",
+        "//absl/strings",
+        "//absl/types:optional",
+        "//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "pool_urbg",
+    srcs = [
+        "pool_urbg.cc",
+    ],
+    hdrs = [
+        "pool_urbg.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = select({
+        "//absl:msvc_compiler": [],
+        "//absl:clang-cl_compiler": [],
+        "//absl:wasm": [],
+        "//conditions:default": ["-pthread"],
+    }) + ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":randen",
+        ":seed_material",
+        ":traits",
+        "//absl/base",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:endian",
+        "//absl/base:raw_logging_internal",
+        "//absl/random:seed_gen_exception",
+        "//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "explicit_seed_seq",
+    testonly = True,
+    hdrs = [
+        "explicit_seed_seq.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:config",
+        "//absl/base:endian",
+    ],
+)
+
+cc_library(
+    name = "sequence_urbg",
+    testonly = True,
+    hdrs = [
+        "sequence_urbg.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = ["//absl/base:config"],
+)
+
+cc_library(
+    name = "salted_seed_seq",
+    hdrs = [
+        "salted_seed_seq.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":seed_material",
+        "//absl/container:inlined_vector",
+        "//absl/meta:type_traits",
+        "//absl/types:optional",
+        "//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "iostream_state_saver",
+    hdrs = ["iostream_state_saver.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/meta:type_traits",
+        "//absl/numeric:int128",
+    ],
+)
+
+cc_library(
+    name = "generate_real",
+    hdrs = [
+        "generate_real.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":fastmath",
+        ":traits",
+        "//absl/meta:type_traits",
+        "//absl/numeric:bits",
+    ],
+)
+
+cc_library(
+    name = "fastmath",
+    hdrs = [
+        "fastmath.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = ["//absl/numeric:bits"],
+)
+
+cc_library(
+    name = "wide_multiply",
+    hdrs = ["wide_multiply.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":traits",
+        "//absl/base:config",
+        "//absl/numeric:bits",
+        "//absl/numeric:int128",
+    ],
+)
+
+cc_library(
+    name = "nonsecure_base",
+    hdrs = ["nonsecure_base.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":pool_urbg",
+        ":salted_seed_seq",
+        ":seed_material",
+        "//absl/base:core_headers",
+        "//absl/container:inlined_vector",
+        "//absl/meta:type_traits",
+        "//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "pcg_engine",
+    hdrs = ["pcg_engine.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":fastmath",
+        ":iostream_state_saver",
+        "//absl/base:config",
+        "//absl/meta:type_traits",
+        "//absl/numeric:bits",
+        "//absl/numeric:int128",
+    ],
+)
+
+cc_library(
+    name = "randen_engine",
+    hdrs = ["randen_engine.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = default_package_visibility + [
+    ],
+    deps = [
+        ":iostream_state_saver",
+        ":randen",
+        "//absl/base:endian",
+        "//absl/meta:type_traits",
+    ],
+)
+
+cc_library(
+    name = "platform",
+    srcs = [
+        "randen_round_keys.cc",
+    ],
+    hdrs = [
+        "randen_traits.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    textual_hdrs = [
+        "platform.h",
+    ],
+    deps = ["//absl/base:config"],
+)
+
+cc_library(
+    name = "randen",
+    srcs = [
+        "randen.cc",
+    ],
+    hdrs = [
+        "randen.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":platform",
+        ":randen_hwaes",
+        ":randen_slow",
+        "//absl/base:raw_logging_internal",
+    ],
+)
+
+cc_library(
+    name = "randen_slow",
+    srcs = ["randen_slow.cc"],
+    hdrs = ["randen_slow.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":platform",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:endian",
+        "//absl/numeric:int128",
+    ],
+)
+
+absl_random_randen_copts_init()
+
+cc_library(
+    name = "randen_hwaes",
+    srcs = [
+        "randen_detect.cc",
+    ],
+    hdrs = [
+        "randen_detect.h",
+        "randen_hwaes.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":platform",
+        ":randen_hwaes_impl",
+        "//absl/base:config",
+    ],
+)
+
+# build with --save_temps to see assembly language output.
+cc_library(
+    name = "randen_hwaes_impl",
+    srcs = [
+        "randen_hwaes.cc",
+        "randen_hwaes.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS + ABSL_RANDOM_RANDEN_COPTS + select({
+        "//absl:msvc_compiler": [],
+        "//absl:clang-cl_compiler": [],
+        "//conditions:default": ["-Wno-pass-failed"],
+    }),
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":platform",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/numeric:int128",
+    ],
+)
+
+cc_binary(
+    name = "gaussian_distribution_gentables",
+    srcs = [
+        "gaussian_distribution_gentables.cc",
+    ],
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:core_headers",
+        "//absl/random:distributions",
+    ],
+)
+
+cc_library(
+    name = "distribution_test_util",
+    testonly = True,
+    srcs = [
+        "chi_square.cc",
+        "distribution_test_util.cc",
+    ],
+    hdrs = [
+        "chi_square.h",
+        "distribution_test_util.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:raw_logging_internal",
+        "//absl/strings",
+        "//absl/strings:str_format",
+        "//absl/types:span",
+    ],
+)
+
+# Common tags for tests, etc.
+ABSL_RANDOM_NONPORTABLE_TAGS = [
+    "no_test_android_arm",
+    "no_test_android_arm64",
+    "no_test_android_x86",
+    "no_test_darwin_x86_64",
+    "no_test_ios_x86_64",
+    "no_test_loonix",
+    "no_test_lexan",
+    "no_test_wasm",
+]
+
+cc_test(
+    name = "traits_test",
+    size = "small",
+    srcs = ["traits_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":traits",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "generate_real_test",
+    size = "small",
+    srcs = [
+        "generate_real_test.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":generate_real",
+        "//absl/flags:flag",
+        "//absl/numeric:bits",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "distribution_test_util_test",
+    size = "small",
+    srcs = ["distribution_test_util_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":distribution_test_util",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "fastmath_test",
+    size = "small",
+    srcs = ["fastmath_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":fastmath",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "explicit_seed_seq_test",
+    size = "small",
+    srcs = ["explicit_seed_seq_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":explicit_seed_seq",
+        "//absl/random:seed_sequences",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "salted_seed_seq_test",
+    size = "small",
+    srcs = ["salted_seed_seq_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":salted_seed_seq",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "chi_square_test",
+    size = "small",
+    srcs = [
+        "chi_square_test.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":distribution_test_util",
+        "//absl/base:core_headers",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "fast_uniform_bits_test",
+    size = "small",
+    srcs = [
+        "fast_uniform_bits_test.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":fast_uniform_bits",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "mock_helpers",
+    hdrs = ["mock_helpers.h"],
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:fast_type_id",
+        "//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "mock_overload_set",
+    testonly = True,
+    hdrs = ["mock_overload_set.h"],
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":mock_helpers",
+        "//absl/random:mocking_bit_gen",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "nonsecure_base_test",
+    size = "small",
+    srcs = [
+        "nonsecure_base_test.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":nonsecure_base",
+        "//absl/random",
+        "//absl/random:distributions",
+        "//absl/random:seed_sequences",
+        "//absl/strings",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "seed_material_test",
+    size = "small",
+    srcs = ["seed_material_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":seed_material",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "pool_urbg_test",
+    size = "small",
+    srcs = [
+        "pool_urbg_test.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":pool_urbg",
+        "//absl/meta:type_traits",
+        "//absl/types:span",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "pcg_engine_test",
+    size = "medium",  # Trying to measure accuracy.
+    srcs = ["pcg_engine_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    flaky = 1,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":explicit_seed_seq",
+        ":pcg_engine",
+        "//absl/time",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "randen_engine_test",
+    size = "medium",
+    srcs = [
+        "randen_engine_test.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":explicit_seed_seq",
+        ":randen_engine",
+        "//absl/log",
+        "//absl/strings",
+        "//absl/time",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "randen_test",
+    size = "small",
+    srcs = ["randen_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":randen",
+        "//absl/meta:type_traits",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "randen_slow_test",
+    size = "small",
+    srcs = ["randen_slow_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":platform",
+        ":randen_slow",
+        "//absl/base:endian",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "randen_hwaes_test",
+    size = "small",
+    srcs = ["randen_hwaes_test.cc"],
+    copts = ABSL_TEST_COPTS + ABSL_RANDOM_RANDEN_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    tags = ABSL_RANDOM_NONPORTABLE_TAGS,
+    deps = [
+        ":platform",
+        ":randen_hwaes",
+        ":randen_hwaes_impl",  # build_cleaner: keep
+        "//absl/log",
+        "//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "wide_multiply_test",
+    size = "small",
+    srcs = ["wide_multiply_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":wide_multiply",
+        "//absl/numeric:bits",
+        "//absl/numeric:int128",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "nanobenchmark",
+    srcs = ["nanobenchmark.cc"],
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    textual_hdrs = ["nanobenchmark.h"],
+    deps = [
+        ":platform",
+        ":randen_engine",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:raw_logging_internal",
+    ],
+)
+
+cc_library(
+    name = "uniform_helper",
+    hdrs = ["uniform_helper.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":traits",
+        "//absl/base:config",
+        "//absl/meta:type_traits",
+        "//absl/numeric:int128",
+    ],
+)
+
+cc_test(
+    name = "nanobenchmark_test",
+    size = "small",
+    srcs = ["nanobenchmark_test.cc"],
+    flaky = 1,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    tags = [
+        "benchmark",
+        "no_test_ios_x86_64",
+        "no_test_loonix",  # Crashing.
+        "no_test_wasm",
+    ],
+    deps = [
+        ":nanobenchmark",
+        "//absl/log",
+        "//absl/log:check",
+        "//absl/strings",
+        "//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "randen_benchmarks",
+    size = "medium",
+    timeout = "long",
+    srcs = ["randen_benchmarks.cc"],
+    copts = ABSL_TEST_COPTS + ABSL_RANDOM_RANDEN_COPTS,
+    flaky = 1,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    tags = ABSL_RANDOM_NONPORTABLE_TAGS + ["benchmark"],
+    deps = [
+        ":nanobenchmark",
+        ":platform",
+        ":randen",
+        ":randen_engine",
+        ":randen_hwaes",
+        ":randen_hwaes_impl",
+        ":randen_slow",
+        "//absl/base:raw_logging_internal",
+        "//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "iostream_state_saver_test",
+    srcs = ["iostream_state_saver_test.cc"],
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":iostream_state_saver",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "uniform_helper_test",
+    size = "small",
+    srcs = ["uniform_helper_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":uniform_helper",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

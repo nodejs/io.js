@@ -523,8 +523,7 @@ void Assembler::RemoveBranchFromLabelLinkChain(Instruction* branch,
       // currently referring to this label.
       label->Unuse();
     } else {
-      label->link_to(static_cast<int>(reinterpret_cast<uint8_t*>(next_link) -
-                                      buffer_start_));
+      label->link_to(static_cast<int>(InstructionOffset(next_link)));
     }
 
   } else if (branch == next_link) {
@@ -545,6 +544,26 @@ void Assembler::RemoveBranchFromLabelLinkChain(Instruction* branch,
         next_link = link->ImmPCOffsetTarget();
         end_of_chain = (link == next_link);
         link->SetImmPCOffsetTarget(options(), label_veneer);
+        // {link} is now resolved; remove it from {unresolved_branches_} so
+        // we won't later try to process it again, which would fail because
+        // by walking the chain of its label's unresolved branch instructions,
+        // we won't find it: {prev_link} is now the end of that chain after
+        // its update above.
+        if (link->IsCondBranchImm() || link->IsCompareBranch()) {
+          static_assert(Instruction::ImmBranchRange(CondBranchType) ==
+                        Instruction::ImmBranchRange(CompareBranchType));
+          int max_reachable_pc = static_cast<int>(InstructionOffset(link)) +
+                                 Instruction::ImmBranchRange(CondBranchType);
+          unresolved_branches_.erase(max_reachable_pc);
+        } else if (link->IsTestBranch()) {
+          // Add 1 to account for branch type tag bit.
+          int max_reachable_pc = static_cast<int>(InstructionOffset(link)) +
+                                 Instruction::ImmBranchRange(TestBranchType) +
+                                 1;
+          unresolved_branches_.erase(max_reachable_pc);
+        } else {
+          // Other branch types are not handled by veneers.
+        }
         link = next_link;
       }
     } else {
@@ -4709,17 +4728,8 @@ void Assembler::EmitVeneers(bool force_emit, bool need_protection,
         pc_offset -= Instruction::ImmBranchRange(CondBranchType);
       }
       tasks.emplace_back(FarBranchInfo{pc_offset, it->second});
-      auto eraser_it = it++;
-      unresolved_branches_.erase(eraser_it);
+      it = unresolved_branches_.erase(it);
     }
-  }
-
-  // Update next_veneer_pool_check_ (tightly coupled with unresolved_branches_).
-  if (unresolved_branches_.empty()) {
-    next_veneer_pool_check_ = kMaxInt;
-  } else {
-    next_veneer_pool_check_ =
-        unresolved_branches_first_limit() - kVeneerDistanceCheckMargin;
   }
 
   // Reminder: We iterate in reverse order to avoid duplicate linked-list
@@ -4732,6 +4742,16 @@ void Assembler::EmitVeneers(bool force_emit, bool need_protection,
     Instruction* veneer = reinterpret_cast<Instruction*>(
         reinterpret_cast<uintptr_t>(pc_) + i * kVeneerCodeSize);
     RemoveBranchFromLabelLinkChain(branch, tasks[i].label_, veneer);
+  }
+
+  // Update next_veneer_pool_check_ (tightly coupled with unresolved_branches_).
+  // This must happen after the calls to {RemoveBranchFromLabelLinkChain},
+  // because that function can resolve additional branches.
+  if (unresolved_branches_.empty()) {
+    next_veneer_pool_check_ = kMaxInt;
+  } else {
+    next_veneer_pool_check_ =
+        unresolved_branches_first_limit() - kVeneerDistanceCheckMargin;
   }
 
   // Now emit the actual veneer and patch up the incoming branch.

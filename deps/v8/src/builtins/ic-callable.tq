@@ -19,13 +19,6 @@ macro InSameNativeContext(lhs: Context, rhs: Context): bool {
   return LoadNativeContext(lhs) == LoadNativeContext(rhs);
 }
 
-macro MaybeObjectToStrong(maybeObject: MaybeObject):
-    HeapObject labels IfCleared {
-  dcheck(IsWeakOrCleared(maybeObject));
-  const weakObject = %RawDownCast<Weak<HeapObject>>(maybeObject);
-  return WeakToStrong(weakObject) otherwise IfCleared;
-}
-
 macro TryInitializeAsMonomorphic(
     implicit context: Context)(maybeTarget: JSAny,
     feedbackVector: FeedbackVector,

@@ -14,6 +14,7 @@
 #include "src/wasm/string-builder-multiline.h"
 #include "src/wasm/wasm-disassembler-impl.h"
 #include "src/wasm/wasm-opcodes-inl.h"
+#include "tools/wasm/mjsunit-module-disassembler-impl.h"
 
 #if V8_OS_POSIX
 #include <unistd.h>
@@ -39,6 +40,10 @@ int PrintHelp(char** argv) {
       << " --instruction-stats\n"
       << "     Show information about instructions in the given module\n"
 
+      << " --function-stats [bucket_size] [bucket_count]\n"
+      << "    Show distribution of function sizes in the given module.\n"
+      << "    An optional bucket size and bucket count can be passed."
+
       << " --single-wat FUNC_INDEX\n"
       << "     Print function FUNC_INDEX in .wat format\n"
 
@@ -50,6 +55,9 @@ int PrintHelp(char** argv) {
 
       << " --full-hexdump\n"
       << "     Print full module in annotated hex format\n"
+
+      << " --mjsunit\n"
+      << "     Print full module in mjsunit/wasm-module-builder.js syntax\n"
 
       << " --strip\n"
       << "     Dump the module, in binary format, without its Name"
@@ -70,7 +78,6 @@ namespace internal {
 namespace wasm {
 
 enum class OutputMode { kWat, kHexDump };
-static constexpr char kHexChars[] = "0123456789abcdef";
 
 char* PrintHexBytesCore(char* ptr, uint32_t num_bytes, const uint8_t* start) {
   for (uint32_t i = 0; i < num_bytes; i++) {
@@ -213,11 +220,12 @@ class InstructionStatistics {
 class ExtendedFunctionDis : public FunctionBodyDisassembler {
  public:
   ExtendedFunctionDis(Zone* zone, const WasmModule* module, uint32_t func_index,
-                      WasmFeatures* detected, const FunctionSig* sig,
-                      const uint8_t* start, const uint8_t* end, uint32_t offset,
+                      bool shared, WasmFeatures* detected,
+                      const FunctionSig* sig, const uint8_t* start,
+                      const uint8_t* end, uint32_t offset,
                       const ModuleWireBytes wire_bytes, NamesProvider* names)
-      : FunctionBodyDisassembler(zone, module, func_index, detected, sig, start,
-                                 end, offset, wire_bytes, names) {}
+      : FunctionBodyDisassembler(zone, module, func_index, shared, detected,
+                                 sig, start, end, offset, wire_bytes, names) {}
 
   void HexDump(MultiLineStringBuilder& out, FunctionHeader include_header) {
     out_ = &out;
@@ -257,7 +265,7 @@ class ExtendedFunctionDis : public FunctionBodyDisassembler {
     }
 
     // Main loop.
-    while (pc_ < end_) {
+    while (pc_ < end_ && ok()) {
       WasmOpcode opcode = GetOpcode();
       current_opcode_ = opcode;  // Some immediates need to know this.
       StringBuilder immediates;
@@ -293,7 +301,7 @@ class ExtendedFunctionDis : public FunctionBodyDisassembler {
   }
 
   void HexdumpConstantExpression(MultiLineStringBuilder& out) {
-    while (pc_ < end_) {
+    while (pc_ < end_ && ok()) {
       WasmOpcode opcode = GetOpcode();
       current_opcode_ = opcode;  // Some immediates need to know this.
       StringBuilder immediates;
@@ -328,7 +336,7 @@ class ExtendedFunctionDis : public FunctionBodyDisassembler {
     if (failed()) return;
     stats.RecordLocals(num_locals(), locals_length);
     consume_bytes(locals_length);
-    while (pc_ < end_) {
+    while (pc_ < end_ && ok()) {
       WasmOpcode opcode = GetOpcode();
       if (opcode == kExprI32Const) {
         ImmI32Immediate imm(this, pc_ + 1, Decoder::kNoValidation);
@@ -392,6 +400,7 @@ class HexDumpModuleDis : public ITracer {
     out_.NextLine(0);
     constexpr bool kNoVerifyFunctions = false;
     decoder.DecodeModule(kNoVerifyFunctions);
+    if (out_.length() > 0) out_.NextLine(static_cast<uint32_t>(total_bytes_));
     out_ << "]";
 
     if (total_bytes_ != wire_bytes_.length()) {
@@ -414,7 +423,7 @@ class HexDumpModuleDis : public ITracer {
       total_bytes_ += count;
       return;
     }
-    if (line_bytes_ == 0) out_ << "  ";
+    if (line_bytes_ == 0 && count > 0) out_ << "  ";
     PrintHexBytes(out_, count, start);
     line_bytes_ += count;
     total_bytes_ += count;
@@ -517,8 +526,7 @@ class HexDumpModuleDis : public ITracer {
     description_ << "import #" << next_import_index_++;
     NextLine();
   }
-  void ImportsDone() override {
-    const WasmModule* module = decoder_->shared_module().get();
+  void ImportsDone(const WasmModule* module) override {
     next_table_index_ = static_cast<uint32_t>(module->tables.size());
     next_global_index_ = static_cast<uint32_t>(module->globals.size());
     next_tag_index_ = static_cast<uint32_t>(module->tags.size());
@@ -557,6 +565,9 @@ class HexDumpModuleDis : public ITracer {
     }
   }
 
+  // We handle recgroups via {Description()} hooks.
+  void RecGroupOffset(uint32_t offset, uint32_t group_size) override {}
+
   // The following two hooks give us an opportunity to call the hex-dumping
   // function body disassembler for initializers and functions.
   void InitializerExpression(const uint8_t* start, const uint8_t* end,
@@ -566,7 +577,7 @@ class HexDumpModuleDis : public ITracer {
     uint32_t offset = decoder_->pc_offset();
     const WasmModule* module = module_;
     if (!module) module = decoder_->shared_module().get();
-    ExtendedFunctionDis d(&zone_, module, 0, &detected, &sig, start, end,
+    ExtendedFunctionDis d(&zone_, module, 0, false, &detected, &sig, start, end,
                           offset, wire_bytes_, names_);
     d.HexdumpConstantExpression(out_);
     total_bytes_ += static_cast<size_t>(end - start);
@@ -579,7 +590,8 @@ class HexDumpModuleDis : public ITracer {
     uint32_t offset = pc_offset();
     const WasmModule* module = module_;
     if (!module) module = decoder_->shared_module().get();
-    ExtendedFunctionDis d(&zone_, module, func->func_index, &detected,
+    bool shared = module->types[func->sig_index].is_shared;
+    ExtendedFunctionDis d(&zone_, module, func->func_index, shared, &detected,
                           func->sig, start, end, offset, wire_bytes_, names_);
     d.HexDump(out_, FunctionBodyDisassembler::kSkipHeader);
     total_bytes_ += func->code.length();
@@ -720,6 +732,49 @@ class HexDumpModuleDis : public ITracer {
   uint32_t next_string_index_{0};
 };
 
+class FunctionStatistics {
+ public:
+  explicit FunctionStatistics(size_t bucket_size, size_t bucket_count)
+      : bucket_size_(bucket_size), buckets_(bucket_count) {}
+
+  void addFunction(size_t size) {
+    size_t index = size / bucket_size_;
+    index = std::min(buckets_.size() - 1, index);
+    buckets_[index] += 1;
+    total_bytes_ += size;
+  }
+
+  void WriteTo(std::ostream& out) {
+    size_t fct_count = std::accumulate(buckets_.begin(), buckets_.end(), 0ull);
+    if (fct_count == 0) {
+      out << "No functions found in module.\n";
+      return;
+    }
+    int max_w = log10(bucket_size_ * buckets_.size() - 1) + 1;
+    out << "Function distribution:\n";
+    for (size_t i = 0; i < buckets_.size(); ++i) {
+      size_t lower = i * bucket_size_;
+      size_t upper = (i + 1) * bucket_size_ - 1;
+      bool last = i + 1 == buckets_.size();
+      out << std::setw(max_w) << lower << " - ";
+      out << std::setw(max_w) << upper << (last ? '+' : ' ') << " bytes: ";
+      size_t count = buckets_[i];
+      out << std::setw(6) << count;
+      double percent = 100.0 * count / fct_count;
+      out << "  (" << std::fixed << std::setw(4) << std::setprecision(1)
+          << percent << "%)\n";
+    }
+    out << "Total function count: " << fct_count << '\n';
+    out << "Average size per function: " << total_bytes_ / fct_count
+        << " bytes\n";
+  }
+
+ private:
+  size_t bucket_size_;
+  std::vector<size_t> buckets_;
+  size_t total_bytes_ = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class FormatConverter {
@@ -733,7 +788,9 @@ class FormatConverter {
     if (!LoadFile(input)) return;
     wire_bytes_ = ModuleWireBytes(raw_bytes());
     status_ = kIoInitialized;
-    ModuleResult result = DecodeWasmModuleForDisassembler(raw_bytes());
+    offsets_provider_ = AllocateOffsetsProvider();
+    ModuleResult result =
+        DecodeWasmModuleForDisassembler(raw_bytes(), offsets_provider_.get());
     if (result.failed()) {
       WasmError error = result.error();
       std::cerr << "Decoding error: " << error.message() << " at offset "
@@ -861,13 +918,25 @@ class FormatConverter {
     for (uint32_t i = module()->num_imported_functions;
          i < module()->functions.size(); i++) {
       const WasmFunction* func = &module()->functions[i];
+      bool shared = module()->types[func->sig_index].is_shared;
       WasmFeatures detected;
       base::Vector<const uint8_t> code = wire_bytes_.GetFunctionBytes(func);
-      ExtendedFunctionDis d(&zone, module(), i, &detected, func->sig,
+      ExtendedFunctionDis d(&zone, module(), i, shared, &detected, func->sig,
                             code.begin(), code.end(), func->code.offset(),
                             wire_bytes_, names());
       d.CollectInstructionStats(stats);
       stats.RecordCodeSize(code.size());
+    }
+    stats.WriteTo(out_);
+  }
+
+  void FunctionStats(size_t bucket_size, size_t bucket_count) {
+    DCHECK_EQ(status_, kModuleReady);
+    FunctionStatistics stats(bucket_size, bucket_count);
+    for (uint32_t i = module()->num_imported_functions;
+         i < module()->functions.size(); ++i) {
+      const WasmFunction* func = &module()->functions[i];
+      stats.addFunction(wire_bytes_.GetFunctionBytes(func).size());
     }
     stats.WriteTo(out_);
   }
@@ -885,12 +954,13 @@ class FormatConverter {
     }
     const WasmFunction* func = &module()->functions[func_index];
     Zone zone(&allocator_, "disassembler");
+    bool shared = module()->types[func->sig_index].is_shared;
     WasmFeatures detected;
     base::Vector<const uint8_t> code = wire_bytes_.GetFunctionBytes(func);
 
-    ExtendedFunctionDis d(&zone, module(), func_index, &detected, func->sig,
-                          code.begin(), code.end(), func->code.offset(),
-                          wire_bytes_, names());
+    ExtendedFunctionDis d(&zone, module(), func_index, shared, &detected,
+                          func->sig, code.begin(), code.end(),
+                          func->code.offset(), wire_bytes_, names());
     sb.set_current_line_bytecode_offset(func->code.offset());
     if (mode == OutputMode::kWat) {
       d.DecodeAsWat(sb, {0, 1});
@@ -900,8 +970,11 @@ class FormatConverter {
 
     // Print any types that were used by the function.
     sb.NextLine(0);
+    // If we ever want to support disassembling more than one function, we
+    // should find a way to reuse the {offsets_provider_} (which is currently
+    // consumed and released by the {ModuleDisassembler}).
     ModuleDisassembler md(sb, module(), names(), wire_bytes_, &allocator_,
-                          print_offsets_);
+                          std::move(offsets_provider_));
     for (uint32_t type_index : d.used_types()) {
       md.PrintTypeDefinition(type_index, {0, 1},
                              NamesProvider::kIndexAsComment);
@@ -913,7 +986,7 @@ class FormatConverter {
     DCHECK_EQ(status_, kModuleReady);
     MultiLineStringBuilder sb;
     ModuleDisassembler md(sb, module(), names(), wire_bytes_, &allocator_,
-                          print_offsets_);
+                          std::move(offsets_provider_));
     // 100 GB is an approximation of "unlimited".
     size_t max_mb = 100'000;
     md.PrintModule({0, 2}, max_mb);
@@ -928,6 +1001,20 @@ class FormatConverter {
     HexDumpModuleDis md(sb, module(), names(), wire_bytes_, &allocator_);
     md.PrintModule();
     sb.WriteTo(out_, print_offsets_);
+  }
+
+  void Mjsunit() {
+    DCHECK_NE(status_, kNotReady);
+    DCHECK_IMPLIES(status_ == kIoInitialized,
+                   module() == nullptr && names() == nullptr);
+    MultiLineStringBuilder sb;
+    MjsunitModuleDis md(sb, module(), names(), wire_bytes_, &allocator_);
+    md.PrintModule();
+    // Printing offsets into mjsunit test cases is not (yet?) supported:
+    // the MultiLineStringBuilder doesn't know how to emit them in a
+    // JS-compatible way, so the MjsunitModuleDis doesn't even collect them.
+    bool offsets = false;
+    sb.WriteTo(out_, offsets);
   }
 
  private:
@@ -1106,6 +1193,7 @@ class FormatConverter {
   std::vector<uint8_t> raw_bytes_;
   ModuleWireBytes wire_bytes_{{}};
   std::shared_ptr<WasmModule> module_;
+  std::unique_ptr<OffsetsProvider> offsets_provider_;
   std::unique_ptr<NamesProvider> names_provider_;
 };
 
@@ -1130,8 +1218,10 @@ enum class Action {
   kListSignatures,
   kSectionStats,
   kInstructionStats,
+  kFunctionStats,
   kFullWat,
   kFullHexdump,
+  kMjsunit,
   kSingleWat,
   kSingleHexdump,
   kStrip,
@@ -1143,6 +1233,8 @@ struct Options {
   Action action = Action::kUnset;
   int func_index = -1;
   bool offsets = false;
+  int fct_bucket_size = 100;
+  int fct_bucket_count = 20;
 };
 
 bool ParseInt(char* s, int* out) {
@@ -1171,10 +1263,30 @@ int ParseOptions(int argc, char** argv, Options* options) {
       options->action = Action::kSectionStats;
     } else if (strcmp(argv[i], "--instruction-stats") == 0) {
       options->action = Action::kInstructionStats;
+    } else if (strcmp(argv[i], "--function-stats") == 0) {
+      options->action = Action::kFunctionStats;
+      if (i < argc - 1 && ParseInt(argv[i + 1], &options->fct_bucket_size)) {
+        ++i;
+        if (options->fct_bucket_size <= 0) {
+          std::cerr << "invalid argument for --function-stats: bucket size may "
+                       "not be negative\n";
+          return PrintHelp(argv);
+        }
+      }
+      if (i < argc - 1 && ParseInt(argv[i + 1], &options->fct_bucket_count)) {
+        ++i;
+        if (options->fct_bucket_count <= 0) {
+          std::cerr << "invalid argument for --function-stats: bucket count "
+                       "may not be negative\n";
+          return PrintHelp(argv);
+        }
+      }
     } else if (strcmp(argv[i], "--full-wat") == 0) {
       options->action = Action::kFullWat;
     } else if (strcmp(argv[i], "--full-hexdump") == 0) {
       options->action = Action::kFullHexdump;
+    } else if (strcmp(argv[i], "--mjsunit") == 0) {
+      options->action = Action::kMjsunit;
     } else if (strcmp(argv[i], "--single-wat") == 0) {
       options->action = Action::kSingleWat;
       if (i == argc - 1 || !ParseInt(argv[++i], &options->func_index)) {
@@ -1273,6 +1385,9 @@ int main(int argc, char** argv) {
     case Action::kInstructionStats:
       fc.InstructionStats();
       break;
+    case Action::kFunctionStats:
+      fc.FunctionStats(options.fct_bucket_size, options.fct_bucket_count);
+      break;
     case Action::kSingleWat:
       fc.DisassembleFunction(options.func_index, OutputMode::kWat);
       break;
@@ -1284,6 +1399,9 @@ int main(int argc, char** argv) {
       break;
     case Action::kFullHexdump:
       fc.HexdumpForModule();
+      break;
+    case Action::kMjsunit:
+      fc.Mjsunit();
       break;
     case Action::kStrip:
       fc.Strip();

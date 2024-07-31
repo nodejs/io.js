@@ -8,6 +8,7 @@ License: Apache 2.0
 License File: LICENSE
 Security Critical: yes
 Shipped: yes
+Shipped in Chromium: no
 
 Description:
 Provides a "black box" API for embedding a Wasm engine in C/C++ applications.

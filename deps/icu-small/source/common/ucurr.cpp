@@ -11,6 +11,8 @@
 
 #if !UCONFIG_NO_FORMATTING
 
+#include <utility>
+
 #include "unicode/ucurr.h"
 #include "unicode/locid.h"
 #include "unicode/ures.h"
@@ -293,7 +295,7 @@ myUCharsToChars(char* resultOfLen4, const char16_t* currency) {
 static const int32_t*
 _findMetaData(const char16_t* currency, UErrorCode& ec) {
 
-    if (currency == 0 || *currency == 0) {
+    if (currency == nullptr || *currency == 0) {
         if (U_SUCCESS(ec)) {
             ec = U_ILLEGAL_ARGUMENT_ERROR;
         }
@@ -346,10 +348,10 @@ _findMetaData(const char16_t* currency, UErrorCode& ec) {
 
 // -------------------------------------
 
-static void
-idForLocale(const char* locale, char* countryAndVariant, int capacity, UErrorCode* ec)
+static CharString
+idForLocale(const char* locale, UErrorCode* ec)
 {
-    ulocimp_getRegionForSupplementalData(locale, false, countryAndVariant, capacity, ec);
+    return ulocimp_getRegionForSupplementalData(locale, false, *ec);
 }
 
 // ------------------------------------------
@@ -368,7 +370,7 @@ U_CDECL_END
 struct CReg;
 
 static UMutex gCRegLock;
-static CReg* gCRegHead = 0;
+static CReg* gCRegHead = nullptr;
 
 struct CReg : public icu::UMemory {
     CReg *next;
@@ -376,7 +378,7 @@ struct CReg : public icu::UMemory {
     char  id[ULOC_FULLNAME_CAPACITY];
 
     CReg(const char16_t* _iso, const char* _id)
-        : next(0)
+        : next(nullptr)
     {
         int32_t len = (int32_t)uprv_strlen(_id);
         if (len > (int32_t)(sizeof(id)-1)) {
@@ -405,7 +407,7 @@ struct CReg : public icu::UMemory {
             }
             *status = U_MEMORY_ALLOCATION_ERROR;
         }
-        return 0;
+        return nullptr;
     }
 
     static UBool unreg(UCurrRegistryKey key) {
@@ -461,9 +463,8 @@ U_CAPI UCurrRegistryKey U_EXPORT2
 ucurr_register(const char16_t* isoCode, const char* locale, UErrorCode *status)
 {
     if (status && U_SUCCESS(*status)) {
-        char id[ULOC_FULLNAME_CAPACITY];
-        idForLocale(locale, id, sizeof(id), status);
-        return CReg::reg(isoCode, id, status);
+        CharString id = idForLocale(locale, status);
+        return CReg::reg(isoCode, id.data(), status);
     }
     return nullptr;
 }
@@ -520,27 +521,26 @@ ucurr_forLocale(const char* locale,
         return 0;
     }
 
-    char currency[4];  // ISO currency codes are alpha3 codes.
     UErrorCode localStatus = U_ZERO_ERROR;
-    int32_t resLen = uloc_getKeywordValue(locale, "currency",
-                                          currency, UPRV_LENGTHOF(currency), &localStatus);
-    if (U_SUCCESS(localStatus) && resLen == 3 && uprv_isInvariantString(currency, resLen)) {
+    CharString currency = ulocimp_getKeywordValue(locale, "currency", localStatus);
+    int32_t resLen = currency.length();
+
+    if (U_SUCCESS(localStatus) && resLen == 3 && uprv_isInvariantString(currency.data(), resLen)) {
         if (resLen < buffCapacity) {
-            T_CString_toUpperCase(currency);
-            u_charsToUChars(currency, buff, resLen);
+            T_CString_toUpperCase(currency.data());
+            u_charsToUChars(currency.data(), buff, resLen);
         }
         return u_terminateUChars(buff, buffCapacity, resLen, ec);
     }
 
     // get country or country_variant in `id'
-    char id[ULOC_FULLNAME_CAPACITY];
-    idForLocale(locale, id, UPRV_LENGTHOF(id), ec);
+    CharString id = idForLocale(locale, ec);
     if (U_FAILURE(*ec)) {
         return 0;
     }
 
 #if !UCONFIG_NO_SERVICE
-    const char16_t* result = CReg::get(id);
+    const char16_t* result = CReg::get(id.data());
     if (result) {
         if(buffCapacity > u_strlen(result)) {
             u_strcpy(buff, result);
@@ -550,13 +550,13 @@ ucurr_forLocale(const char* locale,
     }
 #endif
     // Remove variants, which is only needed for registration.
-    char *idDelim = uprv_strchr(id, VAR_DELIM);
+    char *idDelim = uprv_strchr(id.data(), VAR_DELIM);
     if (idDelim) {
-        idDelim[0] = 0;
+        id.truncate(idDelim - id.data());
     }
 
     const char16_t* s = nullptr;  // Currency code from data file.
-    if (id[0] == 0) {
+    if (id.isEmpty()) {
         // No point looking in the data for an empty string.
         // This is what we would get.
         localStatus = U_MISSING_RESOURCE_ERROR;
@@ -565,7 +565,7 @@ ucurr_forLocale(const char* locale,
         localStatus = U_ZERO_ERROR;
         UResourceBundle *rb = ures_openDirect(U_ICUDATA_CURR, CURRENCY_DATA, &localStatus);
         UResourceBundle *cm = ures_getByKey(rb, CURRENCY_MAP, rb, &localStatus);
-        UResourceBundle *countryArray = ures_getByKey(rb, id, cm, &localStatus);
+        UResourceBundle *countryArray = ures_getByKey(rb, id.data(), cm, &localStatus);
         // https://unicode-org.atlassian.net/browse/ICU-21997
         // Prefer to use currencies that are legal tender.
         if (U_SUCCESS(localStatus)) {
@@ -595,13 +595,13 @@ ucurr_forLocale(const char* locale,
         ures_close(countryArray);
     }
 
-    if ((U_FAILURE(localStatus)) && strchr(id, '_') != 0) {
+    if ((U_FAILURE(localStatus)) && strchr(id.data(), '_') != nullptr) {
         // We don't know about it.  Check to see if we support the variant.
-        uloc_getParent(locale, id, UPRV_LENGTHOF(id), ec);
+        CharString parent = ulocimp_getParent(locale, *ec);
         *ec = U_USING_FALLBACK_WARNING;
-        // TODO: Loop over the shortened id rather than recursing and
+        // TODO: Loop over the parent rather than recursing and
         // looking again for a currency keyword.
-        return ucurr_forLocale(id, buff, buffCapacity, ec);
+        return ucurr_forLocale(parent.data(), buff, buffCapacity, ec);
     }
     if (*ec == U_ZERO_ERROR || localStatus != U_ZERO_ERROR) {
         // There is nothing to fallback to. Report the failure/warning if possible.
@@ -624,20 +624,19 @@ ucurr_forLocale(const char* locale,
  * @return true if the fallback happened; false if locale is already
  * root ("").
  */
-static UBool fallback(char *loc) {
-    if (!*loc) {
+static UBool fallback(CharString& loc) {
+    if (loc.isEmpty()) {
         return false;
     }
     UErrorCode status = U_ZERO_ERROR;
-    if (uprv_strcmp(loc, "en_GB") == 0) {
+    if (loc == "en_GB") {
         // HACK: See #13368.  We need "en_GB" to fall back to "en_001" instead of "en"
         // in order to consume the correct data strings.  This hack will be removed
         // when proper data sink loading is implemented here.
-        // NOTE: "001" adds 1 char over "GB".  However, both call sites allocate
-        // arrays with length ULOC_FULLNAME_CAPACITY (plenty of room for en_001).
-        uprv_strcpy(loc + 3, "001");
+        loc.truncate(3);
+        loc.append("001", status);
     } else {
-        uloc_getParent(loc, loc, (int32_t)uprv_strlen(loc), &status);
+        loc = ulocimp_getParent(loc.data(), status);
     }
  /*
     char *i = uprv_strrchr(loc, '_');
@@ -670,13 +669,13 @@ ucurr_getName(const char16_t* currency,
     //|}
 
     if (U_FAILURE(*ec)) {
-        return 0;
+        return nullptr;
     }
 
     int32_t choice = (int32_t) nameStyle;
     if (choice < 0 || choice > 4) {
         *ec = U_ILLEGAL_ARGUMENT_ERROR;
-        return 0;
+        return nullptr;
     }
 
     // In the future, resource bundles may implement multi-level
@@ -692,11 +691,10 @@ ucurr_getName(const char16_t* currency,
     // this function.
     UErrorCode ec2 = U_ZERO_ERROR;
 
-    char loc[ULOC_FULLNAME_CAPACITY];
-    uloc_getName(locale, loc, sizeof(loc), &ec2);
-    if (U_FAILURE(ec2) || ec2 == U_STRING_NOT_TERMINATED_WARNING) {
+    CharString loc = ulocimp_getName(locale, ec2);
+    if (U_FAILURE(ec2)) {
         *ec = U_ILLEGAL_ARGUMENT_ERROR;
-        return 0;
+        return nullptr;
     }
 
     char buf[ISO_CURRENCY_CODE_LENGTH+1];
@@ -707,7 +705,7 @@ ucurr_getName(const char16_t* currency,
     
     const char16_t* s = nullptr;
     ec2 = U_ZERO_ERROR;
-    LocalUResourceBundlePointer rb(ures_open(U_ICUDATA_CURR, loc, &ec2));
+    LocalUResourceBundlePointer rb(ures_open(U_ICUDATA_CURR, loc.data(), &ec2));
 
     if (nameStyle == UCURR_NARROW_SYMBOL_NAME || nameStyle == UCURR_FORMAL_SYMBOL_NAME || nameStyle == UCURR_VARIANT_SYMBOL_NAME) {
         CharString key;
@@ -723,7 +721,7 @@ ucurr_getName(const char16_t* currency,
             break;
         default:
             *ec = U_UNSUPPORTED_ERROR;
-            return 0;
+            return nullptr;
         }
         key.append("/", ec2);
         key.append(buf, ec2);
@@ -784,18 +782,17 @@ ucurr_getPluralName(const char16_t* currency,
     //|}
 
     if (U_FAILURE(*ec)) {
-        return 0;
+        return nullptr;
     }
 
     // Use a separate UErrorCode here that does not propagate out of
     // this function.
     UErrorCode ec2 = U_ZERO_ERROR;
 
-    char loc[ULOC_FULLNAME_CAPACITY];
-    uloc_getName(locale, loc, sizeof(loc), &ec2);
-    if (U_FAILURE(ec2) || ec2 == U_STRING_NOT_TERMINATED_WARNING) {
+    CharString loc = ulocimp_getName(locale, ec2);
+    if (U_FAILURE(ec2)) {
         *ec = U_ILLEGAL_ARGUMENT_ERROR;
-        return 0;
+        return nullptr;
     }
 
     char buf[ISO_CURRENCY_CODE_LENGTH+1];
@@ -803,7 +800,7 @@ ucurr_getPluralName(const char16_t* currency,
 
     const char16_t* s = nullptr;
     ec2 = U_ZERO_ERROR;
-    UResourceBundle* rb = ures_open(U_ICUDATA_CURR, loc, &ec2);
+    UResourceBundle* rb = ures_open(U_ICUDATA_CURR, loc.data(), &ec2);
 
     rb = ures_getByKey(rb, CURRENCYPLURALS, rb, &ec2);
 
@@ -904,13 +901,17 @@ getCurrencyNameCount(const char* loc, int32_t* total_currency_name_count, int32_
     *total_currency_name_count = 0;
     *total_currency_symbol_count = 0;
     const char16_t* s = nullptr;
-    char locale[ULOC_FULLNAME_CAPACITY] = "";
-    uprv_strcpy(locale, loc);
+    CharString locale;
+    {
+        UErrorCode status = U_ZERO_ERROR;
+        locale.append(loc, status);
+        if (U_FAILURE(status)) { return; }
+    }
     const icu::Hashtable *currencySymbolsEquiv = getCurrSymbolsEquiv();
     for (;;) {
         UErrorCode ec2 = U_ZERO_ERROR;
         // TODO: ures_openDirect?
-        UResourceBundle* rb = ures_open(U_ICUDATA_CURR, locale, &ec2);
+        UResourceBundle* rb = ures_open(U_ICUDATA_CURR, locale.data(), &ec2);
         UResourceBundle* curr = ures_getByKey(rb, CURRENCIES, nullptr, &ec2);
         int32_t n = ures_getSize(curr);
         for (int32_t i=0; i<n; ++i) {
@@ -979,14 +980,13 @@ collectCurrencyNames(const char* locale,
     // Look up the Currencies resource for the given locale.
     UErrorCode ec2 = U_ZERO_ERROR;
 
-    char loc[ULOC_FULLNAME_CAPACITY] = "";
-    uloc_getName(locale, loc, sizeof(loc), &ec2);
-    if (U_FAILURE(ec2) || ec2 == U_STRING_NOT_TERMINATED_WARNING) {
+    CharString loc = ulocimp_getName(locale, ec2);
+    if (U_FAILURE(ec2)) {
         ec = U_ILLEGAL_ARGUMENT_ERROR;
     }
 
     // Get maximum currency name count first.
-    getCurrencyNameCount(loc, total_currency_name_count, total_currency_symbol_count);
+    getCurrencyNameCount(loc.data(), total_currency_name_count, total_currency_symbol_count);
 
     *currencyNames = (CurrencyNameStruct*)uprv_malloc
         (sizeof(CurrencyNameStruct) * (*total_currency_name_count));
@@ -1014,7 +1014,7 @@ collectCurrencyNames(const char* locale,
     for (int32_t localeLevel = 0; ; ++localeLevel) {
         ec2 = U_ZERO_ERROR;
         // TODO: ures_openDirect
-        UResourceBundle* rb = ures_open(U_ICUDATA_CURR, loc, &ec2);
+        UResourceBundle* rb = ures_open(U_ICUDATA_CURR, loc.data(), &ec2);
         UResourceBundle* curr = ures_getByKey(rb, CURRENCIES, nullptr, &ec2);
         int32_t n = ures_getSize(curr);
         for (int32_t i=0; i<n; ++i) {
@@ -1364,7 +1364,6 @@ searchCurrencyName(const CurrencyNameStruct* currencyNames,
             break;
         }
     }
-    return;
 }
 
 //========================= currency name cache =====================
@@ -1421,7 +1420,7 @@ currency_cache_cleanup() {
     for (int32_t i = 0; i < CURRENCY_NAME_CACHE_NUM; ++i) {
         if (currCache[i]) {
             deleteCacheEntry(currCache[i]);
-            currCache[i] = 0;
+            currCache[i] = nullptr;
         }
     }
     return true;
@@ -2004,6 +2003,7 @@ static const struct CurrencyList {
     {"XBC", UCURR_UNCOMMON|UCURR_NON_DEPRECATED},
     {"XBD", UCURR_UNCOMMON|UCURR_NON_DEPRECATED},
     {"XCD", UCURR_COMMON|UCURR_NON_DEPRECATED},
+    {"XCG", UCURR_COMMON|UCURR_NON_DEPRECATED},
     {"XDR", UCURR_UNCOMMON|UCURR_NON_DEPRECATED},
     {"XEU", UCURR_UNCOMMON|UCURR_DEPRECATED},
     {"XFO", UCURR_UNCOMMON|UCURR_NON_DEPRECATED},
@@ -2203,7 +2203,7 @@ static void U_CALLCONV initIsoCodes(UErrorCode &status) {
 
 static void populateCurrSymbolsEquiv(icu::Hashtable *hash, UErrorCode &status) {
     if (U_FAILURE(status)) { return; }
-    for (auto& entry : unisets::kCurrencyEntries) {
+    for (const auto& entry : unisets::kCurrencyEntries) {
         UnicodeString exemplar(entry.exemplar);
         const UnicodeSet* set = unisets::get(entry.key);
         if (set == nullptr) { return; }
@@ -2299,10 +2299,9 @@ ucurr_countCurrencies(const char* locale,
     {
         // local variables
         UErrorCode localStatus = U_ZERO_ERROR;
-        char id[ULOC_FULLNAME_CAPACITY];
 
         // get country or country_variant in `id'
-        idForLocale(locale, id, sizeof(id), ec);
+        CharString id = idForLocale(locale, ec);
 
         if (U_FAILURE(*ec))
         {
@@ -2310,10 +2309,10 @@ ucurr_countCurrencies(const char* locale,
         }
 
         // Remove variants, which is only needed for registration.
-        char *idDelim = strchr(id, VAR_DELIM);
+        char *idDelim = strchr(id.data(), VAR_DELIM);
         if (idDelim)
         {
-            idDelim[0] = 0;
+            id.truncate(idDelim - id.data());
         }
 
         // Look up the CurrencyMap element in the root bundle.
@@ -2321,7 +2320,7 @@ ucurr_countCurrencies(const char* locale,
         UResourceBundle *cm = ures_getByKey(rb, CURRENCY_MAP, rb, &localStatus);
 
         // Using the id derived from the local, get the currency data
-        UResourceBundle *countryArray = ures_getByKey(rb, id, cm, &localStatus);
+        UResourceBundle *countryArray = ures_getByKey(rb, id.data(), cm, &localStatus);
 
         // process each currency to see which one is valid for the given date
         if (U_SUCCESS(localStatus))
@@ -2414,20 +2413,19 @@ ucurr_forLocaleAndDate(const char* locale,
         {
             // local variables
             UErrorCode localStatus = U_ZERO_ERROR;
-            char id[ULOC_FULLNAME_CAPACITY];
 
             // get country or country_variant in `id'
-            idForLocale(locale, id, sizeof(id), ec);
+            CharString id = idForLocale(locale, ec);
             if (U_FAILURE(*ec))
             {
                 return 0;
             }
 
             // Remove variants, which is only needed for registration.
-            char *idDelim = strchr(id, VAR_DELIM);
+            char *idDelim = strchr(id.data(), VAR_DELIM);
             if (idDelim)
             {
-                idDelim[0] = 0;
+                id.truncate(idDelim - id.data());
             }
 
             // Look up the CurrencyMap element in the root bundle.
@@ -2435,7 +2433,7 @@ ucurr_forLocaleAndDate(const char* locale,
             UResourceBundle *cm = ures_getByKey(rb, CURRENCY_MAP, rb, &localStatus);
 
             // Using the id derived from the local, get the currency data
-            UResourceBundle *countryArray = ures_getByKey(rb, id, cm, &localStatus);
+            UResourceBundle *countryArray = ures_getByKey(rb, id.data(), cm, &localStatus);
 
             // process each currency to see which one is valid for the given date
             bool matchFound = false;
@@ -2561,9 +2559,8 @@ static const UEnumeration defaultKeywordValues = {
 
 U_CAPI UEnumeration *U_EXPORT2 ucurr_getKeywordValuesForLocale(const char *key, const char *locale, UBool commonlyUsed, UErrorCode* status) {
     // Resolve region
-    char prefRegion[ULOC_COUNTRY_CAPACITY];
-    ulocimp_getRegionForSupplementalData(locale, true, prefRegion, sizeof(prefRegion), status);
-    
+    CharString prefRegion = ulocimp_getRegionForSupplementalData(locale, true, *status);
+
     // Read value from supplementalData
     UList *values = ulist_createEmptyList(status);
     UList *otherValues = ulist_createEmptyList(status);
@@ -2595,7 +2592,7 @@ U_CAPI UEnumeration *U_EXPORT2 ucurr_getKeywordValuesForLocale(const char *key, 
             break;
         }
         const char *region = ures_getKey(&bundlekey);
-        UBool isPrefRegion = uprv_strcmp(region, prefRegion) == 0 ? true : false;
+        UBool isPrefRegion = prefRegion == region;
         if (!isPrefRegion && commonlyUsed) {
             // With commonlyUsed=true, we do not put
             // currencies for other regions in the
@@ -2706,7 +2703,7 @@ ucurr_getNumericCode(const char16_t* currency) {
     if (currency && u_strlen(currency) == ISO_CURRENCY_CODE_LENGTH) {
         UErrorCode status = U_ZERO_ERROR;
 
-        UResourceBundle *bundle = ures_openDirect(0, "currencyNumericCodes", &status);
+        UResourceBundle *bundle = ures_openDirect(nullptr, "currencyNumericCodes", &status);
         ures_getByKey(bundle, "codeMap", bundle, &status);
         if (U_SUCCESS(status)) {
             char alphaCode[ISO_CURRENCY_CODE_LENGTH+1];

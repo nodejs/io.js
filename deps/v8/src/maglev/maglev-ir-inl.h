@@ -127,22 +127,6 @@ void DeepForEachInput(const_if_function_first_arg_not_reference<
 
 }  // namespace detail
 
-inline void AddDeoptRegistersToSnapshot(RegisterSnapshot* snapshot,
-                                        const EagerDeoptInfo* deopt_info) {
-  detail::DeepForEachInput(deopt_info, [&](ValueNode* node,
-                                           InputLocation* input) {
-    if (!input->IsAnyRegister()) return;
-    if (input->IsDoubleRegister()) {
-      snapshot->live_double_registers.set(input->AssignedDoubleRegister());
-    } else {
-      snapshot->live_registers.set(input->AssignedGeneralRegister());
-      if (node->is_tagged()) {
-        snapshot->live_tagged_registers.set(input->AssignedGeneralRegister());
-      }
-    }
-  });
-}
-
 #ifdef DEBUG
 inline RegList GetGeneralRegistersUsedAsInputs(
     const EagerDeoptInfo* deopt_info) {
@@ -180,6 +164,7 @@ inline void DefineAsFixed(Node* node, Register reg) {
                                 reg.code(), kNoVreg);
 }
 
+// TODO(v8:7700): Create generic DefineSameAs(..., int input).
 inline void DefineSameAsFirst(Node* node) {
   node->result().SetUnallocated(kNoVreg, 0);
 }

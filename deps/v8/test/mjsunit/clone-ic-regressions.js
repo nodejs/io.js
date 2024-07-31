@@ -11,8 +11,13 @@ function clone1(o) {
 function clone2(o) {
   return {...o};
 }
+// Tests null proto
+function clone3(o) {
+  return {...o, __proto__: null};
+}
 %PrepareFunctionForOptimization(clone1);
 %PrepareFunctionForOptimization(clone2);
+%PrepareFunctionForOptimization(clone3);
 
 function test(a, b) {
   %ClearFunctionFeedback(clone2);
@@ -26,6 +31,7 @@ function test(a, b) {
   %ClearFunctionFeedback(clone2);
   assertEquals(clone2(b).constructor, a.constructor);
 
+  var a2 = {...a};
   // Provoke some transitions
   %ClearFunctionFeedback(clone2);
   Object.assign(a, {xx: 42})
@@ -42,6 +48,12 @@ function test(a, b) {
   assertEquals({...clone1(b), xx: 42.2}, a);
   assertEquals({...clone2(b), xx: 42.2}, a);
   assertEquals({...clone2(b), xx: 42.2}, a);
+
+  %ClearFunctionFeedback(clone3);
+  a2.__proto__ = null;
+  assertEquals(clone3(b), a2);
+  assertEquals(clone3(b), a2);
+  assertEquals(clone3(b).__proto__, undefined);
 }
 
 test({});
@@ -159,3 +171,11 @@ test({0:0,1:0}, idView);
   };
   test({0: 1, g: undefined}, o4);
 }
+
+// Ensure the IC without feedback vector supports the fast-case
+(function() {
+  var o = {};
+  o.x = "1";
+  var o2 = {...o};
+  assertTrue(%HaveSameMap(o, o2));
+})()

@@ -6,6 +6,8 @@
 #define V8_UTILS_BOXED_FLOAT_H_
 
 #include <cmath>
+
+#include "src/base/functional.h"
 #include "src/base/macros.h"
 #include "src/common/globals.h"
 
@@ -87,6 +89,18 @@ class Float64 {
 
   static constexpr Float64 FromBits(uint64_t bits) { return Float64(bits); }
 
+  // Unlike doubles, equality is defined as equally behaving as far as the
+  // optimizers are concerned. I.e., two NaN's are equal as long as they are
+  // both the hole nor not.
+  bool operator==(const Float64& other) const {
+    if (is_nan() && other.is_nan()) {
+      return is_hole_nan() == other.is_hole_nan();
+    }
+    return get_scalar() == other.get_scalar();
+  }
+
+  friend size_t hash_value(internal::Float64 f64) { return f64.bit_pattern_; }
+
  private:
   uint64_t bit_pattern_ = 0;
 
@@ -97,6 +111,15 @@ class Float64 {
 ASSERT_TRIVIALLY_COPYABLE(Float64);
 
 }  // namespace internal
+
+namespace base {
+
+inline size_t hash_value(const i::Float64& f64) {
+  return f64.is_nan() ? hash_value(f64.is_hole_nan())
+                      : hash_value(f64.get_bits());
+}
+
+}  // namespace base
 }  // namespace v8
 
 #endif  // V8_UTILS_BOXED_FLOAT_H_

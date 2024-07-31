@@ -21,6 +21,8 @@ std::ostream& operator<<(std::ostream& os, BinaryOperationHint hint) {
       return os << "NumberOrOddball";
     case BinaryOperationHint::kString:
       return os << "String";
+    case BinaryOperationHint::kStringOrStringWrapper:
+      return os << "StringOrStringWrapper";
     case BinaryOperationHint::kBigInt:
       return os << "BigInt";
     case BinaryOperationHint::kBigInt64:

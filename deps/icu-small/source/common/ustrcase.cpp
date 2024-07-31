@@ -1130,14 +1130,18 @@ int32_t toUpper(uint32_t options,
             // Adding one only to the final vowel in a longer sequence
             // (which does not occur in normal writing) would require lookahead.
             // Set the same flag as for preserving an existing dialytika.
-            if ((data & HAS_VOWEL) != 0 && (state & AFTER_VOWEL_WITH_ACCENT) != 0 &&
-                    (upper == 0x399 || upper == 0x3A5)) {
-                data |= HAS_DIALYTIKA;
+            if ((data & HAS_VOWEL) != 0 &&
+                (state & (AFTER_VOWEL_WITH_PRECOMPOSED_ACCENT | AFTER_VOWEL_WITH_COMBINING_ACCENT)) !=
+                    0 &&
+                (upper == 0x399 || upper == 0x3A5)) {
+                data |= (state & AFTER_VOWEL_WITH_PRECOMPOSED_ACCENT) ? HAS_DIALYTIKA
+                                                                      : HAS_COMBINING_DIALYTIKA;
             }
             int32_t numYpogegrammeni = 0;  // Map each one to a trailing, spacing, capital iota.
             if ((data & HAS_YPOGEGRAMMENI) != 0) {
                 numYpogegrammeni = 1;
             }
+            const UBool hasPrecomposedAccent = (data & HAS_ACCENT) != 0;
             // Skip combining diacritics after this Greek letter.
             while (nextIndex < srcLength) {
                 uint32_t diacriticData = getDiacriticData(src[nextIndex]);
@@ -1152,7 +1156,8 @@ int32_t toUpper(uint32_t options,
                 }
             }
             if ((data & HAS_VOWEL_AND_ACCENT_AND_DIALYTIKA) == HAS_VOWEL_AND_ACCENT) {
-                nextState |= AFTER_VOWEL_WITH_ACCENT;
+                nextState |= hasPrecomposedAccent ? AFTER_VOWEL_WITH_PRECOMPOSED_ACCENT
+                                                  : AFTER_VOWEL_WITH_COMBINING_ACCENT;
             }
             // Map according to Greek rules.
             UBool addTonos = false;
@@ -1163,7 +1168,7 @@ int32_t toUpper(uint32_t options,
                     !isFollowedByCasedLetter(src, nextIndex, srcLength)) {
                 // Keep disjunctive "or" with (only) a tonos.
                 // We use the same "word boundary" conditions as for the Final_Sigma test.
-                if (i == nextIndex) {
+                if (hasPrecomposedAccent) {
                     upper = 0x389;  // Preserve the precomposed form.
                 } else {
                     addTonos = true;
@@ -1852,7 +1857,7 @@ u_strCaseCompare(const char16_t *s1, int32_t length1,
                  uint32_t options,
                  UErrorCode *pErrorCode) {
     /* argument checking */
-    if(pErrorCode==0 || U_FAILURE(*pErrorCode)) {
+    if (pErrorCode == nullptr || U_FAILURE(*pErrorCode)) {
         return 0;
     }
     if(s1==nullptr || length1<-1 || s2==nullptr || length2<-1) {

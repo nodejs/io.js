@@ -29,19 +29,19 @@ Tagged<Object> VisitWeakList(Heap* heap, Tagged<Object> list,
                              WeakObjectRetainer* retainer) {
   Tagged<HeapObject> undefined = ReadOnlyRoots(heap).undefined_value();
   Tagged<Object> head = undefined;
-  T tail;
+  Tagged<T> tail;
   bool record_slots = MustRecordSlots(heap);
 
   while (list != undefined) {
     // Check whether to keep the candidate in the list.
-    T candidate = T::cast(list);
+    Tagged<T> candidate = T::cast(list);
 
     Tagged<Object> retained = retainer->RetainAs(list);
 
     // Move to the next element before the WeakNext is cleared.
     list = WeakListVisitor<T>::WeakNext(candidate);
 
-    if (retained != Object()) {
+    if (retained != Tagged<Object>()) {
       if (head == undefined) {
         // First element in the list.
         head = retained;
@@ -80,7 +80,7 @@ template <class T>
 static void ClearWeakList(Heap* heap, Tagged<Object> list) {
   Tagged<Object> undefined = ReadOnlyRoots(heap).undefined_value();
   while (list != undefined) {
-    T candidate = T::cast(list);
+    Tagged<T> candidate = T::cast(list);
     list = WeakListVisitor<T>::WeakNext(candidate);
     WeakListVisitor<T>::SetWeakNext(candidate, undefined);
   }

@@ -739,7 +739,7 @@ RegExp.prototype.exec = RegExpPrototypeExec;
 // Test the code path in RE.proto[@@search] when previousLastIndex is a receiver
 // but can't be converted to a primitive. This exposed a crash in an older
 // C++ implementation of @@search which a) still relied on Object::Equals,
-// and b) incorrectly returned isolate->pending_exception() on error.
+// and b) incorrectly returned isolate->exception() on error.
 
 var re = /./;
 re.lastIndex = { [Symbol.toPrimitive]: 42 };

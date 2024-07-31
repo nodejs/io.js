@@ -8,7 +8,7 @@ const { execPath } = require('node:process');
 const { describe, it } = require('node:test');
 
 
-describe('ESM: REPL runs', { concurrency: true }, () => {
+describe('ESM: REPL runs', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it((t, done) => {
     const child = spawn(execPath, [
       '--interactive',

@@ -25,8 +25,8 @@ PYLIB_CHECK = os.path.join(PYLIB_PATH, 'clang', 'compile_db.py')
 GM_CHECK = os.path.join(GM_PATH, 'gm.py')
 def CheckRelativeImport(path):
   if not os.path.exists(path):
-    print("Error: Please run this script from the root of a V8 checkout. %s "
-          "must be a valid relative path." % path)
+    print(f"Error: Please run this script from the root of a V8 checkout. "
+          "{path} must be a valid relative path.")
     sys.exit(1)
 CheckRelativeImport(PYLIB_CHECK)
 CheckRelativeImport(GM_CHECK)
@@ -38,7 +38,8 @@ sys.path.insert(0, GM_PATH)
 import gm
 
 def _Call(cmd, silent=False):
-  if not silent: print("# %s" % cmd)
+  if not silent:
+    print(f"# {cmd}")
   return subprocess.call(cmd, shell=True)
 
 def _Write(filename, content):
@@ -46,9 +47,9 @@ def _Write(filename, content):
     f.write(content)
 
 def PrepareBuildDir(arch, mode):
-  build_dir = os.path.join("out", "%s.%s" % (arch, mode))
+  build_dir = os.path.join("out", f"{arch}.{mode}")
   if not os.path.exists(build_dir):
-    print("# mkdir -p %s" % build_dir)
+    print(f"# mkdir -p {build_dir}")
     os.makedirs(build_dir)
   args_gn = os.path.join(build_dir, "args.gn")
   if not os.path.exists(args_gn):
@@ -56,10 +57,10 @@ def PrepareBuildDir(arch, mode):
     _Write(args_gn, conf.get_gn_args())
   build_ninja = os.path.join(build_dir, "build.ninja")
   if not os.path.exists(build_ninja):
-    code = _Call("gn gen %s" % build_dir)
+    code = _Call(f"gn gen {build_dir}")
     if code != 0: raise Exception("gn gen failed")
   else:
-    _Call("ninja -C %s build.ninja" % build_dir)
+    _Call(f"ninja -C {build_dir} build.ninja")
   return build_dir
 
 def AddTargetsForArch(arch, combined):
@@ -72,7 +73,7 @@ def AddTargetsForArch(arch, combined):
     if key not in combined:
       combined[key] = c
       added += 1
-  print("%s: added %d compile commands" % (arch, added))
+  print(f"{arch}: added {added} compile commands")
 
 def UpdateCompileCommands():
   print(">>> Updating compile_commands.json...")
@@ -101,14 +102,15 @@ def GenerateCCFiles():
   _Call(f"autoninja -C out/{DEFAULT_ARCH}.debug v8_generated_cc_files")
 
 
-def StartGoma():
-  gomadir = gm.detect_goma()
-  if (gomadir is not None and
-      _Call("pgrep -x compiler_proxy > /dev/null", silent=True) != 0):
-    _Call("%s/goma_ctl.py ensure_start" % gomadir)
+def PrepareReclient():
+  reclient_mode = gm.detect_reclient()
+  if reclient_mode == gm.Reclient.GOOGLE and not gm.detect_reclient_cert():
+    print("# gcert")
+    subprocess.check_call("gcert", shell=True)
+
 
 if __name__ == "__main__":
-  StartGoma()
+  PrepareReclient()
   CompileLanguageServer()
   UpdateCompileCommands()
   GenerateCCFiles()

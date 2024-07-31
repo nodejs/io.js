@@ -10,8 +10,9 @@ EVP_MD-SHAKE, EVP_MD-KECCAK-KMAC
 Support for computing SHAKE or KECCAK-KMAC digests through the
 B<EVP_MD> API.
 
-KECCAK-KMAC is a special digest that's used by the KMAC EVP_MAC
-implementation (see L<EVP_MAC-KMAC(7)>).
+KECCAK-KMAC is an Extendable Output Function (XOF), with a definition
+similar to SHAKE, used by the KMAC EVP_MAC implementation (see
+L<EVP_MAC-KMAC(7)>).
 
 =head2 Identities
 
@@ -22,21 +23,25 @@ provider, and includes the following varieties:
 
 =item KECCAK-KMAC-128
 
-Known names are "KECCAK-KMAC-128" and "KECCAK-KMAC128"
-This is used by L<EVP_MAC-KMAC128(7)>
+Known names are "KECCAK-KMAC-128" and "KECCAK-KMAC128".  This is used
+by L<EVP_MAC-KMAC128(7)>.  Using the notation from NIST FIPS 202
+(Section 6.2), we have S<KECCAK-KMAC-128(M, d)> = S<KECCAK[256](M || 00, d)>
+(see the description of KMAC128 in Appendix A of NIST SP 800-185).
 
 =item KECCAK-KMAC-256
 
-Known names are "KECCAK-KMAC-256" and "KECCAK-KMAC256"
-This is used by L<EVP_MAC-KMAC256(7)>
+Known names are "KECCAK-KMAC-256" and "KECCAK-KMAC256".  This is used
+by L<EVP_MAC-KMAC256(7)>.  Using the notation from NIST FIPS 202
+(Section 6.2), we have S<KECCAK-KMAC-256(M, d)> = S<KECCAK[512](M || 00, d)>
+(see the description of KMAC256 in Appendix A of NIST SP 800-185).
 
 =item SHAKE-128
 
-Known names are "SHAKE-128" and "SHAKE128"
+Known names are "SHAKE-128" and "SHAKE128".
 
 =item SHAKE-256
 
-Known names are "SHAKE-256" and "SHAKE256"
+Known names are "SHAKE-256" and "SHAKE256".
 
 =back
 

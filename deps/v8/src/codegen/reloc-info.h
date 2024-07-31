@@ -5,6 +5,8 @@
 #ifndef V8_CODEGEN_RELOC_INFO_H_
 #define V8_CODEGEN_RELOC_INFO_H_
 
+#include "src/base/export-template.h"
+#include "src/common/code-memory-access.h"
 #include "src/common/globals.h"
 #include "src/objects/code.h"
 #include "src/objects/instruction-stream.h"
@@ -270,12 +272,6 @@ class RelocInfo {
   Mode rmode() const { return rmode_; }
   intptr_t data() const { return data_; }
 
-  // Apply a relocation by delta bytes. When the code object is moved, PC
-  // relative addresses have to be updated as well as absolute addresses
-  // inside the code (internal references).
-  // Do not forget to flush the icache afterwards!
-  V8_INLINE void apply(intptr_t delta);
-
   // Is the pointer this relocation info refers to coded like a plain pointer
   // or is it strange in some way (e.g. relative or patched into a series of
   // instructions).
@@ -294,19 +290,6 @@ class RelocInfo {
 
   uint32_t wasm_call_tag() const;
 
-  void set_wasm_call_address(
-      Address, ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
-  void set_wasm_stub_call_address(
-      Address, ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
-
-  void set_target_address(
-      Tagged<InstructionStream> host, Address target,
-      WriteBarrierMode write_barrier_mode = UPDATE_WRITE_BARRIER,
-      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
-  // Use this overload only when an InstructionStream host is not available.
-  void set_target_address(Address target, ICacheFlushMode icache_flush_mode =
-                                              FLUSH_ICACHE_IF_NEEDED);
-
   void set_off_heap_target_address(
       Address target,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
@@ -319,21 +302,10 @@ class RelocInfo {
 
   V8_INLINE Handle<HeapObject> target_object_handle(Assembler* origin);
 
-  V8_INLINE void set_target_object(
-      Tagged<InstructionStream> host, Tagged<HeapObject> target,
-      WriteBarrierMode write_barrier_mode = UPDATE_WRITE_BARRIER,
-      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
-  // Use this overload only when an InstructionStream host is not available.
-  V8_INLINE void set_target_object(
-      Tagged<HeapObject> target,
-      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
-
   // Decodes builtin ID encoded as a PC-relative offset. This encoding is used
   // during code generation of call/jump with NEAR_BUILTIN_ENTRY.
   V8_INLINE Builtin target_builtin_at(Assembler* origin);
   V8_INLINE Address target_off_heap_target();
-  V8_INLINE void set_target_external_reference(
-      Address, ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   // Returns the address of the constant pool entry where the target address
   // is held.  This should only be called if IsInConstantPool returns true.
@@ -370,10 +342,6 @@ class RelocInfo {
   // Return the reference address this relocation applies to;
   // can only be called if rmode_ is INTERNAL_REFERENCE.
   V8_INLINE Address target_internal_reference_address();
-
-  // Wipe out a relocation to a fixed value, used for making snapshots
-  // reproducible.
-  V8_INLINE void WipeOut();
 
   template <typename ObjectVisitor>
   void Visit(Tagged<InstructionStream> host, ObjectVisitor* visitor) {
@@ -426,7 +394,7 @@ class RelocInfo {
            ModeMask(RelocInfo::RELATIVE_CODE_TARGET) | kApplyMask;
   }
 
- private:
+ protected:
   // On ARM/ARM64, note that pc_ is the address of the instruction referencing
   // the constant pool and not the address of the constant pool entry.
   Address pc_;
@@ -434,7 +402,49 @@ class RelocInfo {
   intptr_t data_ = 0;
   Address constant_pool_ = kNullAddress;
 
-  friend class RelocIterator;
+  template <typename RelocIteratorType>
+  friend class RelocIteratorBase;
+};
+
+class WritableRelocInfo : public RelocInfo {
+ public:
+  WritableRelocInfo(WritableJitAllocation& jit_allocation, Address pc,
+                    Mode rmode)
+      : RelocInfo(pc, rmode) {}
+  WritableRelocInfo(WritableJitAllocation& jit_allocation, Address pc,
+                    Mode rmode, intptr_t data, Address constant_pool)
+      : RelocInfo(pc, rmode, data, constant_pool) {}
+
+  // Apply a relocation by delta bytes. When the code object is moved, PC
+  // relative addresses have to be updated as well as absolute addresses
+  // inside the code (internal references).
+  // Do not forget to flush the icache afterwards!
+  V8_INLINE void apply(intptr_t delta);
+
+  void set_wasm_call_address(
+      Address, ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+  void set_wasm_stub_call_address(
+      Address, ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+
+  void set_target_address(
+      Tagged<InstructionStream> host, Address target,
+      WriteBarrierMode write_barrier_mode = UPDATE_WRITE_BARRIER,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+  // Use this overload only when an InstructionStream host is not available.
+  void set_target_address(Address target, ICacheFlushMode icache_flush_mode =
+                                              FLUSH_ICACHE_IF_NEEDED);
+
+  V8_INLINE void set_target_object(
+      Tagged<InstructionStream> host, Tagged<HeapObject> target,
+      WriteBarrierMode write_barrier_mode = UPDATE_WRITE_BARRIER,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+  // Use this overload only when an InstructionStream host is not available.
+  V8_INLINE void set_target_object(
+      Tagged<HeapObject> target,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+
+  V8_INLINE void set_target_external_reference(
+      Address, ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 };
 
 // RelocInfoWriter serializes a stream of relocation info. It writes towards
@@ -484,53 +494,27 @@ class RelocInfoWriter {
 //   }
 //
 // A mask can be specified to skip unwanted modes.
-class V8_EXPORT_PRIVATE RelocIterator {
+template <typename RelocInfoT>
+class RelocIteratorBase {
+ public:
   static constexpr int kAllModesMask = -1;
 
- public:
-  // Prefer using this ctor when possible:
-  explicit RelocIterator(Tagged<Code> code, int mode_mask = kAllModesMask);
-
-  // Relocation during InstructionStream initialization. Pass the instruction
-  // stream directly since we want to avoid reading from the Code object for
-  // CFI. I.e. the istream lives in trusted memory but the code object doesn't.
-  RelocIterator(Tagged<InstructionStream> istream, Address constant_pool,
-                int mode_mask);
-
-  // For when GC may be in progress and thus pointers on the Code object may be
-  // stale (or forwarding pointers); or when objects are not fully constructed,
-  // or we're operating on fake objects for some reason. Then, we pass relevant
-  // objects explicitly. Note they must all refer to the same underlying
-  // {Code,IStream} composite object.
-  explicit RelocIterator(Tagged<Code> code,
-                         Tagged<InstructionStream> instruction_stream,
-                         Tagged<ByteArray> relocation_info, int mode_mask);
-  // For Wasm.
-  explicit RelocIterator(base::Vector<uint8_t> instructions,
-                         base::Vector<const uint8_t> reloc_info,
-                         Address const_pool, int mode_mask = kAllModesMask);
-  // For the disassembler.
-  explicit RelocIterator(const CodeReference code_reference);
-  // For FinalizeEmbeddedCodeTargets when creating embedded builtins.
-  explicit RelocIterator(EmbeddedData* embedded_data, Tagged<Code> code,
-                         int mode_mask);
-
-  RelocIterator(RelocIterator&&) V8_NOEXCEPT = default;
-  RelocIterator(const RelocIterator&) = delete;
-  RelocIterator& operator=(const RelocIterator&) = delete;
+  RelocIteratorBase(RelocIteratorBase&&) V8_NOEXCEPT = default;
+  RelocIteratorBase(const RelocIteratorBase&) = delete;
+  RelocIteratorBase& operator=(const RelocIteratorBase&) = delete;
 
   bool done() const { return done_; }
   void next();
 
   // The returned pointer is valid until the next call to next().
-  RelocInfo* rinfo() {
+  RelocInfoT* rinfo() {
     DCHECK(!done());
     return &rinfo_;
   }
 
- private:
-  RelocIterator(Address pc, Address constant_pool, const uint8_t* pos,
-                const uint8_t* end, int mode_mask);
+ protected:
+  V8_INLINE RelocIteratorBase(RelocInfoT reloc_info, const uint8_t* pos,
+                              const uint8_t* end, int mode_mask);
 
   // Used for efficiently skipping unwanted modes.
   bool SetMode(RelocInfo::Mode mode) {
@@ -555,9 +539,54 @@ class V8_EXPORT_PRIVATE RelocIterator {
 
   const uint8_t* pos_;
   const uint8_t* const end_;
-  RelocInfo rinfo_;
+  RelocInfoT rinfo_;
   bool done_ = false;
   const int mode_mask_;
+};
+
+extern template class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
+    RelocIteratorBase<RelocInfo>;
+extern template class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
+    RelocIteratorBase<WritableRelocInfo>;
+
+class V8_EXPORT_PRIVATE RelocIterator : public RelocIteratorBase<RelocInfo> {
+ public:
+  // Prefer using this ctor when possible:
+  explicit RelocIterator(Tagged<InstructionStream> istream, int mode_mask);
+  // Convenience wrapper.
+  explicit RelocIterator(Tagged<Code> code, int mode_mask = kAllModesMask);
+
+  // For Wasm.
+  explicit RelocIterator(base::Vector<uint8_t> instructions,
+                         base::Vector<const uint8_t> reloc_info,
+                         Address const_pool, int mode_mask = kAllModesMask);
+  // For the disassembler.
+  explicit RelocIterator(const CodeReference code_reference);
+  // For FinalizeEmbeddedCodeTargets when creating embedded builtins.
+  explicit RelocIterator(EmbeddedData* embedded_data, Tagged<Code> code,
+                         int mode_mask);
+
+  RelocIterator(RelocIterator&&) V8_NOEXCEPT = default;
+  RelocIterator(const RelocIterator&) = delete;
+  RelocIterator& operator=(const RelocIterator&) = delete;
+
+ private:
+  RelocIterator(Address pc, Address constant_pool, const uint8_t* pos,
+                const uint8_t* end, int mode_mask);
+};
+
+class V8_EXPORT_PRIVATE WritableRelocIterator
+    : public RelocIteratorBase<WritableRelocInfo> {
+ public:
+  // Constructor for iterating InstructionStreams.
+  WritableRelocIterator(WritableJitAllocation& jit_allocation,
+                        Tagged<InstructionStream> istream,
+                        Address constant_pool, int mode_mask);
+  // Constructor for iterating Wasm code.
+  WritableRelocIterator(WritableJitAllocation& jit_allocation,
+                        base::Vector<uint8_t> instructions,
+                        base::Vector<const uint8_t> reloc_info,
+                        Address constant_pool, int mode_mask = kAllModesMask);
 };
 
 }  // namespace internal

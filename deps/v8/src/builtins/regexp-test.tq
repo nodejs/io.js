@@ -14,7 +14,7 @@ transitioning javascript builtin RegExpPrototypeTest(
   const methodName: constexpr string = 'RegExp.prototype.test';
   const receiver = Cast<JSReceiver>(receiver)
       otherwise ThrowTypeError(
-      MessageTemplate::kIncompatibleMethodReceiver, methodName);
+      MessageTemplate::kIncompatibleMethodReceiver, methodName, receiver);
   const str: String = ToString_Inline(string);
   if (IsFastRegExpPermissive(receiver)) {
     RegExpPrototypeExecBodyWithoutResultFast(

@@ -10,7 +10,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 (function TestS128GlobalInitialization() {
   var builder = new WasmModuleBuilder();
   var g = builder.addGlobal(
-    kWasmS128, false,
+    kWasmS128, false, false,
     [kSimdPrefix, kExprS128Const,
      1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0]);
 

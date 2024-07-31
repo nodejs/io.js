@@ -1,0 +1,6 @@
+vptr:deps/icu-small/source/common/uloc_tag.cpp
+vptr:deps/icu-small/source/common/unistr.cpp
+shift-base:deps/v8/src/wasm/decoder.h
+vptr:deps/icu-small/source/common/sharedobject.cpp
+vptr:deps/icu-small/source/i18n/coll.cpp
+nonnull-attribute:deps/v8/src/snapshot/snapshot-source-sink.h

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Flags: --experimental-wasm-multi-memory
+
 utils.load('test/inspector/wasm-inspector-test.js');
 
 let {session, contextGroup, Protocol} =
@@ -94,10 +96,12 @@ InspectorTest.runAsyncTestSuite([
 
   async function testGlobals() {
     const builder = new WasmModuleBuilder();
-    const global0 = builder.addGlobal(kWasmI32, true);  // global0
-    const global1 = builder.addGlobal(kWasmI32, true).exportAs('global0');
-    const global2 = builder.addGlobal(kWasmI64, true).exportAs('global3');
-    const global3 = builder.addGlobal(kWasmI64, true);  // global3
+    const global0 = builder.addGlobal(kWasmI32, true, false);  // global0
+    const global1 =
+      builder.addGlobal(kWasmI32, true, false).exportAs('global0');
+    const global2 =
+      builder.addGlobal(kWasmI64, true, false).exportAs('global3');
+    const global3 = builder.addGlobal(kWasmI64, true, false);  // global3
     const main = builder.addFunction('main', kSig_v_v)
                         .addBody([
                           kExprI64Const, 42,
@@ -246,7 +250,7 @@ InspectorTest.runAsyncTestSuite([
     await callMainPromise;
   },
 
-  async function testMemories() {
+  async function testMemory() {
     const builder = new WasmModuleBuilder();
     builder.addMemory(1, 1);
     builder.exportMemoryAs('foo');
@@ -275,6 +279,41 @@ InspectorTest.runAsyncTestSuite([
     await dumpOnCallFrame(callFrameId, `typeof memories`);
     await dumpOnCallFrame(callFrameId, `Object.keys(memories)`);
     await dumpKeysOnCallFrame(callFrameId, "memories", KEYS);
+    await Protocol.Debugger.resume();
+    await callMainPromise;
+  },
+
+  async function testMultipleMemories() {
+    const builder = new WasmModuleBuilder();
+    const mem0_idx = builder.addMemory(1, 1);
+    const mem1_idx = builder.addMemory(7, 11);
+    builder.exportMemoryAs('foo', mem0_idx);
+    builder.exportMemoryAs('bar', mem1_idx);
+    const main = builder.addFunction('main', kSig_v_v)
+                        .addBody([kExprNop]).exportFunc();
+    const KEYS = [0, '$foo', 1, '$bar'];
+
+    InspectorTest.log('Compile module.');
+    const [module, scriptId] = await compileModule(builder);
+
+    InspectorTest.log('Set breakpoint in main.');
+    await Protocol.Debugger.setBreakpoint({
+      location: {scriptId, lineNumber: 0, columnNumber: main.body_offset}
+    });
+
+    InspectorTest.log('Instantiate module.');
+    const instance = await instantiateModule(module);
+
+    InspectorTest.log('Call main.');
+    const callMainPromise = Protocol.Runtime.callFunctionOn({
+      functionDeclaration: `function() { return this.exports.main(); }`,
+      objectId: instance.objectId
+    });
+    let callFrameId = await waitForDebuggerPaused();
+    await dumpOnCallFrame(callFrameId, 'memories');
+    await dumpOnCallFrame(callFrameId, 'memories.length');
+    await dumpOnCallFrame(callFrameId, 'Object.keys(memories)');
+    await dumpKeysOnCallFrame(callFrameId, 'memories', KEYS);
     await Protocol.Debugger.resume();
     await callMainPromise;
   },

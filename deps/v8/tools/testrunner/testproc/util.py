@@ -72,6 +72,8 @@ def base_test_record(test, result, run):
     record.update(
         exit_code=result.output.exit_code,
         duration=result.output.duration,
+        max_rss=result.output.stats.max_rss,
+        max_vms=result.output.stats.max_vms,
     )
   return record
 

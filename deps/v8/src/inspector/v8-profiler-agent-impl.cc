@@ -293,7 +293,7 @@ Response V8ProfilerAgentImpl::stop(
       stopProfiling(m_frontendInitiatedProfileId, !!profile);
   if (profile) {
     *profile = std::move(cpuProfile);
-    if (!profile->get()) return Response::ServerError("Profile is not found");
+    if (!*profile) return Response::ServerError("Profile is not found");
   }
   m_frontendInitiatedProfileId = String16();
   m_state->setBoolean(ProfilerAgentState::userInitiatedProfiling, false);

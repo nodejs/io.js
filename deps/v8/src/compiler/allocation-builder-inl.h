@@ -20,8 +20,9 @@ void AllocationBuilder::Allocate(int size, AllocationType allocation,
   DCHECK_LE(size, isolate()->heap()->MaxRegularHeapObjectSize(allocation));
   effect_ = graph()->NewNode(
       common()->BeginRegion(RegionObservability::kNotObservable), effect_);
-  allocation_ = graph()->NewNode(simplified()->Allocate(type, allocation),
-                                 jsgraph()->Constant(size), effect_, control_);
+  allocation_ =
+      graph()->NewNode(simplified()->Allocate(type, allocation),
+                       jsgraph()->ConstantNoHole(size), effect_, control_);
   effect_ = allocation_;
 }
 
@@ -35,7 +36,7 @@ void AllocationBuilder::AllocateContext(int variadic_part_length, MapRef map) {
   static_assert(static_cast<int>(Context::kLengthOffset) ==
                 static_cast<int>(FixedArray::kLengthOffset));
   Store(AccessBuilder::ForFixedArrayLength(),
-        jsgraph()->Constant(variadic_part_length));
+        jsgraph()->ConstantNoHole(variadic_part_length));
 }
 
 bool AllocationBuilder::CanAllocateArray(int length, MapRef map,
@@ -57,7 +58,8 @@ void AllocationBuilder::AllocateArray(int length, MapRef map,
                  : FixedDoubleArray::SizeFor(length);
   Allocate(size, allocation, Type::OtherInternal());
   Store(AccessBuilder::ForMap(), map);
-  Store(AccessBuilder::ForFixedArrayLength(), jsgraph()->Constant(length));
+  Store(AccessBuilder::ForFixedArrayLength(),
+        jsgraph()->ConstantNoHole(length));
 }
 
 bool AllocationBuilder::CanAllocateSloppyArgumentElements(
@@ -72,7 +74,8 @@ void AllocationBuilder::AllocateSloppyArgumentElements(
   int size = SloppyArgumentsElements::SizeFor(length);
   Allocate(size, allocation, Type::OtherInternal());
   Store(AccessBuilder::ForMap(), map);
-  Store(AccessBuilder::ForFixedArrayLength(), jsgraph()->Constant(length));
+  Store(AccessBuilder::ForFixedArrayLength(),
+        jsgraph()->ConstantNoHole(length));
 }
 
 }  // namespace compiler

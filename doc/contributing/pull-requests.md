@@ -548,8 +548,7 @@ A pull request is approved either by saying LGTM, which stands for
 "Looks Good To Me", or by using GitHub's Approve button.
 GitHub's pull request review feature can be used during the process.
 For more information, check out
-[the video tutorial](https://www.youtube.com/watch?v=HW0RPaJqm4g)
-or [the official documentation](https://help.github.com/articles/reviewing-changes-in-pull-requests/).
+[the official documentation](https://help.github.com/articles/reviewing-changes-in-pull-requests/).
 
 After you push new changes to your branch, you need to get
 approval for these new changes again, even if GitHub shows "Approved"

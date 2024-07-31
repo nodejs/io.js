@@ -45,53 +45,53 @@
  * @{
  */
 
-struct ares__htable_t;
+struct ares__htable;
 
 /*! Opaque data type for generic hash table implementation */
 typedef struct ares__htable ares__htable_t;
 
 /*! Callback for generating a hash of the key.
- * 
+ *
  *  \param[in] key   pointer to key to be hashed
  *  \param[in] seed  randomly generated seed used by hash function.
  *                   value is specific to the hashtable instance
  *                   but otherwise will not change between calls.
  *  \return hash
  */
-typedef unsigned int (*ares__htable_hashfunc_t)(const void *key,
+typedef unsigned int (*ares__htable_hashfunc_t)(const void  *key,
                                                 unsigned int seed);
 
 /*! Callback to free the bucket
- * 
+ *
  *  \param[in] bucket  user provided bucket
  */
 typedef void (*ares__htable_bucket_free_t)(void *bucket);
 
 /*! Callback to extract the key from the user-provided bucket
- * 
+ *
  *  \param[in] bucket  user provided bucket
  *  \return pointer to key held in bucket
  */
 typedef const void *(*ares__htable_bucket_key_t)(const void *bucket);
 
 /*! Callback to compare two keys for equality
- * 
+ *
  *  \param[in] key1  first key
  *  \param[in] key2  second key
- *  \return 1 if equal, 0 if not
+ *  \return ARES_TRUE if equal, ARES_FALSE if not
  */
-typedef unsigned int (*ares__htable_key_eq_t)(const void *key1,
-                                              const void *key2);
+typedef ares_bool_t (*ares__htable_key_eq_t)(const void *key1,
+                                             const void *key2);
 
 
-/*! Destroy the initialized hashtable 
- * 
- *  \param[in] initialized hashtable
+/*! Destroy the initialized hashtable
+ *
+ *  \param[in] htable initialized hashtable
  */
-void ares__htable_destroy(ares__htable_t *htable);
+void            ares__htable_destroy(ares__htable_t *htable);
 
 /*! Create a new hashtable
- * 
+ *
  *  \param[in] hash_func   Required. Callback for Hash function.
  *  \param[in] bucket_key  Required. Callback to extract key from bucket.
  *  \param[in] bucket_free Required. Callback to free bucket.
@@ -104,40 +104,53 @@ ares__htable_t *ares__htable_create(ares__htable_hashfunc_t    hash_func,
                                     ares__htable_key_eq_t      key_eq);
 
 /*! Count of keys from initialized hashtable
- *  
+ *
  *  \param[in] htable  Initialized hashtable.
  *  \return count of keys
  */
-size_t ares__htable_num_keys(ares__htable_t *htable);
+size_t          ares__htable_num_keys(const ares__htable_t *htable);
+
+/*! Retrieve an array of buckets from the hashtable.  This is mainly used as
+ *  a helper for retrieving an array of keys.
+ *
+ *  \param[in]  htable   Initialized hashtable
+ *  \param[out] num      Count of returned buckets
+ *  \return Array of pointers to the buckets.  These are internal pointers
+ *          to data within the hashtable, so if the key is removed, there
+ *          will be a dangling pointer.  It is expected wrappers will make
+ *          such values safe by duplicating them.
+ */
+const void    **ares__htable_all_buckets(const ares__htable_t *htable,
+                                         size_t               *num);
 
 /*! Insert bucket into hashtable
- * 
+ *
  *  \param[in] htable  Initialized hashtable.
  *  \param[in] bucket  User-provided bucket to insert. Takes "ownership". Not
  *                     allowed to be NULL.
- *  \return 1 on success, 0 if out of memory
+ *  \return ARES_TRUE on success, ARES_FALSE if out of memory
  */
-unsigned int ares__htable_insert(ares__htable_t *htable, void *bucket);
+ares_bool_t     ares__htable_insert(ares__htable_t *htable, void *bucket);
 
 /*! Retrieve bucket from hashtable based on key.
- * 
+ *
  *  \param[in] htable  Initialized hashtable
  *  \param[in] key     Pointer to key to use for comparison.
  *  \return matching bucket, or NULL if not found.
  */
-void *ares__htable_get(ares__htable_t *htable, const void *key);
+void           *ares__htable_get(const ares__htable_t *htable, const void *key);
 
-/*! Remove bucket from hashtable by key 
- * 
+/*! Remove bucket from hashtable by key
+ *
  *  \param[in] htable  Initialized hashtable
  *  \param[in] key     Pointer to key to use for comparison
- *  \return 1 if found, 0 if not found
+ *  \return ARES_TRUE if found, ARES_FALSE if not found
  */
-unsigned int ares__htable_remove(ares__htable_t *htable, const void *key);
+ares_bool_t     ares__htable_remove(ares__htable_t *htable, const void *key);
 
 /*! FNV1a hash algorithm.  Can be used as underlying primitive for building
  *  a wrapper hashtable.
- * 
+ *
  *  \param[in] key      pointer to key
  *  \param[in] key_len  Length of key
  *  \param[in] seed     Seed for generating hash
@@ -146,18 +159,17 @@ unsigned int ares__htable_remove(ares__htable_t *htable, const void *key);
 unsigned int ares__htable_hash_FNV1a(const unsigned char *key, size_t key_len,
                                      unsigned int seed);
 
-/*! FNV1a hash algorithm, but converts all characters to lowercase before 
+/*! FNV1a hash algorithm, but converts all characters to lowercase before
  *  hashing to make the hash case-insensitive. Can be used as underlying
  *  primitive for building a wrapper hashtable.  Used on string-based keys.
- * 
+ *
  *  \param[in] key      pointer to key
  *  \param[in] key_len  Length of key
  *  \param[in] seed     Seed for generating hash
  *  \return hash value
  */
 unsigned int ares__htable_hash_FNV1a_casecmp(const unsigned char *key,
-                                             size_t key_len,
-                                             unsigned int seed);
+                                             size_t key_len, unsigned int seed);
 
 /*! @} */
 

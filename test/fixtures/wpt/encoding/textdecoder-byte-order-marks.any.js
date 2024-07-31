@@ -1,3 +1,4 @@
+// META: global=window,dedicatedworker,shadowrealm
 // META: title=Encoding API: Byte-order marks
 
 var testCases = [

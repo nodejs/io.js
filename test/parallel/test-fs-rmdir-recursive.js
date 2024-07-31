@@ -217,28 +217,3 @@ function removeAsync(dir) {
     message: /^The value of "options\.maxRetries" is out of range\./
   });
 }
-
-// It should not pass recursive option to rmdirSync, when called from
-// rimraf (see: #35566)
-{
-  // Make a non-empty directory:
-  const original = fs.rmdirSync;
-  const dir = `${nextDirPath()}/foo/bar`;
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(`${dir}/foo.txt`, 'hello world', 'utf8');
-
-  // When called the second time from rimraf, the recursive option should
-  // not be set for rmdirSync:
-  let callCount = 0;
-  let rmdirSyncOptionsFromRimraf;
-  fs.rmdirSync = (path, options) => {
-    if (callCount > 0) {
-      rmdirSyncOptionsFromRimraf = { ...options };
-    }
-    callCount++;
-    return original(path, options);
-  };
-  fs.rmdirSync(dir, { recursive: true });
-  fs.rmdirSync = original;
-  assert.strictEqual(rmdirSyncOptionsFromRimraf.recursive, undefined);
-}

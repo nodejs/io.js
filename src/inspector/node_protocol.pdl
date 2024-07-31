@@ -98,8 +98,65 @@ experimental domain NodeWorker
       SessionID sessionId
       string message
 
+# Partial support for Network domain of ChromeDevTools Protocol.
+# https://chromedevtools.github.io/devtools-protocol/tot/Network
+experimental domain Network
+  # Unique request identifier.
+  type RequestId extends string
+
+  # UTC time in seconds, counted from January 1, 1970.
+  type TimeSinceEpoch extends number
+
+  # Monotonically increasing time in seconds since an arbitrary point in the past.
+  type MonotonicTime extends number
+
+  # HTTP request data.
+  type Request extends object
+    properties
+      string url
+      string method
+
+  # Disables network tracking, prevents network events from being sent to the client.
+  command disable
+
+  # Enables network tracking, network events will now be delivered to the client.
+  command enable
+
+  # Fired when page is about to send HTTP request.
+  event requestWillBeSent
+    parameters
+      # Request identifier.
+      RequestId requestId
+      # Request data.
+      Request request
+      # Timestamp.
+      MonotonicTime timestamp
+      # Timestamp.
+      TimeSinceEpoch wallTime
+
+  # Fired when HTTP response is available.
+  event responseReceived
+    parameters
+      # Request identifier.
+      RequestId requestId
+      # Timestamp.
+      MonotonicTime timestamp
+
+  event loadingFinished
+    parameters
+      # Request identifier.
+      RequestId requestId
+      # Timestamp.
+      MonotonicTime timestamp
+
 # Support for inspecting node process state.
 experimental domain NodeRuntime
+  # Enable the NodeRuntime events except by `NodeRuntime.waitingForDisconnect`.
+  command enable
+
+  # Disable NodeRuntime events
+  command disable
+
   # Enable the `NodeRuntime.waitingForDisconnect`.
   command notifyWhenWaitingForDisconnect
     parameters
@@ -110,3 +167,7 @@ experimental domain NodeRuntime
   # It is fired when the Node process finished all code execution and is
   # waiting for all frontends to disconnect.
   event waitingForDisconnect
+
+  # This event is fired when the runtime is waiting for the debugger. For
+  # example, when inspector.waitingForDebugger is called
+  event waitingForDebugger

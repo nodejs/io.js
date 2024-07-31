@@ -91,6 +91,9 @@ void IncrementalMarkingJob::Task::RunInternal() {
   VMState<GC> state(isolate());
   TRACE_EVENT_CALL_STATS_SCOPED(isolate(), "v8",
                                 "V8.IncrementalMarkingJob.Task");
+  // In case multi-cage pointer compression mode is enabled ensure that
+  // current thread's cage base values are properly initialized.
+  PtrComprCageAccessScope ptr_compr_cage_access_scope(isolate());
 
   isolate()->stack_guard()->ClearStartIncrementalMarking();
 
@@ -104,7 +107,7 @@ void IncrementalMarkingJob::Task::RunInternal() {
   }
 
   EmbedderStackStateScope scope(
-      heap, EmbedderStackStateScope::kImplicitThroughTask, stack_state_);
+      heap, EmbedderStackStateOrigin::kImplicitThroughTask, stack_state_);
 
   IncrementalMarking* incremental_marking = heap->incremental_marking();
   if (incremental_marking->IsStopped()) {

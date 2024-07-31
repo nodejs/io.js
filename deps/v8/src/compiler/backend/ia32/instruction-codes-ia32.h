@@ -73,6 +73,7 @@ namespace compiler {
   V(IA32Float64ExtractHighWord32)  \
   V(IA32Float64InsertLowWord32)    \
   V(IA32Float64InsertHighWord32)   \
+  V(IA32Float64FromWord32Pair)     \
   V(IA32Float64LoadLowWord32)      \
   V(IA32Float64SilenceNaN)         \
   V(Float32Add)                    \

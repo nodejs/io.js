@@ -8,6 +8,7 @@
 #include "include/v8-internal.h"
 #include "include/v8-platform.h"
 #include "include/v8config.h"
+#include "src/base/bounds.h"
 #include "src/common/globals.h"
 #include "testing/gtest/include/gtest/gtest_prod.h"  // nogncheck
 
@@ -146,7 +147,7 @@ class V8_EXPORT_PRIVATE Sandbox {
    * Returns true if the given address lies within the sandbox address space.
    */
   bool Contains(Address addr) const {
-    return addr >= base_ && addr < base_ + size_;
+    return base::IsInHalfOpenRange(addr, base_, base_ + size_);
   }
 
   /**
@@ -154,6 +155,24 @@ class V8_EXPORT_PRIVATE Sandbox {
    */
   bool Contains(void* ptr) const {
     return Contains(reinterpret_cast<Address>(ptr));
+  }
+
+  /**
+   * Returns true if the given address lies within the sandbox reservation.
+   *
+   * This is a variant of Contains that checks whether the address lies within
+   * the virtual address space reserved for the sandbox. In the case of a
+   * fully-reserved sandbox (the default) this is essentially the same as
+   * Contains but also includes the guard region. In the case of a
+   * partially-reserved sandbox, this will only test against the address region
+   * that was actually reserved.
+   * This can be useful when checking that objects are *not* located within the
+   * sandbox, as in the case of a partially-reserved sandbox, they may still
+   * end up in the unreserved part.
+   */
+  bool ReservationContains(Address addr) const {
+    return base::IsInHalfOpenRange(addr, reservation_base_,
+                                   reservation_base_ + reservation_size_);
   }
 
   class SandboxedPointerConstants final {
@@ -186,8 +205,7 @@ class V8_EXPORT_PRIVATE Sandbox {
 
   // These tests call the private Initialize methods below.
   FRIEND_TEST(SandboxTest, InitializationWithSize);
-  FRIEND_TEST(SandboxTest, PartiallyReservedSandboxInitialization);
-  FRIEND_TEST(SandboxTest, PartiallyReservedSandboxPageAllocation);
+  FRIEND_TEST(SandboxTest, PartiallyReservedSandbox);
 
   // We allow tests to disable the guard regions around the sandbox. This is
   // useful for example for tests like the SequentialUnmapperTest which track
@@ -239,6 +257,20 @@ class V8_EXPORT_PRIVATE Sandbox {
 V8_EXPORT_PRIVATE Sandbox* GetProcessWideSandbox();
 
 #endif  // V8_ENABLE_SANDBOX
+
+// Helper function that can be used to ensure that certain objects are not
+// located inside the sandbox. Typically used for trusted objects.
+// Will always return false when the sandbox is disabled or partially reserved.
+V8_INLINE bool InsideSandbox(uintptr_t address) {
+#ifdef V8_ENABLE_SANDBOX
+  Sandbox* sandbox = GetProcessWideSandbox();
+  // Use ReservationContains (instead of just Contains) to correctly handle the
+  // case of partially-reserved sandboxes.
+  return sandbox->ReservationContains(address);
+#else
+  return false;
+#endif
+}
 
 V8_INLINE void* EmptyBackingStoreBuffer() {
 #ifdef V8_ENABLE_SANDBOX

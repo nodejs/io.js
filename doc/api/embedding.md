@@ -90,7 +90,7 @@ to as `node::Environment`. Each `node::Environment` is associated with:
 * A number of `v8::Context`s, but exactly one main `v8::Context`.
 * One `node::IsolateData` instance that contains information that could be
   shared by multiple `node::Environment`s that use the same `v8::Isolate`.
-  Currently, no testing if performed for this scenario.
+  Currently, no testing is performed for this scenario.
 
 In order to set up a `v8::Isolate`, an `v8::ArrayBuffer::Allocator` needs
 to be provided. One possible choice is the default Node.js allocator, which

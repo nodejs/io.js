@@ -40,13 +40,6 @@
   --color-text-secondary: var(--green2);
 }
 
-h2 :target,
-h3 :target,
-h4 :target,
-h5 :target {
-  scroll-margin-top: 55px;
-}
-
 .dark-mode {
   --background-color-highlight: var(--black2);
   --color-critical: var(--red4);
@@ -70,6 +63,7 @@ h5 :target {
 html {
   font-size: 1rem;
   overflow-wrap: break-word;
+  scroll-padding-top: 4rem;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-font-variant-ligatures: none;
@@ -136,7 +130,6 @@ a:link,
 a:active,
 a:visited {
   color: var(--color-links);
-  text-decoration: none;
   border-radius: 2px;
   padding: 1px 3px;
 }
@@ -183,27 +176,32 @@ li.picker-header {
   position: relative;
 }
 
-li.picker-header .collapsed-arrow, li.picker-header .expanded-arrow {
-  width: 1.5ch;
-  height: 1.5em;
-}
-
-li.picker-header .collapsed-arrow {
+li.picker-header .picker-arrow {
   display: inline-block;
+  width: .6rem;
+  height: .6rem;
+  border-top: .3rem solid transparent;
+  border-bottom: .3rem solid transparent;
+  border-left: .6rem solid var(--color-links);
+  border-right: none;
+  margin: 0 .2rem .05rem 0;
 }
 
-li.picker-header .expanded-arrow {
-  display: none;
+li.picker-header a:focus .picker-arrow,
+li.picker-header a:active .picker-arrow,
+li.picker-header a:hover .picker-arrow {
+  border-left: .6rem solid var(--white);
 }
 
-li.picker-header.expanded .collapsed-arrow, 
-:root:not(.has-js) li.picker-header:hover .collapsed-arrow {
-  display: none;
-}
-
-li.picker-header.expanded .expanded-arrow, 
-:root:not(.has-js) li.picker-header:hover .expanded-arrow {
-  display: inline-block;
+li.picker-header.expanded a:focus .picker-arrow,
+li.picker-header.expanded a:active .picker-arrow,
+li.picker-header.expanded a:hover .picker-arrow,
+:root:not(.has-js) li.picker-header:hover .picker-arrow  {
+  border-top: .6rem solid var(--white);
+  border-bottom: none;
+  border-left: .35rem solid transparent;
+  border-right: .35rem solid transparent;
+  margin-bottom: 0;
 }
 
 li.picker-header.expanded > a,
@@ -434,7 +432,7 @@ dd + dt.pre {
   padding-top: 1rem;
 }
 
-#apicontent section {
+#api-section-all #apicontent section {
   content-visibility: auto;
   contain-intrinsic-size: 1px auto 5000px;
 }

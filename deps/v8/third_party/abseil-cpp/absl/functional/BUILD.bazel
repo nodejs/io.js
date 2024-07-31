@@ -1,0 +1,168 @@
+#
+# Copyright 2019 The Abseil Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+load(
+    "//absl:copts/configure_copts.bzl",
+    "ABSL_DEFAULT_COPTS",
+    "ABSL_DEFAULT_LINKOPTS",
+    "ABSL_TEST_COPTS",
+)
+
+package(
+    default_visibility = ["//visibility:public"],
+    features = [
+        "header_modules",
+        "layering_check",
+        "parse_headers",
+    ],
+)
+
+licenses(["notice"])
+
+cc_library(
+    name = "any_invocable",
+    srcs = ["internal/any_invocable.h"],
+    hdrs = ["any_invocable.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:base_internal",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/meta:type_traits",
+        "//absl/utility",
+    ],
+)
+
+cc_test(
+    name = "any_invocable_test",
+    srcs = [
+        "any_invocable_test.cc",
+        "internal/any_invocable.h",
+    ],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":any_invocable",
+        "//absl/base:base_internal",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/meta:type_traits",
+        "//absl/utility",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "bind_front",
+    srcs = ["internal/front_binder.h"],
+    hdrs = ["bind_front.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:base_internal",
+        "//absl/container:compressed_tuple",
+        "//absl/meta:type_traits",
+        "//absl/utility",
+    ],
+)
+
+cc_test(
+    name = "bind_front_test",
+    srcs = ["bind_front_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":bind_front",
+        "//absl/memory",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "function_ref",
+    srcs = ["internal/function_ref.h"],
+    hdrs = ["function_ref.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":any_invocable",
+        "//absl/base:base_internal",
+        "//absl/base:core_headers",
+        "//absl/meta:type_traits",
+    ],
+)
+
+cc_test(
+    name = "function_ref_test",
+    size = "small",
+    srcs = ["function_ref_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    deps = [
+        ":any_invocable",
+        ":function_ref",
+        "//absl/container:test_instance_tracker",
+        "//absl/memory",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "overload",
+    hdrs = ["overload.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:config",
+        "//absl/meta:type_traits",
+    ],
+)
+
+cc_test(
+    name = "overload_test",
+    size = "small",
+    srcs = ["overload_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    deps = [
+        ":overload",
+        "//absl/base:config",
+        "//absl/strings",
+        "//absl/strings:string_view",
+        "//absl/types:variant",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "function_type_benchmark",
+    srcs = [
+        "function_type_benchmark.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    tags = ["benchmark"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":any_invocable",
+        ":function_ref",
+        "//absl/base:core_headers",
+        "@com_github_google_benchmark//:benchmark_main",
+        "@com_google_googletest//:gtest",
+    ],
+)

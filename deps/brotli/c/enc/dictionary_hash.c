@@ -7,12 +7,13 @@
 /* Hash table on the 4-byte prefixes of static dictionary words. */
 
 #include "../common/platform.h"
-#include "./dictionary_hash.h"
+#include "dictionary_hash.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
 
+/* GENERATED CODE START */
 BROTLI_INTERNAL const uint16_t kStaticDictionaryHashWords[32768] = {
 1002,0,0,0,0,0,0,0,0,683,0,0,0,0,0,0,0,1265,0,0,0,0,0,1431,0,0,0,0,0,0,40,0,0,0,
 0,155,8,741,0,624,0,0,0,0,0,0,0,0,0,0,0,0,66,503,0,0,0,451,0,0,0,0,0,0,0,835,70,
@@ -1840,6 +1841,7 @@ BROTLI_INTERNAL const uint8_t kStaticDictionaryHashLengths[32768] = {
 0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,11,0,0,0,0,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,
 10,7,0,0,0,0,0,0,0,0,9,0,0,0,0,4,0,0,0,0,0,0,0,0,0,5,11,0,0,0,0,0,0,0,8,6,0,0,9,
 7,0,0,12,4,0,0,0,0,0,0,12,6,0,6,0,7,0,0,8,5,0,0,0,0};
+/* GENERATED CODE END */
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */

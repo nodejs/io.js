@@ -524,12 +524,12 @@ class OnHeapProducedPreparseData final : public ProducedPreparseData {
       : data_(data) {}
 
   Handle<PreparseData> Serialize(Isolate* isolate) final {
-    DCHECK(!data_->is_null());
+    DCHECK(!data_.is_null());
     return data_;
   }
 
   Handle<PreparseData> Serialize(LocalIsolate* isolate) final {
-    DCHECK(!data_->is_null());
+    DCHECK(!data_.is_null());
     DCHECK_IMPLIES(!isolate->is_main_thread(),
                    isolate->heap()->ContainsLocalHandle(data_.location()));
     return data_;

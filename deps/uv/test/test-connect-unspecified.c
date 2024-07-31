@@ -23,11 +23,11 @@
 #include "task.h"
 
 static void connect_4(uv_connect_t* req, int status) {
-  ASSERT(status != UV_EADDRNOTAVAIL);
+  ASSERT_NE(status, UV_EADDRNOTAVAIL);
 }
 
 static void connect_6(uv_connect_t* req, int status) {
-  ASSERT(status != UV_EADDRNOTAVAIL);
+  ASSERT_NE(status, UV_EADDRNOTAVAIL);
 }
 
 TEST_IMPL(connect_unspecified) {
@@ -41,23 +41,23 @@ TEST_IMPL(connect_unspecified) {
 
   loop = uv_default_loop();
 
-  ASSERT(uv_tcp_init(loop, &socket4) == 0);
-  ASSERT(uv_ip4_addr("0.0.0.0", TEST_PORT, &addr4) == 0);
-  ASSERT(uv_tcp_connect(&connect4,
-                        &socket4,
-                        (const struct sockaddr*) &addr4,
-                        connect_4) == 0);
+  ASSERT_OK(uv_tcp_init(loop, &socket4));
+  ASSERT_OK(uv_ip4_addr("0.0.0.0", TEST_PORT, &addr4));
+  ASSERT_OK(uv_tcp_connect(&connect4,
+                           &socket4,
+                           (const struct sockaddr*) &addr4,
+                           connect_4));
 
   if (can_ipv6()) {
-    ASSERT(uv_tcp_init(loop, &socket6) == 0);
-    ASSERT(uv_ip6_addr("::", TEST_PORT, &addr6) == 0);
-    ASSERT(uv_tcp_connect(&connect6,
-                          &socket6,
-                          (const struct sockaddr*) &addr6,
-                          connect_6) == 0);
+    ASSERT_OK(uv_tcp_init(loop, &socket6));
+    ASSERT_OK(uv_ip6_addr("::", TEST_PORT, &addr6));
+    ASSERT_OK(uv_tcp_connect(&connect6,
+                             &socket6,
+                             (const struct sockaddr*) &addr6,
+                             connect_6));
   }
 
-  ASSERT(uv_run(loop, UV_RUN_DEFAULT) == 0);
+  ASSERT_OK(uv_run(loop, UV_RUN_DEFAULT));
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

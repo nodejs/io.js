@@ -292,7 +292,7 @@ dns.lookup('', {
   await dnsPromises.lookup('', {
     hints: dns.ADDRCONFIG | dns.V4MAPPED | dns.ALL
   });
-  await dnsPromises.lookup('', { verbatim: true });
+  await dnsPromises.lookup('', { order: 'verbatim' });
 })().then(common.mustCall());
 
 {
@@ -415,7 +415,7 @@ assert.throws(() => {
         (answer) => Object.assign({ domain }, answer)
       ),
     }), port, address);
-  }, cases.length * 2));
+  }, cases.length));
 
   server.bind(0, common.mustCall(() => {
     const address = server.address();

@@ -25,4 +25,7 @@ const tick = require('util').promisify(require('../../common/tick'));
   await tick(10);
   console.log('gc2');
   assert.strictEqual(binding.getDeleterCallCount(), 2);
+
+  // To test this doesn't crash
+  binding.invalidObjectAsBuffer({});
 })().then(common.mustCall());

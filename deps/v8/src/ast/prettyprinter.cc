@@ -256,6 +256,13 @@ void CallPrinter::VisitInitializeClassStaticElementsStatement(
 
 void CallPrinter::VisitNativeFunctionLiteral(NativeFunctionLiteral* node) {}
 
+void CallPrinter::VisitConditionalChain(ConditionalChain* node) {
+  for (size_t i = 0; i < node->conditional_chain_length(); ++i) {
+    Find(node->condition_at(i));
+    Find(node->then_expression_at(i));
+  }
+  Find(node->else_expression());
+}
 
 void CallPrinter::VisitConditional(Conditional* node) {
   Find(node->condition());
@@ -492,11 +499,15 @@ void CallPrinter::VisitCallRuntime(CallRuntime* node) {
   FindArguments(node->arguments());
 }
 
+void CallPrinter::VisitSuperCallForwardArgs(SuperCallForwardArgs* node) {
+  Find(node->expression(), true);
+  Print("(...forwarded args...)");
+}
 
 void CallPrinter::VisitUnaryOperation(UnaryOperation* node) {
   Token::Value op = node->op();
   bool needsSpace =
-      op == Token::DELETE || op == Token::TYPEOF || op == Token::VOID;
+      op == Token::kDelete || op == Token::kTypeOf || op == Token::kVoid;
   Print("(");
   Print(Token::String(op));
   if (needsSpace) Print(" ");
@@ -568,8 +579,8 @@ void CallPrinter::VisitTemplateLiteral(TemplateLiteral* node) {
 void CallPrinter::VisitImportCallExpression(ImportCallExpression* node) {
   Print("ImportCall(");
   Find(node->specifier(), true);
-  if (node->import_assertions()) {
-    Find(node->import_assertions(), true);
+  if (node->import_options()) {
+    Find(node->import_options(), true);
   }
   Print(")");
 }
@@ -1172,6 +1183,17 @@ void AstPrinter::VisitNativeFunctionLiteral(NativeFunctionLiteral* node) {
   PrintLiteralIndented("NAME", node->raw_name(), false);
 }
 
+void AstPrinter::VisitConditionalChain(ConditionalChain* node) {
+  IndentedScope indent(this, "CONDITIONAL_CHAIN", node->position());
+  PrintIndentedVisit("CONDITION", node->condition_at(0));
+  PrintIndentedVisit("THEN", node->then_expression_at(0));
+  for (size_t i = 1; i < node->conditional_chain_length(); ++i) {
+    IndentedScope indent(this, "ELSE IF", node->condition_position_at(i));
+    PrintIndentedVisit("CONDITION", node->condition_at(i));
+    PrintIndentedVisit("THEN", node->then_expression_at(i));
+  }
+  PrintIndentedVisit("ELSE", node->else_expression());
+}
 
 void AstPrinter::VisitConditional(Conditional* node) {
   IndentedScope indent(this, "CONDITIONAL", node->position());
@@ -1467,8 +1489,8 @@ void AstPrinter::VisitTemplateLiteral(TemplateLiteral* node) {
 void AstPrinter::VisitImportCallExpression(ImportCallExpression* node) {
   IndentedScope indent(this, "IMPORT-CALL", node->position());
   Visit(node->specifier());
-  if (node->import_assertions()) {
-    Visit(node->import_assertions());
+  if (node->import_options()) {
+    Visit(node->import_options());
   }
 }
 
@@ -1480,11 +1502,14 @@ void AstPrinter::VisitSuperPropertyReference(SuperPropertyReference* node) {
   IndentedScope indent(this, "SUPER-PROPERTY-REFERENCE", node->position());
 }
 
-
 void AstPrinter::VisitSuperCallReference(SuperCallReference* node) {
   IndentedScope indent(this, "SUPER-CALL-REFERENCE", node->position());
 }
 
+void AstPrinter::VisitSuperCallForwardArgs(SuperCallForwardArgs* node) {
+  IndentedScope indent(this, "SUPER FORWARD-VARARGS", node->position());
+  Visit(node->expression());
+}
 
 #endif  // DEBUG
 

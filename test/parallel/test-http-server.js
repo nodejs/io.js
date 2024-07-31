@@ -139,4 +139,5 @@ process.on('exit', function() {
   assert.match(server_response, quit);
 
   assert.strictEqual(client_got_eof, true);
+  assert.strictEqual(server.close(), server);
 });

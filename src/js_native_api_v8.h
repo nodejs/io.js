@@ -4,7 +4,7 @@
 #include "js_native_api_types.h"
 #include "js_native_api_v8_internals.h"
 
-inline napi_status napi_clear_last_error(napi_env env);
+inline napi_status napi_clear_last_error(node_api_basic_env env);
 
 namespace v8impl {
 
@@ -172,7 +172,8 @@ struct napi_env__ {
   virtual ~napi_env__() = default;
 };
 
-inline napi_status napi_clear_last_error(napi_env env) {
+inline napi_status napi_clear_last_error(node_api_basic_env basic_env) {
+  napi_env env = const_cast<napi_env>(basic_env);
   env->last_error.error_code = napi_ok;
   env->last_error.engine_error_code = 0;
   env->last_error.engine_reserved = nullptr;
@@ -180,10 +181,11 @@ inline napi_status napi_clear_last_error(napi_env env) {
   return napi_ok;
 }
 
-inline napi_status napi_set_last_error(napi_env env,
+inline napi_status napi_set_last_error(node_api_basic_env basic_env,
                                        napi_status error_code,
                                        uint32_t engine_error_code = 0,
                                        void* engine_reserved = nullptr) {
+  napi_env env = const_cast<napi_env>(basic_env);
   env->last_error.error_code = error_code;
   env->last_error.engine_error_code = engine_error_code;
   env->last_error.engine_reserved = engine_reserved;
@@ -212,6 +214,12 @@ inline napi_status napi_set_last_error(napi_env env,
     }                                                                          \
   } while (0)
 
+#define CHECK_ENV_NOT_IN_GC(env)                                               \
+  do {                                                                         \
+    CHECK_ENV((env));                                                          \
+    (env)->CheckGCAccess();                                                    \
+  } while (0)
+
 #define CHECK_ARG(env, arg)                                                    \
   RETURN_STATUS_IF_FALSE((env), ((arg) != nullptr), napi_invalid_arg)
 
@@ -227,8 +235,7 @@ inline napi_status napi_set_last_error(napi_env env,
 
 // NAPI_PREAMBLE is not wrapped in do..while: try_catch must have function scope
 #define NAPI_PREAMBLE(env)                                                     \
-  CHECK_ENV((env));                                                            \
-  (env)->CheckGCAccess();                                                      \
+  CHECK_ENV_NOT_IN_GC((env));                                                  \
   RETURN_STATUS_IF_FALSE(                                                      \
       (env), (env)->last_exception.IsEmpty(), napi_pending_exception);         \
   RETURN_STATUS_IF_FALSE((env),                                                \

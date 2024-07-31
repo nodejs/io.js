@@ -25,7 +25,7 @@ namespace internal {
   /* The cage_base passed here must be the base of the main pointer */        \
   /* compression cage, i.e. the one where the Map space is allocated. */      \
   bool Is##type(Tagged<HeapObject> obj, PtrComprCageBase cage_base) {         \
-    Map map_object = obj->map(cage_base);                                     \
+    Tagged<Map> map_object = obj->map(cage_base);                             \
     return InstanceTypeChecker::Is##type(map_object);                         \
   }
 

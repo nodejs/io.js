@@ -13,7 +13,6 @@
 #include "src/base/lazy-instance.h"
 #include "src/base/memory.h"
 #include "src/base/strings.h"
-#include "src/base/v8-fallthrough.h"
 #include "src/codegen/x64/fma-instr.h"
 #include "src/codegen/x64/register-x64.h"
 #include "src/codegen/x64/sse-instr.h"
@@ -1043,6 +1042,11 @@ int DisassemblerX64::AVXInstruction(uint8_t* data) {
       case 0x17:
         AppendToBuffer("vextractps ");
         current += PrintRightOperand(current);
+        AppendToBuffer(",%s,0x%x", NameOfAVXRegister(regop), *current++);
+        break;
+      case 0x19:
+        AppendToBuffer("vextractf128 ");
+        current += PrintRightXMMOperand(current);
         AppendToBuffer(",%s,0x%x", NameOfAVXRegister(regop), *current++);
         break;
       case 0x20:
@@ -2520,7 +2524,7 @@ int DisassemblerX64::InstructionDecode(v8::base::Vector<char> out_buffer,
 
       case 0x80:
         byte_size_operand_ = true;
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case 0x81:  // fall through
       case 0x83:  // 0x81 with sign extension bit set
         data += PrintImmediateOp(data);
@@ -2777,13 +2781,13 @@ int DisassemblerX64::InstructionDecode(v8::base::Vector<char> out_buffer,
 
       case 0xF6:
         byte_size_operand_ = true;
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case 0xF7:
         data += F6F7Instruction(data);
         break;
 
       case 0x3C:
-        AppendToBuffer("cmp al,0x%x", Imm8(data + 1));
+        AppendToBuffer("cmpb al,0x%x", Imm8(data + 1));
         data += 2;
         break;
 

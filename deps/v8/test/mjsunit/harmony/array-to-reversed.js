@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-change-array-by-copy
 
 assertEquals(0, Array.prototype.toReversed.length);
 assertEquals("toReversed", Array.prototype.toReversed.name);

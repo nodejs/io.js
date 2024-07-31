@@ -2,6 +2,7 @@
 #include "async_wrap-inl.h"
 #include "base_object-inl.h"
 #include "crypto/crypto_keys.h"
+#include "crypto/crypto_util.h"
 #include "env-inl.h"
 #include "memory_tracker-inl.h"
 #include "threadpoolwork-inl.h"
@@ -162,13 +163,11 @@ bool DiffieHellman::Init(const char* p, int p_len, int g) {
       DH_R_BAD_GENERATOR, __FILE__, __LINE__);
     return false;
   }
-  BIGNUM* bn_p =
-      BN_bin2bn(reinterpret_cast<const unsigned char*>(p), p_len, nullptr);
-  BIGNUM* bn_g = BN_new();
-  if (!BN_set_word(bn_g, g) ||
-      !DH_set0_pqg(dh_.get(), bn_p, nullptr, bn_g)) {
-    BN_free(bn_p);
-    BN_free(bn_g);
+  BignumPointer bn_p(
+      BN_bin2bn(reinterpret_cast<const unsigned char*>(p), p_len, nullptr));
+  BignumPointer bn_g(BN_new());
+  if (bn_p == nullptr || bn_g == nullptr || !BN_set_word(bn_g.get(), g) ||
+      !DH_set0_pqg(dh_.get(), bn_p.release(), nullptr, bn_g.release())) {
     return false;
   }
   return VerifyContext();
@@ -186,21 +185,23 @@ bool DiffieHellman::Init(const char* p, int p_len, const char* g, int g_len) {
       DH_R_BAD_GENERATOR, __FILE__, __LINE__);
     return false;
   }
-  BIGNUM* bn_g =
-      BN_bin2bn(reinterpret_cast<const unsigned char*>(g), g_len, nullptr);
-  if (BN_is_zero(bn_g) || BN_is_one(bn_g)) {
-    BN_free(bn_g);
+  BignumPointer bn_g(
+      BN_bin2bn(reinterpret_cast<const unsigned char*>(g), g_len, nullptr));
+  if (BN_is_zero(bn_g.get()) || BN_is_one(bn_g.get())) {
     ERR_put_error(ERR_LIB_DH, DH_F_DH_BUILTIN_GENPARAMS,
       DH_R_BAD_GENERATOR, __FILE__, __LINE__);
     return false;
   }
-  BIGNUM* bn_p =
-      BN_bin2bn(reinterpret_cast<const unsigned char*>(p), p_len, nullptr);
-  if (!DH_set0_pqg(dh_.get(), bn_p, nullptr, bn_g)) {
-    BN_free(bn_p);
-    BN_free(bn_g);
+  BignumPointer bn_p(
+      BN_bin2bn(reinterpret_cast<const unsigned char*>(p), p_len, nullptr));
+  if (!DH_set0_pqg(dh_.get(), bn_p.get(), nullptr, bn_g.get())) {
     return false;
   }
+  // The DH_set0_pqg call above takes ownership of the bignums on success,
+  // so we should release them here so we don't end with a possible
+  // use-after-free or double free.
+  bn_p.release();
+  bn_g.release();
   return VerifyContext();
 }
 
@@ -291,7 +292,7 @@ void DiffieHellman::GenerateKeys(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   DiffieHellman* diffieHellman;
-  ASSIGN_OR_RETURN_UNWRAP(&diffieHellman, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&diffieHellman, args.This());
 
   if (!DH_generate_key(diffieHellman->dh_.get())) {
     return ThrowCryptoError(env, ERR_get_error(), "Key generation failed");
@@ -326,7 +327,7 @@ void DiffieHellman::GetField(const FunctionCallbackInfo<Value>& args,
   Environment* env = Environment::GetCurrent(args);
 
   DiffieHellman* dh;
-  ASSIGN_OR_RETURN_UNWRAP(&dh, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&dh, args.This());
 
   const BIGNUM* num = get_field(dh->dh_.get());
   if (num == nullptr)
@@ -387,7 +388,7 @@ void DiffieHellman::ComputeSecret(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   DiffieHellman* diffieHellman;
-  ASSIGN_OR_RETURN_UNWRAP(&diffieHellman, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&diffieHellman, args.This());
 
   ClearErrorOnReturn clear_error_on_return;
 
@@ -446,7 +447,7 @@ void DiffieHellman::SetKey(const FunctionCallbackInfo<Value>& args,
                            int (*set_field)(DH*, BIGNUM*), const char* what) {
   Environment* env = Environment::GetCurrent(args);
   DiffieHellman* dh;
-  ASSIGN_OR_RETURN_UNWRAP(&dh, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&dh, args.This());
   CHECK_EQ(args.Length(), 1);
   ArrayBufferOrViewContents<unsigned char> buf(args[0]);
   if (UNLIKELY(!buf.CheckSizeInt32()))
@@ -472,7 +473,7 @@ void DiffieHellman::VerifyErrorGetter(const FunctionCallbackInfo<Value>& args) {
   HandleScope scope(args.GetIsolate());
 
   DiffieHellman* diffieHellman;
-  ASSIGN_OR_RETURN_UNWRAP(&diffieHellman, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&diffieHellman, args.This());
 
   args.GetReturnValue().Set(diffieHellman->verifyError_);
 }

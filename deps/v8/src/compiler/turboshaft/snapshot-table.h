@@ -15,7 +15,7 @@
 
 // A `SnapshotTable` stores a mapping from keys to values and creates snapshots,
 // which capture the current state efficiently and allow us to return to a
-// previous snapshot later. It is opimized for the case where we switch between
+// previous snapshot later. It is optimized for the case where we switch between
 // similar snapshots with a closeby common ancestor.
 //
 // Complexity:
@@ -118,9 +118,15 @@ class SnapshotTable {
   class MaybeSnapshot {
    public:
     bool has_value() const { return data_ != nullptr; }
-    Snapshot value() const { return Snapshot{data_}; }
+    Snapshot value() const {
+      DCHECK(has_value());
+      return Snapshot{data_};
+    }
 
     void Set(Snapshot snapshot) { data_ = snapshot.data_; }
+
+    MaybeSnapshot() = default;
+    explicit MaybeSnapshot(Snapshot snapshot) : data_(snapshot.data_) {}
 
    private:
     SnapshotData* data_ = nullptr;
@@ -272,10 +278,13 @@ class SnapshotTable {
   SnapshotData* root_snapshot_;
   SnapshotData* current_snapshot_;
 
-  // The following members are only used during a merge operation. They are
-  // declared here to recycle the memory, avoiding repeated Zone-allocation.
+  // The following members are only used temporarily during a merge operation
+  // or when creating a new snapshot.
+  // They are declared here to recycle the memory, avoiding repeated
+  // Zone-allocation.
   ZoneVector<TableEntry*> merging_entries_{zone_};
   ZoneVector<Value> merge_values_{zone_};
+  ZoneVector<SnapshotData*> path_{zone_};
 
 #ifdef DEBUG
   bool snapshot_was_created_with_merge = false;
@@ -362,7 +371,7 @@ struct SnapshotTable<Value, KeyData>::SnapshotData {
     return self;
   }
   void Seal(size_t log_end) {
-    DCHECK_WITH_MSG(!IsSealed(), "A Snapshot can only be sealed once.");
+    DCHECK_WITH_MSG(!IsSealed(), "A Snapshot can only be sealed once");
     this->log_end = log_end;
   }
 
@@ -388,9 +397,7 @@ void SnapshotTable<Value, KeyData>::RecordMergeValue(
              std::numeric_limits<uint32_t>::max());
     entry.merge_offset = static_cast<uint32_t>(merge_values_.size());
     merging_entries_.push_back(&entry);
-    for (size_t i = 0; i < predecessor_count; ++i) {
-      merge_values_.push_back(entry.value);
-    }
+    merge_values_.insert(merge_values_.end(), predecessor_count, entry.value);
   }
   merge_values_[entry.merge_offset + predecessor_index] = value;
   entry.last_merged_predecessor = predecessor_index;
@@ -425,7 +432,7 @@ SnapshotTable<Value, KeyData>::MoveToNewSnapshot(
     const ChangeCallback& change_callback) {
   DCHECK_WITH_MSG(
       current_snapshot_->IsSealed(),
-      "A new Snapshot was opened before the previous Snapshot was sealed.");
+      "A new Snapshot was opened before the previous Snapshot was sealed");
 
   SnapshotData* common_ancestor;
   if (predecessors.empty()) {
@@ -442,11 +449,11 @@ SnapshotTable<Value, KeyData>::MoveToNewSnapshot(
   }
   {
     // Replay to common_ancestor.
-    base::SmallVector<SnapshotData*, 16> path;
+    path_.clear();
     for (SnapshotData* s = common_ancestor; s != go_back_to; s = s->parent) {
-      path.push_back(s);
+      path_.push_back(s);
     }
-    for (SnapshotData* s : base::Reversed(path)) {
+    for (SnapshotData* s : base::Reversed(path_)) {
       ReplaySnapshot(s, change_callback);
     }
   }

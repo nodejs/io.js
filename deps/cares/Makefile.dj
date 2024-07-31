@@ -20,9 +20,50 @@ WATT32_LIB  = $(WATT32_ROOT)/lib/libwatt.a
 OBJ_DIR = djgpp
 
 CFLAGS = -g -O2 -I./include -I./src/lib \
-         -I$(WATT32_ROOT)/inc -Wall \
+         -I$(WATT32_ROOT)/inc \
+         -Wall \
+         -Wextra \
+         -Waggregate-return \
+         -Wcast-align \
+         -Wcast-qual \
+         -Wconversion \
+         -Wdeclaration-after-statement \
+         -Wdouble-promotion \
+         -Wfloat-equal \
+         -Winit-self \
+         -Wjump-misses-init \
+         -Wlogical-op \
+         -Wmissing-braces \
+         -Wmissing-declarations \
+         -Wmissing-format-attribute \
+         -Wmissing-include-dirs \
+         -Wmissing-prototypes \
+         -Wnested-externs \
+         -Wno-coverage-mismatch \
+         -Wold-style-definition \
+         -Wpacked \
+         -Wpointer-arith \
+         -Wshadow \
+         -Wsign-conversion \
+         -Wstrict-overflow \
+         -Wstrict-prototypes \
+         -Wtrampolines \
+         -Wundef \
+         -Wunreachable-code \
+         -Wunused \
+         -Wvariadic-macros \
+         -Wvla \
+         -Wwrite-strings \
+         -Werror=implicit-int \
+         -Werror=implicit-function-declaration \
+         -Wno-long-long \
          -DWATT32 -DHAVE_CONFIG_H   \
+         -D_REENTRANT \
+         -DCARES_NO_DEPRECATED \
          -Dselect=select_s
+
+# Can't enable -Wredundant-decls due to WATT32 issues
+
 
 LDFLAGS = -s
 

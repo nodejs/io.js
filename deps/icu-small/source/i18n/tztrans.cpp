@@ -40,12 +40,8 @@ TimeZoneTransition::TimeZoneTransition(const TimeZoneTransition& source)
 }
 
 TimeZoneTransition::~TimeZoneTransition() {
-    if (fFrom != nullptr) {
-        delete fFrom;
-    }
-    if (fTo != nullptr) {
-        delete fTo;
-    }
+    delete fFrom;
+    delete fTo;
 }
 
 TimeZoneTransition*
@@ -96,33 +92,25 @@ TimeZoneTransition::setTime(UDate time) {
 
 void
 TimeZoneTransition::setFrom(const TimeZoneRule& from) {
-    if (fFrom != nullptr) {
-        delete fFrom;
-    }
+    delete fFrom;
     fFrom = from.clone();
 }
 
 void
 TimeZoneTransition::adoptFrom(TimeZoneRule* from) {
-    if (fFrom != nullptr) {
-        delete fFrom;
-    }
+    delete fFrom;
     fFrom = from;
 }
 
 void
 TimeZoneTransition::setTo(const TimeZoneRule& to) {
-    if (fTo != nullptr) {
-        delete fTo;
-    }
+    delete fTo;
     fTo = to.clone();
 }
 
 void
 TimeZoneTransition::adoptTo(TimeZoneRule* to) {
-    if (fTo != nullptr) {
-        delete fTo;
-    }
+    delete fTo;
     fTo = to;
 }
 

@@ -1,7 +1,7 @@
 'use strict'
 
 const path = require('path')
-const log = require('npmlog')
+const log = require('./log')
 
 function findNodeDirectory (scriptLocation, processObj) {
   // set dirname and process if not passed in
@@ -14,10 +14,10 @@ function findNodeDirectory (scriptLocation, processObj) {
   }
 
   // Have a look to see what is above us, to try and work out where we are
-  var npmParentDirectory = path.join(scriptLocation, '../../../..')
+  const npmParentDirectory = path.join(scriptLocation, '../../../..')
   log.verbose('node-gyp root', 'npm_parent_directory is ' +
               path.basename(npmParentDirectory))
-  var nodeRootDir = ''
+  let nodeRootDir = ''
 
   log.verbose('node-gyp root', 'Finding node root directory')
   if (path.basename(npmParentDirectory) === 'deps') {
@@ -41,8 +41,8 @@ function findNodeDirectory (scriptLocation, processObj) {
   } else {
     // We don't know where we are, try working it out from the location
     // of the node binary
-    var nodeDir = path.dirname(processObj.execPath)
-    var directoryUp = path.basename(nodeDir)
+    const nodeDir = path.dirname(processObj.execPath)
+    const directoryUp = path.basename(nodeDir)
     if (directoryUp === 'bin') {
       nodeRootDir = path.join(nodeDir, '..')
     } else if (directoryUp === 'Release' || directoryUp === 'Debug') {

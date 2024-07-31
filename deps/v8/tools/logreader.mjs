@@ -54,7 +54,8 @@ function containsUnsafeInts(fields) {
  * @constructor
  */
 export class LogReader {
-  constructor(timedRange=false, pairwiseTimedRange=false, useBigInt=false) {
+  constructor(
+        timedRange=false, pairwiseTimedRange=false, useBigIntAddresses=false) {
     this.dispatchTable_ = new Map();
     this.timedRange_ = timedRange;
     this.pairwiseTimedRange_ = pairwiseTimedRange;
@@ -66,8 +67,8 @@ export class LogReader {
     this.logLinesSinceLastTimerMarker_ = [];
     // Flag to parse all numeric fields as BigInt to avoid arithmetic errors
     // caused by memory addresses being greater than MAX_SAFE_INTEGER
-    this.useBigInt = useBigInt;
-    this.parseFrame = useBigInt ? BigInt : parseInt;
+    this.useBigIntAddresses = useBigIntAddresses;
+    this.parseFrame = useBigIntAddresses ? BigInt : parseInt;
     this.hasSeenUnsafeIntegers = false;
   }
 
@@ -231,9 +232,9 @@ export class LogReader {
         parsedFields[i] = parser(fields[1 + i]);
       }
     }
-    if (!this.useBigInt) {
+    if (!this.useBigIntAddresses) {
       if (!this.hasSeenUnsafeIntegers && containsUnsafeInts(parsedFields)) {
-        console.warn(`Log line containts unsafe integers: ${fields}`);
+        console.warn(`Log line contains unsafe integers: ${fields}`);
         this.hasSeenUnsafeIntegers = true;
       }
     }

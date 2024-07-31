@@ -418,8 +418,6 @@ Node.js source code.)
 
 `args[n]` is a `Local<Value>` that represents the n-th argument passed to the
 function. `args.This()` is the `this` value inside this function call.
-`args.Holder()` is equivalent to `args.This()` in all use cases inside of
-Node.js.
 
 `args.GetReturnValue()` is a placeholder for the return value of the function,
 and provides a `.Set()` method that can be called with a boolean, integer,
@@ -829,7 +827,7 @@ The JavaScript object can be accessed as a `v8::Local<v8::Object>` by using
 `self->object()`, given a `BaseObject` named `self`.
 
 Accessing a `BaseObject` from a `v8::Local<v8::Object>` (frequently that is
-`args.This()` or `args.Holder()` in a [binding function][]) can be done using
+`args.This()` in a [binding function][]) can be done using
 the `Unwrap<T>(obj)` function, where `T` is a subclass of `BaseObject`.
 A helper for this is the `ASSIGN_OR_RETURN_UNWRAP` macro that returns from the
 current function if unwrapping fails (typically that means that the `BaseObject`
@@ -838,7 +836,7 @@ has been deleted earlier).
 ```cpp
 void Http2Session::Request(const FunctionCallbackInfo<Value>& args) {
   Http2Session* session;
-  ASSIGN_OR_RETURN_UNWRAP(&session, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&session, args.This());
   Environment* env = session->env();
   Local<Context> context = env->context();
   Isolate* isolate = env->isolate();

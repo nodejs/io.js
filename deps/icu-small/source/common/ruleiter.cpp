@@ -27,12 +27,12 @@ RuleCharacterIterator::RuleCharacterIterator(const UnicodeString& theText, const
     text(theText),
     pos(thePos),
     sym(theSym),
-    buf(0),
+    buf(nullptr),
     bufPos(0)
 {}
 
 UBool RuleCharacterIterator::atEnd() const {
-    return buf == 0 && pos.getIndex() == text.length();
+    return buf == nullptr && pos.getIndex() == text.length();
 }
 
 UChar32 RuleCharacterIterator::next(int32_t options, UBool& isEscaped, UErrorCode& ec) {
@@ -45,8 +45,8 @@ UChar32 RuleCharacterIterator::next(int32_t options, UBool& isEscaped, UErrorCod
         c = _current();
         _advance(U16_LENGTH(c));
 
-        if (c == SymbolTable::SYMBOL_REF && buf == 0 &&
-            (options & PARSE_VARIABLES) != 0 && sym != 0) {
+        if (c == SymbolTable::SYMBOL_REF && buf == nullptr &&
+            (options & PARSE_VARIABLES) != 0 && sym != nullptr) {
             UnicodeString name = sym->parseReference(text, pos, text.length());
             // If name is empty there was an isolated SYMBOL_REF;
             // return it.  Caller must be prepared for this.
@@ -55,13 +55,13 @@ UChar32 RuleCharacterIterator::next(int32_t options, UBool& isEscaped, UErrorCod
             }
             bufPos = 0;
             buf = sym->lookup(name);
-            if (buf == 0) {
+            if (buf == nullptr) {
                 ec = U_UNDEFINED_VARIABLE;
                 return DONE;
             }
             // Handle empty variable value
             if (buf->length() == 0) {
-                buf = 0;
+                buf = nullptr;
             }
             continue;
         }
@@ -114,7 +114,7 @@ UnicodeString& RuleCharacterIterator::lookahead(UnicodeString& result, int32_t m
     if (maxLookAhead < 0) {
         maxLookAhead = 0x7FFFFFFF;
     }
-    if (buf != 0) {
+    if (buf != nullptr) {
         buf->extract(bufPos, maxLookAhead, result);
     } else {
         text.extract(pos.getIndex(), maxLookAhead, result);
@@ -135,7 +135,7 @@ UnicodeString& RuleCharacterIterator::toString(UnicodeString& result) const {
 */
 
 UChar32 RuleCharacterIterator::_current() const {
-    if (buf != 0) {
+    if (buf != nullptr) {
         return buf->char32At(bufPos);
     } else {
         int i = pos.getIndex();
@@ -144,10 +144,10 @@ UChar32 RuleCharacterIterator::_current() const {
 }
 
 void RuleCharacterIterator::_advance(int32_t count) {
-    if (buf != 0) {
+    if (buf != nullptr) {
         bufPos += count;
         if (bufPos == buf->length()) {
-            buf = 0;
+            buf = nullptr;
         }
     } else {
         pos.setIndex(pos.getIndex() + count);

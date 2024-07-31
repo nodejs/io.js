@@ -63,6 +63,14 @@ class StringBuilder {
     cursor_ = start_;
   }
 
+  // Erases the last character that was written. Calling this repeatedly
+  // isn't safe due to internal chunking of the backing store.
+  void backspace() {
+    DCHECK_GT(cursor_, start_);
+    cursor_--;
+    remaining_bytes_++;
+  }
+
  protected:
   enum OnGrowth : bool { kKeepOldChunks, kReplacePreviousChunk };
 

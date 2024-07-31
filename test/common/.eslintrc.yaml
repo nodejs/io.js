@@ -1,3 +1,0 @@
-rules:
-  node-core/required-modules: off
-  node-core/require-common-first: off

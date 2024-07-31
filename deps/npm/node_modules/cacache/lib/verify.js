@@ -68,11 +68,11 @@ async function verify (cache, opts) {
   return stats
 }
 
-async function markStartTime (cache, opts) {
+async function markStartTime () {
   return { startTime: new Date() }
 }
 
-async function markEndTime (cache, opts) {
+async function markEndTime () {
   return { endTime: new Date() }
 }
 
@@ -213,7 +213,7 @@ async function rebuildIndex (cache, opts) {
   return stats
 }
 
-async function rebuildBucket (cache, bucket, stats, opts) {
+async function rebuildBucket (cache, bucket, stats) {
   await truncate(bucket._path)
   // This needs to be serialized because cacache explicitly
   // lets very racy bucket conflicts clobber each other.

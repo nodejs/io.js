@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
-
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 (function TestRefTestInvalid() {
@@ -122,7 +120,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
     .addBody([
       kExprBlock, kAnyRefCode,
         kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCastGeneric,
+        kGCPrefix, kExprBrOnCast,
           ...wasmUnsignedLeb(value), 0, kAnyRefCode, struct,
         kExprDrop,
         kExprReturn,
@@ -192,10 +190,6 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   print(arguments.callee.name);
 
   let casts = [
-    [kGCPrefix, kExprBrOnCastFailNull, 0, kI31RefCode],
-    [kGCPrefix, kExprBrOnCastNull, 0, kI31RefCode],
-    [kGCPrefix, kExprBrOnCastFail, 0, kI31RefCode],
-    [kGCPrefix, kExprBrOnCast, 0, kI31RefCode],
     wasmBrOnCastFail(
       0, wasmRefNullType(kWasmAnyRef), wasmRefNullType(kWasmI31Ref)),
     wasmBrOnCast(0, wasmRefNullType(kWasmAnyRef), wasmRefNullType(kWasmI31Ref)),
@@ -211,7 +205,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
     .addBody([
       kExprBlock, kAnyRefCode,
         kExprLocalGet, 0,
-        kGCPrefix, kExprExternInternalize,
+        kGCPrefix, kExprAnyConvertExtern,
         kExprUnreachable,
         ...brOnCast,
         kExprReturn,

@@ -1,0 +1,31 @@
+TAP version 13
+# Subtest: passes
+ok 1 - passes
+  ---
+  duration_ms: *
+  ...
+# Subtest: fails
+not ok 2 - fails
+  ---
+  duration_ms: *
+  failureType: 'testCodeFailure'
+  error: 'fail'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms *

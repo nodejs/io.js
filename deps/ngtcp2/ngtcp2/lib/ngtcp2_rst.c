@@ -29,6 +29,7 @@
 #include "ngtcp2_rtb.h"
 #include "ngtcp2_cc.h"
 #include "ngtcp2_macro.h"
+#include "ngtcp2_conn_stat.h"
 
 void ngtcp2_rs_init(ngtcp2_rs *rs) {
   rs->interval = UINT64_MAX;
@@ -69,8 +70,8 @@ void ngtcp2_rst_on_pkt_sent(ngtcp2_rst *rst, ngtcp2_rtb_entry *ent,
   ent->rst.lost = rst->lost;
 }
 
-int ngtcp2_rst_on_ack_recv(ngtcp2_rst *rst, ngtcp2_conn_stat *cstat,
-                           uint64_t pkt_delivered) {
+void ngtcp2_rst_on_ack_recv(ngtcp2_rst *rst, ngtcp2_conn_stat *cstat,
+                            uint64_t pkt_delivered) {
   ngtcp2_rs *rs = &rst->rs;
   uint64_t rate;
 
@@ -84,7 +85,7 @@ int ngtcp2_rst_on_ack_recv(ngtcp2_rst *rst, ngtcp2_conn_stat *cstat,
   }
 
   if (rs->prior_ts == 0) {
-    return 0;
+    return;
   }
 
   rs->interval = ngtcp2_max(rs->send_elapsed, rs->ack_elapsed);
@@ -94,11 +95,11 @@ int ngtcp2_rst_on_ack_recv(ngtcp2_rst *rst, ngtcp2_conn_stat *cstat,
 
   if (rs->interval < cstat->min_rtt) {
     rs->interval = UINT64_MAX;
-    return 0;
+    return;
   }
 
   if (!rs->interval) {
-    return 0;
+    return;
   }
 
   rate = rs->delivered * NGTCP2_SECONDS / rs->interval;
@@ -107,8 +108,6 @@ int ngtcp2_rst_on_ack_recv(ngtcp2_rst *rst, ngtcp2_conn_stat *cstat,
     ngtcp2_window_filter_update(&rst->wf, rate, rst->round_count);
     cstat->delivery_rate_sec = ngtcp2_window_filter_get_best(&rst->wf);
   }
-
-  return 0;
 }
 
 void ngtcp2_rst_update_rate_sample(ngtcp2_rst *rst, const ngtcp2_rtb_entry *ent,

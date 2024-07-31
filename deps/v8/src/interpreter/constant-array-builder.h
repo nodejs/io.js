@@ -53,7 +53,7 @@ class V8_EXPORT_PRIVATE ConstantArrayBuilder final {
   // Generate a fixed array of constant handles based on inserted objects.
   template <typename IsolateT>
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
-  Handle<FixedArray> ToFixedArray(IsolateT* isolate);
+  Handle<TrustedFixedArray> ToFixedArray(IsolateT* isolate);
 
   // Returns the object, as a handle in |isolate|, that is in the constant pool
   // array at index |index|. Returns null if there is no handle at this index.
@@ -161,7 +161,7 @@ class V8_EXPORT_PRIVATE ConstantArrayBuilder final {
 
     union {
       Handle<Object> handle_;
-      Smi smi_;
+      Tagged<Smi> smi_;
       double heap_number_;
       const AstRawString* raw_string_;
       AstBigInt bigint_;
@@ -234,8 +234,8 @@ class V8_EXPORT_PRIVATE ConstantArrayBuilder final {
                             base::KeyEqualityMatcher<intptr_t>,
                             ZoneAllocationPolicy>
       constants_map_;
-  ZoneMap<Smi, index_t> smi_map_;
-  ZoneVector<std::pair<Smi, index_t>> smi_pairs_;
+  ZoneMap<Tagged<Smi>, index_t> smi_map_;
+  ZoneVector<std::pair<Tagged<Smi>, index_t>> smi_pairs_;
   ZoneMap<double, index_t> heap_number_map_;
 
 #define SINGLETON_ENTRY_FIELD(NAME, LOWER_NAME) int LOWER_NAME##_ = -1;

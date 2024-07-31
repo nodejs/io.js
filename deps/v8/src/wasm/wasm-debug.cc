@@ -15,6 +15,7 @@
 #include "src/heap/factory.h"
 #include "src/wasm/baseline/liftoff-compiler.h"
 #include "src/wasm/baseline/liftoff-register.h"
+#include "src/wasm/compilation-environment-inl.h"
 #include "src/wasm/module-decoder.h"
 #include "src/wasm/std-object-sizes.h"
 #include "src/wasm/value-type.h"
@@ -133,21 +134,21 @@ class DebugInfoImpl {
   DebugInfoImpl(const DebugInfoImpl&) = delete;
   DebugInfoImpl& operator=(const DebugInfoImpl&) = delete;
 
-  int GetNumLocals(Address pc) {
-    FrameInspectionScope scope(this, pc);
+  int GetNumLocals(Address pc, Isolate* isolate) {
+    FrameInspectionScope scope(this, pc, isolate);
     if (!scope.is_inspectable()) return 0;
     return scope.debug_side_table->num_locals();
   }
 
   WasmValue GetLocalValue(int local, Address pc, Address fp,
                           Address debug_break_fp, Isolate* isolate) {
-    FrameInspectionScope scope(this, pc);
+    FrameInspectionScope scope(this, pc, isolate);
     return GetValue(scope.debug_side_table, scope.debug_side_table_entry, local,
                     fp, debug_break_fp, isolate);
   }
 
-  int GetStackDepth(Address pc) {
-    FrameInspectionScope scope(this, pc);
+  int GetStackDepth(Address pc, Isolate* isolate) {
+    FrameInspectionScope scope(this, pc, isolate);
     if (!scope.is_inspectable()) return 0;
     int num_locals = scope.debug_side_table->num_locals();
     int stack_height = scope.debug_side_table_entry->stack_height();
@@ -156,7 +157,7 @@ class DebugInfoImpl {
 
   WasmValue GetStackValue(int index, Address pc, Address fp,
                           Address debug_break_fp, Isolate* isolate) {
-    FrameInspectionScope scope(this, pc);
+    FrameInspectionScope scope(this, pc, isolate);
     int num_locals = scope.debug_side_table->num_locals();
     int value_count = scope.debug_side_table_entry->stack_height();
     if (num_locals + index >= value_count) return {};
@@ -164,8 +165,8 @@ class DebugInfoImpl {
                     num_locals + index, fp, debug_break_fp, isolate);
   }
 
-  const WasmFunction& GetFunctionAtAddress(Address pc) {
-    FrameInspectionScope scope(this, pc);
+  const WasmFunction& GetFunctionAtAddress(Address pc, Isolate* isolate) {
+    FrameInspectionScope scope(this, pc, isolate);
     auto* module = native_module_->module();
     return module->functions[scope.code->index()];
   }
@@ -223,12 +224,14 @@ class DebugInfoImpl {
 
     // Recompile the function with Liftoff, setting the new breakpoints.
     // Not thread-safe. The caller is responsible for locking {mutex_}.
-    CompilationEnv env = native_module_->CreateCompilationEnv();
-    auto* function = &env.module->functions[func_index];
+    CompilationEnv env = CompilationEnv::ForModule(native_module_);
+    const WasmFunction* function = &env.module->functions[func_index];
     base::Vector<const uint8_t> wire_bytes = native_module_->wire_bytes();
+    bool is_shared = env.module->types[function->sig_index].is_shared;
     FunctionBody body{function->sig, function->code.offset(),
                       wire_bytes.begin() + function->code.offset(),
-                      wire_bytes.begin() + function->code.end_offset()};
+                      wire_bytes.begin() + function->code.end_offset(),
+                      is_shared};
     std::unique_ptr<DebugSideTable> debug_sidetable;
 
     // Debug side tables for stepping are generated lazily.
@@ -236,8 +239,10 @@ class DebugInfoImpl {
     // If lazy validation is on, we might need to lazily validate here.
     if (V8_UNLIKELY(!env.module->function_was_validated(func_index))) {
       WasmFeatures unused_detected_features;
-      DecodeResult validation_result = ValidateFunctionBody(
-          env.enabled_features, env.module, &unused_detected_features, body);
+      Zone validation_zone(wasm::GetWasmEngine()->allocator(), ZONE_NAME);
+      DecodeResult validation_result =
+          ValidateFunctionBody(&validation_zone, env.enabled_features,
+                               env.module, &unused_detected_features, body);
       // Handling illegal modules here is tricky. As lazy validation is off by
       // default anyway and this is for debugging only, we just crash for now.
       CHECK_WITH_MSG(validation_result.ok(),
@@ -528,8 +533,9 @@ class DebugInfoImpl {
 
  private:
   struct FrameInspectionScope {
-    FrameInspectionScope(DebugInfoImpl* debug_info, Address pc)
-        : code(wasm::GetWasmCodeManager()->LookupCode(pc)),
+    FrameInspectionScope(DebugInfoImpl* debug_info, Address pc,
+                         Isolate* isolate)
+        : code(wasm::GetWasmCodeManager()->LookupCode(isolate, pc)),
           pc_offset(static_cast<int>(pc - code->instruction_start())),
           debug_side_table(code->is_inspectable()
                                ? debug_info->GetDebugSideTable(code)
@@ -613,7 +619,8 @@ class DebugInfoImpl {
           return WasmValue(ReadUnalignedValue<uint64_t>(gp_addr(reg.gp())));
         } else if (value->type.is_reference()) {
           Handle<Object> obj(
-              Object(ReadUnalignedValue<Address>(gp_addr(reg.gp()))), isolate);
+              Tagged<Object>(ReadUnalignedValue<Address>(gp_addr(reg.gp()))),
+              isolate);
           return WasmValue(obj, value->type);
         } else {
           UNREACHABLE();
@@ -657,8 +664,9 @@ class DebugInfoImpl {
       case kRef:
       case kRefNull:
       case kRtt: {
-        Handle<Object> obj(Object(ReadUnalignedValue<Address>(stack_address)),
-                           isolate);
+        Handle<Object> obj(
+            Tagged<Object>(ReadUnalignedValue<Address>(stack_address)),
+            isolate);
         return WasmValue(obj, value->type);
       }
       case kI8:
@@ -771,22 +779,27 @@ DebugInfo::DebugInfo(NativeModule* native_module)
 
 DebugInfo::~DebugInfo() = default;
 
-int DebugInfo::GetNumLocals(Address pc) { return impl_->GetNumLocals(pc); }
+int DebugInfo::GetNumLocals(Address pc, Isolate* isolate) {
+  return impl_->GetNumLocals(pc, isolate);
+}
 
 WasmValue DebugInfo::GetLocalValue(int local, Address pc, Address fp,
                                    Address debug_break_fp, Isolate* isolate) {
   return impl_->GetLocalValue(local, pc, fp, debug_break_fp, isolate);
 }
 
-int DebugInfo::GetStackDepth(Address pc) { return impl_->GetStackDepth(pc); }
+int DebugInfo::GetStackDepth(Address pc, Isolate* isolate) {
+  return impl_->GetStackDepth(pc, isolate);
+}
 
 WasmValue DebugInfo::GetStackValue(int index, Address pc, Address fp,
                                    Address debug_break_fp, Isolate* isolate) {
   return impl_->GetStackValue(index, pc, fp, debug_break_fp, isolate);
 }
 
-const wasm::WasmFunction& DebugInfo::GetFunctionAtAddress(Address pc) {
-  return impl_->GetFunctionAtAddress(pc);
+const wasm::WasmFunction& DebugInfo::GetFunctionAtAddress(Address pc,
+                                                          Isolate* isolate) {
+  return impl_->GetFunctionAtAddress(pc, isolate);
 }
 
 void DebugInfo::SetBreakpoint(int func_index, int offset,
@@ -844,15 +857,14 @@ namespace {
 // contains the locals count for the function.
 int FindNextBreakablePosition(wasm::NativeModule* native_module, int func_index,
                               int offset_in_func) {
-  AccountingAllocator alloc;
-  Zone tmp(&alloc, ZONE_NAME);
+  Zone zone{wasm::GetWasmEngine()->allocator(), ZONE_NAME};
   wasm::BodyLocalDecls locals;
   const uint8_t* module_start = native_module->wire_bytes().begin();
   const wasm::WasmFunction& func =
       native_module->module()->functions[func_index];
   wasm::BytecodeIterator iterator(module_start + func.code.offset(),
                                   module_start + func.code.end_offset(),
-                                  &locals, &tmp);
+                                  &locals, &zone);
   DCHECK_LT(0, locals.encoded_size);
   if (offset_in_func < 0) return 0;
   for (; iterator.has_next(); iterator.next()) {
@@ -870,11 +882,12 @@ void SetBreakOnEntryFlag(Tagged<Script> script, bool enabled) {
   // Update the "break_on_entry" flag on all live instances.
   i::Tagged<i::WeakArrayList> weak_instance_list =
       script->wasm_weak_instance_list();
+  i::Isolate* isolate = script->GetIsolate();
   for (int i = 0; i < weak_instance_list->length(); ++i) {
-    if (weak_instance_list->Get(i)->IsCleared()) continue;
+    if (weak_instance_list->Get(i).IsCleared()) continue;
     i::Tagged<i::WasmInstanceObject> instance =
         i::WasmInstanceObject::cast(weak_instance_list->Get(i).GetHeapObject());
-    instance->set_break_on_entry(enabled);
+    instance->trusted_data(isolate)->set_break_on_entry(enabled);
   }
 }
 }  // namespace
@@ -1005,7 +1018,9 @@ bool WasmScript::ClearBreakPoint(Handle<Script> script, int position,
       if (IsUndefined(entry, isolate)) break;
     }
     // Make sure last array element is empty as a result.
-    breakpoint_infos->set_undefined(breakpoint_infos->length() - 1);
+    breakpoint_infos->set(breakpoint_infos->length() - 1,
+                          ReadOnlyRoots{isolate}.undefined_value(),
+                          SKIP_WRITE_BARRIER);
   }
 
   if (break_point->id() == v8::internal::Debug::kInstrumentationId) {
@@ -1155,8 +1170,7 @@ bool WasmScript::GetPossibleBreakpoints(
   if (start_func_index == end_func_index &&
       start_offset > functions[end_func_index].code.end_offset())
     return false;
-  AccountingAllocator alloc;
-  Zone tmp(&alloc, ZONE_NAME);
+  Zone zone{wasm::GetWasmEngine()->allocator(), ZONE_NAME};
   const uint8_t* module_start = native_module->wire_bytes().begin();
 
   for (int func_idx = start_func_index; func_idx <= end_func_index;
@@ -1167,7 +1181,7 @@ bool WasmScript::GetPossibleBreakpoints(
     wasm::BodyLocalDecls locals;
     wasm::BytecodeIterator iterator(module_start + func.code.offset(),
                                     module_start + func.code.end_offset(),
-                                    &locals, &tmp);
+                                    &locals, &zone);
     DCHECK_LT(0u, locals.encoded_size);
     for (; iterator.has_next(); iterator.next()) {
       uint32_t total_offset = func.code.offset() + iterator.pc_offset();
@@ -1198,7 +1212,7 @@ bool CheckBreakPoint(Isolate* isolate, Handle<BreakPoint> break_point,
   if (!DebugEvaluate::Local(isolate, frame_id, inlined_jsframe_index, condition,
                             throw_on_side_effect)
            .ToHandle(&result)) {
-    isolate->clear_pending_exception();
+    isolate->clear_exception();
     return false;
   }
   return Object::BooleanValue(*result, isolate);
@@ -1247,7 +1261,7 @@ MaybeHandle<FixedArray> WasmScript::CheckBreakPoints(Isolate* isolate,
     }
   }
   if (break_points_hit_count == 0) return {};
-  break_points_hit->Shrink(isolate, break_points_hit_count);
+  break_points_hit->RightTrim(isolate, break_points_hit_count);
   return break_points_hit;
 }
 

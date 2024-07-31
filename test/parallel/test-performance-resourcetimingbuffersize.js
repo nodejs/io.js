@@ -30,11 +30,18 @@ const initiatorType = '';
 const cacheMode = '';
 
 async function main() {
+  const args = [
+    timingInfo,
+    requestedUrl,
+    initiatorType,
+    globalThis,
+    cacheMode,
+  ];
   // Invalid buffer size values are converted to 0.
   const invalidValues = [ null, undefined, true, false, -1, 0.5, Infinity, NaN, '', 'foo', {}, [], () => {} ];
   for (const value of invalidValues) {
     performance.setResourceTimingBufferSize(value);
-    performance.markResourceTiming(timingInfo, requestedUrl, initiatorType, globalThis, cacheMode);
+    performance.markResourceTiming(...args);
     assert.strictEqual(performance.getEntriesByType('resource').length, 0);
     performance.clearResourceTimings();
   }
@@ -42,9 +49,9 @@ async function main() {
   await waitBufferFullEvent();
 
   performance.setResourceTimingBufferSize(1);
-  performance.markResourceTiming(timingInfo, requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(...args);
   // Trigger a resourcetimingbufferfull event.
-  performance.markResourceTiming(timingInfo, requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(...args);
   assert.strictEqual(performance.getEntriesByType('resource').length, 1);
   await waitBufferFullEvent();
 
@@ -56,14 +63,14 @@ async function main() {
   performance.clearResourceTimings();
   assert.strictEqual(performance.getEntriesByType('resource').length, 0);
   // Trigger a resourcetimingbufferfull event.
-  performance.markResourceTiming(timingInfo, requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(...args);
   // New entry is not added to the global buffer.
   assert.strictEqual(performance.getEntriesByType('resource').length, 0);
   await waitBufferFullEvent();
 
   // Apply a new buffer size limit
   performance.setResourceTimingBufferSize(1);
-  performance.markResourceTiming(timingInfo, requestedUrl, initiatorType, globalThis, cacheMode);
+  performance.markResourceTiming(...args);
   assert.strictEqual(performance.getEntriesByType('resource').length, 1);
 }
 

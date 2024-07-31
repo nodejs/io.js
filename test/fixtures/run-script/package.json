@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "ada": "ada",
+    "ada-windows": "ada.bat",
+    "positional-args": "positional-args",
+    "positional-args-windows": "positional-args.bat",
+    "custom-env": "custom-env",
+    "custom-env-windows": "custom-env.bat",
+    "path-env": "path-env",
+    "path-env-windows": "path-env.bat",
+    "special-env-variables": "special-env-variables",
+    "special-env-variables-windows": "special-env-variables.bat"
+  }
+}

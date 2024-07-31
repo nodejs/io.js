@@ -22,7 +22,9 @@ class AgeTableTest : public testing::TestSupportingAllocationOnly {
   using AdjacentCardsPolicy = AgeTable::AdjacentCardsPolicy;
   static constexpr auto kCardSizeInBytes = AgeTable::kCardSizeInBytes;
 
-  AgeTableTest() : age_table_(CagedHeapLocalData::Get().age_table) {}
+  AgeTableTest() : age_table_(CagedHeapLocalData::Get().age_table) {
+    CagedHeap::CommitAgeTable(*(GetPlatform().GetPageAllocator()));
+  }
 
   ~AgeTableTest() override { age_table_.ResetForTesting(); }
 
@@ -33,7 +35,7 @@ class AgeTableTest : public testing::TestSupportingAllocationOnly {
     auto* page =
         NormalPage::TryCreate(*Heap::From(GetHeap())->page_backend(), *space);
     CHECK_NOT_NULL(page);
-    allocated_pages_.push_back({page, &BasePage::Destroy});
+    allocated_pages_.push_back({page, DestroyPage});
     return page;
   }
 
@@ -45,7 +47,7 @@ class AgeTableTest : public testing::TestSupportingAllocationOnly {
     auto* page = LargePage::TryCreate(*Heap::From(GetHeap())->page_backend(),
                                       *space, kObjectSize);
     CHECK_NOT_NULL(page);
-    allocated_pages_.push_back({page, &BasePage::Destroy});
+    allocated_pages_.push_back({page, DestroyPage});
     return page;
   }
 
@@ -74,6 +76,10 @@ class AgeTableTest : public testing::TestSupportingAllocationOnly {
   }
 
  private:
+  static void DestroyPage(BasePage* page) {
+    BasePage::Destroy(page, FreeMemoryHandling::kDoNotDiscard);
+  }
+
   std::vector<std::unique_ptr<BasePage, void (*)(BasePage*)>> allocated_pages_;
   AgeTable& age_table_;
 };
@@ -198,7 +204,8 @@ TEST_F(AgeTableTest, SetAgeForMultipleCardsConsiderAdjacentCards) {
 
 TEST_F(AgeTableTest, MarkAllCardsAsYoung) {
   uint8_t* heap_start = reinterpret_cast<uint8_t*>(CagedHeapBase::GetBase());
-  void* heap_end = heap_start + api_constants::kCagedHeapDefaultReservationSize - 1;
+  void* heap_end =
+      heap_start + api_constants::kCagedHeapDefaultReservationSize - 1;
   AssertAgeForAddressRange(heap_start, heap_end, Age::kOld);
   SetAgeForAddressRange(heap_start, heap_end, Age::kYoung,
                         AdjacentCardsPolicy::kIgnore);

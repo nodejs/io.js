@@ -317,12 +317,18 @@ test('subtest sync throw fails', async (t) => {
 
 test('timed out async test', { timeout: 5 }, async (t) => {
   return new Promise((resolve) => {
-    setTimeout(resolve, 100);
+    setTimeout(() => {
+      // Empty timer so the process doesn't exit before the timeout triggers.
+    }, 5);
+    setTimeout(resolve, 30_000_000).unref();
   });
 });
 
 test('timed out callback test', { timeout: 5 }, (t, done) => {
-  setTimeout(done, 100);
+  setTimeout(() => {
+    // Empty timer so the process doesn't exit before the timeout triggers.
+  }, 5);
+  setTimeout(done, 30_000_000).unref();
 });
 
 
@@ -382,8 +388,16 @@ test('assertion errors display actual and expected properly', async () => {
   circular.c = circular;
   const tmpLimit = Error.stackTraceLimit;
   Error.stackTraceLimit = 1;
+  const boo = [1];
+  const baz = {
+    date: new Date(0),
+    null: null,
+    number: 1,
+    string: 'Hello',
+    undefined: undefined,
+  }
   try {
-    assert.deepEqual({ foo: 1, bar: 1 }, circular); // eslint-disable-line no-restricted-properties
+    assert.deepEqual({ foo: 1, bar: 1, boo, baz }, { boo, baz, circular }); // eslint-disable-line no-restricted-properties
   } catch (err) {
     Error.stackTraceLimit = tmpLimit;
     throw err;

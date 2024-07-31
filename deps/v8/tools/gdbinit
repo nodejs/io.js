@@ -11,60 +11,89 @@ Print a v8 JavaScript object
 Usage: job tagged_ptr
 end
 
-# Print content of v8::internal::Handle.
-define jh
-call (void) _v8_internal_Print_Object(*((v8::internal::Object**)($arg0).location_))
-end
-document jh
-Print content of a v8::internal::Handle
-Usage: jh internal_handle
-end
-
-# Print content of v8::Local handle.
+# Print content of V8 handles.
 python
 import gdb
 
-class PrintV8LocalCommand(gdb.Command):
-  """Print content of v8::Local handle."""
+class PrintV8HandleCommand(gdb.Command):
+  """Print content of a V8 object, accessed through a handle."""
 
-  PRINT_CMD = "call (void) _v8_internal_Print_Object(*(v8::internal::Address**)({0}))"
-
-  def __init__ (self):
-    super(PrintV8LocalCommand, self).__init__ ("print-v8-local", gdb.COMMAND_DATA)
+  def __init__(self, command_name):
+    self.command_name = command_name
+    super(PrintV8HandleCommand, self).__init__(command_name, gdb.COMMAND_DATA)
 
   @staticmethod
-  def get_address_from_local(value):
+  def print_direct(value, from_tty):
+    CMD = "call (void) _v8_internal_Print_Object((v8::internal::Address*)({}))"
+    gdb.execute(CMD.format(value.format_string()), from_tty)
+    return True
+
+  @staticmethod
+  def print_indirect(value, from_tty):
+    CMD = "call (void) _v8_internal_Print_Object(*(v8::internal::Address**)({}))"
+    gdb.execute(CMD.format(value.format_string()), from_tty)
+    return True
+
+  def invoke(self, arg, from_tty):
+    argv = gdb.string_to_argv(arg)
+    if len(argv) != 1:
+      raise gdb.GdbError("{} takes exactly one argument.".format(
+          self.command_name))
+    value = gdb.parse_and_eval(argv[0])
+    if not self.print_handle(value, from_tty):
+      raise gdb.GdbError("{} cannot print a value of type {}".format(
+        self.command_name, value.type))
+
+
+class PrintV8LocalCommand(PrintV8HandleCommand):
+  """Print content of v8::(Maybe)?Local."""
+
+  def __init__(self):
+    super(PrintV8LocalCommand, self).__init__("print-v8-local")
+
+  def print_handle(self, value, from_tty):
     if gdb.types.get_basic_type(value.type).code != gdb.TYPE_CODE_STRUCT:
-      return None
+      return False
     # After https://crrev.com/c/4335544, v8::MaybeLocal contains a local_.
     if gdb.types.has_field(value.type, "local_"):
       value = value["local_"]
     # After https://crrev.com/c/4335544, v8::Local contains a location_.
     if gdb.types.has_field(value.type, "location_"):
-      return value["location_"].format_string()
+      return self.print_indirect(value["location_"], from_tty)
     # Before https://crrev.com/c/4335544, v8::Local contained a val_.
     if gdb.types.has_field(value.type, "val_"):
-      return value["val_"].format_string()
+      return self.print_indirect(value["val_"], from_tty)
+    # With v8_enable_direct_local=true, v8::Local contains a ptr_.
+    if gdb.types.has_field(value.type, "ptr_"):
+      return self.print_direct(value["ptr_"], from_tty)
     # We don't know how to print this...
-    return None
+    return False
 
-  def invoke (self, arg, from_tty):
-    argv = gdb.string_to_argv(arg)
-    if len(argv) != 1:
-      raise gdb.GdbError("print-local takes exactly one argument.")
-    value = gdb.parse_and_eval(argv[0])
-    indirect_pointer = self.get_address_from_local(value)
-    if indirect_pointer is not None:
-      gdb.execute(self.PRINT_CMD.format(indirect_pointer), from_tty)
-    else:
-      raise gdb.GdbError("print-local cannot print a value of type {}".format(
-        value.type))
+class PrintV8InternalHandleCommand(PrintV8HandleCommand):
+  """Print content of v8::internal::(Maybe)?(Direct|Indirect)?Handle."""
+
+  def __init__(self):
+    super(PrintV8InternalHandleCommand, self).__init__("print-v8-internal-handle")
+
+  def print_handle(self, value, from_tty):
+    if gdb.types.get_basic_type(value.type).code != gdb.TYPE_CODE_STRUCT:
+      return False
+    # Indirect handles contain a location_.
+    if gdb.types.has_field(value.type, "location_"):
+      return self.print_indirect(value["location_"], from_tty)
+    # Direct handles contain a obj_.
+    if gdb.types.has_field(value.type, "obj_"):
+      return self.print_direct(value["obj_"], from_tty)
+    # We don't know how to print this...
+    return False
 
 PrintV8LocalCommand()
+PrintV8InternalHandleCommand()
 end
 
 alias jlh = print-v8-local
 alias jl = print-v8-local
+alias jh = print-v8-internal-handle
 
 # Print Code objects containing given PC.
 define jco
@@ -91,9 +120,9 @@ define jca
     end
   end
 end
-document jco
-Print a v8 Code object from an internal code address
-Usage: jco pc
+document jca
+Print a v8 Code object assembly code from an internal code address
+Usage: jca pc
 end
 
 # Print TransitionTree.
@@ -366,10 +395,20 @@ def cppgc_pretty_printers(val):
   typename = val.type.name or val.type.tag or str(val.type)
   regex = re.compile("^(cppgc|blink)::(Weak|Untraced)?Member<(.*)>$")
   match = regex.match(typename)
-  if match is None:
-    return None
-  return CppGCMemberPrinter(
-      val, category=match.group(2), pointee_type=match.group(3))
+  if match is not None:
+    return CppGCMemberPrinter(
+        val, category=match.group(2), pointee_type=match.group(3))
+
+  # The member type might have been obscured by typedefs and template
+  # arguments. Fallback to using the underlying type.
+  real_type = val.type.strip_typedefs()
+  if (real_type.name is not None and
+      real_type.name.startswith('cppgc::internal::BasicMember')):
+    inner_type = real_type.template_argument(0)
+    return CppGCMemberPrinter(
+        val, category='Basic', pointee_type=inner_type.name)
+
+  return None
 
 
 gdb.pretty_printers.append(cppgc_pretty_printers)

@@ -170,7 +170,7 @@ template <typename Derived, typename Shape>
 template <typename IsolateT>
 InternalIndex HashTable<Derived, Shape>::FindEntry(IsolateT* isolate, Key key) {
   ReadOnlyRoots roots(isolate);
-  return FindEntry(isolate, roots, key, Shape::Hash(roots, key));
+  return FindEntry(isolate, roots, key, TodoShape::Hash(roots, key));
 }
 
 // Find entry for key otherwise return kNotFound.
@@ -183,7 +183,7 @@ InternalIndex HashTable<Derived, Shape>::FindEntry(PtrComprCageBase cage_base,
   uint32_t count = 1;
   Tagged<Object> undefined = roots.undefined_value();
   Tagged<Object> the_hole = roots.the_hole_value();
-  DCHECK_EQ(Shape::Hash(roots, key), static_cast<uint32_t>(hash));
+  DCHECK_EQ(TodoShape::Hash(roots, key), static_cast<uint32_t>(hash));
   // EnsureCapacity will guarantee the hash table is never full.
   for (InternalIndex entry = FirstProbe(hash, capacity);;
        entry = NextProbe(entry, count++, capacity)) {
@@ -191,8 +191,8 @@ InternalIndex HashTable<Derived, Shape>::FindEntry(PtrComprCageBase cage_base,
     // Empty entry. Uses raw unchecked accessors because it is called by the
     // string table during bootstrapping.
     if (element == undefined) return InternalIndex::NotFound();
-    if (Shape::kMatchNeedsHoleCheck && element == the_hole) continue;
-    if (Shape::IsMatch(key, element)) return entry;
+    if (TodoShape::kMatchNeedsHoleCheck && element == the_hole) continue;
+    if (TodoShape::IsMatch(key, element)) return entry;
   }
 }
 
@@ -216,7 +216,7 @@ bool HashTable<Derived, Shape>::ToKey(ReadOnlyRoots roots, InternalIndex entry,
                                       Tagged<Object>* out_k) {
   Tagged<Object> k = KeyAt(entry);
   if (!IsKey(roots, k)) return false;
-  *out_k = Shape::Unwrap(k);
+  *out_k = TodoShape::Unwrap(k);
   return true;
 }
 
@@ -226,7 +226,7 @@ bool HashTable<Derived, Shape>::ToKey(PtrComprCageBase cage_base,
                                       Tagged<Object>* out_k) {
   Tagged<Object> k = KeyAt(cage_base, entry);
   if (!IsKey(GetReadOnlyRoots(cage_base), k)) return false;
-  *out_k = Shape::Unwrap(k);
+  *out_k = TodoShape::Unwrap(k);
   return true;
 }
 
@@ -239,7 +239,7 @@ Tagged<Object> HashTable<Derived, Shape>::KeyAt(InternalIndex entry) {
 template <typename Derived, typename Shape>
 Tagged<Object> HashTable<Derived, Shape>::KeyAt(PtrComprCageBase cage_base,
                                                 InternalIndex entry) {
-  return get(cage_base, EntryToIndex(entry) + kEntryKeyIndex);
+  return get(EntryToIndex(entry) + kEntryKeyIndex);
 }
 
 template <typename Derived, typename Shape>
@@ -253,7 +253,7 @@ template <typename Derived, typename Shape>
 Tagged<Object> HashTable<Derived, Shape>::KeyAt(PtrComprCageBase cage_base,
                                                 InternalIndex entry,
                                                 RelaxedLoadTag tag) {
-  return get(cage_base, EntryToIndex(entry) + kEntryKeyIndex, tag);
+  return get(EntryToIndex(entry) + kEntryKeyIndex, tag);
 }
 
 template <typename Derived, typename Shape>

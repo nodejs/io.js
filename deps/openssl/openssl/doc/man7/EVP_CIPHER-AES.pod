@@ -61,6 +61,19 @@ FIPS provider:
 This implementation supports the parameters described in
 L<EVP_EncryptInit(3)/PARAMETERS>.
 
+=head1 NOTES
+
+The AES-SIV and AES-WRAP mode implementations do not support streaming. That
+means to obtain correct results there can be only one L<EVP_EncryptUpdate(3)>
+or L<EVP_DecryptUpdate(3)> call after the initialization of the context.
+
+The AES-XTS implementations allow streaming to be performed, but each
+L<EVP_EncryptUpdate(3)> or L<EVP_DecryptUpdate(3)> call requires each input
+to be a multiple of the blocksize. Only the final EVP_EncryptUpdate() or
+EVP_DecryptUpdate() call can optionally have an input that is not a multiple
+of the blocksize but is larger than one block. In that case ciphertext
+stealing (CTS) is used to fill the block.
+
 =head1 SEE ALSO
 
 L<provider-cipher(7)>, L<OSSL_PROVIDER-FIPS(7)>, L<OSSL_PROVIDER-default(7)>

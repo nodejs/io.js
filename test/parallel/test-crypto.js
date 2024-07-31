@@ -25,12 +25,6 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
-common.expectWarning({
-  DeprecationWarning: [
-    ['crypto.createCipher is deprecated.', 'DEP0106'],
-  ]
-});
-
 const assert = require('assert');
 const crypto = require('crypto');
 const tls = require('tls');
@@ -183,24 +177,6 @@ const encodingError = {
   message: "The argument 'encoding' is invalid for data of length 1." +
            " Received 'hex'",
 };
-
-// Regression tests for https://github.com/nodejs/node-v0.x-archive/pull/5725:
-// hex input that's not a power of two should throw, not assert in C++ land.
-['createCipher', 'createDecipher'].forEach((funcName) => {
-  assert.throws(
-    () => crypto[funcName]('aes192', 'test').update('0', 'hex'),
-    (error) => {
-      assert.ok(!('opensslErrorStack' in error));
-      if (common.hasFipsCrypto) {
-        return error instanceof Error &&
-               error.name === 'Error' &&
-               /^Error: not supported in FIPS mode$/.test(error);
-      }
-      assert.throws(() => { throw error; }, encodingError);
-      return true;
-    }
-  );
-});
 
 assert.throws(
   () => crypto.createHash('sha1').update('0', 'hex'),

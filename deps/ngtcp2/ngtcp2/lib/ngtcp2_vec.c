@@ -145,7 +145,7 @@ ngtcp2_ssize ngtcp2_vec_split(ngtcp2_vec *src, size_t *psrccnt, ngtcp2_vec *dst,
 size_t ngtcp2_vec_merge(ngtcp2_vec *dst, size_t *pdstcnt, ngtcp2_vec *src,
                         size_t *psrccnt, size_t left, size_t maxcnt) {
   size_t orig_left = left;
-  size_t i;
+  size_t i = 0;
   ngtcp2_vec *a, *b;
 
   assert(maxcnt);
@@ -158,12 +158,7 @@ size_t ngtcp2_vec_merge(ngtcp2_vec *dst, size_t *pdstcnt, ngtcp2_vec *src,
     a = &dst[0];
     b = &src[0];
 
-    if (left >= b->len) {
-      *a = *b;
-      ++*pdstcnt;
-      left -= b->len;
-      i = 1;
-    } else {
+    if (left < b->len) {
       a->len = left;
       a->base = b->base;
 
@@ -172,41 +167,43 @@ size_t ngtcp2_vec_merge(ngtcp2_vec *dst, size_t *pdstcnt, ngtcp2_vec *src,
 
       return left;
     }
-  } else {
-    i = 0;
+
+    *a = *b;
+    ++*pdstcnt;
+    left -= b->len;
+    i = 1;
   }
 
   for (; left && i < *psrccnt; ++i) {
     a = &dst[*pdstcnt - 1];
     b = &src[i];
 
-    if (left >= b->len) {
+    if (left < b->len) {
       if (a->base + a->len == b->base) {
-        a->len += b->len;
+        a->len += left;
       } else if (*pdstcnt == maxcnt) {
         break;
       } else {
-        dst[(*pdstcnt)++] = *b;
+        dst[*pdstcnt].len = left;
+        dst[*pdstcnt].base = b->base;
+        ++*pdstcnt;
       }
-      left -= b->len;
-      continue;
+
+      b->len -= left;
+      b->base += left;
+      left = 0;
+
+      break;
     }
 
     if (a->base + a->len == b->base) {
-      a->len += left;
+      a->len += b->len;
     } else if (*pdstcnt == maxcnt) {
       break;
     } else {
-      dst[*pdstcnt].len = left;
-      dst[*pdstcnt].base = b->base;
-      ++*pdstcnt;
+      dst[(*pdstcnt)++] = *b;
     }
-
-    b->len -= left;
-    b->base += left;
-    left = 0;
-
-    break;
+    left -= b->len;
   }
 
   memmove(src, src + i, sizeof(ngtcp2_vec) * (*psrccnt - i));

@@ -11,7 +11,7 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
-SpillPlacer::SpillPlacer(TopTierRegisterAllocationData* data, Zone* zone)
+SpillPlacer::SpillPlacer(RegisterAllocationData* data, Zone* zone)
     : data_(data), zone_(zone) {}
 
 SpillPlacer::~SpillPlacer() {

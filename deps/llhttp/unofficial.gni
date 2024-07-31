@@ -1,0 +1,29 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("llhttp_gn_build") {
+  config("llhttp_config") {
+    include_dirs = [ "include" ]
+  }
+
+  gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                            [ rebase_path("llhttp.gyp") ],
+                            "scope",
+                            [ "llhttp.gyp" ])
+
+  source_set(target_name) {
+    forward_variables_from(invoker, "*")
+    public_configs = [ ":llhttp_config" ]
+    include_dirs = [ "include" ]
+    sources = gypi_values.llhttp_sources
+    if (is_clang || !is_win) {
+      cflags_c = [
+        "-Wno-implicit-fallthrough",
+        "-Wno-unreachable-code",
+      ]
+    }
+  }
+}

@@ -403,7 +403,7 @@ unorm_cmpEquivFold(const char16_t *s1, int32_t length1,
         }
 
         if( level1<2 && (options&_COMPARE_EQUIV) &&
-            0!=(p=nfcImpl->getDecomposition((UChar32)cp1, decomp1, length))
+            nullptr != (p = nfcImpl->getDecomposition((UChar32)cp1, decomp1, length))
         ) {
             /* cp1 decomposes into p[length] */
             if(U_IS_SURROGATE(c1)) {
@@ -444,7 +444,7 @@ unorm_cmpEquivFold(const char16_t *s1, int32_t length1,
         }
 
         if( level2<2 && (options&_COMPARE_EQUIV) &&
-            0!=(p=nfcImpl->getDecomposition((UChar32)cp2, decomp2, length))
+            nullptr != (p = nfcImpl->getDecomposition((UChar32)cp2, decomp2, length))
         ) {
             /* cp2 decomposes into p[length] */
             if(U_IS_SURROGATE(c2)) {
@@ -566,7 +566,7 @@ unorm_compare(const char16_t *s1, int32_t length1,
     if(U_FAILURE(*pErrorCode)) {
         return 0;
     }
-    if(s1==0 || length1<-1 || s2==0 || length2<-1) {
+    if (s1 == nullptr || length1 < -1 || s2 == nullptr || length2 < -1) {
         *pErrorCode=U_ILLEGAL_ARGUMENT_ERROR;
         return 0;
     }

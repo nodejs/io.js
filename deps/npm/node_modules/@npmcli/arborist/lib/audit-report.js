@@ -13,7 +13,7 @@ const _fixAvailable = Symbol('fixAvailable')
 const _checkTopNode = Symbol('checkTopNode')
 const _init = Symbol('init')
 const _omit = Symbol('omit')
-const log = require('proc-log')
+const { log, time } = require('proc-log')
 
 const fetch = require('npm-registry-fetch')
 
@@ -117,7 +117,7 @@ class AuditReport extends Map {
   }
 
   async [_init] () {
-    process.emit('time', 'auditReport:init')
+    const timeEnd = time.start('auditReport:init')
 
     const promises = []
     for (const [name, advisories] of Object.entries(this.report)) {
@@ -210,7 +210,8 @@ class AuditReport extends Map {
         }
       }
     }
-    process.emit('timeEnd', 'auditReport:init')
+
+    timeEnd()
   }
 
   [_checkTopNode] (topNode, vuln, spec) {
@@ -306,7 +307,7 @@ class AuditReport extends Map {
       return null
     }
 
-    process.emit('time', 'auditReport:getReport')
+    const timeEnd = time.start('auditReport:getReport')
     try {
       try {
         // first try the super fast bulk advisory listing
@@ -347,7 +348,7 @@ class AuditReport extends Map {
       this.error = er
       return null
     } finally {
-      process.emit('timeEnd', 'auditReport:getReport')
+      timeEnd()
     }
   }
 }

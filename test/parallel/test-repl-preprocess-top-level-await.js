@@ -144,6 +144,9 @@ const testCases = [
     '(async () => { return { value: ((await x).y) } })()'],
   [ 'await (await x).y',
     '(async () => { return { value: (await (await x).y) } })()'],
+  [ 'var { ...rest } = await {}',
+    'var rest; (async () => { void ({ ...rest } = await {}) })()',
+  ],
 ];
 
 for (const [input, expected] of testCases) {

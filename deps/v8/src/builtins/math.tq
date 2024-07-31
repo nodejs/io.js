@@ -282,6 +282,14 @@ transitioning javascript builtin MathFround(
   return Convert<Number>(x64);
 }
 
+// ES6 #sec-math.f16round
+transitioning javascript builtin MathF16round(
+    js-implicit context: NativeContext)(x: JSAny): Number {
+  const x16 = Convert<float16>(ToNumber_Inline(x));
+  const x64 = Convert<float64>(x16);
+  return Convert<Number>(x64);
+}
+
 // ES6 #sec-math.imul
 transitioning javascript builtin MathImul(
     js-implicit context: NativeContext)(x: JSAny, y: JSAny): Number {

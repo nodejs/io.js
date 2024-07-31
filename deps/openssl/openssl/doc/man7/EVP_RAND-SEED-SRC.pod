@@ -49,9 +49,10 @@ A context for the seed source can be obtained by calling:
  OSSL_PARAM params[2], *p = params;
  unsigned int strength = 128;
 
- /* Create a seed source */
+ /* Create and instantiate a seed source */
  rand = EVP_RAND_fetch(NULL, "SEED-SRC", NULL);
  seed = EVP_RAND_CTX_new(rand, NULL);
+ EVP_RAND_instantiate(seed, strength, 0, NULL, 0, NULL);
  EVP_RAND_free(rand);
 
  /* Feed this into a DRBG */

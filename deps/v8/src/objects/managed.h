@@ -50,7 +50,7 @@ class Managed : public Foreign {
  public:
   Managed() : Foreign() {}
   explicit Managed(Address ptr) : Foreign(ptr) {}
-  explicit constexpr Managed(Address ptr, SkipTypeCheckTag)
+  explicit V8_INLINE constexpr Managed(Address ptr, SkipTypeCheckTag)
       : Foreign(ptr, SkipTypeCheckTag{}) {}
 
   // For every object, add a `->` operator which returns a pointer to this

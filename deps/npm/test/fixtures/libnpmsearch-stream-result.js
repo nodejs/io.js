@@ -283,6 +283,7 @@ module.exports = [
     scope: 'unscoped',
     version: '1.0.0',
     date: '2019-09-26T22:24:28.713Z',
+    publisher: { username: 'lukekarrys', email: 'lukekarrys' },
     maintainers: [{ username: 'lukekarrys', email: 'lukekarrys' }],
   },
 ]

@@ -50,7 +50,7 @@ function createTimingInfo({
 }
 
 const bench = common.createBenchmark(main, {
-  n: [1e5],
+  n: [1e6],
   observe: ['resource'],
 });
 

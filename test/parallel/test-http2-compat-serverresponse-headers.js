@@ -38,8 +38,18 @@ server.listen(0, common.mustCall(function() {
     response.setHeader(denormalised, expectedValue);
     assert.strictEqual(response.getHeader(denormalised), expectedValue);
     assert.strictEqual(response.hasHeader(denormalised), true);
+    assert.strictEqual(response.hasHeader(real), true);
+
+    response.appendHeader(real, expectedValue);
+    assert.deepStrictEqual(response.getHeader(real), [
+      expectedValue,
+      expectedValue,
+    ]);
+    assert.strictEqual(response.hasHeader(real), true);
+
     response.removeHeader(denormalised);
     assert.strictEqual(response.hasHeader(denormalised), false);
+    assert.strictEqual(response.hasHeader(real), false);
 
     ['hasHeader', 'getHeader', 'removeHeader'].forEach((fnName) => {
       assert.throws(

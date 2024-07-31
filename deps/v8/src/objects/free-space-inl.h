@@ -23,6 +23,13 @@ TQ_OBJECT_CONSTRUCTORS_IMPL(FreeSpace)
 
 RELAXED_SMI_ACCESSORS(FreeSpace, size, kSizeOffset)
 
+// static
+inline void FreeSpace::SetSize(const WritableFreeSpace& writable_free_space,
+                               int size, RelaxedStoreTag tag) {
+  writable_free_space.WriteHeaderSlot<Smi, kSizeOffset>(Smi::FromInt(size),
+                                                        tag);
+}
+
 int FreeSpace::Size() { return size(kRelaxedLoad); }
 
 Tagged<FreeSpace> FreeSpace::next() const {
@@ -34,26 +41,29 @@ Tagged<FreeSpace> FreeSpace::next() const {
     return FreeSpace();
   }
   Address next_ptr = ptr() + diff_to_next * kObjectAlignment;
-  return FreeSpace::unchecked_cast(Object(next_ptr));
+  return FreeSpace::unchecked_cast(Tagged<Object>(next_ptr));
 #else
   return FreeSpace::unchecked_cast(
       TaggedField<Object, kNextOffset>::load(*this));
 #endif  // V8_EXTERNAL_CODE_SPACE
 }
 
-void FreeSpace::set_next(Tagged<FreeSpace> next) {
+void FreeSpace::SetNext(const WritableFreeSpace& writable_free_space,
+                        Tagged<FreeSpace> next) {
   DCHECK(IsValid());
+
 #ifdef V8_EXTERNAL_CODE_SPACE
   if (next.is_null()) {
-    TaggedField<Smi, kNextOffset>::Relaxed_Store(*this, Smi::zero());
+    writable_free_space.WriteHeaderSlot<Smi, kNextOffset>(Smi::zero(),
+                                                          kRelaxedStore);
     return;
   }
   intptr_t diff_to_next = next.ptr() - ptr();
   DCHECK(IsAligned(diff_to_next, kObjectAlignment));
-  TaggedField<Smi, kNextOffset>::Relaxed_Store(
-      *this, Smi::FromIntptr(diff_to_next / kObjectAlignment));
+  writable_free_space.WriteHeaderSlot<Smi, kNextOffset>(
+      Smi::FromIntptr(diff_to_next / kObjectAlignment), kRelaxedStore);
 #else
-  TaggedField<Object, kNextOffset>::Relaxed_Store(*this, next);
+  writable_free_space.WriteHeaderSlot<Object, kNextOffset>(next, kRelaxedStore);
 #endif  // V8_EXTERNAL_CODE_SPACE
 }
 

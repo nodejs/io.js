@@ -69,7 +69,7 @@ class V8_EXPORT_PRIVATE MapUpdater {
 
   // As above but does not mutate maps; instead, we attempt to replay existing
   // transitions to find an updated map. No lock is taken.
-  static base::Optional<Map> TryUpdateNoLock(
+  static base::Optional<Tagged<Map>> TryUpdateNoLock(
       Isolate* isolate, Tagged<Map> old_map,
       ConcurrencyMode cmode) V8_WARN_UNUSED_RESULT;
 

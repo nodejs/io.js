@@ -20,7 +20,7 @@ namespace v8 {
 namespace internal {
 
 struct EphemeronMarking {
-  std::vector<HeapObject> newly_discovered;
+  std::vector<Tagged<HeapObject>> newly_discovered;
   bool newly_discovered_overflowed;
   size_t newly_discovered_limit;
 };
@@ -35,6 +35,7 @@ struct EphemeronMarking {
 // - AddWeakReferenceForReferenceSummarizer
 // - TryMark
 // - IsMarked
+// - MarkPointerTableEntry
 // - retaining_path_mode
 // - RecordSlot
 // - RecordRelocSlot
@@ -71,7 +72,8 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
         shared_external_pointer_table_(
             &heap->isolate()->shared_external_pointer_table()),
         shared_external_pointer_space_(
-            heap->isolate()->shared_external_pointer_space())
+            heap->isolate()->shared_external_pointer_space()),
+        trusted_pointer_table_(&heap->isolate()->trusted_pointer_table())
 #endif  // V8_ENABLE_SANDBOX
   {
   }
@@ -122,7 +124,7 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
   }
   V8_INLINE void VisitInstructionStreamPointer(
       Tagged<Code> host, InstructionStreamSlot slot) final {
-    VisitInstructionStreamPointerImpl(host, slot);
+    VisitStrongPointerImpl(host, slot);
   }
   V8_INLINE void VisitEmbeddedPointer(Tagged<InstructionStream> host,
                                       RelocInfo* rinfo) final;
@@ -135,27 +137,31 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
   }
 
   V8_INLINE void VisitExternalPointer(Tagged<HeapObject> host,
-                                      ExternalPointerSlot slot,
-                                      ExternalPointerTag tag) final;
+                                      ExternalPointerSlot slot) final;
   V8_INLINE void VisitIndirectPointer(Tagged<HeapObject> host,
                                       IndirectPointerSlot slot,
                                       IndirectPointerMode mode) final;
 
-  void VisitIndirectPointerTableEntry(Tagged<HeapObject> host,
-                                      IndirectPointerSlot slot) final;
+  void VisitTrustedPointerTableEntry(Tagged<HeapObject> host,
+                                     IndirectPointerSlot slot) final;
+
+  V8_INLINE void VisitProtectedPointer(Tagged<TrustedObject> host,
+                                       ProtectedPointerSlot slot) final {
+    VisitStrongPointerImpl(host, slot);
+  }
 
   void SynchronizePageAccess(Tagged<HeapObject> heap_object) {
 #ifdef THREAD_SANITIZER
     // This is needed because TSAN does not process the memory fence
     // emitted after page initialization.
-    BasicMemoryChunk::FromHeapObject(heap_object)->SynchronizedHeapLoad();
+    MemoryChunk::FromHeapObject(heap_object)->SynchronizedLoad();
 #endif
   }
 
   bool ShouldMarkObject(Tagged<HeapObject> object) const {
-    if (object.InReadOnlySpace()) return false;
+    if (InReadOnlySpace(object)) return false;
     if (should_mark_shared_heap_) return true;
-    return !object.InAnySharedSpace();
+    return !InAnySharedSpace(object);
   }
 
   // Marks the object grey and pushes it on the marking work list.
@@ -181,16 +187,11 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
                              Tagged<HeapObject> heap_object);
 
   template <typename TSlot>
-  V8_INLINE void VisitPointerImpl(Tagged<HeapObject> host, TSlot p);
-
-  template <typename TSlot>
   V8_INLINE void VisitPointersImpl(Tagged<HeapObject> host, TSlot start,
                                    TSlot end);
 
-  // Similar to VisitPointersImpl() but using code cage base for loading from
-  // the slot.
-  V8_INLINE void VisitInstructionStreamPointerImpl(Tagged<Code> host,
-                                                   InstructionStreamSlot slot);
+  template <typename TSlot>
+  V8_INLINE void VisitStrongPointerImpl(Tagged<HeapObject> host, TSlot slot);
 
   V8_INLINE void VisitDescriptorsForMap(Tagged<Map> map);
 
@@ -231,6 +232,7 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
   ExternalPointerTable* const external_pointer_table_;
   ExternalPointerTable* const shared_external_pointer_table_;
   ExternalPointerTable::Space* const shared_external_pointer_space_;
+  TrustedPointerTable* const trusted_pointer_table_;
 #endif  // V8_ENABLE_SANDBOX
 };
 
@@ -266,6 +268,8 @@ class FullMarkingVisitorBase : public MarkingVisitorBase<ConcreteVisitor> {
   bool IsMarked(Tagged<HeapObject> obj) const {
     return MarkBit::From(obj).Get<AccessMode::ATOMIC>();
   }
+
+  void MarkPointerTableEntry(Tagged<HeapObject> obj, IndirectPointerSlot slot);
 };
 
 }  // namespace internal

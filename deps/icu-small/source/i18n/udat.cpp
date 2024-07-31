@@ -142,7 +142,7 @@ udat_open(UDateFormatStyle  timeStyle,
 {
     DateFormat *fmt;
     if(U_FAILURE(*status)) {
-        return 0;
+        return nullptr;
     }
     if(gOpener!=nullptr) { // if it's registered
       fmt = (DateFormat*) (*gOpener)(timeStyle,dateStyle,locale,tzID,tzIDLength,pattern,patternLength,status);
@@ -151,7 +151,7 @@ udat_open(UDateFormatStyle  timeStyle,
       } // else fall through.
     }
     if(timeStyle != UDAT_PATTERN) {
-        if(locale == 0) {
+        if (locale == nullptr) {
             fmt = DateFormat::createDateTimeInstance((DateFormat::EStyle)dateStyle,
                 (DateFormat::EStyle)timeStyle);
         }
@@ -164,7 +164,7 @@ udat_open(UDateFormatStyle  timeStyle,
     else {
         UnicodeString pat((UBool)(patternLength == -1), pattern, patternLength);
 
-        if(locale == 0) {
+        if (locale == nullptr) {
             fmt = new SimpleDateFormat(pat, *status);
         }
         else {
@@ -181,12 +181,12 @@ udat_open(UDateFormatStyle  timeStyle,
         return nullptr;
     }
 
-    if(tzID != 0) {
+    if (tzID != nullptr) {
         TimeZone *zone = TimeZone::createTimeZone(UnicodeString((UBool)(tzIDLength == -1), tzID, tzIDLength));
-        if(zone == 0) {
+        if (zone == nullptr) {
             *status = U_MEMORY_ALLOCATION_ERROR;
             delete fmt;
-            return 0;
+            return nullptr;
         }
         fmt->adoptTimeZone(zone);
     }
@@ -206,13 +206,13 @@ U_CAPI UDateFormat* U_EXPORT2
 udat_clone(const UDateFormat *fmt,
        UErrorCode *status)
 {
-    if(U_FAILURE(*status)) return 0;
+    if (U_FAILURE(*status)) return nullptr;
 
     Format *res = ((DateFormat*)fmt)->clone();
 
-    if(res == 0) {
+    if (res == nullptr) {
         *status = U_MEMORY_ALLOCATION_ERROR;
-        return 0;
+        return nullptr;
     }
 
     return (UDateFormat*) res;
@@ -243,12 +243,12 @@ udat_format(    const    UDateFormat*    format,
 
     FieldPosition fp;
 
-    if(position != 0)
+    if (position != nullptr)
         fp.setField(position->field);
 
     ((DateFormat*)format)->format(dateToFormat, res, fp);
 
-    if(position != 0) {
+    if (position != nullptr) {
         position->beginIndex = fp.getBeginIndex();
         position->endIndex = fp.getEndIndex();
     }
@@ -281,12 +281,12 @@ udat_formatCalendar(const UDateFormat*  format,
 
     FieldPosition fp;
 
-    if(position != 0)
+    if (position != nullptr)
         fp.setField(position->field);
 
     ((DateFormat*)format)->format(*(Calendar*)calendar, res, fp);
 
-    if(position != 0) {
+    if (position != nullptr) {
         position->beginIndex = fp.getBeginIndex();
         position->endIndex = fp.getEndIndex();
     }
@@ -1270,7 +1270,6 @@ udat_setContext(UDateFormat* fmt, UDisplayContext value, UErrorCode* status)
         return;
     }
     ((DateFormat*)fmt)->setContext(value, *status);
-    return;
 }
 
 U_CAPI UDisplayContext U_EXPORT2

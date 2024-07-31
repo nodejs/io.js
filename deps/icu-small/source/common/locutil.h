@@ -28,7 +28,7 @@ public:
   static Locale& initLocaleFromName(const UnicodeString& id, Locale& result);
   static UnicodeString& initNameFromLocale(const Locale& locale, UnicodeString& result);
   static const Hashtable* getAvailableLocaleNames(const UnicodeString& bundleID);
-  static UBool isFallbackOf(const UnicodeString& root, const UnicodeString& child);
+  static bool isFallbackOf(const UnicodeString& root, const UnicodeString& child);
 };
 
 U_NAMESPACE_END

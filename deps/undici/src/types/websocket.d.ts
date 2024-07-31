@@ -17,7 +17,7 @@ export type BinaryType = 'blob' | 'arraybuffer'
 
 interface WebSocketEventMap {
   close: CloseEvent
-  error: Event
+  error: ErrorEvent
   message: MessageEvent
   open: Event
 }
@@ -122,6 +122,27 @@ interface MessageEvent<T = any> extends Event {
 export declare const MessageEvent: {
   prototype: MessageEvent
   new<T>(type: string, eventInitDict?: MessageEventInit<T>): MessageEvent<T>
+}
+
+interface ErrorEventInit extends EventInit {
+  message?: string
+  filename?: string
+  lineno?: number
+  colno?: number
+  error?: any
+}
+
+interface ErrorEvent extends Event {
+  readonly message: string
+  readonly filename: string
+  readonly lineno: number
+  readonly colno: number
+  readonly error: any
+}
+
+export declare const ErrorEvent: {
+  prototype: ErrorEvent
+  new (type: string, eventInitDict?: ErrorEventInit): ErrorEvent
 }
 
 interface WebSocketInit {

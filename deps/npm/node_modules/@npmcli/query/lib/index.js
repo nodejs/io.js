@@ -166,6 +166,46 @@ const fixupOutdated = astNode => {
   }
 }
 
+const fixupVuln = astNode => {
+  const vulns = []
+  if (astNode.nodes.length) {
+    for (const selector of astNode.nodes) {
+      const vuln = {}
+      for (const node of selector.nodes) {
+        if (node.type !== 'attribute') {
+          throw Object.assign(
+            new Error(':vuln pseudo-class only accepts attribute matchers or "cwe" tag'),
+            { code: 'EQUERYATTR' }
+          )
+        }
+        if (!['severity', 'cwe'].includes(node._attribute)) {
+          throw Object.assign(
+            new Error(':vuln pseudo-class only matches "severity" and "cwe" attributes'),
+            { code: 'EQUERYATTR' }
+          )
+        }
+        if (!node.operator) {
+          node.operator = '='
+          node.value = '*'
+        }
+        if (node.operator !== '=') {
+          throw Object.assign(
+            new Error(':vuln pseudo-class attribute selector only accepts "=" operator', node),
+            { code: 'EQUERYATTR' }
+          )
+        }
+        if (!vuln[node._attribute]) {
+          vuln[node._attribute] = []
+        }
+        vuln[node._attribute].push(node._value)
+      }
+      vulns.push(vuln)
+    }
+    astNode.vulns = vulns
+    astNode.nodes.length = 0
+  }
+}
+
 // a few of the supported ast nodes need to be tweaked in order to properly be
 // interpreted as proper arborist query selectors, namely semver ranges from
 // both ids and :semver pseudo-class selectors need to be translated from what
@@ -192,6 +232,8 @@ const transformAst = selector => {
         return fixupTypes(nextAstNode)
       case ':outdated':
         return fixupOutdated(nextAstNode)
+      case ':vuln':
+        return fixupVuln(nextAstNode)
     }
   })
 }

@@ -83,16 +83,14 @@ IMPL_INLINE_FIELD_STYLE4_SETTER_GETTER(nanoseconds, Nanoseconds)
 #undef IMPL_INLINE_FIELD_STYLE5_SETTER_GETTER
 
 inline void JSDurationFormat::set_fractional_digits(int32_t digits) {
-  DCHECK_GE(9, digits);
-  DCHECK_LE(0, digits);
+  DCHECK((0 <= digits && digits <= 9) || digits == kUndefinedFractionalDigits);
   int hints = display_flags();
   hints = FractionalDigitsBits::update(hints, digits);
   set_display_flags(hints);
 }
 inline int32_t JSDurationFormat::fractional_digits() const {
   int32_t v = FractionalDigitsBits::decode(display_flags());
-  DCHECK_GE(9, v);
-  DCHECK_LE(0, v);
+  DCHECK((0 <= v && v <= 9) || v == kUndefinedFractionalDigits);
   return v;
 }
 

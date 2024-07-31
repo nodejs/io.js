@@ -2,6 +2,6 @@
   "name": "v8-tools",
   "version": "1.0.0",
   "dependencies": {
-    "local-web-server": "^4.2.1"
+    "local-web-server": "^5.3.1"
   }
 }

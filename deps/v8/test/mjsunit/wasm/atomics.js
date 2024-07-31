@@ -606,17 +606,17 @@ function TestStore(func, buffer, value, size) {
       kExprI32Const, 16,
       kExprI32Const, 20,
       kAtomicPrefix,
-      kExprI32AtomicStore, 0, 0xFC, 0xFF, 0x3a,
+      kExprI32AtomicStore, 2, 0xFC, 0xFF, 0x3a,
       kExprI32Const, 16,
       kAtomicPrefix,
-      kExprI32AtomicLoad, 0, 0xFC, 0xFF, 0x3a])
+      kExprI32AtomicLoad, 2, 0xFC, 0xFF, 0x3a])
     .exportAs("loadStore");
   builder.addFunction("storeOob", kSig_v_v)
     .addBody([
       kExprI32Const, 16,
       kExprI32Const, 20,
       kAtomicPrefix,
-      kExprI32AtomicStore, 0, 0xFC, 0xFF, 0xFF, 0x3a])
+      kExprI32AtomicStore, 2, 0xFC, 0xFF, 0xFF, 0x3a])
     .exportAs("storeOob");
   let module = new WebAssembly.Module(builder.toBuffer());
   let instance = (new WebAssembly.Instance(module,
@@ -711,4 +711,65 @@ function CmpExchgLoop(opcode, alignment) {
   assertThrows(
       () => builder.toModule(), WebAssembly.CompileError,
       /invalid atomic opcode: 0xfe790/);
+})();
+
+(function TestConsistentErrorReporting() {
+  print(arguments.callee.name);
+  const builder = new WasmModuleBuilder();
+  builder.addMemory(1, 32);
+  builder.addFunction("atomicStore", makeSig([kWasmI32], []))
+    .addBody([
+      kExprLocalGet, 0,
+      kExprI64Const, 42, // A dummy value to be stored.
+      kAtomicPrefix, kExprI64AtomicStore, /*align*/ 0x03, /*offset*/ 0x00,
+    ]).exportFunc();
+  builder.addFunction("atomicLoad", makeSig([kWasmI32], [kWasmI64]))
+    .addBody([
+      kExprLocalGet, 0,
+      kAtomicPrefix, kExprI64AtomicLoad, /*align*/ 0x03, /*offset*/ 0x00,
+    ]).exportFunc();
+  builder.addFunction("atomicAdd", makeSig([kWasmI32], [kWasmI32]))
+    .addBody([
+      kExprLocalGet, 0,
+      kExprI32Const, 42,
+      kAtomicPrefix, kExprI32AtomicAdd, /*align*/ 0x02, /*offset*/ 0x00,
+    ]).exportFunc();
+  builder.addFunction("atomicCompareExchange", makeSig([kWasmI32], [kWasmI32]))
+    .addBody([
+      kExprLocalGet, 0,
+      kExprI32Const, 12,
+      kExprI32Const, 23,
+      kAtomicPrefix, kExprI32AtomicCompareExchange,
+      /*align*/ 0x02, /*offset*/ 0x00,
+    ]).exportFunc();
+  builder.addFunction("atomicWait", makeSig([kWasmI32], [kWasmI32]))
+    .addBody([
+      kExprLocalGet, 0,
+      kExprI32Const, 12,
+      kExprI64Const, 23,
+      kAtomicPrefix, kExprI32AtomicWait, /*align*/ 0x02, /*offset*/ 0x00,
+    ]).exportFunc();
+  builder.addFunction("atomicNotify", makeSig([kWasmI32], [kWasmI32]))
+    .addBody([
+      kExprLocalGet, 0,
+      kExprI32Const, 12,
+      kAtomicPrefix, kExprAtomicNotify, /*align*/ 0x02, /*offset*/ 0x00,
+    ]).exportFunc();
+
+
+  const wasm = builder.instantiate().exports;
+
+  let unaligned = 1;
+  let oob = 1024 * 1024;
+  for (let test of [
+      "atomicStore", "atomicLoad", "atomicAdd", "atomicCompareExchange",
+      "atomicWait", "atomicNotify"]) {
+    print(`- test ${test}`);
+    let fct = wasm[test];
+    assertTraps(kTrapUnalignedAccess, () => fct(unaligned));
+    assertTraps(kTrapMemOutOfBounds, () => fct(oob));
+    // If an atomic operation is both unaligned and out of bounds, the unaligned
+    // error is reported.
+    assertTraps(kTrapUnalignedAccess, () => fct(unaligned + oob));
+  }
 })();

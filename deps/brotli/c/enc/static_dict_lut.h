@@ -22,6 +22,7 @@ typedef struct DictWord {
   uint16_t idx;
 } DictWord;
 
+/* GENERATED CODE START */
 static const int kDictNumBits = 15;
 static const uint32_t kDictHashMul32 = 0x1E35A7BD;
 
@@ -5856,6 +5857,7 @@ static const DictWord kStaticDictionaryWords[31705] = {
 ,0,1735},{5,0,598},{7,0,791},{8,0,108},{9,0,123},{7,10,1570},{140,10,542},{142,
 11,410},{9,11,660},{138,11,347}
 };
+/* GENERATED CODE END */
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */

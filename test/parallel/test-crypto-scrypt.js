@@ -93,12 +93,16 @@ const good = [
   },
 ];
 
-// Test vectors that should fail.
+// Test vectors that contain invalid parameters.
 const bad = [
   { N: 1, p: 1, r: 1 },         // N < 2
   { N: 3, p: 1, r: 1 },         // Not power of 2.
-  { N: 1, cost: 1 },            // Both N and cost
-  { p: 1, parallelization: 1 }, // Both p and parallelization
+];
+
+// Test vectors that contain incompatible options.
+const incompatibleOptions = [
+  { N: 1, cost: 1 },             // Both N and cost
+  { p: 1, parallelization: 1 },  // Both p and parallelization
   { r: 1, blockSize: 1 },        // Both r and blocksize
 ];
 
@@ -176,9 +180,22 @@ for (const options of bad) {
                 expected);
 }
 
+for (const options of incompatibleOptions) {
+  const [short, long] = Object.keys(options).sort((a, b) => a.length - b.length);
+  const expected = {
+    message: `Option "${short}" cannot be used in combination with option "${long}"`,
+    code: 'ERR_INCOMPATIBLE_OPTION_PAIR',
+  };
+  assert.throws(() => crypto.scrypt('pass', 'salt', 1, options, () => {}),
+                expected);
+  assert.throws(() => crypto.scryptSync('pass', 'salt', 1, options),
+                expected);
+}
+
 for (const options of toobig) {
   const expected = {
-    message: /Invalid scrypt param/
+    message: /Invalid scrypt params:.*memory limit exceeded/,
+    code: 'ERR_CRYPTO_INVALID_SCRYPT_PARAMS',
   };
   assert.throws(() => crypto.scrypt('pass', 'salt', 1, options, () => {}),
                 expected);

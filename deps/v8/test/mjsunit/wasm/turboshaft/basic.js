@@ -246,3 +246,20 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   assertEquals(-1, wasm.br_table(1));
   assertEquals(23, wasm.br_table(22));
 })();
+
+(function TestSubZeroFromTruncatedOptimization() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+  builder.addFunction("subZeroFromTruncated", makeSig([kWasmI64], [kWasmI32]))
+    .exportFunc()
+    .addBody([
+      // i32.sub(i32.wrap_i64(local.get 0), 0)
+      // should be optimized to i32.wrap_i64(local.get 0)
+      kExprLocalGet, 0,
+      kExprI32ConvertI64,
+      kExprI32Const, 0,
+      kExprI32Sub,
+    ]);
+  let instance = builder.instantiate();
+  assertEquals(123, instance.exports.subZeroFromTruncated(123n));
+})();

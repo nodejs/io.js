@@ -985,12 +985,8 @@ VTimeZone::VTimeZone(const VTimeZone& source)
 }
 
 VTimeZone::~VTimeZone() {
-    if (tz != nullptr) {
-        delete tz;
-    }
-    if (vtzlines != nullptr) {
-        delete vtzlines;
-    }
+    delete tz;
+    delete vtzlines;
 }
 
 VTimeZone&
@@ -2132,12 +2128,8 @@ VTimeZone::writeZone(VTZWriter& w, BasicTimeZone& basictz,
 
 cleanupWriteZone:
 
-    if (finalStdRule != nullptr) {
-        delete finalStdRule;
-    }
-    if (finalDstRule != nullptr) {
-        delete finalDstRule;
-    }
+    delete finalStdRule;
+    delete finalDstRule;
 }
 
 void

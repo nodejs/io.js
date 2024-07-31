@@ -13,7 +13,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
       .addFunction('main', makeSig([kWasmI32, kWasmI32, kWasmF64], [kWasmI32]))
       .addBody([
         kExprLocalGet, 0, kExprLocalGet, 1, kExprI64UConvertI32, kExprLocalGet,
-        2, kExprI64SConvertF64, kAtomicPrefix, kExprI64AtomicWait, 0, 0
+        2, kExprI64SConvertF64, kAtomicPrefix, kExprI64AtomicWait, 3, 0
       ]);
   builder.instantiate();
 })();

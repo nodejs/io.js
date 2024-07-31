@@ -4,14 +4,17 @@
 
 #include "src/maglev/maglev-compilation-info.h"
 
+#include "src/codegen/compiler.h"
 #include "src/compiler/compilation-dependencies.h"
 #include "src/compiler/js-heap-broker.h"
 #include "src/execution/isolate.h"
 #include "src/flags/flags.h"
 #include "src/handles/persistent-handles.h"
+#ifdef V8_ENABLE_MAGLEV
 #include "src/maglev/maglev-code-generator.h"
-#include "src/maglev/maglev-compilation-unit.h"
 #include "src/maglev/maglev-concurrent-dispatcher.h"
+#endif
+#include "src/maglev/maglev-compilation-unit.h"
 #include "src/maglev/maglev-graph-labeller.h"
 #include "src/objects/js-function-inl.h"
 #include "src/utils/identity-map.h"
@@ -28,7 +31,13 @@ class V8_NODISCARD MaglevCompilationHandleScope final {
  public:
   MaglevCompilationHandleScope(Isolate* isolate,
                                maglev::MaglevCompilationInfo* info)
-      : info_(info), persistent_(isolate), exported_info_(info) {
+      : info_(info),
+        persistent_(isolate)
+#ifdef V8_ENABLE_MAGLEV
+        ,
+        exported_info_(info)
+#endif
+  {
     info->ReopenAndCanonicalizeHandlesInNewScope(isolate);
   }
 
@@ -39,19 +48,25 @@ class V8_NODISCARD MaglevCompilationHandleScope final {
  private:
   maglev::MaglevCompilationInfo* const info_;
   PersistentHandlesScope persistent_;
+#ifdef V8_ENABLE_MAGLEV
   ExportedMaglevCompilationInfo exported_info_;
+#endif
 };
 
 }  // namespace
 
-MaglevCompilationInfo::MaglevCompilationInfo(Isolate* isolate,
-                                             Handle<JSFunction> function,
-                                             BytecodeOffset osr_offset)
+MaglevCompilationInfo::MaglevCompilationInfo(
+    Isolate* isolate, Handle<JSFunction> function, BytecodeOffset osr_offset,
+    base::Optional<compiler::JSHeapBroker*> js_broker)
     : zone_(isolate->allocator(), kMaglevZoneName),
-      broker_(new compiler::JSHeapBroker(
-          isolate, zone(), v8_flags.trace_heap_broker, CodeKind::MAGLEV)),
+      broker_(js_broker.has_value()
+                  ? js_broker.value()
+                  : new compiler::JSHeapBroker(isolate, zone(),
+                                               v8_flags.trace_heap_broker,
+                                               CodeKind::MAGLEV)),
       toplevel_function_(function),
-      osr_offset_(osr_offset)
+      osr_offset_(osr_offset),
+      owns_broker_(!js_broker.has_value())
 #define V(Name) , Name##_(v8_flags.Name)
           MAGLEV_COMPILATION_FLAG_LIST(V)
 #undef V
@@ -61,51 +76,59 @@ MaglevCompilationInfo::MaglevCompilationInfo(Isolate* isolate,
           v8_flags.maglev_function_context_specialization &&
           function->raw_feedback_cell()->map() ==
               ReadOnlyRoots(isolate).one_closure_cell_map()) {
-  DCHECK(maglev::IsMaglevEnabled());
-  DCHECK_IMPLIES(osr_offset != BytecodeOffset::None(),
-                 maglev::IsMaglevOsrEnabled());
-  canonical_handles_ = std::make_unique<CanonicalHandlesMap>(
-      isolate->heap(), ZoneAllocationPolicy(&zone_));
-  compiler::CurrentHeapBrokerScope current_broker(broker_.get());
+  if (owns_broker_) {
+    canonical_handles_ = std::make_unique<CanonicalHandlesMap>(
+        isolate->heap(), ZoneAllocationPolicy(&zone_));
+    compiler::CurrentHeapBrokerScope current_broker(broker_);
+
+    MaglevCompilationHandleScope compilation(isolate, this);
+
+    compiler::CompilationDependencies* deps =
+        zone()->New<compiler::CompilationDependencies>(broker(), zone());
+    USE(deps);  // The deps register themselves in the heap broker.
+
+    broker()->AttachCompilationInfo(this);
+
+    // Heap broker initialization may already use IsPendingAllocation.
+    isolate->heap()->PublishMainThreadPendingAllocations();
+    broker()->InitializeAndStartSerializing(
+        handle(function->native_context(), isolate));
+    broker()->StopSerializing();
+
+    // Serialization may have allocated.
+    isolate->heap()->PublishMainThreadPendingAllocations();
+
+    toplevel_compilation_unit_ =
+        MaglevCompilationUnit::New(zone(), this, function);
+  } else {
+    toplevel_compilation_unit_ =
+        MaglevCompilationUnit::New(zone(), this, function);
+  }
 
   collect_source_positions_ = isolate->NeedsDetailedOptimizedCodeLineInfo();
   if (collect_source_positions_) {
     SharedFunctionInfo::EnsureSourcePositionsAvailable(
         isolate, handle(function->shared(), isolate));
   }
-
-  MaglevCompilationHandleScope compilation(isolate, this);
-
-  compiler::CompilationDependencies* deps =
-      zone()->New<compiler::CompilationDependencies>(broker(), zone());
-  USE(deps);  // The deps register themselves in the heap broker.
-
-  broker()->AttachCompilationInfo(this);
-
-  // Heap broker initialization may already use IsPendingAllocation.
-  isolate->heap()->PublishPendingAllocations();
-  broker()->InitializeAndStartSerializing(
-      handle(function->native_context(), isolate));
-  broker()->StopSerializing();
-
-  // Serialization may have allocated.
-  isolate->heap()->PublishPendingAllocations();
-
-  toplevel_compilation_unit_ =
-      MaglevCompilationUnit::New(zone(), this, function);
 }
 
-MaglevCompilationInfo::~MaglevCompilationInfo() = default;
+MaglevCompilationInfo::~MaglevCompilationInfo() {
+  if (owns_broker_) {
+    delete broker_;
+  }
+}
 
 void MaglevCompilationInfo::set_graph_labeller(
     MaglevGraphLabeller* graph_labeller) {
   graph_labeller_.reset(graph_labeller);
 }
 
+#ifdef V8_ENABLE_MAGLEV
 void MaglevCompilationInfo::set_code_generator(
     std::unique_ptr<MaglevCodeGenerator> code_generator) {
   code_generator_ = std::move(code_generator);
 }
+#endif
 
 namespace {
 template <typename T>

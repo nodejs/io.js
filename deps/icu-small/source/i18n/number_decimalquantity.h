@@ -13,8 +13,8 @@
 #include "plurrule_impl.h"
 #include "number_types.h"
 
-U_NAMESPACE_BEGIN namespace number {
-namespace impl {
+U_NAMESPACE_BEGIN
+namespace number::impl {
 
 // Forward-declare (maybe don't want number_utils.h included here):
 class DecNum;
@@ -53,12 +53,20 @@ class U_I18N_API DecimalQuantity : public IFixedDecimal, public UMemory {
     DecimalQuantity &operator=(DecimalQuantity&& src) noexcept;
 
     /**
+     * If the minimum integer digits are greater than `minInt`,
+     * sets it to `minInt`.
+     *
+     * @param minInt The minimum number of integer digits.
+     */
+    void decreaseMinIntegerTo(int32_t minInt);
+
+    /**
      * Sets the minimum integer digits that this {@link DecimalQuantity} should generate.
      * This method does not perform rounding.
      *
      * @param minInt The minimum number of integer digits.
      */
-    void setMinInteger(int32_t minInt);
+    void increaseMinIntegerTo(int32_t minInt);
 
     /**
      * Sets the minimum fraction digits that this {@link DecimalQuantity} should generate.
@@ -549,8 +557,7 @@ class U_I18N_API DecimalQuantity : public IFixedDecimal, public UMemory {
     void switchStorage();
 };
 
-} // namespace impl
-} // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 

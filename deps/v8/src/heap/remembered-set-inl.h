@@ -14,29 +14,30 @@ namespace v8 {
 namespace internal {
 
 template <typename Callback>
-SlotCallbackResult UpdateTypedSlotHelper::UpdateTypedSlot(Heap* heap,
-                                                          SlotType slot_type,
-                                                          Address addr,
-                                                          Callback callback) {
+SlotCallbackResult UpdateTypedSlotHelper::UpdateTypedSlot(
+    WritableJitAllocation& jit_allocation, Heap* heap, SlotType slot_type,
+    Address addr, Callback callback) {
   switch (slot_type) {
     case SlotType::kCodeEntry: {
-      RelocInfo rinfo(addr, RelocInfo::CODE_TARGET);
+      WritableRelocInfo rinfo(jit_allocation, addr, RelocInfo::CODE_TARGET);
       return UpdateCodeTarget(&rinfo, callback);
     }
     case SlotType::kConstPoolCodeEntry: {
       return UpdateCodeEntry(addr, callback);
     }
     case SlotType::kEmbeddedObjectCompressed: {
-      RelocInfo rinfo(addr, RelocInfo::COMPRESSED_EMBEDDED_OBJECT);
+      WritableRelocInfo rinfo(jit_allocation, addr,
+                              RelocInfo::COMPRESSED_EMBEDDED_OBJECT);
       return UpdateEmbeddedPointer(heap, &rinfo, callback);
     }
     case SlotType::kEmbeddedObjectFull: {
-      RelocInfo rinfo(addr, RelocInfo::FULL_EMBEDDED_OBJECT);
+      WritableRelocInfo rinfo(jit_allocation, addr,
+                              RelocInfo::FULL_EMBEDDED_OBJECT);
       return UpdateEmbeddedPointer(heap, &rinfo, callback);
     }
     case SlotType::kConstPoolEmbeddedObjectCompressed: {
-      Tagged<HeapObject> old_target =
-          HeapObject::cast(Object(V8HeapCompressionScheme::DecompressTagged(
+      Tagged<HeapObject> old_target = HeapObject::cast(
+          Tagged<Object>(V8HeapCompressionScheme::DecompressTagged(
               heap->isolate(), base::Memory<Tagged_t>(addr))));
       Tagged<HeapObject> new_target = old_target;
       SlotCallbackResult result = callback(FullMaybeObjectSlot(&new_target));
@@ -78,7 +79,7 @@ Tagged<HeapObject> UpdateTypedSlotHelper::GetTargetObject(Heap* heap,
     case SlotType::kConstPoolEmbeddedObjectCompressed: {
       Address full = V8HeapCompressionScheme::DecompressTagged(
           heap->isolate(), base::Memory<Tagged_t>(addr));
-      return HeapObject::cast(Object(full));
+      return HeapObject::cast(Tagged<Object>(full));
     }
     case SlotType::kConstPoolEmbeddedObjectFull: {
       FullHeapObjectSlot slot(addr);

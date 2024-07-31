@@ -327,10 +327,6 @@ using WasmAsyncResolvePromiseCallback = void (*)(
 using WasmLoadSourceMapCallback = Local<String> (*)(Isolate* isolate,
                                                     const char* name);
 
-// --- Callback for checking if WebAssembly GC is enabled ---
-// If the callback returns true, it will also enable Wasm stringrefs.
-using WasmGCEnabledCallback = bool (*)(Local<Context> context);
-
 // --- Callback for checking if WebAssembly imported strings are enabled ---
 using WasmImportedStringsEnabledCallback = bool (*)(Local<Context> context);
 
@@ -342,6 +338,9 @@ using SharedArrayBufferConstructorEnabledCallback =
 using JavaScriptCompileHintsMagicEnabledCallback =
     bool (*)(Local<Context> context);
 
+// --- Callback for checking if WebAssembly JSPI is enabled ---
+using WasmJSPIEnabledCallback = bool (*)(Local<Context> context);
+
 /**
  * HostImportModuleDynamicallyCallback is called when we
  * require the embedder to load a module. This is used as part of the dynamic
@@ -352,11 +351,11 @@ using JavaScriptCompileHintsMagicEnabledCallback =
  *
  * The specifier is the name of the module that should be imported.
  *
- * The import_assertions are import assertions for this request in the form:
+ * The import_attributes are import attributes for this request in the form:
  * [key1, value1, key2, value2, ...] where the keys and values are of type
  * v8::String. Note, unlike the FixedArray passed to ResolveModuleCallback and
  * returned from ModuleRequest::GetImportAssertions(), this array does not
- * contain the source Locations of the assertions.
+ * contain the source Locations of the attributes.
  *
  * The embedder must compile, instantiate, evaluate the Module, and
  * obtain its namespace object.
@@ -368,15 +367,10 @@ using JavaScriptCompileHintsMagicEnabledCallback =
  * fails (e.g. due to stack overflow), the embedder must propagate
  * that exception by returning an empty MaybeLocal.
  */
-using HostImportModuleDynamicallyWithImportAssertionsCallback =
-    MaybeLocal<Promise> (*)(Local<Context> context,
-                            Local<ScriptOrModule> referrer,
-                            Local<String> specifier,
-                            Local<FixedArray> import_assertions);
 using HostImportModuleDynamicallyCallback = MaybeLocal<Promise> (*)(
     Local<Context> context, Local<Data> host_defined_options,
     Local<Value> resource_name, Local<String> specifier,
-    Local<FixedArray> import_assertions);
+    Local<FixedArray> import_attributes);
 
 /**
  * Callback for requesting a compile hint for a function from the embedder. The

@@ -1,0 +1,37 @@
+TAP version 13
+# Subtest: top level skipped test enabled
+ok 1 - top level skipped test enabled # SKIP
+  ---
+  duration_ms: *
+  ...
+# Subtest: top level it enabled
+ok 2 - top level it enabled
+  ---
+  duration_ms: *
+  ...
+# Subtest: top level skipped it enabled
+ok 3 - top level skipped it enabled # SKIP
+  ---
+  duration_ms: *
+  ...
+# Subtest: top level describe
+ok 4 - top level describe
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: top level skipped describe enabled
+ok 5 - top level skipped describe enabled # SKIP
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+1..5
+# tests 3
+# suites 2
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 2
+# todo 0
+# duration_ms *

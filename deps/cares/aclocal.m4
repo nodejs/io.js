@@ -14,8 +14,8 @@
 m4_ifndef([AC_CONFIG_MACRO_DIRS], [m4_defun([_AM_CONFIG_MACRO_DIRS], [])m4_defun([AC_CONFIG_MACRO_DIRS], [_AM_CONFIG_MACRO_DIRS($@)])])
 m4_ifndef([AC_AUTOCONF_VERSION],
   [m4_copy([m4_PACKAGE_VERSION], [AC_AUTOCONF_VERSION])])dnl
-m4_if(m4_defn([AC_AUTOCONF_VERSION]), [2.71],,
-[m4_warning([this file was generated for autoconf 2.71.
+m4_if(m4_defn([AC_AUTOCONF_VERSION]), [2.72],,
+[m4_warning([this file was generated for autoconf 2.72.
 You have another version of autoconf.  It may work, but is not guaranteed to.
 If you have problems, you may need to regenerate the build system entirely.
 To do so, use the procedure documented by the package, typically 'autoreconf'.])])
@@ -106,6 +106,43 @@ AC_DEFUN([AM_AUX_DIR_EXPAND],
 [AC_REQUIRE([AC_CONFIG_AUX_DIR_DEFAULT])dnl
 # Expand $ac_aux_dir to an absolute path.
 am_aux_dir=`cd "$ac_aux_dir" && pwd`
+])
+
+# AM_COND_IF                                            -*- Autoconf -*-
+
+# Copyright (C) 2008-2021 Free Software Foundation, Inc.
+#
+# This file is free software; the Free Software Foundation
+# gives unlimited permission to copy and/or distribute it,
+# with or without modifications, as long as this notice is preserved.
+
+# _AM_COND_IF
+# _AM_COND_ELSE
+# _AM_COND_ENDIF
+# --------------
+# These macros are only used for tracing.
+m4_define([_AM_COND_IF])
+m4_define([_AM_COND_ELSE])
+m4_define([_AM_COND_ENDIF])
+
+# AM_COND_IF(COND, [IF-TRUE], [IF-FALSE])
+# ---------------------------------------
+# If the shell condition COND is true, execute IF-TRUE, otherwise execute
+# IF-FALSE.  Allow automake to learn about conditional instantiating macros
+# (the AC_CONFIG_FOOS).
+AC_DEFUN([AM_COND_IF],
+[m4_ifndef([_AM_COND_VALUE_$1],
+	   [m4_fatal([$0: no such condition "$1"])])dnl
+_AM_COND_IF([$1])dnl
+if test -z "$$1_TRUE"; then :
+  m4_n([$2])[]dnl
+m4_ifval([$3],
+[_AM_COND_ELSE([$1])dnl
+else
+  $3
+])dnl
+_AM_COND_ENDIF([$1])dnl
+fi[]dnl
 ])
 
 # AM_CONDITIONAL                                            -*- Autoconf -*-
@@ -1188,25 +1225,24 @@ m4_include([m4/ax_ac_append_to_file.m4])
 m4_include([m4/ax_ac_print_to_file.m4])
 m4_include([m4/ax_add_am_macro_static.m4])
 m4_include([m4/ax_am_macros_static.m4])
+m4_include([m4/ax_append_compile_flags.m4])
+m4_include([m4/ax_append_flag.m4])
+m4_include([m4/ax_append_link_flags.m4])
+m4_include([m4/ax_check_compile_flag.m4])
 m4_include([m4/ax_check_gnu_make.m4])
+m4_include([m4/ax_check_link_flag.m4])
+m4_include([m4/ax_check_user_namespace.m4])
+m4_include([m4/ax_check_uts_namespace.m4])
 m4_include([m4/ax_code_coverage.m4])
+m4_include([m4/ax_compiler_vendor.m4])
 m4_include([m4/ax_cxx_compile_stdcxx.m4])
-m4_include([m4/ax_cxx_compile_stdcxx_11.m4])
+m4_include([m4/ax_cxx_compile_stdcxx_14.m4])
 m4_include([m4/ax_file_escapes.m4])
+m4_include([m4/ax_pthread.m4])
 m4_include([m4/ax_require_defined.m4])
-m4_include([m4/cares-compilers.m4])
-m4_include([m4/cares-confopts.m4])
-m4_include([m4/cares-functions.m4])
-m4_include([m4/cares-reentrant.m4])
 m4_include([m4/libtool.m4])
 m4_include([m4/ltoptions.m4])
 m4_include([m4/ltsugar.m4])
 m4_include([m4/ltversion.m4])
 m4_include([m4/lt~obsolete.m4])
-m4_include([m4/xc-am-iface.m4])
-m4_include([m4/xc-cc-check.m4])
-m4_include([m4/xc-lt-iface.m4])
-m4_include([m4/xc-translit.m4])
-m4_include([m4/xc-val-flgs.m4])
-m4_include([m4/zz40-xc-ovr.m4])
-m4_include([acinclude.m4])
+m4_include([m4/pkg.m4])

@@ -13,6 +13,7 @@ const builtinCtors = [
   Int16Array,
   Uint32Array,
   Int32Array,
+  Float16Array,
   Float32Array,
   Float64Array,
   Uint8ClampedArray,
@@ -28,6 +29,7 @@ const ctors = [
 ];
 
 const floatCtors = [
+  Float16Array,
   Float32Array,
   Float64Array,
   MyFloat32Array
@@ -57,6 +59,8 @@ const dataViewAccessorsAndSizes = [[DataView.prototype.getUint8,
                                     DataView.prototype.setInt16, 2, false],
                                    [DataView.prototype.getInt32,
                                     DataView.prototype.setInt32, 4, false],
+                                   [DataView.prototype.getFloat16,
+                                    DataView.prototype.setFloat16, 2, false],
                                    [DataView.prototype.getFloat32,
                                     DataView.prototype.setFloat32, 4, false],
                                    [DataView.prototype.getFloat64,

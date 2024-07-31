@@ -62,7 +62,7 @@ The length of the "size" parameter is equal to that of an B<unsigned int>.
 
 =over 4
 
-=item "block-size" (B<OSSL_MAC_PARAM_SIZE>) <unsigned integer>
+=item "block-size" (B<OSSL_MAC_PARAM_BLOCK_SIZE>) <unsigned integer>
 
 Gets the MAC block size.  The "block-size" parameter can also be retrieved with
 EVP_MAC_CTX_get_block_size().

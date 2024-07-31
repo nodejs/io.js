@@ -59,6 +59,8 @@ void PreFinalizerHandler::InvokePreFinalizers() {
   is_invoking_ = true;
   DCHECK_EQ(0u, bytes_allocated_in_prefinalizers);
   // Reset all LABs to force allocations to the slow path for black allocation.
+  // This also ensures that a CHECK() hits in case prefinalizers allocate in the
+  // configuration that prohibits this.
   heap_.object_allocator().ResetLinearAllocationBuffers();
   // Prefinalizers can allocate other objects with prefinalizers, which will
   // modify ordered_pre_finalizers_ and break iterators.
@@ -72,11 +74,15 @@ void PreFinalizerHandler::InvokePreFinalizers() {
                        return (pf.callback)(liveness_broker, pf.object);
                      })
           .base());
+#ifndef CPPGC_ALLOW_ALLOCATIONS_IN_PREFINALIZERS
+  CHECK(new_ordered_pre_finalizers.empty());
+#else   // CPPGC_ALLOW_ALLOCATIONS_IN_PREFINALIZERS
   // Newly added objects with prefinalizers will always survive the current GC
   // cycle, so it's safe to add them after clearing out the older prefinalizers.
   ordered_pre_finalizers_.insert(ordered_pre_finalizers_.end(),
                                  new_ordered_pre_finalizers.begin(),
                                  new_ordered_pre_finalizers.end());
+#endif  // CPPGC_ALLOW_ALLOCATIONS_IN_PREFINALIZERS
   current_ordered_pre_finalizers_ = &ordered_pre_finalizers_;
   is_invoking_ = false;
   ordered_pre_finalizers_.shrink_to_fit();

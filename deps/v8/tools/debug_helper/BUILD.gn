@@ -89,7 +89,6 @@ v8_component("v8_debug_helper_internal") {
     "get-object-properties.cc",
     "heap-constants.cc",
     "heap-constants.h",
-    "list-object-classes.cc",
   ]
 
   deps = [

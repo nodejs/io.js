@@ -8,14 +8,21 @@ extern class PreparseData extends HeapObject {
   children_length: int32;
 }
 
-extern class InterpreterData extends Struct {
-  bytecode_array: BytecodeArray;
-  interpreter_trampoline: Code;
+extern class InterpreterData extends ExposedTrustedObject {
+  // TODO(saelo): we should consider also moving InterpreterData out of the
+  // sandbox as it can often occur in places where BytecodeArrays are expected
+  // (which live outside of the sandbox). When we do this, this field can again
+  // always directly reference the BytecodeArray through a tagged pointer.
+  @if(V8_ENABLE_SANDBOX) bytecode_array: IndirectPointer<BytecodeArray>;
+  @ifnot(V8_ENABLE_SANDBOX) bytecode_array: BytecodeArray;
+  @if(V8_ENABLE_SANDBOX) interpreter_trampoline: IndirectPointer<Code>;
+  @ifnot(V8_ENABLE_SANDBOX) interpreter_trampoline: Code;
 }
 
 type FunctionKind extends uint8 constexpr 'FunctionKind';
 type FunctionSyntaxKind extends uint8 constexpr 'FunctionSyntaxKind';
 type BailoutReason extends uint8 constexpr 'BailoutReason';
+type CachedTieringDecision extends uint8 constexpr 'CachedTieringDecision';
 
 bitfield struct SharedFunctionInfoFlags extends uint32 {
   // Have FunctionKind first to make it cheaper to access.
@@ -44,13 +51,24 @@ bitfield struct SharedFunctionInfoFlags2 extends uint8 {
   is_sparkplug_compiling: bool: 1 bit;
   maglev_compilation_failed: bool: 1 bit;
   sparkplug_compiled: bool: 1 bit;
+  cached_tiering_decision: CachedTieringDecision: 2 bit;
 }
 
 extern class SharedFunctionInfo extends HeapObject {
-  // function_data field is treated as a custom weak pointer. We visit this
-  // field as a weak pointer if there is aged bytecode. If there is no bytecode
-  // or if the bytecode is young then we treat it as a strong pointer. This is
-  // done to support flushing of bytecode.
+  // When the sandbox is enabled, the SFI's function data is split into a
+  // trusted and an untrusted part.
+  // The field is treated as a custom weak pointer. We visit this field as a
+  // weak pointer if there is aged bytecode. If there is no bytecode or if the
+  // bytecode is young then we treat it as a strong pointer. This is done to
+  // support flushing of bytecode.
+  // TODO(chromium:1490564) in the future, this field could be replaced by a
+  // generic code reference, which contains all information needed to (safely)
+  // invoke the function (Code/BytecodeArray, number of parameters, etc.).
+  // Then, function_data would only contain metadata used by the invoked code.
+  // With that, the function_data field would no longer require custom weak
+  // marking as that is only required for (byte)code flushing.
+  @if(V8_ENABLE_SANDBOX)
+      @customWeakMarking trusted_function_data: IndirectPointer;
   @customWeakMarking function_data: Object;
   name_or_scope_info: String|NoSharedNameSentinel|ScopeInfo;
   outer_scope_info_or_feedback_metadata: HeapObject;

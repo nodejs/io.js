@@ -28,10 +28,6 @@ class DebugEvaluate : public AllStatic {
       Isolate* isolate, Handle<String> source, debug::EvaluateGlobalMode mode,
       REPLMode repl_mode = REPLMode::kNo);
 
-  static V8_EXPORT_PRIVATE MaybeHandle<Object> Global(
-      Isolate* isolate, Handle<JSFunction> function,
-      debug::EvaluateGlobalMode mode, REPLMode repl_mode = REPLMode::kNo);
-
   // Evaluate a piece of JavaScript in the context of a stack frame for
   // debugging.  Things that need special attention are:
   // - Parameters and stack-allocated locals need to be materialized.  Altered

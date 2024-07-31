@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-value-unavailable
-
 const {session, Protocol} =
     InspectorTest.start('Checks that after restarting the top frame, local variables are reset');
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2015-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -696,6 +696,9 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
     int ok = 0, tmplen, chunklen, tmpflen, i;
     EVP_CIPHER_CTX *ctx_base = NULL;
     EVP_CIPHER_CTX *ctx = NULL;
+    int fips_dupctx_supported = (fips_provider_version_gt(libctx, 3, 0, 12)
+                                && fips_provider_version_lt(libctx, 3, 1, 0))
+                                || fips_provider_version_ge(libctx, 3, 1, 3);
 
     t->err = "TEST_FAILURE";
     if (!TEST_ptr(ctx_base = EVP_CIPHER_CTX_new()))
@@ -826,12 +829,20 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
 
     /* Test that the cipher dup functions correctly if it is supported */
     ERR_set_mark();
-    if (EVP_CIPHER_CTX_copy(ctx, ctx_base)) {
-        EVP_CIPHER_CTX_free(ctx_base);
-        ctx_base = NULL;
-    } else {
+    if (!EVP_CIPHER_CTX_copy(ctx, ctx_base)) {
+        if (fips_dupctx_supported) {
+            TEST_info("Doing a copy of Cipher %s Fails!\n",
+                      EVP_CIPHER_get0_name(expected->cipher));
+            ERR_print_errors_fp(stderr);
+            goto err;
+        } else {
+            TEST_info("Allowing copy fail as an old fips provider is in use.");
+        }
         EVP_CIPHER_CTX_free(ctx);
         ctx = ctx_base;
+    } else {
+        EVP_CIPHER_CTX_free(ctx_base);
+        ctx_base = NULL;
     }
     ERR_pop_to_mark();
 
@@ -1016,6 +1027,7 @@ static int cipher_test_run(EVP_TEST *t)
     int rv, frag = 0;
     size_t out_misalign, inp_misalign;
 
+    TEST_info("RUNNING TEST FOR CIPHER %s\n", EVP_CIPHER_get0_name(cdat->cipher));
     if (!cdat->key) {
         t->err = "NO_KEY";
         return 0;
@@ -1408,6 +1420,7 @@ static int mac_test_run_mac(EVP_TEST *t)
     EVP_MAC_CTX *ctx = NULL;
     unsigned char *got = NULL;
     size_t got_len = 0, size = 0;
+    size_t size_before_init = 0, size_after_init, size_val = 0;
     int i, block_size = -1, output_size = -1;
     OSSL_PARAM params[21], sizes[3], *psizes = sizes;
     size_t params_n = 0;
@@ -1504,6 +1517,9 @@ static int mac_test_run_mac(EVP_TEST *t)
         }
         params_n++;
 
+        if (strcmp(tmpkey, "size") == 0)
+            size_val = (size_t)strtoul(tmpval, NULL, 0);
+
         OPENSSL_free(tmpkey);
     }
     params[params_n] = OSSL_PARAM_construct_end();
@@ -1512,10 +1528,30 @@ static int mac_test_run_mac(EVP_TEST *t)
         t->err = "MAC_CREATE_ERROR";
         goto err;
     }
-
+    if (fips_provider_version_gt(libctx, 3, 1, 4)
+        || (fips_provider_version_lt(libctx, 3, 1, 0)
+            && fips_provider_version_gt(libctx, 3, 0, 12)))
+        size_before_init = EVP_MAC_CTX_get_mac_size(ctx);
     if (!EVP_MAC_init(ctx, expected->key, expected->key_len, params)) {
         t->err = "MAC_INIT_ERROR";
         goto err;
+    }
+    size_after_init = EVP_MAC_CTX_get_mac_size(ctx);
+    if (!TEST_false(size_before_init == 0 && size_after_init == 0)) {
+        t->err = "MAC SIZE not set";
+        goto err;
+    }
+    if (size_before_init != 0) {
+        /* mac-size not modified by init params */
+        if (size_val == 0 && !TEST_size_t_eq(size_before_init, size_after_init)) {
+            t->err = "MAC SIZE check failed";
+            goto err;
+        }
+        /* mac-size modified by init params */
+        if (size_val != 0 && !TEST_size_t_eq(size_val, size_after_init)) {
+            t->err = "MAC SIZE check failed";
+            goto err;
+        }
     }
     if (expected->output_size >= 0)
         *psizes++ = OSSL_PARAM_construct_int(OSSL_MAC_PARAM_SIZE,

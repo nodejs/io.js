@@ -369,8 +369,8 @@ void AsmJsParser::ValidateModule() {
     uint32_t import_index = module_builder_->AddGlobalImport(
         global_import.import_name, global_import.value_type,
         false /* mutability */);
-    start->EmitWithI32V(kExprGlobalGet, import_index);
-    start->EmitWithI32V(kExprGlobalSet, VarIndex(global_import.var_info));
+    start->EmitWithU32V(kExprGlobalGet, import_index);
+    start->EmitWithU32V(kExprGlobalSet, VarIndex(global_import.var_info));
   }
   start->Emit(kExprEnd);
   FunctionSig::Builder b(zone(), 0, 0);
@@ -961,7 +961,7 @@ void AsmJsParser::ValidateFunctionLocals(size_t param_count,
           } else {
             FAIL("Bad local variable definition");
           }
-          current_function_builder_->EmitWithI32V(kExprGlobalGet,
+          current_function_builder_->EmitWithU32V(kExprGlobalGet,
                                                   VarIndex(sinfo));
           current_function_builder_->EmitSetLocal(info->index);
         } else if (sinfo->type->IsA(stdlib_fround_)) {
@@ -1275,8 +1275,7 @@ void AsmJsParser::BreakStatement() {
   if (depth < 0) {
     FAIL("Illegal break");
   }
-  current_function_builder_->Emit(kExprBr);
-  current_function_builder_->EmitI32V(depth);
+  current_function_builder_->EmitWithU32V(kExprBr, depth);
   SkipSemicolon();
 }
 
@@ -1292,7 +1291,7 @@ void AsmJsParser::ContinueStatement() {
   if (depth < 0) {
     FAIL("Illegal continue");
   }
-  current_function_builder_->EmitWithI32V(kExprBr, depth);
+  current_function_builder_->EmitWithU32V(kExprBr, depth);
   SkipSemicolon();
 }
 
@@ -1337,9 +1336,9 @@ void AsmJsParser::SwitchStatement() {
     current_function_builder_->EmitGetLocal(tmp);
     current_function_builder_->EmitI32Const(c);
     current_function_builder_->Emit(kExprI32Eq);
-    current_function_builder_->EmitWithI32V(kExprBrIf, table_pos++);
+    current_function_builder_->EmitWithU32V(kExprBrIf, table_pos++);
   }
-  current_function_builder_->EmitWithI32V(kExprBr, table_pos++);
+  current_function_builder_->EmitWithU32V(kExprBr, table_pos++);
   while (!failed_ && Peek(TOK(case))) {
     current_function_builder_->Emit(kExprEnd);
     BareEnd();
@@ -1455,7 +1454,7 @@ AsmType* AsmJsParser::Identifier() {
     if (info->kind != VarKind::kGlobal) {
       FAILn("Undefined global variable");
     }
-    current_function_builder_->EmitWithI32V(kExprGlobalGet, VarIndex(info));
+    current_function_builder_->EmitWithU32V(kExprGlobalGet, VarIndex(info));
     return info->type;
   }
   UNREACHABLE();

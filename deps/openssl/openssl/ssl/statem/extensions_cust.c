@@ -220,6 +220,8 @@ int custom_ext_add(SSL *s, int context, WPACKET *pkt, X509 *x, size_t chainidx,
                 || !WPACKET_start_sub_packet_u16(pkt)
                 || (outlen > 0 && !WPACKET_memcpy(pkt, out, outlen))
                 || !WPACKET_close(pkt)) {
+            if (meth->free_cb != NULL)
+                meth->free_cb(s, meth->ext_type, context, out, meth->add_arg);
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
@@ -228,6 +230,9 @@ int custom_ext_add(SSL *s, int context, WPACKET *pkt, X509 *x, size_t chainidx,
              * We can't send duplicates: code logic should prevent this.
              */
             if (!ossl_assert((meth->ext_flags & SSL_EXT_FLAG_SENT) == 0)) {
+                if (meth->free_cb != NULL)
+                    meth->free_cb(s, meth->ext_type, context, out,
+                                  meth->add_arg);
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }
@@ -328,6 +333,8 @@ void custom_exts_free(custom_ext_methods *exts)
         OPENSSL_free(meth->parse_arg);
     }
     OPENSSL_free(exts->meths);
+    exts->meths = NULL;
+    exts->meths_count = 0;
 }
 
 /* Return true if a client custom extension exists, false otherwise */

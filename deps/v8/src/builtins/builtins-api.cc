@@ -103,17 +103,13 @@ V8_WARN_UNUSED_RESULT MaybeHandle<Object> HandleApiCallHelper(
     }
   }
 
-  Tagged<Object> raw_call_data = fun_data->call_code(kAcquireLoad);
-  if (!IsUndefined(raw_call_data, isolate)) {
-    DCHECK(IsCallHandlerInfo(raw_call_data));
-    Tagged<CallHandlerInfo> call_data = CallHandlerInfo::cast(raw_call_data);
-    Tagged<Object> data_obj = call_data->data();
-
+  if (fun_data->has_callback(isolate)) {
+    Tagged<Object> data_obj = fun_data->callback_data(kAcquireLoad);
     FunctionCallbackArguments custom(isolate, data_obj, raw_holder, *new_target,
                                      argv, argc);
-    Handle<Object> result = custom.Call(call_data);
+    Handle<Object> result = custom.Call(*fun_data);
 
-    RETURN_EXCEPTION_IF_SCHEDULED_EXCEPTION(isolate, Object);
+    RETURN_EXCEPTION_IF_EXCEPTION(isolate, Object);
     if (result.is_null()) {
       if (is_construct) return js_receiver;
       return isolate->factory()->undefined_value();
@@ -236,16 +232,18 @@ HandleApiCallAsFunctionOrConstructorDelegate(Isolate* isolate,
   Tagged<Object> handler =
       constructor->shared()->api_func_data()->GetInstanceCallHandler();
   DCHECK(!IsUndefined(handler, isolate));
-  Tagged<CallHandlerInfo> call_data = CallHandlerInfo::cast(handler);
+  Tagged<FunctionTemplateInfo> templ = FunctionTemplateInfo::cast(handler);
+  DCHECK(templ->is_object_template_call_handler());
+  DCHECK(templ->has_callback(isolate));
 
   // Get the data for the call and perform the callback.
   Tagged<Object> result;
   {
     HandleScope scope(isolate);
     FunctionCallbackArguments custom(
-        isolate, call_data->data(), obj, new_target,
+        isolate, templ->callback_data(kAcquireLoad), obj, new_target,
         args.address_of_first_argument(), args.length() - 1);
-    Handle<Object> result_handle = custom.Call(call_data);
+    Handle<Object> result_handle = custom.Call(templ);
     if (result_handle.is_null()) {
       result = ReadOnlyRoots(isolate).undefined_value();
     } else {
@@ -253,7 +251,7 @@ HandleApiCallAsFunctionOrConstructorDelegate(Isolate* isolate,
     }
   }
   // Check for exceptions and return result.
-  RETURN_FAILURE_IF_SCHEDULED_EXCEPTION(isolate);
+  RETURN_FAILURE_IF_EXCEPTION(isolate);
   return result;
 }
 

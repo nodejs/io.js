@@ -6,17 +6,19 @@
 
 /* Function to find backward reference copies. */
 
-#include "./backward_references.h"
+#include "backward_references.h"
+
+#include <brotli/types.h>
 
 #include "../common/constants.h"
-#include "../common/context.h"
 #include "../common/dictionary.h"
 #include "../common/platform.h"
-#include <brotli/types.h>
-#include "./command.h"
-#include "./dictionary_hash.h"
-#include "./memory.h"
-#include "./quality.h"
+#include "command.h"
+#include "compound_dictionary.h"
+#include "dictionary_hash.h"
+#include "encoder_dict.h"
+#include "memory.h"
+#include "quality.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -52,67 +54,103 @@ static BROTLI_INLINE size_t ComputeDistanceCode(size_t distance,
 #define EXPORT_FN(X) EXPAND_CAT(X, EXPAND_CAT(PREFIX(), HASHER()))
 
 #define PREFIX() N
+#define ENABLE_COMPOUND_DICTIONARY 0
 
 #define HASHER() H2
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H3
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H4
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H5
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H6
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H40
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H41
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H42
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H54
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H35
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H55
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
 #define HASHER() H65
 /* NOLINTNEXTLINE(build/include) */
-#include "./backward_references_inc.h"
+#include "backward_references_inc.h"
 #undef HASHER
 
+#undef ENABLE_COMPOUND_DICTIONARY
+#undef PREFIX
+#define PREFIX() D
+#define ENABLE_COMPOUND_DICTIONARY 1
+
+#define HASHER() H5
+/* NOLINTNEXTLINE(build/include) */
+#include "backward_references_inc.h"
+#undef HASHER
+#define HASHER() H6
+/* NOLINTNEXTLINE(build/include) */
+#include "backward_references_inc.h"
+#undef HASHER
+#define HASHER() H40
+/* NOLINTNEXTLINE(build/include) */
+#include "backward_references_inc.h"
+#undef HASHER
+#define HASHER() H41
+/* NOLINTNEXTLINE(build/include) */
+#include "backward_references_inc.h"
+#undef HASHER
+#define HASHER() H42
+/* NOLINTNEXTLINE(build/include) */
+#include "backward_references_inc.h"
+#undef HASHER
+#define HASHER() H55
+/* NOLINTNEXTLINE(build/include) */
+#include "backward_references_inc.h"
+#undef HASHER
+#define HASHER() H65
+/* NOLINTNEXTLINE(build/include) */
+#include "backward_references_inc.h"
+#undef HASHER
+
+#undef ENABLE_COMPOUND_DICTIONARY
 #undef PREFIX
 
 #undef EXPORT_FN
@@ -125,6 +163,29 @@ void BrotliCreateBackwardReferences(size_t num_bytes,
     ContextLut literal_context_lut, const BrotliEncoderParams* params,
     Hasher* hasher, int* dist_cache, size_t* last_insert_len,
     Command* commands, size_t* num_commands, size_t* num_literals) {
+  if (params->dictionary.compound.num_chunks != 0) {
+    switch (params->hasher.type) {
+#define CASE_(N)                                                    \
+      case N:                                                       \
+        CreateBackwardReferencesDH ## N(num_bytes,                  \
+            position, ringbuffer, ringbuffer_mask,                  \
+            literal_context_lut, params, hasher, dist_cache,        \
+            last_insert_len, commands, num_commands, num_literals); \
+        return;
+      CASE_(5)
+      CASE_(6)
+      CASE_(40)
+      CASE_(41)
+      CASE_(42)
+      CASE_(55)
+      CASE_(65)
+#undef CASE_
+      default:
+        BROTLI_DCHECK(false);
+        break;
+    }
+  }
+
   switch (params->hasher.type) {
 #define CASE_(N)                                                  \
     case N:                                                       \
@@ -136,6 +197,7 @@ void BrotliCreateBackwardReferences(size_t num_bytes,
     FOR_GENERIC_HASHERS(CASE_)
 #undef CASE_
     default:
+      BROTLI_DCHECK(false);
       break;
   }
 }

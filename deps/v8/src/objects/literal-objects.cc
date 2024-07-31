@@ -589,9 +589,11 @@ template void ClassBoilerplate::AddToElementsTemplate(
     LocalIsolate* isolate, Handle<NumberDictionary> dictionary, uint32_t key,
     int key_index, ClassBoilerplate::ValueKind value_kind, Tagged<Smi> value);
 
+// static
 template <typename IsolateT>
-Handle<ClassBoilerplate> ClassBoilerplate::BuildClassBoilerplate(
-    IsolateT* isolate, ClassLiteral* expr) {
+Handle<ClassBoilerplate> ClassBoilerplate::New(IsolateT* isolate,
+                                               ClassLiteral* expr,
+                                               AllocationType allocation) {
   // Create a non-caching handle scope to ensure that the temporary handle used
   // by ObjectDescriptor for passing Smis around does not corrupt handle cache
   // in CanonicalHandleScope.
@@ -713,32 +715,28 @@ Handle<ClassBoilerplate> ClassBoilerplate::BuildClassBoilerplate(
   static_desc.Finalize(isolate);
   instance_desc.Finalize(isolate);
 
-  Handle<ClassBoilerplate> class_boilerplate = Handle<ClassBoilerplate>::cast(
-      factory->NewFixedArray(kBoilerplateLength, AllocationType::kOld));
+  auto result = Handle<ClassBoilerplate>::cast(
+      factory->NewStruct(CLASS_BOILERPLATE_TYPE, allocation));
 
-  class_boilerplate->set_arguments_count(dynamic_argument_index);
+  result->set_arguments_count(dynamic_argument_index);
 
-  class_boilerplate->set_static_properties_template(
-      *static_desc.properties_template());
-  class_boilerplate->set_static_elements_template(
-      *static_desc.elements_template());
-  class_boilerplate->set_static_computed_properties(
-      *static_desc.computed_properties());
+  result->set_static_properties_template(*static_desc.properties_template());
+  result->set_static_elements_template(*static_desc.elements_template());
+  result->set_static_computed_properties(*static_desc.computed_properties());
 
-  class_boilerplate->set_instance_properties_template(
+  result->set_instance_properties_template(
       *instance_desc.properties_template());
-  class_boilerplate->set_instance_elements_template(
-      *instance_desc.elements_template());
-  class_boilerplate->set_instance_computed_properties(
+  result->set_instance_elements_template(*instance_desc.elements_template());
+  result->set_instance_computed_properties(
       *instance_desc.computed_properties());
 
-  return scope.CloseAndEscape(class_boilerplate);
+  return scope.CloseAndEscape(result);
 }
 
-template Handle<ClassBoilerplate> ClassBoilerplate::BuildClassBoilerplate(
-    Isolate* isolate, ClassLiteral* expr);
-template Handle<ClassBoilerplate> ClassBoilerplate::BuildClassBoilerplate(
-    LocalIsolate* isolate, ClassLiteral* expr);
+template Handle<ClassBoilerplate> ClassBoilerplate::New(
+    Isolate* isolate, ClassLiteral* expr, AllocationType allocation);
+template Handle<ClassBoilerplate> ClassBoilerplate::New(
+    LocalIsolate* isolate, ClassLiteral* expr, AllocationType allocation);
 
 void ArrayBoilerplateDescription::BriefPrintDetails(std::ostream& os) {
   os << " " << ElementsKindToString(elements_kind()) << ", "

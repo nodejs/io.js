@@ -1,9 +1,9 @@
 const fetch = require('npm-registry-fetch')
 const npa = require('npm-package-arg')
-const log = require('../utils/log-shim')
+const { log, output } = require('proc-log')
 const getIdentity = require('../utils/get-identity')
+const BaseCommand = require('../base-cmd.js')
 
-const BaseCommand = require('../base-command.js')
 class Star extends BaseCommand {
   static description = 'Mark your favorite packages'
   static name = 'star'
@@ -62,10 +62,11 @@ class Star extends BaseCommand {
         body,
       })
 
-      this.npm.output(show + ' ' + pkg.name)
+      output.standard(show + ' ' + pkg.name)
       log.verbose('star', data)
       return data
     }
   }
 }
+
 module.exports = Star

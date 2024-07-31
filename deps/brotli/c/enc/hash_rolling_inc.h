@@ -67,7 +67,7 @@ static void FN(Initialize)(
     self->factor_remove *= self->factor;
   }
 
-  self->table = (uint32_t*)common->extra;
+  self->table = (uint32_t*)common->extra[0];
   for (i = 0; i < NUMBUCKETS; i++) {
     self->table[i] = FN(kInvalidPos);
   }
@@ -88,13 +88,13 @@ static void FN(Prepare)(HashRolling* BROTLI_RESTRICT self, BROTLI_BOOL one_shot,
   BROTLI_UNUSED(one_shot);
 }
 
-static BROTLI_INLINE size_t FN(HashMemAllocInBytes)(
+static BROTLI_INLINE void FN(HashMemAllocInBytes)(
     const BrotliEncoderParams* params, BROTLI_BOOL one_shot,
-    size_t input_size) {
-  return NUMBUCKETS * sizeof(uint32_t);
+    size_t input_size, size_t* alloc_size) {
   BROTLI_UNUSED(params);
   BROTLI_UNUSED(one_shot);
   BROTLI_UNUSED(input_size);
+  alloc_size[0] = NUMBUCKETS * sizeof(uint32_t);
 }
 
 static BROTLI_INLINE void FN(Store)(HashRolling* BROTLI_RESTRICT self,

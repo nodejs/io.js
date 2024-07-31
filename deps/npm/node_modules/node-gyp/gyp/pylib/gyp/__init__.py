@@ -108,7 +108,9 @@ def Load(
     if default_variables["GENERATOR"] == "ninja":
         default_variables.setdefault(
             "PRODUCT_DIR_ABS",
-            os.path.join(output_dir, "out", default_variables["build_type"]),
+            os.path.join(
+                output_dir, "out", default_variables.get("build_type", "default")
+            ),
         )
     else:
         default_variables.setdefault(
@@ -622,7 +624,7 @@ def gyp_main(args):
     if options.generator_flags:
         gen_flags += options.generator_flags
     generator_flags = NameValueListToDict(gen_flags)
-    if DEBUG_GENERAL in gyp.debug.keys():
+    if DEBUG_GENERAL in gyp.debug:
         DebugOutput(DEBUG_GENERAL, "generator_flags: %s", generator_flags)
 
     # Generate all requested formats (use a set in case we got one format request

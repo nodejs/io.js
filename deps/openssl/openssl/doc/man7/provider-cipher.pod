@@ -148,9 +148,13 @@ It is the responsibility of the cipher implementation to handle input lengths
 that are not multiples of the block length.
 In such cases a cipher implementation will typically cache partial blocks of
 input data until a complete block is obtained.
-I<out> may be the same location as I<in> but it should not partially overlap.
-The same expectations apply to I<outsize> as documented for
-L<EVP_EncryptUpdate(3)> and L<EVP_DecryptUpdate(3)>.
+The pointers I<out> and I<in> may point to the same location, in which
+case the encryption must be done in-place. If I<out> and I<in> point to different
+locations, the requirements of L<EVP_EncryptUpdate(3)> and L<EVP_DecryptUpdate(3)>
+guarantee that the two buffers are disjoint.
+Similarly, the requirements of L<EVP_EncryptUpdate(3)> and L<EVP_DecryptUpdate(3)>
+ensure that the buffer pointed to by I<out> contains sufficient room for the
+operation being performed.
 
 OSSL_FUNC_cipher_final() completes an encryption or decryption started through previous
 OSSL_FUNC_cipher_encrypt_init() or OSSL_FUNC_cipher_decrypt_init(), and OSSL_FUNC_cipher_update()

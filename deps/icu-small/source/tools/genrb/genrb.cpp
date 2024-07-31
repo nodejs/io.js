@@ -779,7 +779,7 @@ make_res_filename(const char *filename,
 
 
     if (U_FAILURE(status)) {
-        return 0;
+        return nullptr;
     }
 
     if(packageName != nullptr)
@@ -788,11 +788,11 @@ make_res_filename(const char *filename,
     }
 
     /* setup */
-    basename = dirname = resName = 0;
+    basename = dirname = resName = nullptr;
 
     /* determine basename, and compiled file names */
     basename = (char*) uprv_malloc(sizeof(char) * (uprv_strlen(filename) + 1));
-    if(basename == 0) {
+    if (basename == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         goto finish;
     }
@@ -800,7 +800,7 @@ make_res_filename(const char *filename,
     get_basename(basename, filename);
 
     dirname = (char*) uprv_malloc(sizeof(char) * (uprv_strlen(filename) + 1));
-    if(dirname == 0) {
+    if (dirname == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         goto finish;
     }
@@ -813,7 +813,7 @@ make_res_filename(const char *filename,
                                       + pkgLen
                                       + uprv_strlen(basename)
                                       + uprv_strlen(RES_SUFFIX) + 8));
-        if(resName == 0) {
+        if (resName == nullptr) {
             status = U_MEMORY_ALLOCATION_ERROR;
             goto finish;
         }

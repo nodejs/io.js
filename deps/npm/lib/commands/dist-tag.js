@@ -1,10 +1,10 @@
 const npa = require('npm-package-arg')
 const regFetch = require('npm-registry-fetch')
 const semver = require('semver')
-const log = require('../utils/log-shim')
-const otplease = require('../utils/otplease.js')
+const { log, output } = require('proc-log')
+const { otplease } = require('../utils/auth.js')
 const pkgJson = require('@npmcli/package-json')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 
 class DistTag extends BaseCommand {
   static description = 'Modify package distribution tags'
@@ -89,6 +89,9 @@ class DistTag extends BaseCommand {
 
     log.verbose('dist-tag add', defaultTag, 'to', spec.name + '@' + version)
 
+    // make sure new spec with tag is valid, this will throw if invalid
+    npa(`${spec.name}@${defaultTag}`)
+
     if (!spec.name || !version || !defaultTag) {
       throw this.usageError('must provide a spec with a name and version, and a tag to add')
     }
@@ -117,7 +120,7 @@ class DistTag extends BaseCommand {
       spec,
     }
     await otplease(this.npm, reqOpts, o => regFetch(url, o))
-    this.npm.output(`+${t}: ${spec.name}@${version}`)
+    output.standard(`+${t}: ${spec.name}@${version}`)
   }
 
   async remove (spec, tag, opts) {
@@ -143,7 +146,7 @@ class DistTag extends BaseCommand {
       spec,
     }
     await otplease(this.npm, reqOpts, o => regFetch(url, o))
-    this.npm.output(`-${tag}: ${spec.name}@${version}`)
+    output.standard(`-${tag}: ${spec.name}@${version}`)
   }
 
   async list (spec, opts) {
@@ -164,7 +167,7 @@ class DistTag extends BaseCommand {
       const tags = await this.fetchTags(spec, opts)
       const msg =
         Object.keys(tags).map(k => `${k}: ${tags[k]}`).sort().join('\n')
-      this.npm.output(msg)
+      output.standard(msg)
       return tags
     } catch (err) {
       log.error('dist-tag ls', "Couldn't get dist-tag data for", spec)
@@ -177,7 +180,7 @@ class DistTag extends BaseCommand {
 
     for (const name of this.workspaceNames) {
       try {
-        this.npm.output(`${name}:`)
+        output.standard(`${name}:`)
         await this.list(npa(name), this.npm.flatOptions)
       } catch (err) {
         // set the exitCode directly, but ignore the error
@@ -202,4 +205,5 @@ class DistTag extends BaseCommand {
     return data
   }
 }
+
 module.exports = DistTag

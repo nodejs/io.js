@@ -55,20 +55,20 @@ TEST_IMPL(udp_sendmmsg_error) {
   uv_buf_t buf;
   int i;
 
-  ASSERT_EQ(0, uv_udp_init(uv_default_loop(), &client));
-  ASSERT_EQ(0, uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
-  ASSERT_EQ(0, uv_udp_connect(&client, (const struct sockaddr*)&addr));
+  ASSERT_OK(uv_udp_init(uv_default_loop(), &client));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_udp_connect(&client, (const struct sockaddr*)&addr));
 
   buf = uv_buf_init("TEST", 4);
   for (i = 0; i < DATAGRAMS; ++i)
-    ASSERT_EQ(0, uv_udp_send(&req[i], &client, &buf, 1, NULL, send_cb));
+    ASSERT_OK(uv_udp_send(&req[i], &client, &buf, 1, NULL, send_cb));
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
   ASSERT_EQ(1, close_cb_called);
   ASSERT_EQ(DATAGRAMS, send_cb_called);
 
-  ASSERT_EQ(0, client.send_queue_size);
+  ASSERT_OK(client.send_queue_size);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

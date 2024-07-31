@@ -25,7 +25,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
+#include "ares_private.h"
 #include "ares_getenv.h"
 
 #ifndef HAVE_GETENV

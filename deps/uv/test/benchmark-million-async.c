@@ -60,7 +60,7 @@ static void timer_cb(uv_timer_t* handle) {
   unsigned i;
 
   done = 1;
-  ASSERT(0 == uv_thread_join(&thread_id));
+  ASSERT_OK(uv_thread_join(&thread_id));
 
   for (i = 0; i < ARRAY_SIZE(container->async_handles); i++) {
     uv_async_t* handle = container->async_handles + i;
@@ -93,14 +93,14 @@ BENCHMARK_IMPL(million_async) {
 
   for (i = 0; i < ARRAY_SIZE(container->async_handles); i++) {
     handle = container->async_handles + i;
-    ASSERT(0 == uv_async_init(loop, handle, async_cb));
+    ASSERT_OK(uv_async_init(loop, handle, async_cb));
     handle->data = NULL;
   }
 
-  ASSERT(0 == uv_timer_init(loop, &timer_handle));
-  ASSERT(0 == uv_timer_start(&timer_handle, timer_cb, timeout, 0));
-  ASSERT(0 == uv_thread_create(&thread_id, thread_cb, NULL));
-  ASSERT(0 == uv_run(loop, UV_RUN_DEFAULT));
+  ASSERT_OK(uv_timer_init(loop, &timer_handle));
+  ASSERT_OK(uv_timer_start(&timer_handle, timer_cb, timeout, 0));
+  ASSERT_OK(uv_thread_create(&thread_id, thread_cb, NULL));
+  ASSERT_OK(uv_run(loop, UV_RUN_DEFAULT));
   printf("%s async events in %.1f seconds (%s/s, %s unique handles seen)\n",
           fmt(&fmtbuf[0], container->async_events),
           timeout / 1000.,

@@ -105,6 +105,15 @@ function define_tests() {
 
                         // Test various error conditions for deriveBits below:
                         // length null (OperationError)
+                        // "Null" is not valid per the current spec
+                        //   - https://github.com/w3c/webcrypto/issues/322
+                        //   - https://github.com/w3c/webcrypto/issues/329
+                        //
+                        // Proposal for a spec change:
+                        //   - https://github.com/w3c/webcrypto/pull/345
+                        //
+                        // This test case may be replaced by these new tests:
+                        //   - https://github.com/web-platform-tests/wpt/pull/43400
                         subsetTest(promise_test, function(test) {
                             return subtle.deriveBits({name: "PBKDF2", salt: salts[saltSize], hash: hashName, iterations: parseInt(iterations)}, baseKeys[passwordSize], null)
                             .then(function(derivation) {

@@ -27,7 +27,7 @@ If you find a potential security vulnerability, please refer to our
 
 <!-- type=misc -->
 
-> Stability: 1 - Experimental
+> Stability: 0 - Deprecated: Will be removed shortly
 
 <!-- name=policy -->
 
@@ -178,7 +178,7 @@ different strings to point to the same module (such as excluding the extension).
 
 Specifier strings are canonicalized but not resolved prior to be used for
 matching in order to have some compatibility with import maps, for example if a
-resource `file:///C:/app/server.js` was given the following redirection from a
+resource `file:///C:/app/utils.js` was given the following redirection from a
 policy located at `file:///C:/app/policy.json`:
 
 ```json
@@ -303,15 +303,15 @@ delegate to the next relevant scope for `file:///C:/app/bin/main.js`, `"file:"`.
 
 This determines the policy for all file based resources within `"file:///C:/"`.
 This is not in the `"scopes"` field of the policy and would be skipped. It would
-not be used for `file:///C:/app/bin/main.js` unless `"file:///"` is set to
-cascade or is not in the `"scopes"` of the policy.
+not be used for `file:///C:/app/bin/main.js` unless `"file:///C:/app/"` is set
+to cascade or is not in the `"scopes"` of the policy.
 
 4. `"file:///"`
 
 This determines the policy for all file based resources on the `localhost`. This
 is not in the `"scopes"` field of the policy and would be skipped. It would not
-be used for `file:///C:/app/bin/main.js` unless `"file:///"` is set to cascade
-or is not in the `"scopes"` of the policy.
+be used for `file:///C:/app/bin/main.js` unless `"file:///C:/"` is set to
+cascade or is not in the `"scopes"` of the policy.
 
 5. `"file:"`
 
@@ -482,7 +482,7 @@ flag.
 
 When starting Node.js with `--experimental-permission`,
 the ability to access the file system through the `fs` module, spawn processes,
-use `node:worker_threads` and enable the runtime inspector
+use `node:worker_threads`, use native addons, use WASI, and enable the runtime inspector
 will be restricted.
 
 ```console
@@ -498,12 +498,16 @@ Error: Access to this API has been restricted
     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:76:24)
     at node:internal/main/run_main_module:23:47 {
   code: 'ERR_ACCESS_DENIED',
-  permission: 'FileSystemRead'
+  permission: 'FileSystemRead',
+  resource: '/home/user/index.js'
 }
 ```
 
 Allowing access to spawning a process and creating worker threads can be done
 using the [`--allow-child-process`][] and [`--allow-worker`][] respectively.
+
+To allow native addons when using permission model, use the [`--allow-addons`][]
+flag. For WASI, use the [`--allow-wasi`][] flag.
 
 #### Runtime API
 
@@ -556,36 +560,54 @@ Wildcards are supported too:
 * `--allow-fs-read=/home/test*` will allow read access to everything
   that matches the wildcard. e.g: `/home/test/file1` or `/home/test2`
 
-#### Limitations and known issues
+After passing a wildcard character (`*`) all subsequent characters will
+be ignored. For example: `/home/*.js` will work similar to `/home/*`.
+
+When the permission model is initialized, it will automatically add a wildcard
+(\*) if the specified directory exists. For example, if `/home/test/files`
+exists, it will be treated as `/home/test/files/*`. However, if the directory
+does not exist, the wildcard will not be added, and access will be limited to
+`/home/test/files`. If you want to allow access to a folder that does not exist
+yet, make sure to explicitly include the wildcard:
+`/my-path/folder-do-not-exist/*`.
+
+#### Permission Model constraints
 
 There are constraints you need to know before using this system:
 
-* When the permission model is enabled, Node.js may resolve some paths
-  differently than when it is disabled.
-* Native modules are restricted by default when using the Permission Model.
-* OpenSSL engines currently cannot be requested at runtime when the Permission
+* The model does not inherit to a child node process or a worker thread.
+* When using the Permission Model the following features will be restricted:
+  * Native modules
+  * Child process
+  * Worker Threads
+  * Inspector protocol
+  * File system access
+  * WASI
+* The Permission Model is initialized after the Node.js environment is set up.
+  However, certain flags such as `--env-file` or `--openssl-config` are designed
+  to read files before environment initialization. As a result, such flags are
+  not subject to the rules of the Permission Model. The same applies for V8
+  flags that can be set via runtime through `v8.setFlagsFromString`.
+* OpenSSL engines cannot be requested at runtime when the Permission
   Model is enabled, affecting the built-in crypto, https, and tls modules.
-* Relative paths are not supported through the CLI (`--allow-fs-*`).
-* The model does not inherit to a child node process.
-* The model does not inherit to a worker thread.
+* Using existing file descriptors via the `node:fs` module bypasses the
+  Permission Model.
+
+#### Limitations and Known Issues
+
 * Symbolic links will be followed even to locations outside of the set of paths
   that access has been granted to. Relative symbolic links may allow access to
   arbitrary files and directories. When starting applications with the
   permission model enabled, you must ensure that no paths to which access has
   been granted contain relative symbolic links.
-* When creating symlinks the target (first argument) should have read and
-  write access.
-* Permission changes are not retroactively applied to existing resources.
-* The Permission Model is initialized after the Node.js environment is set up.
-  However, certain flags such as `--env-file` or `--openssl-config` are designed
-  to read files before environment initialization. As a result, such flags are
-  not subject to the rules of the Permission Model.
 
 [Import maps]: https://url.spec.whatwg.org/#relative-url-with-fragment-string
 [Security Policy]: https://github.com/nodejs/node/blob/main/SECURITY.md
+[`--allow-addons`]: cli.md#--allow-addons
 [`--allow-child-process`]: cli.md#--allow-child-process
 [`--allow-fs-read`]: cli.md#--allow-fs-read
 [`--allow-fs-write`]: cli.md#--allow-fs-write
+[`--allow-wasi`]: cli.md#--allow-wasi
 [`--allow-worker`]: cli.md#--allow-worker
 [`--experimental-permission`]: cli.md#--experimental-permission
 [`permission.has()`]: process.md#processpermissionhasscope-reference

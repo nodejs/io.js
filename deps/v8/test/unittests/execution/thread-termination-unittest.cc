@@ -29,6 +29,7 @@
 #include "include/v8-locker.h"
 #include "src/api/api-inl.h"
 #include "src/base/platform/platform.h"
+#include "src/execution/interrupts-scope.h"
 #include "src/execution/isolate.h"
 #include "src/init/v8.h"
 #include "src/objects/objects-inl.h"
@@ -372,99 +373,6 @@ TEST_F(ThreadTerminationTest, TerminateLoadICException) {
 Persistent<String> reenter_script_1;
 Persistent<String> reenter_script_2;
 
-void ReenterAfterTermination(const FunctionCallbackInfo<Value>& info) {
-  CHECK(i::ValidateCallbackInfo(info));
-  TryCatch try_catch(info.GetIsolate());
-  Isolate* isolate = info.GetIsolate();
-  CHECK(!isolate->IsExecutionTerminating());
-  Local<String> script = Local<String>::New(isolate, reenter_script_1);
-  MaybeLocal<Value> result =
-      CompileRun(Isolate::GetCurrent()->GetCurrentContext(), script);
-  CHECK(result.IsEmpty());
-  CHECK(try_catch.HasCaught());
-  CHECK(try_catch.Exception()->IsNull());
-  CHECK(try_catch.Message().IsEmpty());
-  CHECK(!try_catch.CanContinue());
-  CHECK(try_catch.HasTerminated());
-  CHECK(isolate->IsExecutionTerminating());
-  script = Local<String>::New(isolate, reenter_script_2);
-  MaybeLocal<Script> compiled_script =
-      Script::Compile(isolate->GetCurrentContext(), script);
-  CHECK(compiled_script.IsEmpty());
-}
-
-// Test that reentry into V8 while the termination exception is still pending
-// (has not yet unwound the 0-level JS frame) does not crash.
-TEST_F(ThreadTerminationTest, TerminateAndReenterFromThreadItself) {
-  HandleScope scope(isolate());
-  Local<ObjectTemplate> global = CreateGlobalTemplate(
-      isolate(), TerminateCurrentThread, ReenterAfterTermination);
-  Local<Context> context = Context::New(isolate(), nullptr, global);
-  Context::Scope context_scope(context);
-  CHECK(!isolate()->IsExecutionTerminating());
-  // Create script strings upfront as it won't work when terminating.
-  reenter_script_1.Reset(isolate(), NewString("function f() {"
-                                              "  var term = true;"
-                                              "  try {"
-                                              "    while(true) {"
-                                              "      if (term) terminate();"
-                                              "      term = false;"
-                                              "    }"
-                                              "    fail();"
-                                              "  } catch(e) {"
-                                              "    fail();"
-                                              "  }"
-                                              "}"
-                                              "f()"));
-  reenter_script_2.Reset(isolate(), NewString("function f() { fail(); } f()"));
-  TryRunJS("try { loop(); fail(); } catch(e) { fail(); }");
-  CHECK(!isolate()->IsExecutionTerminating());
-  // Check we can run JS again after termination.
-  CHECK(RunJS("function f() { return true; } f()")->IsTrue());
-  reenter_script_1.Reset();
-  reenter_script_2.Reset();
-}
-
-TEST_F(ThreadTerminationTest,
-       TerminateAndReenterFromThreadItselfWithOuterTryCatch) {
-  HandleScope scope(isolate());
-  Local<ObjectTemplate> global = CreateGlobalTemplate(
-      isolate(), TerminateCurrentThread, ReenterAfterTermination);
-  Local<Context> context = Context::New(isolate(), nullptr, global);
-  Context::Scope context_scope(context);
-  CHECK(!isolate()->IsExecutionTerminating());
-  // Create script strings upfront as it won't work when terminating.
-  reenter_script_1.Reset(isolate(), NewString("function f() {"
-                                              "  var term = true;"
-                                              "  try {"
-                                              "    while(true) {"
-                                              "      if (term) terminate();"
-                                              "      term = false;"
-                                              "    }"
-                                              "    fail();"
-                                              "  } catch(e) {"
-                                              "    fail();"
-                                              "  }"
-                                              "}"
-                                              "f()"));
-  reenter_script_2.Reset(isolate(), NewString("function f() { fail(); } f()"));
-  {
-    TryCatch try_catch(isolate());
-    TryRunJS("try { loop(); fail(); } catch(e) { fail(); }");
-    CHECK(try_catch.HasCaught());
-    CHECK(try_catch.Exception()->IsNull());
-    CHECK(try_catch.Message().IsEmpty());
-    CHECK(!try_catch.CanContinue());
-    CHECK(try_catch.HasTerminated());
-    CHECK(isolate()->IsExecutionTerminating());
-  }
-  CHECK(!isolate()->IsExecutionTerminating());
-  // Check we can run JS again after termination.
-  CHECK(RunJS("function f() { return true; } f()")->IsTrue());
-  reenter_script_1.Reset();
-  reenter_script_2.Reset();
-}
-
 void DoLoopCancelTerminate(const FunctionCallbackInfo<Value>& info) {
   CHECK(i::ValidateCallbackInfo(info));
   Isolate* isolate = info.GetIsolate();
@@ -603,185 +511,16 @@ TEST_F(ThreadTerminationTest, PostponeTerminateException) {
   CHECK_EQ(2, callback_counter);
 }
 
-static void AssertTerminatedCodeRun(Isolate* isolate) {
-  TryCatch try_catch(isolate);
-  CompileRun(isolate->GetCurrentContext(), "for (var i = 0; i < 10000; i++);");
-  CHECK(try_catch.HasTerminated());
-}
-
 static void AssertFinishedCodeRun(Isolate* isolate) {
   TryCatch try_catch(isolate);
   CompileRun(isolate->GetCurrentContext(), "for (var i = 0; i < 10000; i++);");
   CHECK(!try_catch.HasTerminated());
 }
 
-TEST_F(ThreadTerminationTest, SafeForTerminateException) {
-  HandleScope scope(isolate());
-  Local<Context> context = Context::New(isolate());
-  Context::Scope context_scope(context);
-
-  {  // Checks safe for termination scope.
-    i::PostponeInterruptsScope p1(i_isolate(),
-                                  i::StackGuard::TERMINATE_EXECUTION);
-    isolate()->TerminateExecution();
-    AssertFinishedCodeRun(isolate());
-    {
-      i::SafeForInterruptsScope p2(i_isolate(),
-                                   i::StackGuard::TERMINATE_EXECUTION);
-      AssertTerminatedCodeRun(isolate());
-      AssertFinishedCodeRun(isolate());
-      isolate()->TerminateExecution();
-    }
-    AssertFinishedCodeRun(isolate());
-    isolate()->CancelTerminateExecution();
-  }
-
-  isolate()->TerminateExecution();
-  {  // no scope -> postpone
-    i::PostponeInterruptsScope p1(i_isolate(),
-                                  i::StackGuard::TERMINATE_EXECUTION);
-    AssertFinishedCodeRun(isolate());
-    {  // postpone -> postpone
-      i::PostponeInterruptsScope p2(i_isolate(),
-                                    i::StackGuard::TERMINATE_EXECUTION);
-      AssertFinishedCodeRun(isolate());
-
-      {  // postpone -> safe
-        i::SafeForInterruptsScope p3(i_isolate(),
-                                     i::StackGuard::TERMINATE_EXECUTION);
-        AssertTerminatedCodeRun(isolate());
-        isolate()->TerminateExecution();
-
-        {  // safe -> safe
-          i::SafeForInterruptsScope p4(i_isolate(),
-                                       i::StackGuard::TERMINATE_EXECUTION);
-          AssertTerminatedCodeRun(isolate());
-          isolate()->TerminateExecution();
-
-          {  // safe -> postpone
-            i::PostponeInterruptsScope p5(i_isolate(),
-                                          i::StackGuard::TERMINATE_EXECUTION);
-            AssertFinishedCodeRun(isolate());
-          }  // postpone -> safe
-
-          AssertTerminatedCodeRun(isolate());
-          isolate()->TerminateExecution();
-        }  // safe -> safe
-
-        AssertTerminatedCodeRun(isolate());
-        isolate()->TerminateExecution();
-      }  // safe -> postpone
-
-      AssertFinishedCodeRun(isolate());
-    }  // postpone -> postpone
-
-    AssertFinishedCodeRun(isolate());
-  }  // postpone -> no scope
-  AssertTerminatedCodeRun(isolate());
-
-  isolate()->TerminateExecution();
-  {  // no scope -> safe
-    i::SafeForInterruptsScope p1(i_isolate(),
-                                 i::StackGuard::TERMINATE_EXECUTION);
-    AssertTerminatedCodeRun(isolate());
-  }  // safe -> no scope
-  AssertFinishedCodeRun(isolate());
-
-  {  // no scope -> postpone
-    i::PostponeInterruptsScope p1(i_isolate(),
-                                  i::StackGuard::TERMINATE_EXECUTION);
-    isolate()->TerminateExecution();
-    {  // postpone -> safe
-      i::SafeForInterruptsScope p2(i_isolate(),
-                                   i::StackGuard::TERMINATE_EXECUTION);
-      AssertTerminatedCodeRun(isolate());
-    }  // safe -> postpone
-  }    // postpone -> no scope
-  AssertFinishedCodeRun(isolate());
-
-  {  // no scope -> postpone
-    i::PostponeInterruptsScope p1(i_isolate(),
-                                  i::StackGuard::TERMINATE_EXECUTION);
-    {  // postpone -> safe
-      i::SafeForInterruptsScope p2(i_isolate(),
-                                   i::StackGuard::TERMINATE_EXECUTION);
-      {  // safe -> postpone
-        i::PostponeInterruptsScope p3(i_isolate(),
-                                      i::StackGuard::TERMINATE_EXECUTION);
-        isolate()->TerminateExecution();
-      }  // postpone -> safe
-      AssertTerminatedCodeRun(isolate());
-    }  // safe -> postpone
-  }    // postpone -> no scope
-}
-
 void RequestTermianteAndCallAPI(const FunctionCallbackInfo<Value>& info) {
   CHECK(i::ValidateCallbackInfo(info));
   info.GetIsolate()->TerminateExecution();
   AssertFinishedCodeRun(info.GetIsolate());
-}
-
-TEST_F(TestWithPlatform, IsolateSafeForTerminationMode) {
-  Isolate::CreateParams create_params;
-  create_params.only_terminate_in_safe_scope = true;
-  create_params.array_buffer_allocator =
-      v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-  Isolate* isolate = Isolate::New(create_params);
-  i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
-  {
-    Isolate::Scope isolate_scope(isolate);
-    HandleScope handle_scope(isolate);
-    Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
-    global->Set(
-        String::NewFromUtf8(isolate, "terminateAndCallAPI").ToLocalChecked(),
-        FunctionTemplate::New(isolate, RequestTermianteAndCallAPI));
-    Local<Context> context = Context::New(isolate, nullptr, global);
-    Context::Scope context_scope(context);
-
-    // Should postpone termination without safe scope.
-    isolate->TerminateExecution();
-    AssertFinishedCodeRun(isolate);
-    {
-      Isolate::SafeForTerminationScope safe_scope(isolate);
-      AssertTerminatedCodeRun(isolate);
-    }
-    AssertFinishedCodeRun(isolate);
-
-    {
-      isolate->TerminateExecution();
-      AssertFinishedCodeRun(isolate);
-      i::PostponeInterruptsScope p1(i_isolate,
-                                    i::StackGuard::TERMINATE_EXECUTION);
-      {
-        // SafeForTermination overrides postpone.
-        Isolate::SafeForTerminationScope safe_scope(isolate);
-        AssertTerminatedCodeRun(isolate);
-      }
-      AssertFinishedCodeRun(isolate);
-    }
-
-    {
-      Isolate::SafeForTerminationScope safe_scope(isolate);
-      // Request terminate and call API recursively.
-      CompileRun(context, "terminateAndCallAPI()");
-      AssertTerminatedCodeRun(isolate);
-    }
-
-    {
-      i::PostponeInterruptsScope p1(i_isolate,
-                                    i::StackGuard::TERMINATE_EXECUTION);
-      // Request terminate and call API recursively.
-      CompileRun(context, "terminateAndCallAPI()");
-      AssertFinishedCodeRun(isolate);
-    }
-    AssertFinishedCodeRun(isolate);
-    {
-      Isolate::SafeForTerminationScope safe_scope(isolate);
-      AssertTerminatedCodeRun(isolate);
-    }
-  }
-  isolate->Dispose();
-  delete create_params.array_buffer_allocator;
 }
 
 TEST_F(ThreadTerminationTest, ErrorObjectAfterTermination) {
@@ -981,7 +720,6 @@ class TerminatorSleeperThread : public base::Thread {
         sleep_ms_(sleep_ms) {}
   void Run() override {
     base::OS::Sleep(base::TimeDelta::FromMilliseconds(sleep_ms_));
-    CHECK(!isolate_->IsExecutionTerminating());
     isolate_->TerminateExecution();
   }
 
@@ -1007,6 +745,7 @@ TEST_F(ThreadTerminationTest, TerminateRegExp) {
   TryCatch try_catch(isolate());
   CHECK(!isolate()->IsExecutionTerminating());
   CHECK(!RunJS("var re = /(x+)+y$/; re.test('x');").IsEmpty());
+  CHECK(!isolate()->IsExecutionTerminating());
   TerminatorSleeperThread terminator(isolate(), 100);
   CHECK(terminator.Start());
   CHECK(TryRunJS("re.test('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'); fail();")

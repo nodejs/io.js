@@ -6,7 +6,7 @@
 
 const str = String.fromCharCode(849206214, 00, 00);
 gc();
-const Bar = this.SharedStructType("a");
+const Bar = this.SharedStructType(new String('a'));
 const bar = Bar();
 bar.a = str;
 externalizeString(str);

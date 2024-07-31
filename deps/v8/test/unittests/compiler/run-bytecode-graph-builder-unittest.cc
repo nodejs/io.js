@@ -33,9 +33,9 @@ namespace compiler {
 static const char kFunctionName[] = "f";
 
 static const Token::Value kCompareOperators[] = {
-    Token::Value::EQ,        Token::Value::NE, Token::Value::EQ_STRICT,
-    Token::Value::NE_STRICT, Token::Value::LT, Token::Value::LTE,
-    Token::Value::GT,        Token::Value::GTE};
+    Token::kEq,          Token::kNotEq,        Token::kEqStrict,
+    Token::kNotEqStrict, Token::kLessThan,     Token::kLessThanEq,
+    Token::kGreaterThan, Token::kGreaterThanEq};
 
 static const int SMI_MAX = (1 << 30) - 1;
 static const int SMI_MIN = -(1 << 30);
@@ -110,10 +110,9 @@ class BytecodeGraphTester {
     TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate_));
     auto callable = GetCallable<>();
     MaybeHandle<Object> no_result = callable();
-    CHECK(isolate_->has_pending_exception());
+    CHECK(isolate_->has_exception());
     CHECK(try_catch.HasCaught());
     CHECK(no_result.is_null());
-    isolate_->OptionalRescheduleException(true);
     CHECK(!try_catch.Message().IsEmpty());
     return try_catch.Message();
   }
@@ -1293,21 +1292,21 @@ TEST_F(RunBytecodeGraphBuilderTest, BytecodeGraphBuilderEvalGlobal) {
 bool get_compare_result(Isolate* isolate, Token::Value opcode,
                         Handle<Object> lhs_value, Handle<Object> rhs_value) {
   switch (opcode) {
-    case Token::Value::EQ:
+    case Token::kEq:
       return Object::Equals(isolate, lhs_value, rhs_value).FromJust();
-    case Token::Value::NE:
+    case Token::kNotEq:
       return !Object::Equals(isolate, lhs_value, rhs_value).FromJust();
-    case Token::Value::EQ_STRICT:
+    case Token::kEqStrict:
       return Object::StrictEquals(*lhs_value, *rhs_value);
-    case Token::Value::NE_STRICT:
+    case Token::kNotEqStrict:
       return !Object::StrictEquals(*lhs_value, *rhs_value);
-    case Token::Value::LT:
+    case Token::kLessThan:
       return Object::LessThan(isolate, lhs_value, rhs_value).FromJust();
-    case Token::Value::LTE:
+    case Token::kLessThanEq:
       return Object::LessThanOrEqual(isolate, lhs_value, rhs_value).FromJust();
-    case Token::Value::GT:
+    case Token::kGreaterThan:
       return Object::GreaterThan(isolate, lhs_value, rhs_value).FromJust();
-    case Token::Value::GTE:
+    case Token::kGreaterThanEq:
       return Object::GreaterThanOrEqual(isolate, lhs_value, rhs_value)
           .FromJust();
     default:
@@ -1317,21 +1316,21 @@ bool get_compare_result(Isolate* isolate, Token::Value opcode,
 
 const char* get_code_snippet(Token::Value opcode) {
   switch (opcode) {
-    case Token::Value::EQ:
+    case Token::kEq:
       return "return p1 == p2;";
-    case Token::Value::NE:
+    case Token::kNotEq:
       return "return p1 != p2;";
-    case Token::Value::EQ_STRICT:
+    case Token::kEqStrict:
       return "return p1 === p2;";
-    case Token::Value::NE_STRICT:
+    case Token::kNotEqStrict:
       return "return p1 !== p2;";
-    case Token::Value::LT:
+    case Token::kLessThan:
       return "return p1 < p2;";
-    case Token::Value::LTE:
+    case Token::kLessThanEq:
       return "return p1 <= p2;";
-    case Token::Value::GT:
+    case Token::kGreaterThan:
       return "return p1 > p2;";
-    case Token::Value::GTE:
+    case Token::kGreaterThanEq:
       return "return p1 >= p2;";
     default:
       UNREACHABLE();

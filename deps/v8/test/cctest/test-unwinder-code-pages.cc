@@ -296,7 +296,7 @@ TEST(Unwind_CodeObjectPCInMiddle_Success_CodePagesAPI) {
       Handle<JSFunction>::cast(v8::Utils::OpenHandle(*local_foo));
 
   // Put the current PC inside of the created code object.
-  Tagged<Code> code = foo->code();
+  Tagged<Code> code = foo->code(i_isolate);
   // We don't produce optimized code when run with --no-turbofan and
   // --no-maglev.
   if (!code->is_optimized_code()) return;
@@ -659,7 +659,7 @@ TEST(PCIsInV8_LargeCodeObject_CodePagesAPI) {
   HandleScope scope(i_isolate);
 
   // Create a big function that ends up in CODE_LO_SPACE.
-  const int instruction_size = Page::kPageSize + 1;
+  const int instruction_size = PageMetadata::kPageSize + 1;
   CHECK_GT(instruction_size, MemoryChunkLayout::MaxRegularCodeObjectSize());
   std::unique_ptr<uint8_t[]> instructions(new uint8_t[instruction_size]);
 
@@ -673,7 +673,7 @@ TEST(PCIsInV8_LargeCodeObject_CodePagesAPI) {
   desc.unwinding_info_size = 0;
   desc.origin = nullptr;
   Handle<Code> foo_code =
-      Factory::CodeBuilder(i_isolate, desc, CodeKind::WASM_FUNCTION).Build();
+      Factory::CodeBuilder(i_isolate, desc, CodeKind::FOR_TESTING).Build();
 
   CHECK(i_isolate->heap()->InSpace(foo_code->instruction_stream(),
                                    CODE_LO_SPACE));

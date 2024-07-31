@@ -143,7 +143,7 @@ void CompactData::getUniquePatterns(UVector &output, UErrorCode &status) const {
     U_ASSERT(output.isEmpty());
     // NOTE: In C++, this is done more manually with a UVector.
     // In Java, we can take advantage of JDK HashSet.
-    for (auto pattern : patterns) {
+    for (const auto* pattern : patterns) {
         if (pattern == nullptr || pattern == USE_FALLBACK) {
             continue;
         }
@@ -279,7 +279,7 @@ void CompactHandler::precomputeAllModifiers(MutablePatternModifier &buildReferen
     }
 
     for (int32_t i = 0; i < precomputedModsLength; i++) {
-        auto patternString = static_cast<const char16_t *>(allPatterns[i]);
+        const auto* patternString = static_cast<const char16_t*>(allPatterns[i]);
         UnicodeString hello(patternString);
         CompactModInfo &info = precomputedMods[i];
         ParsedPatternInfo patternInfo;

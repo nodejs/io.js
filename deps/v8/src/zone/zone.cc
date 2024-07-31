@@ -95,6 +95,19 @@ void Zone::Reset() {
   DCHECK_EQ(segment_bytes_allocated_, keep->total_size());
 }
 
+#ifdef DEBUG
+bool Zone::Contains(void* ptr) {
+  Address address = reinterpret_cast<Address>(ptr);
+  for (Segment* segment = segment_head_; segment != nullptr;
+       segment = segment->next()) {
+    if (address >= segment->start() && address < segment->end()) {
+      return true;
+    }
+  }
+  return false;
+}
+#endif
+
 void Zone::DeleteAll() {
   Segment* current = segment_head_;
   if (current) {

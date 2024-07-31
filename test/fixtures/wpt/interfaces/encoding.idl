@@ -22,7 +22,7 @@ dictionary TextDecodeOptions {
 interface TextDecoder {
   constructor(optional DOMString label = "utf-8", optional TextDecoderOptions options = {});
 
-  USVString decode(optional [AllowShared] BufferSource input, optional TextDecodeOptions options = {});
+  USVString decode(optional AllowSharedBufferSource input, optional TextDecodeOptions options = {});
 };
 TextDecoder includes TextDecoderCommon;
 

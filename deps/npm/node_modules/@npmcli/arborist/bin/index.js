@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs')
+const path = require('node:path')
+const { time } = require('proc-log')
 
 const { bin, arb: options } = require('./lib/options')
 const version = require('../package.json').version
@@ -72,11 +73,11 @@ for (const file of commandFiles) {
 
     log.info(name, options)
 
-    process.emit('time', totalTime)
-    process.emit('time', scriptTime)
+    const timeEnd = time.start(totalTime)
+    const scriptEnd = time.start(scriptTime)
 
     return command(options, (result) => {
-      process.emit('timeEnd', scriptTime)
+      scriptEnd()
       return {
         result,
         timing: {
@@ -95,7 +96,7 @@ for (const file of commandFiles) {
         return err
       })
       .then((r) => {
-        process.emit('timeEnd', totalTime)
+        timeEnd()
         if (bin.loglevel !== 'silent') {
           console[process.exitCode ? 'error' : 'log'](r)
         }

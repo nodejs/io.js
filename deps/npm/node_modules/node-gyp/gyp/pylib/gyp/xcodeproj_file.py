@@ -971,7 +971,7 @@ class XCHierarchicalElement(XCObject):
         if "path" in self._properties and "name" not in self._properties:
             path = self._properties["path"]
             name = posixpath.basename(path)
-            if name != "" and path != name:
+            if name not in ("", path):
                 self.SetProperty("name", name)
 
         if "path" in self._properties and (
@@ -2355,9 +2355,8 @@ class XCTarget(XCRemoteObject):
         # property was supplied, set "productName" if it is not present.  Also set
         # the "PRODUCT_NAME" build setting in each configuration, but only if
         # the setting is not present in any build configuration.
-        if "name" in self._properties:
-            if "productName" not in self._properties:
-                self.SetProperty("productName", self._properties["name"])
+        if "name" in self._properties and "productName" not in self._properties:
+            self.SetProperty("productName", self._properties["name"])
 
         if "productName" in self._properties:
             if "buildConfigurationList" in self._properties:
@@ -2547,13 +2546,12 @@ class PBXNativeTarget(XCTarget):
                         force_extension = suffix[1:]
 
                 if (
-                    self._properties["productType"]
-                    == "com.apple.product-type-bundle.unit.test"
-                    or self._properties["productType"]
-                    == "com.apple.product-type-bundle.ui-testing"
-                ):
-                    if force_extension is None:
-                        force_extension = suffix[1:]
+                    self._properties["productType"] in {
+                        "com.apple.product-type-bundle.unit.test",
+                        "com.apple.product-type-bundle.ui-testing"
+                    }
+                ) and force_extension is None:
+                    force_extension = suffix[1:]
 
                 if force_extension is not None:
                     # If it's a wrapper (bundle), set WRAPPER_EXTENSION.
@@ -2636,10 +2634,13 @@ class PBXNativeTarget(XCTarget):
             # frameworks phases, if any.
             insert_at = len(self._properties["buildPhases"])
             for index, phase in enumerate(self._properties["buildPhases"]):
-                if (
-                    isinstance(phase, PBXResourcesBuildPhase)
-                    or isinstance(phase, PBXSourcesBuildPhase)
-                    or isinstance(phase, PBXFrameworksBuildPhase)
+                if isinstance(
+                    phase,
+                    (
+                        PBXResourcesBuildPhase,
+                        PBXSourcesBuildPhase,
+                        PBXFrameworksBuildPhase,
+                    ),
                 ):
                     insert_at = index
                     break
@@ -2658,9 +2659,7 @@ class PBXNativeTarget(XCTarget):
             # phases, if any.
             insert_at = len(self._properties["buildPhases"])
             for index, phase in enumerate(self._properties["buildPhases"]):
-                if isinstance(phase, PBXSourcesBuildPhase) or isinstance(
-                    phase, PBXFrameworksBuildPhase
-                ):
+                if isinstance(phase, (PBXSourcesBuildPhase, PBXFrameworksBuildPhase)):
                     insert_at = index
                     break
 
@@ -2701,8 +2700,10 @@ class PBXNativeTarget(XCTarget):
                 other._properties["productType"] == static_library_type
                 or (
                     (
-                        other._properties["productType"] == shared_library_type
-                        or other._properties["productType"] == framework_type
+                        other._properties["productType"] in {
+                            shared_library_type,
+                            framework_type
+                        }
                     )
                     and (
                         (not other.HasBuildSetting("MACH_O_TYPE"))

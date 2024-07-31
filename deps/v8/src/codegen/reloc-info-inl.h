@@ -12,14 +12,28 @@
 namespace v8 {
 namespace internal {
 
-void RelocInfo::set_target_object(Tagged<InstructionStream> host,
-                                  Tagged<HeapObject> target,
-                                  WriteBarrierMode write_barrier_mode,
-                                  ICacheFlushMode icache_flush_mode) {
+void WritableRelocInfo::set_target_object(Tagged<InstructionStream> host,
+                                          Tagged<HeapObject> target,
+                                          WriteBarrierMode write_barrier_mode,
+                                          ICacheFlushMode icache_flush_mode) {
   set_target_object(target, icache_flush_mode);
   if (!v8_flags.disable_write_barriers) {
     WriteBarrierForCode(host, this, target, write_barrier_mode);
   }
+}
+
+template <typename RelocInfoT>
+RelocIteratorBase<RelocInfoT>::RelocIteratorBase(RelocInfoT reloc_info,
+                                                 const uint8_t* pos,
+                                                 const uint8_t* end,
+                                                 int mode_mask)
+    : pos_(pos), end_(end), rinfo_(reloc_info), mode_mask_(mode_mask) {
+  DCHECK_EQ(reloc_info.rmode(), RelocInfo::NO_INFO);
+  DCHECK_EQ(reloc_info.data(), 0);
+  // Relocation info is read backwards.
+  DCHECK_GE(pos_, end_);
+  if (mode_mask_ == 0) pos_ = end_;
+  next();
 }
 
 }  // namespace internal

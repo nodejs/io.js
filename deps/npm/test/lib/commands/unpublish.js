@@ -26,10 +26,10 @@ t.test('no args --force success', async t => {
     authorization: 'test-auth-token',
   })
   const manifest = registry.manifest({ name: pkg })
-  await registry.package({ manifest, query: { write: true } })
+  await registry.package({ manifest, query: { write: true }, times: 2 })
   registry.unpublish({ manifest })
   await npm.exec('unpublish', [])
-  t.equal(joinedOutput(), '- test-package@1.0.0')
+  t.equal(joinedOutput(), '- test-package')
 })
 
 t.test('no args --force missing package.json', async t => {
@@ -63,11 +63,28 @@ t.test('no args --force error reading package.json', async t => {
   )
 })
 
-t.test('no args entire project', async t => {
+t.test('with args --force error reading package.json', async t => {
+  const { npm } = await loadMockNpm(t, {
+    config: {
+      force: true,
+    },
+    prefixDir: {
+      'package.json': '{ not valid json ]',
+    },
+  })
+
+  await t.rejects(
+    npm.exec('unpublish', [pkg]),
+    /Invalid package.json/,
+    'should throw error from reading package.json'
+  )
+})
+
+t.test('no force entire project', async t => {
   const { npm } = await loadMockNpm(t)
 
   await t.rejects(
-    npm.exec('unpublish', []),
+    npm.exec('unpublish', ['@npmcli/unpublish-test']),
     /Refusing to delete entire project/
   )
 })
@@ -79,6 +96,26 @@ t.test('too many args', async t => {
     npm.exec('unpublish', ['a', 'b']),
     { code: 'EUSAGE' },
     'should throw usage instructions if too many args'
+  )
+})
+
+t.test('range', async t => {
+  const { npm } = await loadMockNpm(t)
+
+  await t.rejects(
+    npm.exec('unpublish', ['a@>1.0.0']),
+    { code: 'EUSAGE' },
+    /single version/
+  )
+})
+
+t.test('tag', async t => {
+  const { npm } = await loadMockNpm(t)
+
+  await t.rejects(
+    npm.exec('unpublish', ['a@>1.0.0']),
+    { code: 'EUSAGE' },
+    /single version/
   )
 })
 
@@ -129,7 +166,24 @@ t.test('unpublish <pkg>@version last version', async t => {
   )
 })
 
-t.test('no version found in package.json', async t => {
+t.test('no version found in package.json no force', async t => {
+  const { npm } = await loadMockNpm(t, {
+    config: {
+      ...auth,
+    },
+    prefixDir: {
+      'package.json': JSON.stringify({
+        name: pkg,
+      }, null, 2),
+    },
+  })
+  await t.rejects(
+    npm.exec('unpublish', []),
+    /Refusing to delete entire project/
+  )
+})
+
+t.test('no version found in package.json with force', async t => {
   const { joinedOutput, npm } = await loadMockNpm(t, {
     config: {
       force: true,
@@ -147,7 +201,7 @@ t.test('no version found in package.json', async t => {
     authorization: 'test-auth-token',
   })
   const manifest = registry.manifest({ name: pkg })
-  await registry.package({ manifest, query: { write: true } })
+  await registry.package({ manifest, query: { write: true }, times: 2 })
   registry.unpublish({ manifest })
 
   await npm.exec('unpublish', [])
@@ -219,7 +273,7 @@ t.test('workspaces', async t => {
     'workspace-b': {
       'package.json': JSON.stringify({
         name: 'workspace-b',
-        version: '1.2.3-n',
+        version: '1.2.3-b',
         repository: 'https://github.com/npm/workspace-b',
       }),
     },
@@ -231,20 +285,20 @@ t.test('workspaces', async t => {
     },
   }
 
-  t.test('no force', async t => {
+  t.test('with package name no force', async t => {
     const { npm } = await loadMockNpm(t, {
       config: {
-        workspaces: true,
+        workspace: ['workspace-a'],
       },
       prefixDir,
     })
     await t.rejects(
-      npm.exec('unpublish', []),
+      npm.exec('unpublish', ['workspace-a']),
       /Refusing to delete entire project/
     )
   })
 
-  t.test('all workspaces --force', async t => {
+  t.test('all workspaces last version --force', async t => {
     const { joinedOutput, npm } = await loadMockNpm(t, {
       config: {
         workspaces: true,
@@ -258,9 +312,9 @@ t.test('workspaces', async t => {
       registry: npm.config.get('registry'),
       authorization: 'test-auth-token',
     })
-    const manifestA = registry.manifest({ name: 'workspace-a' })
-    const manifestB = registry.manifest({ name: 'workspace-b' })
-    const manifestN = registry.manifest({ name: 'workspace-n' })
+    const manifestA = registry.manifest({ name: 'workspace-a', versions: ['1.2.3-a'] })
+    const manifestB = registry.manifest({ name: 'workspace-b', versions: ['1.2.3-b'] })
+    const manifestN = registry.manifest({ name: 'workspace-n', versions: ['1.2.3-n'] })
     await registry.package({ manifest: manifestA, query: { write: true }, times: 2 })
     await registry.package({ manifest: manifestB, query: { write: true }, times: 2 })
     await registry.package({ manifest: manifestN, query: { write: true }, times: 2 })
@@ -270,28 +324,6 @@ t.test('workspaces', async t => {
 
     await npm.exec('unpublish', [])
     t.equal(joinedOutput(), '- workspace-a\n- workspace-b\n- workspace-n')
-  })
-
-  t.test('one workspace --force', async t => {
-    const { joinedOutput, npm } = await loadMockNpm(t, {
-      config: {
-        workspace: ['workspace-a'],
-        force: true,
-        ...auth,
-      },
-      prefixDir,
-    })
-    const registry = new MockRegistry({
-      tap: t,
-      registry: npm.config.get('registry'),
-      authorization: 'test-auth-token',
-    })
-    const manifestA = registry.manifest({ name: 'workspace-a' })
-    await registry.package({ manifest: manifestA, query: { write: true }, times: 2 })
-    registry.nock.delete(`/workspace-a/-rev/${manifestA._rev}`).reply(201)
-
-    await npm.exec('unpublish', [])
-    t.equal(joinedOutput(), '- workspace-a')
   })
 })
 
@@ -331,6 +363,16 @@ t.test('dryRun with no args', async t => {
       }, null, 2),
     },
   })
+  const registry = new MockRegistry({
+    tap: t,
+    registry: npm.config.get('registry'),
+    authorization: 'test-auth-token',
+  })
+  const manifest = registry.manifest({
+    name: pkg,
+    packuments: ['1.0.0', '1.0.1'],
+  })
+  await registry.package({ manifest, query: { write: true } })
 
   await npm.exec('unpublish', [])
   t.equal(joinedOutput(), '- test-package@1.0.0')
@@ -360,10 +402,40 @@ t.test('publishConfig no spec', async t => {
     authorization: 'test-other-token',
   })
   const manifest = registry.manifest({ name: pkg })
-  await registry.package({ manifest, query: { write: true } })
+  await registry.package({ manifest, query: { write: true }, times: 2 })
   registry.unpublish({ manifest })
   await npm.exec('unpublish', [])
-  t.equal(joinedOutput(), '- test-package@1.0.0')
+  t.equal(joinedOutput(), '- test-package')
+})
+
+t.test('prioritize CLI flags over publishConfig no spec', async t => {
+  const alternateRegistry = 'https://other.registry.npmjs.org'
+  const publishConfig = { registry: 'http://publishconfig' }
+  const { joinedOutput, npm } = await loadMockNpm(t, {
+    config: {
+      force: true,
+      '//other.registry.npmjs.org/:_authToken': 'test-other-token',
+    },
+    prefixDir: {
+      'package.json': JSON.stringify({
+        name: pkg,
+        version: '1.0.0',
+        publishConfig,
+      }, null, 2),
+    },
+    argv: ['--registry', alternateRegistry],
+  })
+
+  const registry = new MockRegistry({
+    tap: t,
+    registry: alternateRegistry,
+    authorization: 'test-other-token',
+  })
+  const manifest = registry.manifest({ name: pkg })
+  await registry.package({ manifest, query: { write: true }, times: 2 })
+  registry.unpublish({ manifest })
+  await npm.exec('unpublish', [])
+  t.equal(joinedOutput(), '- test-package')
 })
 
 t.test('publishConfig with spec', async t => {
@@ -421,7 +493,7 @@ t.test('scoped registry config', async t => {
     authorization: 'test-other-token',
   })
   const manifest = registry.manifest({ name: scopedPkg })
-  await registry.package({ manifest, query: { write: true } })
+  await registry.package({ manifest, query: { write: true }, times: 2 })
   registry.unpublish({ manifest })
   await npm.exec('unpublish', [scopedPkg])
 })

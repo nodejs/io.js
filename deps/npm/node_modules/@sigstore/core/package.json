@@ -1,0 +1,31 @@
+{
+  "name": "@sigstore/core",
+  "version": "1.1.0",
+  "description": "Base library for Sigstore",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "clean": "shx rm -rf dist *.tsbuildinfo",
+    "build": "tsc --build",
+    "test": "jest"
+  },
+  "files": [
+    "dist"
+  ],
+  "author": "bdehamer@github.com",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sigstore/sigstore-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sigstore/sigstore-js/issues"
+  },
+  "homepage": "https://github.com/sigstore/sigstore-js/tree/main/packages/core#readme",
+  "publishConfig": {
+    "provenance": true
+  },
+  "engines": {
+    "node": "^16.14.0 || >=18.0.0"
+  }
+}

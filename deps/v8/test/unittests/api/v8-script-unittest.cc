@@ -39,8 +39,8 @@ v8::MaybeLocal<Module> ResolveToTopLevelAwait(Local<Context> context,
                                               Local<FixedArray> assertions,
                                               Local<Module> referrer) {
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
-  v8::ScriptOrigin origin(isolate, specifier, 0, 0, false, -1, Local<Value>(),
-                          false, false, true);
+  v8::ScriptOrigin origin(specifier, 0, 0, false, -1, Local<Value>(), false,
+                          false, true);
 
   String::Utf8Value specifier_string(isolate, specifier);
   std::string source_string =
@@ -74,7 +74,7 @@ class ScriptTest : public TestWithContext {
     v8::Local<v8::Context> context = v8::Context::New(isolate());
     v8::Context::Scope cscope(context);
 
-    v8::ScriptOrigin origin(isolate(), NewString("root.mjs"), 0, 0, false, -1,
+    v8::ScriptOrigin origin(NewString("root.mjs"), 0, 0, false, -1,
                             Local<Value>(), false, false, true);
     v8::ScriptCompiler::Source source(NewString(source_str), origin);
     Local<Module> root =
@@ -91,11 +91,12 @@ class ScriptTest : public TestWithContext {
                  : v8::Promise::PromiseState::kFulfilled,
              promise->State());
 
-    std::vector<std::tuple<Local<Module>, Local<Message>>> stalled =
-        root->GetStalledTopLevelAwaitMessage(isolate());
-    CHECK_EQ(expected_stalled.size(), stalled.size());
-    for (size_t i = 0; i < stalled.size(); ++i) {
-      Local<Message> message = std::get<1>(stalled[i]);
+    auto [stalled_modules, stalled_messages] =
+        root->GetStalledTopLevelAwaitMessages(isolate());
+    CHECK_EQ(expected_stalled.size(), stalled_modules.size());
+    CHECK_EQ(expected_stalled.size(), stalled_messages.size());
+    for (size_t i = 0; i < expected_stalled.size(); ++i) {
+      Local<Message> message = stalled_messages[i];
       CHECK_EQ("Top-level await promise never resolved",
                from_v8_string(isolate(), message->Get()));
       CHECK_EQ(expected_stalled[i],
@@ -118,7 +119,7 @@ class CompileHintsTest : public ScriptTest {
   std::vector<int> ProduceCompileHintsHelper(
       std::initializer_list<const char*> sources) {
     const char* url = "http://www.foo.com/foo.js";
-    v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+    v8::ScriptOrigin origin(NewString(url), 13, 0);
 
     Local<Script> top_level_script;
     bool first = true;
@@ -142,7 +143,7 @@ class CompileHintsTest : public ScriptTest {
 
   bool FunctionIsCompiled(const char* name) {
     const char* url = "http://www.foo.com/foo.js";
-    v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+    v8::ScriptOrigin origin(NewString(url), 13, 0);
 
     v8::ScriptCompiler::Source script_source(NewString(name), origin);
 
@@ -153,7 +154,7 @@ class CompileHintsTest : public ScriptTest {
 
     auto function = i::Handle<i::JSFunction>::cast(
         Utils::OpenHandle(*result.ToLocalChecked()));
-    i::Builtin builtin = function->code()->builtin_id();
+    i::Builtin builtin = function->code(i_isolate())->builtin_id();
 
     return builtin != i::Builtin::kCompileLazy;
   }
@@ -163,7 +164,7 @@ class CompileHintsTest : public ScriptTest {
 
 TEST_F(ScriptTest, UnboundScriptPosition) {
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
   v8::ScriptCompiler::Source script_source(NewString("var foo;"), origin);
 
   Local<Script> script =
@@ -181,7 +182,7 @@ TEST_F(ScriptTest, UnboundScriptPosition) {
 
 TEST_F(ScriptTest, GetSourceMappingUrlFromComment) {
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url));
+  v8::ScriptOrigin origin(NewString(url));
   v8::ScriptCompiler::Source script_source(
       NewString("var foo;\n//# sourceMappingURL=foo.js.map"), origin);
 
@@ -198,7 +199,7 @@ TEST_F(ScriptTest, GetSourceMappingUrlFromComment) {
 TEST_F(ScriptTest, OriginSourceMapOverridesSourceMappingUrlComment) {
   const char* url = "http://www.foo.com/foo.js";
   const char* api_source_map = "http://override/foo.js.map";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0, false, -1,
+  v8::ScriptOrigin origin(NewString(url), 13, 0, false, -1,
                           NewString(api_source_map));
   v8::ScriptCompiler::Source script_source(
       NewString("var foo;\n//# sourceMappingURL=foo.js.map"), origin);
@@ -216,7 +217,7 @@ TEST_F(ScriptTest, OriginSourceMapOverridesSourceMappingUrlComment) {
 TEST_F(ScriptTest, IgnoreOriginSourceMapEmptyString) {
   const char* url = "http://www.foo.com/foo.js";
   const char* api_source_map = "";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0, false, -1,
+  v8::ScriptOrigin origin(NewString(url), 13, 0, false, -1,
                           NewString(api_source_map));
   v8::ScriptCompiler::Source script_source(
       NewString("var foo;\n//# sourceMappingURL=foo.js.map"), origin);
@@ -263,7 +264,7 @@ TEST_F(ScriptTest, GetEmptyStalledTopLevelAwaitMessage) {
 
 TEST_F(ScriptTest, ProduceCompileHints) {
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
 
   const char* code = "function lazy1() {} function lazy2() {} lazy1();";
   v8::ScriptCompiler::Source script_source(NewString(code), origin);
@@ -289,10 +290,11 @@ TEST_F(ScriptTest, ProduceCompileHints) {
       EXPECT_EQ(14, compile_hints[0]);
     }
 
-    // The previous data is cleared if we retrieve compile hints again.
+    // The previous data is still there if we retrieve compile hints again.
     {
       auto compile_hints = script->GetProducedCompileHints();
-      EXPECT_EQ(0u, compile_hints.size());
+      EXPECT_EQ(1u, compile_hints.size());
+      EXPECT_EQ(14, compile_hints[0]);
     }
 
     // Call the other lazy function and retrieve compile hints again.
@@ -306,16 +308,23 @@ TEST_F(ScriptTest, ProduceCompileHints) {
     EXPECT_FALSE(result2.IsEmpty());
     {
       auto compile_hints = script->GetProducedCompileHints();
-      EXPECT_EQ(1u, compile_hints.size());
-      EXPECT_EQ(34, compile_hints[0]);
+      EXPECT_EQ(2u, compile_hints.size());
+      EXPECT_EQ(14, compile_hints[0]);
+      EXPECT_EQ(34, compile_hints[1]);
     }
   }
 
   // Test that compile hints are not produced unless the relevant compile option
   // is set.
   {
+    const char* nohints_code =
+        "function nohints_lazy1() {} function nohints_lazy2() {} "
+        "nohints_lazy1();";
+    v8::ScriptCompiler::Source nohints_script_source(NewString(nohints_code),
+                                                     origin);
+
     Local<Script> script =
-        v8::ScriptCompiler::Compile(v8_context(), &script_source)
+        v8::ScriptCompiler::Compile(v8_context(), &nohints_script_source)
             .ToLocalChecked();
     {
       auto compile_hints = script->GetProducedCompileHints();
@@ -334,7 +343,7 @@ TEST_F(ScriptTest, ProduceCompileHints) {
 
 TEST_F(ScriptTest, ProduceCompileHintsForArrowFunctions) {
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
 
   const char* code = "lazy1 = () => {}; (() => { lazy2 = () => {} })()";
   v8::ScriptCompiler::Source script_source(NewString(code), origin);
@@ -385,8 +394,9 @@ TEST_F(ScriptTest, ProduceCompileHintsForArrowFunctions) {
     EXPECT_FALSE(result3.IsEmpty());
     {
       auto compile_hints = script->GetProducedCompileHints();
-      EXPECT_EQ(1u, compile_hints.size());
-      EXPECT_EQ(35, compile_hints[0]);
+      EXPECT_EQ(2u, compile_hints.size());
+      EXPECT_EQ(8, compile_hints[0]);
+      EXPECT_EQ(35, compile_hints[1]);
     }
   }
 }
@@ -400,7 +410,7 @@ bool CompileHintsCallback(int position, void* data) {
 
 TEST_F(CompileHintsTest, ConsumeCompileHints) {
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
   v8::Local<v8::Context> context = v8::Context::New(isolate());
 
   // Produce compile hints which we'll use as data later. The function positions
@@ -431,7 +441,7 @@ TEST_F(CompileHintsTest, ConsumeCompileHints) {
 
 TEST_F(CompileHintsTest, ConsumeCompileHintsForArrowFunctions) {
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
   v8::Local<v8::Context> context = v8::Context::New(isolate());
 
   // Produce compile hints which we'll use as data later. The function positions
@@ -462,7 +472,7 @@ TEST_F(CompileHintsTest, ConsumeCompileHintsForArrowFunctions) {
 
 TEST_F(CompileHintsTest, StreamingCompileHints) {
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
 
   // Produce compile hints which we'll use as data later. The function positions
   // must match the script we're compiling later, but we'll change the script
@@ -510,7 +520,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBasic) {
   i::FlagScope<bool> flag_scope(&i::v8_flags.compile_hints_magic, true);
 
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
   v8::Local<v8::Context> context = v8::Context::New(isolate());
 
   // Run the top level code.
@@ -540,7 +550,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBasic) {
 
     auto function = i::Handle<i::JSFunction>::cast(
         Utils::OpenHandle(*result2.ToLocalChecked()));
-    i::Builtin builtin = function->code()->builtin_id();
+    i::Builtin builtin = function->code(i_isolate())->builtin_id();
 
     // f1 was not compiled lazily.
     EXPECT_NE(i::Builtin::kCompileLazy, builtin);
@@ -558,7 +568,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBasic) {
 
     auto function = i::Handle<i::JSFunction>::cast(
         Utils::OpenHandle(*result2.ToLocalChecked()));
-    i::Builtin builtin = function->code()->builtin_id();
+    i::Builtin builtin = function->code(i_isolate())->builtin_id();
 
     // f2 was not compiled lazily.
     EXPECT_NE(i::Builtin::kCompileLazy, builtin);
@@ -569,7 +579,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBetweenFunctions) {
   i::FlagScope<bool> flag_scope(&i::v8_flags.compile_hints_magic, true);
 
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
   v8::Local<v8::Context> context = v8::Context::New(isolate());
 
   // Run the top level code.
@@ -599,7 +609,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBetweenFunctions) {
 
     auto function = i::Handle<i::JSFunction>::cast(
         Utils::OpenHandle(*result2.ToLocalChecked()));
-    i::Builtin builtin = function->code()->builtin_id();
+    i::Builtin builtin = function->code(i_isolate())->builtin_id();
 
     // f1 was compiled lazily.
     EXPECT_EQ(i::Builtin::kCompileLazy, builtin);
@@ -618,7 +628,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBetweenFunctions) {
     auto function = i::Handle<i::JSFunction>::cast(
         Utils::OpenHandle(*result2.ToLocalChecked()));
 
-    i::Builtin builtin = function->code()->builtin_id();
+    i::Builtin builtin = function->code(i_isolate())->builtin_id();
 
     // f2 was not compiled lazily.
     EXPECT_NE(i::Builtin::kCompileLazy, builtin);
@@ -629,7 +639,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentInvalid) {
   i::FlagScope<bool> flag_scope(&i::v8_flags.compile_hints_magic, true);
 
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
   v8::Local<v8::Context> context = v8::Context::New(isolate());
 
   // Run the top level code.
@@ -658,7 +668,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentInvalid) {
 
     auto function = i::Handle<i::JSFunction>::cast(
         Utils::OpenHandle(*result2.ToLocalChecked()));
-    i::Builtin builtin = function->code()->builtin_id();
+    i::Builtin builtin = function->code(i_isolate())->builtin_id();
 
     // f1 was compiled lazily.
     EXPECT_EQ(i::Builtin::kCompileLazy, builtin);
@@ -684,7 +694,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBasicWithCallback) {
   isolate()->InstallConditionalFeatures(context);
 
   const char* url = "http://www.foo.com/foo.js";
-  v8::ScriptOrigin origin(isolate(), NewString(url), 13, 0);
+  v8::ScriptOrigin origin(NewString(url), 13, 0);
 
   // Run the top level code.
   const char* code =
@@ -713,7 +723,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBasicWithCallback) {
 
     auto function = i::Handle<i::JSFunction>::cast(
         Utils::OpenHandle(*result2.ToLocalChecked()));
-    i::Builtin builtin = function->code()->builtin_id();
+    i::Builtin builtin = function->code(i_isolate())->builtin_id();
 
     // f1 was not compiled lazily.
     EXPECT_NE(i::Builtin::kCompileLazy, builtin);
@@ -731,7 +741,7 @@ TEST_F(ScriptTest, CompileHintsMagicCommentBasicWithCallback) {
 
     auto function = i::Handle<i::JSFunction>::cast(
         Utils::OpenHandle(*result2.ToLocalChecked()));
-    i::Builtin builtin = function->code()->builtin_id();
+    i::Builtin builtin = function->code(i_isolate())->builtin_id();
 
     // f2 was not compiled lazily.
     EXPECT_NE(i::Builtin::kCompileLazy, builtin);

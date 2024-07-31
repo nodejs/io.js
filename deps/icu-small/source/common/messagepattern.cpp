@@ -999,7 +999,6 @@ MessagePattern::parseDouble(int32_t start, int32_t limit, UBool allowInfinity,
     }
     setParseError(parseError, start /*, limit*/);  // Bad syntax for numeric value.
     errorCode=U_PATTERN_SYNTAX_ERROR;
-    return;
 }
 
 int32_t

@@ -111,7 +111,7 @@ TEST(VLQ, LimitsSigned) {
 TEST(VLQ, Random) {
   static constexpr int RANDOM_RUNS = 50;
 
-  base::RandomNumberGenerator rng(::testing::FLAGS_gtest_random_seed);
+  base::RandomNumberGenerator rng(GTEST_FLAG_GET(random_seed));
   for (int i = 0; i < RANDOM_RUNS; ++i) {
     TestVLQUnsignedEquals(rng.NextInt(std::numeric_limits<int32_t>::max()));
   }

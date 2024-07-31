@@ -72,7 +72,7 @@ class FileWrapper {
 // A mock that provides methods that can be used as callbacks in asynchronous
 // unzip functions.  Tracks the number of calls and number of bytes reported.
 // Assumes that progress callbacks will be executed in-order.
-class MockUnzipListener : public base::SupportsWeakPtr<MockUnzipListener> {
+class MockUnzipListener final {
  public:
   MockUnzipListener()
       : success_calls_(0),
@@ -98,12 +98,18 @@ class MockUnzipListener : public base::SupportsWeakPtr<MockUnzipListener> {
   int progress_calls() { return progress_calls_; }
   int current_progress() { return current_progress_; }
 
+  base::WeakPtr<MockUnzipListener> AsWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+
  private:
   int success_calls_;
   int failure_calls_;
   int progress_calls_;
 
   int64_t current_progress_;
+
+  base::WeakPtrFactory<MockUnzipListener> weak_ptr_factory_{this};
 };
 
 class MockWriterDelegate : public zip::WriterDelegate {
@@ -157,7 +163,7 @@ class ZipReaderTest : public PlatformTest {
 
   static base::FilePath GetTestDataDirectory() {
     base::FilePath path;
-    CHECK(base::PathService::Get(base::DIR_SOURCE_ROOT, &path));
+    CHECK(base::PathService::Get(base::DIR_SRC_TEST_DATA_ROOT, &path));
     return path.AppendASCII("third_party")
         .AppendASCII("zlib")
         .AppendASCII("google")
@@ -234,8 +240,10 @@ TEST_F(ZipReaderTest, Open_ExistentButNonZipFile) {
 TEST_F(ZipReaderTest, Open_EmptyFile) {
   ZipReader reader;
   EXPECT_FALSE(reader.ok());
-  EXPECT_FALSE(reader.Open(data_dir_.AppendASCII("empty.zip")));
-  EXPECT_FALSE(reader.ok());
+  EXPECT_TRUE(reader.Open(data_dir_.AppendASCII("empty.zip")));
+  EXPECT_TRUE(reader.ok());
+  EXPECT_EQ(0, reader.num_entries());
+  EXPECT_EQ(nullptr, reader.Next());
 }
 
 // Iterate through the contents in the test ZIP archive, and compare that the

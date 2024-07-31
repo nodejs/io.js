@@ -5,7 +5,7 @@
 #include "src/base/optional.h"
 #include "src/builtins/builtins-utils-gen.h"
 #include "src/builtins/builtins.h"
-#include "src/codegen/code-stub-assembler.h"
+#include "src/codegen/code-stub-assembler-inl.h"
 #include "src/ic/ic.h"
 #include "src/ic/keyed-store-generic.h"
 #include "src/objects/objects-inl.h"
@@ -55,7 +55,7 @@ TF_BUILTIN(LoadIC_StringWrapperLength, CodeStubAssembler) {
 
 void Builtins::Generate_KeyedStoreIC_Megamorphic(
     compiler::CodeAssemblerState* state) {
-  KeyedStoreGenericGenerator::Generate(state);
+  KeyedStoreMegamorphicGenerator::Generate(state);
 }
 
 void Builtins::Generate_DefineKeyedOwnIC_Megamorphic(
@@ -172,23 +172,24 @@ void HandlerBuiltinsAssembler::Generate_ElementsTransitionAndStore(
                   receiver, key, value, map, slot, vector);
 }
 
-TF_BUILTIN(ElementsTransitionAndStore_Standard, HandlerBuiltinsAssembler) {
-  Generate_ElementsTransitionAndStore(STANDARD_STORE);
+TF_BUILTIN(ElementsTransitionAndStore_InBounds, HandlerBuiltinsAssembler) {
+  Generate_ElementsTransitionAndStore(KeyedAccessStoreMode::kInBounds);
 }
 
-TF_BUILTIN(ElementsTransitionAndStore_GrowNoTransitionHandleCOW,
+TF_BUILTIN(ElementsTransitionAndStore_NoTransitionGrowAndHandleCOW,
            HandlerBuiltinsAssembler) {
-  Generate_ElementsTransitionAndStore(STORE_AND_GROW_HANDLE_COW);
+  Generate_ElementsTransitionAndStore(KeyedAccessStoreMode::kGrowAndHandleCOW);
 }
 
-TF_BUILTIN(ElementsTransitionAndStore_NoTransitionIgnoreOOB,
+TF_BUILTIN(ElementsTransitionAndStore_NoTransitionIgnoreTypedArrayOOB,
            HandlerBuiltinsAssembler) {
-  Generate_ElementsTransitionAndStore(STORE_IGNORE_OUT_OF_BOUNDS);
+  Generate_ElementsTransitionAndStore(
+      KeyedAccessStoreMode::kIgnoreTypedArrayOOB);
 }
 
 TF_BUILTIN(ElementsTransitionAndStore_NoTransitionHandleCOW,
            HandlerBuiltinsAssembler) {
-  Generate_ElementsTransitionAndStore(STORE_HANDLE_COW);
+  Generate_ElementsTransitionAndStore(KeyedAccessStoreMode::kHandleCOW);
 }
 
 // All elements kinds handled by EmitElementStore. Specifically, this includes
@@ -211,6 +212,7 @@ TF_BUILTIN(ElementsTransitionAndStore_NoTransitionHandleCOW,
   V(INT16_ELEMENTS)                  \
   V(UINT32_ELEMENTS)                 \
   V(INT32_ELEMENTS)                  \
+  V(FLOAT16_ELEMENTS)                \
   V(FLOAT32_ELEMENTS)                \
   V(FLOAT64_ELEMENTS)                \
   V(UINT8_CLAMPED_ELEMENTS)          \
@@ -222,6 +224,7 @@ TF_BUILTIN(ElementsTransitionAndStore_NoTransitionHandleCOW,
   V(RAB_GSAB_INT16_ELEMENTS)         \
   V(RAB_GSAB_UINT32_ELEMENTS)        \
   V(RAB_GSAB_INT32_ELEMENTS)         \
+  V(RAB_GSAB_FLOAT16_ELEMENTS)       \
   V(RAB_GSAB_FLOAT32_ELEMENTS)       \
   V(RAB_GSAB_FLOAT64_ELEMENTS)       \
   V(RAB_GSAB_UINT8_CLAMPED_ELEMENTS) \
@@ -295,8 +298,6 @@ void HandlerBuiltinsAssembler::Generate_StoreFastElementIC(
 
   Label miss(this);
 
-  bool handle_typed_elements_kind =
-      store_mode == STANDARD_STORE || store_mode == STORE_IGNORE_OUT_OF_BOUNDS;
   // For typed arrays maybe_converted_value contains the value obtained after
   // calling ToNumber. We should pass the converted value to the runtime to
   // avoid doing the user visible conversion again.
@@ -308,7 +309,7 @@ void HandlerBuiltinsAssembler::Generate_StoreFastElementIC(
         EmitElementStore(receiver, key, value, elements_kind, store_mode, &miss,
                          context, &maybe_converted_value);
       },
-      handle_typed_elements_kind);
+      StoreModeSupportsTypeArray(store_mode));
   Return(value);
 
   BIND(&miss);
@@ -316,21 +317,22 @@ void HandlerBuiltinsAssembler::Generate_StoreFastElementIC(
                   maybe_converted_value.value(), slot, vector, receiver, key);
 }
 
-TF_BUILTIN(StoreFastElementIC_Standard, HandlerBuiltinsAssembler) {
-  Generate_StoreFastElementIC(STANDARD_STORE);
+TF_BUILTIN(StoreFastElementIC_InBounds, HandlerBuiltinsAssembler) {
+  Generate_StoreFastElementIC(KeyedAccessStoreMode::kInBounds);
 }
 
-TF_BUILTIN(StoreFastElementIC_GrowNoTransitionHandleCOW,
+TF_BUILTIN(StoreFastElementIC_NoTransitionGrowAndHandleCOW,
            HandlerBuiltinsAssembler) {
-  Generate_StoreFastElementIC(STORE_AND_GROW_HANDLE_COW);
+  Generate_StoreFastElementIC(KeyedAccessStoreMode::kGrowAndHandleCOW);
 }
 
-TF_BUILTIN(StoreFastElementIC_NoTransitionIgnoreOOB, HandlerBuiltinsAssembler) {
-  Generate_StoreFastElementIC(STORE_IGNORE_OUT_OF_BOUNDS);
+TF_BUILTIN(StoreFastElementIC_NoTransitionIgnoreTypedArrayOOB,
+           HandlerBuiltinsAssembler) {
+  Generate_StoreFastElementIC(KeyedAccessStoreMode::kIgnoreTypedArrayOOB);
 }
 
 TF_BUILTIN(StoreFastElementIC_NoTransitionHandleCOW, HandlerBuiltinsAssembler) {
-  Generate_StoreFastElementIC(STORE_HANDLE_COW);
+  Generate_StoreFastElementIC(KeyedAccessStoreMode::kHandleCOW);
 }
 
 TF_BUILTIN(LoadIC_FunctionPrototype, CodeStubAssembler) {
@@ -400,16 +402,16 @@ void HandlerBuiltinsAssembler::Generate_KeyedStoreIC_SloppyArguments() {
                   receiver, key);
 }
 
-TF_BUILTIN(KeyedStoreIC_SloppyArguments_Standard, HandlerBuiltinsAssembler) {
+TF_BUILTIN(KeyedStoreIC_SloppyArguments_InBounds, HandlerBuiltinsAssembler) {
   Generate_KeyedStoreIC_SloppyArguments();
 }
 
-TF_BUILTIN(KeyedStoreIC_SloppyArguments_GrowNoTransitionHandleCOW,
+TF_BUILTIN(KeyedStoreIC_SloppyArguments_NoTransitionGrowAndHandleCOW,
            HandlerBuiltinsAssembler) {
   Generate_KeyedStoreIC_SloppyArguments();
 }
 
-TF_BUILTIN(KeyedStoreIC_SloppyArguments_NoTransitionIgnoreOOB,
+TF_BUILTIN(KeyedStoreIC_SloppyArguments_NoTransitionIgnoreTypedArrayOOB,
            HandlerBuiltinsAssembler) {
   Generate_KeyedStoreIC_SloppyArguments();
 }

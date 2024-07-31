@@ -44,9 +44,7 @@
 // ICU PATCH: Wrap in ICU namespace
 U_NAMESPACE_BEGIN
 
-namespace double_conversion {
-
-namespace PowersOfTenCache {
+namespace double_conversion::PowersOfTenCache {
 
   // Not all powers of ten are cached. The decimal exponent of two neighboring
   // cached numbers will differ by kDecimalExponentDistance.
@@ -71,9 +69,7 @@ namespace PowersOfTenCache {
                                         DiyFp* power,
                                         int* found_exponent);
 
-}  // namespace PowersOfTenCache
-
-}  // namespace double_conversion
+} // namespace double_conversion::PowersOfTenCache
 
 // ICU PATCH: Close ICU namespace
 U_NAMESPACE_END

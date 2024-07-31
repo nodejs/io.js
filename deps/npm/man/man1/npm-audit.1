@@ -1,4 +1,4 @@
-.TH "NPM-AUDIT" "1" "October 2023" "" ""
+.TH "NPM-AUDIT" "1" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBnpm-audit\fR - Run a security audit
 .SS "Synopsis"
@@ -32,6 +32,8 @@ Registry signatures can be verified using the following \fBaudit\fR command:
 $ npm audit signatures
 .fi
 .RE
+.P
+The \fBaudit signatures\fR command will also verify the provenance attestations of downloaded packages. Because provenance attestations are such a new feature, security features may be added to (or changed in) the attestation format over time. To ensure that you're always able to verify attestation signatures check that you're running the latest version of the npm CLI. Please note this often means updating npm beyond the version that ships with Node.js.
 .P
 The npm CLI supports registry signatures and signing keys provided by any registry if the following conventions are followed:
 .RS 0
@@ -78,7 +80,7 @@ Public signing keys are provided at \fBregistry-host.tld/-/npm/v1/keys\fR in the
 Keys response:
 .RS 0
 .IP \(bu 4
-\fBexpires\fR: null or a simplified extended ISO 8601 format: \fBYYYY-MM-DDTHH:mm:ss.sssZ\fR
+\fBexpires\fR: null or a simplified extended \fBISO 8601 format\fR \fI\(lahttps://en.wikipedia.org/wiki/ISO_8601\(ra\fR: \fBYYYY-MM-DDTHH:mm:ss.sssZ\fR
 .IP \(bu 4
 \fBkeydid\fR: sha256 fingerprint of the public key
 .IP \(bu 4
@@ -90,7 +92,7 @@ Keys response:
 .RE 0
 
 .P
-See this example key's response from the public npm registry.
+See this \fBexample key's response from the public npm registry\fR \fI\(lahttps://registry.npmjs.org/-/npm/v1/keys\(ra\fR.
 .SS "Audit Endpoints"
 .P
 There are two audit endpoints that npm may use to fetch vulnerability information: the \fBBulk Advisory\fR endpoint and the \fBQuick Audit\fR endpoint.
@@ -348,7 +350,7 @@ Dependency types specified in \fB--include\fR will not be omitted, regardless of
 .SS "\fBforeground-scripts\fR"
 .RS 0
 .IP \(bu 4
-Default: false
+Default: \fBfalse\fR unless when using \fBnpm pack\fR or \fBnpm publish\fR where it defaults to \fBtrue\fR
 .IP \(bu 4
 Type: Boolean
 .RE 0

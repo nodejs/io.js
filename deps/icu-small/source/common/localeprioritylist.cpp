@@ -21,13 +21,13 @@ U_NAMESPACE_BEGIN
 namespace {
 
 int32_t hashLocale(const UHashTok token) {
-    auto *locale = static_cast<const Locale *>(token.pointer);
+    const auto* locale = static_cast<const Locale*>(token.pointer);
     return locale->hashCode();
 }
 
 UBool compareLocales(const UHashTok t1, const UHashTok t2) {
-    auto *l1 = static_cast<const Locale *>(t1.pointer);
-    auto *l2 = static_cast<const Locale *>(t2.pointer);
+    const auto* l1 = static_cast<const Locale*>(t1.pointer);
+    const auto* l2 = static_cast<const Locale*>(t2.pointer);
     return *l1 == *l2;
 }
 

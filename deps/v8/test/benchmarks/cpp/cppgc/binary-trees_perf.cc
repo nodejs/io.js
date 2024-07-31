@@ -12,7 +12,7 @@
 #include "src/base/macros.h"
 #include "src/heap/cppgc/object-allocator.h"
 #include "test/benchmarks/cpp/cppgc/benchmark_utils.h"
-#include "third_party/google_benchmark/src/include/benchmark/benchmark.h"
+#include "third_party/google_benchmark_chrome/src/include/benchmark/benchmark.h"
 
 namespace {
 

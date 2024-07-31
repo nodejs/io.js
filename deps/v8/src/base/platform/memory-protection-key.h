@@ -32,6 +32,9 @@ class V8_BASE_EXPORT MemoryProtectionKey {
   // mprotect().
   static constexpr int kNoMemoryProtectionKey = -1;
 
+  // The default ProtectionKey can be used to remove pkey assignments.
+  static constexpr int kDefaultProtectionKey = 0;
+
   // Permissions for memory protection keys on top of the page's permissions.
   // NOTE: Since there is no executable bit, the executable permission cannot be
   // withdrawn by memory protection keys.

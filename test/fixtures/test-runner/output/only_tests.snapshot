@@ -1,51 +1,11 @@
 TAP version 13
-# Subtest: only = undefined
-ok 1 - only = undefined # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-# Subtest: only = undefined, skip = string
-ok 2 - only = undefined, skip = string # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-# Subtest: only = undefined, skip = true
-ok 3 - only = undefined, skip = true # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-# Subtest: only = undefined, skip = false
-ok 4 - only = undefined, skip = false # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-# Subtest: only = false
-ok 5 - only = false # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-# Subtest: only = false, skip = string
-ok 6 - only = false, skip = string # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-# Subtest: only = false, skip = true
-ok 7 - only = false, skip = true # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
-# Subtest: only = false, skip = false
-ok 8 - only = false, skip = false # SKIP 'only' option not set
-  ---
-  duration_ms: *
-  ...
 # Subtest: only = true, skip = string
-ok 9 - only = true, skip = string # SKIP skip message
+ok 1 - only = true, skip = string # SKIP skip message
   ---
   duration_ms: *
   ...
 # Subtest: only = true, skip = true
-ok 10 - only = true, skip = true # SKIP
+ok 2 - only = true, skip = true # SKIP
   ---
   duration_ms: *
   ...
@@ -60,18 +20,8 @@ ok 10 - only = true, skip = true # SKIP
       ---
       duration_ms: *
       ...
-    # Subtest: skipped subtest 1
-    ok 3 - skipped subtest 1 # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    # Subtest: skipped subtest 2
-    ok 4 - skipped subtest 2 # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
     # Subtest: running subtest 3
-    ok 5 - running subtest 3
+    ok 3 - running subtest 3
       ---
       duration_ms: *
       ...
@@ -86,33 +36,18 @@ ok 10 - only = true, skip = true # SKIP
           ---
           duration_ms: *
           ...
-        # Subtest: skipped sub-subtest 1
-        ok 3 - skipped sub-subtest 1 # SKIP 'only' option not set
-          ---
-          duration_ms: *
-          ...
-        # Subtest: skipped sub-subtest 2
-        ok 4 - skipped sub-subtest 2 # SKIP 'only' option not set
-          ---
-          duration_ms: *
-          ...
-        1..4
-    ok 6 - running subtest 4
-      ---
-      duration_ms: *
-      ...
-    # Subtest: skipped subtest 3
-    ok 7 - skipped subtest 3 # SKIP 'only' option not set
+        1..2
+    ok 4 - running subtest 4
       ---
       duration_ms: *
       ...
     # Subtest: skipped subtest 4
-    ok 8 - skipped subtest 4 # SKIP
+    ok 5 - skipped subtest 4 # SKIP
       ---
       duration_ms: *
       ...
-    1..8
-ok 11 - only = true, with subtests
+    1..5
+ok 3 - only = true, with subtests
   ---
   duration_ms: *
   ...
@@ -122,13 +57,8 @@ ok 11 - only = true, with subtests
       ---
       duration_ms: *
       ...
-    # Subtest: `it` subtest 2 should not run
-    ok 2 - `it` subtest 2 should not run # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    1..2
-ok 12 - describe only = true, with subtests
+    1..1
+ok 4 - describe only = true, with subtests
   ---
   duration_ms: *
   type: 'suite'
@@ -149,53 +79,23 @@ ok 12 - describe only = true, with subtests
       ---
       duration_ms: *
       ...
-    # Subtest: `it` subtest 2 only=false
-    ok 4 - `it` subtest 2 only=false # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    # Subtest: `it` subtest 3 skip
-    ok 5 - `it` subtest 3 skip # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    # Subtest: `it` subtest 4 todo
-    ok 6 - `it` subtest 4 todo # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
     # Subtest: `test` subtest 1
-    ok 7 - `test` subtest 1
+    ok 4 - `test` subtest 1
       ---
       duration_ms: *
       ...
     # Subtest: `test` async subtest 1
-    ok 8 - `test` async subtest 1
+    ok 5 - `test` async subtest 1
       ---
       duration_ms: *
       ...
     # Subtest: `test` subtest 2 only=true
-    ok 9 - `test` subtest 2 only=true
+    ok 6 - `test` subtest 2 only=true
       ---
       duration_ms: *
       ...
-    # Subtest: `test` subtest 2 only=false
-    ok 10 - `test` subtest 2 only=false # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    # Subtest: `test` subtest 3 skip
-    ok 11 - `test` subtest 3 skip # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    # Subtest: `test` subtest 4 todo
-    ok 12 - `test` subtest 4 todo # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    1..12
-ok 13 - describe only = true, with a mixture of subtests
+    1..6
+ok 5 - describe only = true, with a mixture of subtests
   ---
   duration_ms: *
   type: 'suite'
@@ -206,28 +106,61 @@ ok 13 - describe only = true, with a mixture of subtests
       ---
       duration_ms: *
       ...
-    # Subtest: async subtest should not run
-    ok 2 - async subtest should not run # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    # Subtest: subtest should be skipped
-    ok 3 - subtest should be skipped # SKIP 'only' option not set
-      ---
-      duration_ms: *
-      ...
-    1..3
-ok 14 - describe only = true, with subtests
+    1..1
+ok 6 - describe only = true, with subtests
   ---
   duration_ms: *
   type: 'suite'
   ...
-1..14
-# tests 40
-# suites 3
-# pass 15
+# Subtest: describe only = undefined, with nested only subtest
+    # Subtest: nested describe
+        # Subtest: nested test should run
+        ok 1 - nested test should run
+          ---
+          duration_ms: *
+          ...
+        1..1
+    ok 1 - nested describe
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    1..1
+ok 7 - describe only = undefined, with nested only subtest
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: describe only = true, with nested subtests
+    # Subtest: async subtest should run
+    ok 1 - async subtest should run
+      ---
+      duration_ms: *
+      ...
+    # Subtest: nested describe
+        # Subtest: nested test should run
+        ok 1 - nested test should run
+          ---
+          duration_ms: *
+          ...
+        1..1
+    ok 2 - nested describe
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    1..2
+ok 8 - describe only = true, with nested subtests
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+1..8
+# tests 21
+# suites 7
+# pass 18
 # fail 0
 # cancelled 0
-# skipped 25
+# skipped 3
 # todo 0
 # duration_ms *

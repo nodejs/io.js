@@ -83,7 +83,7 @@ static void pinger_on_close(uv_handle_t* handle) {
 
 
 static void pinger_after_write(uv_write_t* req, int status) {
-  ASSERT_EQ(status, 0);
+  ASSERT_OK(status);
   free(req->data);
   free(req);
 }
@@ -112,7 +112,7 @@ static void pinger_write_ping(pinger_t* pinger) {
   req = malloc(sizeof(*req));
   ASSERT_NOT_NULL(req);
   req->data = NULL;
-  ASSERT_EQ(0, uv_write(req, stream, bufs, nbufs, pinger_after_write));
+  ASSERT_OK(uv_write(req, stream, bufs, nbufs, pinger_after_write));
 
   puts("PING");
 }
@@ -188,7 +188,7 @@ static void ponger_read_cb(uv_stream_t* stream,
   req = malloc(sizeof(*req));
   ASSERT_NOT_NULL(req);
   req->data = buf->base;
-  ASSERT_EQ(0, uv_write(req, stream, &writebuf, 1, pinger_after_write));
+  ASSERT_OK(uv_write(req, stream, &writebuf, 1, pinger_after_write));
 }
 
 
@@ -197,17 +197,17 @@ static void pinger_on_connect(uv_connect_t* req, int status) {
 
   pinger_on_connect_count++;
 
-  ASSERT_EQ(status, 0);
+  ASSERT_OK(status);
 
   ASSERT_EQ(1, uv_is_readable(req->handle));
   ASSERT_EQ(1, uv_is_writable(req->handle));
-  ASSERT_EQ(0, uv_is_closing((uv_handle_t *) req->handle));
+  ASSERT_OK(uv_is_closing((uv_handle_t *) req->handle));
 
   pinger_write_ping(pinger);
 
-  ASSERT_EQ(0, uv_read_start((uv_stream_t*) req->handle,
-                             alloc_cb,
-                             pinger_read_cb));
+  ASSERT_OK(uv_read_start((uv_stream_t*) req->handle,
+                          alloc_cb,
+                          pinger_read_cb));
 }
 
 
@@ -218,7 +218,7 @@ static void tcp_pinger_v6_new(int vectored_writes) {
   pinger_t* pinger;
 
 
-  ASSERT_EQ(0, uv_ip6_addr("::1", TEST_PORT, &server_addr));
+  ASSERT_OK(uv_ip6_addr("::1", TEST_PORT, &server_addr));
   pinger = malloc(sizeof(*pinger));
   ASSERT_NOT_NULL(pinger);
   pinger->vectored_writes = vectored_writes;
@@ -229,7 +229,7 @@ static void tcp_pinger_v6_new(int vectored_writes) {
   /* Try to connect to the server and do NUM_PINGS ping-pongs. */
   r = uv_tcp_init(uv_default_loop(), &pinger->stream.tcp);
   pinger->stream.tcp.data = pinger;
-  ASSERT_EQ(0, r);
+  ASSERT_OK(r);
 
   /* We are never doing multiple reads/connects at a time anyway, so these
    * handles can be pre-initialized. */
@@ -237,10 +237,10 @@ static void tcp_pinger_v6_new(int vectored_writes) {
                      &pinger->stream.tcp,
                      (const struct sockaddr*) &server_addr,
                      pinger_on_connect);
-  ASSERT_EQ(0, r);
+  ASSERT_OK(r);
 
   /* Synchronous connect callbacks are not allowed. */
-  ASSERT_EQ(pinger_on_connect_count, 0);
+  ASSERT_OK(pinger_on_connect_count);
 }
 
 
@@ -249,7 +249,7 @@ static void tcp_pinger_new(int vectored_writes) {
   struct sockaddr_in server_addr;
   pinger_t* pinger;
 
-  ASSERT_EQ(0, uv_ip4_addr("127.0.0.1", TEST_PORT, &server_addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &server_addr));
   pinger = malloc(sizeof(*pinger));
   ASSERT_NOT_NULL(pinger);
   pinger->vectored_writes = vectored_writes;
@@ -260,7 +260,7 @@ static void tcp_pinger_new(int vectored_writes) {
   /* Try to connect to the server and do NUM_PINGS ping-pongs. */
   r = uv_tcp_init(uv_default_loop(), &pinger->stream.tcp);
   pinger->stream.tcp.data = pinger;
-  ASSERT_EQ(0, r);
+  ASSERT_OK(r);
 
   /* We are never doing multiple reads/connects at a time anyway, so these
    * handles can be pre-initialized. */
@@ -268,10 +268,10 @@ static void tcp_pinger_new(int vectored_writes) {
                      &pinger->stream.tcp,
                      (const struct sockaddr*) &server_addr,
                      pinger_on_connect);
-  ASSERT_EQ(0, r);
+  ASSERT_OK(r);
 
   /* Synchronous connect callbacks are not allowed. */
-  ASSERT_EQ(pinger_on_connect_count, 0);
+  ASSERT_OK(pinger_on_connect_count);
 }
 
 
@@ -289,7 +289,7 @@ static void pipe_pinger_new(int vectored_writes) {
   /* Try to connect to the server and do NUM_PINGS ping-pongs. */
   r = uv_pipe_init(uv_default_loop(), &pinger->stream.pipe, 0);
   pinger->stream.pipe.data = pinger;
-  ASSERT_EQ(0, r);
+  ASSERT_OK(r);
 
   /* We are never doing multiple reads/connects at a time anyway, so these
    * handles can be pre-initialized. */
@@ -297,7 +297,7 @@ static void pipe_pinger_new(int vectored_writes) {
       pinger_on_connect);
 
   /* Synchronous connect callbacks are not allowed. */
-  ASSERT_EQ(pinger_on_connect_count, 0);
+  ASSERT_OK(pinger_on_connect_count);
 }
 
 
@@ -315,31 +315,31 @@ static void socketpair_pinger_new(int vectored_writes) {
 
   /* Try to make a socketpair and do NUM_PINGS ping-pongs. */
   (void)uv_default_loop(); /* ensure WSAStartup has been performed */
-  ASSERT_EQ(0, uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE));
+  ASSERT_OK(uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE));
 #ifndef _WIN32
   /* On Windows, this is actually a UV_TCP, but libuv doesn't detect that. */
   ASSERT_EQ(uv_guess_handle((uv_file) fds[0]), UV_NAMED_PIPE);
   ASSERT_EQ(uv_guess_handle((uv_file) fds[1]), UV_NAMED_PIPE);
 #endif
 
-  ASSERT_EQ(0, uv_tcp_init(uv_default_loop(), &pinger->stream.tcp));
+  ASSERT_OK(uv_tcp_init(uv_default_loop(), &pinger->stream.tcp));
   pinger->stream.pipe.data = pinger;
-  ASSERT_EQ(0, uv_tcp_open(&pinger->stream.tcp, fds[1]));
+  ASSERT_OK(uv_tcp_open(&pinger->stream.tcp, fds[1]));
 
   ponger = malloc(sizeof(*ponger));
   ASSERT_NOT_NULL(ponger);
   ponger->data = NULL;
-  ASSERT_EQ(0, uv_tcp_init(uv_default_loop(), ponger));
-  ASSERT_EQ(0, uv_tcp_open(ponger, fds[0]));
+  ASSERT_OK(uv_tcp_init(uv_default_loop(), ponger));
+  ASSERT_OK(uv_tcp_open(ponger, fds[0]));
 
   pinger_write_ping(pinger);
 
-  ASSERT_EQ(0, uv_read_start((uv_stream_t*) &pinger->stream.tcp,
-                             alloc_cb,
-                             pinger_read_cb));
-  ASSERT_EQ(0, uv_read_start((uv_stream_t*) ponger,
-                             alloc_cb,
-                             ponger_read_cb));
+  ASSERT_OK(uv_read_start((uv_stream_t*) &pinger->stream.tcp,
+                          alloc_cb,
+                          pinger_read_cb));
+  ASSERT_OK(uv_read_start((uv_stream_t*) ponger,
+                          alloc_cb,
+                          ponger_read_cb));
 }
 
 
@@ -349,14 +349,14 @@ static void pipe2_pinger_new(int vectored_writes) {
   uv_pipe_t* ponger;
 
   /* Try to make a pipe and do NUM_PINGS pings. */
-  ASSERT_EQ(0, uv_pipe(fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE));
+  ASSERT_OK(uv_pipe(fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE));
   ASSERT_EQ(uv_guess_handle(fds[0]), UV_NAMED_PIPE);
   ASSERT_EQ(uv_guess_handle(fds[1]), UV_NAMED_PIPE);
 
   ponger = malloc(sizeof(*ponger));
   ASSERT_NOT_NULL(ponger);
-  ASSERT_EQ(0, uv_pipe_init(uv_default_loop(), ponger, 0));
-  ASSERT_EQ(0, uv_pipe_open(ponger, fds[0]));
+  ASSERT_OK(uv_pipe_init(uv_default_loop(), ponger, 0));
+  ASSERT_OK(uv_pipe_open(ponger, fds[0]));
 
   pinger = malloc(sizeof(*pinger));
   ASSERT_NOT_NULL(pinger);
@@ -364,19 +364,19 @@ static void pipe2_pinger_new(int vectored_writes) {
   pinger->state = 0;
   pinger->pongs = 0;
   pinger->pong = PING;
-  ASSERT_EQ(0, uv_pipe_init(uv_default_loop(), &pinger->stream.pipe, 0));
-  ASSERT_EQ(0, uv_pipe_open(&pinger->stream.pipe, fds[1]));
+  ASSERT_OK(uv_pipe_init(uv_default_loop(), &pinger->stream.pipe, 0));
+  ASSERT_OK(uv_pipe_open(&pinger->stream.pipe, fds[1]));
   pinger->stream.pipe.data = pinger; /* record for close_cb */
   ponger->data = pinger; /* record for read_cb */
 
   pinger_write_ping(pinger);
 
-  ASSERT_EQ(0, uv_read_start((uv_stream_t*) ponger, alloc_cb, pinger_read_cb));
+  ASSERT_OK(uv_read_start((uv_stream_t*) ponger, alloc_cb, pinger_read_cb));
 }
 
 static int run_ping_pong_test(void) {
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  ASSERT_EQ(completed_pingers, 1);
+  ASSERT_EQ(1, completed_pingers);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

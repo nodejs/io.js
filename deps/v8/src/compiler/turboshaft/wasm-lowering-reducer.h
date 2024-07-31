@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/compiler/turboshaft/builtin-call-descriptors.h"
 #if !V8_ENABLE_WEBASSEMBLY
 #error This header should only be included if WebAssembly is enabled.
 #endif  // !V8_ENABLE_WEBASSEMBLY
@@ -9,9 +10,12 @@
 #ifndef V8_COMPILER_TURBOSHAFT_WASM_LOWERING_REDUCER_H_
 #define V8_COMPILER_TURBOSHAFT_WASM_LOWERING_REDUCER_H_
 
+#include "src/compiler/globals.h"
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/index.h"
 #include "src/compiler/turboshaft/operations.h"
+#include "src/compiler/turboshaft/phase.h"
+#include "src/compiler/turboshaft/wasm-assembler-helpers.h"
 #include "src/wasm/wasm-engine.h"
 #include "src/wasm/wasm-module.h"
 #include "src/wasm/wasm-objects.h"
@@ -21,14 +25,10 @@ namespace v8::internal::compiler::turboshaft {
 
 #include "src/compiler/turboshaft/define-assembler-macros.inc"
 
-#define LOAD_INSTANCE_FIELD(instance_node, name, representation)     \
-  __ Load(instance_node, LoadOp::Kind::TaggedBase(), representation, \
-          WasmInstanceObject::k##name##Offset);
-
 template <class Next>
 class WasmLoweringReducer : public Next {
  public:
-  TURBOSHAFT_REDUCER_BOILERPLATE()
+  TURBOSHAFT_REDUCER_BOILERPLATE(WasmLowering)
 
   OpIndex REDUCE(GlobalGet)(OpIndex instance, const wasm::WasmGlobal* global) {
     return LowerGlobalSetOrGet(instance, OpIndex::Invalid(), global,
@@ -43,14 +43,17 @@ class WasmLoweringReducer : public Next {
   OpIndex REDUCE(Null)(wasm::ValueType type) { return Null(type); }
 
   OpIndex REDUCE(IsNull)(OpIndex object, wasm::ValueType type) {
-    // TODO(14108): Can this be done simpler for static-roots nowadays?
-    Tagged_t static_null =
-        wasm::GetWasmEngine()->compressed_wasm_null_value_or_zero();
-    OpIndex null_value =
+#if V8_STATIC_ROOTS_BOOL
+    // TODO(14616): Extend this for shared types.
+    const bool is_wasm_null =
         !wasm::IsSubtypeOf(type, wasm::kWasmExternRef, module_) &&
-                static_null != 0
-            ? __ UintPtrConstant(static_null)
-            : Null(type);
+        !wasm::IsSubtypeOf(type, wasm::kWasmExnRef, module_);
+    OpIndex null_value =
+        __ UintPtrConstant(is_wasm_null ? StaticReadOnlyRoot::kWasmNull
+                                        : StaticReadOnlyRoot::kNullValue);
+#else
+    OpIndex null_value = Null(type);
+#endif
     return __ TaggedEqual(object, null_value);
   }
 
@@ -65,14 +68,15 @@ class WasmLoweringReducer : public Next {
         // (3) the object might be a JS object.
         if (null_check_strategy_ == NullCheckStrategy::kExplicit ||
             wasm::IsSubtypeOf(wasm::kWasmI31Ref.AsNonNull(), type, module_) ||
-            wasm::IsSubtypeOf(type, wasm::kWasmExternRef, module_)) {
+            wasm::IsSubtypeOf(type, wasm::kWasmExternRef, module_) ||
+            wasm::IsSubtypeOf(type, wasm::kWasmExnRef, module_)) {
           __ TrapIf(__ IsNull(object, type), OpIndex::Invalid(), trap_id);
         } else {
           // Otherwise, load the word after the map word.
           static_assert(WasmStruct::kHeaderSize > kTaggedSize);
           static_assert(WasmArray::kHeaderSize > kTaggedSize);
           static_assert(WasmInternalFunction::kHeaderSize > kTaggedSize);
-          __ Load(object, LoadOp::Kind::TrapOnNull(),
+          __ Load(object, LoadOp::Kind::TrapOnNull().Immutable(),
                   MemoryRepresentation::Int32(), kTaggedSize);
         }
       }
@@ -82,35 +86,127 @@ class WasmLoweringReducer : public Next {
     return object;
   }
 
-  OpIndex REDUCE(RttCanon)(OpIndex instance, uint32_t type_index) {
-    OpIndex maps_list = LOAD_INSTANCE_FIELD(
-        instance, ManagedObjectMaps, MemoryRepresentation::TaggedPointer());
+  OpIndex REDUCE(RttCanon)(OpIndex rtts, uint32_t type_index) {
     int map_offset = FixedArray::kHeaderSize + type_index * kTaggedSize;
-    return __ Load(maps_list, LoadOp::Kind::TaggedBase(),
+    return __ Load(rtts, LoadOp::Kind::TaggedBase().Immutable(),
                    MemoryRepresentation::AnyTagged(), map_offset);
   }
 
-  OpIndex REDUCE(WasmTypeCheck)(V<Tagged> object, V<Tagged> rtt,
+  OpIndex REDUCE(WasmTypeCheck)(V<Object> object, OptionalV<Object> rtt,
                                 WasmTypeCheckConfig config) {
-    if (rtt != OpIndex::Invalid()) {
+    if (rtt.has_value()) {
       return ReduceWasmTypeCheckRtt(object, rtt, config);
     } else {
       return ReduceWasmTypeCheckAbstract(object, config);
     }
   }
 
-  OpIndex REDUCE(WasmTypeCast)(V<Tagged> object, V<Tagged> rtt,
+  OpIndex REDUCE(WasmTypeCast)(V<Object> object, OptionalV<Object> rtt,
                                WasmTypeCheckConfig config) {
-    if (rtt != OpIndex::Invalid()) {
+    if (rtt.has_value()) {
       return ReduceWasmTypeCastRtt(object, rtt, config);
     } else {
       return ReduceWasmTypeCastAbstract(object, config);
     }
   }
 
+  OpIndex REDUCE(AnyConvertExtern)(V<Object> object) {
+    Label<Object> end_label(&Asm());
+    Label<> null_label(&Asm());
+    Label<> smi_label(&Asm());
+    Label<> int_to_smi_label(&Asm());
+    Label<> heap_number_label(&Asm());
+
+    constexpr int32_t kInt31MaxValue = 0x3fffffff;
+    constexpr int32_t kInt31MinValue = -kInt31MaxValue - 1;
+
+    GOTO_IF(__ IsNull(object, wasm::kWasmExternRef), null_label);
+    GOTO_IF(__ IsSmi(object), smi_label);
+    GOTO_IF(__ HasInstanceType(object, HEAP_NUMBER_TYPE), heap_number_label);
+    // For anything else, just pass through the value.
+    GOTO(end_label, object);
+
+    BIND(null_label);
+    GOTO(end_label, Null(wasm::kWasmAnyRef));
+
+    // Canonicalize SMI.
+    BIND(smi_label);
+    if constexpr (SmiValuesAre31Bits()) {
+      GOTO(end_label, object);
+    } else {
+      Label<> convert_to_heap_number_label(&Asm());
+      V<Word32> int_value = __ UntagSmi(V<Smi>::Cast(object));
+
+      // Convert to heap number if the int32 does not fit into an i31ref.
+      GOTO_IF(__ Int32LessThan(__ Word32Constant(kInt31MaxValue), int_value),
+              convert_to_heap_number_label);
+      GOTO_IF(__ Int32LessThan(int_value, __ Word32Constant(kInt31MinValue)),
+              convert_to_heap_number_label);
+      GOTO(end_label, object);
+
+      BIND(convert_to_heap_number_label);
+      V<Object> heap_number = __ template WasmCallBuiltinThroughJumptable<
+          BuiltinCallDescriptor::WasmInt32ToHeapNumber>({int_value});
+      GOTO(end_label, heap_number);
+    }
+
+    // Convert HeapNumber to SMI if possible.
+    BIND(heap_number_label);
+    V<Float64> float_value = __ template LoadField<Float64>(
+        object, AccessBuilder::ForHeapNumberValue());
+    // Check range of float value.
+    GOTO_IF(__ Float64LessThan(float_value, __ Float64Constant(kInt31MinValue)),
+            end_label, object);
+    GOTO_IF(__ Float64LessThan(__ Float64Constant(kInt31MaxValue), float_value),
+            end_label, object);
+    // Check if value is -0.
+    V<Word32> is_minus_zero;
+    if constexpr (Is64()) {
+      V<Word64> minus_zero = __ Word64Constant(kMinusZeroBits);
+      V<Word64> float_bits = __ BitcastFloat64ToWord64(float_value);
+      is_minus_zero = __ Word64Equal(float_bits, minus_zero);
+    } else {
+      Label<Word32> done(&Asm());
+
+      V<Word32> value_lo = __ Float64ExtractLowWord32(float_value);
+      GOTO_IF_NOT(__ Word32Equal(value_lo, __ Word32Constant(kMinusZeroLoBits)),
+                  done, __ Word32Constant(0));
+      V<Word32> value_hi = __ Float64ExtractHighWord32(float_value);
+      GOTO(done, __ Word32Equal(value_hi, __ Word32Constant(kMinusZeroHiBits)));
+      BIND(done, phi_is_minus_zero);
+      is_minus_zero = phi_is_minus_zero;
+    }
+    GOTO_IF(is_minus_zero, end_label, object);
+    // Check if value is integral.
+    V<Word32> int_value =
+        __ TruncateFloat64ToInt32OverflowUndefined(float_value);
+    GOTO_IF(__ Float64Equal(float_value, __ ChangeInt32ToFloat64(int_value)),
+            int_to_smi_label);
+    GOTO(end_label, object);
+
+    BIND(int_to_smi_label);
+    GOTO(end_label, __ TagSmi(int_value));
+
+    BIND(end_label, result);
+    return result;
+  }
+
+  OpIndex REDUCE(ExternConvertAny)(V<Object> object) {
+    Label<Object> end(&Asm());
+    GOTO_IF_NOT(__ IsNull(object, wasm::kWasmAnyRef), end, object);
+    GOTO(end, Null(wasm::kWasmExternRef));
+    BIND(end, result);
+    return result;
+  }
+
+  OpIndex REDUCE(WasmTypeAnnotation)(OpIndex value, wasm::ValueType type) {
+    // Remove type annotation operations as they are not needed any more.
+    return value;
+  }
+
   OpIndex REDUCE(StructGet)(OpIndex object, const wasm::StructType* type,
-                            int field_index, bool is_signed,
-                            CheckForNull null_check) {
+                            uint32_t type_index, int field_index,
+                            bool is_signed, CheckForNull null_check) {
     auto [explicit_null_check, implicit_null_check] =
         null_checks_for_struct_op(null_check, field_index);
 
@@ -121,6 +217,9 @@ class WasmLoweringReducer : public Next {
 
     LoadOp::Kind load_kind = implicit_null_check ? LoadOp::Kind::TrapOnNull()
                                                  : LoadOp::Kind::TaggedBase();
+    if (!type->mutability(field_index)) {
+      load_kind = load_kind.Immutable();
+    }
     MemoryRepresentation repr =
         RepresentationFor(type->field(field_index), is_signed);
 
@@ -128,8 +227,8 @@ class WasmLoweringReducer : public Next {
   }
 
   OpIndex REDUCE(StructSet)(OpIndex object, OpIndex value,
-                            const wasm::StructType* type, int field_index,
-                            CheckForNull null_check) {
+                            const wasm::StructType* type, uint32_t type_index,
+                            int field_index, CheckForNull null_check) {
     auto [explicit_null_check, implicit_null_check] =
         null_checks_for_struct_op(null_check, field_index);
 
@@ -153,11 +252,15 @@ class WasmLoweringReducer : public Next {
   }
 
   OpIndex REDUCE(ArrayGet)(OpIndex array, OpIndex index,
-                           wasm::ValueType element_type, bool is_signed) {
-    return __ Load(array, __ ChangeInt32ToIntPtr(index),
-                   LoadOp::Kind::TaggedBase(),
-                   RepresentationFor(element_type, is_signed),
-                   WasmArray::kHeaderSize, element_type.value_kind_size_log2());
+                           const wasm::ArrayType* array_type, bool is_signed) {
+    bool is_mutable = array_type->mutability();
+    LoadOp::Kind load_kind = is_mutable
+                                 ? LoadOp::Kind::TaggedBase()
+                                 : LoadOp::Kind::TaggedBase().Immutable();
+    return __ Load(array, __ ChangeInt32ToIntPtr(index), load_kind,
+                   RepresentationFor(array_type->element_type(), is_signed),
+                   WasmArray::kHeaderSize,
+                   array_type->element_type().value_kind_size_log2());
   }
 
   OpIndex REDUCE(ArraySet)(OpIndex array, OpIndex index, OpIndex value,
@@ -182,11 +285,208 @@ class WasmLoweringReducer : public Next {
                 TrapId::kTrapNullDereference);
     }
 
-    LoadOp::Kind load_kind = implicit_null_check ? LoadOp::Kind::TrapOnNull()
-                                                 : LoadOp::Kind::TaggedBase();
+    LoadOp::Kind load_kind = implicit_null_check
+                                 ? LoadOp::Kind::TrapOnNull().Immutable()
+                                 : LoadOp::Kind::TaggedBase().Immutable();
 
     return __ Load(array, load_kind, RepresentationFor(wasm::kWasmI32, true),
                    WasmArray::kLengthOffset);
+  }
+
+  OpIndex REDUCE(WasmAllocateArray)(V<Map> rtt, V<Word32> length,
+                                    const wasm::ArrayType* array_type) {
+    __ TrapIfNot(
+        __ Uint32LessThanOrEqual(
+            length, __ Word32Constant(WasmArray::MaxLength(array_type))),
+        OpIndex::Invalid(), TrapId::kTrapArrayTooLarge);
+    wasm::ValueType element_type = array_type->element_type();
+
+    // RoundUp(length * value_size, kObjectAlignment) =
+    //   RoundDown(length * value_size + kObjectAlignment - 1,
+    //             kObjectAlignment);
+    V<Word32> padded_length = __ Word32BitwiseAnd(
+        __ Word32Add(__ Word32Mul(length, __ Word32Constant(
+                                              element_type.value_kind_size())),
+                     __ Word32Constant(int32_t{kObjectAlignment - 1})),
+        __ Word32Constant(int32_t{-kObjectAlignment}));
+    Uninitialized<HeapObject> a = __ Allocate(
+        __ ChangeUint32ToUintPtr(__ Word32Add(
+            padded_length, __ Word32Constant(WasmArray::kHeaderSize))),
+        AllocationType::kYoung);
+
+    // TODO(14108): The map and empty fixed array initialization should be an
+    // immutable store.
+    __ InitializeField(a, AccessBuilder::ForMap(compiler::kNoWriteBarrier),
+                       rtt);
+    __ InitializeField(a, AccessBuilder::ForJSObjectPropertiesOrHash(),
+                       LOAD_ROOT(EmptyFixedArray));
+    __ InitializeField(a, AccessBuilder::ForWasmArrayLength(), length);
+
+    // Note: Only the array header initialization is finished here, the elements
+    // still need to be initialized by other code.
+    V<HeapObject> array = __ FinishInitialization(std::move(a));
+    return array;
+  }
+
+  OpIndex REDUCE(WasmAllocateStruct)(V<Map> rtt,
+                                     const wasm::StructType* struct_type) {
+    int size = WasmStruct::Size(struct_type);
+    Uninitialized<HeapObject> s = __ Allocate(size, AllocationType::kYoung);
+    __ InitializeField(s, AccessBuilder::ForMap(compiler::kNoWriteBarrier),
+                       rtt);
+    __ InitializeField(s, AccessBuilder::ForJSObjectPropertiesOrHash(),
+                       LOAD_ROOT(EmptyFixedArray));
+    // Note: Struct initialization isn't finished here, the user defined fields
+    // still need to be initialized by other operations.
+    V<HeapObject> struct_value = __ FinishInitialization(std::move(s));
+    return struct_value;
+  }
+
+  OpIndex REDUCE(WasmRefFunc)(V<Object> wasm_instance,
+                              uint32_t function_index) {
+    V<FixedArray> func_refs = LOAD_IMMUTABLE_INSTANCE_FIELD(
+        wasm_instance, FuncRefs, MemoryRepresentation::TaggedPointer());
+    V<Object> maybe_func_ref =
+        __ LoadFixedArrayElement(func_refs, function_index);
+
+    Label<WasmFuncRef> done(&Asm());
+    IF (UNLIKELY(__ IsSmi(maybe_func_ref))) {
+      V<Word32> function_index_constant = __ Word32Constant(function_index);
+
+      V<WasmFuncRef> from_builtin = __ template WasmCallBuiltinThroughJumptable<
+          BuiltinCallDescriptor::WasmRefFunc>({function_index_constant});
+
+      GOTO(done, from_builtin);
+    } ELSE {
+      GOTO(done, V<WasmFuncRef>::Cast(maybe_func_ref));
+    }
+
+    BIND(done, result_value);
+    return result_value;
+  }
+
+  OpIndex REDUCE(StringAsWtf16)(OpIndex string) {
+    Label<Object> done(&Asm());
+    V<Word32> instance_type = __ LoadInstanceTypeField(__ LoadMapField(string));
+    V<Word32> string_representation = __ Word32BitwiseAnd(
+        instance_type, __ Word32Constant(kStringRepresentationMask));
+    GOTO_IF(__ Word32Equal(string_representation, kSeqStringTag), done, string);
+
+    GOTO(done, __ template WasmCallBuiltinThroughJumptable<
+                   BuiltinCallDescriptor::WasmStringAsWtf16>({string}));
+    BIND(done, result);
+    return result;
+  }
+
+  OpIndex REDUCE(StringPrepareForGetCodeUnit)(V<Object> original_string) {
+    LoopLabel<Object /*string*/, Word32 /*instance type*/, Word32 /*offset*/>
+        dispatch(&Asm());
+    Label<Object /*string*/, Word32 /*instance type*/, Word32 /*offset*/>
+        direct_string(&Asm());
+
+    // These values will be used to replace the original node's projections.
+    // The first, "string", is either a SeqString or Tagged<Smi>(0) (in case of
+    // external string). Notably this makes it GC-safe: if that string moves,
+    // this pointer will be updated accordingly. The second, "offset", has full
+    // register width so that it can be used to store external pointers: for
+    // external strings, we add up the character backing store's base address
+    // and any slice offset. The third, "character width", is a shift width,
+    // i.e. it is 0 for one-byte strings, 1 for two-byte strings,
+    // kCharWidthBailoutSentinel for uncached external strings (for which
+    // "string"/"offset" are invalid and unusable).
+    Label<Object /*string*/, WordPtr /*offset*/, Word32 /*character width*/>
+        done(&Asm());
+
+    V<Word32> original_type =
+        __ LoadInstanceTypeField(__ LoadMapField(original_string));
+    GOTO(dispatch, original_string, original_type, __ Word32Constant(0));
+
+    BIND_LOOP(dispatch, string, instance_type, offset) {
+      Label<> thin_string(&Asm());
+      Label<> cons_string(&Asm());
+
+      static_assert(kIsIndirectStringTag == 1);
+      static constexpr int kIsDirectStringTag = 0;
+      GOTO_IF(__ Word32Equal(
+                  __ Word32BitwiseAnd(instance_type, kIsIndirectStringMask),
+                  kIsDirectStringTag),
+              direct_string, string, instance_type, offset);
+
+      // Handle indirect strings.
+      V<Word32> string_representation =
+          __ Word32BitwiseAnd(instance_type, kStringRepresentationMask);
+      GOTO_IF(__ Word32Equal(string_representation, kThinStringTag),
+              thin_string);
+      GOTO_IF(__ Word32Equal(string_representation, kConsStringTag),
+              cons_string);
+
+      // Sliced string.
+      V<Word32> new_offset = __ Word32Add(
+          offset, __ UntagSmi(__ template LoadField<Smi>(
+                      string, AccessBuilder::ForSlicedStringOffset())));
+      V<Object> parent = __ template LoadField<Object>(
+          string, AccessBuilder::ForSlicedStringParent());
+      V<Word32> parent_type = __ LoadInstanceTypeField(__ LoadMapField(parent));
+      GOTO(dispatch, parent, parent_type, new_offset);
+
+      // Thin string.
+      BIND(thin_string);
+      V<Object> actual = __ template LoadField<Object>(
+          string, AccessBuilder::ForThinStringActual());
+      V<Word32> actual_type = __ LoadInstanceTypeField(__ LoadMapField(actual));
+      // ThinStrings always reference (internalized) direct strings.
+      GOTO(direct_string, actual, actual_type, offset);
+
+      // Flat cons string. (Non-flat cons strings are ruled out by
+      // string.as_wtf16.)
+      BIND(cons_string);
+      V<Object> first = __ template LoadField<Object>(
+          string, AccessBuilder::ForConsStringFirst());
+      V<Word32> first_type = __ LoadInstanceTypeField(__ LoadMapField(first));
+      GOTO(dispatch, first, first_type, offset);
+    }
+    {
+      BIND(direct_string, string, instance_type, offset);
+
+      V<Word32> is_onebyte =
+          __ Word32BitwiseAnd(instance_type, kStringEncodingMask);
+      // Char width shift is 1 - (is_onebyte).
+      static_assert(kStringEncodingMask == 1 << 3);
+      V<Word32> charwidth_shift =
+          __ Word32Sub(1, __ Word32ShiftRightLogical(is_onebyte, 3));
+
+      Label<> external(&Asm());
+      V<Word32> string_representation =
+          __ Word32BitwiseAnd(instance_type, kStringRepresentationMask);
+      GOTO_IF(__ Word32Equal(string_representation, kExternalStringTag),
+              external);
+
+      // Sequential string.
+      DCHECK_EQ(AccessBuilder::ForSeqOneByteStringCharacter().header_size,
+                AccessBuilder::ForSeqTwoByteStringCharacter().header_size);
+      const int chars_start_offset =
+          AccessBuilder::ForSeqOneByteStringCharacter().header_size;
+      V<Word32> final_offset =
+          __ Word32Add(chars_start_offset - kHeapObjectTag,
+                       __ Word32ShiftLeft(offset, charwidth_shift));
+      GOTO(done, string, __ ChangeInt32ToIntPtr(final_offset), charwidth_shift);
+
+      // External string.
+      BIND(external);
+      GOTO_IF(__ Word32BitwiseAnd(instance_type, kUncachedExternalStringMask),
+              done, string, /*offset*/ 0, kCharWidthBailoutSentinel);
+      V<WordPtr> resource = BuildLoadExternalPointerFromObject(
+          string, AccessBuilder::ForExternalStringResourceData());
+      V<Word32> shifted_offset = __ Word32ShiftLeft(offset, charwidth_shift);
+      V<WordPtr> final_offset_external =
+          __ WordPtrAdd(resource, __ ChangeInt32ToIntPtr(shifted_offset));
+      GOTO(done, __ SmiConstant(Smi::FromInt(0)), final_offset_external,
+           charwidth_shift);
+    }
+    {
+      BIND(done, base, final_offset, charwidth_shift);
+      return __ Tuple({base, final_offset, charwidth_shift});
+    }
   }
 
  private:
@@ -194,7 +494,7 @@ class WasmLoweringReducer : public Next {
 
   static constexpr MemoryRepresentation kMaybeSandboxedPointer =
       V8_ENABLE_SANDBOX_BOOL ? MemoryRepresentation::SandboxedPointer()
-                             : MemoryRepresentation::PointerSized();
+                             : MemoryRepresentation::UintPtr();
 
   MemoryRepresentation RepresentationFor(wasm::ValueType type, bool is_signed) {
     switch (type.kind()) {
@@ -226,7 +526,20 @@ class WasmLoweringReducer : public Next {
     }
   }
 
-  OpIndex ReduceWasmTypeCheckAbstract(V<Tagged> object,
+  V<WordPtr> BuildLoadExternalPointerFromObject(V<Object> object,
+                                                FieldAccess access) {
+#ifdef V8_ENABLE_SANDBOX
+    DCHECK_NE(access.external_pointer_tag, kExternalPointerNullTag);
+    V<Word32> handle = __ Load(object, LoadOp::Kind::TaggedBase(),
+                               MemoryRepresentation::Uint32(), access.offset);
+    return __ DecodeExternalPointer(handle, access.external_pointer_tag);
+#else
+    return __ Load(object, LoadOp::Kind::TaggedBase(),
+                   MemoryRepresentation::UintPtr(), access.offset);
+#endif  // V8_ENABLE_SANDBOX
+  }
+
+  OpIndex ReduceWasmTypeCheckAbstract(V<Object> object,
                                       WasmTypeCheckConfig config) {
     const bool object_can_be_null = config.from.is_nullable();
     const bool null_succeeds = config.to.is_nullable();
@@ -266,8 +579,6 @@ class WasmLoweringReducer : public Next {
         if (object_can_be_i31) {
           GOTO_IF(UNLIKELY(__ IsSmi(object)), end_label, __ Word32Constant(1));
         }
-        // TODO(mliedtke): Ideally we'd be able to mark the map load as
-        // immutable.
         result = IsDataRefMap(__ LoadMapField(object));
         break;
       }
@@ -276,14 +587,15 @@ class WasmLoweringReducer : public Next {
         GOTO_IF(UNLIKELY(__ IsSmi(object)), end_label, __ Word32Constant(0));
       }
       if (to_rep == wasm::HeapType::kArray) {
-        result = HasInstanceType(object, WASM_ARRAY_TYPE);
+        result = __ HasInstanceType(object, WASM_ARRAY_TYPE);
         break;
       }
       if (to_rep == wasm::HeapType::kStruct) {
-        result = HasInstanceType(object, WASM_STRUCT_TYPE);
+        result = __ HasInstanceType(object, WASM_STRUCT_TYPE);
         break;
       }
-      if (to_rep == wasm::HeapType::kString) {
+      if (to_rep == wasm::HeapType::kString ||
+          to_rep == wasm::HeapType::kExternString) {
         V<Word32> instance_type =
             __ LoadInstanceTypeField(__ LoadMapField(object));
         result = __ Uint32LessThan(instance_type,
@@ -293,13 +605,13 @@ class WasmLoweringReducer : public Next {
       UNREACHABLE();
     } while (false);
 
-    DCHECK(result.valid());
+    DCHECK(__ generating_unreachable_operations() || result.valid());
     GOTO(end_label, result);
     BIND(end_label, final_result);
     return final_result;
   }
 
-  OpIndex ReduceWasmTypeCastAbstract(V<Tagged> object,
+  OpIndex ReduceWasmTypeCastAbstract(V<Object> object,
                                      WasmTypeCheckConfig config) {
     const bool object_can_be_null = config.from.is_nullable();
     const bool null_succeeds = config.to.is_nullable();
@@ -350,7 +662,7 @@ class WasmLoweringReducer : public Next {
                   TrapId::kTrapIllegalCast);
       }
       if (to_rep == wasm::HeapType::kArray) {
-        __ TrapIfNot(HasInstanceType(object, WASM_ARRAY_TYPE),
+        __ TrapIfNot(__ HasInstanceType(object, WASM_ARRAY_TYPE),
                      OpIndex::Invalid(), TrapId::kTrapIllegalCast);
         break;
       }
@@ -359,7 +671,8 @@ class WasmLoweringReducer : public Next {
                      OpIndex::Invalid(), TrapId::kTrapIllegalCast);
         break;
       }
-      if (to_rep == wasm::HeapType::kString) {
+      if (to_rep == wasm::HeapType::kString ||
+          to_rep == wasm::HeapType::kExternString) {
         V<Word32> instance_type =
             __ LoadInstanceTypeField(__ LoadMapField(object));
         __ TrapIfNot(__ Uint32LessThan(instance_type,
@@ -375,8 +688,9 @@ class WasmLoweringReducer : public Next {
     return object;
   }
 
-  OpIndex ReduceWasmTypeCastRtt(V<Tagged> object, V<Tagged> rtt,
+  OpIndex ReduceWasmTypeCastRtt(V<Object> object, OptionalV<Object> rtt,
                                 WasmTypeCheckConfig config) {
+    DCHECK(rtt.has_value());
     int rtt_depth = wasm::GetSubtypingDepth(module_, config.to.ref_index());
     bool object_can_be_null = config.from.is_nullable();
     bool object_can_be_i31 =
@@ -401,17 +715,16 @@ class WasmLoweringReducer : public Next {
       __ TrapIf(__ IsSmi(object), OpIndex::Invalid(), TrapId::kTrapIllegalCast);
     }
 
-    // TODO(mliedtke): Ideally we'd be able to mark this as immutable as well.
     V<Map> map = __ LoadMapField(object);
 
     if (module_->types[config.to.ref_index()].is_final) {
-      __ TrapIfNot(__ TaggedEqual(map, rtt), OpIndex::Invalid(),
+      __ TrapIfNot(__ TaggedEqual(map, rtt.value()), OpIndex::Invalid(),
                    TrapId::kTrapIllegalCast);
       GOTO(end_label);
     } else {
       // First, check if types happen to be equal. This has been shown to give
       // large speedups.
-      GOTO_IF(LIKELY(__ TaggedEqual(map, rtt)), end_label);
+      GOTO_IF(LIKELY(__ TaggedEqual(map, rtt.value())), end_label);
 
       // Check if map instance type identifies a wasm object.
       if (is_cast_from_any) {
@@ -419,7 +732,7 @@ class WasmLoweringReducer : public Next {
         __ TrapIfNot(is_wasm_obj, OpIndex::Invalid(), TrapId::kTrapIllegalCast);
       }
 
-      V<Tagged> type_info = LoadWasmTypeInfo(map);
+      V<Object> type_info = LoadWasmTypeInfo(map);
       DCHECK_GE(rtt_depth, 0);
       // If the depth of the rtt is known to be less that the minimum supertype
       // array length, we can access the supertype without bounds-checking the
@@ -435,12 +748,12 @@ class WasmLoweringReducer : public Next {
             OpIndex::Invalid(), TrapId::kTrapIllegalCast);
       }
 
-      V<Tagged> maybe_match =
+      V<Object> maybe_match =
           __ Load(type_info, LoadOp::Kind::TaggedBase().Immutable(),
                   MemoryRepresentation::TaggedPointer(),
                   WasmTypeInfo::kSupertypesOffset + kTaggedSize * rtt_depth);
 
-      __ TrapIfNot(__ TaggedEqual(maybe_match, rtt), OpIndex::Invalid(),
+      __ TrapIfNot(__ TaggedEqual(maybe_match, rtt.value()), OpIndex::Invalid(),
                    TrapId::kTrapIllegalCast);
       GOTO(end_label);
     }
@@ -449,8 +762,9 @@ class WasmLoweringReducer : public Next {
     return object;
   }
 
-  OpIndex ReduceWasmTypeCheckRtt(V<Tagged> object, V<Tagged> rtt,
+  OpIndex ReduceWasmTypeCheckRtt(V<Object> object, OptionalV<Object> rtt,
                                  WasmTypeCheckConfig config) {
+    DCHECK(rtt.has_value());
     int rtt_depth = wasm::GetSubtypingDepth(module_, config.to.ref_index());
     bool object_can_be_null = config.from.is_nullable();
     bool object_can_be_i31 =
@@ -472,15 +786,14 @@ class WasmLoweringReducer : public Next {
       GOTO_IF(__ IsSmi(object), end_label, __ Word32Constant(0));
     }
 
-    // TODO(mliedtke): Ideally we'd be able to mark this as immutable as well.
     V<Map> map = __ LoadMapField(object);
 
     if (module_->types[config.to.ref_index()].is_final) {
-      GOTO(end_label, __ TaggedEqual(map, rtt));
+      GOTO(end_label, __ TaggedEqual(map, rtt.value()));
     } else {
       // First, check if types happen to be equal. This has been shown to give
       // large speedups.
-      GOTO_IF(LIKELY(__ TaggedEqual(map, rtt)), end_label,
+      GOTO_IF(LIKELY(__ TaggedEqual(map, rtt.value())), end_label,
               __ Word32Constant(1));
 
       // Check if map instance type identifies a wasm object.
@@ -489,7 +802,7 @@ class WasmLoweringReducer : public Next {
         GOTO_IF_NOT(LIKELY(is_wasm_obj), end_label, __ Word32Constant(0));
       }
 
-      V<Tagged> type_info = LoadWasmTypeInfo(map);
+      V<Object> type_info = LoadWasmTypeInfo(map);
       DCHECK_GE(rtt_depth, 0);
       // If the depth of the rtt is known to be less that the minimum supertype
       // array length, we can access the supertype without bounds-checking the
@@ -507,36 +820,32 @@ class WasmLoweringReducer : public Next {
                     end_label, __ Word32Constant(0));
       }
 
-      V<Tagged> maybe_match =
+      V<Object> maybe_match =
           __ Load(type_info, LoadOp::Kind::TaggedBase().Immutable(),
                   MemoryRepresentation::TaggedPointer(),
                   WasmTypeInfo::kSupertypesOffset + kTaggedSize * rtt_depth);
 
-      GOTO(end_label, __ TaggedEqual(maybe_match, rtt));
+      GOTO(end_label, __ TaggedEqual(maybe_match, rtt.value()));
     }
 
     BIND(end_label, result);
     return result;
   }
 
-  V<Word32> HasInstanceType(V<Tagged> object, InstanceType instance_type) {
-    // TODO(mliedtke): These loads should be immutable.
-    return __ Word32Equal(__ LoadInstanceTypeField(__ LoadMapField(object)),
-                          __ Word32Constant(instance_type));
-  }
-
   OpIndex LowerGlobalSetOrGet(OpIndex instance, OpIndex value,
                               const wasm::WasmGlobal* global, GlobalMode mode) {
-    if (global->mutability && global->imported) {
+    bool is_mutable = global->mutability;
+    DCHECK_IMPLIES(!is_mutable, mode == GlobalMode::kLoad);
+    if (is_mutable && global->imported) {
       OpIndex imported_mutable_globals =
-          LOAD_INSTANCE_FIELD(instance, ImportedMutableGlobals,
-                              MemoryRepresentation::TaggedPointer());
+          LOAD_IMMUTABLE_INSTANCE_FIELD(instance, ImportedMutableGlobals,
+                                        MemoryRepresentation::TaggedPointer());
       int field_offset =
           FixedAddressArray::kHeaderSize + global->index * kSystemPointerSize;
       if (global->type.is_reference()) {
-        OpIndex buffers =
-            LOAD_INSTANCE_FIELD(instance, ImportedMutableGlobalsBuffers,
-                                MemoryRepresentation::TaggedPointer());
+        OpIndex buffers = LOAD_IMMUTABLE_INSTANCE_FIELD(
+            instance, ImportedMutableGlobalsBuffers,
+            MemoryRepresentation::TaggedPointer());
         int offset_in_buffers =
             FixedArray::kHeaderSize + global->offset * kTaggedSize;
         OpIndex base =
@@ -549,12 +858,12 @@ class WasmLoweringReducer : public Next {
         if (mode == GlobalMode::kLoad) {
           return __ Load(base, index_ptr, LoadOp::Kind::TaggedBase(),
                          MemoryRepresentation::AnyTagged(),
-                         FixedArray::kObjectsOffset, kTaggedSizeLog2);
+                         FixedArray::OffsetOfElementAt(0), kTaggedSizeLog2);
         } else {
           __ Store(base, index_ptr, value, StoreOp::Kind::TaggedBase(),
                    MemoryRepresentation::AnyTagged(),
                    WriteBarrierKind::kFullWriteBarrier,
-                   FixedArray::kObjectsOffset, kTaggedSizeLog2);
+                   FixedArray::OffsetOfElementAt(0), kTaggedSizeLog2);
           return OpIndex::Invalid();
         }
       } else {
@@ -573,12 +882,15 @@ class WasmLoweringReducer : public Next {
         }
       }
     } else if (global->type.is_reference()) {
-      OpIndex base = LOAD_INSTANCE_FIELD(instance, TaggedGlobalsBuffer,
-                                         MemoryRepresentation::TaggedPointer());
+      OpIndex base = LOAD_IMMUTABLE_INSTANCE_FIELD(
+          instance, TaggedGlobalsBuffer, MemoryRepresentation::TaggedPointer());
       int offset = FixedArray::kHeaderSize + global->offset * kTaggedSize;
       if (mode == GlobalMode::kLoad) {
-        return __ Load(base, LoadOp::Kind::TaggedBase(),
-                       MemoryRepresentation::AnyTagged(), offset);
+        LoadOp::Kind load_kind = is_mutable
+                                     ? LoadOp::Kind::TaggedBase()
+                                     : LoadOp::Kind::TaggedBase().Immutable();
+        return __ Load(base, load_kind, MemoryRepresentation::AnyTagged(),
+                       offset);
       } else {
         __ Store(base, value, StoreOp::Kind::TaggedBase(),
                  MemoryRepresentation::AnyTagged(),
@@ -586,11 +898,14 @@ class WasmLoweringReducer : public Next {
         return OpIndex::Invalid();
       }
     } else {
-      OpIndex base =
-          LOAD_INSTANCE_FIELD(instance, GlobalsStart, kMaybeSandboxedPointer);
+      OpIndex base = LOAD_IMMUTABLE_INSTANCE_FIELD(
+          instance, GlobalsStart, MemoryRepresentation::UintPtr());
       if (mode == GlobalMode::kLoad) {
-        return __ Load(base, LoadOp::Kind::RawAligned(),
-                       RepresentationFor(global->type, true), global->offset);
+        LoadOp::Kind load_kind = is_mutable
+                                     ? LoadOp::Kind::RawAligned()
+                                     : LoadOp::Kind::RawAligned().Immutable();
+        return __ Load(base, load_kind, RepresentationFor(global->type, true),
+                       global->offset);
       } else {
         __ Store(base, value, StoreOp::Kind::RawAligned(),
                  RepresentationFor(global->type, true),
@@ -602,21 +917,29 @@ class WasmLoweringReducer : public Next {
 
   OpIndex Null(wasm::ValueType type) {
     OpIndex roots = __ LoadRootRegister();
-    RootIndex index = wasm::IsSubtypeOf(type, wasm::kWasmExternRef, module_)
-                          ? RootIndex::kNullValue
-                          : RootIndex::kWasmNull;
+    RootIndex index =
+        wasm::IsSubtypeOf(type, wasm::kWasmExternRef, module_) ||
+                wasm::IsSubtypeOf(type, wasm::kWasmExnRef, module_)
+            ? RootIndex::kNullValue
+            : RootIndex::kWasmNull;
+    // We load WasmNull as a pointer here and not as a TaggedPointer because
+    // WasmNull is stored uncompressed in the IsolateData, and a load of a
+    // TaggedPointer loads compressed pointers. We do not bitcast the WasmNull
+    // to Tagged at the moment because it would increase graph size, which may
+    // affect optimizations negatively. These regressions would be worth it if
+    // there was any benefit of the bitcast. However, the graph validation
+    // currently allows implicit representation changes from `WordPtr` to
+    // `Tagged`.
     return __ Load(roots, LoadOp::Kind::RawAligned().Immutable(),
-                   MemoryRepresentation::PointerSized(),
+                   MemoryRepresentation::UintPtr(),
                    IsolateData::root_slot_offset(index));
   }
 
-  V<WordPtr> ChangeSmiToWordPtr(V<Tagged> smi) {
+  V<WordPtr> ChangeSmiToWordPtr(V<Smi> smi) {
     return __ ChangeInt32ToIntPtr(__ UntagSmi(smi));
   }
 
   V<Word32> IsDataRefMap(V<Map> map) {
-    // TODO(mliedtke): LoadInstanceTypeField should emit an immutable load for
-    // wasm.
     V<Word32> instance_type = __ LoadInstanceTypeField(map);
     // We're going to test a range of WasmObject instance types with a single
     // unsigned comparison.
@@ -626,7 +949,7 @@ class WasmLoweringReducer : public Next {
         comparison_value, LAST_WASM_OBJECT_TYPE - FIRST_WASM_OBJECT_TYPE);
   }
 
-  V<Tagged> LoadWasmTypeInfo(V<Map> map) {
+  V<Object> LoadWasmTypeInfo(V<Map> map) {
     int offset = Map::kConstructorOrBackPointerOrNativeContextOffset;
     return __ Load(map, LoadOp::Kind::TaggedBase().Immutable(),
                    MemoryRepresentation::TaggedPointer(), offset);

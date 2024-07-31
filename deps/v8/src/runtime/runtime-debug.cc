@@ -199,7 +199,7 @@ static Handle<ArrayList> AddIteratorInternalProperties(
 
 MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
                                                     Handle<Object> object) {
-  auto result = ArrayList::New(isolate, 8 * 2);
+  Handle<ArrayList> result = ArrayList::New(isolate, 8 * 2);
   if (IsJSObject(*object)) {
     PrototypeIterator iter(isolate, Handle<JSObject>::cast(object),
                            kStartAtReceiver);
@@ -324,10 +324,8 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
           isolate->factory()->true_value());
     } else {
       const size_t byte_length = js_array_buffer->byte_length();
-      // TODO(v8:4153): Remove this code once the maximum lengths are equal (and
-      // add a static assertion that it stays that way).
-      static_assert(JSTypedArray::kMaxLength < JSArrayBuffer::kMaxByteLength);
-      CHECK_LE(byte_length, JSArrayBuffer::kMaxByteLength);
+      static_assert(JSTypedArray::kMaxByteLength ==
+                    JSArrayBuffer::kMaxByteLength);
       using DataView = std::tuple<const char*, ExternalArrayType, size_t>;
       for (auto [name, type, elem_size] :
            {DataView{"[[Int8Array]]", kExternalInt8Array, 1},
@@ -336,7 +334,6 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
             DataView{"[[Int32Array]]", kExternalInt32Array, 4}}) {
         if ((byte_length % elem_size) != 0) continue;
         size_t length = byte_length / elem_size;
-        if (length > JSTypedArray::kMaxLength) continue;
         result =
             ArrayList::Add(isolate, result,
                            isolate->factory()->NewStringFromAsciiChecked(name),
@@ -383,7 +380,7 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
 #endif  // V8_ENABLE_WEBASSEMBLY
   }
   return isolate->factory()->NewJSArrayWithElements(
-      ArrayList::Elements(isolate, result), PACKED_ELEMENTS);
+      ArrayList::ToFixedArray(isolate, result), PACKED_ELEMENTS);
 }
 
 RUNTIME_FUNCTION(Runtime_GetGeneratorScopeCount) {
@@ -866,8 +863,7 @@ RUNTIME_FUNCTION(Runtime_DebugAsyncFunctionSuspended) {
 
     Handle<WeakFixedArray> awaited_by_holder(
         isolate->factory()->NewWeakFixedArray(1));
-    awaited_by_holder->Set(
-        0, MaybeObject::MakeWeak(MaybeObject::FromObject(*generator)));
+    awaited_by_holder->set(0, MakeWeak(*generator));
     Object::SetProperty(isolate, promise,
                         isolate->factory()->promise_awaited_by_symbol(),
                         awaited_by_holder, StoreOrigin::kMaybeKeyed,
@@ -930,15 +926,13 @@ RUNTIME_FUNCTION(Runtime_ProfileCreateSnapshotDataBlob) {
   DisableEmbeddedBlobRefcounting();
 
   static constexpr char* kNoEmbeddedSource = nullptr;
-  // Have the SnapshotCreator create a new Isolate from scratch.
-  static constexpr Isolate* kNoIsolate = nullptr;
   // We use this flag to tell the serializer not to finalize/seal RO space -
   // this already happened after deserializing the main Isolate.
   static constexpr Snapshot::SerializerFlags kSerializerFlags =
       Snapshot::SerializerFlag::kAllowActiveIsolateForTesting;
   v8::StartupData blob = CreateSnapshotDataBlobInternal(
       v8::SnapshotCreator::FunctionCodeHandling::kClear, kNoEmbeddedSource,
-      kNoIsolate, kSerializerFlags);
+      kSerializerFlags);
   delete[] blob.data;
 
   // Track the embedded blob size as well.

@@ -135,6 +135,7 @@ not ok 2 - promise abort signal
     *
     *
     *
+    *
   ...
 # Subtest: callback timeout signal
     # Subtest: ok 1
@@ -263,6 +264,7 @@ not ok 4 - callback abort signal
   code: 20
   name: 'AbortError'
   stack: |-
+    *
     *
     *
     *

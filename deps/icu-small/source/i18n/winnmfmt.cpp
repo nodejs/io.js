@@ -24,8 +24,10 @@
 #include "unicode/locid.h"
 #include "unicode/ustring.h"
 
+#include "charstr.h"
 #include "cmemory.h"
 #include "uassert.h"
+#include "ulocimp.h"
 #include "locmap.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -144,10 +146,9 @@ static void freeCurrencyFormat(CURRENCYFMTW *fmt)
 static UErrorCode GetEquivalentWindowsLocaleName(const Locale& locale, UnicodeString** buffer)
 {
     UErrorCode status = U_ZERO_ERROR;
-    char asciiBCP47Tag[LOCALE_NAME_MAX_LENGTH] = {};
 
     // Convert from names like "en_CA" and "de_DE@collation=phonebook" to "en-CA" and "de-DE-u-co-phonebk".
-    (void) uloc_toLanguageTag(locale.getName(), asciiBCP47Tag, UPRV_LENGTHOF(asciiBCP47Tag), false, &status);
+    CharString asciiBCP47Tag = ulocimp_toLanguageTag(locale.getName(), false, status);
 
     if (U_SUCCESS(status))
     {

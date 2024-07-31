@@ -1537,12 +1537,12 @@ _ISCII_SafeClone(const UConverter *cnv,
     int32_t bufferSizeNeeded = sizeof(struct cloneISCIIStruct);
 
     if (U_FAILURE(*status)) {
-        return 0;
+        return nullptr;
     }
 
     if (*pBufferSize == 0) { /* 'preflighting' request - set needed size into *pBufferSize */
         *pBufferSize = bufferSizeNeeded;
-        return 0;
+        return nullptr;
     }
 
     localClone = (struct cloneISCIIStruct *)stackBuffer;

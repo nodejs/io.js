@@ -271,6 +271,7 @@ public:
 
     Value* at(size_t index);
     size_t size() const { return m_data.size(); }
+    void reserve(size_t capacity) { m_data.reserve(capacity); }
 
 private:
     ListValue();

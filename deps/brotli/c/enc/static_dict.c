@@ -4,13 +4,13 @@
    See file LICENSE for detail or copy at https://opensource.org/licenses/MIT
 */
 
-#include "./static_dict.h"
+#include "static_dict.h"
 
 #include "../common/dictionary.h"
 #include "../common/platform.h"
 #include "../common/transform.h"
-#include "./encoder_dict.h"
-#include "./find_match_length.h"
+#include "encoder_dict.h"
+#include "find_match_length.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -74,10 +74,27 @@ static BROTLI_INLINE BROTLI_BOOL IsMatch(const BrotliDictionary* dictionary,
   }
 }
 
-BROTLI_BOOL BrotliFindAllStaticDictionaryMatches(
+/* Finds matches for a single static dictionary */
+static BROTLI_BOOL BrotliFindAllStaticDictionaryMatchesFor(
     const BrotliEncoderDictionary* dictionary, const uint8_t* data,
     size_t min_length, size_t max_length, uint32_t* matches) {
   BROTLI_BOOL has_found_match = BROTLI_FALSE;
+#if defined(BROTLI_EXPERIMENTAL)
+  if (dictionary->has_words_heavy) {
+    const BrotliTrieNode* node = &dictionary->trie.root;
+    size_t l = 0;
+    while (node && l < max_length) {
+      uint8_t c;
+      if (l >= min_length && node->len_) {
+        AddMatch(node->idx_, l, node->len_, matches);
+        has_found_match = BROTLI_TRUE;
+      }
+      c = data[l++];
+      node = BrotliTrieSub(&dictionary->trie, node, c);
+    }
+    return has_found_match;
+  }
+#endif  /* BROTLI_EXPERIMENTAL */
   {
     size_t offset = dictionary->buckets[Hash(data)];
     BROTLI_BOOL end = !offset;
@@ -481,6 +498,45 @@ BROTLI_BOOL BrotliFindAllStaticDictionaryMatches(
   return has_found_match;
 }
 
+/* Finds matches for one or more dictionaries, if multiple are present
+   in the contextual dictionary */
+BROTLI_BOOL BrotliFindAllStaticDictionaryMatches(
+    const BrotliEncoderDictionary* dictionary, const uint8_t* data,
+    size_t min_length, size_t max_length, uint32_t* matches) {
+  BROTLI_BOOL has_found_match =
+      BrotliFindAllStaticDictionaryMatchesFor(
+          dictionary, data, min_length, max_length, matches);
+
+  if (!!dictionary->parent && dictionary->parent->num_dictionaries > 1) {
+    uint32_t matches2[BROTLI_MAX_STATIC_DICTIONARY_MATCH_LEN + 1];
+    int l;
+    const BrotliEncoderDictionary* dictionary2 = dictionary->parent->dict[0];
+    if (dictionary2 == dictionary) {
+      dictionary2 = dictionary->parent->dict[1];
+    }
+
+    for (l = 0; l < BROTLI_MAX_STATIC_DICTIONARY_MATCH_LEN + 1; l++) {
+      matches2[l] = kInvalidMatch;
+    }
+
+    has_found_match |= BrotliFindAllStaticDictionaryMatchesFor(
+        dictionary2, data, min_length, max_length, matches2);
+
+    for (l = 0; l < BROTLI_MAX_STATIC_DICTIONARY_MATCH_LEN + 1; l++) {
+      if (matches2[l] != kInvalidMatch) {
+        uint32_t dist = (uint32_t)(matches2[l] >> 5);
+        uint32_t len_code = matches2[l] & 31;
+        uint32_t skipdist = (uint32_t)((uint32_t)(1 << dictionary->words->
+            size_bits_by_length[len_code]) & ~1u) *
+            (uint32_t)dictionary->num_transforms;
+        /* TODO(lode): check for dist overflow */
+        dist += skipdist;
+        AddMatch(dist, (size_t)l, len_code, matches);
+      }
+    }
+  }
+  return has_found_match;
+}
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */
 #endif

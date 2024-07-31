@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,13 +141,16 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-install">npm-install</h1>
+<h1 id="----npm-install----1082">
+    <span>npm-install</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Install a package</span>
 </header>
 
 <section id="table_of_contents">
 <h2 id="table-of-contents">Table of contents</h2>
-<div id="_table_of_contents"><ul><li><a href="#synopsis">Synopsis</a></li><li><a href="#description">Description</a></li><li><a href="#configuration">Configuration</a></li><ul><li><a href="#save"><code>save</code></a></li><li><a href="#save-exact"><code>save-exact</code></a></li><li><a href="#global"><code>global</code></a></li><li><a href="#install-strategy"><code>install-strategy</code></a></li><li><a href="#legacy-bundling"><code>legacy-bundling</code></a></li><li><a href="#global-style"><code>global-style</code></a></li><li><a href="#omit"><code>omit</code></a></li><li><a href="#include"><code>include</code></a></li><li><a href="#strict-peer-deps"><code>strict-peer-deps</code></a></li><li><a href="#prefer-dedupe"><code>prefer-dedupe</code></a></li><li><a href="#package-lock"><code>package-lock</code></a></li><li><a href="#package-lock-only"><code>package-lock-only</code></a></li><li><a href="#foreground-scripts"><code>foreground-scripts</code></a></li><li><a href="#ignore-scripts"><code>ignore-scripts</code></a></li><li><a href="#audit"><code>audit</code></a></li><li><a href="#bin-links"><code>bin-links</code></a></li><li><a href="#fund"><code>fund</code></a></li><li><a href="#dry-run"><code>dry-run</code></a></li><li><a href="#cpu"><code>cpu</code></a></li><li><a href="#os"><code>os</code></a></li><li><a href="#workspace"><code>workspace</code></a></li><li><a href="#workspaces"><code>workspaces</code></a></li><li><a href="#include-workspace-root"><code>include-workspace-root</code></a></li><li><a href="#install-links"><code>install-links</code></a></li></ul><li><a href="#algorithm">Algorithm</a></li><li><a href="#see-also">See Also</a></li></ul></div>
+<div id="_table_of_contents"><ul><li><a href="#synopsis">Synopsis</a></li><li><a href="#description">Description</a></li><li><a href="#configuration">Configuration</a></li><ul><li><a href="#save"><code>save</code></a></li><li><a href="#save-exact"><code>save-exact</code></a></li><li><a href="#global"><code>global</code></a></li><li><a href="#install-strategy"><code>install-strategy</code></a></li><li><a href="#legacy-bundling"><code>legacy-bundling</code></a></li><li><a href="#global-style"><code>global-style</code></a></li><li><a href="#omit"><code>omit</code></a></li><li><a href="#include"><code>include</code></a></li><li><a href="#strict-peer-deps"><code>strict-peer-deps</code></a></li><li><a href="#prefer-dedupe"><code>prefer-dedupe</code></a></li><li><a href="#package-lock"><code>package-lock</code></a></li><li><a href="#package-lock-only"><code>package-lock-only</code></a></li><li><a href="#foreground-scripts"><code>foreground-scripts</code></a></li><li><a href="#ignore-scripts"><code>ignore-scripts</code></a></li><li><a href="#audit"><code>audit</code></a></li><li><a href="#bin-links"><code>bin-links</code></a></li><li><a href="#fund"><code>fund</code></a></li><li><a href="#dry-run"><code>dry-run</code></a></li><li><a href="#cpu"><code>cpu</code></a></li><li><a href="#os"><code>os</code></a></li><li><a href="#libc"><code>libc</code></a></li><li><a href="#workspace"><code>workspace</code></a></li><li><a href="#workspaces"><code>workspaces</code></a></li><li><a href="#include-workspace-root"><code>include-workspace-root</code></a></li><li><a href="#install-links"><code>install-links</code></a></li></ul><li><a href="#algorithm">Algorithm</a></li><li><a href="#see-also">See Also</a></li></ul></div>
 </section>
 
 <div id="_content"><h3 id="synopsis">Synopsis</h3>
@@ -259,6 +267,9 @@ is the default unless <code>-D</code> or <code>-O</code> are present.</p>
 </li>
 <li>
 <p><code>-D, --save-dev</code>: Package will appear in your <code>devDependencies</code>.</p>
+</li>
+<li>
+<p><code>--save-peer</code>: Package will appear in your <code>peerDependencies</code>.</p>
 </li>
 <li>
 <p><code>-O, --save-optional</code>: Package will appear in your
@@ -607,7 +618,8 @@ instead of checking <code>node_modules</code> and downloading dependencies.</p>
 <code>package-lock.json</code>, rather than the contents of <code>node_modules</code>.</p>
 <h4 id="foreground-scripts"><code>foreground-scripts</code></h4>
 <ul>
-<li>Default: false</li>
+<li>Default: <code>false</code> unless when using <code>npm pack</code> or <code>npm publish</code> where it
+defaults to <code>true</code></li>
 <li>Type: Boolean</li>
 </ul>
 <p>Run all build scripts (ie, <code>preinstall</code>, <code>install</code>, and <code>postinstall</code>)
@@ -676,6 +688,13 @@ are same as <code>cpu</code> field of package.json, which comes from <code>proce
 </ul>
 <p>Override OS of native modules to install. Acceptable values are same as <code>os</code>
 field of package.json, which comes from <code>process.platform</code>.</p>
+<h4 id="libc"><code>libc</code></h4>
+<ul>
+<li>Default: null</li>
+<li>Type: null or String</li>
+</ul>
+<p>Override libc of native modules to install. Acceptable values are same as
+<code>libc</code> field of package.json</p>
 <h4 id="workspace"><code>workspace</code></h4>
 <ul>
 <li>Default:</li>

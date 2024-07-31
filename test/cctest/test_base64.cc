@@ -1,19 +1,21 @@
-#include "base64-inl.h"
+#include "nbytes.h"
+#include "simdutf.h"
+#include "util-inl.h"
 
 #include <cstddef>
 #include <cstring>
 
 #include "gtest/gtest.h"
 
-using node::base64_decode;
-using node::base64_encode;
-
 TEST(Base64Test, Encode) {
   auto test = [](const char* string, const char* base64_string) {
     const size_t len = strlen(base64_string);
+    const size_t slen = strlen(string);
     char* const buffer = new char[len + 1];
     buffer[len] = 0;
-    base64_encode(string, strlen(string), buffer, len);
+    CHECK(len >= simdutf::base64_length_from_binary(slen) &&
+          "not enough space provided for base64 encode");
+    simdutf::binary_to_base64(string, slen, buffer);
     EXPECT_STREQ(base64_string, buffer);
     delete[] buffer;
   };
@@ -47,9 +49,13 @@ TEST(Base64Test, Encode) {
 TEST(Base64Test, EncodeURL) {
   auto test = [](const char* string, const char* base64_string) {
     const size_t len = strlen(base64_string);
+    const size_t slen = strlen(string);
     char* const buffer = new char[len + 1];
     buffer[len] = 0;
-    base64_encode(string, strlen(string), buffer, len, node::Base64Mode::URL);
+    CHECK(len >=
+              simdutf::base64_length_from_binary(slen, simdutf::base64_url) &&
+          "not enough space provided for base64 encode");
+    simdutf::binary_to_base64(string, slen, buffer, simdutf::base64_url);
     EXPECT_STREQ(base64_string, buffer);
     delete[] buffer;
   };
@@ -63,7 +69,7 @@ TEST(Base64Test, Decode) {
     const size_t len = strlen(string);
     char* const buffer = new char[len + 1];
     buffer[len] = 0;
-    base64_decode(buffer, len, base64_string, strlen(base64_string));
+    nbytes::Base64Decode(buffer, len, base64_string, strlen(base64_string));
     EXPECT_STREQ(string, buffer);
     delete[] buffer;
   };

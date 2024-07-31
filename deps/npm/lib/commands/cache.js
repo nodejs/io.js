@@ -1,13 +1,13 @@
 const cacache = require('cacache')
 const pacote = require('pacote')
-const fs = require('fs/promises')
-const { join } = require('path')
+const fs = require('node:fs/promises')
+const { join } = require('node:path')
 const semver = require('semver')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 const npa = require('npm-package-arg')
 const jsonParse = require('json-parse-even-better-errors')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
-const log = require('../utils/log-shim')
+const { log, output } = require('proc-log')
 
 const searchCachePackage = async (path, parsed, cacheKeys) => {
   /* eslint-disable-next-line max-len */
@@ -132,10 +132,10 @@ class Cache extends BaseCommand {
       try {
         entry = await cacache.get(cachePath, key)
       } catch (err) {
-        log.warn(`Not Found: ${key}`)
+        log.warn('cache', `Not Found: ${key}`)
         break
       }
-      this.npm.output(`Deleted: ${key}`)
+      output.standard(`Deleted: ${key}`)
       await cacache.rm.entry(cachePath, key)
       // XXX this could leave other entries without content!
       await cacache.rm.content(cachePath, entry.integrity)
@@ -152,15 +152,20 @@ class Cache extends BaseCommand {
       throw this.usageError('First argument to `add` is required')
     }
 
-    return Promise.all(args.map(spec => {
+    await Promise.all(args.map(async spec => {
       log.silly('cache add', 'spec', spec)
       // we ask pacote for the thing, and then just throw the data
       // away so that it tee-pipes it into the cache like it does
       // for a normal request.
-      return pacote.tarball.stream(spec, stream => {
+      await pacote.tarball.stream(spec, stream => {
         stream.resume()
         return stream.promise()
       }, { ...this.npm.flatOptions })
+
+      await pacote.manifest(spec, {
+        ...this.npm.flatOptions,
+        fullMetadata: true,
+      })
     }))
   }
 
@@ -170,20 +175,20 @@ class Cache extends BaseCommand {
       ? `~${cache.slice(process.env.HOME.length)}`
       : cache
     const stats = await cacache.verify(cache)
-    this.npm.output(`Cache verified and compressed (${prefix})`)
-    this.npm.output(`Content verified: ${stats.verifiedContent} (${stats.keptSize} bytes)`)
+    output.standard(`Cache verified and compressed (${prefix})`)
+    output.standard(`Content verified: ${stats.verifiedContent} (${stats.keptSize} bytes)`)
     if (stats.badContentCount) {
-      this.npm.output(`Corrupted content removed: ${stats.badContentCount}`)
+      output.standard(`Corrupted content removed: ${stats.badContentCount}`)
     }
     if (stats.reclaimedCount) {
       /* eslint-disable-next-line max-len */
-      this.npm.output(`Content garbage-collected: ${stats.reclaimedCount} (${stats.reclaimedSize} bytes)`)
+      output.standard(`Content garbage-collected: ${stats.reclaimedCount} (${stats.reclaimedSize} bytes)`)
     }
     if (stats.missingContent) {
-      this.npm.output(`Missing content: ${stats.missingContent}`)
+      output.standard(`Missing content: ${stats.missingContent}`)
     }
-    this.npm.output(`Index entries: ${stats.totalEntries}`)
-    this.npm.output(`Finished in ${stats.runTime.total / 1000}s`)
+    output.standard(`Index entries: ${stats.totalEntries}`)
+    output.standard(`Finished in ${stats.runTime.total / 1000}s`)
   }
 
   // npm cache ls [--package <spec> ...]
@@ -203,10 +208,10 @@ class Cache extends BaseCommand {
           results.add(key)
         }
       }
-      [...results].sort(localeCompare).forEach(key => this.npm.output(key))
+      [...results].sort(localeCompare).forEach(key => output.standard(key))
       return
     }
-    cacheKeys.sort(localeCompare).forEach(key => this.npm.output(key))
+    cacheKeys.sort(localeCompare).forEach(key => output.standard(key))
   }
 }
 

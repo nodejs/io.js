@@ -408,7 +408,7 @@ void Assembler::Nop(int bytes) {
     switch (bytes) {
       case 2:
         EMIT(0x66);
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case 1:
         EMIT(0x90);
         return;
@@ -425,7 +425,7 @@ void Assembler::Nop(int bytes) {
         return;
       case 6:
         EMIT(0x66);
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case 5:
         EMIT(0xF);
         EMIT(0x1F);
@@ -446,15 +446,15 @@ void Assembler::Nop(int bytes) {
       case 11:
         EMIT(0x66);
         bytes--;
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case 10:
         EMIT(0x66);
         bytes--;
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case 9:
         EMIT(0x66);
         bytes--;
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case 8:
         EMIT(0xF);
         EMIT(0x1F);
@@ -3351,8 +3351,13 @@ void Assembler::GrowBuffer() {
   base::Vector<uint8_t> instructions{buffer_start_,
                                      static_cast<size_t>(pc_offset())};
   base::Vector<const uint8_t> reloc_info{reloc_info_writer.pos(), reloc_size};
-  for (RelocIterator it(instructions, reloc_info, 0, mode_mask); !it.done();
-       it.next()) {
+  WritableJitAllocation jit_allocation =
+      WritableJitAllocation::ForNonExecutableMemory(
+          reinterpret_cast<Address>(instructions.begin()), instructions.size(),
+          ThreadIsolation::JitAllocationType::kInstructionStream);
+  for (WritableRelocIterator it(jit_allocation, instructions, reloc_info, 0,
+                                mode_mask);
+       !it.done(); it.next()) {
     it.rinfo()->apply(pc_delta);
   }
 

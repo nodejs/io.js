@@ -87,6 +87,7 @@ class V8ValueStringBuilder {
   explicit V8ValueStringBuilder(v8::Local<v8::Context> context)
       : m_arrayLimit(maxArrayItemsLimit),
         m_isolate(context->GetIsolate()),
+        m_visitedArrays(context->GetIsolate()),
         m_tryCatch(context->GetIsolate()),
         m_context(context) {}
 
@@ -183,7 +184,7 @@ class V8ValueStringBuilder {
   uint32_t m_arrayLimit;
   v8::Isolate* m_isolate;
   String16Builder m_builder;
-  std::vector<v8::Local<v8::Array>> m_visitedArrays;
+  v8::LocalVector<v8::Array> m_visitedArrays;
   v8::TryCatch m_tryCatch;
   v8::Local<v8::Context> m_context;
 };
@@ -253,7 +254,7 @@ V8ConsoleMessage::wrapArguments(V8InspectorSessionImpl* session,
   V8InspectorImpl* inspector = session->inspector();
   int contextGroupId = session->contextGroupId();
   int contextId = m_contextId;
-  if (!m_arguments.size() || !contextId) return nullptr;
+  if (m_arguments.empty() || !contextId) return nullptr;
   InspectedContext* inspectedContext =
       inspector->getContext(contextGroupId, contextId);
   if (!inspectedContext) return nullptr;
@@ -312,6 +313,8 @@ void V8ConsoleMessage::reportToFrontend(protocol::Runtime::Frontend* frontend,
                                         bool generatePreview) const {
   int contextGroupId = session->contextGroupId();
   V8InspectorImpl* inspector = session->inspector();
+  // Protect against reentrant debugger calls via interrupts.
+  v8::debug::PostponeInterruptsScope no_interrupts(inspector->isolate());
 
   if (m_origin == V8MessageOrigin::kException) {
     std::unique_ptr<protocol::Runtime::RemoteObject> exception =
@@ -388,7 +391,7 @@ void V8ConsoleMessage::reportToFrontend(protocol::Runtime::Frontend* frontend,
 std::unique_ptr<protocol::DictionaryValue>
 V8ConsoleMessage::getAssociatedExceptionData(
     V8InspectorImpl* inspector, V8InspectorSessionImpl* session) const {
-  if (!m_arguments.size() || !m_contextId) return nullptr;
+  if (m_arguments.empty() || !m_contextId) return nullptr;
   DCHECK_EQ(1u, m_arguments.size());
 
   v8::Isolate* isolate = inspector->isolate();
@@ -403,7 +406,7 @@ V8ConsoleMessage::getAssociatedExceptionData(
 std::unique_ptr<protocol::Runtime::RemoteObject>
 V8ConsoleMessage::wrapException(V8InspectorSessionImpl* session,
                                 bool generatePreview) const {
-  if (!m_arguments.size() || !m_contextId) return nullptr;
+  if (m_arguments.empty() || !m_contextId) return nullptr;
   DCHECK_EQ(1u, m_arguments.size());
   InspectedContext* inspectedContext =
       session->inspector()->getContext(session->contextGroupId(), m_contextId);
@@ -425,7 +428,7 @@ ConsoleAPIType V8ConsoleMessage::type() const { return m_type; }
 std::unique_ptr<V8ConsoleMessage> V8ConsoleMessage::createForConsoleAPI(
     v8::Local<v8::Context> v8Context, int contextId, int groupId,
     V8InspectorImpl* inspector, double timestamp, ConsoleAPIType type,
-    const std::vector<v8::Local<v8::Value>>& arguments,
+    v8::MemorySpan<const v8::Local<v8::Value>> arguments,
     const String16& consoleContext,
     std::unique_ptr<V8StackTraceImpl> stackTrace) {
   v8::Isolate* isolate = v8Context->GetIsolate();
@@ -441,18 +444,21 @@ std::unique_ptr<V8ConsoleMessage> V8ConsoleMessage::createForConsoleAPI(
   message->m_consoleContext = consoleContext;
   message->m_type = type;
   message->m_contextId = contextId;
-  for (size_t i = 0; i < arguments.size(); ++i) {
+  for (v8::Local<v8::Value> arg : arguments) {
     std::unique_ptr<v8::Global<v8::Value>> argument(
-        new v8::Global<v8::Value>(isolate, arguments.at(i)));
+        new v8::Global<v8::Value>(isolate, arg));
     argument->AnnotateStrongRetainer(kGlobalConsoleMessageHandleLabel);
     message->m_arguments.push_back(std::move(argument));
-    message->m_v8Size +=
-        v8::debug::EstimatedValueSize(isolate, arguments.at(i));
+    message->m_v8Size += v8::debug::EstimatedValueSize(isolate, arg);
   }
-  for (size_t i = 0, num_args = arguments.size(); i < num_args; ++i) {
-    if (i) message->m_message += String16(" ");
-    message->m_message +=
-        V8ValueStringBuilder::toString(arguments[i], v8Context);
+  bool sep = false;
+  for (v8::Local<v8::Value> arg : arguments) {
+    if (sep) {
+      message->m_message += String16(" ");
+    } else {
+      sep = true;
+    }
+    message->m_message += V8ValueStringBuilder::toString(arg, v8Context);
   }
 
   v8::Isolate::MessageErrorLevel clientLevel = v8::Isolate::kMessageInfo;

@@ -66,21 +66,21 @@ const wrongInputs = [false, 'test', {}, [{}], ['sdf'], null, undefined];
 {
   const fd = fs.openSync(filename, 'r');
 
-  wrongInputs.forEach((wrongInput) => {
+  for (const wrongInput of wrongInputs) {
     assert.throws(
       () => fs.readvSync(fd, wrongInput, null), {
         code: 'ERR_INVALID_ARG_TYPE',
         name: 'TypeError'
       }
     );
-  });
+  }
 
   fs.closeSync(fd);
 }
 
 {
   // fs.readv with wrong fd argument
-  wrongInputs.forEach((wrongInput) => {
+  for (const wrongInput of wrongInputs) {
     assert.throws(
       () => fs.readvSync(wrongInput),
       {
@@ -88,5 +88,5 @@ const wrongInputs = [false, 'test', {}, [{}], ['sdf'], null, undefined];
         name: 'TypeError'
       }
     );
-  });
+  }
 }

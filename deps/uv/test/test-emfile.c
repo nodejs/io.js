@@ -54,37 +54,37 @@ TEST_IMPL(emfile) {
   /* Lower the file descriptor limit and use up all fds save one. */
   limits.rlim_cur = limits.rlim_max = maxfd + 1;
   if (setrlimit(RLIMIT_NOFILE, &limits)) {
-    ASSERT(errno == EPERM);  /* Valgrind blocks the setrlimit() call. */
+    ASSERT_EQ(errno, EPERM);  /* Valgrind blocks the setrlimit() call. */
     RETURN_SKIP("setrlimit(RLIMIT_NOFILE) failed, running under valgrind?");
   }
 
   loop = uv_default_loop();
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
-  ASSERT(0 == uv_tcp_init(loop, &server_handle));
-  ASSERT(0 == uv_tcp_init(loop, &client_handle));
-  ASSERT(0 == uv_tcp_bind(&server_handle, (const struct sockaddr*) &addr, 0));
-  ASSERT(0 == uv_listen((uv_stream_t*) &server_handle, 8, connection_cb));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_tcp_init(loop, &server_handle));
+  ASSERT_OK(uv_tcp_init(loop, &client_handle));
+  ASSERT_OK(uv_tcp_bind(&server_handle, (const struct sockaddr*) &addr, 0));
+  ASSERT_OK(uv_listen((uv_stream_t*) &server_handle, 8, connection_cb));
 
   /* Remember the first one so we can clean up afterwards. */
   do
     first_fd = dup(0);
   while (first_fd == -1 && errno == EINTR);
-  ASSERT(first_fd > 0);
+  ASSERT_GT(first_fd, 0);
 
   while (dup(0) != -1 || errno == EINTR);
-  ASSERT(errno == EMFILE);
+  ASSERT_EQ(errno, EMFILE);
   close(maxfd);
 
   /* Now connect and use up the last available file descriptor.  The EMFILE
    * handling logic in src/unix/stream.c should ensure that connect_cb() runs
    * whereas connection_cb() should *not* run.
    */
-  ASSERT(0 == uv_tcp_connect(&connect_req,
-                             &client_handle,
-                             (const struct sockaddr*) &addr,
-                             connect_cb));
-  ASSERT(0 == uv_run(loop, UV_RUN_DEFAULT));
-  ASSERT(1 == connect_cb_called);
+  ASSERT_OK(uv_tcp_connect(&connect_req,
+                           &client_handle,
+                           (const struct sockaddr*) &addr,
+                           connect_cb));
+  ASSERT_OK(uv_run(loop, UV_RUN_DEFAULT));
+  ASSERT_EQ(1, connect_cb_called);
 
   /* Close the dups again. Ignore errors in the unlikely event that the
    * file descriptors were not contiguous.
@@ -108,7 +108,7 @@ static void connect_cb(uv_connect_t* req, int status) {
   /* |status| should equal 0 because the connection should have been accepted,
    * it's just that the server immediately closes it again.
    */
-  ASSERT(0 == status);
+  ASSERT_OK(status);
   connect_cb_called += 1;
   uv_close((uv_handle_t*) &server_handle, NULL);
   uv_close((uv_handle_t*) &client_handle, NULL);

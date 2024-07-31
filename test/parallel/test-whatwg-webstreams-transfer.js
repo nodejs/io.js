@@ -464,12 +464,23 @@ const theData = 'hello';
       tracker.verify();
     });
 
+    // We create an interval to keep the event loop alive while
+    // we wait for the stream read to complete. The reason this is needed is because there's
+    // otherwise nothing to keep the worker thread event loop alive long enough to actually
+    // complete the read from the stream. Under the covers the ReadableStream uses an
+    // unref'd MessagePort to communicate with the main thread. Because the MessagePort
+    // is unref'd, it's existence would not keep the thread alive on its own. There was previously
+    // a bug where this MessagePort was ref'd which would block the thread and main thread
+    // from terminating at all unless the stream was consumed/closed.
+    const i = setInterval(() => {}, 1000);
+
     parentPort.onmessage = tracker.calls(({ data }) => {
       assert(isReadableStream(data));
       const reader = data.getReader();
       reader.read().then(tracker.calls((result) => {
         assert(!result.done);
         assert(result.value instanceof Uint8Array);
+        clearInterval(i);
       }));
       parentPort.close();
     });

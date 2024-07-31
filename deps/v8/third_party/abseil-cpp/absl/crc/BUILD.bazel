@@ -1,0 +1,220 @@
+# Copyright 2022 The Abseil Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load(
+    "//absl:copts/configure_copts.bzl",
+    "ABSL_DEFAULT_COPTS",
+    "ABSL_DEFAULT_LINKOPTS",
+    "ABSL_TEST_COPTS",
+)
+
+package(
+    default_visibility = ["//visibility:private"],
+    features = [
+        "header_modules",
+        "layering_check",
+        "parse_headers",
+    ],
+)
+
+licenses(["notice"])
+
+cc_library(
+    name = "cpu_detect",
+    srcs = [
+        "internal/cpu_detect.cc",
+    ],
+    hdrs = ["internal/cpu_detect.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        "//absl/base",
+        "//absl/base:config",
+    ],
+)
+
+cc_library(
+    name = "crc_internal",
+    srcs = [
+        "internal/crc.cc",
+        "internal/crc_internal.h",
+        "internal/crc_x86_arm_combined.cc",
+    ],
+    hdrs = [
+        "internal/crc.h",
+        "internal/crc32_x86_arm_combined_simd.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":cpu_detect",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:endian",
+        "//absl/base:prefetch",
+        "//absl/base:raw_logging_internal",
+        "//absl/memory",
+        "//absl/numeric:bits",
+    ],
+)
+
+cc_library(
+    name = "crc32c",
+    srcs = [
+        "crc32c.cc",
+        "internal/crc32c_inline.h",
+        "internal/crc_memcpy_fallback.cc",
+        "internal/crc_memcpy_x86_arm_combined.cc",
+        "internal/crc_non_temporal_memcpy.cc",
+    ],
+    hdrs = [
+        "crc32c.h",
+        "internal/crc32c.h",
+        "internal/crc_memcpy.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":cpu_detect",
+        ":crc_internal",
+        ":non_temporal_memcpy",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:endian",
+        "//absl/base:prefetch",
+        "//absl/strings",
+        "//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "crc32c_test",
+    srcs = ["crc32c_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":crc32c",
+        "//absl/strings",
+        "//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "non_temporal_arm_intrinsics",
+    hdrs = ["internal/non_temporal_arm_intrinsics.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        "//absl/base:config",
+    ],
+)
+
+cc_library(
+    name = "non_temporal_memcpy",
+    hdrs = ["internal/non_temporal_memcpy.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":non_temporal_arm_intrinsics",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+    ],
+)
+
+cc_test(
+    name = "crc_memcpy_test",
+    size = "large",
+    srcs = ["internal/crc_memcpy_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    shard_count = 3,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":crc32c",
+        "//absl/memory",
+        "//absl/random",
+        "//absl/random:distributions",
+        "//absl/strings",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "non_temporal_memcpy_test",
+    srcs = ["internal/non_temporal_memcpy_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":non_temporal_memcpy",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "crc_cord_state",
+    srcs = ["internal/crc_cord_state.cc"],
+    hdrs = ["internal/crc_cord_state.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//absl/strings:__pkg__"],
+    deps = [
+        ":crc32c",
+        "//absl/base:config",
+        "//absl/base:no_destructor",
+        "//absl/numeric:bits",
+    ],
+)
+
+cc_test(
+    name = "crc_cord_state_test",
+    srcs = ["internal/crc_cord_state_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":crc32c",
+        ":crc_cord_state",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_binary(
+    name = "crc32c_benchmark",
+    testonly = True,
+    srcs = ["crc32c_benchmark.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    tags = [
+        "benchmark",
+    ],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":crc32c",
+        "//absl/memory",
+        "//absl/strings",
+        "@com_github_google_benchmark//:benchmark_main",
+    ],
+)

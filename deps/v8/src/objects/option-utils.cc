@@ -71,7 +71,7 @@ Maybe<bool> GetStringOption(Isolate* isolate, Handle<JSReceiver> options,
   std::unique_ptr<char[]> value_cstr = value_str->ToCString();
 
   // 2. d. if values is not undefined, then
-  if (values.size() > 0) {
+  if (!values.empty()) {
     // 2. d. i. If values does not contain an element equal to value,
     // throw a RangeError exception.
     for (size_t i = 0; i < values.size(); i++) {

@@ -24,28 +24,17 @@ support this interface.
 * `npm profile get [<property>]`: Display all of the properties of your
   profile, or one or more specific properties.  It looks like:
 
-```bash
-+-----------------+---------------------------+
-| name            | example                   |
-+-----------------+---------------------------+
-| email           | me@example.com (verified) |
-+-----------------+---------------------------+
-| two factor auth | auth-and-writes           |
-+-----------------+---------------------------+
-| fullname        | Example User              |
-+-----------------+---------------------------+
-| homepage        |                           |
-+-----------------+---------------------------+
-| freenode        |                           |
-+-----------------+---------------------------+
-| twitter         |                           |
-+-----------------+---------------------------+
-| github          |                           |
-+-----------------+---------------------------+
-| created         | 2015-02-26T01:38:35.892Z  |
-+-----------------+---------------------------+
-| updated         | 2017-10-02T21:29:45.922Z  |
-+-----------------+---------------------------+
+```
+name: example
+email: e@example.com (verified)
+two-factor auth: auth-and-writes
+fullname: Example User
+homepage:
+freenode:
+twitter:
+github:
+created: 2015-02-26T01:38:35.892Z
+updated: 2017-10-02T21:29:45.922Z
 ```
 
 * `npm profile set <property> <value>`: Set the value of a profile

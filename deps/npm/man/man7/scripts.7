@@ -1,4 +1,4 @@
-.TH "SCRIPTS" "7" "October 2023" "" ""
+.TH "SCRIPTS" "7" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBscripts\fR - How npm handles the "scripts" field
 .SS "Description"
@@ -201,8 +201,6 @@ These are run from the scripts of \fB<pkg-name>\fR
 \fBpostpublish\fR
 .RE 0
 
-.P
-\fBprepare\fR will not run during \fB--dry-run\fR
 .SS "npm help rebuild"
 .RS 0
 .IP \(bu 4
@@ -351,14 +349,13 @@ For example, if your package.json contains this:
 {
   "scripts" : {
     "install" : "scripts/install.js",
-    "postinstall" : "scripts/install.js",
-    "uninstall" : "scripts/uninstall.js"
+    "postinstall" : "scripts/install.js"
   }
 }
 .fi
 .RE
 .P
-then \fBscripts/install.js\fR will be called for the install and post-install stages of the lifecycle, and \fBscripts/uninstall.js\fR will be called when the package is uninstalled. Since \fBscripts/install.js\fR is running for two different phases, it would be wise in this case to look at the \fBnpm_lifecycle_event\fR environment variable.
+then \fBscripts/install.js\fR will be called for the install and post-install stages of the lifecycle. Since \fBscripts/install.js\fR is running for two different phases, it would be wise in this case to look at the \fBnpm_lifecycle_event\fR environment variable.
 .P
 If you want to run a make command, you can do so. This works just fine:
 .P
@@ -383,7 +380,7 @@ Note that these script files don't have to be Node.js or even JavaScript program
 .SS "Best Practices"
 .RS 0
 .IP \(bu 4
-Don't exit with a non-zero error code unless you \fIreally\fR mean it. Except for uninstall scripts, this will cause the npm action to fail, and potentially be rolled back. If the failure is minor or only will prevent some optional features, then it's better to just print a warning and exit successfully.
+Don't exit with a non-zero error code unless you \fIreally\fR mean it. If the failure is minor or only will prevent some optional features, then it's better to just print a warning and exit successfully.
 .IP \(bu 4
 Try not to use scripts to do what npm can do for you. Read through \fB\fBpackage.json\fR\fR \fI\(la/configuring-npm/package-json\(ra\fR to see all the things that you can specify and enable by simply describing your package appropriately. In general, this will lead to a more robust and consistent state.
 .IP \(bu 4

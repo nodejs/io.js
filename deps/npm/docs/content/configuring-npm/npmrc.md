@@ -19,10 +19,10 @@ For a list of available configuration options, see
 
 The four relevant files are:
 
-* per-project config file (/path/to/my/project/.npmrc)
-* per-user config file (~/.npmrc)
-* global config file ($PREFIX/etc/npmrc)
-* npm builtin config file (/path/to/npm/npmrc)
+* per-project config file (`/path/to/my/project/.npmrc`)
+* per-user config file (`~/.npmrc`)
+* global config file (`$PREFIX/etc/npmrc`)
+* npm builtin config file (`/path/to/npm/npmrc`)
 
 All npm config files are an ini-formatted list of `key = value` parameters.
 Environment variables can be replaced using `${VARIABLE_NAME}`. For

@@ -285,19 +285,17 @@ class MSVSSolution:
                     "\tEndProjectSection\r\n"
                 )
 
-            if isinstance(e, MSVSFolder):
-                if e.items:
-                    f.write("\tProjectSection(SolutionItems) = preProject\r\n")
-                    for i in e.items:
-                        f.write(f"\t\t{i} = {i}\r\n")
-                    f.write("\tEndProjectSection\r\n")
+            if isinstance(e, MSVSFolder) and e.items:
+                f.write("\tProjectSection(SolutionItems) = preProject\r\n")
+                for i in e.items:
+                    f.write(f"\t\t{i} = {i}\r\n")
+                f.write("\tEndProjectSection\r\n")
 
-            if isinstance(e, MSVSProject):
-                if e.dependencies:
-                    f.write("\tProjectSection(ProjectDependencies) = postProject\r\n")
-                    for d in e.dependencies:
-                        f.write(f"\t\t{d.get_guid()} = {d.get_guid()}\r\n")
-                    f.write("\tEndProjectSection\r\n")
+            if isinstance(e, MSVSProject) and e.dependencies:
+                f.write("\tProjectSection(ProjectDependencies) = postProject\r\n")
+                for d in e.dependencies:
+                    f.write(f"\t\t{d.get_guid()} = {d.get_guid()}\r\n")
+                f.write("\tEndProjectSection\r\n")
 
             f.write("EndProject\r\n")
 
@@ -353,7 +351,7 @@ class MSVSSolution:
 
         # Folder mappings
         # Omit this section if there are no folders
-        if any([e.entries for e in all_entries if isinstance(e, MSVSFolder)]):
+        if any(e.entries for e in all_entries if isinstance(e, MSVSFolder)):
             f.write("\tGlobalSection(NestedProjects) = preSolution\r\n")
             for e in all_entries:
                 if not isinstance(e, MSVSFolder):

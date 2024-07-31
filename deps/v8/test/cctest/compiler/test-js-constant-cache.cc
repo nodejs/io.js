@@ -60,10 +60,10 @@ TEST(ZeroConstant1) {
   Node* zero = T.ZeroConstant();
 
   CHECK_EQ(IrOpcode::kNumberConstant, zero->opcode());
-  CHECK_EQ(zero, T.Constant(0));
-  CHECK_NE(zero, T.Constant(-0.0));
-  CHECK_NE(zero, T.Constant(1.0));
-  CHECK_NE(zero, T.Constant(std::numeric_limits<double>::quiet_NaN()));
+  CHECK_EQ(zero, T.ConstantNoHole(0));
+  CHECK_NE(zero, T.ConstantNoHole(-0.0));
+  CHECK_NE(zero, T.ConstantNoHole(1.0));
+  CHECK_NE(zero, T.ConstantNoHole(std::numeric_limits<double>::quiet_NaN()));
   CHECK_NE(zero, T.Float64Constant(0));
   CHECK_NE(zero, T.Int32Constant(0));
 }
@@ -72,11 +72,11 @@ TEST(ZeroConstant1) {
 TEST(MinusZeroConstant) {
   JSConstantCacheTester T;
 
-  Node* minus_zero = T.Constant(-0.0);
+  Node* minus_zero = T.ConstantNoHole(-0.0);
   Node* zero = T.ZeroConstant();
 
   CHECK_EQ(IrOpcode::kNumberConstant, minus_zero->opcode());
-  CHECK_EQ(minus_zero, T.Constant(-0.0));
+  CHECK_EQ(minus_zero, T.ConstantNoHole(-0.0));
   CHECK_NE(zero, minus_zero);
 
   double zero_value = OpParameter<double>(zero->op());
@@ -94,13 +94,13 @@ TEST(MinusZeroConstant) {
 TEST(ZeroConstant2) {
   JSConstantCacheTester T;
 
-  Node* zero = T.Constant(0);
+  Node* zero = T.ConstantNoHole(0);
 
   CHECK_EQ(IrOpcode::kNumberConstant, zero->opcode());
   CHECK_EQ(zero, T.ZeroConstant());
-  CHECK_NE(zero, T.Constant(-0.0));
-  CHECK_NE(zero, T.Constant(1.0));
-  CHECK_NE(zero, T.Constant(std::numeric_limits<double>::quiet_NaN()));
+  CHECK_NE(zero, T.ConstantNoHole(-0.0));
+  CHECK_NE(zero, T.ConstantNoHole(1.0));
+  CHECK_NE(zero, T.ConstantNoHole(std::numeric_limits<double>::quiet_NaN()));
   CHECK_NE(zero, T.Float64Constant(0));
   CHECK_NE(zero, T.Int32Constant(0));
 }
@@ -112,11 +112,11 @@ TEST(OneConstant1) {
   Node* one = T.OneConstant();
 
   CHECK_EQ(IrOpcode::kNumberConstant, one->opcode());
-  CHECK_EQ(one, T.Constant(1));
-  CHECK_EQ(one, T.Constant(1.0));
-  CHECK_NE(one, T.Constant(1.01));
-  CHECK_NE(one, T.Constant(-1.01));
-  CHECK_NE(one, T.Constant(std::numeric_limits<double>::quiet_NaN()));
+  CHECK_EQ(one, T.ConstantNoHole(1));
+  CHECK_EQ(one, T.ConstantNoHole(1.0));
+  CHECK_NE(one, T.ConstantNoHole(1.01));
+  CHECK_NE(one, T.ConstantNoHole(-1.01));
+  CHECK_NE(one, T.ConstantNoHole(std::numeric_limits<double>::quiet_NaN()));
   CHECK_NE(one, T.Float64Constant(1.0));
   CHECK_NE(one, T.Int32Constant(1));
 }
@@ -125,14 +125,14 @@ TEST(OneConstant1) {
 TEST(OneConstant2) {
   JSConstantCacheTester T;
 
-  Node* one = T.Constant(1);
+  Node* one = T.ConstantNoHole(1);
 
   CHECK_EQ(IrOpcode::kNumberConstant, one->opcode());
   CHECK_EQ(one, T.OneConstant());
-  CHECK_EQ(one, T.Constant(1.0));
-  CHECK_NE(one, T.Constant(1.01));
-  CHECK_NE(one, T.Constant(-1.01));
-  CHECK_NE(one, T.Constant(std::numeric_limits<double>::quiet_NaN()));
+  CHECK_EQ(one, T.ConstantNoHole(1.0));
+  CHECK_NE(one, T.ConstantNoHole(1.01));
+  CHECK_NE(one, T.ConstantNoHole(-1.01));
+  CHECK_NE(one, T.ConstantNoHole(std::numeric_limits<double>::quiet_NaN()));
   CHECK_NE(one, T.Float64Constant(1.0));
   CHECK_NE(one, T.Int32Constant(1));
 }
@@ -156,10 +156,11 @@ TEST(Canonicalizations) {
 TEST(NoAliasing) {
   JSConstantCacheTester T;
 
-  Node* nodes[] = {T.UndefinedConstant(), T.TheHoleConstant(), T.TrueConstant(),
-                   T.FalseConstant(),     T.NullConstant(),    T.ZeroConstant(),
-                   T.OneConstant(),       T.NaNConstant(),     T.Constant(21),
-                   T.Constant(22.2)};
+  Node* nodes[] = {T.UndefinedConstant(), T.TheHoleConstant(),
+                   T.TrueConstant(),      T.FalseConstant(),
+                   T.NullConstant(),      T.ZeroConstant(),
+                   T.OneConstant(),       T.NaNConstant(),
+                   T.ConstantNoHole(21),  T.ConstantNoHole(22.2)};
 
   for (size_t i = 0; i < arraysize(nodes); i++) {
     for (size_t j = 0; j < arraysize(nodes); j++) {
@@ -173,9 +174,9 @@ TEST(CanonicalizingNumbers) {
   JSConstantCacheTester T;
 
   FOR_FLOAT64_INPUTS(i) {
-    Node* node = T.Constant(i);
+    Node* node = T.ConstantNoHole(i);
     for (int j = 0; j < 5; j++) {
-      CHECK_EQ(node, T.Constant(i));
+      CHECK_EQ(node, T.ConstantNoHole(i));
     }
   }
 }
@@ -188,9 +189,9 @@ TEST(HeapNumbers) {
     Handle<Object> num = T.CanonicalHandle(*T.factory()->NewNumber(value));
     Handle<HeapNumber> heap =
         T.CanonicalHandle(*T.factory()->NewHeapNumber(value));
-    Node* node1 = T.Constant(value);
-    Node* node2 = T.Constant(MakeRef(T.broker(), num), T.broker());
-    Node* node3 = T.Constant(MakeRef(T.broker(), heap), T.broker());
+    Node* node1 = T.ConstantNoHole(value);
+    Node* node2 = T.ConstantNoHole(MakeRef(T.broker(), num), T.broker());
+    Node* node3 = T.ConstantNoHole(MakeRef(T.broker(), heap), T.broker());
     CHECK_EQ(node1, node2);
     CHECK_EQ(node1, node3);
   }
@@ -201,14 +202,15 @@ TEST(OddballHandle) {
   JSConstantCacheTester T;
 
   CHECK_EQ(T.UndefinedConstant(),
-           T.Constant(T.broker()->undefined_value(), T.broker()));
-  CHECK_EQ(T.TheHoleConstant(),
-           T.Constant(T.broker()->the_hole_value(), T.broker()));
-  CHECK_EQ(T.TrueConstant(), T.Constant(T.broker()->true_value(), T.broker()));
+           T.ConstantNoHole(T.broker()->undefined_value(), T.broker()));
+  CHECK_EQ(T.TrueConstant(),
+           T.ConstantNoHole(T.broker()->true_value(), T.broker()));
   CHECK_EQ(T.FalseConstant(),
-           T.Constant(T.broker()->false_value(), T.broker()));
-  CHECK_EQ(T.NullConstant(), T.Constant(T.broker()->null_value(), T.broker()));
-  CHECK_EQ(T.NaNConstant(), T.Constant(T.broker()->nan_value(), T.broker()));
+           T.ConstantNoHole(T.broker()->false_value(), T.broker()));
+  CHECK_EQ(T.NullConstant(),
+           T.ConstantNoHole(T.broker()->null_value(), T.broker()));
+  CHECK_EQ(T.NaNConstant(),
+           T.ConstantNoHole(T.broker()->nan_value(), T.broker()));
 }
 
 
@@ -335,7 +337,7 @@ TEST(JSGraph_GetCachedNodes_number) {
     size_t count_before = T.graph()->NodeCount();
     NodeVector nodes_before(T.main_zone());
     T.GetCachedNodes(&nodes_before);
-    Node* n = T.Constant(constants[i]);
+    Node* n = T.ConstantNoHole(constants[i]);
     if (n->id() < count_before) {
       // An old ID indicates a cached node. It should have been in the set.
       CHECK(Contains(&nodes_before, n));
@@ -392,8 +394,8 @@ TEST(JSGraph_GetCachedNodes_together) {
       T.Int64Constant(-4),
       T.Float64Constant(0.9),
       T.Float64Constant(V8_INFINITY),
-      T.Constant(0.99),
-      T.Constant(1.11),
+      T.ConstantNoHole(0.99),
+      T.ConstantNoHole(1.11),
       T.ExternalConstant(ExternalReference::address_of_one_half())};
 
   NodeVector nodes(T.main_zone());

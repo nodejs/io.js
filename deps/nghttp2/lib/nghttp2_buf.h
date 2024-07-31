@@ -349,7 +349,7 @@ int nghttp2_bufs_orb_hold(nghttp2_bufs *bufs, uint8_t b);
  * NGHTTP2_ERR_NOMEM
  *     Out of memory
  */
-ssize_t nghttp2_bufs_remove(nghttp2_bufs *bufs, uint8_t **out);
+nghttp2_ssize nghttp2_bufs_remove(nghttp2_bufs *bufs, uint8_t **out);
 
 /*
  * Copies all data stored in |bufs| to |out|.  This function assumes

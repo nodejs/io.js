@@ -30,8 +30,8 @@ InputText::InputText(UErrorCode &status)
                                                  //   removed if appropriate.
       fByteStats(NEW_ARRAY(int16_t, 256)),       // byte frequency statistics for the input text.
                                                  //   Value is percent, not absolute.
-      fDeclaredEncoding(0),
-      fRawInput(0),
+      fDeclaredEncoding(nullptr),
+      fRawInput(nullptr),
       fRawLength(0)
 {
     if (fInputBytes == nullptr || fByteStats == nullptr) {

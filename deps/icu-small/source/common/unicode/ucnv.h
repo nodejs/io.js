@@ -344,8 +344,6 @@ ucnv_compareNames(const char *name1, const char *name2);
  * other than its an alias starting with the letters "cp". Please do not
  * associate any meaning to these aliases.</p>
  *
- * \snippet samples/ucnv/convsamp.cpp ucnv_open
- *
  * @param converterName Name of the coded character set table.
  *          This may have options appended to the string.
  *          IANA alias character set names, IBM CCSIDs starting with "ibm-",
@@ -1986,7 +1984,6 @@ ucnv_usesFallback(const UConverter *cnv);
  * instead of the input signature bytes.
  * <p>
  * Usage:
- * \snippet samples/ucnv/convsamp.cpp ucnv_detectUnicodeSignature
  *
  * @param source            The source string in which the signature should be detected.
  * @param sourceLength      Length of the input string, or -1 if terminated with a NUL byte.

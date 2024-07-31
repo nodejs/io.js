@@ -34,11 +34,11 @@ for (let n = 0; n < 130; n++) {
 
   // Check that version 4 identifier was populated.
   assert.strictEqual(
-    Buffer.from(uuid.substr(14, 2), 'hex')[0] & 0x40, 0x40);
+    Buffer.from(uuid.slice(14, 16), 'hex')[0] & 0x40, 0x40);
 
   // Check that clock_seq_hi_and_reserved was populated with reserved bits.
   assert.strictEqual(
-    Buffer.from(uuid.substr(19, 2), 'hex')[0] & 0b1100_0000, 0b1000_0000);
+    Buffer.from(uuid.slice(19, 21), 'hex')[0] & 0b1100_0000, 0b1000_0000);
 }
 
 // Test non-buffered UUID's

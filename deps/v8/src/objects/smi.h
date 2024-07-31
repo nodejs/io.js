@@ -6,7 +6,7 @@
 #define V8_OBJECTS_SMI_H_
 
 #include "src/common/globals.h"
-#include "src/objects/objects.h"
+#include "src/objects/tagged.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -20,19 +20,8 @@ namespace internal {
 // For long smis it has the following format:
 //     [32 bit signed int] [31 bits zero padding] 0
 // Smi stands for small integer.
-class Smi : public Object {
+class Smi : public AllStatic {
  public:
-  // This replaces the OBJECT_CONSTRUCTORS macro, because Smis are special
-  // in that we want them to be constexprs.
-  constexpr Smi() : Object() {}
-  explicit constexpr Smi(Address ptr, SkipTypeCheckTag)
-      : Object(ptr, SkipTypeCheckTag()) {}
-  explicit constexpr Smi(Address ptr) : Object(ptr) {
-    DCHECK(HAS_SMI_TAG(ptr));
-  }
-
-  // Returns the integer value.
-  inline constexpr int value() const { return Internals::SmiValue(ptr()); }
   static inline constexpr Tagged<Smi> ToUint32Smi(Tagged<Smi> smi) {
     if (smi.value() <= 0) return Smi::FromInt(0);
     return Smi::FromInt(static_cast<uint32_t>(smi.value()));
@@ -116,20 +105,9 @@ class Smi : public Object {
   }
 };
 
-CAST_ACCESSOR(Smi)
-
-// Defined Tagged<Smi> now that Smi exists.
-
-// Implicit conversions to/from raw pointers
-// TODO(leszeks): Remove once we're using Tagged everywhere.
-// NOLINTNEXTLINE
-constexpr Tagged<Smi>::Tagged(Smi raw) : TaggedBase(raw.ptr()) {
-  static_assert(kTaggedCanConvertToRawObjects);
-}
-// NOLINTNEXTLINE
-constexpr Tagged<Smi>::operator Smi() {
-  static_assert(kTaggedCanConvertToRawObjects);
-  return Smi(ptr());
+Tagged<Smi> Smi::cast(Tagged<Object> object) {
+  DCHECK(object.IsSmi());
+  return Tagged<Smi>(object.ptr());
 }
 
 }  // namespace internal

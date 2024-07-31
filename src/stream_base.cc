@@ -91,7 +91,7 @@ StreamWriteResult StreamBase::Write(uv_buf_t* bufs,
   for (size_t i = 0; i < count; ++i) total_bytes += bufs[i].len;
   bytes_written_ += total_bytes;
 
-  if (send_handle == nullptr && !skip_try_write) {
+  if (send_handle == nullptr && HasDoTryWrite() && !skip_try_write) {
     err = DoTryWrite(&bufs, &count);
     if (err != 0 || count == 0) {
       return StreamWriteResult{false, err, nullptr, total_bytes, {}};
@@ -365,7 +365,7 @@ int StreamBase::WriteString(const FunctionCallbackInfo<Value>& args) {
   size_t synchronously_written = 0;
   uv_buf_t buf;
 
-  bool try_write = storage_size <= sizeof(stack_storage) &&
+  bool try_write = HasDoTryWrite() && storage_size <= sizeof(stack_storage) &&
                    (!IsIPCPipe() || send_handle_obj.IsEmpty());
   if (try_write) {
     data_size = StringBytes::Write(isolate,
@@ -492,6 +492,29 @@ Local<Object> StreamBase::GetObject() {
   return GetAsyncWrap()->object();
 }
 
+void StreamBase::AddAccessor(v8::Isolate* isolate,
+                             v8::Local<v8::Signature> signature,
+                             enum v8::PropertyAttribute attributes,
+                             v8::Local<v8::FunctionTemplate> t,
+                             JSMethodFunction* getter,
+                             JSMethodFunction* setter,
+                             v8::Local<v8::String> string) {
+  Local<FunctionTemplate> getter_templ =
+      NewFunctionTemplate(isolate,
+                          getter,
+                          signature,
+                          ConstructorBehavior::kThrow,
+                          SideEffectType::kHasNoSideEffect);
+  Local<FunctionTemplate> setter_templ =
+      NewFunctionTemplate(isolate,
+                          setter,
+                          signature,
+                          ConstructorBehavior::kThrow,
+                          SideEffectType::kHasSideEffect);
+  t->PrototypeTemplate()->SetAccessorProperty(
+      string, getter_templ, setter_templ, attributes);
+}
+
 void StreamBase::AddMethod(Isolate* isolate,
                            Local<Signature> signature,
                            enum PropertyAttribute attributes,
@@ -561,11 +584,14 @@ void StreamBase::AddMethods(IsolateData* isolate_data,
                  JSMethod<&StreamBase::WriteString<LATIN1>>);
   t->PrototypeTemplate()->Set(FIXED_ONE_BYTE_STRING(isolate, "isStreamBase"),
                               True(isolate));
-  t->PrototypeTemplate()->SetAccessor(
-      FIXED_ONE_BYTE_STRING(isolate, "onread"),
-      BaseObject::InternalFieldGet<StreamBase::kOnReadFunctionField>,
-      BaseObject::InternalFieldSet<StreamBase::kOnReadFunctionField,
-                                   &Value::IsFunction>);
+  AddAccessor(isolate,
+              sig,
+              static_cast<PropertyAttribute>(DontDelete | DontEnum),
+              t,
+              BaseObject::InternalFieldGet<StreamBase::kOnReadFunctionField>,
+              BaseObject::InternalFieldSet<StreamBase::kOnReadFunctionField,
+                                           &Value::IsFunction>,
+              FIXED_ONE_BYTE_STRING(isolate, "onread"));
 }
 
 void StreamBase::RegisterExternalReferences(
@@ -632,7 +658,7 @@ void StreamBase::GetExternal(const FunctionCallbackInfo<Value>& args) {
 
 template <int (StreamBase::*Method)(const FunctionCallbackInfo<Value>& args)>
 void StreamBase::JSMethod(const FunctionCallbackInfo<Value>& args) {
-  StreamBase* wrap = StreamBase::FromObject(args.Holder().As<Object>());
+  StreamBase* wrap = StreamBase::FromObject(args.This().As<Object>());
   if (wrap == nullptr) return;
 
   if (!wrap->IsAlive()) return args.GetReturnValue().Set(UV_EINVAL);
@@ -679,7 +705,13 @@ void EmitToJSStreamListener::OnStreamRead(ssize_t nread, const uv_buf_t& buf_) {
   }
 
   CHECK_LE(static_cast<size_t>(nread), bs->ByteLength());
-  bs = BackingStore::Reallocate(isolate, std::move(bs), nread);
+  if (static_cast<size_t>(nread) != bs->ByteLength()) {
+    std::unique_ptr<BackingStore> old_bs = std::move(bs);
+    bs = ArrayBuffer::NewBackingStore(isolate, nread);
+    memcpy(static_cast<char*>(bs->Data()),
+           static_cast<char*>(old_bs->Data()),
+           nread);
+  }
 
   stream->CallJSOnreadMethod(nread, ArrayBuffer::New(isolate, std::move(bs)));
 }

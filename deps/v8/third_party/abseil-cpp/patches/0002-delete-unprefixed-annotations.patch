@@ -1,0 +1,55 @@
+TODO(b/178696376): Remove unprefixed annotation macros from abseil
+---
+diff --git a/third_party/abseil-cpp/absl/base/dynamic_annotations.h b/third_party/abseil-cpp/absl/base/dynamic_annotations.h
+index 1444dc48e283..6687291cade3 100644
+--- a/third_party/abseil-cpp/absl/base/dynamic_annotations.h
++++ b/third_party/abseil-cpp/absl/base/dynamic_annotations.h
+@@ -49,9 +49,6 @@
+ 
+ #include "absl/base/config.h"
+ 
+-// TODO(rogeeff): Remove after the backward compatibility period.
+-#include "absl/base/internal/dynamic_annotations.h"  // IWYU pragma: export
+-
+ // -------------------------------------------------------------------------
+ // Decide which features are enabled
+ 
+diff --git a/third_party/abseil-cpp/absl/base/BUILD.bazel b/third_party/abseil-cpp/absl/base/BUILD.bazel
+index 65ff0ddef9fd..d6fbf3581158 100644
+--- a/third_party/abseil-cpp/absl/base/BUILD.bazel
++++ b/third_party/abseil-cpp/absl/base/BUILD.bazel
+@@ -115,9 +115,6 @@ cc_library(
+
+ cc_library(
+     name = "dynamic_annotations",
+-    srcs = [
+-        "internal/dynamic_annotations.h",
+-    ],
+     hdrs = [
+         "dynamic_annotations.h",
+     ],
+diff --git a/third_party/abseil-cpp/CMake/AbseilDll.cmake b/third_party/abseil-cpp/CMake/AbseilDll.cmake
+index 00cddb84c6b7f..a2b8b103885a6 100644
+--- a/third_party/abseil-cpp/CMake/AbseilDll.cmake
++++ b/third_party/abseil-cpp/CMake/AbseilDll.cmake
+@@ -14,7 +14,6 @@ set(ABSL_INTERNAL_DLL_FILES
+   "base/internal/cycleclock.cc"
+   "base/internal/cycleclock.h"
+   "base/internal/direct_mmap.h"
+-  "base/internal/dynamic_annotations.h"
+   "base/internal/endian.h"
+   "base/internal/errno_saver.h"
+   "base/internal/fast_type_id.h"
+diff --git a/third_party/abseil-cpp/absl/base/CMakeLists.txt b/third_party/abseil-cpp/absl/base/CMakeLists.txt
+index ed55093abe80f..6908182e97c86 100644
+--- a/third_party/abseil-cpp/absl/base/CMakeLists.txt
++++ b/third_party/abseil-cpp/absl/base/CMakeLists.txt
+@@ -109,8 +109,6 @@ absl_cc_library(
+     dynamic_annotations
+   HDRS
+     "dynamic_annotations.h"
+-  SRCS
+-    "internal/dynamic_annotations.h"
+   COPTS
+     ${ABSL_DEFAULT_COPTS}
+   DEPS

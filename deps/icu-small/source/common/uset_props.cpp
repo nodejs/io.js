@@ -36,9 +36,9 @@ uset_openPattern(const char16_t* pattern, int32_t patternLength,
     UnicodeString pat(patternLength==-1, pattern, patternLength);
     UnicodeSet* set = new UnicodeSet(pat, *ec);
     /* test for nullptr */
-    if(set == 0) {
+    if (set == nullptr) {
         *ec = U_MEMORY_ALLOCATION_ERROR;
-        return 0;
+        return nullptr;
     }
 
     if (U_FAILURE(*ec)) {
@@ -56,9 +56,9 @@ uset_openPatternOptions(const char16_t* pattern, int32_t patternLength,
     UnicodeString pat(patternLength==-1, pattern, patternLength);
     UnicodeSet* set = new UnicodeSet(pat, options, nullptr, *ec);
     /* test for nullptr */
-    if(set == 0) {
+    if (set == nullptr) {
         *ec = U_MEMORY_ALLOCATION_ERROR;
-        return 0;
+        return nullptr;
     }
 
     if (U_FAILURE(*ec)) {

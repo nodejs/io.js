@@ -2,26 +2,33 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-type DependentCode extends WeakFixedArray;
+type DependentCode extends WeakArrayList;
 
-extern class BytecodeArray extends FixedArrayBase {
-  // TODO(v8:8983): bytecode array object sizes vary based on their contents.
-  constant_pool: FixedArray;
-  // The handler table contains offsets of exception handlers.
-  handler_table: ByteArray;
-  // Source position table. Can contain:
-  // * undefined (initial value)
-  // * empty_byte_array (for bytecode generated for functions that will never
-  // have source positions, e.g. native functions).
-  // * ByteArray (when source positions have been collected for the bytecode)
-  // * exception (when an error occurred while explicitly collecting source
-  // positions for pre-existing bytecode).
-  @cppAcquireLoad
-  @cppReleaseStore
-  source_position_table: Undefined|ByteArray|Exception;
+@cppObjectDefinition
+extern class BytecodeArray extends ExposedTrustedObject {
+  const length: Smi;
+  wrapper: BytecodeWrapper;
+  source_position_table: ProtectedPointer<TrustedByteArray>;
+  handler_table: ProtectedPointer<TrustedByteArray>;
+  constant_pool: ProtectedPointer<TrustedFixedArray>;
   frame_size: int32;
   parameter_size: int32;
   incoming_new_target_or_generator_register: int32;
+  @if(TAGGED_SIZE_8_BYTES) optional_padding: uint32;
+  @ifnot(TAGGED_SIZE_8_BYTES) optional_padding: void;
+  bytes[length]: uint8;
 }
 
-extern class Code extends HeapObject;
+// A wrapper around a bytecode object that lives inside the sandbox. This can
+// be useful in cases where a tagged reference to a bytecode array is required,
+// for example because it is stored inside an array of tagged values.
+@cppObjectDefinition
+extern class BytecodeWrapper extends Struct {
+  @if(V8_ENABLE_SANDBOX) bytecode: IndirectPointer<BytecodeArray>;
+  @ifnot(V8_ENABLE_SANDBOX) bytecode: BytecodeArray;
+  padding1: int32;
+  padding2: int32;
+}
+
+extern class Code extends ExposedTrustedObject;
+extern class CodeWrapper extends Struct;

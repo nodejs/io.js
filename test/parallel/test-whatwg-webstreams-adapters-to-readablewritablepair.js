@@ -248,3 +248,9 @@ const {
   reader.closed.then(common.mustCall());
   writer.close().then(common.mustCall());
 }
+
+{
+  assert.throws(() => newReadableWritablePairFromDuplex(null), {
+    code: 'ERR_INVALID_ARG_TYPE'
+  });
+}

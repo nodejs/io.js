@@ -263,7 +263,8 @@ static const uint32_t HAS_EITHER_DIALYTIKA = HAS_DIALYTIKA | HAS_COMBINING_DIALY
 
 // State bits.
 static const uint32_t AFTER_CASED = 1;
-static const uint32_t AFTER_VOWEL_WITH_ACCENT = 2;
+static const uint32_t AFTER_VOWEL_WITH_COMBINING_ACCENT = 2;
+static const uint32_t AFTER_VOWEL_WITH_PRECOMPOSED_ACCENT = 4;
 
 uint32_t getLetterData(UChar32 c);
 

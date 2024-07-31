@@ -1,9 +1,9 @@
 const hookApi = require('libnpmhook')
-const otplease = require('../utils/otplease.js')
+const { otplease } = require('../utils/auth.js')
 const relativeDate = require('tiny-relative-date')
-const Table = require('cli-table3')
+const { output } = require('proc-log')
+const BaseCommand = require('../base-cmd.js')
 
-const BaseCommand = require('../base-command.js')
 class Hook extends BaseCommand {
   static description = 'Manage registry hooks'
   static name = 'hook'
@@ -40,86 +40,70 @@ class Hook extends BaseCommand {
   async add (pkg, uri, secret, opts) {
     const hook = await hookApi.add(pkg, uri, secret, opts)
     if (opts.json) {
-      this.npm.output(JSON.stringify(hook, null, 2))
+      output.buffer(hook)
     } else if (opts.parseable) {
-      this.npm.output(Object.keys(hook).join('\t'))
-      this.npm.output(Object.keys(hook).map(k => hook[k]).join('\t'))
+      output.standard(Object.keys(hook).join('\t'))
+      output.standard(Object.keys(hook).map(k => hook[k]).join('\t'))
     } else if (!this.npm.silent) {
-      this.npm.output(`+ ${this.hookName(hook)} ${opts.unicode ? ' ➜ ' : ' -> '} ${hook.endpoint}`)
+      output.standard(`+ ${this.hookName(hook)} ${opts.unicode ? ' ➜ ' : ' -> '} ${hook.endpoint}`)
     }
   }
 
   async ls (pkg, opts) {
     const hooks = await hookApi.ls({ ...opts, package: pkg })
+
     if (opts.json) {
-      this.npm.output(JSON.stringify(hooks, null, 2))
+      output.buffer(hooks)
     } else if (opts.parseable) {
-      this.npm.output(Object.keys(hooks[0]).join('\t'))
+      output.standard(Object.keys(hooks[0]).join('\t'))
       hooks.forEach(hook => {
-        this.npm.output(Object.keys(hook).map(k => hook[k]).join('\t'))
+        output.standard(Object.keys(hook).map(k => hook[k]).join('\t'))
       })
     } else if (!hooks.length) {
-      this.npm.output("You don't have any hooks configured yet.")
+      output.standard("You don't have any hooks configured yet.")
     } else if (!this.npm.silent) {
-      if (hooks.length === 1) {
-        this.npm.output('You have one hook configured.')
-      } else {
-        this.npm.output(`You have ${hooks.length} hooks configured.`)
-      }
+      output.standard(`You have ${hooks.length} hook${hooks.length !== 1 ? 's' : ''} configured.`)
 
-      const table = new Table({ head: ['id', 'target', 'endpoint'] })
-      hooks.forEach((hook) => {
-        table.push([
-          { rowSpan: 2, content: hook.id },
-          this.hookName(hook),
-          hook.endpoint,
-        ])
+      for (const hook of hooks) {
+        output.standard(`Hook ${hook.id}: ${this.hookName(hook)}`)
+        output.standard(`Endpoint: ${hook.endpoint}`)
         if (hook.last_delivery) {
-          table.push([
-            {
-              colSpan: 1,
-              content: `triggered ${relativeDate(hook.last_delivery)}`,
-            },
-            hook.response_code,
-          ])
+          /* eslint-disable-next-line max-len */
+          output.standard(`Triggered ${relativeDate(hook.last_delivery)}, response code was "${hook.response_code}"\n`)
         } else {
-          table.push([{ colSpan: 2, content: 'never triggered' }])
+          output.standard('Never triggered\n')
         }
-      })
-      this.npm.output(table.toString())
+      }
     }
   }
 
   async rm (id, opts) {
     const hook = await hookApi.rm(id, opts)
     if (opts.json) {
-      this.npm.output(JSON.stringify(hook, null, 2))
+      output.buffer(hook)
     } else if (opts.parseable) {
-      this.npm.output(Object.keys(hook).join('\t'))
-      this.npm.output(Object.keys(hook).map(k => hook[k]).join('\t'))
+      output.standard(Object.keys(hook).join('\t'))
+      output.standard(Object.keys(hook).map(k => hook[k]).join('\t'))
     } else if (!this.npm.silent) {
-      this.npm.output(`- ${this.hookName(hook)} ${opts.unicode ? ' ✘ ' : ' X '} ${hook.endpoint}`)
+      output.standard(`- ${this.hookName(hook)} ${opts.unicode ? ' ✘ ' : ' X '} ${hook.endpoint}`)
     }
   }
 
   async update (id, uri, secret, opts) {
     const hook = await hookApi.update(id, uri, secret, opts)
     if (opts.json) {
-      this.npm.output(JSON.stringify(hook, null, 2))
+      output.buffer(hook)
     } else if (opts.parseable) {
-      this.npm.output(Object.keys(hook).join('\t'))
-      this.npm.output(Object.keys(hook).map(k => hook[k]).join('\t'))
+      output.standard(Object.keys(hook).join('\t'))
+      output.standard(Object.keys(hook).map(k => hook[k]).join('\t'))
     } else if (!this.npm.silent) {
-      this.npm.output(`+ ${this.hookName(hook)} ${opts.unicode ? ' ➜ ' : ' -> '} ${hook.endpoint}`)
+      output.standard(`+ ${this.hookName(hook)} ${opts.unicode ? ' ➜ ' : ' -> '} ${hook.endpoint}`)
     }
   }
 
   hookName (hook) {
-    let target = hook.name
-    if (hook.type === 'owner') {
-      target = '~' + target
-    }
-    return target
+    return `${hook.type === 'owner' ? '~' : ''}${hook.name}`
   }
 }
+
 module.exports = Hook

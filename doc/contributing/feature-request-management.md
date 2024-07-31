@@ -30,7 +30,8 @@ report results in it being considered a feature request as opposed
 to a bug).
 
 The current list of feature requests can be found through the
-[is:issue is:open label:"feature request"](https://github.com/nodejs/node/issues?q=is%3Aissue+is%3Aopen+label%3A%22feature+request%22) query.
+[is:issue is:open label:"feature request"](https://github.com/nodejs/node/issues?q=is%3Aissue+is%3Aopen+label%3A%22feature+request%22)
+query.
 
 ## Triage of feature requests
 

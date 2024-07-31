@@ -13,6 +13,7 @@ const path = require('path');
 
 const common = require('./mutators/common.js');
 const db = require('./db.js');
+const exceptions = require('./exceptions.js');
 const random = require('./random.js');
 const sourceHelpers = require('./source_helpers.js');
 
@@ -242,7 +243,8 @@ class ScriptMutator {
     const dependencies = this.resolveDependencies(inputs);
     const combinedSource = this.mutateInputs(inputs);
     const code = sourceHelpers.generateCode(combinedSource, dependencies);
-    const flags = common.concatFlags(dependencies.concat([combinedSource]));
+    const flags = exceptions.resolveContradictoryFlags(
+        common.concatFlags(dependencies.concat([combinedSource])));
     return new Result(code, flags);
   }
 }

@@ -938,7 +938,7 @@ public:
      * transliterator needs to examine
      * @stable ICU 2.0
      */
-    int32_t getMaximumContextLength(void) const;
+    int32_t getMaximumContextLength() const;
 
 protected:
 
@@ -962,7 +962,7 @@ public:
      * @see #getAvailableIDs
      * @stable ICU 2.0
      */
-    virtual const UnicodeString& getID(void) const;
+    virtual const UnicodeString& getID() const;
 
     /**
      * Returns a name for this transliterator that is appropriate for
@@ -1008,7 +1008,7 @@ public:
      *         if this transliterator uses no filter.
      * @stable ICU 2.0
      */
-    const UnicodeFilter* getFilter(void) const;
+    const UnicodeFilter* getFilter() const;
 
     /**
      * Returns the filter used by this transliterator, or <tt>nullptr</tt> if this
@@ -1019,7 +1019,7 @@ public:
      *         transliterator uses no filter.
      * @stable ICU 2.4
      */
-    UnicodeFilter* orphanFilter(void);
+    UnicodeFilter* orphanFilter();
 
     /**
      * Changes the filter used by this transliterator.  If the filter
@@ -1374,7 +1374,7 @@ public:
      * @return the number of registered source specifiers.
      * @stable ICU 2.0
      */
-    static int32_t U_EXPORT2 countAvailableSources(void);
+    static int32_t U_EXPORT2 countAvailableSources();
 
     /**
      * Return a registered source specifier.
@@ -1448,7 +1448,7 @@ protected:
      * Non-mutexed internal method
      * @internal
      */
-    static int32_t _countAvailableSources(void);
+    static int32_t _countAvailableSources();
 
     /**
      * Non-mutexed internal method
@@ -1510,7 +1510,7 @@ public:
      * @return       The class ID for class Transliterator.
      * @stable ICU 2.0
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
     /**
      * Returns a unique class ID <b>polymorphically</b>.  This method
@@ -1527,7 +1527,7 @@ public:
      * different class IDs.
      * @stable ICU 2.0
      */
-    virtual UClassID getDynamicClassID(void) const override = 0;
+    virtual UClassID getDynamicClassID() const override = 0;
 
 private:
     static UBool initializeRegistry(UErrorCode &status);
@@ -1541,7 +1541,7 @@ public:
      * @return the number of IDs currently registered with the system.
      * @obsolete ICU 3.4 use getAvailableIDs() instead
      */
-    static int32_t U_EXPORT2 countAvailableIDs(void);
+    static int32_t U_EXPORT2 countAvailableIDs();
 
     /**
      * Return the index-th available ID.  index must be between 0
@@ -1559,7 +1559,7 @@ public:
 #endif  /* U_HIDE_OBSOLETE_API */
 };
 
-inline int32_t Transliterator::getMaximumContextLength(void) const {
+inline int32_t Transliterator::getMaximumContextLength() const {
     return maximumContextLength;
 }
 

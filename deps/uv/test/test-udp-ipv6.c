@@ -30,13 +30,13 @@
 #include <sys/sysctl.h>
 #endif
 
-#define CHECK_HANDLE(handle)                \
-  ASSERT((uv_udp_t*)(handle) == &server     \
-      || (uv_udp_t*)(handle) == &client     \
-      || (uv_timer_t*)(handle) == &timeout)
+#define CHECK_HANDLE(handle)                   \
+  ASSERT_NE((uv_udp_t*)(handle) == &server     \
+         || (uv_udp_t*)(handle) == &client     \
+         || (uv_timer_t*)(handle) == &timeout, 0)
 
 #define CHECK_REQ(req) \
-  ASSERT((req) == &req_);
+  ASSERT_PTR_EQ((req), &req_);
 
 static uv_udp_t client;
 static uv_udp_t server;
@@ -81,7 +81,7 @@ static void close_cb(uv_handle_t* handle) {
 static void send_cb(uv_udp_send_t* req, int status) {
   CHECK_REQ(req);
   CHECK_HANDLE(req->handle);
-  ASSERT(status == 0);
+  ASSERT_OK(status);
   send_cb_called++;
 }
 
@@ -92,7 +92,7 @@ static int is_from_client(const struct sockaddr* addr) {
 
   /* Debugging output, and filter out unwanted network traffic */
   if (addr != NULL) {
-    ASSERT(addr->sa_family == AF_INET6);
+    ASSERT_EQ(addr->sa_family, AF_INET6);
     addr6 = (struct sockaddr_in6*) addr;
     r = uv_inet_ntop(addr->sa_family, &addr6->sin6_addr, dst, sizeof(dst));
     if (r == 0)
@@ -129,7 +129,7 @@ static void ipv6_recv_ok(uv_udp_t* handle,
   if (!is_from_client(addr) || (nread == 0 && addr == NULL))
     return;
 
-  ASSERT(nread == 9);
+  ASSERT_EQ(9, nread);
   ASSERT(!memcmp(buf->base, data, 9));
   recv_cb_called++;
 }
@@ -151,31 +151,39 @@ static void do_test(uv_udp_recv_cb recv_cb, int bind_flags) {
   char dst[256];
   int r;
 
-  ASSERT(0 == uv_ip6_addr("::0", TEST_PORT, &addr6));
+  ASSERT_OK(uv_ip6_addr("::0", TEST_PORT, &addr6));
 
   r = uv_udp_init(uv_default_loop(), &server);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_udp_bind(&server, (const struct sockaddr*) &addr6, bind_flags);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   addr6_len = sizeof(addr6);
-  ASSERT(uv_udp_getsockname(&server, (struct sockaddr*) &addr6, &addr6_len) == 0);
-  ASSERT(uv_inet_ntop(addr6.sin6_family, &addr6.sin6_addr, dst, sizeof(dst)) == 0);
+  ASSERT_OK(uv_udp_getsockname(&server,
+                               (struct sockaddr*) &addr6,
+                               &addr6_len));
+  ASSERT_OK(uv_inet_ntop(addr6.sin6_family,
+                         &addr6.sin6_addr,
+                         dst,
+                         sizeof(dst)));
   printf("on [%.*s]:%d\n", (int) sizeof(dst), dst, addr6.sin6_port);
 
   r = uv_udp_recv_start(&server, alloc_cb, recv_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_udp_init(uv_default_loop(), &client);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
-  ASSERT(uv_inet_ntop(addr.sin_family, &addr.sin_addr, dst, sizeof(dst)) == 0);
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_inet_ntop(addr.sin_family, &addr.sin_addr, dst, sizeof(dst)));
   printf("to [%.*s]:%d\n", (int) sizeof(dst), dst, addr.sin_port);
 
   /* Create some unique data to send */
-  ASSERT(9 == snprintf(data, sizeof(data), "PING%5u", uv_os_getpid() & 0xFFFF));
+  ASSERT_EQ(9, snprintf(data,
+                        sizeof(data),
+                        "PING%5u",
+                        uv_os_getpid() & 0xFFFF));
   buf = uv_buf_init(data, 9);
   printf("sending %s\n", data);
 
@@ -185,27 +193,27 @@ static void do_test(uv_udp_recv_cb recv_cb, int bind_flags) {
                   1,
                   (const struct sockaddr*) &addr,
                   send_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   addr_len = sizeof(addr);
-  ASSERT(uv_udp_getsockname(&client, (struct sockaddr*) &addr, &addr_len) == 0);
-  ASSERT(uv_inet_ntop(addr.sin_family, &addr.sin_addr, dst, sizeof(dst)) == 0);
+  ASSERT_OK(uv_udp_getsockname(&client, (struct sockaddr*) &addr, &addr_len));
+  ASSERT_OK(uv_inet_ntop(addr.sin_family, &addr.sin_addr, dst, sizeof(dst)));
   printf("from [%.*s]:%d\n", (int) sizeof(dst), dst, addr.sin_port);
   client_port = addr.sin_port;
 
   r = uv_timer_init(uv_default_loop(), &timeout);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_timer_start(&timeout, timeout_cb, 500, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(close_cb_called == 0);
-  ASSERT(send_cb_called == 0);
-  ASSERT(recv_cb_called == 0);
+  ASSERT_OK(close_cb_called);
+  ASSERT_OK(send_cb_called);
+  ASSERT_OK(recv_cb_called);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(close_cb_called == 3);
+  ASSERT_EQ(3, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
 }
@@ -231,8 +239,8 @@ TEST_IMPL(udp_dual_stack) {
 
   printf("recv_cb_called %d\n", recv_cb_called);
   printf("send_cb_called %d\n", send_cb_called);
-  ASSERT(recv_cb_called == 1);
-  ASSERT(send_cb_called == 1);
+  ASSERT_EQ(1, recv_cb_called);
+  ASSERT_EQ(1, send_cb_called);
 
   return 0;
 }
@@ -244,8 +252,8 @@ TEST_IMPL(udp_ipv6_only) {
 
   do_test(ipv6_recv_fail, UV_UDP_IPV6ONLY);
 
-  ASSERT(recv_cb_called == 0);
-  ASSERT(send_cb_called == 1);
+  ASSERT_OK(recv_cb_called);
+  ASSERT_EQ(1, send_cb_called);
 
   return 0;
 }

@@ -20,12 +20,11 @@ using GCTracerTest = TestWithContext;
 
 namespace {
 
-void SampleAndAddAllocation(GCTracer* tracer, base::TimeTicks time,
-                            size_t per_space_counter_bytes) {
+void SampleAllocation(GCTracer* tracer, base::TimeTicks time,
+                      size_t per_space_counter_bytes) {
   // Increment counters of all spaces.
   tracer->SampleAllocation(time, per_space_counter_bytes,
                            per_space_counter_bytes, per_space_counter_bytes);
-  tracer->AddAllocation(time);
 }
 
 enum class StartTracingMode {
@@ -92,12 +91,12 @@ TEST_F(GCTracerTest, AllocationThroughput) {
 
   const int time1 = 100;
   const size_t counter1 = 1000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time1),
-                         counter1);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time1),
+                   counter1);
   const int time2 = 200;
   const size_t counter2 = 2000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time2),
-                         counter2);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time2),
+                   counter2);
   // Will only consider the current sample.
   EXPECT_EQ(
       2 * (counter2 - counter1) / (time2 - time1),
@@ -105,8 +104,8 @@ TEST_F(GCTracerTest, AllocationThroughput) {
           base::TimeDelta::FromMilliseconds(100))));
   const int time3 = 1000;
   const size_t counter3 = 30000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time3),
-                         counter3);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time3),
+                   counter3);
   // Only consider last sample.
   EXPECT_EQ(
       2 * (counter3 - counter2) / (time3 - time2),
@@ -123,15 +122,16 @@ TEST_F(GCTracerTest, PerGenerationAllocationThroughput) {
   if (v8_flags.stress_incremental_marking) return;
   GCTracer* tracer = i_isolate()->heap()->tracer();
   tracer->ResetForTesting();
+  tracer->allocation_time_ = base::TimeTicks();
 
   const int time1 = 100;
   const size_t counter1 = 1000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time1),
-                         counter1);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time1),
+                   counter1);
   const int time2 = 200;
   const size_t counter2 = 2000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time2),
-                         counter2);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time2),
+                   counter2);
   const size_t expected_throughput1 = (counter2 - counter1) / (200 - 100);
   EXPECT_EQ(expected_throughput1,
             static_cast<size_t>(
@@ -145,9 +145,9 @@ TEST_F(GCTracerTest, PerGenerationAllocationThroughput) {
                 tracer->EmbedderAllocationThroughputInBytesPerMillisecond()));
   const int time3 = 1000;
   const size_t counter3 = 30000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time3),
-                         counter3);
-  const size_t expected_throughput2 = (counter3 - counter1) / (time3 - time1);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time3),
+                   counter3);
+  const size_t expected_throughput2 = counter3 / time3;
   EXPECT_EQ(expected_throughput2,
             static_cast<size_t>(
                 tracer->NewSpaceAllocationThroughputInBytesPerMillisecond()));
@@ -167,12 +167,12 @@ TEST_F(GCTracerTest, PerGenerationAllocationThroughputWithProvidedTime) {
 
   const int time1 = 100;
   const size_t counter1 = 1000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time1),
-                         counter1);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time1),
+                   counter1);
   const int time2 = 200;
   const size_t counter2 = 2000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time2),
-                         counter2);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time2),
+                   counter2);
   const size_t expected_throughput1 = (counter2 - counter1) / (time2 - time1);
   EXPECT_EQ(expected_throughput1,
             static_cast<size_t>(
@@ -184,8 +184,8 @@ TEST_F(GCTracerTest, PerGenerationAllocationThroughputWithProvidedTime) {
                     base::TimeDelta::FromMilliseconds(100))));
   const int time3 = 1000;
   const size_t counter3 = 30000;
-  SampleAndAddAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time3),
-                         counter3);
+  SampleAllocation(tracer, base::TimeTicks::FromMsTicksForTesting(time3),
+                   counter3);
   const size_t expected_throughput2 = (counter3 - counter2) / (time3 - time2);
   // Only consider last sample.
   EXPECT_EQ(expected_throughput2,
@@ -325,15 +325,15 @@ TEST_F(GCTracerTest, IncrementalMarkingSpeed) {
   // 1000000 bytes in 100ms.
   tracer->AddIncrementalMarkingStep(100, 1000000);
   EXPECT_EQ(base::TimeDelta::FromMilliseconds(300),
-            tracer->incremental_marking_duration_);
-  EXPECT_EQ(3000000u, tracer->incremental_marking_bytes_);
+            tracer->current_.incremental_marking_duration);
+  EXPECT_EQ(3000000u, tracer->current_.incremental_marking_bytes);
   EXPECT_EQ(1000000 / 100,
             tracer->IncrementalMarkingSpeedInBytesPerMillisecond());
   // 1000000 bytes in 100ms.
   tracer->AddIncrementalMarkingStep(100, 1000000);
   EXPECT_EQ(base::TimeDelta::FromMilliseconds(400),
-            tracer->incremental_marking_duration_);
-  EXPECT_EQ(4000000u, tracer->incremental_marking_bytes_);
+            tracer->current_.incremental_marking_duration);
+  EXPECT_EQ(4000000u, tracer->current_.incremental_marking_bytes);
   StartTracing(tracer, GarbageCollector::MARK_COMPACTOR,
                StartTracingMode::kIncrementalEnterPause,
                base::TimeTicks::FromMsTicksForTesting(500));
@@ -342,8 +342,6 @@ TEST_F(GCTracerTest, IncrementalMarkingSpeed) {
   EXPECT_EQ(base::TimeDelta::FromMilliseconds(400),
             tracer->current_.incremental_marking_duration);
   EXPECT_EQ(4000000u, tracer->current_.incremental_marking_bytes);
-  EXPECT_TRUE(tracer->incremental_marking_duration_.IsZero());
-  EXPECT_EQ(0u, tracer->incremental_marking_bytes_);
   EXPECT_EQ(1000000 / 100,
             tracer->IncrementalMarkingSpeedInBytesPerMillisecond());
 

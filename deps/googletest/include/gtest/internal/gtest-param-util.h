@@ -47,6 +47,7 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -85,7 +86,7 @@ namespace internal {
 // TEST_P macro is used to define two tests with the same name
 // but in different namespaces.
 GTEST_API_ void ReportInvalidTestSuiteType(const char* test_suite_name,
-                                           CodeLocation code_location);
+                                           const CodeLocation& code_location);
 
 template <typename>
 class ParamGeneratorInterface;
@@ -379,9 +380,7 @@ class ValuesInIteratorRangeGenerator : public ParamGeneratorInterface<T> {
 // integer test parameter index.
 template <class ParamType>
 std::string DefaultParamName(const TestParamInfo<ParamType>& info) {
-  Message name_stream;
-  name_stream << info.index;
-  return name_stream.GetString();
+  return std::to_string(info.index);
 }
 
 template <typename T = int>
@@ -513,9 +512,10 @@ class ParameterizedTestSuiteInfo : public ParameterizedTestSuiteInfoBase {
   typedef ParamGenerator<ParamType>(GeneratorCreationFunc)();
   using ParamNameGeneratorFunc = std::string(const TestParamInfo<ParamType>&);
 
-  explicit ParameterizedTestSuiteInfo(const char* name,
+  explicit ParameterizedTestSuiteInfo(std::string name,
                                       CodeLocation code_location)
-      : test_suite_name_(name), code_location_(code_location) {}
+      : test_suite_name_(std::move(name)),
+        code_location_(std::move(code_location)) {}
 
   // Test suite base name for display purposes.
   const std::string& GetTestSuiteName() const override {
@@ -529,20 +529,21 @@ class ParameterizedTestSuiteInfo : public ParameterizedTestSuiteInfoBase {
   // prefix). test_base_name is the name of an individual test without
   // parameter index. For the test SequenceA/FooTest.DoBar/1 FooTest is
   // test suite base name and DoBar is test base name.
-  void AddTestPattern(const char* test_suite_name, const char* test_base_name,
+  void AddTestPattern(const char*,
+                      const char* test_base_name,
                       TestMetaFactoryBase<ParamType>* meta_factory,
                       CodeLocation code_location) {
-    tests_.push_back(std::shared_ptr<TestInfo>(new TestInfo(
-        test_suite_name, test_base_name, meta_factory, code_location)));
+    tests_.emplace_back(
+        new TestInfo(test_base_name, meta_factory, std::move(code_location)));
   }
   // INSTANTIATE_TEST_SUITE_P macro uses AddGenerator() to record information
   // about a generator.
-  int AddTestSuiteInstantiation(const std::string& instantiation_name,
+  int AddTestSuiteInstantiation(std::string instantiation_name,
                                 GeneratorCreationFunc* func,
                                 ParamNameGeneratorFunc* name_func,
                                 const char* file, int line) {
-    instantiations_.push_back(
-        InstantiationInfo(instantiation_name, func, name_func, file, line));
+    instantiations_.emplace_back(std::move(instantiation_name), func, name_func,
+                                 file, line);
     return 0;  // Return value used only to run this method in namespace scope.
   }
   // UnitTest class invokes this method to register tests in this test suite
@@ -553,34 +554,31 @@ class ParameterizedTestSuiteInfo : public ParameterizedTestSuiteInfoBase {
   void RegisterTests() override {
     bool generated_instantiations = false;
 
-    for (typename TestInfoContainer::iterator test_it = tests_.begin();
-         test_it != tests_.end(); ++test_it) {
-      std::shared_ptr<TestInfo> test_info = *test_it;
-      for (typename InstantiationContainer::iterator gen_it =
-               instantiations_.begin();
-           gen_it != instantiations_.end(); ++gen_it) {
-        const std::string& instantiation_name = gen_it->name;
-        ParamGenerator<ParamType> generator((*gen_it->generator)());
-        ParamNameGeneratorFunc* name_func = gen_it->name_func;
-        const char* file = gen_it->file;
-        int line = gen_it->line;
+    std::string test_suite_name;
+    std::string test_name;
+    for (const std::shared_ptr<TestInfo>& test_info : tests_) {
+      for (const InstantiationInfo& instantiation : instantiations_) {
+        const std::string& instantiation_name = instantiation.name;
+        ParamGenerator<ParamType> generator((*instantiation.generator)());
+        ParamNameGeneratorFunc* name_func = instantiation.name_func;
+        const char* file = instantiation.file;
+        int line = instantiation.line;
 
-        std::string test_suite_name;
         if (!instantiation_name.empty())
           test_suite_name = instantiation_name + "/";
-        test_suite_name += test_info->test_suite_base_name;
+        else
+          test_suite_name.clear();
+        test_suite_name += test_suite_name_;
 
         size_t i = 0;
         std::set<std::string> test_param_names;
-        for (typename ParamGenerator<ParamType>::iterator param_it =
-                 generator.begin();
-             param_it != generator.end(); ++param_it, ++i) {
+        for (const auto& param : generator) {
           generated_instantiations = true;
 
-          Message test_name_stream;
+          test_name.clear();
 
           std::string param_name =
-              name_func(TestParamInfo<ParamType>(*param_it, i));
+              name_func(TestParamInfo<ParamType>(param, i));
 
           GTEST_CHECK_(IsValidParamName(param_name))
               << "Parameterized test name '" << param_name
@@ -592,23 +590,25 @@ class ParameterizedTestSuiteInfo : public ParameterizedTestSuiteInfoBase {
               << "Duplicate parameterized test name '" << param_name << "', in "
               << file << " line " << line << std::endl;
 
-          test_param_names.insert(param_name);
-
           if (!test_info->test_base_name.empty()) {
-            test_name_stream << test_info->test_base_name << "/";
+            test_name.append(test_info->test_base_name).append("/");
           }
-          test_name_stream << param_name;
+          test_name += param_name;
+
+          test_param_names.insert(std::move(param_name));
+
           MakeAndRegisterTestInfo(
-              test_suite_name.c_str(), test_name_stream.GetString().c_str(),
+              test_suite_name, test_name.c_str(),
               nullptr,  // No type parameter.
-              PrintToString(*param_it).c_str(), test_info->code_location,
+              PrintToString(param).c_str(), test_info->code_location,
               GetTestSuiteTypeId(),
               SuiteApiResolver<TestSuite>::GetSetUpCaseOrSuite(file, line),
               SuiteApiResolver<TestSuite>::GetTearDownCaseOrSuite(file, line),
-              test_info->test_meta_factory->CreateTestFactory(*param_it));
-        }  // for param_it
-      }    // for gen_it
-    }      // for test_it
+              test_info->test_meta_factory->CreateTestFactory(param));
+          ++i;
+        }  // for param
+      }  // for instantiation
+    }  // for test_info
 
     if (!generated_instantiations) {
       // There are no generaotrs, or they all generate nothing ...
@@ -621,15 +621,13 @@ class ParameterizedTestSuiteInfo : public ParameterizedTestSuiteInfoBase {
   // LocalTestInfo structure keeps information about a single test registered
   // with TEST_P macro.
   struct TestInfo {
-    TestInfo(const char* a_test_suite_base_name, const char* a_test_base_name,
+    TestInfo(const char* a_test_base_name,
              TestMetaFactoryBase<ParamType>* a_test_meta_factory,
              CodeLocation a_code_location)
-        : test_suite_base_name(a_test_suite_base_name),
-          test_base_name(a_test_base_name),
+        : test_base_name(a_test_base_name),
           test_meta_factory(a_test_meta_factory),
-          code_location(a_code_location) {}
+          code_location(std::move(a_code_location)) {}
 
-    const std::string test_suite_base_name;
     const std::string test_base_name;
     const std::unique_ptr<TestMetaFactoryBase<ParamType>> test_meta_factory;
     const CodeLocation code_location;
@@ -639,11 +637,10 @@ class ParameterizedTestSuiteInfo : public ParameterizedTestSuiteInfoBase {
   //  <Instantiation name, Sequence generator creation function,
   //     Name generator function, Source file, Source line>
   struct InstantiationInfo {
-    InstantiationInfo(const std::string& name_in,
-                      GeneratorCreationFunc* generator_in,
+    InstantiationInfo(std::string name_in, GeneratorCreationFunc* generator_in,
                       ParamNameGeneratorFunc* name_func_in, const char* file_in,
                       int line_in)
-        : name(name_in),
+        : name(std::move(name_in)),
           generator(generator_in),
           name_func(name_func_in),
           file(file_in),
@@ -704,29 +701,32 @@ class ParameterizedTestSuiteRegistry {
   // tests and instantiations of a particular test suite.
   template <class TestSuite>
   ParameterizedTestSuiteInfo<TestSuite>* GetTestSuitePatternHolder(
-      const char* test_suite_name, CodeLocation code_location) {
+      std::string test_suite_name, CodeLocation code_location) {
     ParameterizedTestSuiteInfo<TestSuite>* typed_test_info = nullptr;
-    for (auto& test_suite_info : test_suite_infos_) {
-      if (test_suite_info->GetTestSuiteName() == test_suite_name) {
-        if (test_suite_info->GetTestSuiteTypeId() != GetTypeId<TestSuite>()) {
-          // Complain about incorrect usage of Google Test facilities
-          // and terminate the program since we cannot guaranty correct
-          // test suite setup and tear-down in this case.
-          ReportInvalidTestSuiteType(test_suite_name, code_location);
-          posix::Abort();
-        } else {
-          // At this point we are sure that the object we found is of the same
-          // type we are looking for, so we downcast it to that type
-          // without further checks.
-          typed_test_info = CheckedDowncastToActualType<
-              ParameterizedTestSuiteInfo<TestSuite>>(test_suite_info);
-        }
-        break;
+
+    auto item_it = suite_name_to_info_index_.find(test_suite_name);
+    if (item_it != suite_name_to_info_index_.end()) {
+      auto* test_suite_info = test_suite_infos_[item_it->second];
+      if (test_suite_info->GetTestSuiteTypeId() != GetTypeId<TestSuite>()) {
+        // Complain about incorrect usage of Google Test facilities
+        // and terminate the program since we cannot guaranty correct
+        // test suite setup and tear-down in this case.
+        ReportInvalidTestSuiteType(test_suite_name.c_str(), code_location);
+        posix::Abort();
+      } else {
+        // At this point we are sure that the object we found is of the same
+        // type we are looking for, so we downcast it to that type
+        // without further checks.
+        typed_test_info =
+            CheckedDowncastToActualType<ParameterizedTestSuiteInfo<TestSuite>>(
+                test_suite_info);
       }
     }
     if (typed_test_info == nullptr) {
       typed_test_info = new ParameterizedTestSuiteInfo<TestSuite>(
-          test_suite_name, code_location);
+          test_suite_name, std::move(code_location));
+      suite_name_to_info_index_.emplace(std::move(test_suite_name),
+                                        test_suite_infos_.size());
       test_suite_infos_.push_back(typed_test_info);
     }
     return typed_test_info;
@@ -740,8 +740,9 @@ class ParameterizedTestSuiteRegistry {
 #ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
   template <class TestCase>
   ParameterizedTestCaseInfo<TestCase>* GetTestCasePatternHolder(
-      const char* test_case_name, CodeLocation code_location) {
-    return GetTestSuitePatternHolder<TestCase>(test_case_name, code_location);
+      std::string test_case_name, CodeLocation code_location) {
+    return GetTestSuitePatternHolder<TestCase>(std::move(test_case_name),
+                                               std::move(code_location));
   }
 
 #endif  //  GTEST_REMOVE_LEGACY_TEST_CASEAPI_
@@ -750,6 +751,7 @@ class ParameterizedTestSuiteRegistry {
   using TestSuiteInfoContainer = ::std::vector<ParameterizedTestSuiteInfoBase*>;
 
   TestSuiteInfoContainer test_suite_infos_;
+  ::std::unordered_map<std::string, size_t> suite_name_to_info_index_;
 
   ParameterizedTestSuiteRegistry(const ParameterizedTestSuiteRegistry&) =
       delete;
@@ -776,7 +778,7 @@ class TypeParameterizedTestSuiteRegistry {
  private:
   struct TypeParameterizedTestSuiteInfo {
     explicit TypeParameterizedTestSuiteInfo(CodeLocation c)
-        : code_location(c), instantiated(false) {}
+        : code_location(std::move(c)), instantiated(false) {}
 
     CodeLocation code_location;
     bool instantiated;
@@ -805,12 +807,12 @@ class ValueArray {
 
   template <typename T>
   operator ParamGenerator<T>() const {  // NOLINT
-    return ValuesIn(MakeVector<T>(MakeIndexSequence<sizeof...(Ts)>()));
+    return ValuesIn(MakeVector<T>(std::make_index_sequence<sizeof...(Ts)>()));
   }
 
  private:
   template <typename T, size_t... I>
-  std::vector<T> MakeVector(IndexSequence<I...>) const {
+  std::vector<T> MakeVector(std::index_sequence<I...>) const {
     return std::vector<T>{static_cast<T>(v_.template Get<I>())...};
   }
 
@@ -840,7 +842,7 @@ class CartesianProductGenerator
   template <class I>
   class IteratorImpl;
   template <size_t... I>
-  class IteratorImpl<IndexSequence<I...>>
+  class IteratorImpl<std::index_sequence<I...>>
       : public ParamIteratorInterface<ParamType> {
    public:
     IteratorImpl(const ParamGeneratorInterface<ParamType>* base,
@@ -931,7 +933,7 @@ class CartesianProductGenerator
     std::shared_ptr<ParamType> current_value_;
   };
 
-  using Iterator = IteratorImpl<typename MakeIndexSequence<sizeof...(T)>::type>;
+  using Iterator = IteratorImpl<std::make_index_sequence<sizeof...(T)>>;
 
   std::tuple<ParamGenerator<T>...> generators_;
 };

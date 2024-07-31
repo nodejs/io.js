@@ -9,6 +9,7 @@ import re
 import tempfile
 import sys
 import subprocess
+import shlex
 
 from collections.abc import MutableSet
 
@@ -144,20 +145,16 @@ def RelativePath(path, relative_to, follow_path_symlink=True):
     # symlink, this option has no effect.
 
     # Convert to normalized (and therefore absolute paths).
-    if follow_path_symlink:
-        path = os.path.realpath(path)
-    else:
-        path = os.path.abspath(path)
+    path = os.path.realpath(path) if follow_path_symlink else os.path.abspath(path)
     relative_to = os.path.realpath(relative_to)
 
     # On Windows, we can't create a relative path to a different drive, so just
     # use the absolute path.
-    if sys.platform == "win32":
-        if (
-            os.path.splitdrive(path)[0].lower()
-            != os.path.splitdrive(relative_to)[0].lower()
-        ):
-            return path
+    if sys.platform == "win32" and (
+        os.path.splitdrive(path)[0].lower()
+        != os.path.splitdrive(relative_to)[0].lower()
+    ):
+        return path
 
     # Split the paths into components.
     path_split = path.split(os.path.sep)
@@ -277,10 +274,7 @@ def EncodePOSIXShellArgument(argument):
     if not isinstance(argument, str):
         argument = str(argument)
 
-    if _quote.search(argument):
-        quote = '"'
-    else:
-        quote = ""
+    quote = '"' if _quote.search(argument) else ""
 
     encoded = quote + re.sub(_escape, r"\\\1", argument) + quote
 
@@ -429,8 +423,54 @@ def EnsureDirExists(path):
     except OSError:
         pass
 
+def GetCrossCompilerPredefines():  # -> dict
+    cmd = []
 
-def GetFlavor(params):
+    # shlex.split() will eat '\' in posix mode, but
+    # setting posix=False will preserve extra '"' cause CreateProcess fail on Windows
+    # this makes '\' in %CC_target% and %CFLAGS% work
+    def replace_sep(s):
+        return s.replace(os.sep, "/") if os.sep != "/" else s
+
+    if CC := os.environ.get("CC_target") or os.environ.get("CC"):
+        cmd += shlex.split(replace_sep(CC))
+        if CFLAGS := os.environ.get("CFLAGS"):
+            cmd += shlex.split(replace_sep(CFLAGS))
+    elif CXX := os.environ.get("CXX_target") or os.environ.get("CXX"):
+        cmd += shlex.split(replace_sep(CXX))
+        if CXXFLAGS := os.environ.get("CXXFLAGS"):
+            cmd += shlex.split(replace_sep(CXXFLAGS))
+    else:
+        return {}
+
+    if sys.platform == "win32":
+        fd, input = tempfile.mkstemp(suffix=".c")
+        real_cmd = [*cmd, "-dM", "-E", "-x", "c", input]
+        try:
+            os.close(fd)
+            stdout = subprocess.run(
+                real_cmd, shell=True,
+                capture_output=True, check=True
+            ).stdout
+        finally:
+            os.unlink(input)
+    else:
+        input = "/dev/null"
+        real_cmd = [*cmd, "-dM", "-E", "-x", "c", input]
+        stdout = subprocess.run(
+            real_cmd, shell=False,
+            capture_output=True, check=True
+        ).stdout
+
+    defines = {}
+    lines = stdout.decode("utf-8").replace("\r\n", "\n").split("\n")
+    for line in lines:
+        if (line or "").startswith("#define "):
+            _, key, *value = line.split(" ")
+            defines[key] = " ".join(value)
+    return defines
+
+def GetFlavorByPlatform():
     """Returns |params.flavor| if it's set, the system's default flavor else."""
     flavors = {
         "cygwin": "win",
@@ -438,8 +478,6 @@ def GetFlavor(params):
         "darwin": "mac",
     }
 
-    if "flavor" in params:
-        return params["flavor"]
     if sys.platform in flavors:
         return flavors[sys.platform]
     if sys.platform.startswith("sunos"):
@@ -459,6 +497,18 @@ def GetFlavor(params):
 
     return "linux"
 
+def GetFlavor(params):
+    if "flavor" in params:
+        return params["flavor"]
+
+    defines = GetCrossCompilerPredefines()
+    if "__EMSCRIPTEN__" in defines:
+        return "emscripten"
+    if "__wasm__" in defines:
+        return "wasi" if "__wasi__" in defines else "wasm"
+
+    return GetFlavorByPlatform()
+
 
 def CopyTool(flavor, out_path, generator_flags={}):
     """Finds (flock|mac|win)_tool.gyp in the gyp directory and copies it
@@ -470,6 +520,7 @@ def CopyTool(flavor, out_path, generator_flags={}):
         "os400": "flock",
         "solaris": "flock",
         "mac": "mac",
+        "ios": "mac",
         "win": "win",
     }.get(flavor, None)
     if not prefix:

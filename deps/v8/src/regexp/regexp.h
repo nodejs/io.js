@@ -90,8 +90,8 @@ class RegExp final : public AllStatic {
       RegExpFlags flags, uint32_t backtrack_limit);
 
   // Ensures that a regexp is fully compiled and ready to be executed on a
-  // subject string.  Returns true on success. Return false on failure, and
-  // then an exception will be pending.
+  // subject string.  Returns true on success. Throw and return false on
+  // failure.
   V8_WARN_UNUSED_RESULT static bool EnsureFullyCompiled(Isolate* isolate,
                                                         Handle<JSRegExp> re,
                                                         Handle<String> subject);
@@ -216,7 +216,7 @@ class RegExpResultsCache final : public AllStatic {
   // On success, the returned result is guaranteed to be a COW-array.
   static Tagged<Object> Lookup(Heap* heap, Tagged<String> key_string,
                                Tagged<Object> key_pattern,
-                               FixedArray* last_match_out,
+                               Tagged<FixedArray>* last_match_out,
                                ResultsCacheType type);
   // Attempt to add value_array to the cache specified by type.  On success,
   // value_array is turned into a COW-array.

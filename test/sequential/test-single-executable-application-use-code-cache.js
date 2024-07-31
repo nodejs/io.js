@@ -3,7 +3,7 @@
 require('../common');
 
 const {
-  injectAndCodeSign,
+  generateSEA,
   skipIfSingleExecutableIsNotSupported,
 } = require('../common/sea');
 
@@ -15,9 +15,8 @@ skipIfSingleExecutableIsNotSupported();
 const fixtures = require('../common/fixtures');
 const tmpdir = require('../common/tmpdir');
 const { copyFileSync, writeFileSync, existsSync } = require('fs');
-const { execFileSync } = require('child_process');
+const { spawnSyncAndAssert, spawnSyncAndExitWithoutError } = require('../common/child_process');
 const { join } = require('path');
-const { strictEqual } = require('assert');
 const assert = require('assert');
 
 const inputFile = fixtures.path('sea.js');
@@ -44,17 +43,31 @@ writeFileSync(configFile, `
 
 // Copy input to working directory
 copyFileSync(inputFile, tmpdir.resolve('sea.js'));
-execFileSync(process.execPath, ['--experimental-sea-config', 'sea-config.json'], {
-  cwd: tmpdir.path
-});
+spawnSyncAndExitWithoutError(
+  process.execPath,
+  ['--experimental-sea-config', 'sea-config.json'],
+  {
+    cwd: tmpdir.path,
+    env: {
+      NODE_DEBUG_NATIVE: 'SEA',
+      ...process.env,
+    },
+  });
 
 assert(existsSync(seaPrepBlob));
 
-copyFileSync(process.execPath, outputFile);
-injectAndCodeSign(outputFile, seaPrepBlob);
+generateSEA(outputFile, process.execPath, seaPrepBlob);
 
-const singleExecutableApplicationOutput = execFileSync(
+spawnSyncAndAssert(
   outputFile,
   [ '-a', '--b=c', 'd' ],
-  { env: { COMMON_DIRECTORY: join(__dirname, '..', 'common') } });
-strictEqual(singleExecutableApplicationOutput.toString(), 'Hello, world! 😊\n');
+  {
+    env: {
+      COMMON_DIRECTORY: join(__dirname, '..', 'common'),
+      NODE_DEBUG_NATIVE: 'SEA',
+      ...process.env,
+    }
+  },
+  {
+    stdout: 'Hello, world! 😊\n'
+  });

@@ -124,6 +124,9 @@ class Script : public TorqueGeneratedScript<Script, Struct> {
   inline bool produce_compile_hints() const;
   inline void set_produce_compile_hints(bool produce_compile_hints);
 
+  inline bool deserialized() const;
+  inline void set_deserialized(bool value);
+
   // [compilation_state]: determines whether the script has already been
   // compiled. Encoded in the 'flags' field.
   inline CompilationState compilation_state();

@@ -1,5 +1,5 @@
 CC=cc
-CFLAGS=-O -I../..
+CFLAGS := $(CFLAGS) -O -I../..
 
 UNZ_OBJS = miniunz.o unzip.o ioapi.o ../../libz.a
 ZIP_OBJS = minizip.o zip.o   ioapi.o ../../libz.a
@@ -16,10 +16,14 @@ minizip:  $(ZIP_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(ZIP_OBJS)
 
 test:	miniunz minizip
-	./minizip test readme.txt
+	@rm -f test.*
+	@echo hello hello hello > test.txt
+	./minizip test test.txt
 	./miniunz -l test.zip
-	mv readme.txt readme.old
+	@mv test.txt test.old
 	./miniunz test.zip
+	@cmp test.txt test.old
+	@rm -f test.*
 
 clean:
-	/bin/rm -f *.o *~ minizip miniunz
+	/bin/rm -f *.o *~ minizip miniunz test.*

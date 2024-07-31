@@ -77,7 +77,7 @@ class V8_EXPORT_PRIVATE ProfilerListener : public LogEventListener,
   // Invoked after a mark-sweep cycle.
   void CodeSweepEvent();
 
-  const char* GetName(Name name) {
+  const char* GetName(Tagged<Name> name) {
     return code_entries_.strings().GetName(name);
   }
   const char* GetName(int args_count) {
@@ -87,7 +87,7 @@ class V8_EXPORT_PRIVATE ProfilerListener : public LogEventListener,
     return code_entries_.strings().GetCopy(name);
   }
   const char* GetName(base::Vector<const char> name);
-  const char* GetConsName(const char* prefix, Name name) {
+  const char* GetConsName(const char* prefix, Tagged<Name> name) {
     return code_entries_.strings().GetConsName(prefix, name);
   }
 

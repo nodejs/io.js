@@ -24,30 +24,29 @@
  *
  * SPDX-License-Identifier: MIT
  */
-
-#include "ares_setup.h"
+#include "ares_private.h"
 
 #ifdef HAVE_NETDB_H
-#include <netdb.h>
+#  include <netdb.h>
 #endif
-
-#include "ares.h"
-#include "ares_private.h" /* for memdebug */
 
 void ares_free_hostent(struct hostent *host)
 {
   char **p;
 
-  if (!host)
+  if (!host) {
     return;
+  }
 
-  ares_free((char *)(host->h_name));
-  for (p = host->h_aliases; p && *p; p++)
+  ares_free(host->h_name);
+  for (p = host->h_aliases; p && *p; p++) {
     ares_free(*p);
+  }
   ares_free(host->h_aliases);
   if (host->h_addr_list) {
-    ares_free(host->h_addr_list[0]); /* no matter if there is one or many entries,
-                                   there is only one malloc for all of them */
+    ares_free(
+      host->h_addr_list[0]); /* no matter if there is one or many entries,
+                           there is only one malloc for all of them */
     ares_free(host->h_addr_list);
   }
   ares_free(host);

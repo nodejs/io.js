@@ -2,22 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-extern class CallHandlerInfo extends HeapObject {
-  data: Object;
-  // Back reference to the function template object.
-  owner_template: FunctionTemplateInfo|ObjectTemplateInfo;
-  // For simulator builds this field contains the address of the trampoline
-  // callable from generated code and for native builds - the address of
-  // the callback C function.
-  maybe_redirected_callback: ExternalPointer;
-}
-
 bitfield struct InterceptorInfoFlags extends uint31 {
   can_intercept_symbols: bool: 1 bit;
-  all_can_read: bool: 1 bit;
   non_masking: bool: 1 bit;
   named: bool: 1 bit;
   has_no_side_effect: bool: 1 bit;
+  has_new_callbacks_signature: bool: 1 bit;
 }
 
 extern class InterceptorInfo extends Struct {
@@ -42,8 +32,6 @@ extern class AccessCheckInfo extends Struct {
 type SideEffectType extends int32 constexpr 'SideEffectType';
 
 bitfield struct AccessorInfoFlags extends uint32 {
-  all_can_read: bool: 1 bit;
-  all_can_write: bool: 1 bit;
   is_special_data_property: bool: 1 bit;
   is_sloppy: bool: 1 bit;
   replace_on_access: bool: 1 bit;

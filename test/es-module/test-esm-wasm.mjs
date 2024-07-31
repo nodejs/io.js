@@ -5,7 +5,7 @@ import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
 
-describe('ESM: WASM modules', { concurrency: true }, () => {
+describe('ESM: WASM modules', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should load exports', async () => {
     const { code, stderr, stdout } = await spawnPromisified(execPath, [
       '--no-warnings',

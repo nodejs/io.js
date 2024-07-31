@@ -39,7 +39,10 @@ void WriteBarrierForCode(Tagged<InstructionStream> host, RelocInfo* rinfo,
 void CombinedWriteBarrier(Tagged<HeapObject> object, ObjectSlot slot,
                           Tagged<Object> value, WriteBarrierMode mode);
 void CombinedWriteBarrier(Tagged<HeapObject> object, MaybeObjectSlot slot,
-                          MaybeObject value, WriteBarrierMode mode);
+                          Tagged<MaybeObject> value, WriteBarrierMode mode);
+
+void CombinedWriteBarrier(HeapObjectLayout* object, TaggedMemberBase* slot,
+                          Tagged<Object> value, WriteBarrierMode mode);
 
 void CombinedEphemeronWriteBarrier(Tagged<EphemeronHashTable> object,
                                    ObjectSlot slot, Tagged<Object> value,
@@ -62,20 +65,24 @@ class V8_EXPORT_PRIVATE WriteBarrier {
   static inline void Marking(Tagged<HeapObject> host, HeapObjectSlot,
                              Tagged<HeapObject> value);
   static inline void Marking(Tagged<HeapObject> host, MaybeObjectSlot,
-                             MaybeObject value);
+                             Tagged<MaybeObject> value);
   static inline void Marking(Tagged<InstructionStream> host, RelocInfo*,
                              Tagged<HeapObject> value);
   static inline void Marking(Tagged<JSArrayBuffer> host, ArrayBufferExtension*);
   static inline void Marking(Tagged<DescriptorArray>,
                              int number_of_own_descriptors);
   static inline void Marking(Tagged<HeapObject> host, IndirectPointerSlot slot);
+  static inline void Marking(Tagged<TrustedObject> host,
+                             ProtectedPointerSlot slot,
+                             Tagged<TrustedObject> value);
 
   static inline void Shared(Tagged<InstructionStream> host, RelocInfo*,
                             Tagged<HeapObject> value);
 
   // It is invoked from generated code and has to take raw addresses.
   static int MarkingFromCode(Address raw_host, Address raw_slot);
-  static int IndirectPointerMarkingFromCode(Address raw_host, Address raw_slot);
+  static int IndirectPointerMarkingFromCode(Address raw_host, Address raw_slot,
+                                            Address raw_tag);
   static int SharedMarkingFromCode(Address raw_host, Address raw_slot);
   static int SharedFromCode(Address raw_host, Address raw_slot);
 
@@ -96,6 +103,8 @@ class V8_EXPORT_PRIVATE WriteBarrier {
 #ifdef ENABLE_SLOW_DCHECKS
   template <typename T>
   static inline bool IsRequired(Tagged<HeapObject> host, T value);
+  template <typename T>
+  static inline bool IsRequired(const HeapObjectLayout* host, T value);
   static bool IsImmortalImmovableHeapObject(Tagged<HeapObject> object);
 #endif
 
@@ -111,6 +120,8 @@ class V8_EXPORT_PRIVATE WriteBarrier {
   static void MarkingSlow(Tagged<DescriptorArray>,
                           int number_of_own_descriptors);
   static void MarkingSlow(Tagged<HeapObject> host, IndirectPointerSlot slot);
+  static void MarkingSlow(Tagged<TrustedObject> host, ProtectedPointerSlot slot,
+                          Tagged<TrustedObject> value);
   static void MarkingSlowFromGlobalHandle(Tagged<HeapObject> value);
   static void MarkingSlowFromInternalFields(Heap* heap, Tagged<JSObject> host);
 

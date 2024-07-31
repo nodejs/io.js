@@ -655,6 +655,8 @@ TEST_FUNCTION_KIND(IsStrictFunctionWithoutPrototype)
 #undef TEST_FUNCTION_KIND
 
 TEST_F(ObjectTest, ConstructorInstanceTypes) {
+  bool flag_was_enabled = i::v8_flags.js_float16array;
+  i::v8_flags.js_float16array = true;
   v8::HandleScope scope(isolate());
 
   Handle<NativeContext> context = i_isolate()->native_context();
@@ -690,6 +692,7 @@ TEST_F(ObjectTest, ConstructorInstanceTypes) {
         break;
     }
   }
+  i::v8_flags.js_float16array = flag_was_enabled;
 }
 
 TEST_F(ObjectTest, AddDataPropertyNameCollision) {

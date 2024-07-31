@@ -33,6 +33,8 @@ uint32_t ExternalPointerTable::SweepAndCompact(Space* space,
   // allocate entries at this point, but some of the methods we call on the
   // space assert that the lock is held.
   base::MutexGuard guard(&space->mutex_);
+  // Same for the invalidated fields mutex.
+  base::MutexGuard invalidated_fields_guard(&space->invalidated_fields_mutex_);
 
   // There must not be any entry allocations while the table is being swept as
   // that would not be safe. Set the freelist to this special marker value to
@@ -53,7 +55,7 @@ uint32_t ExternalPointerTable::SweepAndCompact(Space* space,
       // be completely free.
       outcome = TableCompactionOutcome::kAborted;
       // Extract the original start_of_evacuation_area value so that the
-      // DCHECKs below and in ResolveEvacuationEntryDuringSweeping work.
+      // DCHECKs below and in TryResolveEvacuationEntryDuringSweeping work.
       start_of_evacuation_area &= ~Space::kCompactionAbortedMarker;
     } else {
       // Entry evacuation was successful so all segments inside the evacuation
@@ -79,6 +81,12 @@ uint32_t ExternalPointerTable::SweepAndCompact(Space* space,
   // stopped.
   uint32_t current_freelist_head = 0;
   uint32_t current_freelist_length = 0;
+  auto AddToFreelist = [&](uint32_t entry_index) {
+    at(entry_index).MakeFreelistEntry(current_freelist_head);
+    current_freelist_head = entry_index;
+    current_freelist_length++;
+  };
+
   std::vector<Segment> segments_to_deallocate;
   for (auto segment : base::Reversed(space->segments_)) {
     // If we evacuated all live entries in this segment then we can skip it
@@ -98,6 +106,7 @@ uint32_t ExternalPointerTable::SweepAndCompact(Space* space,
     for (uint32_t i = segment.last_entry(); i >= segment.first_entry(); i--) {
       auto payload = at(i).GetRawPayload();
       if (payload.ContainsEvacuationEntry()) {
+        bool entry_was_resolved = false;
         // Resolve the evacuation entry: take the pointer to the handle from the
         // evacuation entry, copy the entry to its new location, and finally
         // update the handle to point to the new entry.
@@ -107,20 +116,37 @@ uint32_t ExternalPointerTable::SweepAndCompact(Space* space,
         // assume that the segments out of which entries are evacuated will all
         // be decommitted anyway after this loop, which is usually the case
         // unless compaction was already aborted during marking.
-        ExternalPointerHandle* handle_location =
-            reinterpret_cast<ExternalPointerHandle*>(
-                payload.ExtractEvacuationEntryHandleLocation());
-        ResolveEvacuationEntryDuringSweeping(i, handle_location,
-                                             start_of_evacuation_area);
+        Address handle_location =
+            payload.ExtractEvacuationEntryHandleLocation();
+
+        // The field may have been invalidated in the meantime (for example if
+        // the host object has been in-place converted to a different type of
+        // object). In that case, handle_location is invalid so we can't
+        // evacuate the old entry, but that is also not necessary since it is
+        // guaranteed to be dead.
+        if (!space->FieldWasInvalidated(handle_location)) {
+          entry_was_resolved = TryResolveEvacuationEntryDuringSweeping(
+              i, reinterpret_cast<ExternalPointerHandle*>(handle_location),
+              start_of_evacuation_area);
+        }
+
+        // If the evacuation entry hasn't been resolved (for whatever reason),
+        // we must clear it now as we would otherwise have a stale evacuation
+        // entry that we'd try to process again during the next GC.
+        if (!entry_was_resolved) {
+          AddToFreelist(i);
+        }
       } else if (!payload.HasMarkBitSet()) {
-        at(i).MakeFreelistEntry(current_freelist_head);
-        current_freelist_head = i;
-        current_freelist_length++;
+        AddToFreelist(i);
       } else {
         auto new_payload = payload;
         new_payload.ClearMarkBit();
         at(i).SetRawPayload(new_payload);
       }
+
+      // We must have resolved all evacuation entries. Otherwise, we'll try to
+      // process them again during the next GC, which would cause problems.
+      DCHECK(!at(i).HasEvacuationEntry());
     }
 
     // If a segment is completely empty, free it.
@@ -139,6 +165,8 @@ uint32_t ExternalPointerTable::SweepAndCompact(Space* space,
     FreeTableSegment(segment);
     space->segments_.erase(segment);
   }
+
+  space->ClearInvalidatedFields();
 
   FreelistHead new_freelist(current_freelist_head, current_freelist_length);
   space->freelist_head_.store(new_freelist, std::memory_order_release);
@@ -184,33 +212,36 @@ void ExternalPointerTable::Space::StartCompactingIfNeeded() {
   }
 }
 
-void ExternalPointerTable::ResolveEvacuationEntryDuringSweeping(
+bool ExternalPointerTable::TryResolveEvacuationEntryDuringSweeping(
     uint32_t new_index, ExternalPointerHandle* handle_location,
     uint32_t start_of_evacuation_area) {
+  // We must have a valid handle here. If this fails, it might mean that an
+  // object with external pointers was in-place converted to another type of
+  // object without informing the external pointer table.
   ExternalPointerHandle old_handle = *handle_location;
+  CHECK(IsValidHandle(old_handle));
+
   uint32_t old_index = HandleToIndex(old_handle);
   ExternalPointerHandle new_handle = IndexToHandle(new_index);
 
-  // For the compaction algorithm to work optimally, double initialization
-  // of entries is forbidden, see below. This DCHECK can detect double
-  // initialization of external pointer fields in debug builds by checking
-  // that the old_handle was visited during marking.
-  // There's no need to clear the bit from the handle as the handle will be
-  // replaced by a new, unmarked handle.
-  DCHECK(HandleWasVisitedDuringMarking(old_handle));
+  // It can happen that an external pointer field is cleared (set to the null
+  // handle) or even re-initialized between marking and sweeping. In both
+  // cases, compacting the entry is not necessary: if it has been cleared, the
+  // entry should remain cleared. If it has also been re-initialized, the new
+  // table entry must've been allocated at the front of the table, below the
+  // evacuation area (otherwise compaction would've been aborted).
+  if (old_index < start_of_evacuation_area) {
+    return false;
+  }
 
-  // The following DCHECKs assert that the compaction algorithm works
-  // correctly: it always moves an entry from the evacuation area to the
-  // front of the table. One reason this invariant can be broken is if an
-  // external pointer slot is re-initialized, in which case the old_handle
-  // may now also point before the evacuation area. For that reason,
-  // re-initialization of external pointer slots is forbidden.
+  // The compaction algorithm always moves an entry from the evacuation area to
+  // the front of the table. These DCHECKs verify this invariant.
   DCHECK_GE(old_index, start_of_evacuation_area);
   DCHECK_LT(new_index, start_of_evacuation_area);
-
   auto& new_entry = at(new_index);
   at(old_index).UnmarkAndMigrateInto(new_entry);
   *handle_location = new_handle;
+  return true;
 }
 
 }  // namespace internal

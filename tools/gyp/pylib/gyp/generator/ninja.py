@@ -11,6 +11,7 @@ import multiprocessing
 import os.path
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import gyp
@@ -1583,7 +1584,7 @@ class NinjaWriter:
         elif spec["type"] == "static_library":
             self.target.binary = self.ComputeOutput(spec)
             if (
-                self.flavor not in ("mac", "openbsd", "netbsd", "win")
+                self.flavor not in ("ios", "mac", "netbsd", "openbsd", "win")
                 and not self.is_standalone_static_library
             ):
                 self.ninja.build(
@@ -1815,10 +1816,7 @@ class NinjaWriter:
             "executable": default_variables["EXECUTABLE_SUFFIX"],
         }
         extension = spec.get("product_extension")
-        if extension:
-            extension = "." + extension
-        else:
-            extension = DEFAULT_EXTENSION.get(type, "")
+        extension = "." + extension if extension else DEFAULT_EXTENSION.get(type, "")
 
         if "product_name" in spec:
             # If we were given an explicit name, use that.
@@ -2213,6 +2211,7 @@ def GenerateOutputForConfig(target_list, target_dicts, data, params, config_name
     options = params["options"]
     flavor = gyp.common.GetFlavor(params)
     generator_flags = params.get("generator_flags", {})
+    generate_compile_commands = generator_flags.get("compile_commands", False)
 
     # build_dir: relative path from source root to our output files.
     # e.g. "out/Debug"
@@ -2496,7 +2495,7 @@ def GenerateOutputForConfig(target_list, target_dicts, data, params, config_name
             ),
         )
 
-    if flavor != "mac" and flavor != "win":
+    if flavor not in ("ios", "mac", "win"):
         master_ninja.rule(
             "alink",
             description="AR $out",
@@ -2533,7 +2532,7 @@ def GenerateOutputForConfig(target_list, target_dicts, data, params, config_name
             description="SOLINK $lib",
             restat=True,
             command=mtime_preserving_solink_base
-            % {"suffix": "@$link_file_list"},  # noqa: E501
+            % {"suffix": "@$link_file_list"},
             rspfile="$link_file_list",
             rspfile_content=(
                 "-Wl,--whole-archive $in $solibs -Wl," "--no-whole-archive $libs"
@@ -2880,6 +2879,35 @@ def GenerateOutputForConfig(target_list, target_dicts, data, params, config_name
         master_ninja.default(generator_flags.get("default_target", "all"))
 
     master_ninja_file.close()
+
+    if generate_compile_commands:
+        compile_db = GenerateCompileDBWithNinja(toplevel_build)
+        compile_db_file = OpenOutput(
+            os.path.join(toplevel_build, "compile_commands.json")
+        )
+        compile_db_file.write(json.dumps(compile_db, indent=2))
+        compile_db_file.close()
+
+
+def GenerateCompileDBWithNinja(path, targets=["all"]):
+    """Generates a compile database using ninja.
+
+    Args:
+        path: The build directory to generate a compile database for.
+        targets: Additional targets to pass to ninja.
+
+    Returns:
+        List of the contents of the compile database.
+    """
+    ninja_path = shutil.which("ninja")
+    if ninja_path is None:
+        raise Exception("ninja not found in PATH")
+    json_compile_db = subprocess.check_output(
+        [ninja_path, "-C", path]
+        + targets
+        + ["-t", "compdb", "cc", "cxx", "objc", "objcxx"]
+    )
+    return json.loads(json_compile_db)
 
 
 def PerformBuild(data, configurations, params):

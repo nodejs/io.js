@@ -162,12 +162,13 @@ void DecompressionOptimizer::MarkNodeInputs(Node* node) {
       State observed = ElementSizeLog2Of(representation) <= 2
                            ? State::kOnly32BitsObserved
                            : State::kEverythingObserved;
-      // Special case, if we're storing this value as an indirect pointer, then
-      // we need access to all pointer bits since we'll also perform a load (of
-      // the 'self' indirect pointer) from the value being stored.
-      if (representation == MachineRepresentation::kIndirectPointer) {
-        observed = State::kEverythingObserved;
-      }
+
+      // We should never see indirect pointer stores here since they need
+      // kStoreIndirect. For indirect pointer stores we always need all pointer
+      // bits since we'll also perform a load (of the 'self' indirect pointer)
+      // from the value being stored.
+      DCHECK_NE(representation, MachineRepresentation::kIndirectPointer);
+
       MaybeMarkAndQueueForRevisit(node->InputAt(2), observed);  // value
       if (node->opcode() == IrOpcode::kStorePair) {
         MaybeMarkAndQueueForRevisit(node->InputAt(3), observed);  // value 2

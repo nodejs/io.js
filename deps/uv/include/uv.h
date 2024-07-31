@@ -1106,7 +1106,14 @@ enum uv_process_flags {
    * option is only meaningful on Windows systems. On Unix it is silently
    * ignored.
    */
-  UV_PROCESS_WINDOWS_HIDE_GUI = (1 << 6)
+  UV_PROCESS_WINDOWS_HIDE_GUI = (1 << 6),
+  /*
+   * On Windows, if the path to the program to execute, specified in
+   * uv_process_options_t's file field, has a directory component,
+   * search for the exact file name before trying variants with
+   * extensions like '.exe' or '.cmd'.
+   */
+  UV_PROCESS_WINDOWS_FILE_PATH_EXACT_NAME = (1 << 7)
 };
 
 /*
@@ -1283,6 +1290,17 @@ UV_EXTERN uv_pid_t uv_os_getppid(void);
 
 UV_EXTERN int uv_os_getpriority(uv_pid_t pid, int* priority);
 UV_EXTERN int uv_os_setpriority(uv_pid_t pid, int priority);
+
+enum {
+  UV_THREAD_PRIORITY_HIGHEST = 2,
+  UV_THREAD_PRIORITY_ABOVE_NORMAL = 1,
+  UV_THREAD_PRIORITY_NORMAL = 0,
+  UV_THREAD_PRIORITY_BELOW_NORMAL = -1,
+  UV_THREAD_PRIORITY_LOWEST = -2,
+};
+
+UV_EXTERN int uv_thread_getpriority(uv_thread_t tid, int* priority);
+UV_EXTERN int uv_thread_setpriority(uv_thread_t tid, int priority);
 
 UV_EXTERN unsigned int uv_available_parallelism(void);
 UV_EXTERN int uv_cpu_info(uv_cpu_info_t** cpu_infos, int* count);
@@ -1884,6 +1902,18 @@ struct uv_loop_s {
 
 UV_EXTERN void* uv_loop_get_data(const uv_loop_t*);
 UV_EXTERN void uv_loop_set_data(uv_loop_t*, void* data);
+
+/* String utilities needed internally for dealing with Windows. */
+size_t uv_utf16_length_as_wtf8(const uint16_t* utf16,
+                               ssize_t utf16_len);
+int uv_utf16_to_wtf8(const uint16_t* utf16,
+                     ssize_t utf16_len,
+                     char** wtf8_ptr,
+                     size_t* wtf8_len_ptr);
+ssize_t uv_wtf8_length_as_utf16(const char* wtf8);
+void uv_wtf8_to_utf16(const char* wtf8,
+                      uint16_t* utf16,
+                      size_t utf16_len);
 
 /* Don't export the private CPP symbols. */
 #undef UV_HANDLE_TYPE_PRIVATE

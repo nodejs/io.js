@@ -936,8 +936,6 @@ while (@argvcopy)
                 if (/^--prefix=(.*)$/)
                         {
                         $config{prefix}=$1;
-                        die "Directory given with --prefix MUST be absolute\n"
-                                unless file_name_is_absolute($config{prefix});
                         }
                 elsif (/^--api=(.*)$/)
                         {
@@ -1379,6 +1377,11 @@ foreach (keys %useradd) {
 }
 # At this point, we can forget everything about %user and %useradd,
 # because it's now all been merged into the corresponding $config entry
+
+if ($config{prefix} && !$config{CROSS_COMPILE}) {
+    die "Directory given with --prefix MUST be absolute\n"
+        unless file_name_is_absolute($config{prefix});
+}
 
 if (grep { $_ =~ /(?:^|\s)-static(?:\s|$)/ } @{$config{LDFLAGS}}) {
     disable('static', 'pic', 'threads');
@@ -1835,11 +1838,12 @@ if ($builder eq "unified") {
         my $base = shift;
         my $dir = shift;
         my $relativeto = shift || ".";
+        my $no_mkpath = shift // 0;
 
         $dir = catdir($base,$dir) unless isabsolute($dir);
 
         # Make sure the directories we're building in exists
-        mkpath($dir);
+        mkpath($dir) unless $no_mkpath;
 
         my $res = abs2rel(absolutedir($dir), rel2abs($relativeto));
         #print STDERR "DEBUG[cleandir]: $dir , $base => $res\n";
@@ -1850,6 +1854,7 @@ if ($builder eq "unified") {
         my $base = shift;
         my $file = shift;
         my $relativeto = shift || ".";
+        my $no_mkpath = shift // 0;
 
         $file = catfile($base,$file) unless isabsolute($file);
 
@@ -1857,7 +1862,7 @@ if ($builder eq "unified") {
         my $f = basename($file);
 
         # Make sure the directories we're building in exists
-        mkpath($d);
+        mkpath($d) unless $no_mkpath;
 
         my $res = abs2rel(catfile(absolutedir($d), $f), rel2abs($relativeto));
         #print STDERR "DEBUG[cleanfile]: $d , $f => $res\n";
@@ -1887,7 +1892,7 @@ if ($builder eq "unified") {
     }
     # Then, look in our standard directory
     push @build_file_templates,
-        ( map { cleanfile($srcdir, catfile("Configurations", $_), $blddir) }
+        ( map { cleanfile($srcdir, catfile("Configurations", $_), $blddir, 1) }
           @build_file_template_names );
 
     my $build_file_template;
@@ -1902,7 +1907,7 @@ if ($builder eq "unified") {
     }
     $config{build_file_templates}
       = [ cleanfile($srcdir, catfile("Configurations", "common0.tmpl"),
-                    $blddir),
+                    $blddir, 1),
            $build_file_template ];
 
     my @build_dirs = ( [ ] );   # current directory
@@ -1911,7 +1916,7 @@ if ($builder eq "unified") {
 
     # We want to detect configdata.pm in the source tree, so we
     # don't use it if the build tree is different.
-    my $src_configdata = cleanfile($srcdir, "configdata.pm", $blddir);
+    my $src_configdata = cleanfile($srcdir, "configdata.pm", $blddir, 1);
 
     # Any source file that we recognise is placed in this hash table, with
     # the list of its intended destinations as value.  When everything has
@@ -2264,7 +2269,7 @@ EOF
             my $dest = $_;
             my $ddest = cleanfile($buildd, $_, $blddir);
             foreach (@{$sources{$dest}}) {
-                my $s = cleanfile($sourced, $_, $blddir);
+                my $s = cleanfile($sourced, $_, $blddir, 1);
 
                 # If it's generated or we simply don't find it in the source
                 # tree, we assume it's in the build tree.
@@ -2309,7 +2314,7 @@ EOF
             my $dest = $_;
             my $ddest = cleanfile($buildd, $_, $blddir);
             foreach (@{$shared_sources{$dest}}) {
-                my $s = cleanfile($sourced, $_, $blddir);
+                my $s = cleanfile($sourced, $_, $blddir, 1);
 
                 # If it's generated or we simply don't find it in the source
                 # tree, we assume it's in the build tree.
@@ -2364,7 +2369,7 @@ EOF
                 if scalar @{$generate{$_}} > 1;
             my @generator = split /\s+/, $generate{$dest}->[0];
             my $gen = $generator[0];
-            $generator[0] = cleanfile($sourced, $gen, $blddir);
+            $generator[0] = cleanfile($sourced, $gen, $blddir, 1);
 
             # If the generator is itself generated, it's in the build tree
             if ($generate{$gen} || ! -f $generator[0]) {
@@ -2390,7 +2395,7 @@ EOF
             } elsif ($dest eq '') {
                 $ddest = '';
             } else {
-                $ddest = cleanfile($sourced, $_, $blddir);
+                $ddest = cleanfile($sourced, $_, $blddir, 1);
 
                 # If the destination doesn't exist in source, it can only be
                 # a generated file in the build tree.
@@ -2399,7 +2404,7 @@ EOF
                 }
             }
             foreach (@{$depends{$dest}}) {
-                my $d = cleanfile($sourced, $_, $blddir);
+                my $d = cleanfile($sourced, $_, $blddir, 1);
                 my $d2 = cleanfile($buildd, $_, $blddir);
 
                 # If we know it's generated, or assume it is because we can't
@@ -2422,7 +2427,7 @@ EOF
 
         foreach (keys %includes) {
             my $dest = $_;
-            my $ddest = cleanfile($sourced, $_, $blddir);
+            my $ddest = cleanfile($sourced, $_, $blddir, 1);
 
             # If the destination doesn't exist in source, it can only be
             # a generated file in the build tree.
@@ -2430,7 +2435,7 @@ EOF
                 $ddest = cleanfile($buildd, $_, $blddir);
             }
             foreach (@{$includes{$dest}}) {
-                my $is = cleandir($sourced, $_, $blddir);
+                my $is = cleandir($sourced, $_, $blddir, 1);
                 my $ib = cleandir($buildd, $_, $blddir);
                 push @{$unified_info{includes}->{$ddest}->{source}}, $is
                     unless grep { $_ eq $is } @{$unified_info{includes}->{$ddest}->{source}};
@@ -2443,7 +2448,7 @@ EOF
             my $ddest;
 
             if ($dest ne "") {
-                $ddest = cleanfile($sourced, $dest, $blddir);
+                $ddest = cleanfile($sourced, $dest, $blddir, 1);
 
                 # If the destination doesn't exist in source, it can only
                 # be a generated file in the build tree.
@@ -2825,7 +2830,7 @@ my %template_vars = (
 my $configdata_outname = 'configdata.pm';
 open CONFIGDATA, ">$configdata_outname.new"
     or die "Trying to create $configdata_outname.new: $!";
-my $configdata_tmplname = cleanfile($srcdir, "configdata.pm.in", $blddir);
+my $configdata_tmplname = cleanfile($srcdir, "configdata.pm.in", $blddir, 1);
 my $configdata_tmpl =
     OpenSSL::Template->new(TYPE => 'FILE', SOURCE => $configdata_tmplname);
 $configdata_tmpl->fill_in(

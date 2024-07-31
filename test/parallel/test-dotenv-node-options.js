@@ -62,17 +62,4 @@ describe('.env supports NODE_OPTIONS', () => {
     assert.strictEqual(child.code, 0);
   });
 
-  it('should update UV_THREADPOOL_SIZE', async () => {
-    const code = `
-      require('assert').strictEqual(process.env.UV_THREADPOOL_SIZE, '5')
-    `.trim();
-    const child = await common.spawnPromisified(
-      process.execPath,
-      [ `--env-file=${relativePath}`, '--eval', code ],
-      { cwd: __dirname },
-    );
-    assert.strictEqual(child.stderr, '');
-    assert.strictEqual(child.code, 0);
-  });
-
 });

@@ -1,5 +1,5 @@
-const log = require('./log-shim')
-const replaceInfo = require('./replace-info.js')
+const { log, output } = require('proc-log')
+const { redactLog: replaceInfo } = require('@npmcli/redact')
 
 // print an error or just nothing if the audit report has an error
 // this is called by the audit command, and by the reify-output util
@@ -22,16 +22,16 @@ const auditError = (npm, report) => {
   const { body: errBody } = error
   const body = Buffer.isBuffer(errBody) ? errBody.toString() : errBody
   if (npm.flatOptions.json) {
-    npm.output(JSON.stringify({
+    output.buffer({
       message: error.message,
       method: error.method,
       uri: replaceInfo(error.uri),
       headers: error.headers,
       statusCode: error.statusCode,
       body,
-    }, null, 2))
+    })
   } else {
-    npm.output(body)
+    output.standard(body)
   }
 
   throw 'audit endpoint returned an error'

@@ -1416,13 +1416,123 @@ function TestHelperPrototypeSurface(helper) {
   assertEquals(undefined, iter.find(v => v > 4));
 })();
 
-// --- Test toStringTag
+// --- Test toStringTag and constructor
+// https://github.com/tc39/test262/pull/3970
 
-(function TestToStringTag() {
+(function TestIteratorPrototypeToStringTag() {
   const descriptor =
       Object.getOwnPropertyDescriptor(Iterator.prototype, Symbol.toStringTag);
-  assertEquals('Iterator', descriptor.value);
-  assertTrue(descriptor.writable);
-  assertFalse(descriptor.enumerable);
   assertTrue(descriptor.configurable);
+  assertFalse(descriptor.enumerable);
+  assertEquals(typeof descriptor.get, 'function');
+  assertEquals(typeof descriptor.set, 'function');
+  assertEquals(descriptor.value, undefined);
+  assertEquals(descriptor.writable, undefined);
+})();
+
+(function TestIteratorPrototypeToStringTagSetter() {
+  let IteratorPrototype =
+      Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]()))
+  let GeneratorPrototype = Object.getPrototypeOf(function*() {}.prototype);
+
+  let sentinel = 'a';
+
+  let {get, set} =
+      Object.getOwnPropertyDescriptor(Iterator.prototype, Symbol.toStringTag);
+
+  assertEquals(Iterator.prototype[Symbol.toStringTag], 'Iterator');
+  assertEquals(get.call(), 'Iterator');
+
+  // 1. If _this_ is not an Object, then
+  //   a. Throw a *TypeError* exception.
+  assertThrows(() => set.call(undefined, ''));
+  assertThrows(() => set.call(null, ''));
+  assertThrows(() => set.call(true, ''));
+
+  // 2. If _this_ is _home_, then
+  //   a. NOTE: Throwing here emulates assignment to a non-writable data
+  //   property on the _home_ object in strict mode code. b. Throw a *TypeError*
+  //   exception.
+  assertThrows(() => set.call(IteratorPrototype, ''));
+  assertThrows(() => IteratorPrototype[Symbol.toStringTag] = '');
+
+  assertEquals(Iterator.prototype[Symbol.toStringTag], 'Iterator');
+  assertEquals(get.call(), 'Iterator');
+
+  // 3. If _desc_ is *undefined*, then
+  //   a. Perform ? CreateDataPropertyOrThrow(_this_, _p_, _v_).
+  let o = {};
+  set.call(o, sentinel);
+  assertEquals(o[Symbol.toStringTag], sentinel);
+
+  assertEquals(Iterator.prototype[Symbol.toStringTag], 'Iterator');
+  assertEquals(get.call(), 'Iterator');
+
+  // 4. Else,
+  //   a. Perform ? Set(_this_, _p_, _v_, *true*).
+  let proto = Object.create(IteratorPrototype);
+  proto[Symbol.toStringTag] = sentinel;
+  assertEquals(proto[Symbol.toStringTag], sentinel);
+
+  assertEquals(Iterator.prototype[Symbol.toStringTag], 'Iterator');
+  assertEquals(get.call(), 'Iterator');
+})();
+
+(function TestIteratorPrototypeConstructor() {
+  const descriptor =
+      Object.getOwnPropertyDescriptor(Iterator.prototype, 'constructor');
+  assertTrue(descriptor.configurable);
+  assertFalse(descriptor.enumerable);
+  assertEquals(typeof descriptor.get, 'function');
+  assertEquals(typeof descriptor.set, 'function');
+  assertEquals(descriptor.value, undefined);
+  assertEquals(descriptor.writable, undefined);
+})();
+
+(function TestIteratorPrototypeConstructorSetter() {
+  let IteratorPrototype =
+      Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]()))
+  let GeneratorPrototype = Object.getPrototypeOf(function*() {}.prototype);
+
+  let sentinel = {};
+
+  let {get, set} =
+      Object.getOwnPropertyDescriptor(Iterator.prototype, 'constructor');
+
+  assertEquals(Iterator.prototype.constructor, Iterator);
+  assertEquals(get.call(), Iterator);
+
+  // 1. If _this_ is not an Object, then
+  //   a. Throw a *TypeError* exception.
+  assertThrows(() => set.call(undefined, ''));
+  assertThrows(() => set.call(null, ''));
+  assertThrows(() => set.call(true, ''));
+
+  // 2. If _this_ is _home_, then
+  //   a. NOTE: Throwing here emulates assignment to a non-writable data
+  //   property on the _home_ object in strict mode code. b. Throw a *TypeError*
+  //   exception.
+  assertThrows(() => set.call(IteratorPrototype, ''));
+  assertThrows(() => IteratorPrototype.constructor = '');
+
+  assertEquals(Iterator.prototype.constructor, Iterator);
+  assertEquals(get.call(), Iterator);
+
+  // 3. If _desc_ is *undefined*, then
+  //   a. Perform ? CreateDataPropertyOrThrow(_this_, _p_, _v_).
+  let o = {};
+  set.call(o, sentinel);
+  assertEquals(o.constructor, sentinel);
+
+  assertEquals(Iterator.prototype.constructor, Iterator);
+  assertEquals(get.call(), Iterator);
+
+  // 4. Else,
+  //   a. Perform ? Set(_this_, _p_, _v_, *true*).
+  let proto = Object.create(IteratorPrototype);
+  proto.constructor = sentinel;
+  assertEquals(proto.constructor, sentinel);
+
+  assertEquals(Iterator.prototype.constructor, Iterator);
+  assertEquals(get.call(), Iterator);
 })();

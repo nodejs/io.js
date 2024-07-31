@@ -72,7 +72,9 @@ class ObserveSIMD256Scope {
           });                                                             \
   ObserveSIMD256Scope scope(CcTest::InitIsolateOnce(), observer);         \
   r.Build({__VA_ARGS__});                                                 \
-  CHECK(find_expected_node);
+  if (!v8_flags.turboshaft_wasm) {                                        \
+    CHECK(find_expected_node);                                            \
+  }
 
 #endif  // V8_ENABLE_WASM_SIMD256_REVEC
 

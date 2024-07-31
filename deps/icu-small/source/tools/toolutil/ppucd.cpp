@@ -29,24 +29,6 @@ U_NAMESPACE_BEGIN
 
 PropertyNames::~PropertyNames() {}
 
-// TODO: Create a concrete subclass for the default PropertyNames implementation
-// using the ICU library built-in property names API & data.
-// Currently only the genprops tool uses PreparsedUCD, and provides its own
-// PropertyNames implementation using its just-build property names data and its own code.
-// At some point, we should use PreparsedUCD in tests, and then we will need the
-// default implementation somewhere.
-#if 0
-int32_t
-PropertyNames::getPropertyEnum(const char *name) const {
-    return u_getPropertyEnum(name);
-}
-
-int32_t
-PropertyNames::getPropertyValueEnum(int32_t property, const char *name) const {
-    return u_getPropertyValueEnum((UProperty)property, name);
-}
-#endif
-
 UniProps::UniProps()
         : start(U_SENTINEL), end(U_SENTINEL),
           bmg(U_SENTINEL), bpb(U_SENTINEL),
@@ -496,6 +478,9 @@ PreparsedUCD::parseProperty(UniProps &props, const char *field, UnicodeSet &newV
         case UCHAR_SCRIPT_EXTENSIONS:
             parseScriptExtensions(v, props.scx, errorCode);
             break;
+        case UCHAR_IDENTIFIER_TYPE:
+            parseIdentifierType(v, props.idType, errorCode);
+            break;
         default:
             // Ignore unhandled properties.
             return true;
@@ -615,6 +600,50 @@ PreparsedUCD::parseScriptExtensions(const char *s, UnicodeSet &scx, UErrorCode &
     }
     if(scx.isEmpty()) {
         fprintf(stderr, "error in preparsed UCD: empty scx= on line %ld\n", (long)lineNumber);
+        errorCode=U_PARSE_ERROR;
+    }
+}
+
+void
+PreparsedUCD::parseIdentifierType(const char *s, UnicodeSet &idType, UErrorCode &errorCode) {
+    if(U_FAILURE(errorCode)) { return; }
+    idType.clear();
+    CharString typeString;
+    for(;;) {
+        const char *typeChars;
+        const char *limit=strchr(s, ' ');
+        if(limit!=nullptr) {
+            typeChars=typeString.clear().append(s, (int32_t)(limit-s), errorCode).data();
+            if(U_FAILURE(errorCode)) { return; }
+        } else {
+            typeChars=s;
+        }
+        int32_t type=pnames->getPropertyValueEnum(UCHAR_IDENTIFIER_TYPE, typeChars);
+        if(type==UCHAR_INVALID_CODE) {
+            fprintf(stderr,
+                    "error in preparsed UCD: '%s' is not a valid Identifier_Type on line %ld\n",
+                    typeChars, (long)lineNumber);
+            errorCode=U_PARSE_ERROR;
+            return;
+        } else if(idType.contains(type)) {
+            fprintf(stderr,
+                    "error in preparsed UCD: Identifier_Type has duplicate '%s' values on line %ld\n",
+                    typeChars, (long)lineNumber);
+            errorCode=U_PARSE_ERROR;
+            return;
+        } else {
+            idType.add(type);
+        }
+        if(limit!=nullptr) {
+            s=limit+1;
+        } else {
+            break;
+        }
+    }
+    if(idType.isEmpty()) {
+        fprintf(stderr,
+                "error in preparsed UCD: empty Identifier_Type= on line %ld\n",
+                (long)lineNumber);
         errorCode=U_PARSE_ERROR;
     }
 }

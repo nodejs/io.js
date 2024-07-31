@@ -1,0 +1,43 @@
+TAP version 13
+# Subtest: unfinished suite with asynchronous error
+    # Subtest: uses callback
+    not ok 1 - uses callback
+      ---
+      duration_ms: *
+      location: '/test/fixtures/test-runner/output/unfinished-suite-async-error.js:(LINE):3'
+      failureType: 'uncaughtException'
+      error: 'callback test does not complete'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        *
+        *
+      ...
+    # Subtest: should pass 1
+    ok 2 - should pass 1
+      ---
+      duration_ms: *
+      ...
+    1..2
+not ok 1 - unfinished suite with asynchronous error
+  ---
+  duration_ms: *
+  type: 'suite'
+  location: '/test/fixtures/test-runner/output/unfinished-suite-async-error.js:(LINE):1'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: should pass 2
+ok 2 - should pass 2
+  ---
+  duration_ms: *
+  ...
+1..2
+# tests 3
+# suites 1
+# pass 2
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms *

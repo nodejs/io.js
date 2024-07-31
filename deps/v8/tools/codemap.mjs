@@ -65,11 +65,11 @@ export class CodeMap {
    */
   pages_ = new Set();
 
-  constructor(useBigInt=false) {
-    this.useBigInt = useBigInt;
-    this.kPageSize = useBigInt ? BigInt(kPageSize) : kPageSize;
-    this.kOne = useBigInt ? 1n : 1;
-    this.kZero = useBigInt ? 0n : 0;
+  constructor(useBigIntAddresses=false) {
+    this.useBigIntAddresses = useBigIntAddresses;
+    this.kPageSize = useBigIntAddresses ? BigInt(kPageSize) : kPageSize;
+    this.kOne = useBigIntAddresses ? 1n : 1;
+    this.kZero = useBigIntAddresses ? 0n : 0;
   }
 
   /**

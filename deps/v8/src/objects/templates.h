@@ -5,7 +5,11 @@
 #ifndef V8_OBJECTS_TEMPLATES_H_
 #define V8_OBJECTS_TEMPLATES_H_
 
+#include <string_view>
+
+#include "include/v8-memory-span.h"
 #include "src/handles/handles.h"
+#include "src/objects/contexts.h"
 #include "src/objects/struct.h"
 #include "torque-generated/bit-fields.h"
 
@@ -21,7 +25,8 @@ namespace internal {
 
 #include "torque-generated/src/objects/templates-tq.inc"
 
-class TemplateInfo : public TorqueGeneratedTemplateInfo<TemplateInfo, Struct> {
+class TemplateInfo
+    : public TorqueGeneratedTemplateInfo<TemplateInfo, HeapObject> {
  public:
   static const int kFastTemplateInstantiationsCacheSize = 1 * KB;
 
@@ -44,6 +49,30 @@ class TemplateInfo : public TorqueGeneratedTemplateInfo<TemplateInfo, Struct> {
   inline Isolate* GetIsolateChecked() const;
 
   using BodyDescriptor = StructBodyDescriptor;
+
+  // Whether or not to cache every instance: when we materialize a getter or
+  // setter from an lazy AccessorPair, we rely on this cache to be able to
+  // always return the same getter or setter. However, objects will be cloned
+  // anyways, so it's not observable if we didn't cache an instance.
+  // Furthermore, a badly behaved embedder might create an unlimited number of
+  // objects, so we limit the cache for those cases.
+  enum class CachingMode { kLimited, kUnlimited };
+
+  template <typename ReturnType>
+  static MaybeHandle<ReturnType> ProbeInstantiationsCache(
+      Isolate* isolate, DirectHandle<NativeContext> native_context,
+      int serial_number, CachingMode caching_mode);
+
+  template <typename InstantiationType, typename TemplateInfoType>
+  static void CacheTemplateInstantiation(
+      Isolate* isolate, DirectHandle<NativeContext> native_context,
+      DirectHandle<TemplateInfoType> data, CachingMode caching_mode,
+      Handle<InstantiationType> object);
+
+  template <typename TemplateInfoType>
+  static void UncacheTemplateInstantiation(
+      Isolate* isolate, DirectHandle<NativeContext> native_context,
+      DirectHandle<TemplateInfoType> data, CachingMode caching_mode);
 
   TQ_OBJECT_CONSTRUCTORS(TemplateInfo)
 };
@@ -98,7 +127,7 @@ class FunctionTemplateInfo
   // upon first instantiation if it's Undefined.
   DECL_RARE_ACCESSORS(instance_template, InstanceTemplate, HeapObject)
 
-  // Either a CallHandlerInfo or Undefined. If an instance_call_handler is
+  // Either a FunctionTemplateInfo or Undefined. If an instance_call_handler is
   // provided the instances created from the associated JSFunction are marked as
   // callable.
   DECL_RARE_ACCESSORS(instance_call_handler, InstanceCallHandler, HeapObject)
@@ -108,11 +137,19 @@ class FunctionTemplateInfo
   DECL_RARE_ACCESSORS(c_function_overloads, CFunctionOverloads, FixedArray)
 #undef DECL_RARE_ACCESSORS
 
+  DECL_RELAXED_UINT32_ACCESSORS(flag)
+
   // Begin flag bits ---------------------
+
+  // This FunctionTemplateInfo is just a storage for callback function and
+  // callback data for a callable ObjectTemplate object.
+  DECL_BOOLEAN_ACCESSORS(is_object_template_call_handler)
+
+  DECL_BOOLEAN_ACCESSORS(has_side_effects)
+
   DECL_BOOLEAN_ACCESSORS(undetectable)
 
-  // If set, object instances created by this function
-  // requires access check.
+  // If set, object instances created by this function requires access check.
   DECL_BOOLEAN_ACCESSORS(needs_access_check)
 
   DECL_BOOLEAN_ACCESSORS(read_only_prototype)
@@ -133,12 +170,17 @@ class FunctionTemplateInfo
 
   // This specifies the permissable range of instance type of objects that can
   // be allowed to be used as receivers with the given template.
-  DECL_INT16_ACCESSORS(allowed_receiver_instance_type_range_start)
-  DECL_INT16_ACCESSORS(allowed_receiver_instance_type_range_end)
+  DECL_PRIMITIVE_GETTER(allowed_receiver_instance_type_range_start,
+                        InstanceType)
+  DECL_PRIMITIVE_GETTER(allowed_receiver_instance_type_range_end, InstanceType)
+
   // End flag bits ---------------------
 
-  inline int InstanceType() const;
-  inline void SetInstanceType(int instance_type);
+  inline InstanceType GetInstanceType() const;
+  inline void SetInstanceType(int api_instance_type);
+
+  inline void SetAllowedReceiverInstanceTypeRange(int api_instance_type_start,
+                                                  int api_instance_type_end);
 
   static Handle<SharedFunctionInfo> GetOrCreateSharedFunctionInfo(
       Isolate* isolate, Handle<FunctionTemplateInfo> info,
@@ -181,12 +223,42 @@ class FunctionTemplateInfo
   // Bit position in the flag, from least significant bit position.
   DEFINE_TORQUE_GENERATED_FUNCTION_TEMPLATE_INFO_FLAGS()
 
-  using BodyDescriptor = StructBodyDescriptor;
+  // This is a wrapper around |maybe_redirected_callback| accessor which
+  // returns/accepts C function and converts the value from and to redirected
+  // pointer.
+  DECL_EXTERNAL_POINTER_ACCESSORS_MAYBE_READ_ONLY_HOST(callback, Address)
+  inline void init_callback_redirection(i::IsolateForSandbox isolate);
+  inline void remove_callback_redirection(i::IsolateForSandbox isolate);
+
+  template <class IsolateT>
+  inline bool has_callback(IsolateT* isolate) const;
+
+  DECL_PRINTER(FunctionTemplateInfo)
+
+  class BodyDescriptor;
 
  private:
+  // When simulator is enabled the field stores the "redirected" address of the
+  // C function (the one that's callabled from simulated compiled code), in
+  // this case the original address of the C function has to be taken from the
+  // redirection.
+  // For native builds the field contains the address of the C function.
+  // This field is initialized implicitly via respective |callback|-related
+  // methods.
+  DECL_EXTERNAL_POINTER_ACCESSORS_MAYBE_READ_ONLY_HOST(
+      maybe_redirected_callback, Address)
+
   // For ease of use of the BITFIELD macro.
   inline int32_t relaxed_flag() const;
   inline void set_relaxed_flag(int32_t flags);
+
+  // Enforce using SetInstanceType() and SetAllowedReceiverInstanceTypeRange()
+  // instead of raw accessors.
+  using TorqueGeneratedFunctionTemplateInfo<FunctionTemplateInfo,
+                                            TemplateInfo>::set_instance_type;
+  DECL_PRIMITIVE_SETTER(allowed_receiver_instance_type_range_start,
+                        InstanceType)
+  DECL_PRIMITIVE_SETTER(allowed_receiver_instance_type_range_end, InstanceType)
 
   static constexpr int kNoJSApiObjectType = 0;
   static inline Tagged<FunctionTemplateRareData> EnsureFunctionTemplateRareData(
@@ -218,6 +290,25 @@ class ObjectTemplateInfo
   DEFINE_TORQUE_GENERATED_OBJECT_TEMPLATE_INFO_FLAGS()
 
   TQ_OBJECT_CONSTRUCTORS(ObjectTemplateInfo)
+};
+
+class DictionaryTemplateInfo
+    : public TorqueGeneratedDictionaryTemplateInfo<DictionaryTemplateInfo,
+                                                   HeapObject> {
+ public:
+  class BodyDescriptor;
+
+  static Handle<DictionaryTemplateInfo> Create(
+      Isolate* isolate, const v8::MemorySpan<const std::string_view>& names);
+
+  static Handle<JSObject> NewInstance(
+      DirectHandle<NativeContext> context,
+      DirectHandle<DictionaryTemplateInfo> self,
+      const MemorySpan<MaybeLocal<Value>>& property_values);
+
+  NEVER_READ_ONLY_SPACE
+
+  TQ_OBJECT_CONSTRUCTORS(DictionaryTemplateInfo)
 };
 
 }  // namespace internal

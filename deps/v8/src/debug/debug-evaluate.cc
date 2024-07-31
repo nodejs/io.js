@@ -35,9 +35,10 @@ static MaybeHandle<SharedFunctionInfo> GetFunctionInfo(Isolate* isolate,
   ScriptDetails script_details(isolate->factory()->empty_string(),
                                ScriptOriginOptions(true, true));
   script_details.repl_mode = repl_mode;
+  ScriptCompiler::CompilationDetails compilation_details;
   return Compiler::GetSharedFunctionInfoForScript(
       isolate, source, script_details, ScriptCompiler::kNoCompileOptions,
-      ScriptCompiler::kNoCacheNoReason, NOT_NATIVES_CODE);
+      ScriptCompiler::kNoCacheNoReason, NOT_NATIVES_CODE, &compilation_details);
 }
 }  // namespace
 
@@ -51,25 +52,14 @@ MaybeHandle<Object> DebugEvaluate::Global(Isolate* isolate,
   }
 
   Handle<NativeContext> context = isolate->native_context();
-  Handle<JSFunction> fun =
+  Handle<JSFunction> function =
       Factory::JSFunctionBuilder{isolate, shared_info, context}.Build();
 
-  return Global(isolate, fun, mode, repl_mode);
-}
-
-MaybeHandle<Object> DebugEvaluate::Global(Isolate* isolate,
-                                          Handle<JSFunction> function,
-                                          debug::EvaluateGlobalMode mode,
-                                          REPLMode repl_mode) {
-  // Disable breaks in side-effect free mode.
   DisableBreak disable_break_scope(
       isolate->debug(),
       mode == debug::EvaluateGlobalMode::kDisableBreaks ||
           mode ==
               debug::EvaluateGlobalMode::kDisableBreaksAndThrowOnSideEffect);
-
-  Handle<NativeContext> context = isolate->native_context();
-  CHECK_EQ(function->native_context(), *context);
 
   if (mode == debug::EvaluateGlobalMode::kDisableBreaksAndThrowOnSideEffect) {
     isolate->debug()->StartSideEffectCheckMode();
@@ -121,7 +111,7 @@ MaybeHandle<Object> DebugEvaluate::Local(Isolate* isolate,
   // Note that the native context is taken from the original context chain,
   // which may not be the current native context of the isolate.
   ContextBuilder context_builder(isolate, frame, inlined_jsframe_index);
-  if (isolate->has_pending_exception()) return {};
+  if (isolate->has_exception()) return {};
 
   Handle<Context> context = context_builder.evaluation_context();
   Handle<JSObject> receiver(context->global_proxy(), isolate);
@@ -197,7 +187,7 @@ MaybeHandle<Object> DebugEvaluate::Evaluate(
   success = Execution::Call(isolate, eval_fun, receiver, 0, nullptr)
                 .ToHandle(&result);
   if (throw_on_side_effect) isolate->debug()->StopSideEffectCheckMode();
-  if (!success) DCHECK(isolate->has_pending_exception());
+  if (!success) DCHECK(isolate->has_exception());
   return success ? result : MaybeHandle<Object>();
 }
 
@@ -322,13 +312,13 @@ bool DebugEvaluate::IsSideEffectFreeIntrinsic(Runtime::FunctionId id) {
   V(ToString)                            \
   /* Type checks */                      \
   V(IsArray)                             \
-  V(IsFunction)                          \
   V(IsJSProxy)                           \
   V(IsJSReceiver)                        \
   V(IsRegExp)                            \
   V(IsSmi)                               \
   /* Loads */                            \
   V(LoadLookupSlotForCall)               \
+  V(GetPrivateMember)                    \
   V(GetProperty)                         \
   /* Arrays */                           \
   V(ArraySpeciesConstructor)             \
@@ -658,6 +648,7 @@ DebugInfo::SideEffectState BuiltinGetSideEffectState(Builtin id) {
     case Builtin::kDataViewPrototypeGetUint16:
     case Builtin::kDataViewPrototypeGetInt32:
     case Builtin::kDataViewPrototypeGetUint32:
+    case Builtin::kDataViewPrototypeGetFloat16:
     case Builtin::kDataViewPrototypeGetFloat32:
     case Builtin::kDataViewPrototypeGetFloat64:
     case Builtin::kDataViewPrototypeGetBigInt64:
@@ -733,6 +724,7 @@ DebugInfo::SideEffectState BuiltinGetSideEffectState(Builtin id) {
     case Builtin::kMathCosh:
     case Builtin::kMathExp:
     case Builtin::kMathFloor:
+    case Builtin::kMathF16round:
     case Builtin::kMathFround:
     case Builtin::kMathHypot:
     case Builtin::kMathImul:
@@ -874,6 +866,9 @@ DebugInfo::SideEffectState BuiltinGetSideEffectState(Builtin id) {
     case Builtin::kConstructWithArrayLike:
     case Builtin::kGetOwnPropertyDescriptor:
     case Builtin::kOrdinaryGetOwnPropertyDescriptor:
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+    case Builtin::kGetContinuationPreservedEmbedderData:
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
       return DebugInfo::kHasNoSideEffect;
 
 #ifdef V8_INTL_SUPPORT
@@ -1072,7 +1067,7 @@ DebugInfo::SideEffectState DebugEvaluate::FunctionGetSideEffectState(
     return requires_runtime_checks ? DebugInfo::kRequiresRuntimeChecks
                                    : DebugInfo::kHasNoSideEffect;
   } else if (info->IsApiFunction()) {
-    Code code = info->GetCode(isolate);
+    Tagged<Code> code = info->GetCode(isolate);
     if (code->is_builtin()) {
       return code->builtin_id() == Builtin::kHandleApiCallOrConstruct
                  ? DebugInfo::kHasNoSideEffect
@@ -1141,8 +1136,8 @@ static bool TransitivelyCalledBuiltinHasNoSideEffect(Builtin caller,
     case Builtin::kFastNewObject:
     case Builtin::kFindOrderedHashMapEntry:
     case Builtin::kFindOrderedHashSetEntry:
-    case Builtin::kFlatMapIntoArray:
-    case Builtin::kFlattenIntoArray:
+    case Builtin::kFlattenIntoArrayWithMapFn:
+    case Builtin::kFlattenIntoArrayWithoutMapFn:
     case Builtin::kGenericArrayToReversed:
     case Builtin::kGenericArrayWith:
     case Builtin::kGetProperty:
@@ -1242,14 +1237,14 @@ void DebugEvaluate::VerifyTransitiveBuiltins(Isolate* isolate) {
   for (Builtin caller = Builtins::kFirst; caller <= Builtins::kLast; ++caller) {
     DebugInfo::SideEffectState state = BuiltinGetSideEffectState(caller);
     if (state != DebugInfo::kHasNoSideEffect) continue;
-    Code code = isolate->builtins()->code(caller);
+    Tagged<Code> code = isolate->builtins()->code(caller);
     int mode = RelocInfo::ModeMask(RelocInfo::CODE_TARGET) |
                RelocInfo::ModeMask(RelocInfo::RELATIVE_CODE_TARGET);
 
     for (RelocIterator it(code, mode); !it.done(); it.next()) {
       RelocInfo* rinfo = it.rinfo();
       DCHECK(RelocInfo::IsCodeTargetMode(rinfo->rmode()));
-      Code lookup_result =
+      Tagged<Code> lookup_result =
           isolate->heap()->FindCodeForInnerPointer(rinfo->target_address());
       Builtin callee = lookup_result->builtin_id();
       if (BuiltinGetSideEffectState(callee) == DebugInfo::kHasNoSideEffect) {

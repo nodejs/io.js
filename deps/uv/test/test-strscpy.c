@@ -29,25 +29,25 @@
 TEST_IMPL(strscpy) {
   char d[4];
 
-  ASSERT(0 == uv__strscpy(d, "", 0));
-  ASSERT(0 == uv__strscpy(d, "x", 0));
+  ASSERT_OK(uv__strscpy(d, "", 0));
+  ASSERT_OK(uv__strscpy(d, "x", 0));
 
   memset(d, 0, sizeof(d));
-  ASSERT(1 == uv__strscpy(d, "x", sizeof(d)));
-  ASSERT(0 == memcmp(d, "x\0\0", sizeof(d)));
+  ASSERT_EQ(1, uv__strscpy(d, "x", sizeof(d)));
+  ASSERT_OK(memcmp(d, "x\0\0", sizeof(d)));
 
   memset(d, 0, sizeof(d));
-  ASSERT(2 == uv__strscpy(d, "xy", sizeof(d)));
-  ASSERT(0 == memcmp(d, "xy\0", sizeof(d)));
+  ASSERT_EQ(2, uv__strscpy(d, "xy", sizeof(d)));
+  ASSERT_OK(memcmp(d, "xy\0", sizeof(d)));
 
-  ASSERT(3 == uv__strscpy(d, "xyz", sizeof(d)));
-  ASSERT(0 == memcmp(d, "xyz", sizeof(d)));
+  ASSERT_EQ(3, uv__strscpy(d, "xyz", sizeof(d)));
+  ASSERT_OK(memcmp(d, "xyz", sizeof(d)));
 
-  ASSERT(UV_E2BIG == uv__strscpy(d, "xyzz", sizeof(d)));
-  ASSERT(0 == memcmp(d, "xyz", sizeof(d)));
+  ASSERT_EQ(UV_E2BIG, uv__strscpy(d, "xyzz", sizeof(d)));
+  ASSERT_OK(memcmp(d, "xyz", sizeof(d)));
 
-  ASSERT(UV_E2BIG == uv__strscpy(d, "xyzzy", sizeof(d)));
-  ASSERT(0 == memcmp(d, "xyz", sizeof(d)));
+  ASSERT_EQ(UV_E2BIG, uv__strscpy(d, "xyzzy", sizeof(d)));
+  ASSERT_OK(memcmp(d, "xyz", sizeof(d)));
 
   return 0;
 }

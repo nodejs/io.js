@@ -1,7 +1,6 @@
 'use strict';
 
 const common = require('../common');
-const { setTimeout } = require('timers/promises');
 
 if (common.isIBMi)
   common.skip('IBMi does not support `fs.watch()`');
@@ -21,37 +20,36 @@ const tmpdir = require('../common/tmpdir');
 const testDir = tmpdir.path;
 tmpdir.refresh();
 
-(async () => {
-  // Add a file to newly created folder to already watching folder
+// Add a file to newly created folder to already watching folder
 
-  const rootDirectory = fs.mkdtempSync(testDir + path.sep);
-  const testDirectory = path.join(rootDirectory, 'test-3');
-  fs.mkdirSync(testDirectory);
+const rootDirectory = fs.mkdtempSync(testDir + path.sep);
+const testDirectory = path.join(rootDirectory, 'test-3');
+fs.mkdirSync(testDirectory);
 
-  const filePath = path.join(testDirectory, 'folder-3');
+const filePath = path.join(testDirectory, 'folder-3');
 
-  const childrenFile = 'file-4.txt';
-  const childrenAbsolutePath = path.join(filePath, childrenFile);
-  const childrenRelativePath = path.join(path.basename(filePath), childrenFile);
+const childrenFile = 'file-4.txt';
+const childrenAbsolutePath = path.join(filePath, childrenFile);
+const childrenRelativePath = path.join(path.basename(filePath), childrenFile);
 
-  const watcher = fs.watch(testDirectory, { recursive: true });
-  let watcherClosed = false;
-  watcher.on('change', function(event, filename) {
-    assert.strictEqual(event, 'rename');
-    assert.ok(filename === path.basename(filePath) || filename === childrenRelativePath);
+const watcher = fs.watch(testDirectory, { recursive: true });
+let watcherClosed = false;
+watcher.on('change', function(event, filename) {
+  assert.strictEqual(event, 'rename');
+  assert.ok(filename === path.basename(filePath) || filename === childrenRelativePath);
 
-    if (filename === childrenRelativePath) {
-      watcher.close();
-      watcherClosed = true;
-    }
-  });
+  if (filename === childrenRelativePath) {
+    watcher.close();
+    watcherClosed = true;
+  }
+});
 
-  await setTimeout(common.platformTimeout(100));
+// Do the write with a delay to ensure that the OS is ready to notify us.
+setTimeout(() => {
   fs.mkdirSync(filePath);
-  await setTimeout(common.platformTimeout(100));
   fs.writeFileSync(childrenAbsolutePath, 'world');
+}, common.platformTimeout(200));
 
-  process.once('exit', function() {
-    assert(watcherClosed, 'watcher Object was not closed');
-  });
-})().then(common.mustCall());
+process.once('exit', function() {
+  assert(watcherClosed, 'watcher Object was not closed');
+});

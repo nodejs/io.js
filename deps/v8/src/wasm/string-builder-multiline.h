@@ -61,6 +61,7 @@ class MultiLineStringBuilder : public StringBuilder {
   void set_current_line_bytecode_offset(uint32_t offset) {
     pending_bytecode_offset_ = offset;
   }
+  uint32_t current_line_bytecode_offset() { return pending_bytecode_offset_; }
 
   // Label backpatching support. Parameters:
   // {label}: Information about where to insert the label. Fields {line_number},

@@ -2,8 +2,7 @@
 
 MIT License
 
-
-Copyright (c) 1998 Massachusetts Institute of Technology
+Copyright (c) 1998 Massachusetts Institute of Technology  
 Copyright (c) 2007 - 2023 Daniel Stenberg with many contributors, see AUTHORS
 file.
 

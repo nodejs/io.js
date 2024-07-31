@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -744,7 +744,7 @@ ___
 my $LOCALS= 6*$SIZE_T;
 my $VSXFRAME = $LOCALS + 6*$SIZE_T;
    $VSXFRAME += 128;	# local variables
-   $VSXFRAME += 13*16;	# v20-v31 offload
+   $VSXFRAME += 12*16;	# v20-v31 offload
 
 my $BIG_ENDIAN = ($flavour !~ /le/) ? 4 : 0;
 
@@ -919,12 +919,12 @@ __poly1305_blocks_vsx:
 	addi	r11,r11,32
 	stvx	v22,r10,$sp
 	addi	r10,r10,32
-	stvx	v23,r10,$sp
-	addi	r10,r10,32
-	stvx	v24,r11,$sp
+	stvx	v23,r11,$sp
 	addi	r11,r11,32
-	stvx	v25,r10,$sp
+	stvx	v24,r10,$sp
 	addi	r10,r10,32
+	stvx	v25,r11,$sp
+	addi	r11,r11,32
 	stvx	v26,r10,$sp
 	addi	r10,r10,32
 	stvx	v27,r11,$sp
@@ -1153,12 +1153,12 @@ __poly1305_blocks_vsx:
 	addi	r11,r11,32
 	stvx	v22,r10,$sp
 	addi	r10,r10,32
-	stvx	v23,r10,$sp
-	addi	r10,r10,32
-	stvx	v24,r11,$sp
+	stvx	v23,r11,$sp
 	addi	r11,r11,32
-	stvx	v25,r10,$sp
+	stvx	v24,r10,$sp
 	addi	r10,r10,32
+	stvx	v25,r11,$sp
+	addi	r11,r11,32
 	stvx	v26,r10,$sp
 	addi	r10,r10,32
 	stvx	v27,r11,$sp
@@ -1899,26 +1899,26 @@ Ldone_vsx:
 	mtspr	256,r12				# restore vrsave
 	lvx	v20,r10,$sp
 	addi	r10,r10,32
-	lvx	v21,r10,$sp
-	addi	r10,r10,32
-	lvx	v22,r11,$sp
+	lvx	v21,r11,$sp
 	addi	r11,r11,32
-	lvx	v23,r10,$sp
+	lvx	v22,r10,$sp
 	addi	r10,r10,32
-	lvx	v24,r11,$sp
+	lvx	v23,r11,$sp
 	addi	r11,r11,32
-	lvx	v25,r10,$sp
+	lvx	v24,r10,$sp
 	addi	r10,r10,32
-	lvx	v26,r11,$sp
+	lvx	v25,r11,$sp
 	addi	r11,r11,32
-	lvx	v27,r10,$sp
+	lvx	v26,r10,$sp
 	addi	r10,r10,32
-	lvx	v28,r11,$sp
+	lvx	v27,r11,$sp
 	addi	r11,r11,32
-	lvx	v29,r10,$sp
+	lvx	v28,r10,$sp
 	addi	r10,r10,32
-	lvx	v30,r11,$sp
-	lvx	v31,r10,$sp
+	lvx	v29,r11,$sp
+	addi	r11,r11,32
+	lvx	v30,r10,$sp
+	lvx	v31,r11,$sp
 	$POP	r27,`$VSXFRAME-$SIZE_T*5`($sp)
 	$POP	r28,`$VSXFRAME-$SIZE_T*4`($sp)
 	$POP	r29,`$VSXFRAME-$SIZE_T*3`($sp)

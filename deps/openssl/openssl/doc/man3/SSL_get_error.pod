@@ -32,7 +32,9 @@ Some TLS implementations do not send a close_notify alert on shutdown.
 On an unexpected EOF, versions before OpenSSL 3.0 returned
 B<SSL_ERROR_SYSCALL>, nothing was added to the error stack, and errno was 0.
 Since OpenSSL 3.0 the returned error is B<SSL_ERROR_SSL> with a meaningful
-error on the error stack.
+error on the error stack (SSL_R_UNEXPECTED_EOF_WHILE_READING). This error reason
+code may be used for control flow decisions (see the man page for
+L<ERR_GET_REASON(3)> for further details on this).
 
 =head1 RETURN VALUES
 
@@ -180,7 +182,7 @@ The SSL_ERROR_WANT_CLIENT_HELLO_CB error code was added in OpenSSL 1.1.1.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

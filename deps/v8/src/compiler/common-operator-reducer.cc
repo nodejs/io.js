@@ -247,6 +247,21 @@ Reduction CommonOperatorReducer::ReducePhi(Node* node) {
   DCHECK(IrOpcode::IsMergeOpcode(merge->opcode()));
   DCHECK_EQ(value_input_count, merge->InputCount());
   if (value_input_count == 2) {
+    // The following optimization tries to match `0 < v ? v : 0 - v`, which
+    // corresponds in Turbofan to something like:
+    //
+    //       Branch(0 < v)
+    //         /      \
+    //        /        \
+    //       v        0 - v
+    //        \        /
+    //         \      /
+    //        phi(v, 0-v)
+    //
+    // And replace it by `fabs(v)`.
+    // TODO(dmercadier): it seems that these optimizations never kick in. While
+    // keeping them doesn't cost too much, we could consider removing them to
+    // simplify the code and not maintain unused pieces of code.
     Node* vtrue = inputs[0];
     Node* vfalse = inputs[1];
     Node::Inputs merge_inputs = merge->inputs();
@@ -432,6 +447,11 @@ Reduction CommonOperatorReducer::ReduceSelect(Node* node) {
     case Decision::kUnknown:
       break;
   }
+  // The following optimization tries to replace `select(0 < v ? v : 0 - v)` by
+  // `fabs(v)`.
+  // TODO(dmercadier): it seems that these optimizations never kick in. While
+  // keeping them doesn't cost too much, we could consider removing them to
+  // simplify the code and not maintain unused pieces of code.
   switch (cond->opcode()) {
     case IrOpcode::kFloat32LessThan: {
       Float32BinopMatcher mcond(cond);

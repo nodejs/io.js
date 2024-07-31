@@ -4,6 +4,7 @@
 
 #include "src/snapshot/serializer-deserializer.h"
 
+#include "src/objects/embedder-data-array-inl.h"
 #include "src/objects/objects-inl.h"
 
 namespace v8 {
@@ -11,7 +12,7 @@ namespace internal {
 
 namespace {
 DISABLE_CFI_PERF
-void IterateObjectCache(Isolate* isolate, std::vector<Object>* cache,
+void IterateObjectCache(Isolate* isolate, std::vector<Tagged<Object>>* cache,
                         Root root_id, RootVisitor* visitor) {
   for (size_t i = 0;; ++i) {
     // Extend the array ready to get a value when deserializing.
@@ -19,7 +20,10 @@ void IterateObjectCache(Isolate* isolate, std::vector<Object>* cache,
     // During deserialization, the visitor populates the object cache and
     // eventually terminates the cache with undefined.
     visitor->VisitRootPointer(root_id, nullptr, FullObjectSlot(&cache->at(i)));
-    if (IsUndefined(cache->at(i), isolate)) break;
+    // We may see objects in trusted space here (outside of the main pointer
+    // compression cage), so have to use SafeEquals.
+    Tagged<Object> undefined = ReadOnlyRoots(isolate).undefined_value();
+    if (cache->at(i).SafeEquals(undefined)) break;
   }
 }
 }  // namespace
@@ -62,7 +66,10 @@ bool SerializerDeserializer::CanBeDeferred(Tagged<HeapObject> o,
   // were resolved after object post processing?
   return !IsInternalizedString(o) &&
          !(IsJSObject(o) && JSObject::cast(o)->GetEmbedderFieldCount() > 0) &&
-         !IsByteArray(o);
+         !IsByteArray(o) && !IsEmbedderDataArray(o) &&
+         !(IsNativeContext(o) &&
+           EmbedderDataArray::cast(Context::cast(o)->embedder_data())
+                   ->length() > 0);
 }
 
 void SerializerDeserializer::RestoreExternalReferenceRedirector(
@@ -72,9 +79,9 @@ void SerializerDeserializer::RestoreExternalReferenceRedirector(
 }
 
 void SerializerDeserializer::RestoreExternalReferenceRedirector(
-    Isolate* isolate, Tagged<CallHandlerInfo> call_handler_info) {
+    Isolate* isolate, Tagged<FunctionTemplateInfo> function_template_info) {
   DisallowGarbageCollection no_gc;
-  call_handler_info->init_callback_redirection(isolate);
+  function_template_info->init_callback_redirection(isolate);
 }
 
 }  // namespace internal

@@ -89,7 +89,7 @@ static void CheckParseEq(const char* input, const char* expected,
   CHECK(RegExpParser::ParseRegExpFromHeapString(isolate, &zone, str, flags,
                                                 &result));
   CHECK_NOT_NULL(result.tree);
-  CHECK(result.error == RegExpError::kNone);
+  CHECK_EQ(RegExpError::kNone, result.error);
   std::ostringstream os;
   result.tree->Print(os, &zone);
   if (strcmp(expected, os.str().c_str()) != 0) {
@@ -108,7 +108,7 @@ static bool CheckSimple(const char* input) {
   CHECK(RegExpParser::ParseRegExpFromHeapString(isolate, &zone, str, {},
                                                 &result));
   CHECK_NOT_NULL(result.tree);
-  CHECK(result.error == RegExpError::kNone);
+  CHECK_EQ(RegExpError::kNone, result.error);
   return result.simple;
 }
 
@@ -127,7 +127,7 @@ static MinMaxPair CheckMinMaxMatch(const char* input) {
   CHECK(RegExpParser::ParseRegExpFromHeapString(isolate, &zone, str, {},
                                                 &result));
   CHECK_NOT_NULL(result.tree);
-  CHECK(result.error == RegExpError::kNone);
+  CHECK_EQ(RegExpError::kNone, result.error);
   int min_match = result.tree->min_match();
   int max_match = result.tree->max_match();
   MinMaxPair pair = {min_match, max_match};
@@ -443,7 +443,7 @@ static void ExpectError(const char* input, const char* expected,
   CHECK(!RegExpParser::ParseRegExpFromHeapString(isolate, &zone, str, flags,
                                                  &result));
   CHECK_NULL(result.tree);
-  CHECK(result.error != RegExpError::kNone);
+  CHECK_NE(RegExpError::kNone, result.error);
   CHECK_EQ(0, strcmp(expected, RegExpErrorString(result.error)));
 }
 
@@ -1166,8 +1166,8 @@ TEST_F(RegExpTest, MacroAssemblerStackOverflow) {
       *regexp, *input, 0, start_adr, start_adr + input->length(), nullptr);
 
   CHECK_EQ(NativeRegExpMacroAssembler::EXCEPTION, result);
-  CHECK(isolate()->has_pending_exception());
-  isolate()->clear_pending_exception();
+  CHECK(isolate()->has_exception());
+  isolate()->clear_exception();
 }
 
 TEST_F(RegExpTest, MacroAssemblerNativeLotsOfRegisters) {
@@ -1210,7 +1210,7 @@ TEST_F(RegExpTest, MacroAssemblerNativeLotsOfRegisters) {
   CHECK_EQ(0, captures[0]);
   CHECK_EQ(42, captures[1]);
 
-  isolate()->clear_pending_exception();
+  isolate()->clear_exception();
 }
 
 TEST_F(RegExpTest, MacroAssembler) {
@@ -1720,7 +1720,7 @@ TEST_F(RegExpTestWithContext, UseCountRegExp) {
   CHECK(resultToStringError->IsObject());
 }
 
-class UncachedExternalString
+class UncachedExternalStringResource
     : public v8::String::ExternalOneByteStringResource {
  public:
   const char* data() const override { return "abcdefghijklmnopqrstuvwxyz"; }
@@ -1731,10 +1731,11 @@ class UncachedExternalString
 TEST_F(RegExpTestWithContext, UncachedExternalString) {
   v8::HandleScope scope(isolate());
   v8::Local<v8::String> external =
-      v8::String::NewExternalOneByte(isolate(), new UncachedExternalString())
+      v8::String::NewExternalOneByte(isolate(),
+                                     new UncachedExternalStringResource())
           .ToLocalChecked();
-  CHECK(v8::Utils::OpenHandle(*external)->map() ==
-        ReadOnlyRoots(i_isolate()).uncached_external_one_byte_string_map());
+  CHECK_EQ(v8::Utils::OpenDirectHandle(*external)->map(),
+           ReadOnlyRoots(i_isolate()).uncached_external_one_byte_string_map());
   v8::Local<v8::Object> global = context()->Global();
   global->Set(context(), NewString("external"), external).FromJust();
   RunJS("var re = /y(.)/; re.test('ab');");
@@ -1785,12 +1786,12 @@ TEST_F(RegExpTest, PeepholeNoChange) {
   v8_flags.regexp_peephole_optimization = false;
   Handle<ByteArray> array = Handle<ByteArray>::cast(orig.GetCode(source));
   int length = array->length();
-  uint8_t* byte_array = array->GetDataStartAddress();
+  uint8_t* byte_array = array->begin();
 
   v8_flags.regexp_peephole_optimization = true;
   Handle<ByteArray> array_optimized =
       Handle<ByteArray>::cast(opt.GetCode(source));
-  uint8_t* byte_array_optimized = array_optimized->GetDataStartAddress();
+  uint8_t* byte_array_optimized = array_optimized->begin();
 
   CHECK_EQ(0, memcmp(byte_array, byte_array_optimized, length));
 }
@@ -2179,8 +2180,8 @@ TEST_F(RegExpTest, PeepholeLabelFixupsInside) {
   for (int label_idx = 0; label_idx < 3; label_idx++) {
     for (int pos_idx = 0; pos_idx < 2; pos_idx++) {
       int label_pos = label_positions[label_idx][pos_idx] + pos_fixups[pos_idx];
-      int jump_address = *reinterpret_cast<uint32_t*>(
-          array_optimized->GetDataStartAddress() + label_pos);
+      int jump_address =
+          *reinterpret_cast<uint32_t*>(array_optimized->begin() + label_pos);
       int expected_jump_address =
           labels[label_idx]->pos() + target_fixups[label_idx];
       CHECK_EQ(expected_jump_address, jump_address);
@@ -2289,8 +2290,8 @@ TEST_F(RegExpTest, PeepholeLabelFixupsComplex) {
   for (int label_idx = 0; label_idx < 4; label_idx++) {
     for (int pos_idx = 0; pos_idx < 3; pos_idx++) {
       int label_pos = label_positions[label_idx][pos_idx] + pos_fixups[pos_idx];
-      int jump_address = *reinterpret_cast<uint32_t*>(
-          array_optimized->GetDataStartAddress() + label_pos);
+      int jump_address =
+          *reinterpret_cast<uint32_t*>(array_optimized->begin() + label_pos);
       int expected_jump_address =
           labels[label_idx]->pos() + target_fixups[label_idx];
       CHECK_EQ(expected_jump_address, jump_address);
@@ -2308,11 +2309,11 @@ TEST_F(RegExpTestWithContext, UnicodePropertyEscapeCodeSize) {
 
   static constexpr int kMaxSize = 200 * KB;
   static constexpr bool kIsNotLatin1 = false;
-  Tagged<Object> maybe_code = re->code(kIsNotLatin1);
+  Tagged<Object> maybe_code = re->code(i_isolate(), kIsNotLatin1);
   Tagged<Object> maybe_bytecode = re->bytecode(kIsNotLatin1);
   if (IsByteArray(maybe_bytecode)) {
     // On x64, excessive inlining produced >250KB.
-    CHECK_LT(ByteArray::cast(maybe_bytecode)->Size(), kMaxSize);
+    CHECK_LT(ByteArray::cast(maybe_bytecode)->AllocatedSize(), kMaxSize);
   } else if (IsCode(maybe_code)) {
     // On x64, excessive inlining produced >360KB.
     CHECK_LT(Code::cast(maybe_code)->Size(), kMaxSize);

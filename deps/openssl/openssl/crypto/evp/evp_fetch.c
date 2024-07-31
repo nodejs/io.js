@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -349,13 +349,26 @@ inner_evp_generic_fetch(struct evp_method_data_st *methdata,
              * there is a correct name_id and meth_id, since those have
              * already been calculated in get_evp_method_from_store() and
              * put_evp_method_in_store() above.
+             * Note that there is a corner case here, in which, if a user
+             * passes a name of the form name1:name2:..., then the construction
+             * will create a method against all names, but the lookup will fail
+             * as ossl_namemap_name2num treats the name string as a single name
+             * rather than introducing new features where in the EVP_<obj>_fetch
+             * parses the string and querys for each, return an error.
              */
             if (name_id == 0)
                 name_id = ossl_namemap_name2num(namemap, name);
-            meth_id = evp_method_id(name_id, operation_id);
-            if (name_id != 0)
-                ossl_method_store_cache_set(store, prov, meth_id, propq,
-                                            method, up_ref_method, free_method);
+            if (name_id == 0) {
+                ERR_raise_data(ERR_LIB_EVP, ERR_R_FETCH_FAILED,
+                               "Algorithm %s cannot be found", name);
+                free_method(method);
+                method = NULL;
+            } else {
+                meth_id = evp_method_id(name_id, operation_id);
+                if (meth_id != 0)
+                    ossl_method_store_cache_set(store, prov, meth_id, propq,
+                                                method, up_ref_method, free_method);
+            }
         }
 
         /*

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --experimental-wasm-stringref
+// Flags: --experimental-wasm-stringref
 
 utils.load('test/inspector/wasm-inspector-test.js');
 
@@ -16,24 +16,24 @@ const module_bytes = [
   0x01,  // type section
   0x19,  // section length
   0x01,  // number of type section entries
-  0x4f,  // recursive type group
+  0x4e,  // recursive type group
   0x04,  // number of types in the recursive group
   // type 0: struct $StrA (field ($byte i8) ($word i16) ($pointer (ref $StrB)))
   0x5f,  // struct
   0x03,  // field count
-  0x7a, 0x01,  // mut i8
-  0x79, 0x00,  // i16
-  0x6b, 0x01, 0x01,  // mut ref $StrB
+  0x78, 0x01,  // mut i8
+  0x77, 0x00,  // i16
+  0x64, 0x01, 0x01,  // mut ref $StrB
   // type 1: struct $StrB (field ($next (ref null $StrA)))
   0x5f,  // struct
   0x01,  // field count
-  0x6c, 0x00, 0x01,  // mut ref null $StrA
+  0x63, 0x00, 0x01,  // mut ref null $StrA
   // type 2: array $ArrC (mut (ref null $StrA))
   0x5e,  // array
-  0x6c, 0x00, 0x01,  // mut ref null $StrA
+  0x63, 0x00, 0x01,  // mut ref null $StrA
   // type 3: func
   0x60,  // signature
-  0x01, 0x64,  // 1 param: stringref
+  0x01, 0x67,  // 1 param: stringref
   0x00,  // number of results
 
   0x03,  // function section
@@ -45,7 +45,7 @@ const module_bytes = [
   0x06,  // global section
   0x07,  // section length
   0x01,  // number of globals
-  0x6c, 0x03,  // type of global: ref null $sig3
+  0x63, 0x03,  // type of global: ref null $sig3
   0x00,  // immutable
   0xd2, 0x00, 0x0b,  // initializer: ref.func $func1; end
 
@@ -64,22 +64,22 @@ const module_bytes = [
 
   0x2d,  // function 0: size
   0x02,  // number of locals
-  0x01, 0x6c, 0x00,  // (local $varA (ref null $StrA))
-  0x01, 0x6c, 0x02,  // (local $varC (ref null $ArrC))
+  0x01, 0x63, 0x00,  // (local $varA (ref null $StrA))
+  0x01, 0x63, 0x02,  // (local $varC (ref null $ArrC))
   // $varA := new $StrA(127, 32767, new $StrB(null))
   0x41, 0xFF, 0x00,  // i32.const 127
   0x41, 0xFF, 0xFF, 0x01,  // i32.const 32767
-  0xfb, 0x08, 0x01,  // struct.new_default $StrB
-  0xfb, 0x07, 0x00,  // struct.new $StrA
+  0xfb, 0x01, 0x01,  // struct.new_default $StrB
+  0xfb, 0x00, 0x00,  // struct.new $StrA
   0x22, 0x01,  // local.tee $varA
   // $varA.$pointer.$next = $varA
-  0xfb, 0x03, 0x00, 0x02,  // struct.get $StrA $pointer
+  0xfb, 0x02, 0x00, 0x02,  // struct.get $StrA $pointer
   0x20, 0x01,  // local.get $varA
-  0xfb, 0x06, 0x01, 0x00,  // struct.set $StrB $next
+  0xfb, 0x05, 0x01, 0x00,  // struct.set $StrB $next
   // $varC := new $ArrC($varA)
   0x20, 0x01,  // local.get $varA -- value
   0x41, 0x01,  // i32.const 1 -- length
-  0xfb, 0x1b, 0x02,  // array.new $ArrC
+  0xfb, 0x06, 0x02,  // array.new $ArrC
   0x20, 0x00,  // local.get 0
   0x1a,  // drop
   0x21, 0x02,  // local.set $varC

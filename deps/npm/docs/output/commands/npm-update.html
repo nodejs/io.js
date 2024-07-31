@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-update">npm-update</h1>
+<h1 id="----npm-update----1082">
+    <span>npm-update</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Update packages</span>
 </header>
 
@@ -161,7 +169,7 @@ packages.</p>
 <p>If no package name is specified, all packages in the specified location (global
 or local) will be updated.</p>
 <p>Note that by default <code>npm update</code> will not update the semver values of direct
-dependencies in your project <code>package.json</code>, if you want to also update
+dependencies in your project <code>package.json</code>. If you want to also update
 values in <code>package.json</code> you can run: <code>npm update --save</code> (or add the
 <code>save=true</code> option to a <a href="../configuring-npm/npmrc.html">configuration file</a>
 to make that the default behavior).</p>
@@ -199,7 +207,7 @@ are:</p>
 }
 </code></pre>
 <p>In this case, running <code>npm update</code> will install <code>dep1@1.1.2</code>.  Even though the
-<code>latest</code> tag points to <code>1.2.2</code>, this version do not satisfy <code>~1.1.1</code>, which is
+<code>latest</code> tag points to <code>1.2.2</code>, this version does not satisfy <code>~1.1.1</code>, which is
 equivalent to <code>&gt;=1.1.1 &lt;1.2.0</code>.  So the highest-sorting version that satisfies
 <code>~1.1.1</code> is used, which is <code>1.1.2</code>.</p>
 <h4 id="caret-dependencies-below-100">Caret Dependencies below 1.0.0</h4>
@@ -208,8 +216,7 @@ equivalent to <code>&gt;=1.1.1 &lt;1.2.0</code>.  So the highest-sorting version
   "dep1": "^0.2.0"
 }
 </code></pre>
-<p><code>npm update</code> will install <code>dep1@0.2.0</code>, because there are no other
-versions which satisfy <code>^0.2.0</code>.</p>
+<p><code>npm update</code> will install <code>dep1@0.2.0</code>.</p>
 <p>If the dependence were on <code>^0.4.0</code>:</p>
 <pre><code class="language-json">"dependencies": {
   "dep1": "^0.4.0"
@@ -353,7 +360,8 @@ this warning is treated as a failure.</p>
 will also prevent <em>writing</em> <code>package-lock.json</code> if <code>save</code> is true.</p>
 <h4 id="foreground-scripts"><code>foreground-scripts</code></h4>
 <ul>
-<li>Default: false</li>
+<li>Default: <code>false</code> unless when using <code>npm pack</code> or <code>npm publish</code> where it
+defaults to <code>true</code></li>
 <li>Type: Boolean</li>
 </ul>
 <p>Run all build scripts (ie, <code>preinstall</code>, <code>install</code>, and <code>postinstall</code>)

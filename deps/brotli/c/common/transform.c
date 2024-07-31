@@ -4,7 +4,7 @@
    See file LICENSE for detail or copy at https://opensource.org/licenses/MIT
 */
 
-#include "./transform.h"
+#include "transform.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {

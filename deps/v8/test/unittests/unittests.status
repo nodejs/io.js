@@ -32,6 +32,10 @@
   # Slow tests.
   'ParsingTest.ObjectRestNegativeTestSlow': [PASS, ['mode == debug', SKIP]],
 
+  # Tests that need to run sequentially (e.g. due to memory consumption).
+  'LogAllTest.LogAll': [PASS, SLOW, HEAVY],
+  'WasmModuleVerifyTest.NGlobals': [PASS, HEAVY],
+
   # BUG(13660): Flaky test.
   'OS.RemapPages': [SKIP],
 }],  # ALWAYS
@@ -145,10 +149,6 @@
   # The test is broken and needs to be fixed to use separate isolates.
   'BackingStoreTest.RacyGrowWasmMemoryInPlace': [SKIP],
 
-  # Tests that need to run sequentially (e.g. due to memory consumption).
-  'MachineOperatorReducerTest.Word32EqualWithShiftedMaskedValueAndConstant': [PASS, HEAVY],
-  'SequentialUnmapperTest.UnmapOnTeardown': [PASS, HEAVY],
-
   # https://crbug.com/v8/12997
   # These skips should be removed after tsan errors in libsampler are fixed.
   'LogMapsCodeTest.LogMapsDetailsCode': [SKIP],
@@ -241,7 +241,6 @@
   'LocalFactoryTest.OneByteInternalizedString_DuplicateIsDeduplicated': [SKIP],
   'LocalFactoryTest.OneByteInternalizedString_IsAddedToStringTable': [SKIP],
   # Requires write barriers
-  'SpacesTest.WriteBarrierFromHeapObject': [SKIP],
   'SpacesTest.WriteBarrierInYoungGenerationToSpace': [SKIP],
   'SpacesTest.WriteBarrierInYoungGenerationFromSpace': [SKIP],
   # Requires a second isolate
@@ -377,4 +376,30 @@
   # deoptimization.
   'FeedbackVectorTest.VectorCallSpeculationModeAndFeedbackContent': [FAIL],
 }],  # variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)
+
+##############################################################################
+['system == windows', {
+  # Bug: crbug.com/v8/14320
+  'TimeTicks.NowResolution': [PASS,FAIL],
+}],  # system == windows
+
+##############################################################################
+['system == android', {
+  # https://crbug.com/v8/14545
+  'LogAllTest.LogAll': [SKIP],
+  'LogTimerTest.ConsoleTimeEvents': [SKIP],
+}],  # 'system == android'
+
+['clang_coverage and mode == debug', {
+  # Too slow tests.
+  'LogAllTest.LogAll': [SKIP],
+}],  # 'clang_coverage and mode == debug'
+
+##############################################################################
+# Turboshaft not implemented yet
+['arch == s390x', {
+  'TurboshaftInstructionSelectorTest/*': [SKIP],
+  'TurboshaftInstructionSelectorTest.*': [SKIP],
+}],  # arch == s390x
+
 ]

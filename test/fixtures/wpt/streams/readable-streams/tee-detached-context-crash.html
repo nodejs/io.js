@@ -1,0 +1,13 @@
+<!doctype html>
+<body>
+<script>
+const i = document.createElement("iframe");
+document.body.appendChild(i);
+
+const rs = new i.contentWindow.ReadableStream();
+i.remove();
+
+// tee() on a ReadableStream from a detached iframe should not crash.
+rs.tee();
+</script>
+</body>

@@ -29,7 +29,7 @@ void IncrementalMarking::TransferColor(Tagged<HeapObject> from,
     if (!IsDescriptorArray(to) ||
         (DescriptorArrayMarkingState::Marked::decode(
              DescriptorArray::cast(to)->raw_gc_state(kRelaxedLoad)) != 0)) {
-      MemoryChunk::FromHeapObject(to)->IncrementLiveBytesAtomically(
+      MutablePageMetadata::FromHeapObject(to)->IncrementLiveBytesAtomically(
           ALIGN_TO_ALLOCATION_ALIGNMENT(to->Size()));
     }
   }

@@ -10,6 +10,7 @@
 #include "include/cppgc/allocation.h"
 #include "include/cppgc/garbage-collected.h"
 #include "include/cppgc/internal/member-storage.h"
+#include "include/cppgc/internal/pointer-policies.h"
 #include "include/cppgc/persistent.h"
 #include "include/cppgc/sentinel-pointer.h"
 #include "include/cppgc/type-traits.h"
@@ -39,6 +40,10 @@ static_assert(!IsWeakV<Member<GCed>>, "Member is always strong.");
 static_assert(IsWeakV<WeakMember<GCed>>, "WeakMember is always weak.");
 
 static_assert(IsMemberTypeV<Member<GCed>>, "Member must be Member.");
+static_assert(IsMemberTypeV<const Member<GCed>>,
+              "const Member must be Member.");
+static_assert(IsMemberTypeV<const Member<GCed>&>,
+              "const Member ref must be Member.");
 static_assert(!IsMemberTypeV<WeakMember<GCed>>,
               "WeakMember must not be Member.");
 static_assert(!IsMemberTypeV<UntracedMember<GCed>>,
@@ -58,6 +63,25 @@ static_assert(!IsUntracedMemberTypeV<WeakMember<GCed>>,
 static_assert(IsUntracedMemberTypeV<UntracedMember<GCed>>,
               "UntracedMember must be UntracedMember.");
 static_assert(!IsUntracedMemberTypeV<int>, "int must not be UntracedMember.");
+static_assert(IsMemberOrWeakMemberTypeV<Member<GCed>>,
+              "Member must be Member.");
+static_assert(IsMemberOrWeakMemberTypeV<WeakMember<GCed>>,
+              "WeakMember must be WeakMember.");
+static_assert(!IsMemberOrWeakMemberTypeV<UntracedMember<GCed>>,
+              "UntracedMember is neither Member nor WeakMember.");
+static_assert(!IsMemberOrWeakMemberTypeV<int>,
+              "int is neither Member nor WeakMember.");
+static_assert(IsAnyMemberTypeV<Member<GCed>>, "Member must be a member type.");
+static_assert(IsAnyMemberTypeV<WeakMember<GCed>>,
+              "WeakMember must be a member type.");
+static_assert(IsAnyMemberTypeV<UntracedMember<GCed>>,
+              "UntracedMember must be a member type.");
+static_assert(!IsAnyMemberTypeV<int>, "int must not be a member type.");
+static_assert(
+    IsAnyMemberTypeV<
+        internal::BasicMember<GCed, class SomeTag, NoWriteBarrierPolicy,
+                              DefaultMemberCheckingPolicy, RawPointer>>,
+    "Any custom member must be a member type.");
 
 struct CustomWriteBarrierPolicy {
   static size_t InitializingWriteBarriersTriggered;

@@ -108,7 +108,8 @@ void BuiltinStringFromCharCode::GenerateCode(MaglevAssembler* masm,
       __ AllocateTwoByteString(register_snapshot(), result_string, 1);
       __ Move(scratch, char_code & 0xFFFF);
       __ Strh(scratch.W(),
-              FieldMemOperand(result_string, SeqTwoByteString::kHeaderSize));
+              FieldMemOperand(result_string,
+                              OFFSET_OF_DATA_START(SeqTwoByteString)));
       if (reallocate_result) {
         __ Move(ToRegister(result()), result_string);
       }
@@ -141,14 +142,42 @@ void BuiltinStringPrototypeCharCodeOrCodePointAt::GenerateCode(
   __ Bind(&done);
 }
 
-void FoldedAllocation::SetValueLocationConstraints() {
-  UseRegister(raw_allocation());
-  DefineAsRegister(this);
+void InlinedAllocation::SetValueLocationConstraints() {
+  UseRegister(allocation_block());
+  if (offset() == 0) {
+    DefineSameAsFirst(this);
+  } else {
+    DefineAsRegister(this);
+  }
 }
 
-void FoldedAllocation::GenerateCode(MaglevAssembler* masm,
-                                    const ProcessingState& state) {
-  __ Add(ToRegister(result()), ToRegister(raw_allocation()), offset());
+void InlinedAllocation::GenerateCode(MaglevAssembler* masm,
+                                     const ProcessingState& state) {
+  if (offset() != 0) {
+    __ Add(ToRegister(result()), ToRegister(allocation_block()), offset());
+  }
+}
+
+void ArgumentsLength::SetValueLocationConstraints() { DefineAsRegister(this); }
+
+void ArgumentsLength::GenerateCode(MaglevAssembler* masm,
+                                   const ProcessingState& state) {
+  Register argc = ToRegister(result());
+  __ Ldr(argc, MemOperand(fp, StandardFrameConstants::kArgCOffset));
+  __ Sub(argc, argc, 1);  // Remove receiver.
+}
+
+void RestLength::SetValueLocationConstraints() { DefineAsRegister(this); }
+
+void RestLength::GenerateCode(MaglevAssembler* masm,
+                              const ProcessingState& state) {
+  Register length = ToRegister(result());
+  Label done;
+  __ Ldr(length, MemOperand(fp, StandardFrameConstants::kArgCOffset));
+  __ Subs(length, length, formal_parameter_count() + 1);
+  __ B(kGreaterThanEqual, &done);
+  __ Move(length, 0);
+  __ Bind(&done);
 }
 
 int CheckedObjectToIndex::MaxCallStackArgs() const { return 0; }
@@ -425,10 +454,40 @@ void Int32ModulusWithOverflow::GenerateCode(MaglevAssembler* masm,
 DEF_BITWISE_BINOP(Int32BitwiseAnd, and_)
 DEF_BITWISE_BINOP(Int32BitwiseOr, orr)
 DEF_BITWISE_BINOP(Int32BitwiseXor, eor)
-DEF_BITWISE_BINOP(Int32ShiftLeft, lslv)
-DEF_BITWISE_BINOP(Int32ShiftRight, asrv)
-DEF_BITWISE_BINOP(Int32ShiftRightLogical, lsrv)
 #undef DEF_BITWISE_BINOP
+
+#define DEF_SHIFT_BINOP(Instruction, opcode)                     \
+  void Instruction::SetValueLocationConstraints() {              \
+    UseRegister(left_input());                                   \
+    if (right_input().node()->Is<Int32Constant>()) {             \
+      UseAny(right_input());                                     \
+    } else {                                                     \
+      UseRegister(right_input());                                \
+    }                                                            \
+    DefineAsRegister(this);                                      \
+  }                                                              \
+                                                                 \
+  void Instruction::GenerateCode(MaglevAssembler* masm,          \
+                                 const ProcessingState& state) { \
+    Register out = ToRegister(result()).W();                     \
+    Register left = ToRegister(left_input()).W();                \
+    if (Int32Constant* constant =                                \
+            right_input().node()->TryCast<Int32Constant>()) {    \
+      int right = constant->value() & 31;                        \
+      if (right == 0) {                                          \
+        __ Move(out, left);                                      \
+      } else {                                                   \
+        __ opcode(out, left, right);                             \
+      }                                                          \
+    } else {                                                     \
+      Register right = ToRegister(right_input()).W();            \
+      __ opcode##v(out, left, right);                            \
+    }                                                            \
+  }
+DEF_SHIFT_BINOP(Int32ShiftLeft, lsl)
+DEF_SHIFT_BINOP(Int32ShiftRight, asr)
+DEF_SHIFT_BINOP(Int32ShiftRightLogical, lsr)
+#undef DEF_SHIFT_BINOP
 
 void Int32BitwiseNot::SetValueLocationConstraints() {
   UseRegister(value_input());
@@ -570,43 +629,30 @@ void Float64Ieee754Unary::SetValueLocationConstraints() {
 void Float64Ieee754Unary::GenerateCode(MaglevAssembler* masm,
                                        const ProcessingState& state) {
   AllowExternalCallThatCantCauseGC scope(masm);
-  __ CallCFunction(ieee_function_, 1);
+  __ CallCFunction(ieee_function_ref(), 1);
 }
 
-void CheckJSTypedArrayBounds::SetValueLocationConstraints() {
+void LoadTypedArrayLength::SetValueLocationConstraints() {
   UseRegister(receiver_input());
-  if (ElementsKindSize(elements_kind_) == 1) {
-    UseRegister(index_input());
-  } else {
-    UseAndClobberRegister(index_input());
-  }
+  DefineAsRegister(this);
 }
-void CheckJSTypedArrayBounds::GenerateCode(MaglevAssembler* masm,
-                                           const ProcessingState& state) {
+void LoadTypedArrayLength::GenerateCode(MaglevAssembler* masm,
+                                        const ProcessingState& state) {
   Register object = ToRegister(receiver_input());
-  Register index = ToRegister(index_input());
-
+  Register result_register = ToRegister(result());
   if (v8_flags.debug_code) {
-    __ AssertNotSmi(object);
-    __ IsObjectType(object, JS_TYPED_ARRAY_TYPE);
-    __ Assert(eq, AbortReason::kUnexpectedValue);
+    __ CompareObjectTypeAndAssert(object, JS_TYPED_ARRAY_TYPE, eq,
+                                  AbortReason::kUnexpectedValue);
   }
-
-  MaglevAssembler::ScratchRegisterScope temps(masm);
-  Register byte_length = temps.Acquire();
-  __ LoadBoundedSizeFromObject(byte_length, object,
+  __ LoadBoundedSizeFromObject(result_register, object,
                                JSTypedArray::kRawByteLengthOffset);
   int element_size = ElementsKindSize(elements_kind_);
   if (element_size > 1) {
+    // TODO(leszeks): Merge this shift with the one in LoadBoundedSize.
     DCHECK(element_size == 2 || element_size == 4 || element_size == 8);
-    __ Cmp(byte_length,
-           Operand(index, LSL, base::bits::CountTrailingZeros(element_size)));
-  } else {
-    __ Cmp(byte_length, index);
+    __ Lsr(result_register, result_register,
+           base::bits::CountTrailingZeros(element_size));
   }
-  // We use an unsigned comparison to handle negative indices as well.
-  __ EmitEagerDeoptIf(kUnsignedLessThanEqual, DeoptimizeReason::kOutOfBounds,
-                      this);
 }
 
 int CheckJSDataViewBounds::MaxCallStackArgs() const { return 1; }
@@ -621,9 +667,8 @@ void CheckJSDataViewBounds::GenerateCode(MaglevAssembler* masm,
   Register object = ToRegister(receiver_input());
   Register index = ToRegister(index_input());
   if (v8_flags.debug_code) {
-    __ AssertNotSmi(object);
-    __ IsObjectType(object, JS_DATA_VIEW_TYPE);
-    __ Assert(eq, AbortReason::kUnexpectedValue);
+    __ CompareObjectTypeAndAssert(object, JS_DATA_VIEW_TYPE, eq,
+                                  AbortReason::kUnexpectedValue);
   }
 
   // Normal DataView (backed by AB / SAB) or non-length tracking backed by GSAB.

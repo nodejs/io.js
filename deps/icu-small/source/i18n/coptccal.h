@@ -177,7 +177,7 @@ protected:
      * Return the extended year defined by the current fields.
      * @internal
      */
-    virtual int32_t handleGetExtendedYear() override;
+    virtual int32_t handleGetExtendedYear(UErrorCode& status) override;
 
     /**
      * Compute fields from the JD
@@ -185,18 +185,7 @@ protected:
      */
     virtual void handleComputeFields(int32_t julianDay, UErrorCode &status) override;
 
-    /**
-     * Returns the date of the start of the default century
-     * @return start of century - in milliseconds since epoch, 1970
-     * @internal
-     */
-    virtual UDate defaultCenturyStart() const override;
-
-    /**
-     * Returns the year in which the default century begins
-     * @internal
-     */
-    virtual int32_t defaultCenturyStartYear() const override;
+    DECLARE_OVERRIDE_SYSTEM_DEFAULT_CENTURY
 
     /**
      * Return the date offset from Julian
@@ -204,7 +193,7 @@ protected:
      */
     virtual int32_t getJDEpochOffset() const override;
 
-
+    virtual bool isEra0CountingBackward() const override { return true; }
 public:
     /**
      * Override Calendar Returns a unique class ID POLYMORPHICALLY. Pure virtual

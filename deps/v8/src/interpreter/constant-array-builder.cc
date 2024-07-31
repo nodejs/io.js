@@ -68,12 +68,12 @@ const ConstantArrayBuilder::Entry& ConstantArrayBuilder::ConstantArraySlice::At(
 template <typename IsolateT>
 void ConstantArrayBuilder::ConstantArraySlice::CheckAllElementsAreUnique(
     IsolateT* isolate) const {
-  std::set<Smi> smis;
+  std::set<Tagged<Smi>> smis;
   std::set<double> heap_numbers;
   std::set<const AstRawString*> strings;
   std::set<const char*> bigints;
   std::set<const Scope*> scopes;
-  std::set<Object, Object::Comparer> deferred_objects;
+  std::set<Tagged<Object>, Object::Comparer> deferred_objects;
   for (const Entry& entry : constants_) {
     bool duplicate = false;
     switch (entry.tag_) {
@@ -184,9 +184,12 @@ template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
                                                  LocalIsolate* isolate) const;
 
 template <typename IsolateT>
-Handle<FixedArray> ConstantArrayBuilder::ToFixedArray(IsolateT* isolate) {
-  Handle<FixedArray> fixed_array = isolate->factory()->NewFixedArrayWithHoles(
-      static_cast<int>(size()), AllocationType::kOld);
+Handle<TrustedFixedArray> ConstantArrayBuilder::ToFixedArray(
+    IsolateT* isolate) {
+  Handle<TrustedFixedArray> fixed_array =
+      isolate->factory()->NewTrustedFixedArray(static_cast<int>(size()));
+  MemsetTagged(fixed_array->RawFieldOfFirstElement(),
+               *isolate->factory()->the_hole_value(), size());
   int array_index = 0;
   for (const ConstantArraySlice* slice : idx_slice_) {
     DCHECK_EQ(slice->reserved(), 0);
@@ -215,9 +218,10 @@ Handle<FixedArray> ConstantArrayBuilder::ToFixedArray(IsolateT* isolate) {
 }
 
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<FixedArray> ConstantArrayBuilder::ToFixedArray(Isolate* isolate);
+    Handle<TrustedFixedArray> ConstantArrayBuilder::ToFixedArray(
+        Isolate* isolate);
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<FixedArray> ConstantArrayBuilder::ToFixedArray(
+    Handle<TrustedFixedArray> ConstantArrayBuilder::ToFixedArray(
         LocalIsolate* isolate);
 
 size_t ConstantArrayBuilder::Insert(Tagged<Smi> smi) {

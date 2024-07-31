@@ -128,9 +128,10 @@ public:
      * @param skipZeros  determine if skip zeros
      * @param result     the results in a set.
      * @param status       Fill-in parameter which receives the status of this operation.
+     * @param depth     depth of the call.
      * @internal
      */
-    static void U_EXPORT2 permute(UnicodeString &source, UBool skipZeros, Hashtable *result, UErrorCode &status);
+    static void U_EXPORT2 permute(UnicodeString &source, UBool skipZeros, Hashtable *result, UErrorCode &status, int32_t depth=0);
 #endif  /* U_HIDE_INTERNAL_API */
 
     /**
@@ -182,8 +183,8 @@ private:
     // transient fields
     UnicodeString buffer;
 
-    const Normalizer2 &nfd;
-    const Normalizer2Impl &nfcImpl;
+    const Normalizer2 *nfd;
+    const Normalizer2Impl *nfcImpl;
 
     // we have a segment, in NFD. Find all the strings that are canonically equivalent to it.
     UnicodeString *getEquivalents(const UnicodeString &segment, int32_t &result_len, UErrorCode &status); //private String[] getEquivalents(String segment)

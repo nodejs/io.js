@@ -38,14 +38,14 @@ class SourceTextModuleDescriptor : public ZoneObject {
   void AddImport(const AstRawString* import_name,
                  const AstRawString* local_name,
                  const AstRawString* module_request,
-                 const ImportAssertions* import_assertions,
+                 const ImportAttributes* import_attributes,
                  const Scanner::Location loc,
                  const Scanner::Location specifier_loc, Zone* zone);
 
   // import * as x from "foo.js";
   void AddStarImport(const AstRawString* local_name,
                      const AstRawString* module_request,
-                     const ImportAssertions* import_assertions,
+                     const ImportAttributes* import_attributes,
                      const Scanner::Location loc,
                      const Scanner::Location specifier_loc, Zone* zone);
 
@@ -53,7 +53,7 @@ class SourceTextModuleDescriptor : public ZoneObject {
   // import {} from "foo.js";
   // export {} from "foo.js";  (sic!)
   void AddEmptyImport(const AstRawString* module_request,
-                      const ImportAssertions* import_assertions,
+                      const ImportAttributes* import_attributes,
                       const Scanner::Location specifier_loc, Zone* zone);
 
   // export {x};
@@ -70,13 +70,13 @@ class SourceTextModuleDescriptor : public ZoneObject {
   void AddExport(const AstRawString* export_name,
                  const AstRawString* import_name,
                  const AstRawString* module_request,
-                 const ImportAssertions* import_assertions,
+                 const ImportAttributes* import_attributes,
                  const Scanner::Location loc,
                  const Scanner::Location specifier_loc, Zone* zone);
 
   // export * from "foo.js";
   void AddStarExport(const AstRawString* module_request,
-                     const ImportAssertions* import_assertions,
+                     const ImportAttributes* import_attributes,
                      const Scanner::Location loc,
                      const Scanner::Location specifier_loc, Zone* zone);
 
@@ -125,10 +125,10 @@ class SourceTextModuleDescriptor : public ZoneObject {
   class AstModuleRequest : public ZoneObject {
    public:
     AstModuleRequest(const AstRawString* specifier,
-                     const ImportAssertions* import_assertions, int position,
+                     const ImportAttributes* import_attributes, int position,
                      int index)
         : specifier_(specifier),
-          import_assertions_(import_assertions),
+          import_attributes_(import_attributes),
           position_(position),
           index_(index) {}
 
@@ -136,8 +136,8 @@ class SourceTextModuleDescriptor : public ZoneObject {
     Handle<v8::internal::ModuleRequest> Serialize(IsolateT* isolate) const;
 
     const AstRawString* specifier() const { return specifier_; }
-    const ImportAssertions* import_assertions() const {
-      return import_assertions_;
+    const ImportAttributes* import_attributes() const {
+      return import_attributes_;
     }
 
     int position() const { return position_; }
@@ -145,7 +145,7 @@ class SourceTextModuleDescriptor : public ZoneObject {
 
    private:
     const AstRawString* specifier_;
-    const ImportAssertions* import_assertions_;
+    const ImportAttributes* import_attributes_;
 
     // The JS source code position of the request, used for reporting errors.
     int position_;
@@ -264,13 +264,13 @@ class SourceTextModuleDescriptor : public ZoneObject {
   void AssignCellIndices();
 
   int AddModuleRequest(const AstRawString* specifier,
-                       const ImportAssertions* import_assertions,
+                       const ImportAttributes* import_attributes,
                        Scanner::Location specifier_loc, Zone* zone) {
     DCHECK_NOT_NULL(specifier);
     int module_requests_count = static_cast<int>(module_requests_.size());
     auto it = module_requests_
                   .insert(zone->New<AstModuleRequest>(
-                      specifier, import_assertions, specifier_loc.beg_pos,
+                      specifier, import_attributes, specifier_loc.beg_pos,
                       module_requests_count))
                   .first;
     return (*it)->index();

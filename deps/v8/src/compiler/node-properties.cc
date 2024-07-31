@@ -341,6 +341,8 @@ MachineRepresentation NodeProperties::GetProjectionType(
       auto call_descriptor = CallDescriptorOf(input->op());
       return call_descriptor->GetReturnType(index).representation();
     }
+    case IrOpcode::kInt32PairAdd:
+    case IrOpcode::kInt32PairSub:
     case IrOpcode::kWord32AtomicPairLoad:
     case IrOpcode::kWord32AtomicPairAdd:
     case IrOpcode::kWord32AtomicPairSub:

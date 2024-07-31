@@ -48,6 +48,56 @@ server.listen(0, common.mustCall(() => {
     )
   );
 
+  assert.throws(
+    () => client.settings({ customSettings: {
+      0x11: 5,
+      0x12: 5,
+      0x13: 5,
+      0x14: 5,
+      0x15: 5,
+      0x16: 5,
+      0x17: 5,
+      0x18: 5,
+      0x19: 5,
+      0x1A: 5, // more than 10
+      0x1B: 5
+    } }),
+    {
+      code: 'ERR_HTTP2_TOO_MANY_CUSTOM_SETTINGS',
+      name: 'Error'
+    }
+  );
+
+  assert.throws(
+    () => client.settings({ customSettings: {
+      0x10000: 5,
+    } }),
+    {
+      code: 'ERR_HTTP2_INVALID_SETTING_VALUE',
+      name: 'RangeError'
+    }
+  );
+
+  assert.throws(
+    () => client.settings({ customSettings: {
+      0x55: 0x100000000,
+    } }),
+    {
+      code: 'ERR_HTTP2_INVALID_SETTING_VALUE',
+      name: 'RangeError'
+    }
+  );
+
+  assert.throws(
+    () => client.settings({ customSettings: {
+      0x55: -1,
+    } }),
+    {
+      code: 'ERR_HTTP2_INVALID_SETTING_VALUE',
+      name: 'RangeError'
+    }
+  );
+
   [1, true, {}, []].forEach((invalidCallback) =>
     assert.throws(
       () => client.settings({}, invalidCallback),
@@ -58,7 +108,7 @@ server.listen(0, common.mustCall(() => {
     )
   );
 
-  client.settings({ maxFrameSize: 1234567 });
+  client.settings({ maxFrameSize: 1234567, customSettings: { 0xbf: 12 } });
 
   const req = client.request();
   req.on('response', common.mustCall());

@@ -12,13 +12,42 @@
 #ifndef BROTLI_ENC_COMPRESS_FRAGMENT_H_
 #define BROTLI_ENC_COMPRESS_FRAGMENT_H_
 
-#include "../common/platform.h"
 #include <brotli/types.h>
-#include "./memory.h"
+
+#include "../common/constants.h"
+#include "../common/platform.h"
+#include "entropy_encode.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
+
+typedef struct BrotliOnePassArena {
+  uint8_t lit_depth[256];
+  uint16_t lit_bits[256];
+
+  /* Command and distance prefix codes (each 64 symbols, stored back-to-back)
+     used for the next block. The command prefix code is over a smaller alphabet
+     with the following 64 symbols:
+        0 - 15: insert length code 0, copy length code 0 - 15, same distance
+       16 - 39: insert length code 0, copy length code 0 - 23
+       40 - 63: insert length code 0 - 23, copy length code 0
+     Note that symbols 16 and 40 represent the same code in the full alphabet,
+     but we do not use either of them. */
+  uint8_t cmd_depth[128];
+  uint16_t cmd_bits[128];
+  uint32_t cmd_histo[128];
+
+  /* The compressed form of the command and distance prefix codes for the next
+     block. */
+  uint8_t cmd_code[512];
+  size_t cmd_code_numbits;
+
+  HuffmanTree tree[2 * BROTLI_NUM_LITERAL_SYMBOLS + 1];
+  uint32_t histogram[256];
+  uint8_t tmp_depth[BROTLI_NUM_COMMAND_SYMBOLS];
+  uint16_t tmp_bits[64];
+} BrotliOnePassArena;
 
 /* Compresses "input" string to the "*storage" buffer as one or more complete
    meta-blocks, and updates the "*storage_ix" bit position.
@@ -42,15 +71,11 @@ extern "C" {
    REQUIRES: "table_size" is an odd (9, 11, 13, 15) power of two
    OUTPUT: maximal copy distance <= |input_size|
    OUTPUT: maximal copy distance <= BROTLI_MAX_BACKWARD_LIMIT(18) */
-BROTLI_INTERNAL void BrotliCompressFragmentFast(MemoryManager* m,
+BROTLI_INTERNAL void BrotliCompressFragmentFast(BrotliOnePassArena* s,
                                                 const uint8_t* input,
                                                 size_t input_size,
                                                 BROTLI_BOOL is_last,
                                                 int* table, size_t table_size,
-                                                uint8_t cmd_depth[128],
-                                                uint16_t cmd_bits[128],
-                                                size_t* cmd_code_numbits,
-                                                uint8_t* cmd_code,
                                                 size_t* storage_ix,
                                                 uint8_t* storage);
 

@@ -64,22 +64,6 @@ function assertMemoryIsValid(memory, shared) {
        WebAssembly.CompileError);
 })();
 
-(function TestCompileAtomicOpUndefinedShared() {
-  print("TestCompileAtomicOpUndefinedShared");
-  let memory = new WebAssembly.Memory({
-    initial: 0, maximum: 10, shared: true});
-  let builder = new WasmModuleBuilder();
-  builder.addFunction("main", kSig_i_ii)
-    .addBody([
-      kExprLocalGet, 0,
-      kExprLocalGet, 1,
-      kAtomicPrefix,
-      kExprI32AtomicAdd]);
-  builder.addImportedMemory("m", "imported_mem");
-  assertThrows(() => new WebAssembly.Module(builder.toBuffer()),
-       WebAssembly.CompileError);
-})();
-
 (function TestInstantiateWithUndefinedShared() {
   print("TestInstantiateWithUndefinedShared");
   let memory = new WebAssembly.Memory({
@@ -138,7 +122,7 @@ function assertMemoryIsValid(memory, shared) {
     },
     get(o, x) {
       if (x === "index") {
-        return "u32";
+        return "i32";
       }
       return 0;
     },

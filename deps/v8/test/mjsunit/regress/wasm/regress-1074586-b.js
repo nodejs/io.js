@@ -16,7 +16,7 @@ builder.addFunction(undefined, sig).addBodyWithEnd([
   // body:
   kExprI32Const, 0x00,                             // i32.const
   kExprI64Const, 0x00,                             // i64.const
-  kAtomicPrefix, kExprI64AtomicStore, 0x00, 0x00,  // i64.atomic.store64
+  kAtomicPrefix, kExprI64AtomicStore, 0x03, 0x00,  // i64.atomic.store64
   kExprEnd,                                        // end @9
 ]);
 builder.addExport('main', 0);

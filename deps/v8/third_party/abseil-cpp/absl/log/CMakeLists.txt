@@ -1,0 +1,1144 @@
+# Copyright 2022 The Abseil Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Internal targets
+absl_cc_library(
+  NAME
+    log_internal_check_impl
+  SRCS
+  HDRS
+    "internal/check_impl.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::log_internal_check_op
+    absl::log_internal_conditions
+    absl::log_internal_message
+    absl::log_internal_strip
+)
+
+absl_cc_library(
+  NAME
+    log_internal_check_op
+  SRCS
+    "internal/check_op.cc"
+  HDRS
+    "internal/check_op.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_internal_nullguard
+    absl::log_internal_nullstream
+    absl::log_internal_strip
+    absl::strings
+)
+
+absl_cc_library(
+  NAME
+    log_internal_conditions
+  SRCS
+    "internal/conditions.cc"
+  HDRS
+    "internal/conditions.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::core_headers
+    absl::log_internal_voidify
+)
+
+absl_cc_library(
+  NAME
+    log_internal_config
+  SRCS
+  HDRS
+    "internal/config.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+)
+
+absl_cc_library(
+  NAME
+    log_internal_flags
+  SRCS
+  HDRS
+    "internal/flags.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::flags
+)
+
+absl_cc_library(
+  NAME
+    log_internal_format
+  SRCS
+    "internal/log_format.cc"
+  HDRS
+    "internal/log_format.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_internal_append_truncated
+    absl::log_internal_config
+    absl::log_internal_globals
+    absl::log_severity
+    absl::strings
+    absl::str_format
+    absl::time
+    absl::span
+)
+
+absl_cc_library(
+  NAME
+    log_internal_globals
+  SRCS
+    "internal/globals.cc"
+  HDRS
+    "internal/globals.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_severity
+    absl::raw_logging_internal
+    absl::strings
+    absl::time
+)
+
+absl_cc_library(
+  NAME
+    log_internal_log_impl
+  SRCS
+  HDRS
+    "internal/log_impl.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log_internal_conditions
+    absl::log_internal_message
+    absl::log_internal_strip
+    absl::absl_vlog_is_on
+)
+
+absl_cc_library(
+  NAME
+    log_internal_proto
+  SRCS
+    "internal/proto.cc"
+  HDRS
+    "internal/proto.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::core_headers
+    absl::strings
+    absl::span
+)
+
+absl_cc_library(
+  NAME
+    log_internal_message
+  SRCS
+    "internal/log_message.cc"
+  HDRS
+    "internal/log_message.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::core_headers
+    absl::errno_saver
+    absl::inlined_vector
+    absl::examine_stack
+    absl::log_internal_append_truncated
+    absl::log_internal_format
+    absl::log_internal_globals
+    absl::log_internal_proto
+    absl::log_internal_log_sink_set
+    absl::log_internal_nullguard
+    absl::log_globals
+    absl::log_entry
+    absl::log_severity
+    absl::log_sink
+    absl::log_sink_registry
+    absl::memory
+    absl::raw_logging_internal
+    absl::strings
+    absl::strerror
+    absl::time
+    absl::span
+)
+
+absl_cc_library(
+  NAME
+    log_internal_log_sink_set
+  SRCS
+    "internal/log_sink_set.cc"
+  HDRS
+    "internal/log_sink_set.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+    $<$<BOOL:${ANDROID}>:-llog>
+  DEPS
+    absl::base
+    absl::cleanup
+    absl::config
+    absl::core_headers
+    absl::log_internal_config
+    absl::log_internal_globals
+    absl::log_globals
+    absl::log_entry
+    absl::log_severity
+    absl::log_sink
+    absl::no_destructor
+    absl::raw_logging_internal
+    absl::synchronization
+    absl::span
+    absl::strings
+)
+
+absl_cc_library(
+  NAME
+    log_internal_nullguard
+  SRCS
+    "internal/nullguard.cc"
+  HDRS
+    "internal/nullguard.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+)
+
+absl_cc_library(
+  NAME
+    log_internal_nullstream
+  SRCS
+  HDRS
+    "internal/nullstream.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_severity
+    absl::strings
+)
+
+absl_cc_library(
+  NAME
+    log_internal_strip
+  SRCS
+  HDRS
+    "internal/strip.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log_internal_message
+    absl::log_internal_nullstream
+    absl::log_severity
+)
+
+absl_cc_library(
+  NAME
+    log_internal_test_actions
+  SRCS
+    "internal/test_actions.cc"
+  HDRS
+    "internal/test_actions.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_entry
+    absl::log_severity
+    absl::strings
+    absl::time
+  TESTONLY
+)
+
+absl_cc_library(
+  NAME
+    log_internal_test_helpers
+  SRCS
+    "internal/test_helpers.cc"
+  HDRS
+    "internal/test_helpers.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::log_globals
+    absl::log_initialize
+    absl::log_internal_globals
+    absl::log_severity
+    GTest::gtest
+  TESTONLY
+)
+
+absl_cc_library(
+  NAME
+    log_internal_test_matchers
+  SRCS
+    "internal/test_matchers.cc"
+  HDRS
+    "internal/test_matchers.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_entry
+    absl::log_internal_test_helpers
+    absl::log_severity
+    absl::strings
+    absl::time
+    GTest::gtest
+    GTest::gmock
+  TESTONLY
+)
+
+absl_cc_library(
+  NAME
+    log_internal_voidify
+  SRCS
+  HDRS
+    "internal/voidify.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+)
+
+absl_cc_library(
+  NAME
+    log_internal_append_truncated
+  SRCS
+  HDRS
+    "internal/append_truncated.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::strings
+    absl::span
+)
+
+# Public targets
+absl_cc_library(
+  NAME
+    absl_check
+  SRCS
+  HDRS
+    "absl_check.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log_internal_check_impl
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    absl_log
+  SRCS
+  HDRS
+    "absl_log.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log_internal_log_impl
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    check
+  SRCS
+  HDRS
+    "check.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log_internal_check_impl
+    absl::core_headers
+    absl::log_internal_check_op
+    absl::log_internal_conditions
+    absl::log_internal_message
+    absl::log_internal_strip
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    die_if_null
+  SRCS
+    "die_if_null.cc"
+  HDRS
+    "die_if_null.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log
+    absl::strings
+  PUBLIC
+)
+
+# Warning: Many linkers will strip the contents of this library because its
+# symbols are only used in a global constructor. A workaround is for clients
+# to link this using $<LINK_LIBRARY:WHOLE_ARCHIVE,absl::log_flags> instead of
+# the plain absl::log_flags.
+# TODO(b/320467376): Implement the equivalent of Bazel's alwayslink=True.
+absl_cc_library(
+  NAME
+    log_flags
+  SRCS
+    "flags.cc"
+  HDRS
+    "flags.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_globals
+    absl::log_severity
+    absl::log_internal_config
+    absl::log_internal_flags
+    absl::flags
+    absl::flags_marshalling
+    absl::strings
+    absl::vlog_config_internal
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    log_globals
+  SRCS
+    "globals.cc"
+  HDRS
+    "globals.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::atomic_hook
+    absl::config
+    absl::core_headers
+    absl::hash
+    absl::log_severity
+    absl::raw_logging_internal
+    absl::strings
+    absl::vlog_config_internal
+)
+
+absl_cc_library(
+  NAME
+    log_initialize
+  SRCS
+    "initialize.cc"
+  HDRS
+    "initialize.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::log_globals
+    absl::log_internal_globals
+    absl::time
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    log
+  SRCS
+  HDRS
+    "log.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log_internal_log_impl
+    absl::vlog_is_on
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    log_entry
+  SRCS
+    "log_entry.cc"
+  HDRS
+    "log_entry.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_internal_config
+    absl::log_severity
+    absl::span
+    absl::strings
+    absl::time
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    log_sink
+  SRCS
+    "log_sink.cc"
+  HDRS
+    "log_sink.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::log_entry
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    log_sink_registry
+  SRCS
+  HDRS
+    "log_sink_registry.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::log_sink
+    absl::log_internal_log_sink_set
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    log_streamer
+  SRCS
+  HDRS
+    "log_streamer.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::absl_log
+    absl::log_severity
+    absl::optional
+    absl::strings
+    absl::strings_internal
+    absl::utility
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    scoped_mock_log
+  SRCS
+    "scoped_mock_log.cc"
+  HDRS
+    "scoped_mock_log.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::log_entry
+    absl::log_severity
+    absl::log_sink
+    absl::log_sink_registry
+    absl::raw_logging_internal
+    absl::strings
+    GTest::gmock
+    GTest::gtest
+  PUBLIC
+  TESTONLY
+)
+
+absl_cc_library(
+  NAME
+    log_internal_structured
+  HDRS
+    "internal/structured.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::log_internal_message
+    absl::strings
+)
+
+absl_cc_library(
+  NAME
+    log_structured
+  HDRS
+    "structured.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::log_internal_structured
+    absl::strings
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    vlog_config_internal
+  SRCS
+    "internal/vlog_config.cc"
+  HDRS
+    "internal/vlog_config.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::core_headers
+    absl::log_internal_fnmatch
+    absl::memory
+    absl::no_destructor
+    absl::strings
+    absl::synchronization
+    absl::optional
+)
+
+absl_cc_library(
+  NAME
+    absl_vlog_is_on
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  HDRS
+    "absl_vlog_is_on.h"
+  DEPS
+    absl::vlog_config_internal
+    absl::config
+    absl::core_headers
+    absl::strings
+)
+
+absl_cc_library(
+  NAME
+    vlog_is_on
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  HDRS
+    "vlog_is_on.h"
+  DEPS
+    absl::absl_vlog_is_on
+)
+
+absl_cc_test(
+  NAME
+    vlog_is_on_test
+  SRCS
+    "vlog_is_on_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log
+    absl::log_flags
+    absl::log_globals
+    absl::scoped_mock_log
+    absl::vlog_is_on
+    absl::log_severity
+    absl::flags
+    absl::optional
+    GTest::gmock_main
+)
+
+absl_cc_library(
+  NAME
+    log_internal_fnmatch
+  SRCS
+    "internal/fnmatch.cc"
+  HDRS
+    "internal/fnmatch.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::strings
+)
+
+# Test targets
+
+absl_cc_test(
+  NAME
+    absl_check_test
+  SRCS
+    "absl_check_test.cc"
+    "check_test_impl.inc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::absl_check
+    absl::config
+    absl::core_headers
+    absl::log_internal_test_helpers
+    absl::status
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    absl_log_basic_test
+  SRCS
+    "log_basic_test.cc"
+    "log_basic_test_impl.inc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::base
+    absl::absl_log
+    absl::log_entry
+    absl::log_globals
+    absl::log_severity
+    absl::log_internal_test_actions
+    absl::log_internal_test_helpers
+    absl::log_internal_test_matchers
+    absl::scoped_mock_log
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    check_test
+  SRCS
+    "check_test.cc"
+    "check_test_impl.inc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::check
+    absl::config
+    absl::core_headers
+    absl::log_internal_test_helpers
+    absl::status
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    die_if_null_test
+  SRCS
+    "die_if_null_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::die_if_null
+    absl::log_internal_test_helpers
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    log_basic_test
+  SRCS
+    "log_basic_test.cc"
+    "log_basic_test_impl.inc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::base
+    absl::log
+    absl::log_entry
+    absl::log_globals
+    absl::log_severity
+    absl::log_internal_test_actions
+    absl::log_internal_test_helpers
+    absl::log_internal_test_matchers
+    absl::scoped_mock_log
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_entry_test
+  SRCS
+    "log_entry_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_entry
+    absl::log_internal_append_truncated
+    absl::log_internal_format
+    absl::log_internal_globals
+    absl::log_internal_test_helpers
+    absl::log_severity
+    absl::span
+    absl::strings
+    absl::time
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_flags_test
+  SRCS
+    "flags_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::log
+    absl::log_flags
+    absl::log_globals
+    absl::log_internal_flags
+    absl::log_internal_test_helpers
+    absl::log_internal_test_matchers
+    absl::log_severity
+    absl::flags
+    absl::flags_reflection
+    absl::scoped_mock_log
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_globals_test
+  SRCS
+    "globals_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::log
+    absl::log_globals
+    absl::log_internal_globals
+    absl::log_internal_test_helpers
+    absl::log_severity
+    absl::scoped_mock_log
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_format_test
+  SRCS
+    "log_format_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::check
+    absl::log
+    absl::log_internal_test_matchers
+    absl::optional
+    absl::scoped_mock_log
+    absl::str_format
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_macro_hygiene_test
+  SRCS
+    "log_macro_hygiene_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::log
+    absl::log_severity
+    absl::scoped_mock_log
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_sink_test
+  SRCS
+    "log_sink_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::log
+    absl::log_internal_test_actions
+    absl::log_internal_test_helpers
+    absl::log_internal_test_matchers
+    absl::log_sink
+    absl::log_sink_registry
+    absl::log_severity
+    absl::scoped_mock_log
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_streamer_test
+  SRCS
+    "log_streamer_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::base
+    absl::core_headers
+    absl::log
+    absl::log_internal_test_actions
+    absl::log_internal_test_helpers
+    absl::log_internal_test_matchers
+    absl::log_streamer
+    absl::log_severity
+    absl::scoped_mock_log
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_modifier_methods_test
+  SRCS
+    "log_modifier_methods_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log
+    absl::log_internal_test_actions
+    absl::log_internal_test_helpers
+    absl::log_internal_test_matchers
+    absl::log_sink
+    absl::scoped_mock_log
+    absl::strings
+    absl::time
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    scoped_mock_log_test
+  SRCS
+    "scoped_mock_log_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::log
+    absl::log_globals
+    absl::log_internal_globals
+    absl::log_internal_test_helpers
+    absl::log_internal_test_matchers
+    absl::log_severity
+    absl::memory
+    absl::scoped_mock_log
+    absl::strings
+    absl::synchronization
+    GTest::gmock
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    log_internal_stderr_log_sink_test
+  SRCS
+    "internal/stderr_log_sink_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::log
+    absl::log_globals
+    absl::log_internal_test_helpers
+    absl::log_severity
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_stripping_test
+  SRCS
+    "stripping_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::check
+    absl::flags_program_name
+    absl::log
+    absl::log_internal_test_helpers
+    absl::log_severity
+    absl::status
+    absl::strerror
+    absl::strings
+    absl::str_format
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    log_structured_test
+  SRCS
+    "structured_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::core_headers
+    absl::log
+    absl::log_internal_test_helpers
+    absl::log_internal_test_matchers
+    absl::log_structured
+    absl::scoped_mock_log
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    internal_fnmatch_test
+  SRCS
+    "internal/fnmatch_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log_internal_fnmatch
+    GTest::gmock_main
+)

@@ -38,6 +38,7 @@
 # define CONF_R_NUMBER_TOO_LARGE                          121
 # define CONF_R_OPENSSL_CONF_REFERENCES_MISSING_SECTION   124
 # define CONF_R_RECURSIVE_DIRECTORY_INCLUDE               111
+# define CONF_R_RECURSIVE_SECTION_REFERENCE               126
 # define CONF_R_RELATIVE_PATH                             125
 # define CONF_R_SSL_COMMAND_SECTION_EMPTY                 117
 # define CONF_R_SSL_COMMAND_SECTION_NOT_FOUND             118

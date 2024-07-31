@@ -1,19 +1,6 @@
 .\"
 .\" Copyright 1998 by the Massachusetts Institute of Technology.
 .\" Copyright (C) 2004-2009 by Daniel Stenberg
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_LIBRARY_INIT 3 "19 May 2009"
@@ -87,18 +74,18 @@ as there are no currently dynamically loaded libraries.
 .B ARES_LIB_INIT_NONE
 Initialize nothing extra. This sets no bit.
 .SH RETURN VALUE
-Upon successful completion, ares_library_init() will return 0.  Otherwise, a
-non-zero error number will be returned to indicate the error. Except for
+Upon successful completion, \fIares_library_init(3)\fP returns 0.  Otherwise,
+a non-zero error number is returned to indicate the error. Except for
 \fIares_strerror(3)\fP, you shall not call any other c-ares function upon
 \fIares_library_init(3)\fP failure.
 .SH AVAILABILITY
 This function was first introduced in c-ares version 1.7.0 along with the
 definition of preprocessor symbol \fICARES_HAVE_ARES_LIBRARY_INIT\fP as an
-indication of the availability of this function. Its recursive behavior,
-which requires a matching number of calls to \fIares_library_cleanup()\fP
-in order to deinitialize the library, is present since c-ares version
-1.10.0. Earlier versions would deinitialize the library on the first call
-to \fIares_library_cleanup()\fP.
+indication of the availability of this function. Its recursive behavior, which
+requires a matching number of calls to \fIares_library_cleanup(3)\fP in order
+to deinitialize the library, is present since c-ares version 1.10.0. Earlier
+versions would deinitialize the library on the first call to
+\fIares_library_cleanup(3)\fP.
 .PP
 Since the introduction of this function it is absolutely mandatory to
 call it for any Win32/64 program using c-ares.
@@ -107,11 +94,5 @@ Non-Win32/64 systems can still use c-ares version 1.7.0 without calling
 \fIares_library_init(3)\fP due to the fact that \fIcurrently\fP it is nearly
 a do-nothing function on non-Win32/64 platforms at this point.
 .SH SEE ALSO
-.BR ares_library_cleanup(3),
-.BR ares_strerror(3)
-.SH AUTHOR
-Yang Tse
-.PP
-Copyright 1998 by the Massachusetts Institute of Technology.
-.br
-Copyright (C) 2004-2009 by Daniel Stenberg.
+.BR ares_library_cleanup (3),
+.BR ares_strerror (3)

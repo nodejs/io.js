@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="scope">scope</h1>
+<h1 id="----scope----1082">
+    <span>scope</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Scoped packages</span>
 </header>
 
@@ -228,7 +236,7 @@ project.</p>
 <p>Scopes have a many-to-one relationship with registries: one registry can
 host multiple scopes, but a scope only ever points to one registry.</p>
 <p>You can also associate a scope with a registry using <code>npm config</code>:</p>
-<pre><code class="language-bash">npm config set @myco:registry http://reg.example.com
+<pre><code class="language-bash">npm config set @myco:registry=http://reg.example.com
 </code></pre>
 <p>Once a scope is associated with a registry, any <code>npm install</code> for a package
 with that scope will request packages from that registry instead. Any

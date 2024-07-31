@@ -27,13 +27,14 @@
 
 #include <stdlib.h>
 
+#include "src/flags/flags-impl.h"
 #include "src/flags/flags.h"
 #include "src/init/v8.h"
+#include "test/unittests/fuzztest.h"
 #include "test/unittests/test-utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 class FlagDefinitionsTest : public ::testing::Test {
  public:
@@ -194,6 +195,22 @@ TEST_F(FlagDefinitionsTest, FlagsJitlessImplications) {
   }
 }
 
+TEST_F(FlagDefinitionsTest, FlagsDisableOptimizingCompilersImplications) {
+  if (v8_flags.disable_optimizing_compilers) {
+    // Double-check implications work as expected. Our implication system is
+    // fairly primitive and can break easily depending on the implication
+    // definition order in flag-definitions.h.
+    CHECK(!v8_flags.turbofan);
+    CHECK(!v8_flags.turboshaft);
+    CHECK(!v8_flags.maglev);
+#ifdef V8_ENABLE_WEBASSEMBLY
+    CHECK(!v8_flags.wasm_tier_up);
+    CHECK(!v8_flags.wasm_dynamic_tiering);
+    CHECK(!v8_flags.validate_asm);
+#endif  // V8_ENABLE_WEBASSEMBLY
+  }
+}
+
 TEST_F(FlagDefinitionsTest, FreezeFlags) {
   // Before freezing, we can arbitrarily change values.
   CHECK_EQ(13, v8_flags.testing_int_flag);  // Initial (default) value.
@@ -221,19 +238,150 @@ TEST_F(FlagDefinitionsTest, FreezeFlags) {
   CHECK_EQ(42, *direct_testing_int_ptr);
 }
 
-TEST_F(FlagDefinitionsTest, TestExperimentalImplications) {
-  // Check that experimental features are not staged behind --future/--harmony.
-  if (!v8_flags.experimental) {
-    int argc = 3;
-    const char* argv[] = {"", "--future", "--harmony"};
-    CHECK_EQ(0, FlagList::SetFlagsFromCommandLine(
-                    &argc, const_cast<char**>(argv), true));
-    FlagList::EnforceFlagImplications();
-    CHECK(v8_flags.future);
-    CHECK(v8_flags.harmony);
-    CHECK(!v8_flags.experimental);
+// Stress implications after setting a flag. We only set one flag, as multiple
+// might just lead to known flag contradictions.
+void StressFlagImplications(const std::string& s1) {
+  int result = FlagList::SetFlagsFromString(s1.c_str(), s1.length());
+  // Only process implications if a flag was set successfully (which happens
+  // only in a small portion of fuzz runs).
+  if (result == 0) FlagList::EnforceFlagImplications();
+  // Ensure a clean state in each iteration.
+  for (Flag& flag : Flags()) {
+    if (!flag.IsReadOnly()) flag.Reset();
   }
 }
 
-}  // namespace internal
-}  // namespace v8
+V8_FUZZ_TEST(FlagDefinitionsFuzzTest, StressFlagImplications)
+    .WithDomains(fuzztest::InRegexp("^--(\\w|\\-){1,50}(=\\w{1,5})?$"));
+
+struct FlagAndName {
+  FlagValue<bool>* value;
+  const char* name;
+  const char* test_name;
+};
+
+class ExperimentalFlagImplicationTest
+    : public ::testing::TestWithParam<FlagAndName> {};
+
+// Check that no experimental feature is enabled; this is executed for different
+// {FlagAndName} combinations.
+TEST_P(ExperimentalFlagImplicationTest, TestExperimentalNotEnabled) {
+  FlagList::EnforceFlagImplications();
+  // --experimental should be disabled by default. Note that unittests do not
+  // get executed in variants.
+  CHECK(!v8_flags.experimental);
+  auto [flag_value, flag_name, test_name] = GetParam();
+  CHECK_EQ(flag_value == nullptr, flag_name == nullptr);
+
+  if (flag_name) {
+    int argc = 2;
+    const char* argv[] = {"", flag_name};
+    CHECK_EQ(0, FlagList::SetFlagsFromCommandLine(
+                    &argc, const_cast<char**>(argv), false));
+    CHECK(*flag_value);
+  }
+
+  // Always enforce implications before checking if --experimental is set.
+  FlagList::EnforceFlagImplications();
+
+  if (v8_flags.experimental) {
+    if (flag_value == nullptr) {
+      FATAL("--experimental is enabled by default");
+    } else {
+      FATAL("--experimental is implied by %s", flag_name);
+    }
+  }
+}
+
+std::string FlagNameToTestName(::testing::TestParamInfo<FlagAndName> info) {
+  return info.param.test_name;
+}
+
+// MVSC does not like an "#if" inside of a macro, hence define this list outside
+// of INSTANTIATE_TEST_SUITE_P.
+auto GetFlagImplicationTestVariants() {
+  return ::testing::Values(
+      FlagAndName{nullptr, nullptr, "Default"},
+      FlagAndName{&v8_flags.future, "--future", "Future"},
+#if V8_ENABLE_WEBASSEMBLY
+      FlagAndName{&v8_flags.wasm_staging, "--wasm-staging", "WasmStaging"},
+#endif  // V8_ENABLE_WEBASSEMBLY
+      FlagAndName{&v8_flags.harmony, "--harmony", "Harmony"});
+}
+
+INSTANTIATE_TEST_SUITE_P(ExperimentalFlagImplication,
+                         ExperimentalFlagImplicationTest,
+                         GetFlagImplicationTestVariants(), FlagNameToTestName);
+
+TEST(FlagContradictionsTest, ResolvesContradictions) {
+#ifdef V8_ENABLE_MAGLEV
+  int argc = 4;
+  const char* argv[] = {"Test", "--fuzzing", "--stress-maglev", "--jitless"};
+  FlagList::SetFlagsFromCommandLine(&argc, const_cast<char**>(argv), false);
+  CHECK(v8_flags.fuzzing);
+  CHECK(v8_flags.jitless);
+  CHECK(v8_flags.stress_maglev);
+  FlagList::ResolveContradictionsWhenFuzzing();
+  FlagList::EnforceFlagImplications();
+  CHECK(v8_flags.fuzzing);
+  CHECK(!v8_flags.jitless);
+  CHECK(v8_flags.stress_maglev);
+#endif
+}
+
+const char* smallerValues[] = {"", "--a", "--a-b-c", "--a_b_c"};
+const char* largerValues[] = {"--a-c-b", "--a_c_b",   "--a_b_d",
+                              "--a-b-d", "--a_b_c_d", "--a-b-c-d"};
+
+TEST(FlagHelpersTest, CompareDifferentFlags) {
+  TRACED_FOREACH(const char*, smaller, smallerValues) {
+    TRACED_FOREACH(const char*, larger, largerValues) {
+      CHECK_EQ(-1, FlagHelpers::FlagNamesCmp(smaller, larger));
+      CHECK_EQ(1, FlagHelpers::FlagNamesCmp(larger, smaller));
+    }
+  }
+}
+
+void CheckEqualFlags(const char* f1, const char* f2) {
+  CHECK(FlagHelpers::EqualNames(f1, f2));
+  CHECK(FlagHelpers::EqualNames(f2, f1));
+}
+
+TEST(FlagHelpersTest, CompareSameFlags) {
+  CheckEqualFlags("", "");
+  CheckEqualFlags("--a", "--a");
+  CheckEqualFlags("--a-b-c", "--a_b_c");
+  CheckEqualFlags("--a-b-c", "--a-b-c");
+}
+
+void CheckFlagInvariants(const std::string& s1, const std::string& s2) {
+  const char* f1 = s1.c_str();
+  const char* f2 = s2.c_str();
+  CHECK_EQ(-FlagHelpers::FlagNamesCmp(f1, f2),
+           FlagHelpers::FlagNamesCmp(f2, f1));
+  CHECK(FlagHelpers::EqualNames(f1, f1));
+  CHECK(FlagHelpers::EqualNames(f2, f2));
+}
+
+V8_FUZZ_TEST(FlagHelpersFuzzTest, CheckFlagInvariants)
+    .WithDomains(fuzztest::AsciiString(), fuzztest::AsciiString());
+
+TEST(FlagInternalsTest, LookupFlagByName) {
+  CHECK_EQ(0, strcmp("trace_opt", FindFlagByName("trace_opt")->name()));
+  CHECK_EQ(0, strcmp("trace_opt", FindFlagByName("trace-opt")->name()));
+  CHECK_EQ(nullptr, FindFlagByName("trace?opt"));
+}
+
+TEST(FlagInternalsTest, LookupAllFlagsByName) {
+  for (const Flag& flag : Flags()) {
+    CHECK_EQ(&flag, FindFlagByName(flag.name()));
+  }
+}
+
+TEST(FlagInternalsTest, LookupAllImplicationFlagsByName) {
+  for (const Flag& flag : Flags()) {
+    CHECK_EQ(&flag, FindImplicationFlagByName(flag.name()));
+  }
+}
+
+}  // namespace v8::internal

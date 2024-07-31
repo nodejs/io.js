@@ -50,7 +50,7 @@ class RecordingVisitor final : public RootVisitor {
 
  private:
   // Some heap object that we want to check if it is visited or not.
-  HeapObject the_object_;
+  Tagged<HeapObject> the_object_;
 
   // Addresses of this object.
   Address base_address_;    // Uncompressed base address

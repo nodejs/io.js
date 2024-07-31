@@ -26,8 +26,8 @@ MaybeHandle<WasmModuleObject> CompileForTesting(Isolate* isolate,
                                                 ErrorThrower* thrower,
                                                 ModuleWireBytes bytes) {
   auto enabled_features = WasmFeatures::FromIsolate(isolate);
-  MaybeHandle<WasmModuleObject> module =
-      GetWasmEngine()->SyncCompile(isolate, enabled_features, thrower, bytes);
+  MaybeHandle<WasmModuleObject> module = GetWasmEngine()->SyncCompile(
+      isolate, enabled_features, CompileTimeImports{}, thrower, bytes);
   DCHECK_EQ(thrower->error(), module.is_null());
   return module;
 }
@@ -127,13 +127,13 @@ int32_t CallWasmFunctionForTesting(Isolate* isolate,
 
   // The result should be a number.
   if (retval.is_null()) {
-    DCHECK(isolate->has_pending_exception());
+    DCHECK(isolate->has_exception());
     if (exception) {
       Handle<String> exception_string = Object::NoSideEffectsToString(
-          isolate, handle(isolate->pending_exception(), isolate));
+          isolate, handle(isolate->exception(), isolate));
       *exception = exception_string->ToCString();
     }
-    isolate->clear_pending_exception();
+    isolate->clear_internal_exception();
     return -1;
   }
   Handle<Object> result = retval.ToHandleChecked();

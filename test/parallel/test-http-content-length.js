@@ -26,7 +26,7 @@ const server = http.createServer(function(req, res) {
   res.removeHeader('Date');
   res.setHeader('Keep-Alive', 'timeout=1');
 
-  switch (req.url.substr(1)) {
+  switch (req.url.slice(1)) {
     case 'multiple-writes':
       delete req.headers.host;
       assert.deepStrictEqual(req.headers, expectedHeadersMultipleWrites);

@@ -4,11 +4,13 @@
 
 // TODO(nicohartmann): Discuss whether types used by multiple builtins should be
 // in global namespace
+@cppObjectLayoutDefinition
 extern class BigIntBase extends PrimitiveHeapObject
     generates 'TNode<BigInt>';
 
 type BigInt extends BigIntBase;
 
+@cppObjectLayoutDefinition
 @hasSameInstanceTypeAsParent
 @doNotGenerateCast
 extern class MutableBigInt extends BigIntBase generates 'TNode<BigInt>';

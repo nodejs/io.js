@@ -2,9 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// TODOC: Document what this class is used for.
 extern class PropertyCell extends HeapObject {
   name: AnyName;
   property_details_raw: Smi;
   value: Object;
   dependent_code: DependentCode;
 }
+
+// Used for keeping track of whether a top-level variable declared with
+// `let` stays constant and what optimized code depends on it.
+extern class ConstTrackingLetCell extends HeapObject {
+  dependent_code: DependentCode;
+}
+
+const kConstTrackingLetCellConstMarker: Smi = SmiTag(1);
+const kConstTrackingLetCellNonConstMarker: Smi = SmiTag(0);

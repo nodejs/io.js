@@ -6,17 +6,17 @@
 
 namespace runtime {
 extern runtime WasmGenericJSToWasmObject(
-    Context, WasmInstanceObject|Undefined, JSAny, Smi): JSAny;
+    Context, WasmTrustedInstanceData|Undefined, JSAny, Smi): JSAny;
 extern runtime WasmGenericWasmToJSObject(Context, Object): JSAny;
 extern runtime WasmCompileWrapper(NoContext, WasmExportedFunctionData): JSAny;
 extern runtime WasmAllocateSuspender(Context): JSAny;
 }  // namespace runtime
 
 namespace wasm {
-extern builtin JSToWasmWrapperAsm(RawPtr<intptr>, WasmInstanceObject, JSAny):
-    JSAny;
+extern builtin JSToWasmWrapperAsm(
+    RawPtr<intptr>, WasmTrustedInstanceData, JSAny): JSAny;
 extern builtin WasmReturnPromiseOnSuspendAsm(
-    RawPtr<intptr>, WasmInstanceObject, JSAny): JSAny;
+    RawPtr<intptr>, WasmTrustedInstanceData, JSAny): JSAny;
 
 extern macro UniqueIntPtrConstant(constexpr intptr): intptr;
 
@@ -58,6 +58,12 @@ const kWasmF32Type:
 const kWasmF64Type:
     constexpr int32 generates 'wasm::kWasmF64.raw_bit_field()';
 
+const kIsFpAlwaysDouble:
+    constexpr bool generates 'wasm::kIsFpAlwaysDouble';
+const kIsBigEndian: constexpr bool generates 'wasm::kIsBigEndian';
+const kIsBigEndianOnSim:
+    constexpr bool generates 'wasm::kIsBigEndianOnSim';
+
 extern enum ValueKind extends int32 constexpr 'wasm::ValueKind' {
   kRef,
   kRefNull,
@@ -75,7 +81,10 @@ extern enum HeapType extends int32
   kArray,
   kAny,
   kNone,
+  kFunc,
   kNoFunc,
+  kExn,
+  kNoExn,
   ...
 }
 
@@ -125,6 +134,7 @@ macro Bitcast<To: type, From: type>(i: From): To {
 }
 
 extern macro BitcastFloat32ToInt32(float32): uint32;
+extern macro BitcastInt32ToFloat32(int32): float32;
 
 Bitcast<uint32, float32>(v: float32): uint32 {
   return BitcastFloat32ToInt32(v);
@@ -291,6 +301,10 @@ struct LocationAllocator {
     return this.GetStackSlot();
   }
 
+  macro GetRemainingFPRegs(): intptr {
+    return this.remainingFPRegs;
+  }
+
   macro GetFP64Slot(): &intptr {
     if (this.remainingFPRegs-- > 0) {
       const result = torque_internal::unsafe::NewReference<intptr>(
@@ -396,7 +410,8 @@ macro LocationAllocatorForReturns(
 }
 
 macro JSToWasmObject(
-    context: NativeContext, instanceOrUndefined: WasmInstanceObject|Undefined,
+    context: NativeContext,
+    trustedInstanceDataOrUndefined: WasmTrustedInstanceData|Undefined,
     targetType: int32, value: JSAny): Object {
   const heapType = (targetType >> kValueTypeKindBits) & kValueTypeHeapTypeMask;
   const kind = targetType & kValueTypeKindBitsMask;
@@ -424,7 +439,7 @@ macro JSToWasmObject(
     ThrowTypeError(MessageTemplate::kWasmTrapJSTypeError);
   }
   return runtime::WasmGenericJSToWasmObject(
-      context, instanceOrUndefined, value, Convert<Smi>(targetType));
+      context, trustedInstanceDataOrUndefined, value, Convert<Smi>(targetType));
 }
 
 macro JSToWasmWrapperHelper(
@@ -442,6 +457,8 @@ macro JSToWasmWrapperHelper(
   }
 
   const sig = functionData.sig_ptr;
+  const trustedInstanceData: WasmTrustedInstanceData =
+      LoadTrustedDataFromInstance(functionData.instance);
 
   const paramCount = *GetRefAt<int32>(sig, kWasmParameterCountOffset);
 
@@ -487,6 +504,8 @@ macro JSToWasmWrapperHelper(
       } else if (retType == kWasmF64Type) {
         allocator.AllocFP64();
       } else {
+        const retKind = retType & kValueTypeKindBitsMask;
+        dcheck(retKind == ValueKind::kRef || retKind == ValueKind::kRefNull);
         // Also check if there are any reference return values, as this allows
         // us to skip code when we process return values.
         hasRefReturns = true;
@@ -583,6 +602,8 @@ macro JSToWasmWrapperHelper(
         *toHighRef = Signed(pair.high);
       }
     } else {
+      const paramKind = paramType & kValueTypeKindBitsMask;
+      dcheck(paramKind == ValueKind::kRef || paramKind == ValueKind::kRefNull);
       // The byte array where we store converted parameters is not GC-safe.
       // Therefore we can only copy references into this array once no GC can
       // happen anymore. Any conversion of a primitive type can execute
@@ -592,7 +613,7 @@ macro JSToWasmWrapperHelper(
       // back to the stack.
       hasRefParam = true;
       arguments[Convert<intptr>(paramIndex)] =
-          JSToWasmObject(context, functionData.instance, paramType, param);
+          JSToWasmObject(context, trustedInstanceData, paramType, param);
     }
   }
   if (hasRefParam) {
@@ -632,7 +653,6 @@ macro JSToWasmWrapperHelper(
 
   const internal: WasmInternalFunction = functionData.internal;
   const callTarget = internal.call_target_ptr;
-  const instance: WasmInstanceObject = functionData.instance;
 
   // We construct a state that will be passed to `JSToWasmWrapperAsm`
   // and `JSToWasmHandleReturns`. There are too many parameters to pass
@@ -652,15 +672,17 @@ macro JSToWasmWrapperHelper(
       paramStart;
   *GetRefAt<RawPtr>(wrapperBuffer, kWrapperBufferParamEnd) = paramEnd;
 
-  // Both `instance` and `resultArray` get passed separately as parameters to
-  // make them GC-safe. They get passed over the stack so that they get scanned
-  // by the GC as part of the outgoing parameters of this Torque builtin.
+  // Both `trustedInstanceData` and `resultArray` get passed separately as
+  // parameters to make them GC-safe. They get passed over the stack so that
+  // they get scanned by the GC as part of the outgoing parameters of this
+  // Torque builtin.
   let result: JSAny;
   if constexpr (switchStack) {
-    result =
-        WasmReturnPromiseOnSuspendAsm(wrapperBuffer, instance, resultArray);
+    result = WasmReturnPromiseOnSuspendAsm(
+        wrapperBuffer, trustedInstanceData, resultArray);
   } else {
-    result = JSToWasmWrapperAsm(wrapperBuffer, instance, resultArray);
+    result =
+        JSToWasmWrapperAsm(wrapperBuffer, trustedInstanceData, resultArray);
   }
 
   // The normal return sequence of Torque-generated JavaScript builtins does not
@@ -702,7 +724,8 @@ macro WasmToJSObject(context: NativeContext, value: Object, retType: int32):
         heapType == HeapType::kStruct || heapType == HeapType::kArray ||
         heapType == HeapType::kAny || heapType == HeapType::kExtern ||
         heapType == HeapType::kString || heapType == HeapType::kNone ||
-        heapType == HeapType::kNoFunc || heapType == HeapType::kNoExtern) {
+        heapType == HeapType::kNoFunc || heapType == HeapType::kNoExtern ||
+        heapType == HeapType::kExn || heapType == HeapType::kNoExn) {
       return UnsafeCast<JSAny>(value);
     }
     // TODO(ahaas): This is overly pessimistic: all module-defined struct and
@@ -712,7 +735,8 @@ macro WasmToJSObject(context: NativeContext, value: Object, retType: int32):
     return runtime::WasmGenericWasmToJSObject(context, value);
   } else {
     dcheck(paramKind == ValueKind::kRefNull);
-    if (heapType == HeapType::kExtern || heapType == HeapType::kNoExtern) {
+    if (heapType == HeapType::kExtern || heapType == HeapType::kNoExtern ||
+        heapType == HeapType::kExn || heapType == HeapType::kNoExn) {
       return UnsafeCast<JSAny>(value);
     }
     if (value == kWasmNull) {
@@ -732,7 +756,7 @@ macro WasmToJSObject(context: NativeContext, value: Object, retType: int32):
 }
 
 builtin JSToWasmHandleReturns(
-    instance: WasmInstanceObject, resultArray: JSArray,
+    trustedData: WasmTrustedInstanceData, resultArray: JSArray,
     wrapperBuffer: RawPtr<intptr>): JSAny {
   const returnCount = *GetRefAt<int32>(
       wrapperBuffer, kWrapperBufferReturnCount);
@@ -773,7 +797,8 @@ builtin JSToWasmHandleReturns(
           wrapperBuffer + kWrapperBufferGPReturnRegister1);
       const rawRef = *GetRefAt<uintptr>(ptr, 0);
       const value = BitcastWordToTagged(rawRef);
-      return WasmToJSObject(LoadContextFromInstance(instance), value, retType);
+      return WasmToJSObject(
+          LoadContextFromInstanceData(trustedData), value, retType);
     }
   }
 
@@ -858,8 +883,8 @@ builtin JSToWasmHandleReturns(
     } else {
       locationAllocator.GetGPSlot();
       const value = fixedArray.objects[k];
-      fixedArray.objects[k] =
-          WasmToJSObject(LoadContextFromInstance(instance), value, retType);
+      fixedArray.objects[k] = WasmToJSObject(
+          LoadContextFromInstanceData(trustedData), value, retType);
     }
   }
 

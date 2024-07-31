@@ -78,6 +78,14 @@ RelativeDateFormat::RelativeDateFormat( UDateFormatStyle timeStyle, UDateFormatS
     if(U_FAILURE(status) ) {
         return;
     }
+    if (dateStyle != UDAT_FULL_RELATIVE &&
+        dateStyle != UDAT_LONG_RELATIVE &&
+        dateStyle != UDAT_MEDIUM_RELATIVE &&
+        dateStyle != UDAT_SHORT_RELATIVE &&
+        dateStyle != UDAT_RELATIVE) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return;
+    }
 
     if (timeStyle < UDAT_NONE || timeStyle > UDAT_SHORT) {
         // don't support other time styles (e.g. relative styles), for now

@@ -1,0 +1,51 @@
+# Copyright 2021 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("sample_recorder") {
+  public = [ "internal/sample_recorder.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/synchronization",
+    "//third_party/abseil-cpp/absl/time",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("exponential_biased") {
+  sources = [ "internal/exponential_biased.cc" ]
+  public = [ "internal/exponential_biased.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_test("exponential_biased_test") {
+  sources = [ "internal/exponential_biased_test.cc" ]
+  deps = [
+    ":exponential_biased",
+    "//third_party/abseil-cpp/absl/strings",
+  ]
+}
+
+absl_source_set("periodic_sampler") {
+  sources = [ "internal/periodic_sampler.cc" ]
+  public = [ "internal/periodic_sampler.h" ]
+  deps = [
+    ":exponential_biased",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+  ]
+}
+
+absl_test("periodic_sampler_test") {
+  sources = [ "internal/periodic_sampler_test.cc" ]
+  deps = [
+    ":periodic_sampler",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+  ]
+}

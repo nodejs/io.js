@@ -1,4 +1,4 @@
-const { basename, extname } = require('path')
+const { basename, extname } = require('node:path')
 
 const binaryExtensions = require('binary-extensions')
 

@@ -264,7 +264,7 @@ From `zlib/zconf.h`, modified for Node.js usage:
 
 The memory requirements for deflate are (in bytes):
 
-<!-- eslint-disable semi -->
+<!-- eslint-disable @stylistic/js/semi -->
 
 ```js
 (1 << (windowBits + 2)) + (1 << (memLevel + 9))
@@ -711,6 +711,69 @@ added: v10.0.0
 The `zlib.bytesWritten` property specifies the number of bytes written to
 the engine, before the bytes are processed (compressed or decompressed,
 as appropriate for the derived class).
+
+### `zlib.crc32(data[, value])`
+
+<!-- YAML
+added:
+  - v22.2.0
+  - v20.15.0
+-->
+
+* `data` {string|Buffer|TypedArray|DataView} When `data` is a string,
+  it will be encoded as UTF-8 before being used for computation.
+* `value` {integer} An optional starting value. It must be a 32-bit unsigned
+  integer. **Default:** `0`
+* Returns: {integer} A 32-bit unsigned integer containing the checksum.
+
+Computes a 32-bit [Cyclic Redundancy Check][] checksum of `data`. If
+`value` is specified, it is used as the starting value of the checksum,
+otherwise, 0 is used as the starting value.
+
+The CRC algorithm is designed to compute checksums and to detect error
+in data transmission. It's not suitable for cryptographic authentication.
+
+To be consistent with other APIs, if the `data` is a string, it will
+be encoded with UTF-8 before being used for computation. If users only
+use Node.js to compute and match the checksums, this works well with
+other APIs that uses the UTF-8 encoding by default.
+
+Some third-party JavaScript libraries compute the checksum on a
+string based on `str.charCodeAt()` so that it can be run in browsers.
+If users want to match the checksum computed with this kind of library
+in the browser, it's better to use the same library in Node.js
+if it also runs in Node.js. If users have to use `zlib.crc32()` to
+match the checksum produced by such a third-party library:
+
+1. If the library accepts `Uint8Array` as input, use `TextEncoder`
+   in the browser to encode the string into a `Uint8Array` with UTF-8
+   encoding, and compute the checksum based on the UTF-8 encoded string
+   in the browser.
+2. If the library only takes a string and compute the data based on
+   `str.charCodeAt()`, on the Node.js side, convert the string into
+   a buffer using `Buffer.from(str, 'utf16le')`.
+
+```mjs
+import zlib from 'node:zlib';
+import { Buffer } from 'node:buffer';
+
+let crc = zlib.crc32('hello');  // 907060870
+crc = zlib.crc32('world', crc);  // 4192936109
+
+crc = zlib.crc32(Buffer.from('hello', 'utf16le'));  // 1427272415
+crc = zlib.crc32(Buffer.from('world', 'utf16le'), crc);  // 4150509955
+```
+
+```cjs
+const zlib = require('node:zlib');
+const { Buffer } = require('node:buffer');
+
+let crc = zlib.crc32('hello');  // 907060870
+crc = zlib.crc32('world', crc);  // 4192936109
+
+crc = zlib.crc32(Buffer.from('hello', 'utf16le'));  // 1427272415
+crc = zlib.crc32(Buffer.from('world', 'utf16le'), crc);  // 4150509955
+```
 
 ### `zlib.close([callback])`
 
@@ -1221,6 +1284,7 @@ changes:
 Decompress a chunk of data with [`Unzip`][].
 
 [Brotli parameters]: #brotli-constants
+[Cyclic redundancy check]: https://en.wikipedia.org/wiki/Cyclic_redundancy_check
 [Memory usage tuning]: #memory-usage-tuning
 [RFC 7932]: https://www.rfc-editor.org/rfc/rfc7932.txt
 [Streams API]: stream.md

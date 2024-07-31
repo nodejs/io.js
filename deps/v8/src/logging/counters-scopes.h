@@ -22,18 +22,25 @@ class BaseTimedHistogramScope {
     timer_.Start();
   }
 
-  void StopInternal() {
+  base::TimeDelta StopInternal() {
     DCHECK(histogram_->ToggleRunningState(false));
-    histogram_->AddTimedSample(timer_.Elapsed());
+    base::TimeDelta elapsed = timer_.Elapsed();
+    histogram_->AddTimedSample(elapsed);
     timer_.Stop();
+    return elapsed;
   }
 
   V8_INLINE void Start() {
     if (histogram_->Enabled()) StartInternal();
   }
 
-  V8_INLINE void Stop() {
-    if (histogram_->Enabled()) StopInternal();
+  // Stops the timer, records the elapsed time in the histogram, and also
+  // returns the elapsed time if the histogram was enabled. Otherwise, returns
+  // a time of -1 microsecond. This behavior should match kTimeNotMeasured in
+  // v8-script.h.
+  V8_INLINE base::TimeDelta Stop() {
+    if (histogram_->Enabled()) return StopInternal();
+    return base::TimeDelta::FromMicroseconds(-1);
   }
 
   V8_INLINE void LogStart(Isolate* isolate) {
@@ -54,19 +61,26 @@ class BaseTimedHistogramScope {
 class V8_NODISCARD TimedHistogramScope : public BaseTimedHistogramScope {
  public:
   explicit TimedHistogramScope(TimedHistogram* histogram,
-                               Isolate* isolate = nullptr)
-      : BaseTimedHistogramScope(histogram), isolate_(isolate) {
+                               Isolate* isolate = nullptr,
+                               int64_t* result_in_microseconds = nullptr)
+      : BaseTimedHistogramScope(histogram),
+        isolate_(isolate),
+        result_in_microseconds_(result_in_microseconds) {
     Start();
     if (isolate_) LogStart(isolate_);
   }
 
   ~TimedHistogramScope() {
-    Stop();
+    int64_t elapsed = Stop().InMicroseconds();
     if (isolate_) LogEnd(isolate_);
+    if (result_in_microseconds_) {
+      *result_in_microseconds_ = elapsed;
+    }
   }
 
  private:
   Isolate* const isolate_;
+  int64_t* result_in_microseconds_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(TimedHistogramScope);
 };
@@ -102,18 +116,26 @@ class V8_NODISCARD OptionalTimedHistogramScope
 // stop time rather than start time.
 class V8_NODISCARD LazyTimedHistogramScope : public BaseTimedHistogramScope {
  public:
-  LazyTimedHistogramScope() : BaseTimedHistogramScope(nullptr) {
+  explicit LazyTimedHistogramScope(int64_t* result_in_microseconds)
+      : BaseTimedHistogramScope(nullptr),
+        result_in_microseconds_(result_in_microseconds) {
     timer_.Start();
   }
   ~LazyTimedHistogramScope() {
     // We should set the histogram before this scope exits.
-    Stop();
+    int64_t elapsed = Stop().InMicroseconds();
+    if (result_in_microseconds_) {
+      *result_in_microseconds_ = elapsed;
+    }
   }
 
   void set_histogram(TimedHistogram* histogram) {
     DCHECK_IMPLIES(histogram->Enabled(), histogram->ToggleRunningState(true));
     histogram_ = histogram;
   }
+
+ private:
+  int64_t* result_in_microseconds_;
 };
 
 // Helper class for scoping a NestedHistogramTimer.

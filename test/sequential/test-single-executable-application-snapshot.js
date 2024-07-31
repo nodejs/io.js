@@ -3,7 +3,7 @@
 require('../common');
 
 const {
-  injectAndCodeSign,
+  generateSEA,
   skipIfSingleExecutableIsNotSupported,
 } = require('../common/sea');
 
@@ -12,10 +12,10 @@ skipIfSingleExecutableIsNotSupported();
 // This tests the snapshot support in single executable applications.
 
 const tmpdir = require('../common/tmpdir');
-const { copyFileSync, writeFileSync, existsSync } = require('fs');
+const { writeFileSync, existsSync } = require('fs');
 const {
+  spawnSyncAndAssert,
   spawnSyncAndExit,
-  spawnSyncAndExitWithoutError
 } = require('../common/child_process');
 const assert = require('assert');
 
@@ -69,11 +69,15 @@ const outputFile = tmpdir.resolve(process.platform === 'win32' ? 'sea.exe' : 'se
   }
   `);
 
-  spawnSyncAndExitWithoutError(
+  spawnSyncAndAssert(
     process.execPath,
     ['--experimental-sea-config', 'sea-config.json'],
     {
-      cwd: tmpdir.path
+      cwd: tmpdir.path,
+      env: {
+        NODE_DEBUG_NATIVE: 'SEA',
+        ...process.env,
+      },
     },
     {
       stderr: /Single executable application is an experimental feature/
@@ -81,11 +85,16 @@ const outputFile = tmpdir.resolve(process.platform === 'win32' ? 'sea.exe' : 'se
 
   assert(existsSync(seaPrepBlob));
 
-  copyFileSync(process.execPath, outputFile);
-  injectAndCodeSign(outputFile, seaPrepBlob);
+  generateSEA(outputFile, process.execPath, seaPrepBlob);
 
-  spawnSyncAndExitWithoutError(
+  spawnSyncAndAssert(
     outputFile,
+    {
+      env: {
+        NODE_DEBUG_NATIVE: 'SEA,MKSNAPSHOT',
+        ...process.env,
+      }
+    },
     {
       trim: true,
       stdout: 'Hello from snapshot',

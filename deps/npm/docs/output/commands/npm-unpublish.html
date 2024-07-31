@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-unpublish">npm-unpublish</h1>
+<h1 id="----npm-unpublish----1082">
+    <span>npm-unpublish</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Remove a package from the registry</span>
 </header>
 
@@ -148,7 +156,8 @@ npm command-line interface
 <div id="_content"><h3 id="synopsis">Synopsis</h3>
 <pre><code class="language-bash">npm unpublish [&lt;package-spec&gt;]
 </code></pre>
-<p>To learn more about how the npm registry treats unpublish, see our  unpublish policies</p>
+<p>To learn more about how the npm registry treats unpublish, see our
+<a href="https://docs.npmjs.com/policies/unpublish">unpublish policies</a>.</p>
 <h3 id="warning">Warning</h3>
 <p>Consider using the <a href="../commands/npm-deprecate.html"><code>deprecate</code></a> command instead,
 if your intent is to encourage users to upgrade, or if you no longer
@@ -158,8 +167,11 @@ want to maintain a package.</p>
 removing the tarball.</p>
 <p>The npm registry will return an error if you are not <a href="../commands/npm-adduser.html">logged
 in</a>.</p>
-<p>If you do not specify a version or if you remove all of a package's
-versions then the registry will remove the root package entry entirely.</p>
+<p>If you do not specify a package name at all, the name and version to be
+unpublished will be pulled from the project in the current directory.</p>
+<p>If you specify a package name but do not specify a version or if you
+remove all of a package's versions then the registry will remove the
+root package entry entirely.</p>
 <p>Even if you unpublish a package version, that specific name and version
 combination can never be reused. In order to publish the package again,
 you must use a new version number. If you unpublish the entire package,

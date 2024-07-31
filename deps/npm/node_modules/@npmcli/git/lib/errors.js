@@ -8,7 +8,7 @@ class GitError extends Error {
 }
 
 class GitConnectionError extends GitError {
-  constructor (message) {
+  constructor () {
     super('A git connection error occurred')
   }
 
@@ -18,13 +18,13 @@ class GitConnectionError extends GitError {
 }
 
 class GitPathspecError extends GitError {
-  constructor (message) {
+  constructor () {
     super('The git reference could not be found')
   }
 }
 
 class GitUnknownError extends GitError {
-  constructor (message) {
+  constructor () {
     super('An unknown git error occurred')
   }
 }

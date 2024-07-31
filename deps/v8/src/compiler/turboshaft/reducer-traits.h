@@ -9,11 +9,15 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-template <class Assembler, template <class> class... Reducers>
+template <class Assembler, bool has_gvn, template <class> class... Reducers>
 class ReducerStack;
 
 template <typename Next>
-class ReducerBase;
+class GenericReducerBase;
+template <typename Next>
+class EmitProjectionReducer;
+template <typename Next>
+class TSReducerBase;
 
 // is_same_reducer compares two reducers.
 template <template <typename> typename T, template <typename> typename U>
@@ -27,8 +31,8 @@ struct reducer_list {};
 // Converts a ReducerStack {Next} to a reducer_list<>;
 template <typename Next>
 struct reducer_stack_to_list;
-template <typename A, template <typename> typename... Reducers>
-struct reducer_stack_to_list<ReducerStack<A, Reducers...>> {
+template <typename A, bool has_gvn, template <typename> typename... Reducers>
+struct reducer_stack_to_list<ReducerStack<A, has_gvn, Reducers...>> {
   using type = reducer_list<Reducers...>;
 };
 
@@ -64,17 +68,21 @@ struct next_contains_reducer {
   static constexpr bool value = reducer_list_contains<list, Reducer>::value;
 };
 
-// Check if in the {Next} ReducerStack, {Reducer} comes next.
-template <typename Next, template <typename> typename Reducer>
+// Check if in the {Next} ReducerStack, any of {Reducer} comes next.
+template <typename Next, template <typename> typename... Reducer>
 struct next_reducer_is {
   using list = typename reducer_stack_to_list<Next>::type;
-  static constexpr bool value = reducer_list_starts_with<list, Reducer>::value;
+  static constexpr bool value =
+      (reducer_list_starts_with<list, Reducer>::value || ...);
 };
 
-// Check if {Next} is the bottom of the ReducerStack.
+// TODO(dmercadier): EmitProjectionReducer is not always the bottom of the stack
+// because it could be succeeded by a ValueNumberingReducer. We should take this
+// into account in next_is_bottom_of_assembler_stack.
 template <typename Next>
 struct next_is_bottom_of_assembler_stack
-    : public next_reducer_is<Next, ReducerBase> {};
+    : public next_reducer_is<Next, GenericReducerBase, EmitProjectionReducer,
+                             TSReducerBase> {};
 
 }  // namespace v8::internal::compiler::turboshaft
 

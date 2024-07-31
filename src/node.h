@@ -80,6 +80,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <ostream>
 
 // We cannot use __POSIX__ in this header because that's only defined when
@@ -348,7 +349,7 @@ NODE_DEPRECATED("Use InitializeOncePerProcess() instead",
 // including the arguments split into argv/exec_argv, a list of potential
 // errors encountered during initialization, and a potential suggested
 // exit code.
-NODE_EXTERN std::unique_ptr<InitializationResult> InitializeOncePerProcess(
+NODE_EXTERN std::shared_ptr<InitializationResult> InitializeOncePerProcess(
     const std::vector<std::string>& args,
     ProcessInitializationFlags::Flags flags =
         ProcessInitializationFlags::kNoFlags);
@@ -357,7 +358,7 @@ NODE_EXTERN std::unique_ptr<InitializationResult> InitializeOncePerProcess(
 NODE_EXTERN void TearDownOncePerProcess();
 // Convenience overload for specifying multiple flags without having
 // to worry about casts.
-inline std::unique_ptr<InitializationResult> InitializeOncePerProcess(
+inline std::shared_ptr<InitializationResult> InitializeOncePerProcess(
     const std::vector<std::string>& args,
     std::initializer_list<ProcessInitializationFlags::Flags> list) {
   uint64_t flags_accum = ProcessInitializationFlags::kNoFlags;
@@ -536,6 +537,7 @@ class EmbedderSnapshotData {
   // If the snapshot is invalid, this returns an empty pointer.
   static Pointer FromFile(FILE* in);
   static Pointer FromBlob(const std::vector<char>& in);
+  static Pointer FromBlob(std::string_view in);
 
   // Write this EmbedderSnapshotData object to an output file.
   // Calling this method will not close the FILE* handle.
@@ -655,9 +657,44 @@ enum Flags : uint64_t {
   // This control is needed by embedders who may not want to initialize the V8
   // inspector in situations where one has already been created,
   // e.g. Blink's in Chromium.
-  kNoCreateInspector = 1 << 9
+  kNoCreateInspector = 1 << 9,
+  // Controls whether or not the InspectorAgent for this Environment should
+  // call StartDebugSignalHandler. This control is needed by embedders who may
+  // not want to allow other processes to start the V8 inspector.
+  kNoStartDebugSignalHandler = 1 << 10,
+  // Controls whether the InspectorAgent created for this Environment waits for
+  // Inspector frontend events during the Environment creation. It's used to
+  // call node::Stop(env) on a Worker thread that is waiting for the events.
+  kNoWaitForInspectorFrontend = 1 << 11
 };
 }  // namespace EnvironmentFlags
+
+enum class SnapshotFlags : uint32_t {
+  kDefault = 0,
+  // Whether code cache should be generated as part of the snapshot.
+  // Code cache reduces the time spent on compiling functions included
+  // in the snapshot at the expense of a bigger snapshot size and
+  // potentially breaking portability of the snapshot.
+  kWithoutCodeCache = 1 << 0,
+};
+
+struct SnapshotConfig {
+  SnapshotFlags flags = SnapshotFlags::kDefault;
+
+  // When builder_script_path is std::nullopt, the snapshot is generated as a
+  // built-in snapshot instead of a custom one, and it's expected that the
+  // built-in snapshot only contains states that reproduce in every run of the
+  // application. The event loop won't be run when generating a built-in
+  // snapshot, so asynchronous operations should be avoided.
+  //
+  // When builder_script_path is an std::string, it should match args[1]
+  // passed to CreateForSnapshotting(). The embedder is also expected to use
+  // LoadEnvironment() to run a script matching this path. In that case the
+  // snapshot is generated as a custom snapshot and the event loop is run, so
+  // the snapshot builder can execute asynchronous operations as long as they
+  // are run to completion when the snapshot is taken.
+  std::optional<std::string> builder_script_path;
+};
 
 struct InspectorParentHandle {
   virtual ~InspectorParentHandle() = default;
@@ -703,12 +740,33 @@ struct StartExecutionCallbackInfo {
 
 using StartExecutionCallback =
     std::function<v8::MaybeLocal<v8::Value>(const StartExecutionCallbackInfo&)>;
+using EmbedderPreloadCallback =
+    std::function<void(Environment* env,
+                       v8::Local<v8::Value> process,
+                       v8::Local<v8::Value> require)>;
 
+// Run initialization for the environment.
+//
+// The |preload| function, usually used by embedders to inject scripts,
+// will be run by Node.js before Node.js executes the entry point.
+// The function is guaranteed to run before the user land module loader running
+// any user code, so it is safe to assume that at this point, no user code has
+// been run yet.
+// The function will be executed with preload(process, require), and the passed
+// require function has access to internal Node.js modules. There is no
+// stability guarantee about the internals exposed to the internal require
+// function. Expect breakages when updating Node.js versions if the embedder
+// imports internal modules with the internal require function.
+// Worker threads created in the environment will also respect The |preload|
+// function, so make sure the function is thread-safe.
 NODE_EXTERN v8::MaybeLocal<v8::Value> LoadEnvironment(
     Environment* env,
-    StartExecutionCallback cb);
+    StartExecutionCallback cb,
+    EmbedderPreloadCallback preload = nullptr);
 NODE_EXTERN v8::MaybeLocal<v8::Value> LoadEnvironment(
-    Environment* env, std::string_view main_script_source_utf8);
+    Environment* env,
+    std::string_view main_script_source_utf8,
+    EmbedderPreloadCallback preload = nullptr);
 NODE_EXTERN void FreeEnvironment(Environment* env);
 
 // Set a callback that is called when process.exit() is called from JS,
@@ -870,7 +928,8 @@ class NODE_EXTERN CommonEnvironmentSetup {
       MultiIsolatePlatform* platform,
       std::vector<std::string>* errors,
       const std::vector<std::string>& args = {},
-      const std::vector<std::string>& exec_args = {});
+      const std::vector<std::string>& exec_args = {},
+      const SnapshotConfig& snapshot_config = {});
   EmbedderSnapshotData::Pointer CreateSnapshot();
 
   struct uv_loop_s* event_loop() const;
@@ -905,7 +964,8 @@ class NODE_EXTERN CommonEnvironmentSetup {
       std::vector<std::string>*,
       const EmbedderSnapshotData*,
       uint32_t flags,
-      std::function<Environment*(const CommonEnvironmentSetup*)>);
+      std::function<Environment*(const CommonEnvironmentSetup*)>,
+      const SnapshotConfig* config = nullptr);
 };
 
 // Implementation for CommonEnvironmentSetup::Create

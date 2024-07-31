@@ -147,7 +147,7 @@ public:
         if(umtx_atomic_dec(&refcount) <= 0) {
             delete this;
         }
-        return 0;
+        return nullptr;
     }
     virtual ~SimpleFilteredSentenceBreakData();
 

@@ -80,7 +80,7 @@ Up to eight additional "r_i" prime factors are supported.
 =item "rsa-exponent10" (B<OSSL_PKEY_PARAM_RSA_EXPONENT10>) <unsigned integer>
 
 RSA CRT (Chinese Remainder Theorem) exponents. The exponents are known
-as "dP", "dQ" and "d_i in RFC8017".
+as "dP", "dQ" and "d_i" in RFC8017.
 Up to eight additional "d_i" exponents are supported.
 
 =item "rsa-coefficient1" (B<OSSL_PKEY_PARAM_RSA_COEFFICIENT1>) <unsigned integer>

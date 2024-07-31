@@ -150,3 +150,8 @@ void nghttp2_option_set_stream_reset_rate_limit(nghttp2_option *option,
   option->stream_reset_burst = burst;
   option->stream_reset_rate = rate;
 }
+
+void nghttp2_option_set_max_continuations(nghttp2_option *option, size_t val) {
+  option->opt_set_mask |= NGHTTP2_OPT_MAX_CONTINUATIONS;
+  option->max_continuations = val;
+}

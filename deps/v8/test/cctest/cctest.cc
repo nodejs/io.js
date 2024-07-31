@@ -160,16 +160,7 @@ void CcTest::Run(const char* snapshot_directory) {
 #ifdef DEBUG
   const size_t active_isolates = i::Isolate::non_disposed_isolates();
 #endif  // DEBUG
-  {
-#ifdef V8_ENABLE_DIRECT_LOCAL
-    // TODO(v8:13270): This handle scope should not be needed. It will be
-    // removed when the implementation of direct handles is complete and they
-    // can never implicitly be converted to indirect handles.
-    v8::base::Optional<v8::HandleScope> scope;
-    if (initialize_) scope.emplace(isolate_);
-#endif
-    callback_();
-  }
+  callback_();
 #ifdef DEBUG
   // This DCHECK ensures that all Isolates are properly disposed after finishing
   // the test. Stray Isolates lead to stray tasks in the platform which can
@@ -437,24 +428,24 @@ std::shared_ptr<v8::TaskRunner> TestPlatform::GetForegroundTaskRunner(
   return CcTest::default_platform()->GetForegroundTaskRunner(isolate);
 }
 
-void TestPlatform::CallOnWorkerThread(std::unique_ptr<v8::Task> task) {
+void TestPlatform::PostTaskOnWorkerThreadImpl(
+    v8::TaskPriority priority, std::unique_ptr<v8::Task> task,
+    const v8::SourceLocation& location) {
   CcTest::default_platform()->CallOnWorkerThread(std::move(task));
 }
 
-void TestPlatform::CallDelayedOnWorkerThread(std::unique_ptr<v8::Task> task,
-                                             double delay_in_seconds) {
+void TestPlatform::PostDelayedTaskOnWorkerThreadImpl(
+    v8::TaskPriority priority, std::unique_ptr<v8::Task> task,
+    double delay_in_seconds, const v8::SourceLocation& location) {
   CcTest::default_platform()->CallDelayedOnWorkerThread(std::move(task),
                                                         delay_in_seconds);
 }
 
-std::unique_ptr<v8::JobHandle> TestPlatform::PostJob(
-    v8::TaskPriority priority, std::unique_ptr<v8::JobTask> job_task) {
-  return CcTest::default_platform()->PostJob(priority, std::move(job_task));
-}
-
-std::unique_ptr<v8::JobHandle> TestPlatform::CreateJob(
-    v8::TaskPriority priority, std::unique_ptr<v8::JobTask> job_task) {
-  return CcTest::default_platform()->CreateJob(priority, std::move(job_task));
+std::unique_ptr<v8::JobHandle> TestPlatform::CreateJobImpl(
+    v8::TaskPriority priority, std::unique_ptr<v8::JobTask> job_task,
+    const v8::SourceLocation& location) {
+  return CcTest::default_platform()->CreateJob(priority, std::move(job_task),
+                                               location);
 }
 
 double TestPlatform::MonotonicallyIncreasingTime() {

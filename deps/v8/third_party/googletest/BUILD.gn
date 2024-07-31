@@ -94,8 +94,7 @@ source_set("gtest") {
   # V8-only workaround for http://crbug.com/chromium/1191946. Ensures that
   # googletest is compiled with the same visibility such as the rest of V8, see
   # https://source.chromium.org/chromium/chromium/src/+/master:v8/gni/v8.gni
-  if ((is_posix || is_fuchsia) &&
-      (v8_enable_backtrace || v8_monolithic || v8_expose_symbols)) {
+  if ((is_posix || is_fuchsia) && (v8_enable_backtrace || v8_monolithic)) {
     configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
     configs += [ "//build/config/gcc:symbol_visibility_default" ]
   }
@@ -147,8 +146,7 @@ source_set("gmock") {
   # V8-only workaround for http://crbug.com/chromium/1191946. Ensures that
   # googletest is compiled with the same visibility such as the rest of V8, see
   # https://source.chromium.org/chromium/chromium/src/+/master:v8/gni/v8.gni
-  if ((is_posix || is_fuchsia) &&
-      (v8_enable_backtrace || v8_monolithic || v8_expose_symbols)) {
+  if ((is_posix || is_fuchsia) && (v8_enable_backtrace || v8_monolithic)) {
     configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
     configs += [ "//build/config/gcc:symbol_visibility_default" ]
   }

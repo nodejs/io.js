@@ -4,7 +4,7 @@
 
 #include "include/cppgc/platform.h"
 #include "test/benchmarks/cpp/cppgc/benchmark_utils.h"
-#include "third_party/google_benchmark/src/include/benchmark/benchmark.h"
+#include "third_party/google_benchmark_chrome/src/include/benchmark/benchmark.h"
 
 // Expanded macro BENCHMARK_MAIN() to allow per-process setup.
 int main(int argc, char** argv) {

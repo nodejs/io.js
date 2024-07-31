@@ -635,9 +635,7 @@ RuleBasedTimeZone::deleteRules() {
 
 void
 RuleBasedTimeZone::deleteTransitions() {
-    if (fHistoricTransitions != nullptr) {
-        delete fHistoricTransitions;
-    }
+    delete fHistoricTransitions;
     fHistoricTransitions = nullptr;
 }
 

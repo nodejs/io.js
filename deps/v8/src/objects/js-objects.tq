@@ -101,16 +101,9 @@ macro AllocateFastOrSlowJSObjectFromMap(
       SlackTrackingMode::kWithSlackTracking);
 }
 
-extern class JSGlobalProxy extends JSSpecialObject {
-  // [native_context]: the owner native context of this global proxy object.
-  // It is null value if this object is not used by any context.
-  native_context: Object;
-}
+extern class JSGlobalProxy extends JSSpecialObject {}
 
 extern class JSGlobalObject extends JSSpecialObject {
-  // [native context]: the natives corresponding to this global object.
-  native_context: NativeContext;
-
   // [global proxy]: the global proxy object of the context
   global_proxy: JSGlobalProxy;
 }

@@ -122,6 +122,13 @@ var assertNotNull;
 // compared to the message of the thrown exception.
 var assertThrows;
 
+// Asserts that the found value is an exception of specific type with a specific
+// error message. The optional second argument is an exception constructor that
+// the thrown exception is checked against with "instanceof". The optional third
+// argument is a message type string or RegExp object that is compared to the
+// message of the thrown exception.
+var assertException;
+
 // Assert that the passed function throws an exception.
 // The exception is checked against the second argument using assertEquals.
 var assertThrowsEquals;
@@ -235,6 +242,22 @@ var isMaglevved;
 
 // Returns true if given function is compiled by TurboFan.
 var isTurboFanned;
+
+// Returns true if the top frame in interpreted according to the status
+// passed as a parameter.
+var topFrameIsInterpreted;
+
+// Returns true if the top frame in baseline according to the status
+// passed as a parameter.
+var topFrameIsBaseline;
+
+// Returns true if the top frame in compiled by Maglev according to the
+// status passed as a parameter.
+var topFrameIsMaglevved;
+
+// Returns true if the top frame in compiled by Turbofan according to the
+// status passed as a parameter.
+var topFrameIsTurboFanned;
 
 // Monkey-patchable all-purpose failure handler.
 var failWithMessage;
@@ -567,7 +590,7 @@ var prettyPrinted;
         ': <' + prettyPrinted(code) + '>');
   }
 
-  function checkException(e, type_opt, cause_opt) {
+  assertException = function assertException(e, type_opt, cause_opt) {
     if (type_opt !== undefined) {
       assertEquals('function', typeof type_opt);
       assertInstanceof(e, type_opt);
@@ -590,7 +613,7 @@ var prettyPrinted;
     try {
       executeCode(code);
     } catch (e) {
-      checkException(e, type_opt, cause_opt);
+      assertException(e, type_opt, cause_opt);
       return;
     }
     let msg = 'Did not throw exception';
@@ -625,14 +648,14 @@ var prettyPrinted;
         // Use setTimeout to throw the error again to get out of the promise
         // chain.
         res => setTimeout(_ => fail('<throw>', res, msg), 0),
-        e => checkException(e, type_opt, cause_opt));
+        e => assertException(e, type_opt, cause_opt));
   };
 
   assertEarlyError = function assertEarlyError(code) {
     try {
       new Function(code);
     } catch (e) {
-      checkException(e, SyntaxError);
+      assertException(e, SyntaxError);
       return;
     }
     failWithMessage('Did not throw exception while parsing');
@@ -891,6 +914,26 @@ var prettyPrinted;
                "not a function");
     return (opt_status & V8OptimizationStatus.kOptimized) !== 0 &&
            (opt_status & V8OptimizationStatus.kTurboFanned) !== 0;
+  }
+
+  topFrameIsInterpreted = function topFrameIsInterpreted(opt_status) {
+    assertNotEquals(opt_status, undefined);
+    return (opt_status & V8OptimizationStatus.kTopmostFrameIsInterpreted) !== 0;
+  }
+
+  topFrameIsBaseline = function topFrameIsBaseline(opt_status) {
+    assertNotEquals(opt_status, undefined);
+    return (opt_status & V8OptimizationStatus.kTopmostFrameIsBaseline) !== 0;
+  }
+
+  topFrameIsMaglevved = function topFrameIsMaglevved(opt_status) {
+    assertNotEquals(opt_status, undefined);
+    return (opt_status & V8OptimizationStatus.kTopmostFrameIsMaglev) !== 0;
+  }
+
+  topFrameIsTurboFanned = function topFrameIsTurboFanned(opt_status) {
+    assertNotEquals(opt_status, undefined);
+    return (opt_status & V8OptimizationStatus.kTopmostFrameIsTurboFanned) !== 0;
   }
 
   // Custom V8-specific stack trace formatter that is temporarily installed on

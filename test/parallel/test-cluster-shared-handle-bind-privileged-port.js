@@ -22,8 +22,8 @@
 'use strict';
 const common = require('../common');
 
-// Skip on OS X Mojave. https://github.com/nodejs/node/issues/21679
-if (common.isOSX)
+// Skip on macOS Mojave. https://github.com/nodejs/node/issues/21679
+if (common.isMacOS)
   common.skip('macOS may allow ordinary processes to use any port');
 
 if (common.isIBMi)

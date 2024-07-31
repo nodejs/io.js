@@ -198,12 +198,11 @@ int32_t ICU_Utility::parseNumber(const UnicodeString& text,
         if (d < 0) {
             break;
         }
-        n = radix*n + d;
-        // ASSUME that when a 32-bit integer overflows it becomes
-        // negative.  E.g., 214748364 * 10 + 8 => negative value.
-        if (n < 0) {
+        int64_t update = radix*static_cast<int64_t>(n) + d;
+        if (update > INT32_MAX) {
             return -1;
         }
+        n = static_cast<int32_t>(update);
         ++p;
     }
     if (p == pos) {

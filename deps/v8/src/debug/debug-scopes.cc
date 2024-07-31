@@ -186,14 +186,33 @@ class ScopeChainRetriever {
     const bool position_fits_end =
         closure_scope_ ? position_ < end : position_ <= end;
     // While we're evaluating a class, the calling function will have a class
-    // context on the stack with a range that starts at Token::CLASS, and the
-    // source position will also point to Token::CLASS.  To identify the
+    // context on the stack with a range that starts at Token::kClass, and the
+    // source position will also point to Token::kClass.  To identify the
     // matching scope we include start in the accepted range for class scopes.
+    //
+    // Similarly "with" scopes can already have bytecodes where the source
+    // position points to the closing parenthesis with the "with" context
+    // already pushed.
     const bool position_fits_start =
-        scope->is_class_scope() ? start <= position_ : start < position_;
+        scope->is_class_scope() || scope->is_with_scope() ? start <= position_
+                                                          : start < position_;
     return position_fits_start && position_fits_end;
   }
 };
+
+// Walks a ScopeInfo outwards until it finds a EVAL scope.
+MaybeHandle<ScopeInfo> FindEvalScope(Isolate* isolate,
+                                     Tagged<ScopeInfo> start_scope) {
+  Tagged<ScopeInfo> scope = start_scope;
+  while (scope->scope_type() != ScopeType::EVAL_SCOPE &&
+         scope->HasOuterScopeInfo()) {
+    scope = scope->OuterScopeInfo();
+  }
+
+  return scope->scope_type() == ScopeType::EVAL_SCOPE
+             ? MaybeHandle<ScopeInfo>(scope, isolate)
+             : kNullMaybeHandle;
+}
 
 }  // namespace
 
@@ -248,7 +267,27 @@ void ScopeIterator::TryParseAndRetrieveScopes(ReparseStrategy strategy) {
   flags.set_is_reparse(true);
 
   MaybeHandle<ScopeInfo> maybe_outer_scope;
-  if (scope_info->scope_type() == EVAL_SCOPE || script->is_wrapped()) {
+  if (flags.is_toplevel() &&
+      script->compilation_type() == Script::CompilationType::kEval) {
+    // Re-parsing a full eval script requires us to correctly set the outer
+    // language mode and potentially an outer scope info.
+    //
+    // We walk the runtime scope chain and look for an EVAL scope. If we don't
+    // find one, we assume sloppy mode and no outer scope info.
+
+    DCHECK(flags.is_eval());
+
+    Handle<ScopeInfo> eval_scope;
+    if (FindEvalScope(isolate_, *scope_info).ToHandle(&eval_scope)) {
+      flags.set_outer_language_mode(eval_scope->language_mode());
+      if (eval_scope->HasOuterScopeInfo()) {
+        maybe_outer_scope = handle(eval_scope->OuterScopeInfo(), isolate_);
+      }
+    } else {
+      DCHECK_EQ(flags.outer_language_mode(), LanguageMode::kSloppy);
+      DCHECK(maybe_outer_scope.is_null());
+    }
+  } else if (scope_info->scope_type() == EVAL_SCOPE || script->is_wrapped()) {
     flags.set_is_eval(true);
     if (!IsNativeContext(*context_)) {
       maybe_outer_scope = handle(context_->scope_info(), isolate_);
@@ -405,8 +444,7 @@ bool ScopeIterator::NeedsContext() const {
   // context should the function need one. In that case the function has already
   // pushed the context and we are good.
   CHECK_IMPLIES(needs_context && current_scope_ == closure_scope_ &&
-                    current_scope_->is_function_scope() &&
-                    !function_->is_null(),
+                    current_scope_->is_function_scope() && !function_.is_null(),
                 function_->context() != *context_);
 
   return needs_context;
@@ -579,37 +617,29 @@ Handle<JSObject> ScopeIterator::ScopeObject(Mode mode) {
   auto visitor = [=](Handle<String> name, Handle<Object> value,
                      ScopeType scope_type) {
     if (IsOptimizedOut(*value, isolate_)) {
-      if (v8_flags.experimental_value_unavailable) {
-        JSObject::SetAccessor(scope, name,
-                              isolate_->factory()->value_unavailable_accessor(),
-                              NONE)
-            .Check();
-        return false;
-      }
-      // Reflect optimized out variables as undefined in scope object.
-      value = isolate_->factory()->undefined_value();
+      JSObject::SetAccessor(
+          scope, name, isolate_->factory()->value_unavailable_accessor(), NONE)
+          .Check();
     } else if (IsTheHole(*value, isolate_)) {
-      if (scope_type == ScopeTypeScript &&
-          JSReceiver::HasOwnProperty(isolate_, scope, name).FromMaybe(true)) {
+      const bool is_overriden_repl_let =
+          scope_type == ScopeTypeScript &&
+          JSReceiver::HasOwnProperty(isolate_, scope, name).FromMaybe(true);
+      if (!is_overriden_repl_let) {
         // We also use the hole to represent overridden let-declarations via
-        // REPL mode in a script context. Catch this case.
-        return false;
-      }
-      if (v8_flags.experimental_value_unavailable) {
+        // REPL mode in a script context. Don't install the unavailable accessor
+        // in that case.
         JSObject::SetAccessor(scope, name,
                               isolate_->factory()->value_unavailable_accessor(),
                               NONE)
             .Check();
-        return false;
       }
-      // Reflect variables under TDZ as undefined in scope object.
-      value = isolate_->factory()->undefined_value();
-    }
-    // Overwrite properties. Sometimes names in the same scope can collide, e.g.
-    // with extension objects introduced via local eval.
-    JSObject::SetPropertyOrElement(isolate_, scope, name, value,
+    } else {
+      // Overwrite properties. Sometimes names in the same scope can collide,
+      // e.g. with extension objects introduced via local eval.
+      Object::SetPropertyOrElement(isolate_, scope, name, value,
                                    Just(ShouldThrow::kDontThrow))
-        .Check();
+          .Check();
+    }
     return false;
   };
 
@@ -771,13 +801,12 @@ void ScopeIterator::VisitScriptScope(const Visitor& visitor) const {
       context_->native_context()->script_context_table(), isolate_);
 
   // Skip the first script since that just declares 'this'.
-  for (int context_index = 1;
-       context_index < script_contexts->used(kAcquireLoad); context_index++) {
-    Handle<Context> context = ScriptContextTable::GetContext(
-        isolate_, script_contexts, context_index);
+  for (int i = 1; i < script_contexts->length(kAcquireLoad); i++) {
+    Handle<Context> context(script_contexts->get(i), isolate_);
     Handle<ScopeInfo> scope_info(context->scope_info(), isolate_);
-    if (VisitContextLocals(visitor, scope_info, context, ScopeTypeScript))
+    if (VisitContextLocals(visitor, scope_info, context, ScopeTypeScript)) {
       return;
+    }
   }
 }
 
@@ -785,8 +814,9 @@ void ScopeIterator::VisitModuleScope(const Visitor& visitor) const {
   DCHECK(context_->IsModuleContext());
 
   Handle<ScopeInfo> scope_info(context_->scope_info(), isolate_);
-  if (VisitContextLocals(visitor, scope_info, context_, ScopeTypeModule))
+  if (VisitContextLocals(visitor, scope_info, context_, ScopeTypeModule)) {
     return;
+  }
 
   int module_variable_count = scope_info->ModuleVariableCount();
 
@@ -1156,8 +1186,8 @@ bool ScopeIterator::SetScriptVariableValue(Handle<String> variable_name,
       context_->native_context()->script_context_table(), isolate_);
   VariableLookupResult lookup_result;
   if (script_contexts->Lookup(variable_name, &lookup_result)) {
-    Handle<Context> script_context = ScriptContextTable::GetContext(
-        isolate_, script_contexts, lookup_result.context_index);
+    Handle<Context> script_context(
+        script_contexts->get(lookup_result.context_index), isolate_);
     script_context->set(lookup_result.slot_index, *new_value);
     return true;
   }

@@ -31,7 +31,7 @@ function createFuzzTest(fake_db, settings, inputFiles) {
 
   const output_file = tempfile('.js');
   fs.writeFileSync(output_file, result.code);
-  return output_file;
+  return { file:output_file, flags:result.flags };
 }
 
 function execFile(jsFile) {
@@ -66,8 +66,8 @@ describe('Regression tests', () => {
     // auto generated exceptions.
     sandbox.stub(exceptions, 'getGeneratedSloppy').callsFake(
         () => { return new Set(['regress/strict/input_with.js']); });
-    const file = createFuzzTest(
-        'test_data/regress/strict/db',
+    const {file, flags} = createFuzzTest(
+        'test_data/regress/empty_db',
         this.settings,
         ['regress/strict/input_strict.js', 'regress/strict/input_with.js']);
     execFile(file);
@@ -77,8 +77,8 @@ describe('Regression tests', () => {
     // As above with unqualified delete.
     sandbox.stub(exceptions, 'getGeneratedSloppy').callsFake(
         () => { return new Set(['regress/strict/input_delete.js']); });
-    const file = createFuzzTest(
-        'test_data/regress/strict/db',
+    const {file, flags} = createFuzzTest(
+        'test_data/regress/empty_db',
         this.settings,
         ['regress/strict/input_strict.js', 'regress/strict/input_delete.js']);
     execFile(file);
@@ -93,8 +93,8 @@ describe('Regression tests', () => {
     this.settings['MUTATE_NUMBERS'] = 1.0;
     this.settings['MUTATE_FUNCTION_CALLS'] = 1.0;
     this.settings['MUTATE_EXPRESSIONS'] = 1.0;
-    const file = createFuzzTest(
-        'test_data/regress/numbers/db',
+    const {file, flags} = createFuzzTest(
+        'test_data/regress/empty_db',
         this.settings,
         ['regress/numbers/input_negative.js']);
     execFile(file);
@@ -104,10 +104,21 @@ describe('Regression tests', () => {
     // Test that indices are not replaced with a negative number causing a
     // syntax error (e.g. {-1: ""}).
     this.settings['MUTATE_NUMBERS'] = 1.0;
-    const file = createFuzzTest(
-        'test_data/regress/numbers/db',
+    const {file, flags} = createFuzzTest(
+        'test_data/regress/empty_db',
         this.settings,
         ['regress/numbers/input_indices.js']);
     execFile(file);
+  });
+
+  it('resolves flag contradictions', () => {
+    sandbox.stub(exceptions, 'CONTRADICTORY_FLAGS').value(
+        [['--flag1', '--flag2']])
+    const {file, flags} = createFuzzTest(
+        'test_data/regress/empty_db',
+        this.settings,
+        ['regress/contradictions/input1.js',
+         'regress/contradictions/input2.js']);
+    assert.deepEqual(['--flag1'], flags);
   });
 });

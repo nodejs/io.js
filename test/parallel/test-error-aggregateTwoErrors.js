@@ -57,3 +57,15 @@ assert.strictEqual(aggregateTwoErrors(null, null), null);
   assert.strictEqual(chainedError.code, err0.code);
   assert.deepStrictEqual(chainedError.errors, [err0, err1]);
 }
+
+{
+  const err0 = new Error('original');
+  const err1 = new Error('second error');
+
+  err0.code = 'ERR0';
+  err1.code = 'ERR1';
+
+  const chainedError = aggregateTwoErrors(null, aggregateTwoErrors(err1, err0));
+  const stack = chainedError.stack.split('\n');
+  assert.match(stack[1], /^ {4}at Object/);
+}

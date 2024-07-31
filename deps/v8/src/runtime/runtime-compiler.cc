@@ -54,7 +54,7 @@ RUNTIME_FUNCTION(Runtime_CompileLazy) {
 
   Handle<SharedFunctionInfo> sfi(function->shared(), isolate);
 
-  DCHECK(!function->is_compiled());
+  DCHECK(!function->is_compiled(isolate));
 #ifdef DEBUG
   if (v8_flags.trace_lazy && sfi->is_compiled()) {
     PrintF("[unoptimized: %s]\n", function->DebugNameCStr().get());
@@ -68,8 +68,8 @@ RUNTIME_FUNCTION(Runtime_CompileLazy) {
   if (V8_UNLIKELY(v8_flags.log_function_events)) {
     LogExecution(isolate, function);
   }
-  DCHECK(function->is_compiled());
-  return function->code();
+  DCHECK(function->is_compiled(isolate));
+  return function->code(isolate);
 }
 
 RUNTIME_FUNCTION(Runtime_InstallBaselineCode) {
@@ -79,7 +79,7 @@ RUNTIME_FUNCTION(Runtime_InstallBaselineCode) {
   Handle<SharedFunctionInfo> sfi(function->shared(), isolate);
   DCHECK(sfi->HasBaselineCode());
   IsCompiledScope is_compiled_scope(*sfi, isolate);
-  DCHECK(!function->HasAvailableOptimizedCode());
+  DCHECK(!function->HasAvailableOptimizedCode(isolate));
   DCHECK(!function->has_feedback_vector());
   JSFunction::CreateAndAttachFeedbackVector(isolate, function,
                                             &is_compiled_scope);
@@ -139,11 +139,11 @@ RUNTIME_FUNCTION(Runtime_CompileOptimized) {
 
   Compiler::CompileOptimized(isolate, function, mode, target_kind);
 
-  DCHECK(function->is_compiled());
+  DCHECK(function->is_compiled(isolate));
   if (V8_UNLIKELY(v8_flags.log_function_events)) {
     LogExecution(isolate, function);
   }
-  return function->code();
+  return function->code(isolate);
 }
 
 RUNTIME_FUNCTION(Runtime_FunctionLogNextExecution) {
@@ -152,7 +152,7 @@ RUNTIME_FUNCTION(Runtime_FunctionLogNextExecution) {
   Handle<JSFunction> js_function = args.at<JSFunction>(0);
   DCHECK(v8_flags.log_function_events);
   LogExecution(isolate, js_function);
-  return js_function->code();
+  return js_function->code(isolate);
 }
 
 RUNTIME_FUNCTION(Runtime_HealOptimizedCodeSlot) {
@@ -164,7 +164,7 @@ RUNTIME_FUNCTION(Runtime_HealOptimizedCodeSlot) {
 
   function->feedback_vector()->EvictOptimizedCodeMarkedForDeoptimization(
       isolate, function->shared(), "Runtime_HealOptimizedCodeSlot");
-  return function->code();
+  return function->code(isolate);
 }
 
 // The enum values need to match "AsmJsInstantiateResult" in
@@ -202,6 +202,13 @@ RUNTIME_FUNCTION(Runtime_InstantiateAsmJs) {
           kAsmJsInstantiateSuccess);
       return *result.ToHandleChecked();
     }
+    if (isolate->has_exception()) {
+      // If instantiation fails, we do not propagate the exception but instead
+      // fall back to JS execution. The only exception (to that rule) is the
+      // termination exception.
+      DCHECK(isolate->is_execution_terminating());
+      return ReadOnlyRoots{isolate}.exception();
+    }
     isolate->counters()->asmjs_instantiate_result()->AddSample(
         kAsmJsInstantiateFail);
 
@@ -211,9 +218,9 @@ RUNTIME_FUNCTION(Runtime_InstantiateAsmJs) {
   }
   shared->set_is_asm_wasm_broken(true);
 #endif
-  DCHECK_EQ(function->code(), *BUILTIN_CODE(isolate, InstantiateAsmJs));
+  DCHECK_EQ(function->code(isolate), *BUILTIN_CODE(isolate, InstantiateAsmJs));
   function->set_code(*BUILTIN_CODE(isolate, CompileLazy));
-  DCHECK(!isolate->has_pending_exception());
+  DCHECK(!isolate->has_exception());
   return Smi::zero();
 }
 
@@ -262,7 +269,7 @@ void DeoptAllOsrLoopsContainingDeoptExit(Isolate* isolate,
 
   Tagged<FeedbackVector> vector = function->feedback_vector();
   Tagged<Code> code;
-  base::SmallVector<Code, 8> osr_codes;
+  base::SmallVector<Tagged<Code>, 8> osr_codes;
   // Visit before the first loop-with-deopt is found
   for (; !it.done(); it.Advance()) {
     // We're only interested in loop ranges.
@@ -338,6 +345,10 @@ RUNTIME_FUNCTION(Runtime_NotifyDeoptimized) {
   TimerEventScope<TimerEventDeoptimizeCode> timer(isolate);
   TRACE_EVENT0("v8", "V8.DeoptimizeCode");
   Handle<JSFunction> function = deoptimizer->function();
+  if (v8_flags.profile_guided_optimization) {
+    function->shared()->set_cached_tiering_decision(
+        CachedTieringDecision::kNormal);
+  }
   // For OSR the optimized code isn't installed on the function, so get the
   // code object from deoptimizer.
   Handle<Code> optimized_code = deoptimizer->compiled_code();
@@ -448,11 +459,16 @@ Tagged<Object> CompileOptimizedOSR(Isolate* isolate,
                                    Handle<JSFunction> function,
                                    CodeKind min_opt_level,
                                    BytecodeOffset osr_offset) {
-  const ConcurrencyMode mode =
+  ConcurrencyMode mode =
       V8_LIKELY(isolate->concurrent_recompilation_enabled() &&
                 v8_flags.concurrent_osr)
           ? ConcurrencyMode::kConcurrent
           : ConcurrencyMode::kSynchronous;
+
+  if (V8_UNLIKELY(isolate->UseEfficiencyModeForTiering() &&
+                  min_opt_level == CodeKind::MAGLEV)) {
+    mode = ConcurrencyMode::kSynchronous;
+  }
 
   Handle<Code> result;
   if (!Compiler::CompileOptimizedOSR(
@@ -466,7 +482,7 @@ Tagged<Object> CompileOptimizedOSR(Isolate* isolate,
     // 1) we've started a concurrent compilation job - everything is fine.
     // 2) synchronous compilation failed for some reason.
 
-    if (!function->HasAttachedOptimizedCode()) {
+    if (!function->HasAttachedOptimizedCode(isolate)) {
       function->set_code(function->shared()->GetCode(isolate));
     }
 
@@ -532,7 +548,14 @@ Tagged<Object> CompileOptimizedOSRFromMaglev(Isolate* isolate,
              "concurrent_osr is disabled. function: %s, osr offset: %d]\n",
              function->DebugNameCStr().get(), osr_offset.ToInt());
     }
-    return function->code();
+    return function->code(isolate);
+  }
+
+  if (V8_UNLIKELY(isolate->UseEfficiencyModeForTiering() ||
+                  isolate->UseBatterySaverMode())) {
+    function->feedback_vector()->reset_osr_urgency();
+    function->SetInterruptBudget(isolate);
+    return Smi::zero();
   }
 
   return CompileOptimizedOSR(isolate, function, CodeKind::TURBOFAN, osr_offset);
@@ -570,7 +593,7 @@ RUNTIME_FUNCTION(Runtime_CompileOptimizedOSRFromMaglevInlined) {
   if (*function != frame->function()) {
     // We are OSRing an inlined function. Mark the top frame one for
     // optimization.
-    if (!frame->function()->ActiveTierIsTurbofan()) {
+    if (!frame->function()->ActiveTierIsTurbofan(isolate)) {
       isolate->tiering_manager()->MarkForTurboFanOptimization(
           frame->function());
     }

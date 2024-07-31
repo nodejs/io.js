@@ -14,52 +14,20 @@
 namespace v8 {
 namespace internal {
 
-#include "torque-generated/src/objects/regexp-match-info-tq-inl.inc"
+CAST_ACCESSOR(RegExpMatchInfo)
+OBJECT_CONSTRUCTORS_IMPL(RegExpMatchInfo, RegExpMatchInfo::Super)
 
-TQ_OBJECT_CONSTRUCTORS_IMPL(RegExpMatchInfo)
+SMI_ACCESSORS(RegExpMatchInfo, number_of_capture_registers,
+              RegExpMatchInfo::kNumberOfCaptureRegistersOffset)
+ACCESSORS_NOCAGE(RegExpMatchInfo, last_subject, Tagged<String>,
+                 RegExpMatchInfo::kLastSubjectOffset)
+ACCESSORS_NOCAGE(RegExpMatchInfo, last_input, Tagged<Object>,
+                 RegExpMatchInfo::kLastInputOffset)
 
-int RegExpMatchInfo::NumberOfCaptureRegisters() {
-  DCHECK_GE(length(), kLastMatchOverhead);
-  Tagged<Object> obj = get(kNumberOfCapturesIndex);
-  return Smi::ToInt(obj);
-}
+int RegExpMatchInfo::capture(int index) const { return get(index).value(); }
 
-void RegExpMatchInfo::SetNumberOfCaptureRegisters(int value) {
-  DCHECK_GE(length(), kLastMatchOverhead);
-  set(kNumberOfCapturesIndex, Smi::FromInt(value));
-}
-
-Tagged<String> RegExpMatchInfo::LastSubject() {
-  DCHECK_GE(length(), kLastMatchOverhead);
-  return String::cast(get(kLastSubjectIndex));
-}
-
-void RegExpMatchInfo::SetLastSubject(Tagged<String> value,
-                                     WriteBarrierMode mode) {
-  DCHECK_GE(length(), kLastMatchOverhead);
-  set(kLastSubjectIndex, value, mode);
-}
-
-Tagged<Object> RegExpMatchInfo::LastInput() {
-  DCHECK_GE(length(), kLastMatchOverhead);
-  return get(kLastInputIndex);
-}
-
-void RegExpMatchInfo::SetLastInput(Tagged<Object> value,
-                                   WriteBarrierMode mode) {
-  DCHECK_GE(length(), kLastMatchOverhead);
-  set(kLastInputIndex, value, mode);
-}
-
-int RegExpMatchInfo::Capture(int i) {
-  DCHECK_LT(i, NumberOfCaptureRegisters());
-  Tagged<Object> obj = get(kFirstCaptureIndex + i);
-  return Smi::ToInt(obj);
-}
-
-void RegExpMatchInfo::SetCapture(int i, int value) {
-  DCHECK_LT(i, NumberOfCaptureRegisters());
-  set(kFirstCaptureIndex + i, Smi::FromInt(value));
+void RegExpMatchInfo::set_capture(int index, int value) {
+  set(index, Smi::FromInt(value));
 }
 
 }  // namespace internal

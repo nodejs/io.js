@@ -266,7 +266,7 @@ OlsonTimeZone::OlsonTimeZone(const UResourceBundle* top,
  * Copy constructor
  */
 OlsonTimeZone::OlsonTimeZone(const OlsonTimeZone& other) :
-    BasicTimeZone(other), finalZone(0) {
+    BasicTimeZone(other), finalZone(nullptr) {
     *this = other;
 }
 
@@ -290,7 +290,7 @@ OlsonTimeZone& OlsonTimeZone::operator=(const OlsonTimeZone& other) {
     typeMapData = other.typeMapData;
 
     delete finalZone;
-    finalZone = (other.finalZone != 0) ? other.finalZone->clone() : 0;
+    finalZone = other.finalZone != nullptr ? other.finalZone->clone() : nullptr;
 
     finalStartYear = other.finalStartYear;
     finalStartMillis = other.finalStartMillis;
@@ -664,18 +664,10 @@ OlsonTimeZone::clearTransitionRules() {
 
 void
 OlsonTimeZone::deleteTransitionRules() {
-    if (initialRule != nullptr) {
-        delete initialRule;
-    }
-    if (firstTZTransition != nullptr) {
-        delete firstTZTransition;
-    }
-    if (firstFinalTZTransition != nullptr) {
-        delete firstFinalTZTransition;
-    }
-    if (finalZoneWithStartYear != nullptr) {
-        delete finalZoneWithStartYear;
-    }
+    delete initialRule;
+    delete firstTZTransition;
+    delete firstFinalTZTransition;
+    delete finalZoneWithStartYear;
     if (historicRules != nullptr) {
         for (int i = 0; i < historicRuleCount; i++) {
             if (historicRules[i] != nullptr) {

@@ -59,12 +59,12 @@ static void NO_INLINE close_socket_and_verify_stack(void) {
     data[i] = MARKER;
 
   r = closesocket(sock);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_sleep(VERIFY_AFTER);
 
   for (i = 0; i < ARRAY_SIZE(data); i++)
-    ASSERT(data[i] == MARKER);
+    ASSERT_EQ(data[i], MARKER);
 }
 #endif
 
@@ -79,34 +79,34 @@ TEST_IMPL(poll_close_doesnt_corrupt_stack) {
   struct sockaddr_in addr;
 
   r = WSAStartup(MAKEWORD(2, 2), &wsa_data);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   sock = socket(AF_INET, SOCK_STREAM, 0);
-  ASSERT(sock != INVALID_SOCKET);
+  ASSERT_NE(sock, INVALID_SOCKET);
   on = 1;
   r = ioctlsocket(sock, FIONBIO, &on);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_ip4_addr("127.0.0.1", TEST_PORT, &addr);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = connect(sock, (const struct sockaddr*) &addr, sizeof addr);
-  ASSERT(r != 0);
-  ASSERT(WSAGetLastError() == WSAEWOULDBLOCK);
+  ASSERT(r);
+  ASSERT_EQ(WSAGetLastError(), WSAEWOULDBLOCK);
 
   r = uv_poll_init_socket(uv_default_loop(), &handle, sock);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_poll_start(&handle, UV_READABLE | UV_WRITABLE, poll_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_close((uv_handle_t*) &handle, close_cb);
 
   close_socket_and_verify_stack();
 
   r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(1, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

@@ -24,6 +24,7 @@ TQ_OBJECT_CONSTRUCTORS_IMPL(JSSegmentIterator)
 // Base segment iterator accessors.
 ACCESSORS(JSSegmentIterator, icu_break_iterator,
           Tagged<Managed<icu::BreakIterator>>, kIcuBreakIteratorOffset)
+ACCESSORS(JSSegmentIterator, raw_string, Tagged<String>, kRawStringOffset)
 ACCESSORS(JSSegmentIterator, unicode_string,
           Tagged<Managed<icu::UnicodeString>>, kUnicodeStringOffset)
 

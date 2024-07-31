@@ -189,8 +189,8 @@ void CompilationCacheScript::Put(Handle<String> source,
                                  Handle<SharedFunctionInfo> function_info) {
   HandleScope scope(isolate());
   Handle<CompilationCacheTable> table = GetTable();
-  table_ = *CompilationCacheTable::PutScript(table, source, function_info,
-                                             isolate());
+  table_ = *CompilationCacheTable::PutScript(table, source, kNullMaybeHandle,
+                                             function_info, isolate());
 }
 
 InfoCellPair CompilationCacheEval::Lookup(Handle<String> source,

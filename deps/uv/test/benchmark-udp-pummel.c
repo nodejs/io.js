@@ -63,7 +63,7 @@ static void alloc_cb(uv_handle_t* handle,
                      size_t suggested_size,
                      uv_buf_t* buf) {
   static char slab[65536];
-  ASSERT(suggested_size <= sizeof(slab));
+  ASSERT_LE(suggested_size, sizeof(slab));
   buf->base = slab;
   buf->len = sizeof(slab);
 }
@@ -75,7 +75,7 @@ static void send_cb(uv_udp_send_t* req, int status) {
   ASSERT_NOT_NULL(req);
 
   if (status != 0) {
-    ASSERT(status == UV_ECANCELED);
+    ASSERT_EQ(status, UV_ECANCELED);
     return;
   }
 
@@ -83,7 +83,7 @@ static void send_cb(uv_udp_send_t* req, int status) {
     return;
 
   s = container_of(req, struct sender_state, send_req);
-  ASSERT(req->handle == &s->udp_handle);
+  ASSERT_PTR_EQ(req->handle, &s->udp_handle);
 
   if (timed)
     goto send;
@@ -96,12 +96,12 @@ static void send_cb(uv_udp_send_t* req, int status) {
   packet_counter--;
 
 send:
-  ASSERT(0 == uv_udp_send(&s->send_req,
-                          &s->udp_handle,
-                          bufs,
-                          ARRAY_SIZE(bufs),
-                          (const struct sockaddr*) &s->addr,
-                          send_cb));
+  ASSERT_OK(uv_udp_send(&s->send_req,
+                        &s->udp_handle,
+                        bufs,
+                        ARRAY_SIZE(bufs),
+                        (const struct sockaddr*) &s->addr,
+                        send_cb));
   send_cb_called++;
 }
 
@@ -115,11 +115,11 @@ static void recv_cb(uv_udp_t* handle,
     return;
 
   if (nread < 0) {
-    ASSERT(nread == UV_ECANCELED);
+    ASSERT_EQ(nread, UV_ECANCELED);
     return;
   }
 
-  ASSERT(addr->sa_family == AF_INET);
+  ASSERT_EQ(addr->sa_family, AF_INET);
   ASSERT(!memcmp(buf->base, EXPECTED, nread));
 
   recv_cb_called++;
@@ -153,8 +153,8 @@ static int pummel(unsigned int n_senders,
   uv_loop_t* loop;
   unsigned int i;
 
-  ASSERT(n_senders <= ARRAY_SIZE(senders));
-  ASSERT(n_receivers <= ARRAY_SIZE(receivers));
+  ASSERT_LE(n_senders, ARRAY_SIZE(senders));
+  ASSERT_LE(n_receivers, ARRAY_SIZE(receivers));
 
   loop = uv_default_loop();
 
@@ -162,8 +162,8 @@ static int pummel(unsigned int n_senders,
   n_receivers_ = n_receivers;
 
   if (timeout) {
-    ASSERT(0 == uv_timer_init(loop, &timer_handle));
-    ASSERT(0 == uv_timer_start(&timer_handle, timeout_cb, timeout, 0));
+    ASSERT_OK(uv_timer_init(loop, &timer_handle));
+    ASSERT_OK(uv_timer_start(&timer_handle, timeout_cb, timeout, 0));
     /* Timer should not keep loop alive. */
     uv_unref((uv_handle_t*)&timer_handle);
     timed = 1;
@@ -172,10 +172,10 @@ static int pummel(unsigned int n_senders,
   for (i = 0; i < n_receivers; i++) {
     struct receiver_state* s = receivers + i;
     struct sockaddr_in addr;
-    ASSERT(0 == uv_ip4_addr("0.0.0.0", BASE_PORT + i, &addr));
-    ASSERT(0 == uv_udp_init(loop, &s->udp_handle));
-    ASSERT(0 == uv_udp_bind(&s->udp_handle, (const struct sockaddr*) &addr, 0));
-    ASSERT(0 == uv_udp_recv_start(&s->udp_handle, alloc_cb, recv_cb));
+    ASSERT_OK(uv_ip4_addr("0.0.0.0", BASE_PORT + i, &addr));
+    ASSERT_OK(uv_udp_init(loop, &s->udp_handle));
+    ASSERT_OK(uv_udp_bind(&s->udp_handle, (const struct sockaddr*) &addr, 0));
+    ASSERT_OK(uv_udp_recv_start(&s->udp_handle, alloc_cb, recv_cb));
     uv_unref((uv_handle_t*)&s->udp_handle);
   }
 
@@ -187,20 +187,20 @@ static int pummel(unsigned int n_senders,
 
   for (i = 0; i < n_senders; i++) {
     struct sender_state* s = senders + i;
-    ASSERT(0 == uv_ip4_addr("127.0.0.1",
-                            BASE_PORT + (i % n_receivers),
-                            &s->addr));
-    ASSERT(0 == uv_udp_init(loop, &s->udp_handle));
-    ASSERT(0 == uv_udp_send(&s->send_req,
-                            &s->udp_handle,
-                            bufs,
-                            ARRAY_SIZE(bufs),
-                            (const struct sockaddr*) &s->addr,
-                            send_cb));
+    ASSERT_OK(uv_ip4_addr("127.0.0.1",
+                          BASE_PORT + (i % n_receivers),
+                          &s->addr));
+    ASSERT_OK(uv_udp_init(loop, &s->udp_handle));
+    ASSERT_OK(uv_udp_send(&s->send_req,
+                          &s->udp_handle,
+                          bufs,
+                          ARRAY_SIZE(bufs),
+                          (const struct sockaddr*) &s->addr,
+                          send_cb));
   }
 
   duration = uv_hrtime();
-  ASSERT(0 == uv_run(loop, UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(loop, UV_RUN_DEFAULT));
   duration = uv_hrtime() - duration;
   /* convert from nanoseconds to milliseconds */
   duration = duration / (uint64_t) 1e6;

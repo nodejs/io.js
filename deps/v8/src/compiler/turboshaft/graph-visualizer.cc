@@ -65,7 +65,8 @@ void JSONTurboshaftGraphWriter::PrintEdges() {
       if (auto* store = op.TryCast<StoreOp>()) {
         if (store->index().valid()) {
           DCHECK_EQ(store->input_count, 3);
-          inputs = {store->base(), store->index(), store->value()};
+          inputs = {store->base(), store->index().value_or_invalid(),
+                    store->value()};
         }
       }
       for (OpIndex input : inputs) {
@@ -104,47 +105,42 @@ std::ostream& operator<<(std::ostream& os, const TurboshaftGraphAsJSON& ad) {
 }
 
 void PrintTurboshaftCustomDataPerOperation(
-    OptimizedCompilationInfo* info, const char* data_name, const Graph& graph,
+    std::ofstream& stream, const char* data_name, const Graph& graph,
     std::function<bool(std::ostream&, const Graph&, OpIndex)> printer) {
   DCHECK(printer);
-
-  TurboJsonFile json_of(info, std::ios_base::app);
-  json_of << "{\"name\":\"" << data_name
-          << "\", \"type\":\"turboshaft_custom_data\", "
-             "\"data_target\":\"operations\", \"data\":[";
+  stream << "{\"name\":\"" << data_name
+         << "\", \"type\":\"turboshaft_custom_data\", "
+            "\"data_target\":\"operations\", \"data\":[";
   bool first = true;
   for (auto index : graph.AllOperationIndices()) {
-    std::stringstream stream;
-    if (printer(stream, graph, index)) {
-      json_of << (first ? "\n" : ",\n") << "{\"key\":" << index.id()
-              << ", \"value\":\"" << stream.str() << "\"}";
+    std::stringstream sstream;
+    if (printer(sstream, graph, index)) {
+      stream << (first ? "\n" : ",\n") << "{\"key\":" << index.id()
+             << ", \"value\":\"" << sstream.str() << "\"}";
       first = false;
     }
   }
-  json_of << "]},\n";
+  stream << "]},\n";
 }
 
 void PrintTurboshaftCustomDataPerBlock(
-    OptimizedCompilationInfo* info, const char* data_name, const Graph& graph,
+    std::ofstream& stream, const char* data_name, const Graph& graph,
     std::function<bool(std::ostream&, const Graph&, BlockIndex)> printer) {
   DCHECK(printer);
-
-  TurboJsonFile json_of(info, std::ios_base::app);
-  json_of << "{\"name\":\"" << data_name
-          << "\", \"type\":\"turboshaft_custom_data\", "
-             "\"data_target\":\"blocks\", \"data\":[";
+  stream << "{\"name\":\"" << data_name
+         << "\", \"type\":\"turboshaft_custom_data\", "
+            "\"data_target\":\"blocks\", \"data\":[";
   bool first = true;
   for (const Block& block : graph.blocks()) {
-    std::stringstream stream;
+    std::stringstream sstream;
     BlockIndex index = block.index();
-    if (printer(stream, graph, index)) {
-      json_of << (first ? "\n" : ",\n") << "{\"key\":" << index.id()
-              << ", \"value\":\"" << stream.str() << "\"}";
+    if (printer(sstream, graph, index)) {
+      stream << (first ? "\n" : ",\n") << "{\"key\":" << index.id()
+             << ", \"value\":\"" << sstream.str() << "\"}";
       first = false;
     }
   }
-
-  json_of << "]},\n";
+  stream << "]},\n";
 }
 
 }  // namespace v8::internal::compiler::turboshaft

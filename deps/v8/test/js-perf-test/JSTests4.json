@@ -194,6 +194,31 @@
         {"name": "Random100000"},
         {"name": "Sorted100000"}
       ]
+    },
+    {
+      "name": "Compiler",
+      "path": ["Compiler"],
+      "main": "run.js",
+      "resources": ["small.js", "medium.js", "large.js"],
+      "run_count": 1,
+      "timeout": 300,
+      "flags": [ "--allow-natives-syntax" ],
+      "variants": [
+        {"name": "default", "flags": []},
+        {"name": "turboshaft",  "flags": ["--turboshaft"]}
+      ],
+      "results_regexp": "^%s-Compile\\(Score\\): (.+)$",
+      "tests": [
+        {"name": "Small-Empty"},
+        {"name": "Small-Constant"},
+        {"name": "Small-Add"},
+        {"name": "Small-Load"},
+        {"name": "Medium-Copy"},
+        {"name": "Medium-Fact"},
+        {"name": "Medium-Prime"},
+        {"name": "Medium-Eratosthenes"},
+        {"name": "Large-Copy"}
+      ]
     }
   ]
 }

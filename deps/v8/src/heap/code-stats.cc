@@ -67,7 +67,8 @@ void CodeStatistics::ResetCodeAndMetadataStatistics(Isolate* isolate) {
 void CodeStatistics::CollectCodeStatistics(PagedSpace* space,
                                            Isolate* isolate) {
   PagedSpaceObjectIterator obj_it(isolate->heap(), space);
-  for (HeapObject obj = obj_it.Next(); !obj.is_null(); obj = obj_it.Next()) {
+  for (Tagged<HeapObject> obj = obj_it.Next(); !obj.is_null();
+       obj = obj_it.Next()) {
     RecordCodeAndMetadataStatistics(obj, isolate);
   }
 }
@@ -79,7 +80,8 @@ void CodeStatistics::CollectCodeStatistics(PagedSpace* space,
 void CodeStatistics::CollectCodeStatistics(OldLargeObjectSpace* space,
                                            Isolate* isolate) {
   LargeObjectSpaceObjectIterator obj_it(space);
-  for (HeapObject obj = obj_it.Next(); !obj.is_null(); obj = obj_it.Next()) {
+  for (Tagged<HeapObject> obj = obj_it.Next(); !obj.is_null();
+       obj = obj_it.Next()) {
     RecordCodeAndMetadataStatistics(obj, isolate);
   }
 }
@@ -204,7 +206,7 @@ void CodeStatistics::CollectCodeCommentStatistics(Tagged<AbstractCode> obj,
   PtrComprCageBase cage_base{isolate};
   if (!IsCode(obj, cage_base)) return;
 
-  Code code = Code::cast(obj);
+  Tagged<Code> code = Code::cast(obj);
 
   // Off-heap builtins might contain comments but they are a part of binary so
   // it doesn't make sense to account them in the stats.

@@ -35,7 +35,7 @@ static int close_cb_called;
 
 static void write_cb(uv_write_t* req, int status) {
   write_cb_called++;
-  ASSERT(status == 0);
+  ASSERT_OK(status);
 }
 
 static void alloc_cb(uv_handle_t* handle,
@@ -54,8 +54,8 @@ static void read_cb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   read_cb_called++;
 
   ASSERT((nread < 0) && (nread != UV_EOF));
-  ASSERT(0 == uv_is_writable(handle));
-  ASSERT(0 == uv_is_readable(handle));
+  ASSERT_OK(uv_is_writable(handle));
+  ASSERT_OK(uv_is_readable(handle));
 
   uv_close((uv_handle_t*) handle, close_cb);
 }
@@ -65,10 +65,10 @@ static void connect_cb(uv_connect_t* req, int status) {
   uv_buf_t reset_me;
 
   connect_cb_called++;
-  ASSERT(status == 0);
+  ASSERT_OK(status);
 
   r = uv_read_start((uv_stream_t*) &tcp_client, alloc_cb, read_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   reset_me = uv_buf_init(reset_me_cmd, sizeof(reset_me_cmd));
 
@@ -78,26 +78,26 @@ static void connect_cb(uv_connect_t* req, int status) {
                1,
                write_cb);
 
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 }
 
 TEST_IMPL(not_readable_nor_writable_on_read_error) {
   struct sockaddr_in sa;
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &sa));
-  ASSERT(0 == uv_loop_init(&loop));
-  ASSERT(0 == uv_tcp_init(&loop, &tcp_client));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &sa));
+  ASSERT_OK(uv_loop_init(&loop));
+  ASSERT_OK(uv_tcp_init(&loop, &tcp_client));
 
-  ASSERT(0 == uv_tcp_connect(&connect_req,
-                             &tcp_client,
-                             (const struct sockaddr*) &sa,
-                             connect_cb));
+  ASSERT_OK(uv_tcp_connect(&connect_req,
+                           &tcp_client,
+                           (const struct sockaddr*) &sa,
+                           connect_cb));
 
-  ASSERT(0 == uv_run(&loop, UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(&loop, UV_RUN_DEFAULT));
 
-  ASSERT(connect_cb_called == 1);
-  ASSERT(read_cb_called == 1);
-  ASSERT(write_cb_called == 1);
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(1, connect_cb_called);
+  ASSERT_EQ(1, read_cb_called);
+  ASSERT_EQ(1, write_cb_called);
+  ASSERT_EQ(1, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(&loop);
   return 0;

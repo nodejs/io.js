@@ -7,12 +7,15 @@
 /* Literal cost model to allow backward reference replacement to be efficient.
 */
 
-#include "./literal_cost.h"
+#include "literal_cost.h"
+
+#include <string.h>  /* memset */
+
+#include <brotli/types.h>
 
 #include "../common/platform.h"
-#include <brotli/types.h>
-#include "./fast_log.h"
-#include "./utf8_util.h"
+#include "fast_log.h"
+#include "utf8_util.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -54,22 +57,23 @@ static size_t DecideMultiByteStatsLevel(size_t pos, size_t len, size_t mask,
 }
 
 static void EstimateBitCostsForLiteralsUTF8(size_t pos, size_t len, size_t mask,
-                                            const uint8_t* data, float* cost) {
+                                            const uint8_t* data,
+                                            size_t* histogram, float* cost) {
   /* max_utf8 is 0 (normal ASCII single byte modeling),
      1 (for 2-byte UTF-8 modeling), or 2 (for 3-byte UTF-8 modeling). */
   const size_t max_utf8 = DecideMultiByteStatsLevel(pos, len, mask, data);
-  size_t histogram[3][256] = { { 0 } };
   size_t window_half = 495;
   size_t in_window = BROTLI_MIN(size_t, window_half, len);
   size_t in_window_utf8[3] = { 0 };
-
   size_t i;
+  memset(histogram, 0, 3 * 256 * sizeof(histogram[0]));
+
   {  /* Bootstrap histograms. */
     size_t last_c = 0;
     size_t utf8_pos = 0;
     for (i = 0; i < in_window; ++i) {
       size_t c = data[(pos + i) & mask];
-      ++histogram[utf8_pos][c];
+      ++histogram[256 * utf8_pos + c];
       ++in_window_utf8[utf8_pos];
       utf8_pos = UTF8Position(last_c, c, max_utf8);
       last_c = c;
@@ -85,7 +89,7 @@ static void EstimateBitCostsForLiteralsUTF8(size_t pos, size_t len, size_t mask,
       size_t last_c =
           i < window_half + 2 ? 0 : data[(pos + i - window_half - 2) & mask];
       size_t utf8_pos2 = UTF8Position(last_c, c, max_utf8);
-      --histogram[utf8_pos2][data[(pos + i - window_half) & mask]];
+      --histogram[256 * utf8_pos2 + data[(pos + i - window_half) & mask]];
       --in_window_utf8[utf8_pos2];
     }
     if (i + window_half < len) {
@@ -93,7 +97,7 @@ static void EstimateBitCostsForLiteralsUTF8(size_t pos, size_t len, size_t mask,
       size_t c = data[(pos + i + window_half - 1) & mask];
       size_t last_c = data[(pos + i + window_half - 2) & mask];
       size_t utf8_pos2 = UTF8Position(last_c, c, max_utf8);
-      ++histogram[utf8_pos2][data[(pos + i + window_half) & mask]];
+      ++histogram[256 * utf8_pos2 + data[(pos + i + window_half) & mask]];
       ++in_window_utf8[utf8_pos2];
     }
     {
@@ -101,7 +105,7 @@ static void EstimateBitCostsForLiteralsUTF8(size_t pos, size_t len, size_t mask,
       size_t last_c = i < 2 ? 0 : data[(pos + i - 2) & mask];
       size_t utf8_pos = UTF8Position(last_c, c, max_utf8);
       size_t masked_pos = (pos + i) & mask;
-      size_t histo = histogram[utf8_pos][data[masked_pos]];
+      size_t histo = histogram[256 * utf8_pos + data[masked_pos]];
       double lit_cost;
       if (histo == 0) {
         histo = 1;
@@ -125,17 +129,18 @@ static void EstimateBitCostsForLiteralsUTF8(size_t pos, size_t len, size_t mask,
 }
 
 void BrotliEstimateBitCostsForLiterals(size_t pos, size_t len, size_t mask,
-                                       const uint8_t* data, float* cost) {
+                                       const uint8_t* data,
+                                       size_t* histogram, float* cost) {
   if (BrotliIsMostlyUTF8(data, pos, mask, len, kMinUTF8Ratio)) {
-    EstimateBitCostsForLiteralsUTF8(pos, len, mask, data, cost);
+    EstimateBitCostsForLiteralsUTF8(pos, len, mask, data, histogram, cost);
     return;
   } else {
-    size_t histogram[256] = { 0 };
     size_t window_half = 2000;
     size_t in_window = BROTLI_MIN(size_t, window_half, len);
+    size_t i;
+    memset(histogram, 0, 256 * sizeof(histogram[0]));
 
     /* Bootstrap histogram. */
-    size_t i;
     for (i = 0; i < in_window; ++i) {
       ++histogram[data[(pos + i) & mask]];
     }

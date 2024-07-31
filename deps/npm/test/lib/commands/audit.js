@@ -1,6 +1,6 @@
-const fs = require('fs')
-const zlib = require('zlib')
-const path = require('path')
+const fs = require('node:fs')
+const zlib = require('node:zlib')
+const path = require('node:path')
 const t = require('tap')
 
 const { default: tufmock } = require('@tufjs/repo-mock')
@@ -184,6 +184,7 @@ t.test('audit fix - bulk endpoint', async t => {
     tarballs: {
       '1.0.1': path.join(npm.prefix, 'test-dep-a-fixed'),
     },
+    times: 2,
   })
   const advisory = registry.advisory({ id: 100, vulnerable_versions: '1.0.0' })
   registry.nock.post('/-/npm/v1/security/advisories/bulk', body => {
@@ -939,7 +940,7 @@ t.test('audit signatures', async t => {
     const opts = {
       baseURL: 'https://tuf-repo-cdn.sigstore.dev',
       metadataPathPrefix: '',
-      cachePath: path.join(npm.cache, '_tuf'),
+      cachePath: path.join(npm.cache, '_tuf', 'tuf-repo-cdn.sigstore.dev'),
     }
     return tufmock(target, opts)
   }
@@ -1393,7 +1394,7 @@ t.test('audit signatures', async t => {
 
     await t.rejects(
       npm.exec('audit', ['signatures']),
-      /found no dependencies to audit that where installed from a supported registry/
+      /found no dependencies to audit that were installed from a supported registry/
     )
   })
 
@@ -1424,7 +1425,7 @@ t.test('audit signatures', async t => {
 
     await t.rejects(
       npm.exec('audit', ['signatures']),
-      /found no dependencies to audit that where installed from a supported registry/
+      /found no dependencies to audit that were installed from a supported registry/
     )
   })
 
@@ -1766,7 +1767,7 @@ t.test('audit signatures', async t => {
 
     await t.rejects(
       npm.exec('audit', ['signatures']),
-      /found no dependencies to audit that where installed from a supported registry/
+      /found no dependencies to audit that were installed from a supported registry/
     )
   })
 
@@ -1787,7 +1788,7 @@ t.test('audit signatures', async t => {
 
     await t.rejects(
       npm.exec('audit', ['signatures']),
-      /found no dependencies to audit that where installed from a supported registry/
+      /found no dependencies to audit that were installed from a supported registry/
     )
   })
 
@@ -1815,7 +1816,7 @@ t.test('audit signatures', async t => {
 
     await t.rejects(
       npm.exec('audit', ['signatures']),
-      /found no dependencies to audit that where installed from a supported registry/
+      /found no dependencies to audit that were installed from a supported registry/
     )
   })
 
@@ -1844,7 +1845,7 @@ t.test('audit signatures', async t => {
 
     await t.rejects(
       npm.exec('audit', ['signatures']),
-      /found no dependencies to audit that where installed from a supported registry/
+      /found no dependencies to audit that were installed from a supported registry/
     )
   })
 
@@ -1860,7 +1861,7 @@ t.test('audit signatures', async t => {
     )
   })
 
-  t.test('with invalid signtaures and color output enabled', async t => {
+  t.test('with invalid signatures and color output enabled', async t => {
     const { npm, joinedOutput } = await loadMockNpm(t, {
       prefixDir: installWithValidSigs,
       config: { color: 'always' },
@@ -1875,7 +1876,7 @@ t.test('audit signatures', async t => {
     t.match(
       joinedOutput(),
       // eslint-disable-next-line no-control-regex
-      /\u001b\[1m\u001b\[31minvalid\u001b\[39m\u001b\[22m registry signature/
+      /\u001b\[91minvalid\u001b\[39m registry signature/
     )
     t.matchSnapshot(joinedOutput())
   })
@@ -1892,7 +1893,7 @@ t.test('audit signatures', async t => {
     const registry = new MockRegistry({ tap: t, registry: npm.config.get('registry') })
     await manifestWithValidAttestations({ registry })
     const fixture = fs.readFileSync(
-      path.join(__dirname, '..', 'fixtures', 'sigstore/valid-sigstore-attestations.json'),
+      path.resolve(__dirname, '../../fixtures/sigstore/valid-sigstore-attestations.json'),
       'utf8'
     )
     registry.nock.get('/-/npm/v1/attestations/sigstore@1.0.0').reply(200, fixture)
@@ -1918,11 +1919,11 @@ t.test('audit signatures', async t => {
     await manifestWithValidAttestations({ registry })
     await manifestWithMultipleValidAttestations({ registry })
     const fixture1 = fs.readFileSync(
-      path.join(__dirname, '..', 'fixtures', 'sigstore/valid-sigstore-attestations.json'),
+      path.join(__dirname, '../../fixtures/sigstore/valid-sigstore-attestations.json'),
       'utf8'
     )
     const fixture2 = fs.readFileSync(
-      path.join(__dirname, '..', 'fixtures', 'sigstore/valid-tuf-js-attestations.json'),
+      path.join(__dirname, '../../fixtures/sigstore/valid-tuf-js-attestations.json'),
       'utf8'
     )
     registry.nock.get('/-/npm/v1/attestations/sigstore@1.0.0').reply(200, fixture1)
@@ -1951,7 +1952,7 @@ t.test('audit signatures', async t => {
     const registry = new MockRegistry({ tap: t, registry: npm.config.get('registry') })
     await manifestWithValidAttestations({ registry })
     const fixture = fs.readFileSync(
-      path.join(__dirname, '..', 'fixtures', 'sigstore/valid-sigstore-attestations.json'),
+      path.join(__dirname, '../../fixtures/sigstore/valid-sigstore-attestations.json'),
       'utf8'
     )
     registry.nock.get('/-/npm/v1/attestations/sigstore@1.0.0').reply(200, fixture)
@@ -1986,7 +1987,7 @@ t.test('audit signatures', async t => {
     const registry = new MockRegistry({ tap: t, registry: npm.config.get('registry') })
     await manifestWithValidAttestations({ registry })
     const fixture = fs.readFileSync(
-      path.join(__dirname, '..', 'fixtures', 'sigstore/valid-sigstore-attestations.json'),
+      path.join(__dirname, '../../fixtures/sigstore/valid-sigstore-attestations.json'),
       'utf8'
     )
     registry.nock.get('/-/npm/v1/attestations/sigstore@1.0.0').reply(200, fixture)
@@ -2016,11 +2017,11 @@ t.test('audit signatures', async t => {
     await manifestWithValidAttestations({ registry })
     await manifestWithMultipleValidAttestations({ registry })
     const fixture1 = fs.readFileSync(
-      path.join(__dirname, '..', 'fixtures', 'sigstore/valid-sigstore-attestations.json'),
+      path.join(__dirname, '../../fixtures/sigstore/valid-sigstore-attestations.json'),
       'utf8'
     )
     const fixture2 = fs.readFileSync(
-      path.join(__dirname, '..', 'fixtures', 'sigstore/valid-tuf-js-attestations.json'),
+      path.join(__dirname, '../../fixtures/sigstore/valid-tuf-js-attestations.json'),
       'utf8'
     )
     registry.nock.get('/-/npm/v1/attestations/sigstore@1.0.0').reply(200, fixture1)

@@ -40,24 +40,24 @@ NEW_VERSION_TGZ="icu4c-${LOW_DASHED_NEW_VERSION}-src.tgz"
 
 NEW_VERSION_TGZ_URL="https://github.com/unicode-org/icu/releases/download/release-${DASHED_NEW_VERSION}/$NEW_VERSION_TGZ"
 
-NEW_VERSION_MD5="https://github.com/unicode-org/icu/releases/download/release-${DASHED_NEW_VERSION}/icu4c-${LOW_DASHED_NEW_VERSION}-src.md5"
+NEW_VERSION_MD5="https://github.com/unicode-org/icu/releases/download/release-${DASHED_NEW_VERSION}/icu4c-${LOW_DASHED_NEW_VERSION}-sources.md5"
+
+CHECKSUM=$(curl -sL "$NEW_VERSION_MD5" | grep "$NEW_VERSION_TGZ" | grep -v "\.asc$" | awk '{print $1}')
+
+GENERATED_CHECKSUM=$( curl -sL "$NEW_VERSION_TGZ_URL" | md5sum | cut -d ' ' -f1)
+
+echo "Comparing checksums: deposited '$CHECKSUM' with '$GENERATED_CHECKSUM'"
+
+if [ "$CHECKSUM" != "$GENERATED_CHECKSUM" ]; then
+  echo "Skipped because checksums do not match."
+  exit 0
+fi
 
 ./configure --with-intl=full-icu --with-icu-source="$NEW_VERSION_TGZ_URL"
 
 "$TOOLS_DIR/icu/shrink-icu-src.py"
 
 rm -rf "$DEPS_DIR/icu"
-
-CHECKSUM=$(curl -sL "$NEW_VERSION_MD5" | grep "$NEW_VERSION_TGZ" | grep -v "\.asc$" | awk '{print $1}')
-
-GENERATED_CHECKSUM=$( curl -sL "$NEW_VERSION_TGZ_URL" | md5sum | cut -d ' ' -f1)
-
-echo "Comparing checksums: deposited $CHECKSUM with $GENERATED_CHECKSUM"
-
-if [ "$CHECKSUM" != "$GENERATED_CHECKSUM" ]; then
-  echo "Skipped because checksums do not match."
-  exit 0
-fi
 
 perl -i -pe "s|\"url\": .*|\"url\": \"$NEW_VERSION_TGZ_URL\",|" "$TOOLS_DIR/icu/current_ver.dep"
 

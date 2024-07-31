@@ -387,7 +387,10 @@ static int aes_ocb_set_ctx_params(void *vctx, const OSSL_PARAM params[])
         /* IV len must be 1 to 15 */
         if (sz < OCB_MIN_IV_LEN || sz > OCB_MAX_IV_LEN)
             return 0;
-        ctx->base.ivlen = sz;
+        if (ctx->base.ivlen != sz) {
+            ctx->base.ivlen = sz;
+            ctx->iv_state = IV_STATE_UNINITIALISED;
+        }
     }
     p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_KEYLEN);
     if (p != NULL) {

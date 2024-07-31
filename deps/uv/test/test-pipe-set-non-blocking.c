@@ -46,13 +46,13 @@ static void thread_main(void* arg) {
     uv_fs_req_cleanup(&req);
   } while (n > 0 || (n == -1 && uv_errno == UV_EINTR));
 
-  ASSERT(n == 0);
+  ASSERT_OK(n);
 }
 
 
 #ifdef _WIN32
 static void write_cb(uv_write_t* req, int status) {
-  ASSERT(status == 0);
+  ASSERT_OK(status);
   req->handle = NULL; /* signal completion of write_cb */
 }
 #endif
@@ -77,15 +77,15 @@ TEST_IMPL(pipe_set_non_blocking) {
   uv_write_t write_req;
 #endif
 
-  ASSERT(0 == uv_pipe_init(uv_default_loop(), &pipe_handle, 0));
-  ASSERT(0 == uv_pipe(fd, 0, 0));
-  ASSERT(0 == uv_pipe_open(&pipe_handle, fd[1]));
-  ASSERT(0 == uv_stream_set_blocking((uv_stream_t*) &pipe_handle, 1));
+  ASSERT_OK(uv_pipe_init(uv_default_loop(), &pipe_handle, 0));
+  ASSERT_OK(uv_pipe(fd, 0, 0));
+  ASSERT_OK(uv_pipe_open(&pipe_handle, fd[1]));
+  ASSERT_OK(uv_stream_set_blocking((uv_stream_t*) &pipe_handle, 1));
   fd[1] = -1; /* fd[1] is owned by pipe_handle now. */
 
   ctx.fd = fd[0];
-  ASSERT(0 == uv_barrier_init(&ctx.barrier, 2));
-  ASSERT(0 == uv_thread_create(&thread, thread_main, &ctx));
+  ASSERT_OK(uv_barrier_init(&ctx.barrier, 2));
+  ASSERT_OK(uv_thread_create(&thread, thread_main, &ctx));
   uv_barrier_wait(&ctx.barrier);
 
   buf.len = sizeof(data);
@@ -99,25 +99,29 @@ TEST_IMPL(pipe_set_non_blocking) {
      */
     n = uv_try_write((uv_stream_t*) &pipe_handle, &buf, 1);
 #ifdef _WIN32
-    ASSERT(n == UV_EAGAIN); /* E_NOTIMPL */
-    ASSERT(0 == uv_write(&write_req, (uv_stream_t*) &pipe_handle, &buf, 1, write_cb));
+    ASSERT_EQ(n, UV_EAGAIN); /* E_NOTIMPL */
+    ASSERT_OK(uv_write(&write_req,
+                       (uv_stream_t*) &pipe_handle,
+                       &buf,
+                       1,
+                       write_cb));
     ASSERT_NOT_NULL(write_req.handle);
-    ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_ONCE));
+    ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_ONCE));
     ASSERT_NULL(write_req.handle); /* check for signaled completion of write_cb */
     n = buf.len;
 #endif
-    ASSERT(n == sizeof(data));
+    ASSERT_EQ(n, sizeof(data));
     nwritten += n;
   }
 
   uv_close((uv_handle_t*) &pipe_handle, NULL);
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
 
-  ASSERT(0 == uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
 #ifdef _WIN32
-  ASSERT(0 == _close(fd[0]));  /* fd[1] is closed by uv_close(). */
+  ASSERT_OK(_close(fd[0]));  /* fd[1] is closed by uv_close(). */
 #else
-  ASSERT(0 == close(fd[0]));  /* fd[1] is closed by uv_close(). */
+  ASSERT_OK(close(fd[0]));  /* fd[1] is closed by uv_close(). */
 #endif
   fd[0] = -1;
   uv_barrier_destroy(&ctx.barrier);

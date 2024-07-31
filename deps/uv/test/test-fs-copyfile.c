@@ -48,19 +48,19 @@ static void handle_result(uv_fs_t* req) {
   uint64_t mode;
   int r;
 
-  ASSERT(req->fs_type == UV_FS_COPYFILE);
-  ASSERT(req->result == 0);
+  ASSERT_EQ(req->fs_type, UV_FS_COPYFILE);
+  ASSERT_OK(req->result);
 
   /* Verify that the file size and mode are the same. */
   r = uv_fs_stat(NULL, &stat_req, req->path, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   size = stat_req.statbuf.st_size;
   mode = stat_req.statbuf.st_mode;
   uv_fs_req_cleanup(&stat_req);
   r = uv_fs_stat(NULL, &stat_req, dst, NULL);
-  ASSERT(r == 0);
-  ASSERT(stat_req.statbuf.st_size == size);
-  ASSERT(stat_req.statbuf.st_mode == mode);
+  ASSERT_OK(r);
+  ASSERT_EQ(stat_req.statbuf.st_size, size);
+  ASSERT_EQ(stat_req.statbuf.st_mode, mode);
   uv_fs_req_cleanup(&stat_req);
   uv_fs_req_cleanup(req);
   result_check_count++;
@@ -74,10 +74,11 @@ static void touch_file(const char* name, unsigned int size) {
   int r;
   unsigned int i;
 
-  r = uv_fs_open(NULL, &req, name, O_WRONLY | O_CREAT | O_TRUNC,
+  r = uv_fs_open(NULL, &req, name,
+                 UV_FS_O_WRONLY | UV_FS_O_CREAT | UV_FS_O_TRUNC,
                  S_IWUSR | S_IRUSR, NULL);
   uv_fs_req_cleanup(&req);
-  ASSERT(r >= 0);
+  ASSERT_GE(r, 0);
   file = r;
 
   buf = uv_buf_init("a", 1);
@@ -86,12 +87,12 @@ static void touch_file(const char* name, unsigned int size) {
   for (i = 0; i < size; i++) {
     r = uv_fs_write(NULL, &req, file, &buf, 1, i, NULL);
     uv_fs_req_cleanup(&req);
-    ASSERT(r >= 0);
+    ASSERT_GE(r, 0);
   }
 
   r = uv_fs_close(NULL, &req, file, NULL);
   uv_fs_req_cleanup(&req);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 }
 
 
@@ -105,102 +106,102 @@ TEST_IMPL(fs_copyfile) {
 
   /* Fails with EINVAL if bad flags are passed. */
   r = uv_fs_copyfile(NULL, &req, src, dst, -1, NULL);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
   uv_fs_req_cleanup(&req);
 
   /* Fails with ENOENT if source does not exist. */
   unlink(src);
   unlink(dst);
   r = uv_fs_copyfile(NULL, &req, src, dst, 0, NULL);
-  ASSERT(req.result == UV_ENOENT);
-  ASSERT(r == UV_ENOENT);
+  ASSERT_EQ(req.result, UV_ENOENT);
+  ASSERT_EQ(r, UV_ENOENT);
   uv_fs_req_cleanup(&req);
   /* The destination should not exist. */
   r = uv_fs_stat(NULL, &req, dst, NULL);
-  ASSERT(r != 0);
+  ASSERT(r);
   uv_fs_req_cleanup(&req);
 
   /* Succeeds if src and dst files are identical. */
   touch_file(src, 12);
   r = uv_fs_copyfile(NULL, &req, src, src, 0, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   uv_fs_req_cleanup(&req);
   /* Verify that the src file did not get truncated. */
   r = uv_fs_stat(NULL, &req, src, NULL);
-  ASSERT_EQ(r, 0);
-  ASSERT_EQ(req.statbuf.st_size, 12);
+  ASSERT_OK(r);
+  ASSERT_EQ(12, req.statbuf.st_size);
   uv_fs_req_cleanup(&req);
   unlink(src);
 
   /* Copies file synchronously. Creates new file. */
   unlink(dst);
   r = uv_fs_copyfile(NULL, &req, fixture, dst, 0, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   handle_result(&req);
 
   /* Copies a file of size zero. */
   unlink(dst);
   touch_file(src, 0);
   r = uv_fs_copyfile(NULL, &req, src, dst, 0, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   handle_result(&req);
 
   /* Copies file synchronously. Overwrites existing file. */
   r = uv_fs_copyfile(NULL, &req, fixture, dst, 0, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   handle_result(&req);
 
   /* Fails to overwrites existing file. */
-  ASSERT_EQ(uv_fs_chmod(NULL, &req, dst, 0644, NULL), 0);
+  ASSERT_OK(uv_fs_chmod(NULL, &req, dst, 0644, NULL));
   uv_fs_req_cleanup(&req);
   r = uv_fs_copyfile(NULL, &req, fixture, dst, UV_FS_COPYFILE_EXCL, NULL);
-  ASSERT(r == UV_EEXIST);
+  ASSERT_EQ(r, UV_EEXIST);
   uv_fs_req_cleanup(&req);
 
   /* Truncates when an existing destination is larger than the source file. */
-  ASSERT_EQ(uv_fs_chmod(NULL, &req, dst, 0644, NULL), 0);
+  ASSERT_OK(uv_fs_chmod(NULL, &req, dst, 0644, NULL));
   uv_fs_req_cleanup(&req);
   touch_file(src, 1);
   r = uv_fs_copyfile(NULL, &req, src, dst, 0, NULL);
-  ASSERT_EQ(r, 0);
+  ASSERT_OK(r);
   handle_result(&req);
 
   /* Copies a larger file. */
   unlink(dst);
   touch_file(src, 4096 * 2);
   r = uv_fs_copyfile(NULL, &req, src, dst, 0, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   handle_result(&req);
   unlink(src);
 
   /* Copies file asynchronously */
   unlink(dst);
   r = uv_fs_copyfile(loop, &req, fixture, dst, 0, handle_result);
-  ASSERT(r == 0);
-  ASSERT(result_check_count == 5);
+  ASSERT_OK(r);
+  ASSERT_EQ(5, result_check_count);
   uv_run(loop, UV_RUN_DEFAULT);
-  ASSERT(result_check_count == 6);
+  ASSERT_EQ(6, result_check_count);
   /* Ensure file is user-writable (not copied from src). */
-  ASSERT_EQ(uv_fs_chmod(NULL, &req, dst, 0644, NULL), 0);
+  ASSERT_OK(uv_fs_chmod(NULL, &req, dst, 0644, NULL));
   uv_fs_req_cleanup(&req);
 
   /* If the flags are invalid, the loop should not be kept open */
   unlink(dst);
   r = uv_fs_copyfile(loop, &req, fixture, dst, -1, fail_cb);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
   uv_run(loop, UV_RUN_DEFAULT);
 
   /* Copies file using UV_FS_COPYFILE_FICLONE. */
   unlink(dst);
   r = uv_fs_copyfile(NULL, &req, fixture, dst, UV_FS_COPYFILE_FICLONE, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   handle_result(&req);
 
   /* Copies file using UV_FS_COPYFILE_FICLONE_FORCE. */
   unlink(dst);
   r = uv_fs_copyfile(NULL, &req, fixture, dst, UV_FS_COPYFILE_FICLONE_FORCE,
                      NULL);
-  ASSERT(r <= 0);
+  ASSERT_LE(r, 0);
 
   if (r == 0)
     handle_result(&req);
@@ -213,8 +214,8 @@ TEST_IMPL(fs_copyfile) {
   r = uv_fs_copyfile(NULL, &req, fixture, dst, 0, NULL);
   /* On IBMi PASE, qsecofr users can overwrite read-only files */
 # ifndef __PASE__
-  ASSERT(req.result == UV_EACCES);
-  ASSERT(r == UV_EACCES);
+  ASSERT_EQ(req.result, UV_EACCES);
+  ASSERT_EQ(r, UV_EACCES);
 # endif
   uv_fs_req_cleanup(&req);
 #endif

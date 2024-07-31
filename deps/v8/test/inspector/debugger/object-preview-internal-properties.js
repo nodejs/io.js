@@ -73,6 +73,7 @@ InspectorTest.runTestSuite([
     checkExpression("[1,2,3]")
       .then(() => checkExpression("/123/"))
       .then(() => checkExpression("({})"))
+      .then(() => checkExpression("Boolean.prototype"))
       .then(next);
   },
 

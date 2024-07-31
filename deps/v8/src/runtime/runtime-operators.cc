@@ -41,24 +41,24 @@ RUNTIME_FUNCTION(Runtime_NotEqual) {
 RUNTIME_FUNCTION(Runtime_StrictEqual) {
   SealHandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Object x = args[0];
-  Object y = args[1];
+  Tagged<Object> x = args[0];
+  Tagged<Object> y = args[1];
   return isolate->heap()->ToBoolean(Object::StrictEquals(x, y));
 }
 
 RUNTIME_FUNCTION(Runtime_StrictNotEqual) {
   SealHandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Object x = args[0];
-  Object y = args[1];
+  Tagged<Object> x = args[0];
+  Tagged<Object> y = args[1];
   return isolate->heap()->ToBoolean(!Object::StrictEquals(x, y));
 }
 
 RUNTIME_FUNCTION(Runtime_ReferenceEqual) {
   SealHandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Object x = args[0];
-  Object y = args[1];
+  Tagged<Object> x = args[0];
+  Tagged<Object> y = args[1];
   return isolate->heap()->ToBoolean(x == y);
 }
 

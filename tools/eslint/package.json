@@ -1,0 +1,20 @@
+{
+  "name": "eslint-tools",
+  "version": "0.0.0",
+  "private": true,
+  "overrides": {
+    "caniuse-lite": "1.0.30001636",
+    "electron-to-chromium": "1.4.806"
+  },
+  "dependencies": {
+    "@babel/core": "^7.24.9",
+    "@babel/eslint-parser": "^7.25.0",
+    "@babel/plugin-syntax-import-attributes": "^7.24.7",
+    "@stylistic/eslint-plugin-js": "^2.4.0",
+    "eslint": "^9.8.0",
+    "eslint-formatter-tap": "^8.40.0",
+    "eslint-plugin-jsdoc": "^48.8.3",
+    "eslint-plugin-markdown": "^5.1.0",
+    "globals": "^15.8.0"
+  }
+}

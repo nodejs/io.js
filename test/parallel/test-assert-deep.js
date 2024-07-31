@@ -1,6 +1,6 @@
 'use strict';
 
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const util = require('util');
 const { AssertionError } = assert;
@@ -375,7 +375,11 @@ assertOnlyDeepEqual(
   new Map([[undefined, null], ['+000', 2n]]),
   new Map([[null, undefined], [false, '2']]),
 );
-
+const xarray = ['x'];
+assertDeepAndStrictEqual(
+  new Set([xarray, ['y']]),
+  new Set([xarray, ['y']])
+);
 assertOnlyDeepEqual(
   new Set([null, '', 1n, 5, 2n, false]),
   new Set([undefined, 0, 5n, true, '2', '-000'])
@@ -1111,6 +1115,29 @@ assert.throws(
   assert.notDeepStrictEqual(err, err2);
 }
 
+// Check for Errors with cause property
+{
+  const e1 = new Error('err', { cause: new Error('cause e1') });
+  const e2 = new Error('err', { cause: new Error('cause e2') });
+  assertNotDeepOrStrict(e1, e2, AssertionError);
+  assertNotDeepOrStrict(e1, new Error('err'), AssertionError);
+  assertDeepAndStrictEqual(e1, new Error('err', { cause: new Error('cause e1') }));
+}
+
+// Check for AggregateError
+{
+  const e1 = new Error('e1');
+  const e1duplicate = new Error('e1');
+  const e2 = new Error('e2');
+
+  const e3 = new AggregateError([e1duplicate, e2], 'Aggregate Error');
+  const e3duplicate = new AggregateError([e1, e2], 'Aggregate Error');
+  const e4 = new AggregateError([e1], 'Aggregate Error');
+  assertNotDeepOrStrict(e1, e3, AssertionError);
+  assertNotDeepOrStrict(e3, e4, AssertionError);
+  assertDeepAndStrictEqual(e3, e3duplicate);
+}
+
 // Verify that `valueOf` is not called for boxed primitives.
 {
   const a = new Number(5);
@@ -1219,4 +1246,93 @@ assert.throws(
   Object.defineProperty(b, 'x', { value: 1 });
 
   assertNotDeepOrStrict(a, b);
+}
+
+// eslint-disable-next-line node-core/crypto-check
+if (common.hasCrypto) {
+  const crypto = require('crypto');
+  const { subtle } = globalThis.crypto;
+
+  {
+    const a = crypto.createSecretKey(Buffer.alloc(1, 0));
+    const b = crypto.createSecretKey(Buffer.alloc(1, 1));
+
+    assertNotDeepOrStrict(a, b);
+  }
+
+  {
+    const a = crypto.createSecretKey(Buffer.alloc(0));
+    const b = crypto.createSecretKey(Buffer.alloc(0));
+
+    assertDeepAndStrictEqual(a, b);
+  }
+
+  (async () => {
+    {
+      const a = await subtle.importKey('raw', Buffer.alloc(1, 0), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+      const b = await subtle.importKey('raw', Buffer.alloc(1, 1), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+
+      assertNotDeepOrStrict(a, b);
+    }
+
+    {
+      const a = await subtle.importKey('raw', Buffer.alloc(1), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+      const b = await subtle.importKey('raw', Buffer.alloc(1), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+
+      assertNotDeepOrStrict(a, b);
+    }
+
+    {
+      const a = await subtle.importKey('raw', Buffer.alloc(1), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+      const b = await subtle.importKey('raw', Buffer.alloc(1), { name: 'HMAC', hash: 'SHA-384' }, true, ['sign']);
+
+      assertNotDeepOrStrict(a, b);
+    }
+
+    {
+      const a = await subtle.importKey('raw', Buffer.alloc(1), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+      const b = await subtle.importKey('raw', Buffer.alloc(1), { name: 'HMAC', hash: 'SHA-256' }, true, ['verify']);
+
+      assertNotDeepOrStrict(a, b);
+    }
+
+    {
+      const a = await subtle.importKey('raw', Buffer.alloc(1), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+      const b = await subtle.importKey('raw', Buffer.alloc(1), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+
+      assertDeepAndStrictEqual(a, b);
+    }
+  })().then(common.mustCall());
+}
+
+// Comparing two identical WeakMap instances
+{
+  const weakMap = new WeakMap();
+  assertDeepAndStrictEqual(weakMap, weakMap);
+}
+
+// Comparing two different WeakMap instances
+{
+  const weakMap1 = new WeakMap();
+  const objA = {};
+  weakMap1.set(objA, 'ok');
+
+  const weakMap2 = new WeakMap();
+  const objB = {};
+  weakMap2.set(objB, 'ok');
+
+  assertNotDeepOrStrict(weakMap1, weakMap2);
+}
+
+// Comparing two identical WeakSet instances
+{
+  const weakSet = new WeakSet();
+  assertDeepAndStrictEqual(weakSet, weakSet);
+}
+
+// Comparing two different WeakSet instances
+{
+  const weakSet1 = new WeakSet();
+  const weakSet2 = new WeakSet();
+  assertNotDeepOrStrict(weakSet1, weakSet2);
 }

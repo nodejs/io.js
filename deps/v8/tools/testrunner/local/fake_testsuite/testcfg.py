@@ -10,16 +10,19 @@ from testrunner.objects.testcase import TestCase
 
 class TestLoader(testsuite.TestLoader):
   def _list_test_filenames(self):
-    return ["fast", "slow"]
+    return ["fast", "slow", "heavy"]
 
   def list_tests(self):
-    self.test_count_estimation = 2
+    self.test_count_estimation = 3
     fast = self._create_test(Path("fast"), self.suite)
     slow = self._create_test(Path("slow"), self.suite)
+    heavy = self._create_test(Path("heavy"), self.suite)
 
     slow._statusfile_outcomes.append(statusfile.SLOW)
+    heavy._statusfile_outcomes.append(statusfile.HEAVY)
     yield fast
     yield slow
+    yield heavy
 
 
 class TestSuite(testsuite.TestSuite):

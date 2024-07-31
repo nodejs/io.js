@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --no-liftoff --experimental-wasm-gc --allow-natives-syntax
+// Flags: --no-liftoff --allow-natives-syntax
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -17,7 +17,7 @@ let sig = makeSig([wasmRefNullType(supertype)], [kWasmI32]);
 
 let callee = builder.addFunction("callee", sig).addBody([
   kExprLocalGet, 0,
-  kGCPrefix, kExprRefTestDeprecated, sub1,
+  kGCPrefix, kExprRefTest, sub1,
   kExprIf, kWasmVoid,
   kExprLocalGet, 0,
   kGCPrefix, kExprRefCast, sub1,

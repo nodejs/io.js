@@ -8,6 +8,7 @@
 
 #include "src/common/globals.h"
 #include "src/objects/elements-kind.h"
+#include "src/objects/heap-object-inl.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/visitors.h"
 #include "src/roots/static-roots.h"

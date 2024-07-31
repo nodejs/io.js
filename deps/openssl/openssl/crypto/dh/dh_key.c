@@ -49,6 +49,12 @@ int ossl_dh_compute_key(unsigned char *key, const BIGNUM *pub_key, DH *dh)
         goto err;
     }
 
+    if (dh->params.q != NULL
+        && BN_num_bits(dh->params.q) > OPENSSL_DH_MAX_MODULUS_BITS) {
+        ERR_raise(ERR_LIB_DH, DH_R_Q_TOO_LARGE);
+        goto err;
+    }
+
     if (BN_num_bits(dh->params.p) < DH_MIN_MODULUS_BITS) {
         ERR_raise(ERR_LIB_DH, DH_R_MODULUS_TOO_SMALL);
         return 0;
@@ -264,6 +270,12 @@ static int generate_key(DH *dh)
 
     if (BN_num_bits(dh->params.p) > OPENSSL_DH_MAX_MODULUS_BITS) {
         ERR_raise(ERR_LIB_DH, DH_R_MODULUS_TOO_LARGE);
+        return 0;
+    }
+
+    if (dh->params.q != NULL
+        && BN_num_bits(dh->params.q) > OPENSSL_DH_MAX_MODULUS_BITS) {
+        ERR_raise(ERR_LIB_DH, DH_R_Q_TOO_LARGE);
         return 0;
     }
 

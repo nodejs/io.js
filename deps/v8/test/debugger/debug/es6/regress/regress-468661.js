@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-value-unavailable
-
 Debug = debug.Debug
 var exception = null;
 var break_count = 0;

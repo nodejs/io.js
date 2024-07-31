@@ -12,8 +12,29 @@ void Typer::BranchRefinements::RefineTypes(const Operation& condition,
     Type lhs = type_getter_(comparison->left());
     Type rhs = type_getter_(comparison->right());
 
-    const bool is_signed = ComparisonOp::IsSigned(comparison->kind);
-    const bool is_less_than = ComparisonOp::IsLessThan(comparison->kind);
+    bool is_signed, is_less_than;
+    switch (comparison->kind) {
+      case ComparisonOp::Kind::kEqual:
+        // TODO(nicohartmann@): Add support for equality.
+        return;
+      case ComparisonOp::Kind::kSignedLessThan:
+        is_signed = true;
+        is_less_than = true;
+        break;
+      case ComparisonOp::Kind::kSignedLessThanOrEqual:
+        is_signed = true;
+        is_less_than = false;
+        break;
+      case ComparisonOp::Kind::kUnsignedLessThan:
+        is_signed = false;
+        is_less_than = true;
+        break;
+      case ComparisonOp::Kind::kUnsignedLessThanOrEqual:
+        is_signed = false;
+        is_less_than = false;
+        break;
+    }
+
     Type l_refined;
     Type r_refined;
 

@@ -15,6 +15,7 @@
 #include "bindingdata.h"
 #include "cid.h"
 #include "data.h"
+#include "defs.h"
 #include "tokens.h"
 
 namespace node {
@@ -26,6 +27,7 @@ struct PathDescriptor {
   const CID& scid;
   const SocketAddress& local_address;
   const SocketAddress& remote_address;
+  std::string ToString() const;
 };
 
 // A Packet encapsulates serialized outbound QUIC data.
@@ -49,8 +51,6 @@ class Packet final : public ReqWrap<uv_udp_send_t> {
   struct Data;
 
  public:
-  using Queue = std::deque<BaseObjectPtr<Packet>>;
-
   static v8::Local<v8::FunctionTemplate> GetConstructorTemplate(
       Environment* env);
 
@@ -77,13 +77,9 @@ class Packet final : public ReqWrap<uv_udp_send_t> {
          const SocketAddress& destination,
          std::shared_ptr<Data> data);
 
-  Packet(const Packet&) = delete;
-  Packet(Packet&&) = delete;
-  Packet& operator=(const Packet&) = delete;
-  Packet& operator=(Packet&&) = delete;
+  DISALLOW_COPY_AND_MOVE(Packet)
 
   const SocketAddress& destination() const;
-  bool is_sending() const;
   size_t length() const;
   operator uv_buf_t() const;
   operator ngtcp2_vec() const;
@@ -94,14 +90,13 @@ class Packet final : public ReqWrap<uv_udp_send_t> {
   // tells us how many of the packets bytes were used.
   void Truncate(size_t len);
 
-  static BaseObjectPtr<Packet> Create(
-      Environment* env,
-      Listener* listener,
-      const SocketAddress& destination,
-      size_t length = kDefaultMaxPacketLength,
-      const char* diagnostic_label = "<unknown>");
+  static Packet* Create(Environment* env,
+                        Listener* listener,
+                        const SocketAddress& destination,
+                        size_t length = kDefaultMaxPacketLength,
+                        const char* diagnostic_label = "<unknown>");
 
-  BaseObjectPtr<Packet> Clone() const;
+  Packet* Clone() const;
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(Packet)
@@ -109,38 +104,31 @@ class Packet final : public ReqWrap<uv_udp_send_t> {
 
   std::string ToString() const;
 
-  // Transmits the packet. The handle is the bound uv_udp_t
-  // port that we're sending on, the ref is a pointer to the
-  // HandleWrap that owns the handle.
-  int Send(uv_udp_t* handle, BaseObjectPtr<BaseObject> ref);
+  static Packet* CreateRetryPacket(Environment* env,
+                                   Listener* listener,
+                                   const PathDescriptor& path_descriptor,
+                                   const TokenSecret& token_secret);
 
-  static BaseObjectPtr<Packet> CreateRetryPacket(
-      Environment* env,
-      Listener* listener,
-      const PathDescriptor& path_descriptor,
-      const TokenSecret& token_secret);
+  static Packet* CreateConnectionClosePacket(Environment* env,
+                                             Listener* listener,
+                                             const SocketAddress& destination,
+                                             ngtcp2_conn* conn,
+                                             const QuicError& error);
 
-  static BaseObjectPtr<Packet> CreateConnectionClosePacket(
-      Environment* env,
-      Listener* listener,
-      const SocketAddress& destination,
-      ngtcp2_conn* conn,
-      const QuicError& error);
-
-  static BaseObjectPtr<Packet> CreateImmediateConnectionClosePacket(
+  static Packet* CreateImmediateConnectionClosePacket(
       Environment* env,
       Listener* listener,
       const PathDescriptor& path_descriptor,
       const QuicError& reason);
 
-  static BaseObjectPtr<Packet> CreateStatelessResetPacket(
+  static Packet* CreateStatelessResetPacket(
       Environment* env,
       Listener* listener,
       const PathDescriptor& path_descriptor,
       const TokenSecret& token_secret,
       size_t source_len);
 
-  static BaseObjectPtr<Packet> CreateVersionNegotiationPacket(
+  static Packet* CreateVersionNegotiationPacket(
       Environment* env,
       Listener* listener,
       const PathDescriptor& path_descriptor);
@@ -149,15 +137,14 @@ class Packet final : public ReqWrap<uv_udp_send_t> {
   void Done(int status);
 
  private:
-  static BaseObjectPtr<Packet> FromFreeList(Environment* env,
-                                            std::shared_ptr<Data> data,
-                                            Listener* listener,
-                                            const SocketAddress& destination);
+  static Packet* FromFreeList(Environment* env,
+                              std::shared_ptr<Data> data,
+                              Listener* listener,
+                              const SocketAddress& destination);
 
   Listener* listener_;
   SocketAddress destination_;
   std::shared_ptr<Data> data_;
-  BaseObjectPtr<BaseObject> handle_;
 };
 
 }  // namespace quic

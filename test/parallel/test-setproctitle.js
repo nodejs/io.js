@@ -12,7 +12,7 @@ if (!common.isMainThread)
   common.skip('Setting the process title from Workers is not supported');
 
 const assert = require('assert');
-const exec = require('child_process').exec;
+const { exec, execSync } = require('child_process');
 const path = require('path');
 
 // The title shouldn't be too long; libuv's uv_set_process_title() out of
@@ -27,6 +27,15 @@ assert.strictEqual(process.title, title);
 // Test setting the title but do not try to run `ps` on Windows.
 if (common.isWindows)
   common.skip('Windows does not have "ps" utility');
+
+try {
+  execSync('command -v ps');
+} catch (err) {
+  if (err.status === 1) {
+    common.skip('The "ps" utility is not available');
+  }
+  throw err;
+}
 
 // To pass this test on alpine, since Busybox `ps` does not
 // support `-p` switch, use `ps -o` and `grep` instead.

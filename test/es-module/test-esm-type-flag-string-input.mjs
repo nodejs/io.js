@@ -3,7 +3,9 @@ import { spawn } from 'node:child_process';
 import { describe, it } from 'node:test';
 import { strictEqual, match } from 'node:assert';
 
-describe('the type flag should change the interpretation of string input', { concurrency: true }, () => {
+describe('the type flag should change the interpretation of string input', {
+  concurrency: !process.env.TEST_PARALLEL,
+}, () => {
   it('should run as ESM input passed via --eval', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
       '--experimental-default-type=module',

@@ -491,7 +491,7 @@ WASM_EXEC_TEST(I64AtomicConvertCompareExchange) {
 // The WASM_I64_EQ operation is used here to test that the index node
 // is lowered correctly.
 void RunNonConstIndexTest(TestExecutionTier execution_tier, WasmOpcode wasm_op,
-                          Uint64BinOp op) {
+                          Uint64BinOp op, MachineRepresentation rep) {
   WasmRunner<uint32_t, uint64_t> r(execution_tier);
   uint64_t* memory =
       r.builder().AddMemoryElems<uint64_t>(kWasmPageSize / sizeof(uint64_t));
@@ -499,7 +499,7 @@ void RunNonConstIndexTest(TestExecutionTier execution_tier, WasmOpcode wasm_op,
 
   r.Build({WASM_I32_CONVERT_I64(
       WASM_ATOMICS_BINOP(wasm_op, WASM_I64_EQ(WASM_I64V(1), WASM_I64V(0)),
-                         WASM_LOCAL_GET(0), MachineRepresentation::kWord32))});
+                         WASM_LOCAL_GET(0), rep))});
 
   uint64_t initial = 0x1111222233334444, local = 0x5555666677778888;
   r.builder().WriteMemory(&memory[0], initial);
@@ -509,17 +509,19 @@ void RunNonConstIndexTest(TestExecutionTier execution_tier, WasmOpcode wasm_op,
 }
 
 // Test a set of Narrow operations
-#define TEST_OPERATION(Name)                                               \
-  WASM_EXEC_TEST(I64AtomicConstIndex##Name##Narrow) {                      \
-    RunNonConstIndexTest(execution_tier, kExprI64Atomic##Name##32U, Name); \
+#define TEST_OPERATION(Name)                                              \
+  WASM_EXEC_TEST(I64AtomicConstIndex##Name##Narrow) {                     \
+    RunNonConstIndexTest(execution_tier, kExprI64Atomic##Name##32U, Name, \
+                         MachineRepresentation::kWord32);                 \
   }
 WASM_ATOMIC_OPERATION_LIST(TEST_OPERATION)
 #undef TEST_OPERATION
 
 // Test a set of Regular operations
-#define TEST_OPERATION(Name)                                          \
-  WASM_EXEC_TEST(I64AtomicConstIndex##Name) {                         \
-    RunNonConstIndexTest(execution_tier, kExprI64Atomic##Name, Name); \
+#define TEST_OPERATION(Name)                                         \
+  WASM_EXEC_TEST(I64AtomicConstIndex##Name) {                        \
+    RunNonConstIndexTest(execution_tier, kExprI64Atomic##Name, Name, \
+                         MachineRepresentation::kWord64);            \
   }
 WASM_ATOMIC_OPERATION_LIST(TEST_OPERATION)
 #undef TEST_OPERATION
@@ -549,7 +551,7 @@ WASM_EXEC_TEST(I64AtomicNonConstIndexCompareExchange) {
 
   r.Build({WASM_I32_CONVERT_I64(WASM_ATOMICS_TERNARY_OP(
       kExprI64AtomicCompareExchange, WASM_I64_EQ(WASM_I64V(1), WASM_I64V(0)),
-      WASM_LOCAL_GET(0), WASM_LOCAL_GET(1), MachineRepresentation::kWord16))});
+      WASM_LOCAL_GET(0), WASM_LOCAL_GET(1), MachineRepresentation::kWord64))});
 
   uint64_t initial = 4444333322221111, local = 0x9999888877776666;
   r.builder().WriteMemory(&memory[0], initial);

@@ -34,39 +34,39 @@ TEST_IMPL(homedir) {
   /* Test the normal case */
   len = sizeof homedir;
   homedir[0] = '\0';
-  ASSERT(strlen(homedir) == 0);
+  ASSERT_OK(strlen(homedir));
   r = uv_os_homedir(homedir, &len);
-  ASSERT(r == 0);
-  ASSERT(strlen(homedir) == len);
-  ASSERT(len > 0);
-  ASSERT(homedir[len] == '\0');
+  ASSERT_OK(r);
+  ASSERT_EQ(strlen(homedir), len);
+  ASSERT_GT(len, 0);
+  ASSERT_EQ(homedir[len], '\0');
 
 #ifdef _WIN32
   if (len == 3 && homedir[1] == ':')
-    ASSERT(homedir[2] == '\\');
+    ASSERT_EQ(homedir[2], '\\');
   else
-    ASSERT(homedir[len - 1] != '\\');
+    ASSERT_NE(homedir[len - 1], '\\');
 #else
   if (len == 1)
-    ASSERT(homedir[0] == '/');
+    ASSERT_EQ(homedir[0], '/');
   else
-    ASSERT(homedir[len - 1] != '/');
+    ASSERT_NE(homedir[len - 1], '/');
 #endif
 
   /* Test the case where the buffer is too small */
   len = SMALLPATH;
   r = uv_os_homedir(homedir, &len);
-  ASSERT(r == UV_ENOBUFS);
-  ASSERT(len > SMALLPATH);
+  ASSERT_EQ(r, UV_ENOBUFS);
+  ASSERT_GT(len, SMALLPATH);
 
   /* Test invalid inputs */
   r = uv_os_homedir(NULL, &len);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
   r = uv_os_homedir(homedir, NULL);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
   len = 0;
   r = uv_os_homedir(homedir, &len);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   return 0;
 }

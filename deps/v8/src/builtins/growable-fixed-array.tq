@@ -14,7 +14,8 @@ struct GrowableFixedArray {
     dcheck(newCapacity >= 0);
     dcheck(newCapacity >= this.length);
     const first: intptr = 0;
-    return ExtractFixedArray(this.array, first, this.length, newCapacity);
+    return ExtractFixedArray(
+        this.array, first, this.length, newCapacity, TheHole);
   }
   macro EnsureCapacity(): void {
     dcheck(this.length <= this.capacity);

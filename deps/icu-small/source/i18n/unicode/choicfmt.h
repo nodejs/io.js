@@ -454,7 +454,7 @@ public:
      *                  other classes have different class IDs.
      * @deprecated ICU 49 Use MessageFormat instead, with plural and select arguments.
      */
-    virtual UClassID getDynamicClassID(void) const override;
+    virtual UClassID getDynamicClassID() const override;
 
     /**
      * Returns the class ID for this class.  This is useful only for
@@ -467,7 +467,7 @@ public:
      * @return          The class ID for all objects of this class.
      * @deprecated ICU 49 Use MessageFormat instead, with plural and select arguments.
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
 private:
     /**

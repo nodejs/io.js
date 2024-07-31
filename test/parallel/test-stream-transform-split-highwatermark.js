@@ -2,9 +2,9 @@
 require('../common');
 const assert = require('assert');
 
-const { Transform, Readable, Writable } = require('stream');
+const { Transform, Readable, Writable, getDefaultHighWaterMark } = require('stream');
 
-const DEFAULT = 16 * 1024;
+const DEFAULT = getDefaultHighWaterMark();
 
 function testTransform(expectedReadableHwm, expectedWritableHwm, options) {
   const t = new Transform(options);

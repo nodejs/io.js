@@ -46,7 +46,8 @@ class WeakSetsTest : public TestWithHeapInternalsAndContext {
  public:
   Handle<JSWeakSet> AllocateJSWeakSet() {
     Factory* factory = i_isolate()->factory();
-    Handle<Map> map = factory->NewMap(JS_WEAK_SET_TYPE, JSWeakSet::kHeaderSize);
+    Handle<Map> map = factory->NewContextfulMapForCurrentContext(
+        JS_WEAK_SET_TYPE, JSWeakSet::kHeaderSize);
     Handle<JSObject> weakset_obj = factory->NewJSObjectFromMap(map);
     Handle<JSWeakSet> weakset(JSWeakSet::cast(*weakset_obj), i_isolate());
     // Do not leak handles for the hash table, it would make entries strong.
@@ -83,7 +84,8 @@ TEST_F(WeakSetsTest, WeakSet_Weakness) {
   Handle<Object> key;
   {
     HandleScope inner_scope(i_isolate());
-    Handle<Map> map = factory->NewMap(JS_OBJECT_TYPE, JSObject::kHeaderSize);
+    Handle<Map> map = factory->NewContextfulMapForCurrentContext(
+        JS_OBJECT_TYPE, JSObject::kHeaderSize);
     Handle<JSObject> object = factory->NewJSObjectFromMap(map);
     key = global_handles->Create(*object);
   }
@@ -133,7 +135,8 @@ TEST_F(WeakSetsTest, WeakSet_Shrinking) {
   // Fill up weak set to trigger capacity change.
   {
     HandleScope inner_scope(i_isolate());
-    Handle<Map> map = factory->NewMap(JS_OBJECT_TYPE, JSObject::kHeaderSize);
+    Handle<Map> map = factory->NewContextfulMapForCurrentContext(
+        JS_OBJECT_TYPE, JSObject::kHeaderSize);
     for (int i = 0; i < 32; i++) {
       Handle<JSObject> object = factory->NewJSObjectFromMap(map);
       Handle<Smi> smi(Smi::FromInt(i), i_isolate());
@@ -175,7 +178,7 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060a) {
   Handle<JSWeakSet> weakset = AllocateJSWeakSet();
 
   // Start second old-space page so that values land on evacuation candidate.
-  Page* first_page = heap->old_space()->first_page();
+  PageMetadata* first_page = heap->old_space()->first_page();
   SimulateFullSpace(heap->old_space());
 
   // Fill up weak set with values on an evacuation candidate.
@@ -217,7 +220,7 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060b) {
       factory->NewFunctionForTesting(factory->function_string());
 
   // Start second old-space page so that keys land on evacuation candidate.
-  Page* first_page = heap->old_space()->first_page();
+  PageMetadata* first_page = heap->old_space()->first_page();
   SimulateFullSpace(heap->old_space());
 
   // Fill up weak set with keys on an evacuation candidate.

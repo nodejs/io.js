@@ -25,13 +25,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// Flags: --allow-natives-syntax
+// Flags: --allow-natives-syntax --turbofan
 
-// Allocation site for empty double arrays.
+// Allocation site for empty smi arrays.
 function foo() {
   return new Array();
 }
 var a = foo();
+// Transition from smi to double.
 a[0] = 1.1;
 
 // Emit a TransitionElementsKindStub which transitions from double to object.
@@ -45,4 +46,28 @@ store([1.1], 1.1);
 
 // Use the TransitionElementsKindStub to transition from double to object.
 var b = foo();
+b[0] = 1.1;
+assertTrue(%HasDoubleElements(b));
 store(b, 'a');
+assertTrue(%HasObjectElements(b));
+assertOptimized(store);
+
+// Test transitions with polymorphic feedback.
+function poly_store(a, x) {
+  a[0] = x;
+};
+%PrepareFunctionForOptimization(poly_store);
+poly_store([1.1], 'a');
+poly_store([1.1], 2.1);
+var x = foo();
+x[0] = 1.1;
+x.x = 12;
+poly_store(x, 'a');
+%OptimizeFunctionOnNextCall(poly_store);
+
+var c = foo();
+c[0] = 1.1;
+assertTrue(%HasDoubleElements(c));
+poly_store(c, 'a');
+assertTrue(%HasObjectElements(c));
+assertOptimized(poly_store);

@@ -6,7 +6,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 let builder = new WasmModuleBuilder();
 builder.addMemory(1, 1);
-builder.addDataSegment(0, [0x78, 0x56, 0x34, 0x12]);
+builder.addActiveDataSegment(0, [kExprI32Const, 0], [0x78, 0x56, 0x34, 0x12]);
 
 let spiller = builder.addFunction('spiller', kSig_v_v).addBody([]);
 

@@ -7,23 +7,15 @@ const dgram = require('dgram');
 const server = dgram.createSocket('udp4');
 const resolver = new dnsPromises.Resolver();
 
-const addMessageListener = () => {
-  server.removeAllListeners('message');
-
-  server.once('message', () => {
-    server.once('message', common.mustNotCall);
-
-    resolver.cancel();
-  });
-};
-
 server.bind(0, common.mustCall(async () => {
   resolver.setServers([`127.0.0.1:${server.address().port}`]);
 
-  addMessageListener();
-
   // Single promise
   {
+    server.once('message', () => {
+      resolver.cancel();
+    });
+
     const hostname = 'example0.org';
 
     await assert.rejects(
@@ -36,10 +28,12 @@ server.bind(0, common.mustCall(async () => {
     );
   }
 
-  addMessageListener();
-
   // Multiple promises
   {
+    server.once('message', () => {
+      resolver.cancel();
+    });
+
     const assertions = [];
     const assertionCount = 10;
 

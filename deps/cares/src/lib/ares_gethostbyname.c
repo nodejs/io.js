@@ -25,7 +25,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
+#include "ares_private.h"
 
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
@@ -40,60 +40,55 @@
 #include "ares_nameser.h"
 
 #ifdef HAVE_STRINGS_H
-#include <strings.h>
+#  include <strings.h>
 #endif
 
-#include "ares.h"
 #include "ares_inet_net_pton.h"
-#include "bitncmp.h"
 #include "ares_platform.h"
-#include "ares_nowarn.h"
-#include "ares_private.h"
 
-static void sort_addresses(struct hostent *host,
-                           const struct apattern *sortlist, int nsort);
-static void sort6_addresses(struct hostent *host,
-                            const struct apattern *sortlist, int nsort);
-static int get_address_index(const struct in_addr *addr,
-                             const struct apattern *sortlist, int nsort);
-static int get6_address_index(const struct ares_in6_addr *addr,
-                              const struct apattern *sortlist, int nsort);
+static void   sort_addresses(const struct hostent  *host,
+                             const struct apattern *sortlist, size_t nsort);
+static void   sort6_addresses(const struct hostent  *host,
+                              const struct apattern *sortlist, size_t nsort);
+static size_t get_address_index(const struct in_addr  *addr,
+                                const struct apattern *sortlist, size_t nsort);
+static size_t get6_address_index(const struct ares_in6_addr *addr,
+                                 const struct apattern *sortlist, size_t nsort);
 
 struct host_query {
   ares_host_callback callback;
-  void *arg;
-  ares_channel channel;
+  void              *arg;
+  ares_channel_t    *channel;
 };
 
 static void ares_gethostbyname_callback(void *arg, int status, int timeouts,
                                         struct ares_addrinfo *result)
 {
-  struct hostent *hostent = NULL;
+  struct hostent    *hostent  = NULL;
   struct host_query *ghbn_arg = arg;
 
-  if (status == ARES_SUCCESS)
-    {
-      status = ares__addrinfo2hostent(result, AF_UNSPEC, &hostent);
-    }
+  if (status == ARES_SUCCESS) {
+    status = (int)ares__addrinfo2hostent(result, AF_UNSPEC, &hostent);
+  }
 
   /* addrinfo2hostent will only return ENODATA if there are no addresses _and_
    * no cname/aliases.  However, gethostbyname will return ENODATA even if there
    * is cname/alias data */
   if (status == ARES_SUCCESS && hostent &&
-      (!hostent->h_addr_list || !hostent->h_addr_list[0]))
-    {
-      status = ARES_ENODATA;
-    }
+      (!hostent->h_addr_list || !hostent->h_addr_list[0])) {
+    status = ARES_ENODATA;
+  }
 
-  if (status == ARES_SUCCESS && ghbn_arg->channel->nsort && hostent)
-    {
-      if (hostent->h_addrtype == AF_INET6)
-        sort6_addresses(hostent, ghbn_arg->channel->sortlist,
-                        ghbn_arg->channel->nsort);
-      if (hostent->h_addrtype == AF_INET)
-        sort_addresses(hostent, ghbn_arg->channel->sortlist,
-                       ghbn_arg->channel->nsort);
+  if (status == ARES_SUCCESS && ghbn_arg->channel->nsort && hostent) {
+    if (hostent->h_addrtype == AF_INET6) {
+      sort6_addresses(hostent, ghbn_arg->channel->sortlist,
+                      ghbn_arg->channel->nsort);
     }
+    if (hostent->h_addrtype == AF_INET) {
+      sort_addresses(hostent, ghbn_arg->channel->sortlist,
+                     ghbn_arg->channel->nsort);
+    }
+  }
 
   ghbn_arg->callback(ghbn_arg->arg, status, timeouts, hostent);
 
@@ -102,249 +97,236 @@ static void ares_gethostbyname_callback(void *arg, int status, int timeouts,
   ares_free_hostent(hostent);
 }
 
-void ares_gethostbyname(ares_channel channel, const char *name, int family,
+void ares_gethostbyname(ares_channel_t *channel, const char *name, int family,
                         ares_host_callback callback, void *arg)
 {
-  const struct ares_addrinfo_hints hints = { ARES_AI_CANONNAME, family, 0, 0 };
-  struct host_query *ghbn_arg;
+  struct ares_addrinfo_hints hints;
+  struct host_query         *ghbn_arg;
 
-  if (!callback)
+  if (!callback) {
     return;
+  }
+
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_flags  = ARES_AI_CANONNAME;
+  hints.ai_family = family;
 
   ghbn_arg = ares_malloc(sizeof(*ghbn_arg));
-  if (!ghbn_arg)
-    {
-      callback(arg, ARES_ENOMEM, 0, NULL);
-      return;
-    }
+  if (!ghbn_arg) {
+    callback(arg, ARES_ENOMEM, 0, NULL);
+    return;
+  }
 
-  ghbn_arg->callback=callback;
-  ghbn_arg->arg=arg;
-  ghbn_arg->channel=channel;
+  ghbn_arg->callback = callback;
+  ghbn_arg->arg      = arg;
+  ghbn_arg->channel  = channel;
 
+  /* NOTE: ares_getaddrinfo() locks the channel, we don't use the channel
+   *       outside so no need to lock */
   ares_getaddrinfo(channel, name, NULL, &hints, ares_gethostbyname_callback,
                    ghbn_arg);
 }
 
-
-static void sort_addresses(struct hostent *host,
-                           const struct apattern *sortlist, int nsort)
+static void sort_addresses(const struct hostent  *host,
+                           const struct apattern *sortlist, size_t nsort)
 {
-  struct in_addr a1, a2;
-  int i1, i2, ind1, ind2;
+  struct in_addr a1;
+  struct in_addr a2;
+  int            i1;
+  int            i2;
+  size_t         ind1;
+  size_t         ind2;
 
   /* This is a simple insertion sort, not optimized at all.  i1 walks
    * through the address list, with the loop invariant that everything
    * to the left of i1 is sorted.  In the loop body, the value at i1 is moved
    * back through the list (via i2) until it is in sorted order.
    */
-  for (i1 = 0; host->h_addr_list[i1]; i1++)
-    {
-      memcpy(&a1, host->h_addr_list[i1], sizeof(struct in_addr));
-      ind1 = get_address_index(&a1, sortlist, nsort);
-      for (i2 = i1 - 1; i2 >= 0; i2--)
-        {
-          memcpy(&a2, host->h_addr_list[i2], sizeof(struct in_addr));
-          ind2 = get_address_index(&a2, sortlist, nsort);
-          if (ind2 <= ind1)
-            break;
-          memcpy(host->h_addr_list[i2 + 1], &a2, sizeof(struct in_addr));
-        }
-      memcpy(host->h_addr_list[i2 + 1], &a1, sizeof(struct in_addr));
-    }
-}
-
-/* Find the first entry in sortlist which matches addr.  Return nsort
- * if none of them match.
- */
-static int get_address_index(const struct in_addr *addr,
-                             const struct apattern *sortlist,
-                             int nsort)
-{
-  int i;
-
-  for (i = 0; i < nsort; i++)
-    {
-      if (sortlist[i].family != AF_INET)
-        continue;
-      if (sortlist[i].type == PATTERN_MASK)
-        {
-          if ((addr->s_addr & sortlist[i].mask.addr4.s_addr)
-              == sortlist[i].addrV4.s_addr)
-            break;
-        }
-      else
-        {
-          if (!ares__bitncmp(&addr->s_addr, &sortlist[i].addrV4.s_addr,
-                             sortlist[i].mask.bits))
-            break;
-        }
-    }
-  return i;
-}
-
-static void sort6_addresses(struct hostent *host,
-                            const struct apattern *sortlist, int nsort)
-{
-  struct ares_in6_addr a1, a2;
-  int i1, i2, ind1, ind2;
-
-  /* This is a simple insertion sort, not optimized at all.  i1 walks
-   * through the address list, with the loop invariant that everything
-   * to the left of i1 is sorted.  In the loop body, the value at i1 is moved
-   * back through the list (via i2) until it is in sorted order.
-   */
-  for (i1 = 0; host->h_addr_list[i1]; i1++)
-    {
-      memcpy(&a1, host->h_addr_list[i1], sizeof(struct ares_in6_addr));
-      ind1 = get6_address_index(&a1, sortlist, nsort);
-      for (i2 = i1 - 1; i2 >= 0; i2--)
-        {
-          memcpy(&a2, host->h_addr_list[i2], sizeof(struct ares_in6_addr));
-          ind2 = get6_address_index(&a2, sortlist, nsort);
-          if (ind2 <= ind1)
-            break;
-          memcpy(host->h_addr_list[i2 + 1], &a2, sizeof(struct ares_in6_addr));
-        }
-      memcpy(host->h_addr_list[i2 + 1], &a1, sizeof(struct ares_in6_addr));
-    }
-}
-
-/* Find the first entry in sortlist which matches addr.  Return nsort
- * if none of them match.
- */
-static int get6_address_index(const struct ares_in6_addr *addr,
-                              const struct apattern *sortlist,
-                              int nsort)
-{
-  int i;
-
-  for (i = 0; i < nsort; i++)
-    {
-      if (sortlist[i].family != AF_INET6)
-        continue;
-      if (!ares__bitncmp(addr, &sortlist[i].addrV6, sortlist[i].mask.bits))
+  for (i1 = 0; host->h_addr_list[i1]; i1++) {
+    memcpy(&a1, host->h_addr_list[i1], sizeof(struct in_addr));
+    ind1 = get_address_index(&a1, sortlist, nsort);
+    for (i2 = i1 - 1; i2 >= 0; i2--) {
+      memcpy(&a2, host->h_addr_list[i2], sizeof(struct in_addr));
+      ind2 = get_address_index(&a2, sortlist, nsort);
+      if (ind2 <= ind1) {
         break;
+      }
+      memcpy(host->h_addr_list[i2 + 1], &a2, sizeof(struct in_addr));
     }
-  return i;
+    memcpy(host->h_addr_list[i2 + 1], &a1, sizeof(struct in_addr));
+  }
 }
 
-
-
-static int file_lookup(const char *name, int family, struct hostent **host);
-
-/* I really have no idea why this is exposed as a public function, but since
- * it is, we can't kill this legacy function. */
-int ares_gethostbyname_file(ares_channel channel, const char *name,
-                            int family, struct hostent **host)
+/* Find the first entry in sortlist which matches addr.  Return nsort
+ * if none of them match.
+ */
+static size_t get_address_index(const struct in_addr  *addr,
+                                const struct apattern *sortlist, size_t nsort)
 {
-  int result;
+  size_t           i;
+  struct ares_addr aaddr;
 
-  /* We only take the channel to ensure that ares_init() been called. */
-  if(channel == NULL)
-    {
-      /* Anything will do, really.  This seems fine, and is consistent with
-         other error cases. */
-      *host = NULL;
-      return ARES_ENOTFOUND;
+  memset(&aaddr, 0, sizeof(aaddr));
+  aaddr.family = AF_INET;
+  memcpy(&aaddr.addr.addr4, addr, 4);
+
+  for (i = 0; i < nsort; i++) {
+    if (sortlist[i].addr.family != AF_INET) {
+      continue;
     }
 
-  /* Just chain to the internal implementation we use here; it's exactly
-   * what we want.
-   */
-  result = file_lookup(name, family, host);
-  if(result != ARES_SUCCESS)
-    {
-      /* We guarantee a NULL hostent on failure. */
-      *host = NULL;
-    }
-  return result;
-}
-
-static int file_lookup(const char *name, int family, struct hostent **host)
-{
-  FILE *fp;
-  char **alias;
-  int status;
-  int error;
-
-#ifdef WIN32
-  char PATH_HOSTS[MAX_PATH];
-  win_platform platform;
-
-  PATH_HOSTS[0] = '\0';
-
-  platform = ares__getplatform();
-
-  if (platform == WIN_NT) {
-    char tmp[MAX_PATH];
-    HKEY hkeyHosts;
-
-    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, WIN_NS_NT_KEY, 0, KEY_READ,
-                     &hkeyHosts) == ERROR_SUCCESS)
-    {
-      DWORD dwLength = MAX_PATH;
-      RegQueryValueExA(hkeyHosts, DATABASEPATH, NULL, NULL, (LPBYTE)tmp,
-                      &dwLength);
-      ExpandEnvironmentStringsA(tmp, PATH_HOSTS, MAX_PATH);
-      RegCloseKey(hkeyHosts);
+    if (ares__subnet_match(&aaddr, &sortlist[i].addr, sortlist[i].mask)) {
+      break;
     }
   }
-  else if (platform == WIN_9X)
-    GetWindowsDirectoryA(PATH_HOSTS, MAX_PATH);
-  else
-    return ARES_ENOTFOUND;
 
-  strcat(PATH_HOSTS, WIN_PATH_HOSTS);
+  return i;
+}
 
-#elif defined(WATT32)
-  const char *PATH_HOSTS = _w32_GetHostsFile();
+static void sort6_addresses(const struct hostent  *host,
+                            const struct apattern *sortlist, size_t nsort)
+{
+  struct ares_in6_addr a1;
+  struct ares_in6_addr a2;
+  int                  i1;
+  int                  i2;
+  size_t               ind1;
+  size_t               ind2;
 
-  if (!PATH_HOSTS)
-    return ARES_ENOTFOUND;
-#endif
-
-  /* Per RFC 7686, reject queries for ".onion" domain names with NXDOMAIN. */
-  if (ares__is_onion_domain(name))
-    return ARES_ENOTFOUND;
-
-
-  fp = fopen(PATH_HOSTS, "r");
-  if (!fp)
-    {
-      error = ERRNO;
-      switch(error)
-        {
-        case ENOENT:
-        case ESRCH:
-          return ARES_ENOTFOUND;
-        default:
-          DEBUGF(fprintf(stderr, "fopen() failed with error: %d %s\n",
-                         error, strerror(error)));
-          DEBUGF(fprintf(stderr, "Error opening file: %s\n",
-                         PATH_HOSTS));
-          *host = NULL;
-          return ARES_EFILE;
-        }
-    }
-  while ((status = ares__get_hostent(fp, family, host)) == ARES_SUCCESS)
-    {
-      if (strcasecmp((*host)->h_name, name) == 0)
+  /* This is a simple insertion sort, not optimized at all.  i1 walks
+   * through the address list, with the loop invariant that everything
+   * to the left of i1 is sorted.  In the loop body, the value at i1 is moved
+   * back through the list (via i2) until it is in sorted order.
+   */
+  for (i1 = 0; host->h_addr_list[i1]; i1++) {
+    memcpy(&a1, host->h_addr_list[i1], sizeof(struct ares_in6_addr));
+    ind1 = get6_address_index(&a1, sortlist, nsort);
+    for (i2 = i1 - 1; i2 >= 0; i2--) {
+      memcpy(&a2, host->h_addr_list[i2], sizeof(struct ares_in6_addr));
+      ind2 = get6_address_index(&a2, sortlist, nsort);
+      if (ind2 <= ind1) {
         break;
-      for (alias = (*host)->h_aliases; *alias; alias++)
-        {
-          if (strcasecmp(*alias, name) == 0)
-            break;
-        }
-      if (*alias)
-        break;
-      ares_free_hostent(*host);
+      }
+      memcpy(host->h_addr_list[i2 + 1], &a2, sizeof(struct ares_in6_addr));
     }
-  fclose(fp);
-  if (status == ARES_EOF)
-    status = ARES_ENOTFOUND;
-  if (status != ARES_SUCCESS)
-    *host = NULL;
+    memcpy(host->h_addr_list[i2 + 1], &a1, sizeof(struct ares_in6_addr));
+  }
+}
+
+/* Find the first entry in sortlist which matches addr.  Return nsort
+ * if none of them match.
+ */
+static size_t get6_address_index(const struct ares_in6_addr *addr,
+                                 const struct apattern *sortlist, size_t nsort)
+{
+  size_t           i;
+  struct ares_addr aaddr;
+
+  memset(&aaddr, 0, sizeof(aaddr));
+  aaddr.family = AF_INET6;
+  memcpy(&aaddr.addr.addr6, addr, 16);
+
+  for (i = 0; i < nsort; i++) {
+    if (sortlist[i].addr.family != AF_INET6) {
+      continue;
+    }
+
+    if (ares__subnet_match(&aaddr, &sortlist[i].addr, sortlist[i].mask)) {
+      break;
+    }
+  }
+  return i;
+}
+
+static ares_status_t ares__hostent_localhost(const char *name, int family,
+                                             struct hostent **host_out)
+{
+  ares_status_t              status;
+  struct ares_addrinfo      *ai = NULL;
+  struct ares_addrinfo_hints hints;
+
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = family;
+
+  ai = ares_malloc_zero(sizeof(*ai));
+  if (ai == NULL) {
+    status = ARES_ENOMEM; /* LCOV_EXCL_LINE: OutOfMemory */
+    goto done;            /* LCOV_EXCL_LINE: OutOfMemory */
+  }
+
+  status = ares__addrinfo_localhost(name, 0, &hints, ai);
+  if (status != ARES_SUCCESS) {
+    goto done; /* LCOV_EXCL_LINE: OutOfMemory */
+  }
+
+  status = ares__addrinfo2hostent(ai, family, host_out);
+  if (status != ARES_SUCCESS) {
+    goto done; /* LCOV_EXCL_LINE: OutOfMemory */
+  }
+
+done:
+  ares_freeaddrinfo(ai);
   return status;
 }
 
+/* I really have no idea why this is exposed as a public function, but since
+ * it is, we can't kill this legacy function. */
+static ares_status_t ares_gethostbyname_file_int(ares_channel_t *channel,
+                                                 const char *name, int family,
+                                                 struct hostent **host)
+{
+  const ares_hosts_entry_t *entry;
+  ares_status_t             status;
+
+  /* We only take the channel to ensure that ares_init() been called. */
+  if (channel == NULL || name == NULL || host == NULL) {
+    /* Anything will do, really.  This seems fine, and is consistent with
+       other error cases. */
+    if (host != NULL) {
+      *host = NULL;
+    }
+    return ARES_ENOTFOUND;
+  }
+
+  /* Per RFC 7686, reject queries for ".onion" domain names with NXDOMAIN. */
+  if (ares__is_onion_domain(name)) {
+    return ARES_ENOTFOUND;
+  }
+
+  status = ares__hosts_search_host(channel, ARES_FALSE, name, &entry);
+  if (status != ARES_SUCCESS) {
+    goto done;
+  }
+
+  status = ares__hosts_entry_to_hostent(entry, family, host);
+  if (status != ARES_SUCCESS) {
+    goto done; /* LCOV_EXCL_LINE: OutOfMemory */
+  }
+
+done:
+  /* RFC6761 section 6.3 #3 states that "Name resolution APIs and libraries
+   * SHOULD recognize localhost names as special and SHOULD always return the
+   * IP loopback address for address queries".
+   * We will also ignore ALL errors when trying to resolve localhost, such
+   * as permissions errors reading /etc/hosts or a malformed /etc/hosts */
+  if (status != ARES_SUCCESS && status != ARES_ENOMEM &&
+      ares__is_localhost(name)) {
+    return ares__hostent_localhost(name, family, host);
+  }
+
+  return status;
+}
+
+int ares_gethostbyname_file(ares_channel_t *channel, const char *name,
+                            int family, struct hostent **host)
+{
+  ares_status_t status;
+  if (channel == NULL) {
+    return ARES_ENOTFOUND;
+  }
+
+  ares__channel_lock(channel);
+  status = ares_gethostbyname_file_int(channel, name, family, host);
+  ares__channel_unlock(channel);
+  return (int)status;
+}

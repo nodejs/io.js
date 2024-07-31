@@ -4,6 +4,10 @@
 
 #include "src/objects/turboshaft-types.h"
 
+extern enum AbortReason { kTurboshaftTypeAssertionFailed, ...}
+
+extern macro Abort(constexpr AbortReason): never;
+
 bitfield struct TurboshaftFloatSpecialValues extends uint32 {
   nan: bool: 1 bit;
   minus_zero: bool: 1 bit;
@@ -125,7 +129,7 @@ macro TestTurboshaftWord64Type(
               valueHigh, valueLow, range.to_high, range.to_low) <= 0;
       const isWrapping =
           CompareUint64HighLow(
-              range.from_high, range.from_low, range.to_high, range.to_low) < 0;
+              range.from_high, range.from_low, range.to_high, range.to_low) > 0;
 
       return (isWrapping && (greaterThanOrEqualFrom || lessThanOrEqualTo)) ||
           (greaterThanOrEqualFrom && lessThanOrEqualTo);
@@ -183,7 +187,7 @@ builtin CheckTurboshaftWord32Type(
   Print('Node id', nodeId);
   Print('Actual value', Convert<Number>(value));
   Print('Expected type', expectedType);
-  unreachable;
+  Abort(AbortReason::kTurboshaftTypeAssertionFailed);
 }
 
 builtin CheckTurboshaftWord64Type(
@@ -198,7 +202,7 @@ builtin CheckTurboshaftWord64Type(
   Print('Actual value (high)', Convert<Number>(valueHigh));
   Print('Actual vlaue (low)', Convert<Number>(valueLow));
   Print('Expected type', expectedType);
-  unreachable;
+  Abort(AbortReason::kTurboshaftTypeAssertionFailed);
 }
 
 // Builtin needs custom interface descriptor to allow float32 argument type.
@@ -215,7 +219,7 @@ builtin CheckTurboshaftFloat32Type(
   Print('Node id', nodeId);
   Print('Actual value', v);
   Print('Expected type', expectedType);
-  unreachable;
+  Abort(AbortReason::kTurboshaftTypeAssertionFailed);
 }
 
 // Builtin needs custom interface descriptor to allow float64 argument type.
@@ -231,7 +235,7 @@ builtin CheckTurboshaftFloat64Type(
   Print('Node id', nodeId);
   Print('Actual value', value);
   Print('Expected type', expectedType);
-  unreachable;
+  Abort(AbortReason::kTurboshaftTypeAssertionFailed);
 }
 
 @customInterfaceDescriptor

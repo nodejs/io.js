@@ -369,7 +369,7 @@ void GCProfiler::New(const FunctionCallbackInfo<Value>& args) {
 void GCProfiler::Start(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   GCProfiler* profiler;
-  ASSIGN_OR_RETURN_UNWRAP(&profiler, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&profiler, args.This());
   if (profiler->state != GCProfiler::GCProfilerState::kInitialized) {
     return;
   }
@@ -394,7 +394,7 @@ void GCProfiler::Start(const FunctionCallbackInfo<Value>& args) {
 void GCProfiler::Stop(const FunctionCallbackInfo<v8::Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   GCProfiler* profiler;
-  ASSIGN_OR_RETURN_UNWRAP(&profiler, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&profiler, args.This());
   if (profiler->state != GCProfiler::GCProfilerState::kStarted) {
     return;
   }

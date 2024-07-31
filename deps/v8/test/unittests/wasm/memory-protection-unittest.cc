@@ -102,7 +102,8 @@ class MemoryProtectionTest : public TestWithNativeContext {
     constexpr int kNoCompilationId = 0;
     constexpr ProfileInformation* kNoProfileInformation = nullptr;
     std::shared_ptr<NativeModule> native_module = CompileToNativeModule(
-        isolate(), WasmFeatures::All(), &thrower, std::move(result).value(),
+        isolate(), WasmFeatures::All(), CompileTimeImports{}, &thrower,
+        std::move(result).value(),
         ModuleWireBytes{base::ArrayVector(module_bytes)}, kNoCompilationId,
         v8::metrics::Recorder::ContextId::Empty(), kNoProfileInformation);
     CHECK(!thrower.error());
@@ -244,7 +245,7 @@ TEST_P(ParameterizedMemoryProtectionTestWithSignalHandling, TestSignalHandler) {
   // death test. Otherwise we would not really test the signal handling setup
   // that we use in the wild.
   // (see https://google.github.io/googletest/reference/assertions.html)
-  CHECK_EQ("threadsafe", ::testing::GTEST_FLAG(death_test_style));
+  CHECK_EQ("threadsafe", GTEST_FLAG_GET(death_test_style));
 
   const bool write_in_signal_handler = std::get<1>(GetParam());
   const bool open_write_scope = std::get<2>(GetParam());

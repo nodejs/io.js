@@ -29,7 +29,7 @@ static int idle_counter;
 
 
 static void idle_cb(uv_idle_t* handle) {
-  ASSERT(handle == &idle_handle);
+  ASSERT_PTR_EQ(handle, &idle_handle);
 
   if (++idle_counter == NUM_TICKS)
     uv_idle_stop(handle);
@@ -41,7 +41,7 @@ TEST_IMPL(run_once) {
   uv_idle_start(&idle_handle, idle_cb);
 
   while (uv_run(uv_default_loop(), UV_RUN_ONCE));
-  ASSERT(idle_counter == NUM_TICKS);
+  ASSERT_EQ(idle_counter, NUM_TICKS);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

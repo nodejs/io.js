@@ -51,7 +51,7 @@ RUNTIME_FUNCTION(Runtime_GetPropertyWithReceiver) {
   bool success = false;
   PropertyKey lookup_key(isolate, key, &success);
   if (!success) {
-    DCHECK(isolate->has_pending_exception());
+    DCHECK(isolate->has_exception());
     return ReadOnlyRoots(isolate).exception();
   }
   LookupIterator it(isolate, receiver, lookup_key, holder);
@@ -71,7 +71,7 @@ RUNTIME_FUNCTION(Runtime_SetPropertyWithReceiver) {
   bool success = false;
   PropertyKey lookup_key(isolate, key, &success);
   if (!success) {
-    DCHECK(isolate->has_pending_exception());
+    DCHECK(isolate->has_exception());
     return ReadOnlyRoots(isolate).exception();
   }
   LookupIterator it(isolate, receiver, lookup_key, holder);

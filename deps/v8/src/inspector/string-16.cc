@@ -78,10 +78,10 @@ String16 String16::fromInteger(int number) {
 String16 String16::fromInteger(size_t number) {
   const size_t kBufferSize = 50;
   char buffer[kBufferSize];
-#if !defined(_WIN32) && !defined(_WIN64)
-  v8::base::OS::SNPrintF(buffer, kBufferSize, "%zu", number);
-#else
+#if defined(V8_OS_WIN)
   v8::base::OS::SNPrintF(buffer, kBufferSize, "%Iu", number);
+#else
+  v8::base::OS::SNPrintF(buffer, kBufferSize, "%zu", number);
 #endif
   return String16(buffer);
 }
@@ -180,10 +180,10 @@ void String16Builder::appendNumber(int number) {
 void String16Builder::appendNumber(size_t number) {
   constexpr int kBufferSize = 20;
   char buffer[kBufferSize];
-#if !defined(_WIN32) && !defined(_WIN64)
-  int chars = v8::base::OS::SNPrintF(buffer, kBufferSize, "%zu", number);
-#else
+#if defined(V8_OS_WIN)
   int chars = v8::base::OS::SNPrintF(buffer, kBufferSize, "%Iu", number);
+#else
+  int chars = v8::base::OS::SNPrintF(buffer, kBufferSize, "%zu", number);
 #endif
   DCHECK_LE(0, chars);
   m_buffer.insert(m_buffer.end(), buffer, buffer + chars);

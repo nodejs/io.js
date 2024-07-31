@@ -382,7 +382,7 @@ TEST_F(CodeGenTest, RunHeapNumberConstant) {
   Handle<HeapObject> number = m.isolate()->factory()->NewHeapNumber(100.5);
   m.Return(m.HeapConstant(number));
   Tagged<HeapObject> result =
-      HeapObject::cast(Object(reinterpret_cast<Address>(m.Call())));
+      HeapObject::cast(Tagged<Object>(reinterpret_cast<Address>(m.Call())));
   CHECK_EQ(result, *number);
 }
 

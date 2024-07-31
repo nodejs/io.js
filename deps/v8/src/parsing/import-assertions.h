@@ -11,19 +11,19 @@
 namespace v8 {
 namespace internal {
 
-struct V8_EXPORT_PRIVATE ImportAssertionsKeyComparer {
+struct V8_EXPORT_PRIVATE ImportAttributesKeyComparer {
   bool operator()(const AstRawString* lhs, const AstRawString* rhs) const;
 };
 
-class ImportAssertions
+class ImportAttributes
     : public ZoneMap<const AstRawString*,
                      std::pair<const AstRawString*, Scanner::Location>,
-                     ImportAssertionsKeyComparer> {
+                     ImportAttributesKeyComparer> {
  public:
-  explicit ImportAssertions(Zone* zone)
+  explicit ImportAttributes(Zone* zone)
       : ZoneMap<const AstRawString*,
                 std::pair<const AstRawString*, Scanner::Location>,
-                ImportAssertionsKeyComparer>(zone) {}
+                ImportAttributesKeyComparer>(zone) {}
 };
 
 }  // namespace internal

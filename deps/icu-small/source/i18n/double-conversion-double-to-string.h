@@ -93,7 +93,9 @@ class DoubleToStringConverter {
     EMIT_TRAILING_DECIMAL_POINT = 2,
     EMIT_TRAILING_ZERO_AFTER_POINT = 4,
     UNIQUE_ZERO = 8,
-    NO_TRAILING_ZERO = 16
+    NO_TRAILING_ZERO = 16,
+    EMIT_TRAILING_DECIMAL_POINT_IN_EXPONENTIAL = 32,
+    EMIT_TRAILING_ZERO_AFTER_POINT_IN_EXPONENTIAL = 64
   };
 
   // Flags should be a bit-or combination of the possible Flags-enum.
@@ -112,6 +114,13 @@ class DoubleToStringConverter {
   //    of the result in precision mode. Matches printf's %g.
   //    When EMIT_TRAILING_ZERO_AFTER_POINT is also given, one trailing zero is
   //    preserved.
+  //  - EMIT_TRAILING_DECIMAL_POINT_IN_EXPONENTIAL: when the input number has
+  //    exactly one significant digit and is converted into exponent form then a
+  //    trailing decimal point is appended to the significand in shortest mode
+  //    or in precision mode with one requested digit.
+  //  - EMIT_TRAILING_ZERO_AFTER_POINT_IN_EXPONENTIAL: in addition to a trailing
+  //    decimal point emits a trailing '0'-character. This flag requires the
+  //    EMIT_TRAILING_DECIMAL_POINT_IN_EXPONENTIAL flag.
   //
   // Infinity symbol and nan_symbol provide the string representation for these
   // special values. If the string is nullptr and the special value is encountered
@@ -146,6 +155,22 @@ class DoubleToStringConverter {
   //   ToPrecision(230.0, 2) -> "230"
   //   ToPrecision(230.0, 2) -> "230."  with EMIT_TRAILING_DECIMAL_POINT.
   //   ToPrecision(230.0, 2) -> "2.3e2" with EMIT_TRAILING_ZERO_AFTER_POINT.
+  //
+  // When converting numbers with exactly one significant digit to exponent
+  // form in shortest mode or in precision mode with one requested digit, the
+  // EMIT_TRAILING_DECIMAL_POINT and EMIT_TRAILING_ZERO_AFTER_POINT flags have
+  // no effect. Use the EMIT_TRAILING_DECIMAL_POINT_IN_EXPONENTIAL flag to
+  // append a decimal point in this case and the
+  // EMIT_TRAILING_ZERO_AFTER_POINT_IN_EXPONENTIAL flag to also append a
+  // '0'-character in this case.
+  // Example with decimal_in_shortest_low = 0:
+  //   ToShortest(0.0009) -> "9e-4"
+  //     with EMIT_TRAILING_DECIMAL_POINT_IN_EXPONENTIAL deactivated.
+  //   ToShortest(0.0009) -> "9.e-4"
+  //     with EMIT_TRAILING_DECIMAL_POINT_IN_EXPONENTIAL activated.
+  //   ToShortest(0.0009) -> "9.0e-4"
+  //     with EMIT_TRAILING_DECIMAL_POINT_IN_EXPONENTIAL activated and
+  //     EMIT_TRAILING_ZERO_AFTER_POINT_IN_EXPONENTIAL activated.
   //
   // The min_exponent_width is used for exponential representations.
   // The converter adds leading '0's to the exponent until the exponent

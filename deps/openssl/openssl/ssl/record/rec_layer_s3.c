@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -300,6 +300,10 @@ int ssl3_read_n(SSL *s, size_t n, size_t max, int extend, int clearold,
                     SSL_set_shutdown(s, SSL_RECEIVED_SHUTDOWN);
                     s->s3.warn_alert = SSL_AD_CLOSE_NOTIFY;
                 } else {
+                    /*
+                     * This reason code is part of the API and may be used by
+                     * applications for control flow decisions.
+                     */
                     SSLfatal(s, SSL_AD_DECODE_ERROR,
                              SSL_R_UNEXPECTED_EOF_WHILE_READING);
                 }

@@ -170,25 +170,25 @@ void AssemblerRiscvBase::GenInstrI(uint8_t funct3, BaseOpcode opcode,
   emit(instr);
 }
 
-void AssemblerRiscvBase::GenInstrIShift(bool arithshift, uint8_t funct3,
+void AssemblerRiscvBase::GenInstrIShift(uint8_t funct6, uint8_t funct3,
                                         BaseOpcode opcode, Register rd,
                                         Register rs1, uint8_t shamt) {
   DCHECK(is_uint3(funct3) && rd.is_valid() && rs1.is_valid() &&
          is_uint6(shamt));
   Instr instr = opcode | (rd.code() << kRdShift) | (funct3 << kFunct3Shift) |
                 (rs1.code() << kRs1Shift) | (shamt << kShamtShift) |
-                (arithshift << kArithShiftShift);
+                (funct6 << kFunct6Shift);
   emit(instr);
 }
 
-void AssemblerRiscvBase::GenInstrIShiftW(bool arithshift, uint8_t funct3,
+void AssemblerRiscvBase::GenInstrIShiftW(uint8_t funct7, uint8_t funct3,
                                          BaseOpcode opcode, Register rd,
                                          Register rs1, uint8_t shamt) {
   DCHECK(is_uint3(funct3) && rd.is_valid() && rs1.is_valid() &&
          is_uint5(shamt));
   Instr instr = opcode | (rd.code() << kRdShift) | (funct3 << kFunct3Shift) |
                 (rs1.code() << kRs1Shift) | (shamt << kShamtWShift) |
-                (arithshift << kArithShiftShift);
+                (funct7 << kFunct7Shift);
   emit(instr);
 }
 
@@ -412,7 +412,8 @@ void AssemblerRiscvBase::GenInstrShift_ri(bool arithshift, uint8_t funct3,
                                           Register rd, Register rs1,
                                           uint8_t shamt) {
   DCHECK(is_uint6(shamt));
-  GenInstrI(funct3, OP_IMM, rd, rs1, (arithshift << 10) | shamt);
+  GenInstrIShift(arithshift << (kArithShiftShift - kFunct6Shift), funct3,
+                 OP_IMM, rd, rs1, shamt);
 }
 
 void AssemblerRiscvBase::GenInstrALU_rr(uint8_t funct7, uint8_t funct3,
@@ -434,7 +435,8 @@ void AssemblerRiscvBase::GenInstrCSR_ii(uint8_t funct3, Register rd,
 void AssemblerRiscvBase::GenInstrShiftW_ri(bool arithshift, uint8_t funct3,
                                            Register rd, Register rs1,
                                            uint8_t shamt) {
-  GenInstrIShiftW(arithshift, funct3, OP_IMM_32, rd, rs1, shamt);
+  GenInstrIShiftW(arithshift << (kArithShiftShift - kFunct7Shift), funct3,
+                  OP_IMM_32, rd, rs1, shamt);
 }
 
 void AssemblerRiscvBase::GenInstrALUW_rr(uint8_t funct7, uint8_t funct3,

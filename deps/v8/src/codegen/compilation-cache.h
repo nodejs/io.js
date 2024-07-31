@@ -40,7 +40,7 @@ class CompilationCacheEvalOrScript {
   Isolate* isolate() const { return isolate_; }
 
   Isolate* const isolate_;
-  Object table_;
+  Tagged<Object> table_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(CompilationCacheEvalOrScript);
 };
@@ -127,7 +127,7 @@ class CompilationCacheRegExp {
   Isolate* isolate() const { return isolate_; }
 
   Isolate* const isolate_;
-  Object tables_[kGenerations];  // One for each generation.
+  Tagged<Object> tables_[kGenerations];  // One for each generation.
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(CompilationCacheRegExp);
 };

@@ -1,0 +1,66 @@
+# Copyright 2018 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("time") {
+  sources = [
+    "civil_time.cc",
+    "clock.cc",
+    "duration.cc",
+    "format.cc",
+    "internal/get_current_time_chrono.inc",
+    "internal/get_current_time_posix.inc",
+    "time.cc",
+  ]
+  public = [
+    "civil_time.h",
+    "clock.h",
+    "time.h",
+  ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/abseil-cpp/absl/time/internal/cctz:civil_time",
+    "//third_party/abseil-cpp/absl/time/internal/cctz:time_zone",
+    "//third_party/abseil-cpp/absl/types:optional",
+  ]
+}
+
+absl_source_set("test_util") {
+  testonly = true
+  sources = [ "internal/test_util.cc" ]
+  public = [ "internal/test_util.h" ]
+  deps = [
+    ":time",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+  ]
+  visibility = [ ":*" ]
+}
+
+absl_test("time_test") {
+  sources = [
+    "civil_time_test.cc",
+    "clock_test.cc",
+    "duration_test.cc",
+    "format_test.cc",
+    "time_test.cc",
+    "time_zone_test.cc",
+  ]
+  deps = [
+    ":test_util",
+    ":time",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+    "//third_party/abseil-cpp/absl/strings:str_format",
+    "//third_party/abseil-cpp/absl/time/internal/cctz:time_zone",
+  ]
+}

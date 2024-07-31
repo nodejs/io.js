@@ -2,7 +2,7 @@
   "author": "GitHub Inc.",
   "name": "tar",
   "description": "tar for node",
-  "version": "6.2.0",
+  "version": "6.2.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/isaacs/node-tar.git"

@@ -176,7 +176,7 @@ class PersianCalendar : public Calendar {
    * Return the day # on which the given year starts.  Days are counted
    * from the Hijri epoch, origin 0.
    */
-  int32_t yearStart(int32_t year);
+  int32_t yearStart(int32_t year, UErrorCode& status);
 
   /**
    * Return the day # on which the given month starts.  Days are counted
@@ -185,7 +185,7 @@ class PersianCalendar : public Calendar {
    * @param year  The hijri shamsi year
    * @param year  The hijri shamsi month, 0-based
    */
-  int32_t monthStart(int32_t year, int32_t month) const;
+  int32_t monthStart(int32_t year, int32_t month, UErrorCode& status) const;
     
   //----------------------------------------------------------------------
   // Calendar framework
@@ -203,7 +203,7 @@ class PersianCalendar : public Calendar {
    * @param year  The hijri shamsi month, 0-based
    * @internal
    */
-  virtual int32_t handleGetMonthLength(int32_t extendedYear, int32_t month) const override;
+  virtual int32_t handleGetMonthLength(int32_t extendedYear, int32_t month, UErrorCode& status) const override;
   
   /**
    * Return the number of days in the given Persian year
@@ -219,7 +219,7 @@ class PersianCalendar : public Calendar {
   /**
    * @internal
    */
-  virtual int32_t handleComputeMonthStart(int32_t eyear, int32_t month, UBool useMonth) const override;
+  virtual int64_t handleComputeMonthStart(int32_t eyear, int32_t month, UBool useMonth, UErrorCode& status) const override;
 
   //-------------------------------------------------------------------------
   // Functions for converting from milliseconds to field values
@@ -228,7 +228,7 @@ class PersianCalendar : public Calendar {
   /**
    * @internal
    */
-  virtual int32_t handleGetExtendedYear() override;
+  virtual int32_t handleGetExtendedYear(UErrorCode& status) override;
 
   /**
    * Override Calendar to compute several fields specific to the Persian
@@ -296,24 +296,7 @@ class PersianCalendar : public Calendar {
   PersianCalendar(); // default constructor not implemented
 
  protected:
-  /**
-   * Returns true because the Persian Calendar does have a default century
-   * @internal
-   */
-  virtual UBool haveDefaultCentury() const override;
-
-  /**
-   * Returns the date of the start of the default century
-   * @return start of century - in milliseconds since epoch, 1970
-   * @internal
-   */
-  virtual UDate defaultCenturyStart() const override;
-
-  /**
-   * Returns the year in which the default century begins
-   * @internal
-   */
-  virtual int32_t defaultCenturyStartYear() const override;
+  DECLARE_OVERRIDE_SYSTEM_DEFAULT_CENTURY
 };
 
 U_NAMESPACE_END

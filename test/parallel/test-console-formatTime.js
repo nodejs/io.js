@@ -1,7 +1,7 @@
 'use strict';
 // Flags: --expose-internals
 require('../common');
-const { formatTime } = require('internal/console/constructor');
+const { formatTime } = require('internal/util/debuglog');
 const assert = require('assert');
 
 assert.strictEqual(formatTime(100.0096), '100.01ms');

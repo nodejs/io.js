@@ -130,8 +130,8 @@ t.test('list', t => {
     registry.getPackages({ team: '@npm:test-team', packages })
     await npm.exec('access', ['list', 'packages', '@npm:test-team'])
     t.same(outputs, [
-      ['@npmcli/other-package: read-write'],
-      ['@npmcli/test-package: read-only'],
+      '@npmcli/other-package: read-write',
+      '@npmcli/test-package: read-only',
     ])
   })
 
@@ -146,8 +146,8 @@ t.test('list', t => {
     registry.getPackages({ team: 'npm', packages })
     await npm.exec('access', ['list', 'packages'])
     t.same(outputs, [
-      ['@npmcli/other-package: read-write'],
-      ['@npmcli/test-package: read-only'],
+      '@npmcli/other-package: read-write',
+      '@npmcli/test-package: read-only',
     ])
   })
 
@@ -174,8 +174,8 @@ t.test('list', t => {
     registry.getCollaborators({ spec: '@npmcli/test-package', collaborators })
     await npm.exec('access', ['list', 'collaborators', '@npmcli/test-package'])
     t.same(outputs, [
-      ['github: read-only'],
-      ['npm: read-write'],
+      'github: read-only',
+      'npm: read-write',
     ])
   })
 
@@ -188,7 +188,7 @@ t.test('list', t => {
     registry.getCollaborators({ spec: '@npmcli/test-package', collaborators })
     await npm.exec('access', ['list', 'collaborators', '@npmcli/test-package', 'npm'])
     t.same(outputs, [
-      ['npm: read-write'],
+      'npm: read-write',
     ])
   })
   t.end()
@@ -208,7 +208,7 @@ t.test('get', t => {
     })
     registry.getVisibility({ spec: '@npmcli/test-package', visibility: { public: true } })
     await npm.exec('access', ['get', 'status', '@npmcli/test-package'])
-    t.same(outputs, [['@npmcli/test-package: public']])
+    t.same(outputs, ['@npmcli/test-package: public'])
   })
   t.test('status implicit package', async t => {
     const { npm, outputs } = await loadMockNpm(t, {
@@ -222,7 +222,7 @@ t.test('get', t => {
     })
     registry.getVisibility({ spec: '@npmcli/test-package', visibility: { public: true } })
     await npm.exec('access', ['get', 'status'])
-    t.same(outputs, [['@npmcli/test-package: public']])
+    t.same(outputs, ['@npmcli/test-package: public'])
   })
   t.test('status no package', async t => {
     const { npm } = await loadMockNpm(t)
@@ -263,7 +263,7 @@ t.test('set', t => {
     registry.setAccess({ spec: '@npmcli/test-package', body: { access: 'public' } })
     registry.getVisibility({ spec: '@npmcli/test-package', visibility: { public: true } })
     await npm.exec('access', ['set', 'status=public', '@npmcli/test-package'])
-    t.same(outputs, [['@npmcli/test-package: public']])
+    t.same(outputs, ['@npmcli/test-package: public'])
   })
   t.test('status=private', async t => {
     const { npm, outputs } = await loadMockNpm(t)
@@ -274,7 +274,7 @@ t.test('set', t => {
     registry.setAccess({ spec: '@npmcli/test-package', body: { access: 'restricted' } })
     registry.getVisibility({ spec: '@npmcli/test-package', visibility: { public: false } })
     await npm.exec('access', ['set', 'status=private', '@npmcli/test-package'])
-    t.same(outputs, [['@npmcli/test-package: private']])
+    t.same(outputs, ['@npmcli/test-package: private'])
   })
   t.test('status=invalid', async t => {
     const { npm } = await loadMockNpm(t)

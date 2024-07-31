@@ -10128,6 +10128,27 @@ end:
 }
 
 #if !defined(OPENSSL_NO_TLS1_2) && !defined(OPENSSL_NO_DYNAMIC_ENGINE)
+
+static ENGINE *load_dasync(void)
+{
+    ENGINE *e;
+
+    if (!TEST_ptr(e = ENGINE_by_id("dasync")))
+        return NULL;
+
+    if (!TEST_true(ENGINE_init(e))) {
+        ENGINE_free(e);
+        return NULL;
+    }
+
+    if (!TEST_true(ENGINE_register_ciphers(e))) {
+        ENGINE_free(e);
+        return NULL;
+    }
+
+    return e;
+}
+
 /*
  * Test TLSv1.2 with a pipeline capable cipher. TLSv1.3 and DTLS do not
  * support this yet. The only pipeline capable cipher that we have is in the
@@ -10143,6 +10164,8 @@ end:
  * Test 4: Client has pipelining enabled, server does not: more data than all
  *         the available pipelines can take
  * Test 5: Client has pipelining enabled, server does not: Maximum size pipeline
+ * Test 6: Repeat of test 0, but the engine is loaded late (after the SSL_CTX
+ *         is created)
  */
 static int test_pipelining(int idx)
 {
@@ -10155,24 +10178,27 @@ static int test_pipelining(int idx)
     size_t written, readbytes, offset, msglen, fragsize = 10, numpipes = 5;
     size_t expectedreads;
     unsigned char *buf = NULL;
-    ENGINE *e;
+    ENGINE *e = NULL;
 
-    if (!TEST_ptr(e = ENGINE_by_id("dasync")))
-        return 0;
-
-    if (!TEST_true(ENGINE_init(e))) {
-        ENGINE_free(e);
-        return 0;
+    if (idx != 6) {
+        e = load_dasync();
+        if (e == NULL)
+            return 0;
     }
-
-    if (!TEST_true(ENGINE_register_ciphers(e)))
-        goto end;
 
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(), 0,
                                        TLS1_2_VERSION, &sctx, &cctx, cert,
                                        privkey)))
         goto end;
+
+    if (idx == 6) {
+        e = load_dasync();
+        if (e == NULL)
+            goto end;
+        /* Now act like test 0 */
+        idx = 0;
+    }
 
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
@@ -10309,9 +10335,11 @@ end:
     SSL_free(clientssl);
     SSL_CTX_free(sctx);
     SSL_CTX_free(cctx);
-    ENGINE_unregister_ciphers(e);
-    ENGINE_finish(e);
-    ENGINE_free(e);
+    if (e != NULL) {
+        ENGINE_unregister_ciphers(e);
+        ENGINE_finish(e);
+        ENGINE_free(e);
+    }
     OPENSSL_free(buf);
     if (fragsize == SSL3_RT_MAX_PLAIN_LENGTH)
         OPENSSL_free(msg);
@@ -11043,7 +11071,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_serverinfo_custom, 4);
 #endif
 #if !defined(OPENSSL_NO_TLS1_2) && !defined(OPENSSL_NO_DYNAMIC_ENGINE)
-    ADD_ALL_TESTS(test_pipelining, 6);
+    ADD_ALL_TESTS(test_pipelining, 7);
 #endif
     ADD_ALL_TESTS(test_handshake_retry, 16);
 #ifndef OPENSSL_NO_QUIC

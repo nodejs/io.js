@@ -111,9 +111,9 @@ class AssemblerRiscvBase {
                  int16_t imm12);
   void GenInstrI(uint8_t funct3, BaseOpcode opcode, FPURegister rd,
                  Register rs1, int16_t imm12);
-  void GenInstrIShift(bool arithshift, uint8_t funct3, BaseOpcode opcode,
+  void GenInstrIShift(uint8_t funct7, uint8_t funct3, BaseOpcode opcode,
                       Register rd, Register rs1, uint8_t shamt);
-  void GenInstrIShiftW(bool arithshift, uint8_t funct3, BaseOpcode opcode,
+  void GenInstrIShiftW(uint8_t funct7, uint8_t funct3, BaseOpcode opcode,
                        Register rd, Register rs1, uint8_t shamt);
   void GenInstrS(uint8_t funct3, BaseOpcode opcode, Register rs1, Register rs2,
                  int16_t imm12);

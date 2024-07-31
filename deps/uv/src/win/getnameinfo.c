@@ -42,6 +42,7 @@ static void uv__getnameinfo_work(struct uv__work* w) {
   uv_getnameinfo_t* req;
   WCHAR host[NI_MAXHOST];
   WCHAR service[NI_MAXSERV];
+  size_t size;
   int ret;
 
   req = container_of(w, uv_getnameinfo_t, work_req);
@@ -57,29 +58,17 @@ static void uv__getnameinfo_work(struct uv__work* w) {
     return;
   }
 
-  ret = WideCharToMultiByte(CP_UTF8,
-                            0,
-                            host,
-                            -1,
-                            req->host,
-                            sizeof(req->host),
-                            NULL,
-                            NULL);
-  if (ret == 0) {
-    req->retcode = uv_translate_sys_error(GetLastError());
+  size = sizeof(req->host);
+  ret = uv__copy_utf16_to_utf8(host, -1, req->host, &size);
+  if (ret < 0) {
+    req->retcode = ret;
     return;
   }
 
-  ret = WideCharToMultiByte(CP_UTF8,
-                            0,
-                            service,
-                            -1,
-                            req->service,
-                            sizeof(req->service),
-                            NULL,
-                            NULL);
-  if (ret == 0) {
-    req->retcode = uv_translate_sys_error(GetLastError());
+  size = sizeof(req->service);
+  ret = uv__copy_utf16_to_utf8(service, -1, req->service, &size);
+  if (ret < 0) {
+    req->retcode = ret;
   }
 }
 

@@ -1,0 +1,14 @@
+cmake_minimum_required(VERSION 3.10)
+
+project(googletest-external NONE)
+
+include(ExternalProject)
+ExternalProject_Add(googletest
+  URL               "${absl_gtest_download_url}"  # May be empty
+  SOURCE_DIR        "${absl_gtest_src_dir}"
+  BINARY_DIR        "${absl_gtest_build_dir}"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND     ""
+  INSTALL_COMMAND   ""
+  TEST_COMMAND      ""
+)

@@ -69,13 +69,14 @@ expressions:
 * Strings passed in as an argument to `--eval`, or piped to `node` via `STDIN`,
   with the flag `--input-type=module`.
 
-* Code that contains syntax that only parses successfully as [ES modules][],
-  such as `import` or `export` statements or `import.meta`, when the code has no
-  explicit marker of how it should be interpreted. Explicit markers are `.mjs`
-  or `.cjs` extensions, `package.json` `"type"` fields with either `"module"` or
+* Code containing syntax only successfully parsed as [ES modules][], such as
+  `import` or `export` statements or `import.meta`, with no explicit marker of
+  how it should be interpreted. Explicit markers are `.mjs` or `.cjs`
+  extensions, `package.json` `"type"` fields with either `"module"` or
   `"commonjs"` values, or `--input-type` or `--experimental-default-type` flags.
   Dynamic `import()` expressions are supported in either CommonJS or ES modules
-  and would not cause a file to be treated as an ES module.
+  and would not force a file to be treated as an ES module. See
+  [Syntax detection][].
 
 Node.js will treat the following as [CommonJS][] when passed to `node` as the
 initial input, or when referenced by `import` statements or `import()`
@@ -114,6 +115,44 @@ package in case the default type of Node.js ever changes, and it will also make
 things easier for build tools and loaders to determine how the files in the
 package should be interpreted.
 
+### Syntax detection
+
+<!-- YAML
+added:
+  - v21.1.0
+  - v20.10.0
+changes:
+  - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/53619
+    description: Syntax detection is enabled by default.
+-->
+
+> Stability: 1.2 - Release candidate
+
+Node.js will inspect the source code of ambiguous input to determine whether it
+contains ES module syntax; if such syntax is detected, the input will be treated
+as an ES module.
+
+Ambiguous input is defined as:
+
+* Files with a `.js` extension or no extension; and either no controlling
+  `package.json` file or one that lacks a `type` field; and
+  `--experimental-default-type` is not specified.
+* String input (`--eval` or STDIN) when neither `--input-type` nor
+  `--experimental-default-type` are specified.
+
+ES module syntax is defined as syntax that would throw when evaluated as
+CommonJS. This includes the following:
+
+* `import` statements (but _not_ `import()` expressions, which are valid in
+  CommonJS).
+* `export` statements.
+* `import.meta` references.
+* `await` at the top level of a module.
+* Lexical redeclarations of the CommonJS wrapper variables (`require`, `module`,
+  `exports`, `__dirname`, `__filename`).
+
 ### Modules loaders
 
 Node.js has two systems for resolving a specifier and loading modules.
@@ -132,21 +171,22 @@ There is the CommonJS module loader:
   `process.dlopen()`.
 * It treats all files that lack `.json` or `.node` extensions as JavaScript
   text files.
-* It cannot be used to load ECMAScript modules (although it is possible to
-  [load ECMASCript modules from CommonJS modules][]). When used to load a
-  JavaScript text file that is not an ECMAScript module, it loads it as a
-  CommonJS module.
+* It can only be used to [load ECMASCript modules from CommonJS modules][] if
+  the module graph is synchronous (that contains no top-level `await`) when
+  `--experimental-require-module` is enabled.
+  When used to load a JavaScript text file that is not an ECMAScript module,
+  the file will be loaded as a CommonJS module.
 
 There is the ECMAScript module loader:
 
-* It is asynchronous.
+* It is asynchronous, unless it's being used to load modules for `require()`.
 * It is responsible for handling `import` statements and `import()` expressions.
 * It is not monkey patchable, can be customized using [loader hooks][].
 * It does not support folders as modules, directory indexes (e.g.
   `'./startup/index.js'`) must be fully specified.
 * It does no extension searching. A file extension must be provided
   when the specifier is a relative or absolute file URL.
-* It can load JSON modules, but an import assertion is required.
+* It can load JSON modules, but an import type attribute is required.
 * It accepts only `.js`, `.mjs`, and `.cjs` extensions for JavaScript text
   files.
 * It can be used to load JavaScript CommonJS modules. Such modules
@@ -622,9 +662,9 @@ specific to least specific as conditions should be defined:
 * `"require"` - matches when the package is loaded via `require()`. The
   referenced file should be loadable with `require()` although the condition
   matches regardless of the module format of the target file. Expected
-  formats include CommonJS, JSON, and native addons but not ES modules as
-  `require()` doesn't support them. _Always mutually exclusive with
-  `"import"`._
+  formats include CommonJS, JSON, native addons, and ES modules
+  if `--experimental-require-module` is enabled. _Always mutually
+  exclusive with `"import"`._
 * `"default"` - the generic fallback that always matches. Can be a CommonJS
   or ES module file. _This condition should always come last._
 
@@ -1353,6 +1393,7 @@ This field defines [subpath imports][] for the current package.
 [ES modules]: esm.md
 [Node.js documentation for this section]: https://github.com/nodejs/node/blob/HEAD/doc/api/packages.md#conditions-definitions
 [Runtime Keys]: https://runtime-keys.proposal.wintercg.org/
+[Syntax detection]: #syntax-detection
 [WinterCG]: https://wintercg.org/
 [`"exports"`]: #exports
 [`"imports"`]: #imports
@@ -1369,7 +1410,7 @@ This field defines [subpath imports][] for the current package.
 [entry points]: #package-entry-points
 [folders as modules]: modules.md#folders-as-modules
 [import maps]: https://github.com/WICG/import-maps
-[load ECMASCript modules from CommonJS modules]: modules.md#the-mjs-extension
+[load ECMASCript modules from CommonJS modules]: modules.md#loading-ecmascript-modules-using-require
 [loader hooks]: esm.md#loaders
 [packages folder mapping]: https://github.com/WICG/import-maps#packages-via-trailing-slashes
 [self-reference]: #self-referencing-a-package-using-its-name

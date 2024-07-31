@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --wasm-lazy-compilation --wasm-test-streaming
+// Flags: --wasm-lazy-compilation --wasm-test-streaming
 
 (function test() {
   let bytes = new Uint8Array([
@@ -22,10 +22,10 @@
     0x01, 0x00,              // functions count 1: 0 $func0 (result externref) (result i64) (result f32) (result i64) (result funcref)
 
     0x0a,                    // section kind: Code
-    0x15,                    // section length 21
+    0x17,                    // section length 23
     0x01,                    // functions count 1
                              // function #0 $func0
-    0x13,                    // body size 19
+    0x15,                    // body size 21
     0x00,                    // 0 entries in locals list
     0x00,                    // unreachable
     0x00,                    // unreachable
@@ -34,7 +34,7 @@
     0x00,                    // unreachable
     0x00,                    // unreachable
     0x00,                    // unreachable
-    0xfb, 0x4b, 0x00, 0x00,  // br_on_cast_fail null 0 $type0
+    0xfb, 0x19, 0b11, 0x00, 0x00, 0x00,  // br_on_cast_fail null 0 $type0 $type0
     0x14, 0x10,              // call_ref $type16
     0xfb, 0x00,              // invalid opcode
     0x68,                    // i32.ctz

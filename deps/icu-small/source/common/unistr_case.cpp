@@ -193,7 +193,7 @@ UnicodeString::caseMap(int32_t caseLocale, uint32_t options, UCASEMAP_BREAK_ITER
   // This is very similar to how doReplace() keeps the old array pointer
   // and deletes the old array itself after it is done.
   // In addition, we are forcing cloneArrayIfNeeded() to always allocate a new array.
-  int32_t *bufferToDelete = 0;
+  int32_t *bufferToDelete = nullptr;
   if (!cloneArrayIfNeeded(newLength, newLength, false, &bufferToDelete, true)) {
     return *this;
   }

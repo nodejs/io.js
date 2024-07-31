@@ -43,7 +43,7 @@ namespace NoUnit {
      * @stable ICU 68
      */
     static inline MeasureUnit U_EXPORT2 base() {
-        return MeasureUnit();
+        return {};
     }
 
     /**

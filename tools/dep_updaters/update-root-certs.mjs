@@ -28,7 +28,7 @@ const getCertdataURL = (version) => {
   return certdataURL;
 };
 
-const normalizeTD = (text) => {
+const normalizeTD = (text = '') => {
   // Remove whitespace and any HTML tags.
   return text?.trim().replace(/<.*?>/g, '');
 };

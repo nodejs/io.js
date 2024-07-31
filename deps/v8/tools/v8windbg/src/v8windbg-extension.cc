@@ -32,37 +32,9 @@ HRESULT CreateExtension() {
 
 void DestroyExtension() { Extension::SetExtension(nullptr); }
 
-bool Extension::DoesTypeDeriveFromObject(
-    const WRL::ComPtr<IDebugHostType>& sp_type) {
-  _bstr_t name;
-  HRESULT hr = sp_type->GetName(name.GetAddress());
-  if (!SUCCEEDED(hr)) return false;
-  if (std::string(static_cast<const char*>(name)) == kObject) return true;
-
-  WRL::ComPtr<IDebugHostSymbolEnumerator> sp_super_class_enumerator;
-  hr = sp_type->EnumerateChildren(SymbolKind::SymbolBaseClass, nullptr,
-                                  &sp_super_class_enumerator);
-  if (!SUCCEEDED(hr)) return false;
-
-  while (true) {
-    WRL::ComPtr<IDebugHostSymbol> sp_type_symbol;
-    if (sp_super_class_enumerator->GetNext(&sp_type_symbol) != S_OK) break;
-    WRL::ComPtr<IDebugHostBaseClass> sp_base_class;
-    if (FAILED(sp_type_symbol.As(&sp_base_class))) continue;
-    WRL::ComPtr<IDebugHostType> sp_base_type;
-    hr = sp_base_class->GetType(&sp_base_type);
-    if (!SUCCEEDED(hr)) continue;
-    if (DoesTypeDeriveFromObject(sp_base_type)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-WRL::ComPtr<IDebugHostType> Extension::GetV8ObjectType(
+WRL::ComPtr<IDebugHostType> Extension::GetV8TaggedObjectType(
     WRL::ComPtr<IDebugHostContext>& sp_ctx) {
-  return GetTypeFromV8Module(sp_ctx, kObjectU);
+  return GetTypeFromV8Module(sp_ctx, kTaggedObjectU);
 }
 
 WRL::ComPtr<IDebugHostType> Extension::GetTypeFromV8Module(
@@ -193,7 +165,7 @@ WRL::ComPtr<IDebugHostModule> Extension::GetV8Module(
 Extension::Extension() = default;
 
 HRESULT Extension::Initialize() {
-  // Create an instance of the DataModel parent for v8::internal::Object types.
+  // Create an instance of the DataModel parent for Tagged<T> types.
   auto object_data_model{WRL::Make<V8ObjectDataModel>()};
   RETURN_IF_FAIL(sp_data_model_manager->CreateDataModelObject(
       object_data_model.Get(), &sp_object_data_model_));
@@ -206,20 +178,14 @@ HRESULT Extension::Initialize() {
       static_cast<IDynamicKeyProviderConcept*>(object_data_model.Get()),
       nullptr));
 
-  // Register that parent model for all known types of V8 object.
-  std::vector<std::u16string> object_class_names = ListObjectClasses();
-  object_class_names.push_back(kObjectU);
-  object_class_names.push_back(kTaggedValueU);
-  for (const std::u16string& name : object_class_names) {
-    WRL::ComPtr<IDebugHostTypeSignature> sp_object_type_signature;
-    RETURN_IF_FAIL(sp_debug_host_symbols->CreateTypeSignature(
-        reinterpret_cast<const wchar_t*>(name.c_str()), nullptr,
-        &sp_object_type_signature));
-    RETURN_IF_FAIL(sp_data_model_manager->RegisterModelForTypeSignature(
-        sp_object_type_signature.Get(), sp_object_data_model_.Get()));
-    registered_types_.push_back(
-        {sp_object_type_signature.Get(), sp_object_data_model_.Get()});
-  }
+  // Register that parent model for Tagged<T>.
+  WRL::ComPtr<IDebugHostTypeSignature> sp_tagged_type_signature;
+  RETURN_IF_FAIL(sp_debug_host_symbols->CreateTypeSignature(
+      L"v8::internal::Tagged<*>", nullptr, &sp_tagged_type_signature));
+  RETURN_IF_FAIL(sp_data_model_manager->RegisterModelForTypeSignature(
+      sp_tagged_type_signature.Get(), sp_object_data_model_.Get()));
+  registered_types_.push_back(
+      {sp_tagged_type_signature.Get(), sp_object_data_model_.Get()});
 
   // Create an instance of the DataModel parent for custom iterable fields.
   auto indexed_field_model{WRL::Make<IndexedFieldParent>()};

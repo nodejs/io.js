@@ -2,22 +2,12 @@
   <Import Project="Sdk.props" Sdk="WixToolset.Sdk" Version="4.0.0-rc.1" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
     <ProductVersion>3.5</ProductVersion>
     <ProjectGuid>{1d808ff0-b5a9-4be9-859d-b334b6f48be2}</ProjectGuid>
     <OutputName>node-v$(FullVersion)-$(Platform)</OutputName>
     <OutputType>Package</OutputType>
     <NodeVersion Condition=" '$(NodeVersion)' == '' ">0.0.0.0</NodeVersion>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
-    <OutputPath>..\..\..\..\</OutputPath>
-    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
-    <DefineConstants>Debug;ProductVersion=$(NodeVersion);FullVersion=$(FullVersion);DistTypeDir=$(DistTypeDir);NpmSourceDir=..\..\..\..\Release\node-v$(FullVersion)-win-$(Platform)\node_modules\npm\;CorepackSourceDir=..\..\..\..\Release\node-v$(FullVersion)-win-$(Platform)\node_modules\corepack\;ProgramFilesFolderId=ProgramFilesFolder</DefineConstants>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
-    <OutputPath>..\..\..\..\</OutputPath>
-    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
-    <DefineConstants>Debug;ProductVersion=$(NodeVersion);FullVersion=$(FullVersion);DistTypeDir=$(DistTypeDir);NpmSourceDir=..\..\..\..\Release\node-v$(FullVersion)-win-$(Platform)\node_modules\npm\;CorepackSourceDir=..\..\..\..\Release\node-v$(FullVersion)-win-$(Platform)\node_modules\corepack\;ProgramFilesFolderId=ProgramFilesFolder</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
     <OutputPath>..\..\..\..\</OutputPath>

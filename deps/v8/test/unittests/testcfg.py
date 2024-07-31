@@ -96,6 +96,13 @@ class TestCase(testcase.TestCase):
   def get_shell(self):
     return SHELL
 
+  def _get_cmd_env(self):
+    # FuzzTest uses this seed when running fuzz tests as normal gtests.
+    # Setting a fixed value guarantees predictable behavior from run to run.
+    # It's a base64 encoded vector of 8 zero bytes. In other unit tests this
+    # has no effect.
+    return {'FUZZTEST_PRNG_SEED': 43 * 'A'}
+
   def get_android_resources(self):
     # Bytecode-generator tests are the only ones requiring extra files on
     # Android.

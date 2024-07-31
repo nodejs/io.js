@@ -1,4 +1,7 @@
 {
+  "idlharness-shadowrealm.window.js": {
+    "skip": "ShadowRealm support is not enabled"
+  },
   "percent-encoding.window.js": {
     "skip": "TODO: port from .window.js"
   },

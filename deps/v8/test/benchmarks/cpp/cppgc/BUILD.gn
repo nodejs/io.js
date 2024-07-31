@@ -30,7 +30,7 @@ if (v8_enable_google_benchmark) {
       "benchmark_utils.cc",
       "benchmark_utils.h",
     ]
-    public_deps = [ "//third_party/google_benchmark:google_benchmark" ]
+    public_deps = [ "//third_party/google_benchmark_chrome:google_benchmark" ]
     if (cppgc_is_standalone) {
       deps = [ "../../../..:cppgc_for_testing" ]
     } else {

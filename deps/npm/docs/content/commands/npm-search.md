@@ -7,7 +7,7 @@ description: Search for packages
 ### Synopsis
 
 ```bash
-npm search [search terms ...]
+npm search <search term> [<search term> ...]
 
 aliases: find, s, se
 ```
@@ -38,15 +38,6 @@ ignore a trailing `/` .  (Note you must escape or quote many regular
 expression characters in most shells.)
 
 ### Configuration
-
-#### `long`
-
-* Default: false
-* Type: Boolean
-
-Show extended information in `ls`, `search`, and `help-search`.
-
-
 
 #### `json`
 
@@ -88,6 +79,16 @@ Output parseable results from commands that write to standard output. For
 * Type: Boolean
 
 Show the description in `npm search`
+
+
+
+#### `searchlimit`
+
+* Default: 20
+* Type: Number
+
+Number of items to limit search results to. Will not apply at all to legacy
+searches.
 
 
 

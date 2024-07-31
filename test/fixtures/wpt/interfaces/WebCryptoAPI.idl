@@ -68,7 +68,7 @@ interface SubtleCrypto {
                          sequence<KeyUsage> keyUsages );
   Promise<ArrayBuffer> deriveBits(AlgorithmIdentifier algorithm,
                           CryptoKey baseKey,
-                          unsigned long length);
+                          optional unsigned long? length = null);
 
   Promise<CryptoKey> importKey(KeyFormat format,
                          (BufferSource or JsonWebKey) keyData,

@@ -29,13 +29,6 @@ FunctionTester::FunctionTester(const char* source, uint32_t flags)
   CHECK_EQ(0u, flags_ & ~supported_flags);
 }
 
-FunctionTester::FunctionTester(Graph* graph, int param_count)
-    : isolate(main_isolate()),
-      function(NewFunction(BuildFunction(param_count).c_str())),
-      flags_(0) {
-  CompileGraph(graph);
-}
-
 FunctionTester::FunctionTester(Handle<Code> code, int param_count)
     : isolate(main_isolate()),
       function((v8_flags.allow_natives_syntax = true,
@@ -52,29 +45,26 @@ FunctionTester::FunctionTester(Handle<Code> code) : FunctionTester(code, 0) {}
 void FunctionTester::CheckThrows(Handle<Object> a) {
   TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate));
   MaybeHandle<Object> no_result = Call(a);
-  CHECK(isolate->has_pending_exception());
+  CHECK(isolate->has_exception());
   CHECK(try_catch.HasCaught());
   CHECK(no_result.is_null());
-  isolate->OptionalRescheduleException(true);
 }
 
 void FunctionTester::CheckThrows(Handle<Object> a, Handle<Object> b) {
   TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate));
   MaybeHandle<Object> no_result = Call(a, b);
-  CHECK(isolate->has_pending_exception());
+  CHECK(isolate->has_exception());
   CHECK(try_catch.HasCaught());
   CHECK(no_result.is_null());
-  isolate->OptionalRescheduleException(true);
 }
 
 v8::Local<v8::Message> FunctionTester::CheckThrowsReturnMessage(
     Handle<Object> a, Handle<Object> b) {
   TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate));
   MaybeHandle<Object> no_result = Call(a, b);
-  CHECK(isolate->has_pending_exception());
+  CHECK(isolate->has_exception());
   CHECK(try_catch.HasCaught());
   CHECK(no_result.is_null());
-  isolate->OptionalRescheduleException(true);
   CHECK(!try_catch.Message().IsEmpty());
   return try_catch.Message();
 }
@@ -128,37 +118,9 @@ Handle<Object> FunctionTester::false_value() {
   return isolate->factory()->false_value();
 }
 
-Handle<JSFunction> FunctionTester::ForMachineGraph(Graph* graph,
-                                                   int param_count) {
-  Tagged<JSFunction> p;
-  {  // because of the implicit handle scope of FunctionTester.
-    FunctionTester f(graph, param_count);
-    p = *f.function;
-  }
-  return Handle<JSFunction>(
-      p, p->GetIsolate());  // allocated in outer handle scope.
-}
-
 Handle<JSFunction> FunctionTester::Compile(Handle<JSFunction> f) {
   Zone zone(isolate->allocator(), ZONE_NAME);
   return Optimize(f, &zone, isolate, flags_);
-}
-
-// Compile the given machine graph instead of the source of the function
-// and replace the JSFunction's code with the result.
-Handle<JSFunction> FunctionTester::CompileGraph(Graph* graph) {
-  Handle<SharedFunctionInfo> shared(function->shared(), isolate);
-  Zone zone(isolate->allocator(), ZONE_NAME);
-  OptimizedCompilationInfo info(&zone, isolate, shared, function,
-                                CodeKind::TURBOFAN);
-
-  auto call_descriptor = Linkage::ComputeIncoming(&zone, &info);
-  Handle<Code> code =
-      Pipeline::GenerateCodeForTesting(&info, isolate, call_descriptor, graph,
-                                       AssemblerOptions::Default(isolate))
-          .ToHandleChecked();
-  function->set_code(*code, kReleaseStore);
-  return function;
 }
 
 }  // namespace compiler

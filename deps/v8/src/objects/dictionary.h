@@ -32,7 +32,8 @@ class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) Dictionary
   using DerivedHashTable = HashTable<Derived, Shape>;
 
  public:
-  using Key = typename Shape::Key;
+  using TodoShape = Shape;
+  using Key = typename TodoShape::Key;
   inline Tagged<Object> ValueAt(InternalIndex entry);
   inline Tagged<Object> ValueAt(PtrComprCageBase cage_base,
                                 InternalIndex entry);
@@ -125,7 +126,7 @@ class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) Dictionary
                              Key key, Handle<Object> value,
                              PropertyDetails details);
 
-  OBJECT_CONSTRUCTORS(Dictionary, HashTable<Derived, Shape>);
+  OBJECT_CONSTRUCTORS(Dictionary, HashTable<Derived, TodoShape>);
 };
 
 #define EXTERN_DECLARE_DICTIONARY(DERIVED, SHAPE)                  \
@@ -447,10 +448,10 @@ template <typename Dictionary>
 struct EnumIndexComparator {
   explicit EnumIndexComparator(Tagged<Dictionary> dict) : dict(dict) {}
   bool operator()(Tagged_t a, Tagged_t b) {
-    PropertyDetails da(
-        dict->DetailsAt(InternalIndex(Smi(static_cast<Address>(a)).value())));
-    PropertyDetails db(
-        dict->DetailsAt(InternalIndex(Smi(static_cast<Address>(b)).value())));
+    PropertyDetails da(dict->DetailsAt(
+        InternalIndex(Tagged<Smi>(static_cast<Address>(a)).value())));
+    PropertyDetails db(dict->DetailsAt(
+        InternalIndex(Tagged<Smi>(static_cast<Address>(b)).value())));
     return da.dictionary_index() < db.dictionary_index();
   }
   Tagged<Dictionary> dict;

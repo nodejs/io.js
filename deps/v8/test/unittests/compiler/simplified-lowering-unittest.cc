@@ -8,9 +8,9 @@
 #include "src/compiler/compiler-source-position-table.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/simplified-operator.h"
-
 #include "test/unittests/compiler/graph-unittest.h"
 #include "test/unittests/compiler/node-test-utils.h"
+#include "test/unittests/fuzztest.h"
 
 namespace v8 {
 namespace internal {
@@ -55,6 +55,8 @@ class SimplifiedLoweringTest : public GraphTest {
     lowering.LowerAllNodes();
   }
 
+  void SmiConstantToIntPtrConstantP(int x);
+
   int num_parameters() const { return num_parameters_; }
   JSGraph* jsgraph() { return &jsgraph_; }
 
@@ -66,28 +68,35 @@ class SimplifiedLoweringTest : public GraphTest {
   JSGraph jsgraph_;
 };
 
+V8_FUZZ_SUITE(SimplifiedLoweringFuzzTest, SimplifiedLoweringTest);
+
 const int kSmiValues[] = {Smi::kMinValue,
                           Smi::kMinValue + 1,
                           Smi::kMinValue + 2,
-                          3,
-                          2,
-                          1,
-                          0,
-                          -1,
-                          -2,
                           -3,
+                          -2,
+                          -1,
+                          0,
+                          1,
+                          2,
+                          3,
                           Smi::kMaxValue - 2,
                           Smi::kMaxValue - 1,
                           Smi::kMaxValue};
 
-TEST_F(SimplifiedLoweringTest, SmiConstantToIntPtrConstant) {
-  TRACED_FOREACH(int, x, kSmiValues) {
-    LowerGraph(jsgraph()->Constant(x));
-    intptr_t smi = base::bit_cast<intptr_t>(Smi::FromInt(x));
-    EXPECT_THAT(graph()->end()->InputAt(1),
-                IsReturn(IsIntPtrConstant(smi), start(), start()));
-  }
+void SimplifiedLoweringTest::SmiConstantToIntPtrConstantP(int x) {
+  LowerGraph(jsgraph()->ConstantNoHole(x));
+  intptr_t smi = base::bit_cast<intptr_t>(Smi::FromInt(x));
+  EXPECT_THAT(graph()->end()->InputAt(1),
+              IsReturn(IsIntPtrConstant(smi), start(), start()));
 }
+
+TEST_F(SimplifiedLoweringTest, SmiConstantToIntPtrConstant) {
+  TRACED_FOREACH(int, x, kSmiValues) { SmiConstantToIntPtrConstantP(x); }
+}
+
+V8_FUZZ_TEST_F(SimplifiedLoweringFuzzTest, SmiConstantToIntPtrConstantP)
+    .WithDomains(fuzztest::InRange(Smi::kMinValue, Smi::kMaxValue));
 
 }  // namespace compiler
 }  // namespace internal

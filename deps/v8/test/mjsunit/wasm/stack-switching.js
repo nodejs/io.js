@@ -2,9 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --experimental-wasm-stack-switching
+// Flags: --allow-natives-syntax --experimental-wasm-jspi
 // Flags: --expose-gc --wasm-stack-switching-stack-size=100
-// Flags: --experimental-wasm-typed-funcref
 
 // We pick a small stack size to run the stack overflow test quickly, but big
 // enough to run all the tests.
@@ -18,19 +17,6 @@ load("test/mjsunit/wasm/wasm-module-builder.js");
   assertThrows(() => WebAssembly.Suspender(), TypeError,
       /WebAssembly.Suspender must be invoked with 'new'/);
 })();
-
-function ToPromising(wasm_export) {
-  let sig = WebAssembly.Function.type(wasm_export);
-  assertTrue(sig.parameters.length > 0);
-  assertEquals('externref', sig.parameters[0]);
-  let wrapper_sig = {
-    parameters: sig.parameters.slice(1),
-    results: ['externref']
-  };
-  return new WebAssembly.Function(
-      wrapper_sig, wasm_export, {promising: 'first'});
-
-}
 
 (function TestSuspenderTypes() {
   print(arguments.callee.name);
@@ -93,12 +79,12 @@ function ToPromising(wasm_export) {
       /Incompatible signature for promising function/);
 
   // Check the wrapped export's signature.
-  let export_sig = WebAssembly.Function.type(export_wrapper);
+  let export_sig = export_wrapper.type();
   assertEquals(['i32'], export_sig.parameters);
   assertEquals(['externref'], export_sig.results);
 
   // Check the wrapped import's signature.
-  let import_sig = WebAssembly.Function.type(import_wrapper);
+  let import_sig = import_wrapper.type();
   assertEquals(['externref', 'i32'], import_sig.parameters);
   assertEquals([], import_sig.results);
 })();
@@ -116,7 +102,7 @@ function ToPromising(wasm_export) {
 (function TestStackSwitchNoSuspend() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI32, true).exportAs('g');
+  builder.addGlobal(kWasmI32, true, false).exportAs('g');
   builder.addFunction("test", kSig_i_r)
       .addBody([
           kExprI32Const, 42,
@@ -165,13 +151,14 @@ function ToPromising(wasm_export) {
   wrapped_export = ToPromising(instance.exports.test);
   combined_promise = wrapped_export();
   assertPromiseResult(combined_promise, v => assertEquals(42, v));
+  %CheckIsOnCentralStack();
 })();
 
 // Check that we can suspend back out of a resumed computation.
 (function TestStackSwitchSuspendLoop() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI32, true).exportAs('g');
+  builder.addGlobal(kWasmI32, true, false).exportAs('g');
   import_index = builder.addImport('m', 'import', kSig_i_r);
   // Pseudo-code for the wasm function:
   // for (i = 0; i < 5; ++i) {
@@ -259,7 +246,7 @@ function ToPromising(wasm_export) {
 (function TestStackSwitchNoPromise() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI32, true).exportAs('g');
+  builder.addGlobal(kWasmI32, true, false).exportAs('g');
   import_index = builder.addImport('m', 'import', kSig_i_r);
   builder.addFunction("test", kSig_i_r)
       .addBody([
@@ -470,7 +457,7 @@ function TestNestedSuspenders(suspend) {
   builder.addFunction("export", sig_v_r).addBody([]).exportFunc();
   let instance = builder.instantiate();
   let export_wrapper = ToPromising(instance.exports.export);
-  let export_sig = WebAssembly.Function.type(export_wrapper);
+  let export_sig = export_wrapper.type();
   assertEquals([], export_sig.parameters);
   assertEquals(['externref'], export_sig.results);
 })();
@@ -578,7 +565,7 @@ function TestNestedSuspenders(suspend) {
   let builder = new WasmModuleBuilder();
   let import1_index = builder.addImport("m", "import1", kSig_i_v);
   let import2_index = builder.addImport("m", "import2", kSig_i_r);
-  builder.addGlobal(kWasmExternRef, true);
+  builder.addGlobal(kWasmExternRef, true, false);
   builder.addFunction("export1", kSig_i_r)
       .addBody([
           // export1 -> import1 (unwrapped)
@@ -638,10 +625,12 @@ function TestNestedSuspenders(suspend) {
   assertEquals(42, instance.exports.test(null));
 })();
 
-(function TestSwitchingToTheCentralStack() {
+(function TestSwitchingToTheCentralStackForRuntime() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
   let table = builder.addTable(kWasmExternRef, 1);
+  let array_index = builder.addArray(kWasmI32, true);
+  let new_space_full_index = builder.addImport('m', 'new_space_full', kSig_v_v);
   builder.addFunction("test", kSig_i_r)
       .addBody([
         kExprLocalGet, 0,
@@ -650,20 +639,145 @@ function TestNestedSuspenders(suspend) {
   builder.addFunction("test2", kSig_i_r)
       .addBody([
         kExprI32Const, 1]).exportFunc();
-  let instance = builder.instantiate();
+  let sig_l_r = makeSig([kWasmExternRef], [kWasmI64]);
+  builder.addFunction("test3", sig_l_r)
+      .addBody([
+        kExprCallFunction, new_space_full_index,
+        ...wasmI64Const(0)
+        ]).exportFunc();
+  builder.addFunction("test4", kSig_v_r)
+      .addBody([
+        kExprCallFunction, new_space_full_index,
+        kExprI32Const, 1,
+        kGCPrefix, kExprArrayNewDefault, array_index,
+        kExprDrop]).exportFunc();
+  function new_space_full() {
+    %SimulateNewspaceFull();
+  }
+  let instance = builder.instantiate({m: {new_space_full}});
   let wrapper = ToPromising(instance.exports.test);
   let wrapper2 = ToPromising(instance.exports.test2);
+  let wrapper3 = ToPromising(instance.exports.test3);
+  let wrapper4 = ToPromising(instance.exports.test4);
   function switchesToCS(fn) {
     const beforeCall = %WasmSwitchToTheCentralStackCount();
     fn();
     return %WasmSwitchToTheCentralStackCount() - beforeCall;
   }
+
   // Calling exported functions from the central stack.
-  assertEquals(switchesToCS(() => instance.exports.test({})), 0);
-  assertEquals(switchesToCS(() => instance.exports.test2({})), 0);
+  assertEquals(0, switchesToCS(() => instance.exports.test({})));
+  assertEquals(0, switchesToCS(() => instance.exports.test2({})));
+  assertEquals(0, switchesToCS(() => instance.exports.test3({})));
+  assertEquals(0, switchesToCS(() => instance.exports.test4({})));
 
   // Runtime call to table.grow.
-  assertEquals(switchesToCS(wrapper), 1);
+  switchesToCS(wrapper);
   // No runtime calls.
-  assertEquals(switchesToCS(wrapper2), 0);
+  switchesToCS(wrapper2);
+  // Runtime call to allocate the bigint.
+  switchesToCS(wrapper3);
+  // Runtime call for array.new.
+  switchesToCS(wrapper4);
+  %CheckIsOnCentralStack();
+})();
+
+(function TestSwitchingToTheCentralStackForJS() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+  import_index = builder.addImport('m', 'import', kSig_i_r);
+  builder.addFunction("test", kSig_i_r)
+      .addBody([
+          kExprLocalGet, 0,
+          kExprCallFunction, import_index,
+      ]).exportFunc();
+  let js_import = new WebAssembly.Function(
+      {parameters: ['externref'], results: ['i32']},
+      () => {
+        %CheckIsOnCentralStack();
+        return 123;
+      },
+      {suspending: 'first'});
+  let instance = builder.instantiate({m: {import: js_import}});
+  let wrapped_export = ToPromising(instance.exports.test);
+  assertPromiseResult(wrapped_export(), v => assertEquals(123, v));
+})();
+
+// Test that the wasm-to-js stack params get scanned.
+(function TestSwitchingToTheCentralStackManyParams() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+  const num_params = 10;
+  let params = Array(num_params + 1 /* suspender */).fill(kWasmExternRef);
+  const sig = makeSig(params, [kWasmExternRef]);
+  const import_index = builder.addImport('m', 'import_', sig);
+  let body = [];
+  for (let i = 0; i < num_params + 1; ++i) {
+    body.push(kExprLocalGet, i);
+  }
+  body.push(kExprCallFunction, import_index);
+  builder.addFunction("test", sig)
+      .addBody(body).exportFunc();
+  function import_js(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
+    gc();
+    return [arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9];
+  };
+  import_js();
+  let import_ = new WebAssembly.Function(
+      {parameters: Array(num_params + 1).fill('externref'), results: ['externref']},
+      import_js,
+      {suspending: 'first'});
+  let instance = builder.instantiate({m: {import_}});
+  let wrapper = ToPromising(instance.exports.test);
+  let args = Array(num_params).fill({});
+  assertPromiseResult(wrapper(...args), results => { assertEquals(args, results); });
+})();
+
+// Similar to TestNestedSuspenders, but trigger an infinite recursion inside the
+// outer wasm function after the import call. This is likely to crash if the
+// stack limit is not properly restored when we return from the central stack.
+// In particular in the nested case, we should preserve and restore the limit of
+// each intermediate secondary stack.
+(function TestCentralStackReentrency() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+  inner_index = builder.addImport('m', 'inner', kSig_i_r);
+  outer_index = builder.addImport('m', 'outer', kSig_i_r);
+  let stack_overflow = builder.addFunction('stack_overflow', kSig_v_v)
+      .addBody([kExprCallFunction, 2]);
+  builder.addFunction("outer", kSig_i_r)
+      .addBody([
+          kExprLocalGet, 0,
+          kExprCallFunction, outer_index,
+          kExprCallFunction, stack_overflow.index,
+      ]).exportFunc();
+  builder.addFunction("inner", kSig_i_r)
+      .addBody([
+          kExprLocalGet, 0,
+          kExprCallFunction, inner_index
+      ]).exportFunc();
+
+  let inner = new WebAssembly.Function(
+      {parameters: ['externref'], results: ['i32']},
+      () => Promise.resolve(42),
+      {suspending: 'first'});
+
+  let export_inner;
+  let outer = new WebAssembly.Function(
+      {parameters: ['externref'], results: ['i32']},
+      () => export_inner(),
+      {suspending: 'first'});
+
+  let instance = builder.instantiate({m: {inner, outer}});
+  export_inner = ToPromising(instance.exports.inner);
+  let export_outer = ToPromising(instance.exports.outer);
+  assertThrowsAsync(export_outer(), RangeError,
+      /Maximum call stack size exceeded/);
+})();
+
+(function Regress326106962() {
+  print(arguments.callee.name);
+  const suspender = new WebAssembly.Suspender();
+  suspender.foo = "bar";
+  gc();
 })();

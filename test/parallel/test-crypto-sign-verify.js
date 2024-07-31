@@ -773,3 +773,23 @@ assert.throws(
     }, { code: 'ERR_INVALID_ARG_TYPE', message: /The "key\.key" property must be of type object/ });
   }
 }
+
+{
+  // Ed25519 and Ed448 must use the one-shot methods
+  const keys = [{ privateKey: fixtures.readKey('ed25519_private.pem', 'ascii'),
+                  publicKey: fixtures.readKey('ed25519_public.pem', 'ascii') },
+                { privateKey: fixtures.readKey('ed448_private.pem', 'ascii'),
+                  publicKey: fixtures.readKey('ed448_public.pem', 'ascii') }];
+
+  for (const { publicKey, privateKey } of keys) {
+    assert.throws(() => {
+      crypto.createSign('SHA256').update('Test123').sign(privateKey);
+    }, { code: 'ERR_CRYPTO_UNSUPPORTED_OPERATION', message: 'Unsupported crypto operation' });
+    assert.throws(() => {
+      crypto.createVerify('SHA256').update('Test123').verify(privateKey, 'sig');
+    }, { code: 'ERR_CRYPTO_UNSUPPORTED_OPERATION', message: 'Unsupported crypto operation' });
+    assert.throws(() => {
+      crypto.createVerify('SHA256').update('Test123').verify(publicKey, 'sig');
+    }, { code: 'ERR_CRYPTO_UNSUPPORTED_OPERATION', message: 'Unsupported crypto operation' });
+  }
+}

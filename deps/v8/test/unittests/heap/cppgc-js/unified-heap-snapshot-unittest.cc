@@ -11,7 +11,6 @@
 #include "include/cppgc/garbage-collected.h"
 #include "include/cppgc/name-provider.h"
 #include "include/cppgc/persistent.h"
-#include "include/cppgc/platform.h"
 #include "include/v8-cppgc.h"
 #include "include/v8-profiler.h"
 #include "src/api/api-inl.h"
@@ -423,16 +422,19 @@ class GCedWithJSRef : public cppgc::GarbageCollected<GCedWithJSRef> {
     v8_object_.Reset(isolate, object);
   }
 
-  void SetWrapperClassId(uint16_t class_id) {
-    v8_object_.SetWrapperClassId(class_id);
-  }
-
-  uint16_t WrapperClassId() const { return v8_object_.WrapperClassId(); }
-
   TracedReference<v8::Object>& wrapper() { return v8_object_; }
+
+  void set_detachedness(v8::EmbedderGraph::Node::Detachedness detachedness) {
+    detachedness_ = detachedness;
+  }
+  v8::EmbedderGraph::Node::Detachedness detachedness() const {
+    return detachedness_;
+  }
 
  private:
   TracedReference<v8::Object> v8_object_;
+  v8::EmbedderGraph::Node::Detachedness detachedness_ =
+      v8::EmbedderGraph::Node::Detachedness ::kUnknown;
 };
 
 constexpr const char GCedWithJSRef::kExpectedName[];
@@ -460,13 +462,16 @@ class V8_NODISCARD JsTestingScope {
 
 cppgc::Persistent<GCedWithJSRef> SetupWrapperWrappablePair(
     JsTestingScope& testing_scope, cppgc::AllocationHandle& allocation_handle,
-    const char* name) {
+    const char* name,
+    v8::EmbedderGraph::Node::Detachedness detachedness =
+        v8::EmbedderGraph::Node::Detachedness::kUnknown) {
   cppgc::Persistent<GCedWithJSRef> gc_w_js_ref =
       cppgc::MakeGarbageCollected<GCedWithJSRef>(allocation_handle);
   v8::Local<v8::Object> wrapper_object = WrapperHelper::CreateWrapper(
       testing_scope.context(), &GCedWithJSRef::kWrappableType,
       gc_w_js_ref.Get(), name);
   gc_w_js_ref->SetV8Object(testing_scope.isolate(), wrapper_object);
+  gc_w_js_ref->set_detachedness(detachedness);
   return gc_w_js_ref;
 }
 
@@ -490,21 +495,24 @@ TEST_F(UnifiedHeapSnapshotTest, JSReferenceForcesVisibleObject) {
   JsTestingScope testing_scope(v8_isolate());
   cppgc::Persistent<GCedWithJSRef> gc_w_js_ref = SetupWrapperWrappablePair(
       testing_scope, allocation_handle(), "LeafJSObject");
+  // Reset the JS->C++ ref or otherwise the nodes would be merged.
+  WrapperHelper::ResetWrappableConnection(
+      gc_w_js_ref->wrapper().Get(v8_isolate()));
   const v8::HeapSnapshot* snapshot = TakeHeapSnapshot();
   EXPECT_TRUE(IsValidSnapshot(snapshot));
   EXPECT_TRUE(ContainsRetainingPath(
-      *snapshot, {kExpectedCppRootsName, GetExpectedName<GCedWithJSRef>(),
-                  "LeafJSObject"}));
+      *snapshot,
+      {kExpectedCppRootsName, GetExpectedName<GCedWithJSRef>(), "LeafJSObject"},
+      true));
 }
 
 TEST_F(UnifiedHeapSnapshotTest, MergedWrapperNode) {
   // Test ensures that the snapshot sets a wrapper node for C++->JS references
-  // that have a class id set and that object nodes are merged. In practice, the
-  // C++ node is merged into the existing JS node.
+  // that have a valid back reference and that object nodes are merged. In
+  // practice, the C++ node is merged into the existing JS node.
   JsTestingScope testing_scope(v8_isolate());
   cppgc::Persistent<GCedWithJSRef> gc_w_js_ref = SetupWrapperWrappablePair(
       testing_scope, allocation_handle(), "MergedObject");
-  gc_w_js_ref->SetWrapperClassId(1);  // Any class id will do.
   v8::Local<v8::Object> next_object = WrapperHelper::CreateWrapper(
       testing_scope.context(), nullptr, nullptr, "NextObject");
   v8::Local<v8::Object> wrapper_object =
@@ -525,7 +533,7 @@ TEST_F(UnifiedHeapSnapshotTest, MergedWrapperNode) {
       {kExpectedCppRootsName, GetExpectedName<GCedWithJSRef>(),
        // GCedWithJSRef is merged into MergedObject, replacing its name.
        "NextObject"}));
-  const size_t js_size = Utils::OpenHandle(*wrapper_object)->Size();
+  const size_t js_size = Utils::OpenDirectHandle(*wrapper_object)->Size();
 #if CPPGC_SUPPORTS_OBJECT_NAMES
   const size_t cpp_size =
       cppgc::internal::HeapObjectHeader::FromObject(gc_w_js_ref.Get())
@@ -544,19 +552,16 @@ TEST_F(UnifiedHeapSnapshotTest, MergedWrapperNode) {
 
 namespace {
 
-constexpr uint16_t kClassIdForAttachedState = 0xAAAA;
-
 class DetachednessHandler {
  public:
   static size_t callback_count;
 
   static v8::EmbedderGraph::Node::Detachedness GetDetachedness(
-      v8::Isolate* isolate, const v8::Local<v8::Value>& v8_value,
-      uint16_t class_id, void* data) {
+      v8::Isolate* isolate, const v8::Local<v8::Value>& v8_value, uint16_t,
+      void*) {
     callback_count++;
-    return class_id == kClassIdForAttachedState
-               ? v8::EmbedderGraph::Node::Detachedness::kAttached
-               : v8::EmbedderGraph::Node::Detachedness::kDetached;
+    return WrapperHelper::UnwrapAs<GCedWithJSRef>(v8_value.As<v8::Object>())
+        ->detachedness();
   }
 
   static void Reset() { callback_count = 0; }
@@ -573,17 +578,20 @@ constexpr uint8_t kExpectedDetachedValueForDetached =
 
 }  // namespace
 
-TEST_F(UnifiedHeapSnapshotTest, NoTriggerForClassIdZero) {
-  // Test ensures that objects with JS references that have no class id set do
-  // not have their detachedness state queried.
+TEST_F(UnifiedHeapSnapshotTest, NoTriggerForStandAloneTracedReference) {
+  // Test ensures that C++ objects with TracedReference have their V8 objects
+  // not merged and queried for detachedness if the backreference is invalid.
   JsTestingScope testing_scope(v8_isolate());
+  // Marking the object as attached. The check below queries for unknown, making
+  // sure that the state is not propagated.
   cppgc::Persistent<GCedWithJSRef> gc_w_js_ref = SetupWrapperWrappablePair(
-      testing_scope, allocation_handle(), "MergedObject");
+      testing_scope, allocation_handle(), "MergedObject",
+      v8::EmbedderGraph::Node::Detachedness::kAttached);
   DetachednessHandler::Reset();
   v8_isolate()->GetHeapProfiler()->SetGetDetachednessCallback(
       DetachednessHandler::GetDetachedness, nullptr);
-  gc_w_js_ref->SetWrapperClassId(0);
-  EXPECT_EQ(0u, gc_w_js_ref->WrapperClassId());
+  WrapperHelper::ResetWrappableConnection(
+      gc_w_js_ref->wrapper().Get(v8_isolate()));
   const v8::HeapSnapshot* snapshot = TakeHeapSnapshot();
   EXPECT_EQ(0u, DetachednessHandler::callback_count);
   EXPECT_TRUE(IsValidSnapshot(snapshot));
@@ -599,16 +607,16 @@ TEST_F(UnifiedHeapSnapshotTest, NoTriggerForClassIdZero) {
 }
 
 TEST_F(UnifiedHeapSnapshotTest, TriggerDetachednessCallbackSettingAttached) {
-  // Test ensures that objects with JS references that have a non-zero class id
-  // set do  have their detachedness state queried and set (attached version).
+  // Test ensures that objects with JS references that have a valid back
+  // reference set do have their detachedness state queried and set (attached
+  // version).
   JsTestingScope testing_scope(v8_isolate());
   cppgc::Persistent<GCedWithJSRef> gc_w_js_ref = SetupWrapperWrappablePair(
-      testing_scope, allocation_handle(), "MergedObject");
+      testing_scope, allocation_handle(), "MergedObject",
+      v8::EmbedderGraph::Node::Detachedness::kAttached);
   DetachednessHandler::Reset();
   v8_isolate()->GetHeapProfiler()->SetGetDetachednessCallback(
       DetachednessHandler::GetDetachedness, nullptr);
-  gc_w_js_ref->SetWrapperClassId(kClassIdForAttachedState);
-  EXPECT_NE(0u, gc_w_js_ref->WrapperClassId());
   const v8::HeapSnapshot* snapshot = TakeHeapSnapshot();
   EXPECT_EQ(1u, DetachednessHandler::callback_count);
   EXPECT_TRUE(IsValidSnapshot(snapshot));
@@ -624,16 +632,16 @@ TEST_F(UnifiedHeapSnapshotTest, TriggerDetachednessCallbackSettingAttached) {
 }
 
 TEST_F(UnifiedHeapSnapshotTest, TriggerDetachednessCallbackSettingDetached) {
-  // Test ensures that objects with JS references that have a non-zero class id
-  // set do  have their detachedness state queried and set (detached version).
+  // Test ensures that objects with JS references that have a valid back
+  // reference set do have their detachedness state queried and set (detached
+  // version).
   JsTestingScope testing_scope(v8_isolate());
   cppgc::Persistent<GCedWithJSRef> gc_w_js_ref = SetupWrapperWrappablePair(
-      testing_scope, allocation_handle(), "MergedObject");
+      testing_scope, allocation_handle(), "MergedObject",
+      v8::EmbedderGraph::Node::Detachedness ::kDetached);
   DetachednessHandler::Reset();
   v8_isolate()->GetHeapProfiler()->SetGetDetachednessCallback(
       DetachednessHandler::GetDetachedness, nullptr);
-  gc_w_js_ref->SetWrapperClassId(kClassIdForAttachedState - 1);
-  EXPECT_NE(0u, gc_w_js_ref->WrapperClassId());
   const v8::HeapSnapshot* snapshot = TakeHeapSnapshot();
   EXPECT_EQ(1u, DetachednessHandler::callback_count);
   EXPECT_TRUE(IsValidSnapshot(snapshot));

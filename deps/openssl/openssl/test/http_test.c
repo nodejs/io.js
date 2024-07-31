@@ -298,7 +298,8 @@ static int test_http_url_invalid_prefix(void)
 
 static int test_http_url_invalid_port(void)
 {
-    return test_http_url_invalid("https://1.2.3.4:65536/pkix");
+    return test_http_url_invalid("https://1.2.3.4:65536/pkix")
+           && test_http_url_invalid("https://1.2.3.4:");
 }
 
 static int test_http_url_invalid_path(void)

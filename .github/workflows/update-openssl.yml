@@ -10,16 +10,16 @@ permissions:
   contents: read
 
 jobs:
-  openssl-v3-update:
+  openssl-update:
     if: github.repository == 'nodejs/node'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
         with:
           persist-credentials: false
       - name: Check and download new OpenSSL version
         run: |
-          ./tools/dep_updaters/update-openssl.sh download_v3 > temp-output
+          ./tools/dep_updaters/update-openssl.sh download > temp-output
           cat temp-output
           tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
           rm temp-output
@@ -56,54 +56,5 @@ jobs:
         with:
           author: Node.js GitHub Bot <github-bot@iojs.org>
           branch: actions/tools-update-openssl  # Custom branch *just* for this Action.
-          commit-message: 'deps: update archs files for openssl-${{ env.NEW_VERSION }}'
-          path: deps/openssl
-  openssl-v1-update:
-    if: github.repository == 'nodejs/node'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
-        with:
-          persist-credentials: false
-          ref: v16.x-staging
-      - name: Check and download new OpenSSL version
-        run: |
-          ./tools/dep_updaters/update-openssl.sh download_v1 > temp-output
-          cat temp-output
-          tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
-          rm temp-output
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_USER_TOKEN }}
-      - name: Create PR with first commit
-        if: env.NEW_VERSION
-        uses: gr2m/create-or-update-pull-request-action@df20b2c073090271599a08c55ae26e0c3522b329  # v1.9.2
-        # Creates a PR with the new OpenSSL source code committed
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_USER_TOKEN }}
-        with:
-          author: Node.js GitHub Bot <github-bot@iojs.org>
-          body: This is an automated update of OpenSSL to ${{ env.NEW_VERSION }}.
-          branch: actions/tools-update-openssl-v1  # Custom branch *just* for this Action.
-          commit-message: 'deps: upgrade openssl sources to quictls/openssl-${{ env.NEW_VERSION }}'
-          labels: dependencies
-          title: '[v16.x] deps: update OpenSSL to ${{ env.NEW_VERSION }}'
-          path: deps/openssl
-          update-pull-request-title-and-body: true
-      - name: Regenerate platform specific files
-        if: env.NEW_VERSION
-        run: |
-          sudo apt install -y nasm libtext-template-perl
-          ./tools/dep_updaters/update-openssl.sh regenerate
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_USER_TOKEN }}
-      - name: Add second commit
-        # Adds a second commit to the PR with the generated platform-dependent files
-        if: env.NEW_VERSION
-        uses: gr2m/create-or-update-pull-request-action@df20b2c073090271599a08c55ae26e0c3522b329  # v1.9.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_USER_TOKEN }}
-        with:
-          author: Node.js GitHub Bot <github-bot@iojs.org>
-          branch: actions/tools-update-openssl-v1  # Custom branch *just* for this Action.
           commit-message: 'deps: update archs files for openssl-${{ env.NEW_VERSION }}'
           path: deps/openssl

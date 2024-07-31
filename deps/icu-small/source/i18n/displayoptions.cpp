@@ -11,7 +11,7 @@
 
 U_NAMESPACE_BEGIN
 
-DisplayOptions::Builder DisplayOptions::builder() { return DisplayOptions::Builder(); }
+DisplayOptions::Builder DisplayOptions::builder() { return {}; }
 
 DisplayOptions::Builder DisplayOptions::copyToBuilder() const { return Builder(*this); }
 

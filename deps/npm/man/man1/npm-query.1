@@ -1,4 +1,4 @@
-.TH "NPM-QUERY" "1" "October 2023" "" ""
+.TH "NPM-QUERY" "1" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBnpm-query\fR - Dependency selector query
 .SS "Synopsis"
@@ -138,9 +138,23 @@ an array of dependency objects is returned which can contain multiple copies of 
   ...
 .fi
 .RE
-.SS "Package lock only mode"
+.SS "Expecting a certain number of results"
 .P
-If package-lock-only is enabled, only the information in the package lock (or shrinkwrap) is loaded. This means that information from the package.json files of your dependencies will not be included in the result set (e.g. description, homepage, engines).
+One common use of \fBnpm query\fR is to make sure there is only one version of a certain dependency in your tree. This is especially common for ecosystems like that rely on \fBtypescript\fR where having state split across two different but identically-named packages causes bugs. You can use the \fB--expect-results\fR or \fB--expect-result-count\fR in your setup to ensure that npm will exit with an exit code if your tree doesn't look like you want it to.
+.P
+.RS 2
+.nf
+$ npm query '#react' --expect-result-count=1
+.fi
+.RE
+.P
+Perhaps you want to quickly check if there are any production dependencies that could be updated:
+.P
+.RS 2
+.nf
+$ npm query ':root>:outdated(in-range).prod' --no-expect-results
+.fi
+.RE
 .SS "Package lock only mode"
 .P
 If package-lock-only is enabled, only the information in the package lock (or shrinkwrap) is loaded. This means that information from the package.json files of your dependencies will not be included in the result set (e.g. description, homepage, engines).
@@ -236,6 +250,30 @@ If set to true, the current operation will only use the \fBpackage-lock.json\fR,
 For \fBupdate\fR this means only the \fBpackage-lock.json\fR will be updated, instead of checking \fBnode_modules\fR and downloading dependencies.
 .P
 For \fBlist\fR this means the output will be based on the tree described by the \fBpackage-lock.json\fR, rather than the contents of \fBnode_modules\fR.
+.SS "\fBexpect-results\fR"
+.RS 0
+.IP \(bu 4
+Default: null
+.IP \(bu 4
+Type: null or Boolean
+.RE 0
+
+.P
+Tells npm whether or not to expect results from the command. Can be either true (expect some results) or false (expect no results).
+.P
+This config can not be used with: \fBexpect-result-count\fR
+.SS "\fBexpect-result-count\fR"
+.RS 0
+.IP \(bu 4
+Default: null
+.IP \(bu 4
+Type: null or Number
+.RE 0
+
+.P
+Tells to expect a specific number of results from the command.
+.P
+This config can not be used with: \fBexpect-results\fR
 .SH "SEE ALSO"
 .RS 0
 .IP \(bu 4

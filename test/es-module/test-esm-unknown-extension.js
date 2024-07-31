@@ -9,7 +9,7 @@ const { describe, it } = require('node:test');
 
 // In a "type": "module" package scope, files with unknown extensions should throw;
 // both when used as a main entry point and also when referenced via `import`.
-describe('ESM: unknown specifiers', { concurrency: true }, () => {
+describe('ESM: unknown specifiers', { concurrency: !process.env.TEST_PARALLEL }, () => {
   for (
     const fixturePath of [
       '/es-modules/package-type-module/extension.unknown',

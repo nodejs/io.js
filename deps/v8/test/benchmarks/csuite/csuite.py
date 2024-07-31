@@ -47,6 +47,12 @@ if __name__ == '__main__':
       help="Pass these extra arguments to d8.")
   parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
       help="See more output about what magic csuite is doing.")
+  parser.add_option(
+      "-m",
+      "--memory",
+      action="store_true",
+      dest="memory",
+      help="Measure system memory usage.")
   (opts, args) = parser.parse_args()
 
   if len(args) < 3:
@@ -98,6 +104,8 @@ if __name__ == '__main__':
   extra_args = ""
   if opts.extra_args:
     extra_args = opts.extra_args
+  if opts.memory:
+    extra_args += " --dump-system-memory-stats"
 
   if suite == "octane":
     runs = 10

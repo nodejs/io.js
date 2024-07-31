@@ -1,11 +1,11 @@
-/* eslint-disable node/no-deprecated-api */
+/* eslint-disable n/no-deprecated-api */
 
 'use strict'
 
 const semver = require('semver')
 const url = require('url')
 const path = require('path')
-const log = require('npmlog')
+const log = require('./log')
 
 // versions where -headers.tar.gz started shipping
 const headersTarballRange = '>= 3.0.0 || ~0.12.10 || ~0.10.42'
@@ -17,29 +17,28 @@ const bitsreV3 = /\/win-(x86|ia32|x64)\// // io.js v3.x.x shipped with "ia32" bu
 // file names. Inputs come from command-line switches (--target, --dist-url),
 // `process.version` and `process.release` where it exists.
 function processRelease (argv, gyp, defaultVersion, defaultRelease) {
-  var version = (semver.valid(argv[0]) && argv[0]) || gyp.opts.target || defaultVersion
-  var versionSemver = semver.parse(version)
-  var overrideDistUrl = gyp.opts['dist-url'] || gyp.opts.disturl
-  var isDefaultVersion
-  var isNamedForLegacyIojs
-  var name
-  var distBaseUrl
-  var baseUrl
-  var libUrl32
-  var libUrl64
-  var libUrlArm64
-  var tarballUrl
-  var canGetHeaders
+  let version = (semver.valid(argv[0]) && argv[0]) || gyp.opts.target || defaultVersion
+  const versionSemver = semver.parse(version)
+  let overrideDistUrl = gyp.opts['dist-url'] || gyp.opts.disturl
+  let isNamedForLegacyIojs
+  let name
+  let distBaseUrl
+  let baseUrl
+  let libUrl32
+  let libUrl64
+  let libUrlArm64
+  let tarballUrl
+  let canGetHeaders
 
   if (!versionSemver) {
     // not a valid semver string, nothing we can do
-    return { version: version }
+    return { version }
   }
   // flatten version into String
   version = versionSemver.version
 
   // defaultVersion should come from process.version so ought to be valid semver
-  isDefaultVersion = version === semver.parse(defaultVersion).version
+  const isDefaultVersion = version === semver.parse(defaultVersion).version
 
   // can't use process.release if we're using --target=x.y.z
   if (!isDefaultVersion) {
@@ -101,11 +100,11 @@ function processRelease (argv, gyp, defaultVersion, defaultRelease) {
   }
 
   return {
-    version: version,
+    version,
     semver: versionSemver,
-    name: name,
-    baseUrl: baseUrl,
-    tarballUrl: tarballUrl,
+    name,
+    baseUrl,
+    tarballUrl,
     shasumsUrl: url.resolve(baseUrl, 'SHASUMS256.txt'),
     versionDir: (name !== 'node' ? name + '-' : '') + version,
     ia32: {
@@ -128,8 +127,8 @@ function normalizePath (p) {
 }
 
 function resolveLibUrl (name, defaultUrl, arch, versionMajor) {
-  var base = url.resolve(defaultUrl, './')
-  var hasLibUrl = bitsre.test(defaultUrl) || (versionMajor === 3 && bitsreV3.test(defaultUrl))
+  const base = url.resolve(defaultUrl, './')
+  const hasLibUrl = bitsre.test(defaultUrl) || (versionMajor === 3 && bitsreV3.test(defaultUrl))
 
   if (!hasLibUrl) {
     // let's assume it's a baseUrl then

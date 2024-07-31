@@ -1,10 +1,11 @@
 const npa = require('npm-package-arg')
 const npmFetch = require('npm-registry-fetch')
 const pacote = require('pacote')
-const log = require('../utils/log-shim')
-const otplease = require('../utils/otplease.js')
+const { log, output } = require('proc-log')
+const { otplease } = require('../utils/auth.js')
 const pkgJson = require('@npmcli/package-json')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
+const { redact } = require('@npmcli/redact')
 
 const readJson = async (path) => {
   try {
@@ -114,12 +115,12 @@ class Owner extends BaseCommand {
       const packumentOpts = { ...this.npm.flatOptions, fullMetadata: true, preferOnline: true }
       const { maintainers } = await pacote.packument(spec, packumentOpts)
       if (!maintainers || !maintainers.length) {
-        this.npm.output('no admin found')
+        output.standard('no admin found')
       } else {
-        this.npm.output(maintainers.map(m => `${m.name} <${m.email}>`).join('\n'))
+        output.standard(maintainers.map(m => `${m.name} <${m.email}>`).join('\n'))
       }
     } catch (err) {
-      log.error('owner ls', "Couldn't get owner data", npmFetch.cleanUrl(pkg))
+      log.error('owner ls', "Couldn't get owner data", redact(pkg))
       throw err
     }
   }
@@ -215,9 +216,9 @@ class Owner extends BaseCommand {
         })
       })
       if (addOrRm === 'add') {
-        this.npm.output(`+ ${user} (${spec.name})`)
+        output.standard(`+ ${user} (${spec.name})`)
       } else {
-        this.npm.output(`- ${user} (${spec.name})`)
+        output.standard(`- ${user} (${spec.name})`)
       }
       return res
     } catch (err) {

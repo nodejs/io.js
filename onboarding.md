@@ -102,7 +102,10 @@ The project has a venue for real-time discussion:
 
 * When a discussion gets heated, you can request that other collaborators keep
   an eye on it by opening an issue at the private
-  [nodejs/moderation](https://github.com/nodejs/moderation) repository.
+  [nodejs/moderation](https://github.com/nodejs/moderation) repository. Note
+  that while that repository is not public, it can be accessed by anyone in the
+  nodejs org, so refrain from using it to report individuals (reporting
+  spam/bots there is fine of course).
   * This is a repository to which all members of the `nodejs` GitHub
     organization (not just collaborators on Node.js core) have access. Its
     contents should not be shared externally.

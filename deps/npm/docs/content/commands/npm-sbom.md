@@ -266,7 +266,7 @@ SBOM format to use when generating SBOMs.
 * Type: "library", "application", or "framework"
 
 The type of package described by the generated SBOM. For SPDX, this is the
-value for the `primaryPackagePurpose` fieled. For CycloneDX, this is the
+value for the `primaryPackagePurpose` field. For CycloneDX, this is the
 value for the `type` field.
 
 

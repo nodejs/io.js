@@ -14,8 +14,8 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-// StoreStoreEliminationReducer tries to identify and remove redundant stores.
-// E.g. for an input like
+// 1. StoreStoreEliminationReducer tries to identify and remove redundant
+// stores. E.g. for an input like
 //
 //   let o = {};
 //   o.x = 2;
@@ -60,6 +60,14 @@ namespace v8::internal::compiler::turboshaft {
 // loop header, we revisit the loop if the resulting state has changed until we
 // reach a fixpoint.
 //
+//
+// 2. StoreStoreEliminationReducer tries to merge 2 continuous 32-bits stores
+// into a 64-bits one.
+// When v8 create a new js object, it will initialize it's in object fields to
+// some constant value after allocation, like `undefined`. When pointer
+// compression is enabled, they are continuous 32-bits stores, and the store
+// values are usually constants (heap object). This reducer will try to merge 2
+// continuous 32-bits stores into a 64-bits one.
 
 #include "src/compiler/turboshaft/define-assembler-macros.inc"
 
@@ -180,7 +188,8 @@ class MaybeRedundantStoresTable
     // aliasing. We might improve this to eliminate more precisely, if we have
     // some sort of aliasing information.
     for (Key key : active_keys_) {
-      Set(key, StoreObservability::kObservable);
+      if (key.data().offset == offset)
+        Set(key, StoreObservability::kObservable);
     }
   }
 
@@ -253,7 +262,7 @@ class MaybeRedundantStoresTable
 
   const Graph& graph_;
   GrowingBlockSidetable<base::Optional<Snapshot>> block_to_snapshot_mapping_;
-  ZoneUnorderedMap<std::pair<OpIndex, int32_t>, Key> key_mapping_;
+  ZoneAbslFlatHashMap<std::pair<OpIndex, int32_t>, Key> key_mapping_;
   // In `active_keys_`, we track the keys of all stores that arge gc-observable
   // or unobservable. Keys that are mapped to the default value (observable) are
   // removed from the `active_keys_`.
@@ -269,8 +278,10 @@ class RedundantStoreAnalysis {
   RedundantStoreAnalysis(const Graph& graph, Zone* phase_zone)
       : graph_(graph), table_(graph, phase_zone) {}
 
-  void Run(ZoneSet<OpIndex>& eliminable_stores) {
+  void Run(ZoneSet<OpIndex>& eliminable_stores,
+           ZoneMap<OpIndex, uint64_t>& mergeable_store_pairs) {
     eliminable_stores_ = &eliminable_stores;
+    mergeable_store_pairs_ = &mergeable_store_pairs;
     for (uint32_t processed = graph_.block_count(); processed > 0;
          --processed) {
       BlockIndex block_index = static_cast<BlockIndex>(processed - 1);
@@ -292,6 +303,7 @@ class RedundantStoreAnalysis {
       }
     }
     eliminable_stores_ = nullptr;
+    mergeable_store_pairs_ = nullptr;
   }
 
   void ProcessBlock(const Block& block) {
@@ -313,9 +325,12 @@ class RedundantStoreAnalysis {
           const uint8_t size = store.stored_rep.SizeInBytes();
           // For now we consider only stores of fields of objects on the heap.
           if (is_on_heap_store && is_field_store) {
+            bool is_eliminable_store = false;
             switch (table_.GetObservability(store.base(), store.offset, size)) {
               case StoreObservability::kUnobservable:
                 eliminable_stores_->insert(index);
+                last_field_initialization_store_ = OpIndex::Invalid();
+                is_eliminable_store = true;
                 break;
               case StoreObservability::kGCObservable:
                 if (store.maybe_initializing_or_transitioning) {
@@ -325,6 +340,8 @@ class RedundantStoreAnalysis {
                                                  size);
                 } else {
                   eliminable_stores_->insert(index);
+                  last_field_initialization_store_ = OpIndex::Invalid();
+                  is_eliminable_store = true;
                 }
                 break;
               case StoreObservability::kObservable:
@@ -333,6 +350,43 @@ class RedundantStoreAnalysis {
                 table_.MarkStoreAsUnobservable(store.base(), store.offset,
                                                size);
                 break;
+            }
+
+            if (COMPRESS_POINTERS_BOOL && !is_eliminable_store &&
+                store.maybe_initializing_or_transitioning &&
+                store.kind == StoreOp::Kind::TaggedBase() &&
+                store.write_barrier == WriteBarrierKind::kNoWriteBarrier &&
+                store.stored_rep.IsTagged()) {
+              if (last_field_initialization_store_.valid() &&
+                  graph_.NextIndex(index) == last_field_initialization_store_) {
+                const StoreOp& store0 = store;
+                const StoreOp& store1 =
+                    graph_.Get(last_field_initialization_store_)
+                        .Cast<StoreOp>();
+
+                DCHECK(!store0.index().valid());
+                DCHECK(!store1.index().valid());
+
+                const ConstantOp* c0 =
+                    graph_.Get(store0.value()).TryCast<ConstantOp>();
+                const ConstantOp* c1 =
+                    graph_.Get(store1.value()).TryCast<ConstantOp>();
+
+                if (c0 && c1 && c0->kind == ConstantOp::Kind::kHeapObject &&
+                    c1->kind == ConstantOp::Kind::kHeapObject &&
+                    store1.offset - store0.offset == 4) {
+                  uint32_t high = static_cast<uint32_t>(c1->handle()->ptr());
+                  uint32_t low = static_cast<uint32_t>(c0->handle()->ptr());
+                  mergeable_store_pairs_->insert(
+                      {index, make_uint64(high, low)});
+
+                  eliminable_stores_->insert(last_field_initialization_store_);
+                  last_field_initialization_store_ = OpIndex::Invalid();
+                }
+
+              } else {
+                last_field_initialization_store_ = index;
+              }
             }
           }
           break;
@@ -366,20 +420,30 @@ class RedundantStoreAnalysis {
   const Graph& graph_;
   MaybeRedundantStoresTable table_;
   ZoneSet<OpIndex>* eliminable_stores_ = nullptr;
+
+  ZoneMap<OpIndex, uint64_t>* mergeable_store_pairs_ = nullptr;
+  OpIndex last_field_initialization_store_ = OpIndex::Invalid();
 };
 
 template <class Next>
 class StoreStoreEliminationReducer : public Next {
  public:
-  TURBOSHAFT_REDUCER_BOILERPLATE()
+  TURBOSHAFT_REDUCER_BOILERPLATE(StoreStoreElimination)
 
   void Analyze() {
-    analysis_.Run(eliminable_stores_);
+    analysis_.Run(eliminable_stores_, mergeable_store_pairs_);
     Next::Analyze();
   }
 
   OpIndex REDUCE_INPUT_GRAPH(Store)(OpIndex ig_index, const StoreOp& store) {
     if (eliminable_stores_.count(ig_index) > 0) {
+      return OpIndex::Invalid();
+    } else if (mergeable_store_pairs_.count(ig_index) > 0) {
+      DCHECK(COMPRESS_POINTERS_BOOL);
+      OpIndex value = __ Word64Constant(mergeable_store_pairs_[ig_index]);
+      __ Store(__ MapToNewGraph(store.base()), value,
+               StoreOp::Kind::TaggedBase(), MemoryRepresentation::Uint64(),
+               WriteBarrierKind::kNoWriteBarrier, store.offset);
       return OpIndex::Invalid();
     }
     return Next::ReduceInputGraphStore(ig_index, store);
@@ -388,6 +452,7 @@ class StoreStoreEliminationReducer : public Next {
  private:
   RedundantStoreAnalysis analysis_{Asm().input_graph(), Asm().phase_zone()};
   ZoneSet<OpIndex> eliminable_stores_{Asm().phase_zone()};
+  ZoneMap<OpIndex, uint64_t> mergeable_store_pairs_{Asm().phase_zone()};
 };
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"

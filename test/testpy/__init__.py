@@ -167,3 +167,15 @@ class AbortTestConfiguration(SimpleTestConfiguration):
     for tst in result:
       tst.disable_core_files = True
     return result
+
+class WasmAllocationTestConfiguration(SimpleTestConfiguration):
+  def __init__(self, context, root, section, additional=None):
+    super(WasmAllocationTestConfiguration, self).__init__(context, root, section,
+                                                          additional)
+
+  def ListTests(self, current_path, path, arch, mode):
+    result = super(WasmAllocationTestConfiguration, self).ListTests(
+         current_path, path, arch, mode)
+    for tst in result:
+      tst.max_virtual_memory = 5 * 1024 * 1024 * 1024 # 5GB
+    return result

@@ -22,6 +22,9 @@ class RegExpUtils : public AllStatic {
   static Handle<String> GenericCaptureGetter(Isolate* isolate,
                                              Handle<RegExpMatchInfo> match_info,
                                              int capture, bool* ok = nullptr);
+  // Checks if the capture group referred to by index |capture| is part of the
+  // match.
+  static bool IsMatchedCapture(Tagged<RegExpMatchInfo> match_info, int capture);
 
   // Last index (RegExp.lastIndex) accessors.
   static V8_WARN_UNUSED_RESULT MaybeHandle<Object> SetLastIndex(

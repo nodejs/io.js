@@ -42,7 +42,7 @@ class SignBase : public BaseObject {
   SET_SELF_SIZE(SignBase)
 
  protected:
-  EVPMDPointer mdctx_;
+  EVPMDCtxPointer mdctx_;
 };
 
 class Sign : public SignBase {

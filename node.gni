@@ -1,0 +1,64 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please take a look at node.gyp if you are making changes to build system.
+
+# Embedder options.
+declare_args() {
+  # The location of Node.js in source code tree.
+  node_path = "//node"
+
+  # The location of V8, use the one from node's deps by default.
+  node_v8_path = "$node_path/deps/v8"
+
+  # The NODE_MODULE_VERSION defined in node_version.h.
+  node_module_version = exec_script("$node_path/tools/getmoduleversion.py", [], "value")
+
+  # Support for external shareable builtins.
+  # TODO(zcbenz): This is currently copied from configure.py, we should share
+  # the list between configure.py and GN configurations.
+  node_builtin_shareable_builtins = [
+    "deps/cjs-module-lexer/lexer.js",
+    "deps/cjs-module-lexer/dist/lexer.js",
+    "deps/undici/undici.js",
+  ]
+}
+
+# Equivalent of gyp file's configurations.
+declare_args() {
+  # Enable the V8 inspector protocol for use with node.
+  node_enable_inspector = true
+
+  # Build node with SSL support.
+  # The variable is called "openssl" for parity with node's GYP build.
+  node_use_openssl = true
+
+  # Use the specified path to system CA (PEM format) in addition to
+  # the BoringSSL supplied CA store or compiled-in Mozilla CA copy.
+  node_openssl_system_ca_path = ""
+
+  # Initialize v8 platform during node.js startup.
+  node_use_v8_platform = true
+
+  # Custom build tag.
+  node_tag = ""
+
+  # V8 options to pass, see `node --v8-options` for examples.
+  node_v8_options = ""
+
+  # Provide a custom URL prefix for the `process.release` properties
+  # `sourceUrl` and `headersUrl`. When compiling a release build, this will
+  # default to https://nodejs.org/download/release/').
+  node_release_urlbase = ""
+
+  # Use code cache to speed up startup. Disabled for cross compilation.
+  node_use_node_code_cache = host_os == target_os && host_cpu == target_cpu
+
+  # Use snapshot to speed up startup.
+  # TODO(zcbenz): There are few broken things for now:
+  #   1. cross-os compilation is not supported.
+  #   2. node_mksnapshot crashes when cross-compiling for x64 from arm64.
+  node_use_node_snapshot = (host_os == target_os) && !(host_cpu == "arm64" && target_cpu == "x64")
+}
+
+assert(!node_enable_inspector || node_use_openssl,
+       "node_enable_inspector requires node_use_openssl")

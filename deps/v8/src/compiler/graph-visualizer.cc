@@ -133,13 +133,15 @@ void JsonPrintFunctionSource(std::ostream& os, int source_id,
         sb << '\n';
         str.write(sb.start(), sb.length());
 
-        wasm::WireBytesRef wire_bytes_ref =
-            module->functions[function_data->function_index()].code;
+        const wasm::WasmFunction& function =
+            module->functions[function_data->function_index()];
+        wasm::WireBytesRef wire_bytes_ref = function.code;
         base::Vector<const uint8_t> bytes(native_module->wire_bytes().SubVector(
             wire_bytes_ref.offset(), wire_bytes_ref.end_offset()));
+        bool is_shared = module->types[function.sig_index].is_shared;
         wasm::FunctionBody func_body{function_data->sig(),
                                      wire_bytes_ref.offset(), bytes.begin(),
-                                     bytes.end()};
+                                     bytes.end(), is_shared};
         AccountingAllocator allocator;
         wasm::PrintRawWasmCode(&allocator, func_body, module,
                                wasm::kPrintLocals, str);
@@ -219,7 +221,7 @@ void JsonPrintAllSourceWithPositions(std::ostream& os,
   os << "\"sources\" : {";
   Handle<Script> script =
       (info->shared_info().is_null() ||
-       info->shared_info()->script() == Object())
+       info->shared_info()->script() == Tagged<Object>())
           ? Handle<Script>()
           : handle(Script::cast(info->shared_info()->script()), isolate);
   JsonPrintFunctionSource(os, -1,
@@ -279,8 +281,9 @@ void JsonPrintAllSourceWithPositionsWasm(
        << fct.func_index << "\", \"sourceName\": \"\", \"sourceText\": \"";
     wasm::WireBytesRef wire_bytes_ref = fct.code;
     base::Vector<const uint8_t> bytes = wire_bytes->GetCode(wire_bytes_ref);
+    bool is_shared = module->types[fct.sig_index].is_shared;
     wasm::FunctionBody func_body{fct.sig, wire_bytes_ref.offset(),
-                                 bytes.begin(), bytes.end()};
+                                 bytes.begin(), bytes.end(), is_shared};
     AccountingAllocator allocator;
     std::ostringstream wasm_str;
     wasm::PrintRawWasmCode(&allocator, func_body, module, wasm::kPrintLocals,
@@ -529,8 +532,7 @@ class GraphC1Visualizer {
   void PrintSchedule(const char* phase, const Schedule* schedule,
                      const SourcePositionTable* positions,
                      const InstructionSequence* instructions);
-  void PrintLiveRanges(const char* phase,
-                       const TopTierRegisterAllocationData* data);
+  void PrintLiveRanges(const char* phase, const RegisterAllocationData* data);
   Zone* zone() const { return zone_; }
 
  private:
@@ -811,8 +813,8 @@ void GraphC1Visualizer::PrintSchedule(const char* phase,
   }
 }
 
-void GraphC1Visualizer::PrintLiveRanges(
-    const char* phase, const TopTierRegisterAllocationData* data) {
+void GraphC1Visualizer::PrintLiveRanges(const char* phase,
+                                        const RegisterAllocationData* data) {
   Tag tag(this, "intervals");
   PrintStringProperty("name", phase);
 
@@ -924,14 +926,9 @@ std::ostream& operator<<(std::ostream& os, const AsC1V& ac) {
 
 std::ostream& operator<<(std::ostream& os,
                          const AsC1VRegisterAllocationData& ac) {
-  // TODO(rmcilroy): Add support for fast register allocator.
-  if (ac.data_->type() == RegisterAllocationData::kTopTier) {
-    AccountingAllocator allocator;
-    Zone tmp_zone(&allocator, ZONE_NAME);
-    GraphC1Visualizer(os, &tmp_zone)
-        .PrintLiveRanges(ac.phase_,
-                         TopTierRegisterAllocationData::cast(ac.data_));
-  }
+  AccountingAllocator allocator;
+  Zone tmp_zone(&allocator, ZONE_NAME);
+  GraphC1Visualizer(os, &tmp_zone).PrintLiveRanges(ac.phase_, ac.data_);
   return os;
 }
 
@@ -1180,22 +1177,12 @@ void PrintTopLevelLiveRanges(std::ostream& os,
 
 std::ostream& operator<<(std::ostream& os,
                          const RegisterAllocationDataAsJSON& ac) {
-  if (ac.data_.type() == RegisterAllocationData::kTopTier) {
-    const TopTierRegisterAllocationData& ac_data =
-        TopTierRegisterAllocationData::cast(ac.data_);
-    os << "\"fixed_double_live_ranges\": ";
-    PrintTopLevelLiveRanges(os, ac_data.fixed_double_live_ranges(), ac.code_);
-    os << ",\"fixed_live_ranges\": ";
-    PrintTopLevelLiveRanges(os, ac_data.fixed_live_ranges(), ac.code_);
-    os << ",\"live_ranges\": ";
-    PrintTopLevelLiveRanges(os, ac_data.live_ranges(), ac.code_);
-  } else {
-    // TODO(rmcilroy): Add support for fast register allocation data. For now
-    // output the expected fields to keep Turbolizer happy.
-    os << "\"fixed_double_live_ranges\": {}";
-    os << ",\"fixed_live_ranges\": {}";
-    os << ",\"live_ranges\": {}";
-  }
+  os << "\"fixed_double_live_ranges\": ";
+  PrintTopLevelLiveRanges(os, ac.data_.fixed_double_live_ranges(), ac.code_);
+  os << ",\"fixed_live_ranges\": ";
+  PrintTopLevelLiveRanges(os, ac.data_.fixed_live_ranges(), ac.code_);
+  os << ",\"live_ranges\": ";
+  PrintTopLevelLiveRanges(os, ac.data_.live_ranges(), ac.code_);
   return os;
 }
 

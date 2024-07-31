@@ -31,6 +31,7 @@ extern enum VariableAllocationInfo extends uint32 {
 extern enum VariableMode extends uint32 {
   kLet,
   kConst,
+  kUsing,
   kVar,
   kTemporary,
   kDynamic,
@@ -119,6 +120,12 @@ extern class ScopeInfo extends HeapObject {
   // context.
   const context_local_count: Smi;
 
+  // This value must be before any object values, so that the GC can correctly
+  // determine the size of a partially initialized object during
+  // deserialization.
+  const module_variable_count?
+      [flags.scope_type == ScopeType::MODULE_SCOPE]: Smi;
+
   // Contains the names of inlined local variables and parameters that are
   // allocated in the context. They are stored in increasing order of the
   // context slot index starting with Context::MIN_CONTEXT_SLOTS.
@@ -170,13 +177,10 @@ extern class ScopeInfo extends HeapObject {
   // can't be materialized.
   locals_block_list?[flags.has_locals_block_list]: HashTable;
 
-  // For a module scope, this part contains the SourceTextModuleInfo, the
-  // number of MODULE-allocated variables, and the metadata of those
-  // variables.  For non-module scopes it is empty.
+  // For a module scope, this part contains the SourceTextModuleInfo and the
+  // metadata of module-allocated variables. For non-module scopes it is empty.
   module_info?
       [flags.scope_type == ScopeType::MODULE_SCOPE]: SourceTextModuleInfo;
-  const module_variable_count?
-      [flags.scope_type == ScopeType::MODULE_SCOPE]: Smi;
   module_variables[flags.scope_type == ScopeType::MODULE_SCOPE ? module_variable_count : 0]:
       ModuleVariable;
 }

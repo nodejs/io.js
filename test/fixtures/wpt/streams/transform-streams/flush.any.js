@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,shadowrealm
 // META: script=../resources/test-utils.js
 'use strict';
 
@@ -129,3 +129,18 @@ promise_test(t => {
   });
   return promise_rejects_exactly(t, error1, ts.writable.getWriter().close(), 'close() should reject');
 }, 'error() during flush should cause writer.close() to reject');
+
+promise_test(async t => {
+  let flushed = false;
+  const ts = new TransformStream({
+    flush() {
+      flushed = true;
+    },
+    cancel: t.unreached_func('cancel should not be called')
+  });
+  const closePromise = ts.writable.close();
+  await delay(0);
+  const cancelPromise = ts.readable.cancel(error1);
+  await Promise.all([closePromise, cancelPromise]);
+  assert_equals(flushed, true, 'transformer.flush() should be called');
+}, 'closing the writable side should call transformer.flush() and a parallel readable.cancel() should not reject');

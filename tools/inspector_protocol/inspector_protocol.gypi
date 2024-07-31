@@ -8,7 +8,6 @@
       'lib/encoding_h.template',
       'lib/encoding_cpp.template',
       'lib/Allocator_h.template',
-      'lib/Array_h.template',
       'lib/DispatcherBase_cpp.template',
       'lib/DispatcherBase_h.template',
       'lib/ErrorSupport_cpp.template',

@@ -26,7 +26,6 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Flags: --noanalyze-environment-liveness --turbofan
-// Flags: --experimental-value-unavailable
 // The functions used for testing backtraces. They are at the top to make the
 // testing of source line/column easier.
 

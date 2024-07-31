@@ -94,21 +94,33 @@ def clean_json_output(json_path, basedir):
   # path dependent on where this runs.
   def replace_variable_data(data):
     data['duration'] = 1
+    data['max_rss'] = 1
+    data['max_vms'] = 1
     data['command'] = ' '.join(
         ['/usr/bin/python'] + data['command'].split()[1:])
     data['command'] = data['command'].replace(f'{basedir}/', '')
-  for data in json_output['slowest_tests']:
-    replace_variable_data(data)
-  for data in json_output['results']:
-    replace_variable_data(data)
+  for container in [
+      'max_rss_tests', 'max_vms_tests','slowest_tests', 'results']:
+    for data in json_output[container]:
+      replace_variable_data(data)
   json_output['duration_mean'] = 1
   # We need lexicographic sorting here to avoid non-deterministic behaviour
-  # The original sorting key is duration, but in our fake test we have
-  # non-deterministic durations before we reset them to 1
+  # The original sorting key is duration or memory, but in our fake test we
+  # have non-deterministic values before we reset them to 1.
   def sort_key(x):
     return str(sorted(x.items()))
-  json_output['slowest_tests'].sort(key=sort_key)
+  for container in [
+      'max_rss_tests', 'max_vms_tests','slowest_tests']:
+    json_output[container].sort(key=sort_key)
   return json_output
+
+
+def test_schedule_log(json_path):
+  if not json_path:
+    return None
+  with open(json_path.parent / 'test_schedule.log') as f:
+    return f.read()
+
 
 def setup_build_config(basedir, outdir):
   """Ensure a build config file exists - default or from test root."""
@@ -145,6 +157,7 @@ class TestResult():
   stderr: str
   returncode: int
   json: str
+  test_schedule: str
   current_test_case: unittest.TestCase
 
   def __str__(self):
@@ -207,7 +220,9 @@ class TestRunnerTest(unittest.TestCase):
         runner = self.get_runner_class()(basedir=basedir)
         code = runner.execute(sys_args)
         json_out = clean_json_output(json_out_path, basedir)
-        return TestResult(stdout.getvalue(), stderr.getvalue(), code, json_out, self)
+        test_schedule = test_schedule_log(json_out_path)
+        return TestResult(
+            stdout.getvalue(), stderr.getvalue(), code, json_out, test_schedule, self)
 
   def get_runner_options(self, baseroot='testroot1'):
     """Returns a list of all flags parsed by the test runner."""
@@ -267,7 +282,8 @@ class FakeCommand(BaseCommand):
                env=None,
                verbose=False,
                test_case=None,
-               handle_sigterm=False):
+               handle_sigterm=False,
+               log_process_stats=False):
     f_prefix = ['fake_wrapper'] + cmd_prefix
     super(FakeCommand, self).__init__(
         shell,
@@ -276,7 +292,8 @@ class FakeCommand(BaseCommand):
         timeout=timeout,
         env=env,
         verbose=verbose,
-        handle_sigterm=handle_sigterm)
+        handle_sigterm=handle_sigterm,
+        log_process_stats=log_process_stats)
 
   def execute(self):
     FakeCommand.counter += 1
@@ -286,5 +303,6 @@ class FakeCommand(BaseCommand):
         f'fake stdout {FakeCommand.counter}',
         f'fake stderr {FakeCommand.counter}',
         -1,  # No pid available.
-        99,
+        start_time=1,
+        end_time=100,
     )

@@ -1,4 +1,4 @@
-// Flags: --frozen-intrinsics
+// Flags: --frozen-intrinsics --jitless
 'use strict';
 require('../common');
 const assert = require('assert');

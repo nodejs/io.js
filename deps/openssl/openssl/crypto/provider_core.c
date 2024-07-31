@@ -936,44 +936,46 @@ static int provider_init(OSSL_PROVIDER *prov)
     prov->provctx = tmp_provctx;
     prov->dispatch = provider_dispatch;
 
-    for (; provider_dispatch->function_id != 0; provider_dispatch++) {
-        switch (provider_dispatch->function_id) {
-        case OSSL_FUNC_PROVIDER_TEARDOWN:
-            prov->teardown =
-                OSSL_FUNC_provider_teardown(provider_dispatch);
-            break;
-        case OSSL_FUNC_PROVIDER_GETTABLE_PARAMS:
-            prov->gettable_params =
-                OSSL_FUNC_provider_gettable_params(provider_dispatch);
-            break;
-        case OSSL_FUNC_PROVIDER_GET_PARAMS:
-            prov->get_params =
-                OSSL_FUNC_provider_get_params(provider_dispatch);
-            break;
-        case OSSL_FUNC_PROVIDER_SELF_TEST:
-            prov->self_test =
-                OSSL_FUNC_provider_self_test(provider_dispatch);
-            break;
-        case OSSL_FUNC_PROVIDER_GET_CAPABILITIES:
-            prov->get_capabilities =
-                OSSL_FUNC_provider_get_capabilities(provider_dispatch);
-            break;
-        case OSSL_FUNC_PROVIDER_QUERY_OPERATION:
-            prov->query_operation =
-                OSSL_FUNC_provider_query_operation(provider_dispatch);
-            break;
-        case OSSL_FUNC_PROVIDER_UNQUERY_OPERATION:
-            prov->unquery_operation =
-                OSSL_FUNC_provider_unquery_operation(provider_dispatch);
-            break;
+    if (provider_dispatch != NULL) {
+        for (; provider_dispatch->function_id != 0; provider_dispatch++) {
+            switch (provider_dispatch->function_id) {
+            case OSSL_FUNC_PROVIDER_TEARDOWN:
+                prov->teardown =
+                    OSSL_FUNC_provider_teardown(provider_dispatch);
+                break;
+            case OSSL_FUNC_PROVIDER_GETTABLE_PARAMS:
+                prov->gettable_params =
+                    OSSL_FUNC_provider_gettable_params(provider_dispatch);
+                break;
+            case OSSL_FUNC_PROVIDER_GET_PARAMS:
+                prov->get_params =
+                    OSSL_FUNC_provider_get_params(provider_dispatch);
+                break;
+            case OSSL_FUNC_PROVIDER_SELF_TEST:
+                prov->self_test =
+                    OSSL_FUNC_provider_self_test(provider_dispatch);
+                break;
+            case OSSL_FUNC_PROVIDER_GET_CAPABILITIES:
+                prov->get_capabilities =
+                    OSSL_FUNC_provider_get_capabilities(provider_dispatch);
+                break;
+            case OSSL_FUNC_PROVIDER_QUERY_OPERATION:
+                prov->query_operation =
+                    OSSL_FUNC_provider_query_operation(provider_dispatch);
+                break;
+            case OSSL_FUNC_PROVIDER_UNQUERY_OPERATION:
+                prov->unquery_operation =
+                    OSSL_FUNC_provider_unquery_operation(provider_dispatch);
+                break;
 #ifndef OPENSSL_NO_ERR
 # ifndef FIPS_MODULE
-        case OSSL_FUNC_PROVIDER_GET_REASON_STRINGS:
-            p_get_reason_strings =
-                OSSL_FUNC_provider_get_reason_strings(provider_dispatch);
-            break;
+            case OSSL_FUNC_PROVIDER_GET_REASON_STRINGS:
+                p_get_reason_strings =
+                    OSSL_FUNC_provider_get_reason_strings(provider_dispatch);
+                break;
 # endif
 #endif
+            }
         }
     }
 

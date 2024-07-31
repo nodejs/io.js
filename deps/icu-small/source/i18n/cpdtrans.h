@@ -63,7 +63,7 @@ public:
      */
     CompoundTransliterator(Transliterator* const transliterators[],
                            int32_t transliteratorCount,
-                           UnicodeFilter* adoptedFilter = 0);
+                           UnicodeFilter* adoptedFilter = nullptr);
 
     /**
      * Constructs a new compound transliterator.

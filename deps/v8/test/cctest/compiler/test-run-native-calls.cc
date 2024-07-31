@@ -189,6 +189,7 @@ class RegisterConfig {
     int stack_param_count = params.stack_offset();
     return zone->New<CallDescriptor>(       // --
         CallDescriptor::kCallCodeObject,    // kind
+        kDefaultCodeEntrypointTag,          // tag
         target_type,                        // target MachineType
         target_loc,                         // target location
         locations.Build(),                  // location_sig

@@ -14,11 +14,9 @@
 
 U_NAMESPACE_BEGIN
 
-namespace number {
-namespace impl {
+namespace number::impl {
 class LongNameHandler;
 }
-} // namespace number
 
 static const char16_t kDefaultCurrency[] = u"XXX";
 static const char kDefaultCurrency8[] = "XXX";

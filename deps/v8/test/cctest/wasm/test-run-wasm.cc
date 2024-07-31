@@ -9,6 +9,7 @@
 #include "src/base/overflowing-math.h"
 #include "src/utils/utils.h"
 #include "src/wasm/code-space-access.h"
+#include "src/wasm/compilation-environment-inl.h"
 #include "src/wasm/wasm-opcodes-inl.h"
 #include "test/cctest/cctest.h"
 #include "test/cctest/wasm/wasm-run-utils.h"
@@ -2127,9 +2128,7 @@ static void TestBuildGraphForSimpleExpression(WasmOpcode opcode) {
   compiler::JSGraph jsgraph(isolate, &graph, &common, nullptr, nullptr,
                             &machine);
   const FunctionSig* sig = WasmOpcodes::Signature(opcode);
-  WasmModule module;
-  WasmFeatures enabled;
-  CompilationEnv env(&module, enabled, DynamicTiering::kDynamicTiering);
+  CompilationEnv env = CompilationEnv::NoModuleAllFeatures();
 
   if (sig->parameter_count() == 1) {
     uint8_t code[] = {WASM_NO_LOCALS, kExprLocalGet, 0,
@@ -2544,7 +2543,6 @@ class IsolateScope {
 // f(N,X) => f(N-1,X*N).
 
 UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_Factorial) {
-  EXPERIMENTAL_FLAG_SCOPE(return_call);
   // Run in bounded amount of stack - 8kb.
   FlagScope<int32_t> stack_size(&v8_flags.stack_size, 8);
 
@@ -2580,7 +2578,6 @@ UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_Factorial) {
 // g(X,N) => f(N-1,X*N).
 
 UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_MutualFactorial) {
-  EXPERIMENTAL_FLAG_SCOPE(return_call);
   // Run in bounded amount of stack - 8kb.
   FlagScope<int32_t> stack_size(&v8_flags.stack_size, 8);
 
@@ -2623,7 +2620,6 @@ UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_MutualFactorial) {
 // f(N,X,F) => F(N-1,X*N,F).
 
 UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_IndirectFactorial) {
-  EXPERIMENTAL_FLAG_SCOPE(return_call);
   // Run in bounded amount of stack - 8kb.
   FlagScope<int32_t> stack_size(&v8_flags.stack_size, 8);
 
@@ -2670,7 +2666,6 @@ UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_IndirectFactorial) {
 // sum(N,k) => sum(N-1,k+N).
 
 UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_Sum) {
-  EXPERIMENTAL_FLAG_SCOPE(return_call);
   // Run in bounded amount of stack - 8kb.
   FlagScope<int32_t> stack_size(&v8_flags.stack_size, 8);
 
@@ -2710,7 +2705,6 @@ UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_Sum) {
 // b3(N,_,_,k) => b1(N-1,k+N).
 
 UNINITIALIZED_WASM_EXEC_TEST(ReturnCall_Bounce_Sum) {
-  EXPERIMENTAL_FLAG_SCOPE(return_call);
   // Run in bounded amount of stack - 8kb.
   FlagScope<int32_t> stack_size(&v8_flags.stack_size, 8);
 

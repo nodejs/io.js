@@ -131,6 +131,8 @@ size_t nghttp2_map_size(nghttp2_map *map);
 int nghttp2_map_each(nghttp2_map *map, int (*func)(void *data, void *ptr),
                      void *ptr);
 
+#ifndef WIN32
 void nghttp2_map_print_distance(nghttp2_map *map);
+#endif /* !WIN32 */
 
 #endif /* NGHTTP2_MAP_H */

@@ -46,4 +46,7 @@ fs.writeFile(fullPath, 'ok', common.mustSucceed(() => {
 
   // Tests https://github.com/nodejs/node/issues/39721
   fs.realpath.native(fullPath, common.mustSucceed());
+
+  // Tests https://github.com/nodejs/node/issues/51031
+  fs.promises.realpath(fullPath).then(common.mustCall(), common.mustNotCall());
 }));

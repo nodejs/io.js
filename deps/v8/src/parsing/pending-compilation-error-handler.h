@@ -87,6 +87,8 @@ class PendingCompilationErrorHandler {
  private:
   class MessageDetails {
    public:
+    static constexpr int kMaxArgumentCount = 3;
+
     MOVE_ONLY_NO_DEFAULT_CONSTRUCTOR(MessageDetails);
     MessageDetails()
         : start_position_(-1),
@@ -177,7 +179,6 @@ class PendingCompilationErrorHandler {
       Type type;
     };
 
-    static constexpr int kMaxArgumentCount = 3;
     MessageArgument args_[kMaxArgumentCount];
   };
 

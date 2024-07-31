@@ -1,59 +1,27 @@
 TAP version 13
-# Subtest: top level test disabled
-ok 1 - top level test disabled # SKIP test name does not match pattern
-  ---
-  duration_ms: *
-  ...
-# Subtest: top level skipped test disabled
-ok 2 - top level skipped test disabled # SKIP test name does not match pattern
-  ---
-  duration_ms: *
-  ...
 # Subtest: top level skipped test enabled
-ok 3 - top level skipped test enabled # SKIP
+ok 1 - top level skipped test enabled # SKIP
   ---
   duration_ms: *
   ...
 # Subtest: top level it enabled
-ok 4 - top level it enabled
-  ---
-  duration_ms: *
-  ...
-# Subtest: top level it disabled
-ok 5 - top level it disabled # SKIP test name does not match pattern
-  ---
-  duration_ms: *
-  ...
-# Subtest: top level skipped it disabled
-ok 6 - top level skipped it disabled # SKIP test name does not match pattern
+ok 2 - top level it enabled
   ---
   duration_ms: *
   ...
 # Subtest: top level skipped it enabled
-ok 7 - top level skipped it enabled # SKIP
+ok 3 - top level skipped it enabled # SKIP
   ---
   duration_ms: *
-  ...
-# Subtest: top level describe never disabled
-ok 8 - top level describe never disabled
-  ---
-  duration_ms: *
-  type: 'suite'
-  ...
-# Subtest: top level skipped describe disabled
-ok 9 - top level skipped describe disabled # SKIP test name does not match pattern
-  ---
-  duration_ms: *
-  type: 'suite'
   ...
 # Subtest: top level skipped describe enabled
-ok 10 - top level skipped describe enabled # SKIP
+ok 4 - top level skipped describe enabled # SKIP
   ---
   duration_ms: *
   type: 'suite'
   ...
 # Subtest: top level runs because name includes PaTtErN
-ok 11 - top level runs because name includes PaTtErN
+ok 5 - top level runs because name includes PaTtErN
   ---
   duration_ms: *
   ...
@@ -64,7 +32,7 @@ ok 11 - top level runs because name includes PaTtErN
       duration_ms: *
       ...
     1..1
-ok 12 - top level test enabled
+ok 6 - top level test enabled
   ---
   duration_ms: *
   ...
@@ -98,7 +66,7 @@ ok 12 - top level test enabled
       type: 'suite'
       ...
     1..4
-ok 13 - top level describe enabled
+ok 7 - top level describe enabled
   ---
   duration_ms: *
   type: 'suite'
@@ -132,51 +100,84 @@ ok 13 - top level describe enabled
       type: 'suite'
       ...
     1..3
-ok 14 - yes
+ok 8 - yes
   ---
   duration_ms: *
   type: 'suite'
   ...
 # Subtest: no
-    # Subtest: no
-    ok 1 - no # SKIP test name does not match pattern
-      ---
-      duration_ms: *
-      ...
     # Subtest: yes
-    ok 2 - yes
+    ok 1 - yes
       ---
       duration_ms: *
       ...
     # Subtest: maybe
-        # Subtest: no
-        ok 1 - no # SKIP test name does not match pattern
-          ---
-          duration_ms: *
-          ...
         # Subtest: yes
-        ok 2 - yes
+        ok 1 - yes
           ---
           duration_ms: *
           ...
-        1..2
-    ok 3 - maybe
+        1..1
+    ok 2 - maybe
       ---
       duration_ms: *
       type: 'suite'
       ...
-    1..3
-ok 15 - no
+    1..2
+ok 9 - no
   ---
   duration_ms: *
   type: 'suite'
   ...
-1..15
-# tests 21
-# suites 10
-# pass 13
+# Subtest: no with todo
+    # Subtest: yes
+    ok 1 - yes
+      ---
+      duration_ms: *
+      ...
+    # Subtest: maybe
+        # Subtest: yes
+        ok 1 - yes
+          ---
+          duration_ms: *
+          ...
+        1..1
+    ok 2 - maybe
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    1..2
+ok 10 - no with todo # TODO
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: DescribeForMatchWithAncestors
+    # Subtest: NestedDescribeForMatchWithAncestors
+        # Subtest: NestedTest
+        ok 1 - NestedTest
+          ---
+          duration_ms: *
+          ...
+        1..1
+    ok 1 - NestedDescribeForMatchWithAncestors
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    1..1
+ok 11 - DescribeForMatchWithAncestors
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+1..11
+# tests 18
+# suites 12
+# pass 16
 # fail 0
 # cancelled 0
-# skipped 8
+# skipped 2
 # todo 0
 # duration_ms *

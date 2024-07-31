@@ -20,6 +20,7 @@ with different test suite extensions and build configurations.
 from collections import deque
 from pathlib import Path
 
+import re
 import sys
 import unittest
 from mock import patch
@@ -31,6 +32,8 @@ from testrunner import standard_runner
 from testrunner import num_fuzzer
 from testrunner.testproc import base
 from testrunner.testproc import fuzzer
+from testrunner.testproc import resultdb
+from testrunner.testproc.resultdb_server_mock import RDBMockServer
 from testrunner.utils.test_utils import (
     temp_base,
     TestRunnerTest,
@@ -38,7 +41,17 @@ from testrunner.utils.test_utils import (
     FakeOSContext,
 )
 
+
 class StandardRunnerTest(TestRunnerTest):
+
+  def setUp(self):
+    self.mock_rdb_server = RDBMockServer()
+    resultdb.TESTING_SINK = dict(
+        auth_token='none', address=self.mock_rdb_server.address)
+
+  def tearDown(self):
+    resultdb.TESTING_SINK = None
+
   def get_runner_class(self):
     return standard_runner.StandardTestRunner
 
@@ -156,7 +169,7 @@ class StandardRunnerTest(TestRunnerTest):
     # With test processors we don't count reruns as separated failures.
     # TODO(majeski): fix it?
     result.stdout_includes('1 tests failed')
-    result.has_returncode(0)
+    result.has_returncode(1)
 
     # TODO(majeski): Previously we only reported the variant flags in the
     # flags field of the test result.
@@ -208,8 +221,14 @@ class StandardRunnerTest(TestRunnerTest):
     result.stdout_includes('=== sweet/bananaflakes (flaky) ===')
     result.stdout_includes('1 tests failed')
     result.stdout_includes('1 tests were flaky')
-    result.has_returncode(0)
+    result.has_returncode(1)
     result.json_content_equals('expected_test_results2.json')
+    self.assertTrue(re.search(
+        r'sweet/bananaflakes default: FAIL \(\d+\.\d+:\d+\.\d+\)',
+        result.test_schedule))
+    self.assertTrue(re.search(
+        r'sweet/bananaflakes default: PASS \(\d+\.\d+:\d+\.\d+\)',
+        result.test_schedule))
 
   def testAutoDetect(self):
     """Fake a build with several auto-detected options.

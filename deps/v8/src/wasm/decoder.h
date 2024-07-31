@@ -47,7 +47,7 @@ class ITracer {
   // Hooks for extracting byte offsets of things.
   virtual void TypeOffset(uint32_t offset) = 0;
   virtual void ImportOffset(uint32_t offset) = 0;
-  virtual void ImportsDone() = 0;
+  virtual void ImportsDone(const WasmModule* module) = 0;
   virtual void TableOffset(uint32_t offset) = 0;
   virtual void MemoryOffset(uint32_t offset) = 0;
   virtual void TagOffset(uint32_t offset) = 0;
@@ -56,6 +56,7 @@ class ITracer {
   virtual void ElementOffset(uint32_t offset) = 0;
   virtual void DataOffset(uint32_t offset) = 0;
   virtual void StringOffset(uint32_t offset) = 0;
+  virtual void RecGroupOffset(uint32_t offset, uint32_t group_size) = 0;
 
   // Hooks for annotated hex dumps.
   virtual void Bytes(const uint8_t* start, uint32_t count) = 0;

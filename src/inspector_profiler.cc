@@ -11,7 +11,10 @@
 #include "v8-inspector.h"
 
 #include <cinttypes>
+#include <filesystem>
+#include <limits>
 #include <sstream>
+#include "simdutf.h"
 
 namespace node {
 namespace profiler {
@@ -23,7 +26,6 @@ using v8::FunctionCallbackInfo;
 using v8::HandleScope;
 using v8::Isolate;
 using v8::Local;
-using v8::MaybeLocal;
 using v8::NewStringType;
 using v8::Object;
 using v8::String;
@@ -38,11 +40,15 @@ V8ProfilerConnection::V8ProfilerConnection(Environment* env)
           false)),
       env_(env) {}
 
-uint32_t V8ProfilerConnection::DispatchMessage(const char* method,
+uint64_t V8ProfilerConnection::DispatchMessage(const char* method,
                                                const char* params,
                                                bool is_profile_request) {
   std::stringstream ss;
-  uint32_t id = next_id();
+  uint64_t id = next_id();
+  // V8's inspector protocol cannot take an integer beyond the int32_t limit.
+  // In practice the id we use is up to 3-5 for the profilers we have
+  // here.
+  CHECK_LT(id, static_cast<uint64_t>(std::numeric_limits<int32_t>::max()));
   ss << R"({ "id": )" << id;
   DCHECK(method != nullptr);
   ss << R"(, "method": ")" << method << '"';
@@ -67,8 +73,10 @@ uint32_t V8ProfilerConnection::DispatchMessage(const char* method,
 
 static void WriteResult(Environment* env,
                         const char* path,
-                        Local<String> result) {
-  int ret = WriteFileSync(env->isolate(), path, result);
+                        std::string_view profile) {
+  uv_buf_t buf =
+      uv_buf_init(const_cast<char*>(profile.data()), profile.length());
+  int ret = WriteFileSync(path, buf);
   if (ret != 0) {
     char err_buf[128];
     uv_err_name_r(ret, err_buf, sizeof(err_buf));
@@ -78,6 +86,29 @@ static void WriteResult(Environment* env,
   Debug(env, DebugCategory::INSPECTOR_PROFILER, "Written result to %s\n", path);
 }
 
+bool StringViewToUTF8(const v8_inspector::StringView& source,
+                      std::vector<char>* utf8_out,
+                      size_t* utf8_length,
+                      size_t padding) {
+  size_t source_len = source.length();
+  if (source.is8Bit()) {
+    const char* latin1 = reinterpret_cast<const char*>(source.characters8());
+    *utf8_length = simdutf::utf8_length_from_latin1(latin1, source_len);
+    utf8_out->resize(*utf8_length + padding);
+    size_t result_len =
+        simdutf::convert_latin1_to_utf8(latin1, source_len, utf8_out->data());
+    return *utf8_length == result_len;
+  }
+
+  const char16_t* utf16 =
+      reinterpret_cast<const char16_t*>(source.characters16());
+  *utf8_length = simdutf::utf8_length_from_utf16(utf16, source_len);
+  utf8_out->resize(*utf8_length + padding);
+  size_t result_len =
+      simdutf::convert_utf16_to_utf8(utf16, source_len, utf8_out->data());
+  return *utf8_length == result_len;
+}
+
 void V8ProfilerConnection::V8ProfilerSessionDelegate::SendMessageToFrontend(
     const v8_inspector::StringView& message) {
   Environment* env = connection_->env();
@@ -85,70 +116,75 @@ void V8ProfilerConnection::V8ProfilerSessionDelegate::SendMessageToFrontend(
   HandleScope handle_scope(isolate);
   Local<Context> context = env->context();
   Context::Scope context_scope(context);
-
   const char* type = connection_->type();
-  // Convert StringView to a Local<String>.
-  Local<String> message_str;
-  if (!String::NewFromTwoByte(isolate,
-                              message.characters16(),
-                              NewStringType::kNormal,
-                              message.length())
-           .ToLocal(&message_str)) {
-    fprintf(
-        stderr, "Failed to convert %s profile message to V8 string\n", type);
-    return;
-  }
 
   Debug(env,
         DebugCategory::INSPECTOR_PROFILER,
-        "Receive %s profile message\n",
+        "Received %s profile message\n",
         type);
 
-  Local<Value> parsed;
-  if (!v8::JSON::Parse(context, message_str).ToLocal(&parsed) ||
-      !parsed->IsObject()) {
-    fprintf(stderr, "Failed to parse %s profile result as JSON object\n", type);
+  std::vector<char> message_utf8;
+  size_t message_utf8_length;
+  if (!StringViewToUTF8(message,
+                        &message_utf8,
+                        &message_utf8_length,
+                        simdjson::SIMDJSON_PADDING)) {
+    fprintf(
+        stderr, "Failed to convert %s profile message to UTF8 string\n", type);
     return;
   }
 
-  Local<Object> response = parsed.As<Object>();
-  Local<Value> id_v;
-  if (!response->Get(context, FIXED_ONE_BYTE_STRING(isolate, "id"))
-           .ToLocal(&id_v) ||
-      !id_v->IsUint32()) {
-    Utf8Value str(isolate, message_str);
+  simdjson::ondemand::document parsed;
+  simdjson::ondemand::object response;
+  if (connection_->json_parser_
+          .iterate(
+              message_utf8.data(), message_utf8_length, message_utf8.size())
+          .get(parsed) ||
+      parsed.get_object().get(response)) {
     fprintf(
-        stderr, "Cannot retrieve id from the response message:\n%s\n", *str);
+        stderr, "Failed to parse %s profile result as JSON object:\n", type);
+    fprintf(stderr,
+            "%.*s\n",
+            static_cast<int>(message_utf8_length),
+            message_utf8.data());
     return;
   }
-  uint32_t id = id_v.As<v8::Uint32>()->Value();
+
+  uint64_t id;
+  if (response["id"].get_uint64().get(id)) {
+    fprintf(stderr, "Cannot retrieve id from %s profile response:\n", type);
+    fprintf(stderr,
+            "%.*s\n",
+            static_cast<int>(message_utf8_length),
+            message_utf8.data());
+    return;
+  }
 
   if (!connection_->HasProfileId(id)) {
-    Utf8Value str(isolate, message_str);
-    Debug(env, DebugCategory::INSPECTOR_PROFILER, "%s\n", *str);
+    Debug(env,
+          DebugCategory::INSPECTOR_PROFILER,
+          "%s\n",
+          std::string_view(message_utf8.data(), message_utf8_length));
     return;
   } else {
     Debug(env,
           DebugCategory::INSPECTOR_PROFILER,
           "Writing profile response (id = %" PRIu64 ")\n",
-          static_cast<uint64_t>(id));
+          id);
   }
 
+  simdjson::ondemand::object result;
   // Get message.result from the response.
-  Local<Value> result_v;
-  if (!response->Get(context, FIXED_ONE_BYTE_STRING(isolate, "result"))
-           .ToLocal(&result_v)) {
-    fprintf(stderr, "Failed to get 'result' from %s profile response\n", type);
+  if (response["result"].get_object().get(result)) {
+    fprintf(stderr, "Failed to get 'result' from %s profile response:\n", type);
+    fprintf(stderr,
+            "%.*s\n",
+            static_cast<int>(message_utf8_length),
+            message_utf8.data());
     return;
   }
 
-  if (!result_v->IsObject()) {
-    fprintf(
-        stderr, "'result' from %s profile response is not an object\n", type);
-    return;
-  }
-
-  connection_->WriteProfile(result_v.As<Object>());
+  connection_->WriteProfile(&result);
   connection_->RemoveProfileId(id);
 }
 
@@ -178,20 +214,31 @@ std::string V8CoverageConnection::GetFilename() const {
       env()->thread_id());
 }
 
-void V8ProfilerConnection::WriteProfile(Local<Object> result) {
-  Local<Context> context = env_->context();
+std::optional<std::string_view> V8ProfilerConnection::GetProfile(
+    simdjson::ondemand::object* result) {
+  simdjson::ondemand::object profile_object;
+  if ((*result)["profile"].get_object().get(profile_object)) {
+    fprintf(
+        stderr, "'profile' from %s profile result is not an Object\n", type());
+    return std::nullopt;
+  }
+  std::string_view profile_raw;
+  if (profile_object.raw_json().get(profile_raw)) {
+    fprintf(stderr,
+            "Cannot get raw string of the 'profile' field from %s profile\n",
+            type());
+    return std::nullopt;
+  }
+  return profile_raw;
+}
 
+void V8ProfilerConnection::WriteProfile(simdjson::ondemand::object* result) {
   // Generate the profile output from the subclass.
-  Local<Object> profile;
-  if (!GetProfile(result).ToLocal(&profile)) {
+  auto profile_opt = GetProfile(result);
+  if (!profile_opt.has_value()) {
     return;
   }
-
-  Local<String> result_s;
-  if (!v8::JSON::Stringify(context, profile).ToLocal(&result_s)) {
-    fprintf(stderr, "Failed to stringify %s profile result\n", type());
-    return;
-  }
+  std::string_view profile = profile_opt.value();
 
   // Create the directory if necessary.
   std::string directory = GetDirectory();
@@ -202,16 +249,14 @@ void V8ProfilerConnection::WriteProfile(Local<Object> result) {
 
   std::string filename = GetFilename();
   DCHECK(!filename.empty());
-  std::string path = directory + kPathSeparator + filename;
+  std::string path = (std::filesystem::path(directory) / filename).string();
 
-  WriteResult(env_, path.c_str(), result_s);
+  WriteResult(env_, path.c_str(), profile);
 }
 
-void V8CoverageConnection::WriteProfile(Local<Object> result) {
+void V8CoverageConnection::WriteProfile(simdjson::ondemand::object* result) {
   Isolate* isolate = env_->isolate();
-  Local<Context> context = env_->context();
   HandleScope handle_scope(isolate);
-  Context::Scope context_scope(context);
 
   // This is only set up during pre-execution (when the environment variables
   // becomes available in the JS land). If it's empty, we don't have coverage
@@ -223,11 +268,15 @@ void V8CoverageConnection::WriteProfile(Local<Object> result) {
     return;
   }
 
+  Local<Context> context = env_->context();
+  Context::Scope context_scope(context);
+
   // Generate the profile output from the subclass.
-  Local<Object> profile;
-  if (!GetProfile(result).ToLocal(&profile)) {
+  auto profile_opt = GetProfile(result);
+  if (!profile_opt.has_value()) {
     return;
   }
+  std::string_view profile = profile_opt.value();
 
   // append source-map cache information to coverage object:
   Local<Value> source_map_cache_v;
@@ -246,17 +295,6 @@ void V8CoverageConnection::WriteProfile(Local<Object> result) {
       PrintCaughtException(isolate, context, try_catch);
     }
   }
-  // Avoid writing to disk if no source-map data:
-  if (!source_map_cache_v->IsUndefined()) {
-    profile->Set(context, FIXED_ONE_BYTE_STRING(isolate, "source-map-cache"),
-                source_map_cache_v).ToChecked();
-  }
-
-  Local<String> result_s;
-  if (!v8::JSON::Stringify(context, profile).ToLocal(&result_s)) {
-    fprintf(stderr, "Failed to stringify %s profile result\n", type());
-    return;
-  }
 
   // Create the directory if necessary.
   std::string directory = GetDirectory();
@@ -267,13 +305,60 @@ void V8CoverageConnection::WriteProfile(Local<Object> result) {
 
   std::string filename = GetFilename();
   DCHECK(!filename.empty());
-  std::string path = directory + kPathSeparator + filename;
+  std::string path = (std::filesystem::path(directory) / filename).string();
 
-  WriteResult(env_, path.c_str(), result_s);
+  // Only insert source map cache when there's source map data at all.
+  if (!source_map_cache_v->IsUndefined()) {
+    // It would be more performant to just find the last } and insert the source
+    // map cache in front of it, but source map cache is still experimental
+    // anyway so just re-parse it with V8 for now.
+    Local<String> profile_str;
+    if (!v8::String::NewFromUtf8(isolate,
+                                 profile.data(),
+                                 v8::NewStringType::kNormal,
+                                 profile.length())
+             .ToLocal(&profile_str)) {
+      fprintf(stderr, "Failed to re-parse %s profile as UTF8\n", type());
+      return;
+    }
+    Local<Value> profile_value;
+    if (!v8::JSON::Parse(context, profile_str).ToLocal(&profile_value) ||
+        !profile_value->IsObject()) {
+      fprintf(stderr, "Failed to re-parse %s profile from JSON\n", type());
+      return;
+    }
+    if (profile_value.As<Object>()
+            ->Set(context,
+                  FIXED_ONE_BYTE_STRING(isolate, "source-map-cache"),
+                  source_map_cache_v)
+            .IsNothing()) {
+      fprintf(stderr,
+              "Failed to insert source map cache into %s profile\n",
+              type());
+      return;
+    }
+    Local<String> result_s;
+    if (!v8::JSON::Stringify(context, profile_value).ToLocal(&result_s)) {
+      fprintf(stderr, "Failed to stringify %s profile result\n", type());
+      return;
+    }
+    Utf8Value result_utf8(isolate, result_s);
+    WriteResult(env_, path.c_str(), result_utf8.ToStringView());
+  } else {
+    WriteResult(env_, path.c_str(), profile);
+  }
 }
 
-MaybeLocal<Object> V8CoverageConnection::GetProfile(Local<Object> result) {
-  return result;
+std::optional<std::string_view> V8CoverageConnection::GetProfile(
+    simdjson::ondemand::object* result) {
+  std::string_view profile_raw;
+  if (result->raw_json().get(profile_raw)) {
+    fprintf(stderr,
+            "Cannot get raw string of the 'profile' field from %s profile\n",
+            type());
+    return std::nullopt;
+  }
+  return profile_raw;
 }
 
 std::string V8CoverageConnection::GetDirectory() const {
@@ -313,22 +398,6 @@ std::string V8CpuProfilerConnection::GetFilename() const {
   return env()->cpu_prof_name();
 }
 
-MaybeLocal<Object> V8CpuProfilerConnection::GetProfile(Local<Object> result) {
-  Local<Value> profile_v;
-  if (!result
-           ->Get(env()->context(),
-                 FIXED_ONE_BYTE_STRING(env()->isolate(), "profile"))
-           .ToLocal(&profile_v)) {
-    fprintf(stderr, "'profile' from CPU profile result is undefined\n");
-    return MaybeLocal<Object>();
-  }
-  if (!profile_v->IsObject()) {
-    fprintf(stderr, "'profile' from CPU profile result is not an Object\n");
-    return MaybeLocal<Object>();
-  }
-  return profile_v.As<Object>();
-}
-
 void V8CpuProfilerConnection::Start() {
   DispatchMessage("Profiler.enable");
   std::string params = R"({ "interval": )";
@@ -355,22 +424,6 @@ std::string V8HeapProfilerConnection::GetDirectory() const {
 
 std::string V8HeapProfilerConnection::GetFilename() const {
   return env()->heap_prof_name();
-}
-
-MaybeLocal<Object> V8HeapProfilerConnection::GetProfile(Local<Object> result) {
-  Local<Value> profile_v;
-  if (!result
-           ->Get(env()->context(),
-                 FIXED_ONE_BYTE_STRING(env()->isolate(), "profile"))
-           .ToLocal(&profile_v)) {
-    fprintf(stderr, "'profile' from heap profile result is undefined\n");
-    return MaybeLocal<Object>();
-  }
-  if (!profile_v->IsObject()) {
-    fprintf(stderr, "'profile' from heap profile result is not an Object\n");
-    return MaybeLocal<Object>();
-  }
-  return profile_v.As<Object>();
 }
 
 void V8HeapProfilerConnection::Start() {
@@ -418,12 +471,9 @@ void StartProfilers(Environment* env) {
     EndStartedProfilers(static_cast<Environment*>(env));
   }, env);
 
-  Isolate* isolate = env->isolate();
-  Local<String> coverage_str = env->env_vars()->Get(
-      isolate, FIXED_ONE_BYTE_STRING(isolate, "NODE_V8_COVERAGE"))
-      .FromMaybe(Local<String>());
-  if ((!coverage_str.IsEmpty() && coverage_str->Length() > 0) ||
-      env->options()->test_runner_coverage) {
+  std::string coverage_str =
+      env->env_vars()->Get("NODE_V8_COVERAGE").FromMaybe(std::string());
+  if (!coverage_str.empty() || env->options()->test_runner_coverage) {
     CHECK_NULL(env->coverage_connection());
     env->set_coverage_connection(std::make_unique<V8CoverageConnection>(env));
     env->coverage_connection()->Start();

@@ -7,13 +7,14 @@
 
 set -ex
 
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-[ -z "$NODE" ] && NODE="$ROOT/out/Release/node"
+BASE_DIR=$(cd "$(dirname "$0")/../.." && pwd)
+DEPS_DIR="$BASE_DIR/deps"
+[ -z "$NODE" ] && NODE="$BASE_DIR/out/Release/node"
 [ -x "$NODE" ] || NODE=$(command -v node)
-NPM="$ROOT/deps/npm/bin/npm-cli.js"
+NPM="$BASE_DIR/deps/npm/bin/npm-cli.js"
 
 # shellcheck disable=SC1091
-. "$ROOT/tools/dep_updaters/utils.sh"
+. "$BASE_DIR/tools/dep_updaters/utils.sh"
 
 NEW_VERSION=$("$NODE" "$NPM" view postject dist-tags.latest)
 CURRENT_VERSION=$("$NODE" -p "require('./test/fixtures/postject-copy/node_modules/postject/package.json').version")
@@ -21,21 +22,34 @@ CURRENT_VERSION=$("$NODE" -p "require('./test/fixtures/postject-copy/node_module
 # This function exit with 0 if new version and current version are the same
 compare_dependency_version "postject" "$NEW_VERSION" "$CURRENT_VERSION"
 
-cd "$( dirname "$0" )/../.." || exit
-rm -rf test/fixtures/postject-copy
-mkdir test/fixtures/postject-copy
-cd test/fixtures/postject-copy || exit
+echo "Making temporary workspace..."
+
+WORKSPACE=$(mktemp -d 2> /dev/null || mktemp -d -t 'tmp')
+
+cleanup () {
+  EXIT_CODE=$?
+  [ -d "$WORKSPACE" ] && rm -rf "$WORKSPACE"
+  exit $EXIT_CODE
+}
+
+trap cleanup INT TERM EXIT
+
+cd "$WORKSPACE"
+
+echo "Installing postject npm package..."
 
 "$NODE" "$NPM" init --yes
 
 "$NODE" "$NPM" install --no-bin-links --ignore-scripts "postject@$NEW_VERSION"
 
-# TODO(RaisinTen): Replace following with $WORKSPACE
-cd ../../..
-rm -rf deps/postject
-mkdir deps/postject
-cp test/fixtures/postject-copy/node_modules/postject/LICENSE deps/postject
-cp test/fixtures/postject-copy/node_modules/postject/dist/postject-api.h deps/postject
+echo "Replacing existing postject (except GN build files)"
+
+mv "$DEPS_DIR/postject/"*.gn "$DEPS_DIR/postject/"*.gni "$WORKSPACE/"
+rm -rf "$DEPS_DIR/postject"
+mkdir "$DEPS_DIR/postject"
+mv "$WORKSPACE/"*.gn "$WORKSPACE/"*.gni "$DEPS_DIR/postject"
+mv "$WORKSPACE/node_modules/postject/LICENSE" "$DEPS_DIR/postject"
+mv "$WORKSPACE/node_modules/postject/dist/postject-api.h" "$DEPS_DIR/postject"
 
 # Update the version number on maintaining-dependencies.md
 # and print the new version as the last line of the script as we need

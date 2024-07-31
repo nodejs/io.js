@@ -36,6 +36,20 @@ enum class JumpMode {
 
 enum class SmiCheck { kOmit, kInline };
 
+enum class ComparisonMode {
+  // The default compare mode will use a 32-bit comparison when pointer
+  // compression is enabled and the root is a tagged value.
+  kDefault,
+  // This mode can be used when the value to compare may not be located inside
+  // the main pointer compression cage.
+  kFullPointer,
+};
+
+enum class SetIsolateDataSlots {
+  kNo,
+  kYes,
+};
+
 // This is the only place allowed to include the platform-specific headers.
 #define INCLUDED_FROM_MACRO_ASSEMBLER_H
 #if V8_TARGET_ARCH_IA32
@@ -82,10 +96,11 @@ static constexpr int kMaxCParameters = 256;
 
 class V8_NODISCARD FrameScope {
  public:
-  explicit FrameScope(MacroAssembler* masm, StackFrame::Type type)
+  explicit FrameScope(MacroAssembler* masm, StackFrame::Type type,
+                      SourceLocation loc = SourceLocation())
       :
 #ifdef V8_CODE_COMMENTS
-        comment_(masm, frame_name(type)),
+        comment_(masm, frame_name(type), loc),
 #endif
         masm_(masm),
         type_(type),

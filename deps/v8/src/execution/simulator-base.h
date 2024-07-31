@@ -73,7 +73,7 @@ class SimulatorBase {
   template <typename T>
   static typename std::enable_if<std::is_base_of<Object, T>::value, T>::type
   ConvertReturn(intptr_t ret) {
-    return Object(ret);
+    return Tagged<Object>(ret);
   }
 
 #if V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_LOONG64

@@ -8,6 +8,7 @@
 
 #include "src/base/sanitizer/asan.h"
 #include "src/base/sanitizer/msan.h"
+#include "src/heap/base/memory-tagging.h"
 #include "src/base/sanitizer/tsan.h"
 
 namespace heap::base {
@@ -141,10 +142,14 @@ void IteratePointersInStack(StackVisitor* visitor, const void* top,
 
 }  // namespace
 
-// static
-void Stack::IteratePointersImpl(const Stack* stack, void* argument,
-                                const void* stack_end) {
-  StackVisitor* visitor = static_cast<StackVisitor*>(argument);
+void Stack::IteratePointersForTesting(StackVisitor* visitor) {
+  SetMarkerAndCallback([this, visitor]() { IteratePointers(visitor); });
+}
+
+void Stack::IteratePointersUntilMarker(StackVisitor* visitor) const {
+  DCHECK_NOT_NULL(stack_start_);
+  DCHECK_NOT_NULL(stack_marker_);
+  DCHECK_GE(stack_start_, stack_marker_);
 
 #ifdef V8_USE_ADDRESS_SANITIZER
   const void* asan_fake_stack = __asan_get_current_fake_stack();
@@ -156,30 +161,53 @@ void Stack::IteratePointersImpl(const Stack* stack, void* argument,
   // All supported platforms should have their stack aligned to at least
   // sizeof(void*).
   constexpr size_t kMinStackAlignment = sizeof(void*);
-  CHECK_EQ(0u,
-           reinterpret_cast<uintptr_t>(stack_end) & (kMinStackAlignment - 1));
-  IteratePointersInStack(visitor,
-                         reinterpret_cast<const void* const*>(stack_end),
-                         stack->stack_start_, asan_fake_stack);
+  CHECK_EQ(0u, reinterpret_cast<uintptr_t>(stack_marker_) &
+                   (kMinStackAlignment - 1));
+  {
+    // Temporarily stop checking MTE tags whilst scanning the stack (whilst V8
+    // may not be tagging its portion of the stack, higher frames from the OS or
+    // libc could be using stack tagging.)
+    SuspendTagCheckingScope s;
+    IteratePointersInStack(visitor,
+                           reinterpret_cast<const void* const*>(stack_marker_),
+                           stack_start_, asan_fake_stack);
 
-  for (const auto& segment : stack->inactive_stacks_) {
-    IteratePointersInStack(visitor, segment.top, segment.start,
-                           asan_fake_stack);
+    for (const auto& segment : inactive_stacks_) {
+      CHECK_EQ(0u, reinterpret_cast<uintptr_t>(segment.top) &
+                       (kMinStackAlignment - 1));
+      IteratePointersInStack(visitor, segment.top, segment.start,
+                             asan_fake_stack);
+    }
+
+    IterateUnsafeStackIfNecessary(visitor);
   }
 
-  IterateUnsafeStackIfNecessary(visitor);
+  IterateBackgroundStacks(visitor);
 }
 
-void Stack::IteratePointersForTesting(StackVisitor* visitor) {
-  SetMarkerAndCallback(
-      [this, visitor]() { IteratePointersUntilMarker(visitor); });
-}
+void Stack::IterateBackgroundStacks(StackVisitor* visitor) const {
+#ifdef V8_USE_ADDRESS_SANITIZER
+  const void* asan_fake_stack = __asan_get_current_fake_stack();
+#else
+  const void* asan_fake_stack = nullptr;
+#endif  // V8_USE_ADDRESS_SANITIZER
 
-void Stack::IteratePointersUntilMarker(StackVisitor* visitor) const {
-  DCHECK_NOT_NULL(stack_start_);
-  DCHECK_NOT_NULL(stack_marker_);
-  DCHECK_GE(stack_start_, stack_marker_);
-  IteratePointersImpl(this, visitor, stack_marker_);
+  {
+    // Temporarily stop checking MTE tags whilst scanning the stack (whilst V8
+    // may not be tagging its portion of the stack, higher frames from the OS or
+    // libc could be using stack tagging.)
+    SuspendTagCheckingScope s;
+
+    for (const auto& [_, segment] : background_stacks_) {
+      // All supported platforms should have their stack aligned to at least
+      // sizeof(void*).
+      constexpr size_t kMinStackAlignment = sizeof(void*);
+      CHECK_EQ(0u, reinterpret_cast<uintptr_t>(segment.top) &
+                       (kMinStackAlignment - 1));
+      IteratePointersInStack(visitor, segment.top, segment.start,
+                             asan_fake_stack);
+    }
+  }
 }
 
 #ifdef DEBUG
@@ -199,8 +227,8 @@ void Stack::AddStackSegment(const void* start, const void* top) {
 
 void Stack::ClearStackSegments() { inactive_stacks_.clear(); }
 
-void Stack::SetMarkerAndCallbackHelper(void* argument,
-                                       IterateStackCallback callback) {
+void Stack::TrampolineCallbackHelper(void* argument,
+                                     IterateStackCallback callback) {
   PushAllRegistersAndIterateStack(this, argument, callback);
   // TODO(chromium:1056170): Add support for SIMD and/or filtering.
 }

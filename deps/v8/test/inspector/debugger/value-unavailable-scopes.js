@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --experimental-value-unavailable
+// Flags: --allow-natives-syntax
 
 let {session, contextGroup, Protocol} =
     InspectorTest.start('Test scopes with unavailable values');

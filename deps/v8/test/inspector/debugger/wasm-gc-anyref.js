@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --experimental-wasm-typed-funcref
 // Flags: --experimental-wasm-type-reflection
 
 utils.load('test/inspector/wasm-inspector-test.js');
@@ -82,7 +81,7 @@ async function instantiateWasm() {
 
   let func = builder.addFunction('my_func', kSig_v_v).addBody([kExprNop]);
   // Make the function "declared".
-  builder.addGlobal(kWasmFuncRef, false, [kExprRefFunc, func.index]);
+  builder.addGlobal(kWasmFuncRef, false, false, [kExprRefFunc, func.index]);
 
   builder.addFunction('fill_tables', kSig_v_v)
     .addBody([
@@ -92,7 +91,7 @@ async function instantiateWasm() {
       kGCPrefix, kExprArrayNewFixed, array_type, 2,
       kExprTableSet, ref_table.index,
       ...wasmI32Const(2), ...wasmI32Const(30),
-      kGCPrefix, kExprI31New, kExprTableSet, ref_table.index,
+      kGCPrefix, kExprRefI31, kExprTableSet, ref_table.index,
 
       // Fill imported any table.
       ...wasmI32Const(1),
@@ -100,7 +99,7 @@ async function instantiateWasm() {
       kExprTableSet, imported_ref_table,
 
       ...wasmI32Const(1),
-      ...wasmI32Const(321), kGCPrefix, kExprI31New,
+      ...wasmI32Const(321), kGCPrefix, kExprRefI31,
       kExprTableSet, imported_ref_table,
 
       // Fill imported func table.
@@ -115,11 +114,11 @@ async function instantiateWasm() {
 
       // Fill i31 table.
       ...wasmI32Const(0),
-      ...wasmI32Const(123456), kGCPrefix, kExprI31New,
+      ...wasmI32Const(123456), kGCPrefix, kExprRefI31,
       kExprTableSet, i31ref_table.index,
 
       ...wasmI32Const(1),
-      ...wasmI32Const(-123), kGCPrefix, kExprI31New,
+      ...wasmI32Const(-123), kGCPrefix, kExprRefI31,
       kExprTableSet, i31ref_table.index,
     ]).exportFunc();
 
@@ -133,7 +132,7 @@ async function instantiateWasm() {
     kGCPrefix, kExprArrayNewFixed, array_type, 1,
     kExprLocalSet, 1,
     ...wasmI32Const(30),
-    kGCPrefix, kExprI31New,
+    kGCPrefix, kExprRefI31,
     kExprLocalSet, 2,
     kExprNop,
   ];

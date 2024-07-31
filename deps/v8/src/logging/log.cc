@@ -888,40 +888,43 @@ void JitLogger::LogRecordedBuffer(const wasm::WasmCode* code, const char* name,
   event.name.len = length;
   event.isolate = reinterpret_cast<v8::Isolate*>(isolate_);
 
-  wasm::WasmModuleSourceMap* source_map =
-      code->native_module()->GetWasmSourceMap();
-  wasm::WireBytesRef code_ref =
-      code->native_module()->module()->functions[code->index()].code;
-  uint32_t code_offset = code_ref.offset();
-  uint32_t code_end_offset = code_ref.end_offset();
+  if (!code->IsAnonymous()) {  // Skip for WasmCode::Kind::kWasmToJsWrapper.
+    wasm::WasmModuleSourceMap* source_map =
+        code->native_module()->GetWasmSourceMap();
+    wasm::WireBytesRef code_ref =
+        code->native_module()->module()->functions[code->index()].code;
+    uint32_t code_offset = code_ref.offset();
+    uint32_t code_end_offset = code_ref.end_offset();
 
-  std::vector<v8::JitCodeEvent::line_info_t> mapping_info;
-  std::string filename;
-  std::unique_ptr<JitCodeEvent::wasm_source_info_t> wasm_source_info;
+    std::vector<v8::JitCodeEvent::line_info_t> mapping_info;
+    std::string filename;
+    std::unique_ptr<JitCodeEvent::wasm_source_info_t> wasm_source_info;
 
-  if (source_map && source_map->IsValid() &&
-      source_map->HasSource(code_offset, code_end_offset)) {
-    size_t last_line_number = 0;
+    if (source_map && source_map->IsValid() &&
+        source_map->HasSource(code_offset, code_end_offset)) {
+      size_t last_line_number = 0;
 
-    for (SourcePositionTableIterator iterator(code->source_positions());
-         !iterator.done(); iterator.Advance()) {
-      uint32_t offset = iterator.source_position().ScriptOffset() + code_offset;
-      if (!source_map->HasValidEntry(code_offset, offset)) continue;
-      if (filename.empty()) {
-        filename = source_map->GetFilename(offset);
+      for (SourcePositionTableIterator iterator(code->source_positions());
+           !iterator.done(); iterator.Advance()) {
+        uint32_t offset =
+            iterator.source_position().ScriptOffset() + code_offset;
+        if (!source_map->HasValidEntry(code_offset, offset)) continue;
+        if (filename.empty()) {
+          filename = source_map->GetFilename(offset);
+        }
+        mapping_info.push_back({static_cast<size_t>(iterator.code_offset()),
+                                last_line_number, JitCodeEvent::POSITION});
+        last_line_number = source_map->GetSourceLine(offset) + 1;
       }
-      mapping_info.push_back({static_cast<size_t>(iterator.code_offset()),
-                              last_line_number, JitCodeEvent::POSITION});
-      last_line_number = source_map->GetSourceLine(offset) + 1;
+
+      wasm_source_info = std::make_unique<JitCodeEvent::wasm_source_info_t>();
+      wasm_source_info->filename = filename.c_str();
+      wasm_source_info->filename_size = filename.size();
+      wasm_source_info->line_number_table_size = mapping_info.size();
+      wasm_source_info->line_number_table = mapping_info.data();
+
+      event.wasm_source_info = wasm_source_info.get();
     }
-
-    wasm_source_info = std::make_unique<JitCodeEvent::wasm_source_info_t>();
-    wasm_source_info->filename = filename.c_str();
-    wasm_source_info->filename_size = filename.size();
-    wasm_source_info->line_number_table_size = mapping_info.size();
-    wasm_source_info->line_number_table = mapping_info.data();
-
-    event.wasm_source_info = wasm_source_info.get();
   }
   code_event_handler_(&event);
 }
@@ -1014,6 +1017,7 @@ class SamplingThread : public base::Thread {
             base::Thread::Options("SamplingThread", kSamplingThreadStackSize)),
         sampler_(sampler),
         interval_microseconds_(interval_microseconds) {}
+
   void Run() override {
     while (sampler_->IsActive()) {
       sampler_->DoSample();
@@ -1202,7 +1206,7 @@ void Profiler::Run() {
 //
 #define MSG_BUILDER()                                \
   std::unique_ptr<LogFile::MessageBuilder> msg_ptr = \
-      log_->NewMessageBuilder();                     \
+      log_file_->NewMessageBuilder();                \
   if (!msg_ptr) return;                              \
   LogFile::MessageBuilder& msg = *msg_ptr.get();
 
@@ -1221,15 +1225,6 @@ int64_t V8FileLogger::Time() {
     return isolate_->heap()->MonotonicallyIncreasingTimeInMs() * 1000;
   }
   return timer_.Elapsed().InMicroseconds();
-}
-
-void V8FileLogger::AddLogEventListener(LogEventListener* listener) {
-  bool result = isolate_->logger()->AddListener(listener);
-  CHECK(result);
-}
-
-void V8FileLogger::RemoveLogEventListener(LogEventListener* listener) {
-  isolate_->logger()->RemoveListener(listener);
 }
 
 void V8FileLogger::ProfilerBeginEvent() {
@@ -1715,7 +1710,7 @@ void CodeLinePosEvent(JitLogger& jit_logger, Address code_start,
 }  // namespace
 
 void V8FileLogger::CodeLinePosInfoRecordEvent(
-    Address code_start, Tagged<ByteArray> source_position_table,
+    Address code_start, Tagged<TrustedByteArray> source_position_table,
     JitCodeEvent::CodeType code_type) {
   if (!jit_logger_) return;
   SourcePositionTableIterator iter(source_position_table);
@@ -1865,7 +1860,8 @@ bool V8FileLogger::EnsureLogScriptSource(Tagged<Script> script) {
   Tagged<Object> source_object = script->source();
   if (!IsString(source_object)) return false;
 
-  std::unique_ptr<LogFile::MessageBuilder> msg_ptr = log_->NewMessageBuilder();
+  std::unique_ptr<LogFile::MessageBuilder> msg_ptr =
+      log_file_->NewMessageBuilder();
   if (!msg_ptr) return false;
   LogFile::MessageBuilder& msg = *msg_ptr.get();
 
@@ -2017,11 +2013,13 @@ EnumerateCompiledFunctions(Heap* heap) {
   std::vector<std::pair<Handle<SharedFunctionInfo>, Handle<AbstractCode>>>
       compiled_funcs;
   Isolate* isolate = heap->isolate();
-  auto hash = [](const std::pair<SharedFunctionInfo, AbstractCode>& p) {
-    return base::hash_combine(p.first.address(), p.second.address());
-  };
-  std::unordered_set<std::pair<SharedFunctionInfo, AbstractCode>,
-                     decltype(hash)>
+  auto hash =
+      [](const std::pair<Tagged<SharedFunctionInfo>, Tagged<AbstractCode>>& p) {
+        return base::hash_combine(p.first.address(), p.second.address());
+      };
+  std::unordered_set<
+      std::pair<Tagged<SharedFunctionInfo>, Tagged<AbstractCode>>,
+      decltype(hash)>
       seen(8, hash);
 
   auto record = [&](Tagged<SharedFunctionInfo> sfi, Tagged<AbstractCode> c) {
@@ -2044,9 +2042,17 @@ EnumerateCompiledFunctions(Heap* heap) {
       // TODO(jarin) This leaves out deoptimized code that might still be on the
       // stack. Also note that we will not log optimized code objects that are
       // only on a type feedback vector. We should make this more precise.
-      if (function->HasAttachedOptimizedCode() &&
+      if (function->HasAttachedOptimizedCode(isolate) &&
           Script::cast(function->shared()->script())->HasValidSource()) {
-        record(function->shared(), AbstractCode::cast(function->code()));
+        record(function->shared(), AbstractCode::cast(function->code(isolate)));
+#if V8_ENABLE_WEBASSEMBLY
+      } else if (WasmJSFunction::IsWasmJSFunction(function)) {
+        record(
+            function->shared(),
+            AbstractCode::cast(
+                function->shared()->wasm_js_function_data()->internal()->code(
+                    isolate)));
+#endif  // V8_ENABLE_WEBASSEMBLY
       }
     }
   }
@@ -2076,11 +2082,11 @@ static std::vector<Handle<SharedFunctionInfo>> EnumerateInterpretedFunctions(
   std::vector<Handle<SharedFunctionInfo>> interpreted_funcs;
   Isolate* isolate = heap->isolate();
 
-  for (HeapObject obj = iterator.Next(); !obj.is_null();
+  for (Tagged<HeapObject> obj = iterator.Next(); !obj.is_null();
        obj = iterator.Next()) {
     if (IsSharedFunctionInfo(obj)) {
-      SharedFunctionInfo sfi = SharedFunctionInfo::cast(obj);
-      if (sfi.HasBytecodeArray()) {
+      Tagged<SharedFunctionInfo> sfi = SharedFunctionInfo::cast(obj);
+      if (sfi->HasBytecodeArray()) {
         interpreted_funcs.push_back(handle(sfi, isolate));
       }
     }
@@ -2100,7 +2106,7 @@ void ExistingCodeLogger::LogInterpretedFunctions() {
   std::vector<Handle<SharedFunctionInfo>> interpreted_funcs =
       EnumerateInterpretedFunctions(heap);
   for (Handle<SharedFunctionInfo> sfi : interpreted_funcs) {
-    if (sfi->HasInterpreterData() || !sfi->HasSourceCode() ||
+    if (sfi->HasInterpreterData(isolate_) || !sfi->HasSourceCode() ||
         !sfi->HasBytecodeArray()) {
       continue;
     }
@@ -2221,17 +2227,17 @@ bool V8FileLogger::SetUp(Isolate* isolate) {
 
   std::ostringstream log_file_name;
   PrepareLogFileName(log_file_name, isolate, v8_flags.logfile);
-  log_ = std::make_unique<LogFile>(this, log_file_name.str());
+  log_file_ = std::make_unique<LogFile>(this, log_file_name.str());
 
 #if V8_OS_LINUX
   if (v8_flags.perf_basic_prof) {
     perf_basic_logger_ = std::make_unique<LinuxPerfBasicLogger>(isolate);
-    AddLogEventListener(perf_basic_logger_.get());
+    CHECK(logger()->AddListener(perf_basic_logger_.get()));
   }
 
   if (v8_flags.perf_prof) {
     perf_jit_logger_ = std::make_unique<LinuxPerfJitLogger>(isolate);
-    AddLogEventListener(perf_jit_logger_.get());
+    CHECK(logger()->AddListener(perf_jit_logger_.get()));
   }
 #else
   static_assert(
@@ -2246,7 +2252,7 @@ bool V8FileLogger::SetUp(Isolate* isolate) {
   if (v8_flags.gdbjit) {
     gdb_jit_logger_ =
         std::make_unique<JitLogger>(isolate, i::GDBJITInterface::EventHandler);
-    AddLogEventListener(gdb_jit_logger_.get());
+    CHECK(logger()->AddListener(gdb_jit_logger_.get()));
     CHECK(isolate->logger()->is_listening_to_code_events());
   }
 #endif  // ENABLE_GDB_JIT_INTERFACE
@@ -2254,7 +2260,7 @@ bool V8FileLogger::SetUp(Isolate* isolate) {
   if (v8_flags.ll_prof) {
     ll_logger_ =
         std::make_unique<LowLevelLogger>(isolate, log_file_name.str().c_str());
-    AddLogEventListener(ll_logger_.get());
+    CHECK(logger()->AddListener(ll_logger_.get()));
   }
   ticker_ = std::make_unique<Ticker>(isolate, v8_flags.prof_sampling_interval);
   if (v8_flags.log) UpdateIsLogging(true);
@@ -2265,7 +2271,9 @@ bool V8FileLogger::SetUp(Isolate* isolate) {
     profiler_ = std::make_unique<Profiler>(isolate);
     profiler_->Engage();
   }
-  if (is_logging_) AddLogEventListener(this);
+  if (is_logging_) {
+    CHECK(logger()->AddListener(this));
+  }
   return true;
 }
 
@@ -2287,8 +2295,8 @@ void V8FileLogger::SetEtwCodeEventHandler(uint32_t options) {
 
   if (!etw_jit_logger_) {
     etw_jit_logger_ = std::make_unique<ETWJitLogger>(isolate_);
-    AddLogEventListener(etw_jit_logger_.get());
-    CHECK(isolate_->logger()->is_listening_to_code_events());
+    CHECK(logger()->AddListener(etw_jit_logger_.get()));
+    CHECK(logger()->is_listening_to_code_events());
     // Generate builtins for new isolates always. Otherwise it will not
     // traverse the builtins.
     options |= kJitCodeEventEnumExisting;
@@ -2313,7 +2321,7 @@ void V8FileLogger::SetEtwCodeEventHandler(uint32_t options) {
 void V8FileLogger::ResetEtwCodeEventHandler() {
   DCHECK(v8_flags.enable_etw_stack_walking);
   if (etw_jit_logger_) {
-    RemoveLogEventListener(etw_jit_logger_.get());
+    CHECK(logger()->RemoveListener(etw_jit_logger_.get()));
     etw_jit_logger_.reset();
   }
 }
@@ -2322,7 +2330,7 @@ void V8FileLogger::ResetEtwCodeEventHandler() {
 void V8FileLogger::SetCodeEventHandler(uint32_t options,
                                        JitCodeEventHandler event_handler) {
   if (jit_logger_) {
-    RemoveLogEventListener(jit_logger_.get());
+    CHECK(logger()->RemoveListener(jit_logger_.get()));
     jit_logger_.reset();
     isolate_->UpdateLogObjectRelocation();
   }
@@ -2333,7 +2341,7 @@ void V8FileLogger::SetCodeEventHandler(uint32_t options,
 #endif  // V8_ENABLE_WEBASSEMBLY
     jit_logger_ = std::make_unique<JitLogger>(isolate_, event_handler);
     isolate_->UpdateLogObjectRelocation();
-    AddLogEventListener(jit_logger_.get());
+    CHECK(logger()->AddListener(jit_logger_.get()));
     if (options & kJitCodeEventEnumExisting) {
       HandleScope scope(isolate_);
       LogBuiltins();
@@ -2344,7 +2352,9 @@ void V8FileLogger::SetCodeEventHandler(uint32_t options,
 }
 
 sampler::Sampler* V8FileLogger::sampler() { return ticker_.get(); }
-std::string V8FileLogger::file_name() const { return log_.get()->file_name(); }
+std::string V8FileLogger::file_name() const {
+  return log_file_.get()->file_name();
+}
 
 void V8FileLogger::StopProfilerThread() {
   if (profiler_ != nullptr) {
@@ -2366,38 +2376,42 @@ FILE* V8FileLogger::TearDownAndGetLogFile() {
 
 #if V8_OS_LINUX
   if (perf_basic_logger_) {
-    RemoveLogEventListener(perf_basic_logger_.get());
+    CHECK(logger()->RemoveListener(perf_basic_logger_.get()));
     perf_basic_logger_.reset();
   }
 
   if (perf_jit_logger_) {
-    RemoveLogEventListener(perf_jit_logger_.get());
+    CHECK(logger()->RemoveListener(perf_jit_logger_.get()));
     perf_jit_logger_.reset();
   }
 #endif
 
   if (ll_logger_) {
-    RemoveLogEventListener(ll_logger_.get());
+    CHECK(logger()->RemoveListener(ll_logger_.get()));
     ll_logger_.reset();
   }
 
   if (jit_logger_) {
-    RemoveLogEventListener(jit_logger_.get());
+    CHECK(logger()->RemoveListener(jit_logger_.get()));
     jit_logger_.reset();
     isolate_->UpdateLogObjectRelocation();
   }
 
-  return log_->Close();
+  return log_file_->Close();
 }
 
+Logger* V8FileLogger::logger() const { return isolate_->logger(); }
+
 void V8FileLogger::UpdateIsLogging(bool value) {
-  base::MutexGuard guard(log_->mutex());
   if (value) {
     isolate_->CollectSourcePositionsForAllBytecodeArrays();
   }
-  // Relaxed atomic to avoid locking the mutex for the most common case: when
-  // logging is disabled.
-  is_logging_.store(value, std::memory_order_relaxed);
+  {
+    base::MutexGuard guard(log_file_->mutex());
+    // Relaxed atomic to avoid locking the mutex for the most common case: when
+    // logging is disabled.
+    is_logging_.store(value, std::memory_order_relaxed);
+  }
   isolate_->UpdateLogObjectRelocation();
 }
 
@@ -2443,10 +2457,6 @@ void ExistingCodeLogger::LogCodeObject(Tagged<AbstractCode> object) {
       break;
     case CodeKind::JS_TO_WASM_FUNCTION:
       description = "A JavaScript to Wasm adapter";
-      tag = CodeTag::kStub;
-      break;
-    case CodeKind::JS_TO_JS_FUNCTION:
-      description = "A WebAssembly.Function adapter";
       tag = CodeTag::kStub;
       break;
     case CodeKind::WASM_TO_CAPI_FUNCTION:
@@ -2512,11 +2522,12 @@ void ExistingCodeLogger::LogCompiledFunctions(
     if (ensure_source_positions_available) {
       SharedFunctionInfo::EnsureSourcePositionsAvailable(isolate_, shared);
     }
-    if (shared->HasInterpreterData()) {
+    if (shared->HasInterpreterData(isolate_)) {
       LogExistingFunction(
           shared,
           Handle<AbstractCode>(
-              AbstractCode::cast(shared->InterpreterTrampoline()), isolate_));
+              AbstractCode::cast(shared->InterpreterTrampoline(isolate_)),
+              isolate_));
     }
     if (shared->HasBaselineCode()) {
       LogExistingFunction(
@@ -2524,7 +2535,12 @@ void ExistingCodeLogger::LogCompiledFunctions(
                       AbstractCode::cast(shared->baseline_code(kAcquireLoad)),
                       isolate_));
     }
-    if (pair.second.is_identical_to(BUILTIN_CODE(isolate_, CompileLazy))) {
+    // TODO(saelo): remove the "!IsTrustedSpaceObject" once builtin Code
+    // objects are also in trusted space. Currently this breaks because we must
+    // not compare objects in trusted space with ones inside the sandbox.
+    static_assert(!kAllCodeObjectsLiveInTrustedSpace);
+    if (!IsTrustedSpaceObject(*pair.second) &&
+        pair.second.is_identical_to(BUILTIN_CODE(isolate_, CompileLazy))) {
       continue;
     }
     LogExistingFunction(pair.first, pair.second);
@@ -2574,10 +2590,8 @@ void ExistingCodeLogger::LogExistingFunction(Handle<SharedFunctionInfo> shared,
     // API function.
     Handle<FunctionTemplateInfo> fun_data =
         handle(shared->api_func_data(), isolate_);
-    Tagged<Object> raw_call_data = fun_data->call_code(kAcquireLoad);
-    if (!IsUndefined(raw_call_data, isolate_)) {
-      Tagged<CallHandlerInfo> call_data = CallHandlerInfo::cast(raw_call_data);
-      Address entry_point = call_data->callback(isolate_);
+    if (fun_data->has_callback(isolate_)) {
+      Address entry_point = fun_data->callback(isolate_);
 #if USES_FUNCTION_DESCRIPTORS
       entry_point = *FUNCTION_ENTRYPOINT_ADDRESS(entry_point);
 #endif
@@ -2591,6 +2605,11 @@ void ExistingCodeLogger::LogExistingFunction(Handle<SharedFunctionInfo> shared,
             CallbackEvent(fun_name, fun_data->GetCFunction(i)))
       }
     }
+#if V8_ENABLE_WEBASSEMBLY
+  } else if (shared->HasWasmJSFunctionData()) {
+    CALL_CODE_EVENT_HANDLER(
+        CodeCreateEvent(CodeTag::kFunction, code, "wasm-to-js"));
+#endif  // V8_ENABLE_WEBASSEMBLY
   }
 }
 

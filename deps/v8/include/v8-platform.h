@@ -76,8 +76,12 @@ class TaskRunner {
   /**
    * Schedules a task to be invoked by this TaskRunner. The TaskRunner
    * implementation takes ownership of |task|.
+   *
+   * Embedders should override PostTaskImpl instead of this.
    */
-  virtual void PostTask(std::unique_ptr<Task> task) = 0;
+  virtual void PostTask(std::unique_ptr<Task> task) {
+    PostTaskImpl(std::move(task), SourceLocation::Current());
+  }
 
   /**
    * Schedules a task to be invoked by this TaskRunner. The TaskRunner
@@ -93,16 +97,25 @@ class TaskRunner {
    * execution is not allowed to nest.
    *
    * Requires that |TaskRunner::NonNestableTasksEnabled()| is true.
+   *
+   * Embedders should override PostNonNestableTaskImpl instead of this.
    */
-  virtual void PostNonNestableTask(std::unique_ptr<Task> task) {}
+  virtual void PostNonNestableTask(std::unique_ptr<Task> task) {
+    PostNonNestableTaskImpl(std::move(task), SourceLocation::Current());
+  }
 
   /**
    * Schedules a task to be invoked by this TaskRunner. The task is scheduled
    * after the given number of seconds |delay_in_seconds|. The TaskRunner
    * implementation takes ownership of |task|.
+   *
+   * Embedders should override PostDelayedTaskImpl instead of this.
    */
   virtual void PostDelayedTask(std::unique_ptr<Task> task,
-                               double delay_in_seconds) = 0;
+                               double delay_in_seconds) {
+    PostDelayedTaskImpl(std::move(task), delay_in_seconds,
+                        SourceLocation::Current());
+  }
 
   /**
    * Schedules a task to be invoked by this TaskRunner. The task is scheduled
@@ -119,9 +132,14 @@ class TaskRunner {
    * execution is not allowed to nest.
    *
    * Requires that |TaskRunner::NonNestableDelayedTasksEnabled()| is true.
+   *
+   * Embedders should override PostNonNestableDelayedTaskImpl instead of this.
    */
   virtual void PostNonNestableDelayedTask(std::unique_ptr<Task> task,
-                                          double delay_in_seconds) {}
+                                          double delay_in_seconds) {
+    PostNonNestableDelayedTaskImpl(std::move(task), delay_in_seconds,
+                                   SourceLocation::Current());
+  }
 
   /**
    * Schedules an idle task to be invoked by this TaskRunner. The task is
@@ -130,8 +148,12 @@ class TaskRunner {
    * relative to other task types and may be starved for an arbitrarily long
    * time if no idle time is available. The TaskRunner implementation takes
    * ownership of |task|.
+   *
+   * Embedders should override PostIdleTaskImpl instead of this.
    */
-  virtual void PostIdleTask(std::unique_ptr<IdleTask> task) = 0;
+  virtual void PostIdleTask(std::unique_ptr<IdleTask> task) {
+    PostIdleTaskImpl(std::move(task), SourceLocation::Current());
+  }
 
   /**
    * Returns true if idle tasks are enabled for this TaskRunner.
@@ -153,6 +175,23 @@ class TaskRunner {
 
   TaskRunner(const TaskRunner&) = delete;
   TaskRunner& operator=(const TaskRunner&) = delete;
+
+ protected:
+  /**
+   * Implementation of above methods with an additional `location` argument.
+   */
+  virtual void PostTaskImpl(std::unique_ptr<Task> task,
+                            const SourceLocation& location) {}
+  virtual void PostNonNestableTaskImpl(std::unique_ptr<Task> task,
+                                       const SourceLocation& location) {}
+  virtual void PostDelayedTaskImpl(std::unique_ptr<Task> task,
+                                   double delay_in_seconds,
+                                   const SourceLocation& location) {}
+  virtual void PostNonNestableDelayedTaskImpl(std::unique_ptr<Task> task,
+                                              double delay_in_seconds,
+                                              const SourceLocation& location) {}
+  virtual void PostIdleTaskImpl(std::unique_ptr<IdleTask> task,
+                                const SourceLocation& location) {}
 };
 
 /**
@@ -737,6 +776,15 @@ class VirtualAddressSpace {
   PagePermissions max_page_permissions() const { return max_page_permissions_; }
 
   /**
+   * Whether the |address| is inside the address space managed by this instance.
+   *
+   * \returns true if it is inside the address space, false if not.
+   */
+  bool Contains(Address address) const {
+    return (address >= base()) && (address < base() + size());
+  }
+
+  /**
    * Sets the random seed so that GetRandomPageAddress() will generate
    * repeatable sequences of random addresses.
    *
@@ -1075,12 +1123,12 @@ class Platform {
    * Schedules a task to be invoked on a worker thread.
    * Embedders should override PostTaskOnWorkerThreadImpl() instead of
    * CallOnWorkerThread().
-   * TODO(chromium:1424158): Make non-virtual once embedders are migrated to
-   * PostTaskOnWorkerThreadImpl().
    */
-  virtual void CallOnWorkerThread(std::unique_ptr<Task> task) {
+  void CallOnWorkerThread(
+      std::unique_ptr<Task> task,
+      const SourceLocation& location = SourceLocation::Current()) {
     PostTaskOnWorkerThreadImpl(TaskPriority::kUserVisible, std::move(task),
-                               SourceLocation::Current());
+                               location);
   }
 
   /**
@@ -1088,28 +1136,28 @@ class Platform {
    * high-priority on a worker thread.
    * Embedders should override PostTaskOnWorkerThreadImpl() instead of
    * CallBlockingTaskOnWorkerThread().
-   * TODO(chromium:1424158): Make non-virtual once embedders are migrated to
-   * PostTaskOnWorkerThreadImpl().
    */
-  virtual void CallBlockingTaskOnWorkerThread(std::unique_ptr<Task> task) {
+  void CallBlockingTaskOnWorkerThread(
+      std::unique_ptr<Task> task,
+      const SourceLocation& location = SourceLocation::Current()) {
     // Embedders may optionally override this to process these tasks in a high
     // priority pool.
     PostTaskOnWorkerThreadImpl(TaskPriority::kUserBlocking, std::move(task),
-                               SourceLocation::Current());
+                               location);
   }
 
   /**
    * Schedules a task to be invoked with low-priority on a worker thread.
    * Embedders should override PostTaskOnWorkerThreadImpl() instead of
    * CallLowPriorityTaskOnWorkerThread().
-   * TODO(chromium:1424158): Make non-virtual once embedders are migrated to
-   * PostTaskOnWorkerThreadImpl().
    */
-  virtual void CallLowPriorityTaskOnWorkerThread(std::unique_ptr<Task> task) {
+  void CallLowPriorityTaskOnWorkerThread(
+      std::unique_ptr<Task> task,
+      const SourceLocation& location = SourceLocation::Current()) {
     // Embedders may optionally override this to process these tasks in a low
     // priority pool.
     PostTaskOnWorkerThreadImpl(TaskPriority::kBestEffort, std::move(task),
-                               SourceLocation::Current());
+                               location);
   }
 
   /**
@@ -1117,14 +1165,13 @@ class Platform {
    * expires.
    * Embedders should override PostDelayedTaskOnWorkerThreadImpl() instead of
    * CallDelayedOnWorkerThread().
-   * TODO(chromium:1424158): Make non-virtual once embedders are migrated to
-   * PostDelayedTaskOnWorkerThreadImpl().
    */
-  virtual void CallDelayedOnWorkerThread(std::unique_ptr<Task> task,
-                                         double delay_in_seconds) {
+  void CallDelayedOnWorkerThread(
+      std::unique_ptr<Task> task, double delay_in_seconds,
+      const SourceLocation& location = SourceLocation::Current()) {
     PostDelayedTaskOnWorkerThreadImpl(TaskPriority::kUserVisible,
                                       std::move(task), delay_in_seconds,
-                                      SourceLocation::Current());
+                                      location);
   }
 
   /**
@@ -1176,12 +1223,11 @@ class Platform {
    * JobTask::GetMaxConcurrency may be invoked synchronously from JobHandle
    * (B=>JobHandle::foo=>B deadlock).
    * Embedders should override CreateJobImpl() instead of PostJob().
-   * TODO(chromium:1424158): Make non-virtual once embedders are migrated to
-   * CreateJobImpl().
    */
-  virtual std::unique_ptr<JobHandle> PostJob(
-      TaskPriority priority, std::unique_ptr<JobTask> job_task) {
-    auto handle = CreateJob(priority, std::move(job_task));
+  std::unique_ptr<JobHandle> PostJob(
+      TaskPriority priority, std::unique_ptr<JobTask> job_task,
+      const SourceLocation& location = SourceLocation::Current()) {
+    auto handle = CreateJob(priority, std::move(job_task), location);
     handle->NotifyConcurrencyIncrease();
     return handle;
   }
@@ -1200,13 +1246,11 @@ class Platform {
    * }
    *
    * Embedders should override CreateJobImpl() instead of CreateJob().
-   * TODO(chromium:1424158): Make non-virtual once embedders are migrated to
-   * CreateJobImpl().
    */
-  virtual std::unique_ptr<JobHandle> CreateJob(
-      TaskPriority priority, std::unique_ptr<JobTask> job_task) {
-    return CreateJobImpl(priority, std::move(job_task),
-                         SourceLocation::Current());
+  std::unique_ptr<JobHandle> CreateJob(
+      TaskPriority priority, std::unique_ptr<JobTask> job_task,
+      const SourceLocation& location = SourceLocation::Current()) {
+    return CreateJobImpl(priority, std::move(job_task), location);
   }
 
   /**
@@ -1232,7 +1276,7 @@ class Platform {
    * required.
    */
   virtual int64_t CurrentClockTimeMilliseconds() {
-    return floor(CurrentClockTimeMillis());
+    return static_cast<int64_t>(floor(CurrentClockTimeMillis()));
   }
 
   /**
@@ -1288,32 +1332,25 @@ class Platform {
 
   /**
    * Creates and returns a JobHandle associated with a Job.
-   * TODO(chromium:1424158): Make pure virtual once embedders implement it.
    */
   virtual std::unique_ptr<JobHandle> CreateJobImpl(
       TaskPriority priority, std::unique_ptr<JobTask> job_task,
-      const SourceLocation& location) {
-    return nullptr;
-  }
+      const SourceLocation& location) = 0;
 
   /**
    * Schedules a task with |priority| to be invoked on a worker thread.
-   * TODO(chromium:1424158): Make pure virtual once embedders implement it.
    */
   virtual void PostTaskOnWorkerThreadImpl(TaskPriority priority,
                                           std::unique_ptr<Task> task,
-                                          const SourceLocation& location) {
-    CallOnWorkerThread(std::move(task));
-  }
+                                          const SourceLocation& location) = 0;
 
   /**
    * Schedules a task with |priority| to be invoked on a worker thread after
    * |delay_in_seconds| expires.
-   * TODO(chromium:1424158): Make pure virtual once embedders implement it.
    */
   virtual void PostDelayedTaskOnWorkerThreadImpl(
       TaskPriority priority, std::unique_ptr<Task> task,
-      double delay_in_seconds, const SourceLocation& location) {}
+      double delay_in_seconds, const SourceLocation& location) = 0;
 };
 
 }  // namespace v8

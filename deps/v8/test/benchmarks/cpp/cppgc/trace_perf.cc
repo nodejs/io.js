@@ -9,7 +9,7 @@
 #include "src/heap/cppgc/globals.h"
 #include "src/heap/cppgc/heap.h"
 #include "test/benchmarks/cpp/cppgc/benchmark_utils.h"
-#include "third_party/google_benchmark/src/include/benchmark/benchmark.h"
+#include "third_party/google_benchmark_chrome/src/include/benchmark/benchmark.h"
 #include "v8config.h"
 
 namespace cppgc {

@@ -51,7 +51,7 @@ function RunTest(name, expression, prologue, epilogue) {
     print(name +  '-ExpressionDepth(Score): ' + low_depth);
     return;
   } catch (e) {
-    if (!e instanceof RangeError) {
+    if (!(e instanceof RangeError)) {
       print(name +  '-ExpressionDepth(Score): ERROR');
       return;
     }
@@ -64,7 +64,7 @@ function RunTest(name, expression, prologue, epilogue) {
       TestExpressionDepth(mid_depth, expression, prologue, epilogue);
       low_depth = mid_depth;
     } catch (e) {
-      if (!e instanceof RangeError) {
+      if (!(e instanceof RangeError)) {
         print(name +  '-ExpressionDepth(Score): ERROR');
         return;
       }

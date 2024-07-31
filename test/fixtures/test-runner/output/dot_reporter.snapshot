@@ -2,3 +2,224 @@
 XXX.....X..X...X....
 .....X...XXX.XX.....
 .XXXXXXX...XXXXX
+
+Failed tests:
+
+✖ sync fail todo (*ms) # TODO
+  Error: thrown from sync fail todo
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ sync fail todo with message (*ms) # this is a failing todo
+  Error: thrown from sync fail todo with message
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ sync throw fail (*ms)
+  Error: thrown from sync throw fail
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ async throw fail (*ms)
+  Error: thrown from async throw fail
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+﹣ async skip fail (*ms) # SKIP
+  Error: thrown from async throw fail
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ async assertion fail (*ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      *
+      *
+      *
+      *
+      *
+      *
+      * {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual'
+  }
+✖ reject fail (*ms)
+  Error: rejected from reject fail
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ +sync throw fail (*ms)
+  Error: thrown from subtest sync throw fail
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ subtest sync throw fail (*ms)
+  '1 subtest failed'
+✖ sync throw non-error fail (*ms)
+  Symbol(thrown symbol from sync throw non-error fail)
+✖ +long running (*ms)
+  'test did not finish before its parent and was cancelled'
+✖ top level (*ms)
+  '1 subtest failed'
+✖ sync skip option is false fail (*ms)
+  Error: this should be executed
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ callback fail (*ms)
+  Error: callback failure
+      *
+      *
+✖ callback also returns a Promise (*ms)
+  'passed a callback but also returned a Promise'
+✖ callback throw (*ms)
+  Error: thrown from callback throw
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ callback called twice (*ms)
+  'callback invoked multiple times'
+✖ callback called twice in future tick (*ms)
+  Error [ERR_TEST_FAILURE]: callback invoked multiple times
+      * {
+    code: 'ERR_TEST_FAILURE',
+    failureType: 'multipleCallbackInvocations',
+    cause: 'callback invoked multiple times'
+  }
+✖ callback async throw (*ms)
+  Error: thrown from callback async throw
+      *
+      *
+✖ custom inspect symbol fail (*ms)
+  customized
+✖ custom inspect symbol that throws fail (*ms)
+  { foo: 1, [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]] }
+✖ sync throw fails at first (*ms)
+  Error: thrown from subtest sync throw fails at first
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ sync throw fails at second (*ms)
+  Error: thrown from subtest sync throw fails at second
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+      *
+✖ subtest sync throw fails (*ms)
+  '2 subtests failed'
+✖ timed out async test (*ms)
+  'test timed out after *ms'
+✖ timed out callback test (*ms)
+  'test timed out after *ms'
+✖ rejected thenable (*ms)
+  'custom error'
+✖ unfinished test with uncaughtException (*ms)
+  Error: foo
+      *
+      *
+      *
+✖ unfinished test with unhandledRejection (*ms)
+  Error: bar
+      *
+      *
+      *
+✖ assertion errors display actual and expected properly (*ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be loosely deep-equal:
+  
+  {
+    bar: 1,
+    baz: {
+      date: 1970-01-01T00:00:00.000Z,
+      null: null,
+      number: 1,
+      string: 'Hello',
+      undefined: undefined
+    },
+    boo: [
+      1
+    ],
+    foo: 1
+  }
+  
+  should loosely deep-equal
+  
+  {
+    baz: {
+      date: 1970-01-01T00:00:00.000Z,
+      null: null,
+      number: 1,
+      string: 'Hello',
+      undefined: undefined
+    },
+    boo: [
+      1
+    ],
+    circular: <ref *1> {
+      bar: 2,
+      c: [Circular *1]
+    }
+  }
+      * {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [Object],
+    expected: [Object],
+    operator: 'deepEqual'
+  }
+✖ invalid subtest fail (*ms)
+  'test could not be started because its parent finished'

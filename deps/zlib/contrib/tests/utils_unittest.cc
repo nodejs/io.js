@@ -20,7 +20,8 @@
 
 #include "zlib.h"
 
-void TestPayloads(size_t input_size, zlib_internal::WrapperType type) {
+void TestPayloads(size_t input_size, zlib_internal::WrapperType type,
+                  const int compression_level = Z_DEFAULT_COMPRESSION) {
   std::vector<unsigned char> input;
   input.reserve(input_size);
   for (size_t i = 1; i <= input_size; ++i)
@@ -36,7 +37,7 @@ void TestPayloads(size_t input_size, zlib_internal::WrapperType type) {
   unsigned long compressed_size = static_cast<unsigned long>(compressed.size());
   int result = zlib_internal::CompressHelper(
       type, compressed.data(), &compressed_size, input.data(), input.size(),
-      Z_DEFAULT_COMPRESSION, nullptr, nullptr);
+      compression_level, nullptr, nullptr);
   ASSERT_EQ(result, Z_OK);
 
   unsigned long decompressed_size =
@@ -65,6 +66,25 @@ TEST(ZlibTest, RawWrapper) {
   // should be payload_size + 2 for short payloads.
   for (size_t i = 1; i < 1024; ++i)
     TestPayloads(i, zlib_internal::WrapperType::ZRAW);
+}
+
+TEST(ZlibTest, LargePayloads) {
+  static const size_t lengths[] = { 6000, 8000, 10'000, 15'000, 20'000, 30'000,
+                                    50'000, 100'000, 150'000, 2'500'000,
+                                    5'000'000, 10'000'000, 20'000'000 };
+
+  for (size_t length: lengths) {
+    TestPayloads(length, zlib_internal::WrapperType::ZLIB);
+    TestPayloads(length, zlib_internal::WrapperType::GZIP);
+  }
+}
+
+TEST(ZlibTest, CompressionLevels) {
+  static const int levels[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+  for (int level: levels) {
+    TestPayloads(5'000'000, zlib_internal::WrapperType::ZLIB, level);
+    TestPayloads(5'000'000, zlib_internal::WrapperType::GZIP, level);
+  }
 }
 
 TEST(ZlibTest, InflateCover) {
@@ -1023,6 +1043,126 @@ TEST(ZlibTest, DeflateZFixedCorruption) {
   EXPECT_EQ(
       memcmp(zFixedCorruptionData, decompressed.data(), decompressed.size()),
       0);
+}
+
+TEST(ZlibTest, DeflateCopy) {
+  // Check that deflateCopy() works.
+
+  z_stream stream1;
+  stream1.zalloc = Z_NULL;
+  stream1.zfree = Z_NULL;
+  int ret =
+      deflateInit(&stream1, Z_DEFAULT_COMPRESSION);
+  ASSERT_EQ(ret, Z_OK);
+  std::vector<uint8_t> compressed(
+      deflateBound(&stream1, strlen(zFixedCorruptionData)));
+  stream1.next_out = compressed.data();
+  stream1.avail_out = compressed.size();
+
+  // Compress the first 1000 bytes.
+  stream1.next_in = (uint8_t*)zFixedCorruptionData;
+  stream1.avail_in = 1000;
+  ret = deflate(&stream1, Z_NO_FLUSH);
+  ASSERT_EQ(ret, Z_OK);
+
+  // Copy the stream state.
+  z_stream stream2;
+  ret = deflateCopy(&stream2, &stream1);
+  ASSERT_EQ(ret, Z_OK);
+  deflateEnd(&stream1);
+
+  // Compress the remaining bytes.
+  stream2.next_in = (uint8_t*)zFixedCorruptionData + (1000 - stream2.avail_in);
+  stream2.avail_in = strlen(zFixedCorruptionData) - (1000 - stream2.avail_in);
+  ret = deflate(&stream2, Z_FINISH);
+  ASSERT_EQ(ret, Z_STREAM_END);
+  size_t compressed_sz = compressed.size() - stream2.avail_out;
+  deflateEnd(&stream2);
+
+  // Check that decompression is successful.
+  std::vector<uint8_t> decompressed(strlen(zFixedCorruptionData));
+  z_stream stream;
+  stream.zalloc = Z_NULL;
+  stream.zfree = Z_NULL;
+  ret = inflateInit(&stream);
+  ASSERT_EQ(ret, Z_OK);
+  stream.next_in = compressed.data();
+  stream.avail_in = compressed_sz;
+  stream.next_out = decompressed.data();
+  stream.avail_out = decompressed.size();
+  ret = inflate(&stream, Z_FINISH);
+  ASSERT_EQ(ret, Z_STREAM_END);
+  inflateEnd(&stream);
+
+  EXPECT_EQ(decompressed.size(), strlen(zFixedCorruptionData));
+  EXPECT_EQ(
+      memcmp(zFixedCorruptionData, decompressed.data(), decompressed.size()),
+      0);
+}
+
+TEST(ZlibTest, GzipStored) {
+  // Check that deflating uncompressed blocks with a gzip header doesn't write
+  // out of bounds (crbug.com/325990053).
+  z_stream stream;
+  stream.zalloc = Z_NULL;
+  stream.zfree = Z_NULL;
+  static const int kGzipWrapper = 16;
+  int ret = deflateInit2(&stream, Z_NO_COMPRESSION, Z_DEFLATED,
+                         9 + kGzipWrapper, 9, Z_DEFAULT_STRATEGY);
+  ASSERT_EQ(ret, Z_OK);
+
+  const std::vector<uint8_t> src(512 * 1024);
+  stream.next_in = (unsigned char*)src.data();
+  stream.avail_in = src.size();
+
+  std::vector<uint8_t> out(1000);
+  stream.next_out = (unsigned char*)out.data();
+  stream.avail_out = out.size();
+
+  ret = deflate(&stream, Z_NO_FLUSH);
+  ASSERT_EQ(ret, Z_OK);
+
+  deflateEnd(&stream);
+}
+
+TEST(ZlibTest, DeflateBound) {
+  // Check that the deflateBound() isn't too low when using non-default
+  // parameters (crbug.com/40270738).
+  const int level = 9;
+  const int windowBits = 15;
+  const int memLevel = 1;
+  const int strategy = Z_FIXED;
+  const uint8_t src[] = {
+      49,  255, 255, 20,  45,  49,  167, 56,  55,  255, 255, 255, 223, 255, 49,
+      255, 3,   78,  0,   0,   141, 253, 209, 163, 29,  195, 43,  60,  199, 123,
+      112, 35,  134, 13,  148, 102, 212, 4,   184, 103, 7,   102, 225, 102, 156,
+      164, 78,  48,  70,  49,  125, 162, 55,  116, 161, 174, 83,  0,   59,  0,
+      225, 140, 0,   0,   63,  63,  4,   15,  198, 30,  126, 196, 33,  99,  135,
+      41,  192, 82,  28,  105, 216, 170, 221, 14,  61,  1,   0,   0,   22,  195,
+      45,  53,  244, 163, 167, 158, 229, 68,  18,  112, 49,  174, 43,  75,  90,
+      161, 85,  19,  36,  163, 118, 228, 169, 180, 161, 237, 234, 253, 197, 234,
+      66,  106, 12,  42,  124, 96,  160, 144, 183, 194, 157, 167, 202, 217};
+
+  z_stream stream;
+  stream.zalloc = Z_NULL;
+  stream.zfree = Z_NULL;
+  int ret =
+      deflateInit2(&stream, level, Z_DEFLATED, windowBits, memLevel, strategy);
+  ASSERT_EQ(ret, Z_OK);
+  size_t deflate_bound = deflateBound(&stream, sizeof(src));
+
+  uint8_t out[sizeof(src) * 10];
+  stream.next_in = (uint8_t*)src;
+  stream.avail_in = sizeof(src);
+  stream.next_out = out;
+  stream.avail_out = sizeof(out);
+  ret = deflate(&stream, Z_FINISH);
+  ASSERT_EQ(ret, Z_STREAM_END);
+
+  size_t out_size = sizeof(out) - stream.avail_out;
+  EXPECT_LE(out_size, deflate_bound);
+
+  deflateEnd(&stream);
 }
 
 // TODO(gustavoa): make these tests run standalone.

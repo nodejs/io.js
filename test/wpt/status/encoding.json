@@ -37,7 +37,10 @@
     "skip": "The iso-8859-16 encoding is not supported"
   },
   "idlharness.any.js": {
-    "skip": "No implementation of TextDecoderStream and TextEncoderStream"
+    "requires": ["small-icu"]
+  },
+  "idlharness-shadowrealm.window.js": {
+    "skip": "ShadowRealm support is not enabled"
   },
   "replacement-encodings.any.js": {
     "skip": "decoding-helpers.js needs XMLHttpRequest"
@@ -74,6 +77,12 @@
     "requires": ["full-icu"]
   },
   "encodeInto.any.js": {
+    "fail": {
+      "expected": [
+        "Invalid encodeInto() destination: Float16Array, backed by: ArrayBuffer",
+        "Invalid encodeInto() destination: Float16Array, backed by: SharedArrayBuffer"
+      ]
+    },
     "requires": ["small-icu"]
   },
   "textdecoder-copy.any.js": {

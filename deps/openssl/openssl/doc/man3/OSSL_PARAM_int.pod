@@ -112,7 +112,7 @@ OSSL_PARAM_UNMODIFIED, OSSL_PARAM_modified, OSSL_PARAM_set_all_unmodified
 A collection of utility functions that simplify and add type safety to the
 L<OSSL_PARAM(3)> arrays.  The following B<I<TYPE>> names are supported:
 
-=over 1
+=over 2
 
 =item *
 

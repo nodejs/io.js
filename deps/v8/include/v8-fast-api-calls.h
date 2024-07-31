@@ -254,8 +254,8 @@ class CTypeInfo {
                  // migrated from v8::ApiObject to v8::Local<v8::Value>.
     kAny,        // This is added to enable untyped representation of fast
                  // call arguments for test purposes. It can represent any of
-                 // the other types stored in the same memory as a union (see
-                 // the AnyCType struct declared below). This allows for
+                 // the other types stored in the same memory as a union
+                 // (see AnyCType declared below). This allows for
                  // uniform passing of arguments w.r.t. their location
                  // (in a register or on the stack), independent of their
                  // actual type. It's currently used by the arm64 simulator
@@ -344,7 +344,8 @@ struct FastApiTypedArray : public FastApiTypedArrayBase {
     ValidateIndex(index);
 #endif  // DEBUG
     T tmp;
-    memcpy(&tmp, reinterpret_cast<T*>(data_) + index, sizeof(T));
+    memcpy(&tmp, static_cast<void*>(reinterpret_cast<T*>(data_) + index),
+           sizeof(T));
     return tmp;
   }
 
@@ -434,35 +435,43 @@ class V8_EXPORT CFunctionInfo {
 struct FastApiCallbackOptions;
 
 // Provided for testing.
-struct AnyCType {
+union V8_TRIVIAL_ABI AnyCType {
   AnyCType() : int64_value(0) {}
 
-  union {
-    bool bool_value;
-    int32_t int32_value;
-    uint32_t uint32_value;
-    int64_t int64_value;
-    uint64_t uint64_value;
-    float float_value;
-    double double_value;
-    void* pointer_value;
-    Local<Object> object_value;
-    Local<Array> sequence_value;
-    const FastApiTypedArray<uint8_t>* uint8_ta_value;
-    const FastApiTypedArray<int32_t>* int32_ta_value;
-    const FastApiTypedArray<uint32_t>* uint32_ta_value;
-    const FastApiTypedArray<int64_t>* int64_ta_value;
-    const FastApiTypedArray<uint64_t>* uint64_ta_value;
-    const FastApiTypedArray<float>* float_ta_value;
-    const FastApiTypedArray<double>* double_ta_value;
-    const FastOneByteString* string_value;
-    FastApiCallbackOptions* options_value;
-  };
+#if defined(V8_ENABLE_LOCAL_OFF_STACK_CHECK) && V8_HAS_ATTRIBUTE_TRIVIAL_ABI
+  // In this case, Local<T> is not trivially copyable and the implicit
+  // copy constructor and copy assignment for the union are deleted.
+  AnyCType(const AnyCType& other) : int64_value(other.int64_value) {}
+  AnyCType& operator=(const AnyCType& other) {
+    int64_value = other.int64_value;
+    return *this;
+  }
+#endif
+
+  bool bool_value;
+  int32_t int32_value;
+  uint32_t uint32_value;
+  int64_t int64_value;
+  uint64_t uint64_value;
+  float float_value;
+  double double_value;
+  void* pointer_value;
+  Local<Object> object_value;
+  Local<Array> sequence_value;
+  const FastApiTypedArray<uint8_t>* uint8_ta_value;
+  const FastApiTypedArray<int32_t>* int32_ta_value;
+  const FastApiTypedArray<uint32_t>* uint32_ta_value;
+  const FastApiTypedArray<int64_t>* int64_ta_value;
+  const FastApiTypedArray<uint64_t>* uint64_ta_value;
+  const FastApiTypedArray<float>* float_ta_value;
+  const FastApiTypedArray<double>* double_ta_value;
+  const FastOneByteString* string_value;
+  FastApiCallbackOptions* options_value;
 };
 
 static_assert(
     sizeof(AnyCType) == 8,
-    "The AnyCType struct should have size == 64 bits, as this is assumed "
+    "The union AnyCType should have size == 64 bits, as this is assumed "
     "by EffectControlLinearizer.");
 
 class V8_EXPORT CFunction {

@@ -34,6 +34,22 @@ inline std::u16string ConvertToU16String(std::string utf8_string) {
 
   return result;
 }
+
+inline std::string ConvertFromU16String(std::u16string u16string) {
+  int len_chars =
+      ::WideCharToMultiByte(CP_UTF8, 0, U16ToWChar(u16string.c_str()), -1,
+                            nullptr, 0, nullptr, nullptr);
+
+  char* p_buff = static_cast<char*>(malloc(len_chars * sizeof(char)));
+
+  len_chars = ::WideCharToMultiByte(CP_UTF8, 0, U16ToWChar(u16string.c_str()),
+                                    -1, p_buff, len_chars, nullptr, nullptr);
+  std::string result{p_buff};
+  free(p_buff);
+
+  return result;
+}
+
 #else
 #error String encoding conversion must be provided for the target platform.
 #endif

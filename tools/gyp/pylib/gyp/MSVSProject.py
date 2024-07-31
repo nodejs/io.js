@@ -79,7 +79,7 @@ class Writer:
         self.files_section = ["Files"]
 
         # Keep a dict keyed on filename to speed up access.
-        self.files_dict = dict()
+        self.files_dict = {}
 
     def AddToolFile(self, path):
         """Adds a tool file to the project.

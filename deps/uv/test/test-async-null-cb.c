@@ -36,7 +36,7 @@ static void thread_cb(void* dummy) {
 
 
 static void check_cb(uv_check_t* handle) {
-  ASSERT(check_cb_called == 0);
+  ASSERT_OK(check_cb_called);
   uv_close((uv_handle_t*) &async_handle, NULL);
   uv_close((uv_handle_t*) &check_handle, NULL);
   check_cb_called++;
@@ -52,13 +52,13 @@ TEST_IMPL(async_null_cb) {
    */
   memset(&async_handle, 0xff, sizeof(async_handle));
 
-  ASSERT(0 == uv_async_init(uv_default_loop(), &async_handle, NULL));
-  ASSERT(0 == uv_check_init(uv_default_loop(), &check_handle));
-  ASSERT(0 == uv_check_start(&check_handle, check_cb));
-  ASSERT(0 == uv_thread_create(&thread, thread_cb, NULL));
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
-  ASSERT(0 == uv_thread_join(&thread));
-  ASSERT(1 == check_cb_called);
+  ASSERT_OK(uv_async_init(uv_default_loop(), &async_handle, NULL));
+  ASSERT_OK(uv_check_init(uv_default_loop(), &check_handle));
+  ASSERT_OK(uv_check_start(&check_handle, check_cb));
+  ASSERT_OK(uv_thread_create(&thread, thread_cb, NULL));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_thread_join(&thread));
+  ASSERT_EQ(1, check_cb_called);
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
 }

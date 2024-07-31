@@ -70,7 +70,7 @@ class BackgroundThread final : public v8::base::Thread {
 
       if (result.has_value()) {
         // On any success, the elements at index 1 must be the original value
-        // Smi(1).
+        // Tagged<Smi>(1).
         EXPECT_TRUE(IsSmi(result.value()));
         CHECK_EQ(Smi::ToInt(result.value()), 1);
       }

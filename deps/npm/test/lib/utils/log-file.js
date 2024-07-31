@@ -1,8 +1,8 @@
 const t = require('tap')
-const _fs = require('fs')
+const _fs = require('node:fs')
 const fs = _fs.promises
-const path = require('path')
-const os = require('os')
+const path = require('node:path')
+const os = require('node:os')
 const fsMiniPass = require('fs-minipass')
 const tmock = require('../../fixtures/tmock')
 const LogFile = require('../../../lib/utils/log-file.js')
@@ -46,6 +46,8 @@ const loadLogFile = async (t, { buffer = [], mocks, testdir = {}, ...options } =
   const MockLogFile = tmock(t, '{LIB}/utils/log-file.js', mocks)
   const logFile = new MockLogFile(Object.keys(options).length ? options : undefined)
 
+  // Create a fake public method since there is not one on logFile anymore
+  logFile.log = (...b) => process.emit('log', ...b)
   buffer.forEach((b) => logFile.log(...b))
 
   const id = getId()
@@ -57,8 +59,10 @@ const loadLogFile = async (t, { buffer = [], mocks, testdir = {}, ...options } =
     logFile,
     LogFile,
     readLogs: async () => {
-      const logDir = await fs.readdir(root)
-      const logFiles = logDir.map((f) => path.join(root, f))
+      const logDir = await fs.readdir(root, { withFileTypes: true })
+      const logFiles = logDir
+        .filter(f => f.isFile())
+        .map((f) => path.join(root, f.name))
         .filter((f) => _fs.existsSync(f))
       return Promise.all(logFiles.map(async (f) => {
         const content = await fs.readFile(f, 'utf8')
@@ -163,7 +167,7 @@ t.test('initial stream error', async t => {
     mocks: {
       'fs-minipass': {
         WriteStreamSync: class {
-          constructor (...args) {
+          constructor () {
             throw new Error('no stream')
           }
         },
@@ -196,6 +200,22 @@ t.test('cleans logs', async t => {
   const { readLogs } = await loadLogFile(t, {
     logsMax,
     testdir: makeOldLogs(10),
+  })
+
+  const logs = await readLogs()
+  t.equal(logs.length, logsMax + 1)
+})
+
+t.test('cleans logs even when find folder inside logs folder', async t => {
+  const logsMax = 5
+  const { readLogs } = await loadLogFile(t, {
+    logsMax,
+    testdir: {
+      ...makeOldLogs(10),
+      ignore_folder: {
+        'ignored-file.txt': 'hello',
+      },
+    },
   })
 
   const logs = await readLogs()
@@ -240,35 +260,6 @@ t.test('doesnt need to clean', async t => {
   t.equal(logs.length, oldLogs + 1)
 })
 
-t.test('glob error', async t => {
-  const { readLogs } = await loadLogFile(t, {
-    logsMax: 5,
-    mocks: {
-      glob: { glob: () => {
-        throw new Error('bad glob')
-      } },
-    },
-  })
-
-  const logs = await readLogs()
-  t.equal(logs.length, 1)
-  t.match(last(logs).content, /error cleaning log files .* bad glob/)
-})
-
-t.test('do not log cleaning errors when logging is disabled', async t => {
-  const { readLogs } = await loadLogFile(t, {
-    logsMax: 0,
-    mocks: {
-      glob: () => {
-        throw new Error('should not be logged')
-      },
-    },
-  })
-
-  const logs = await readLogs()
-  t.equal(logs.length, 0)
-})
-
 t.test('cleans old style logs too', async t => {
   const logsMax = 5
   const oldLogs = 10
@@ -289,7 +280,8 @@ t.test('rimraf error', async t => {
     logsMax,
     testdir: makeOldLogs(oldLogs),
     mocks: {
-      'fs/promises': {
+      'node:fs/promises': {
+        readdir: fs.readdir,
         rm: async (...args) => {
           if (count >= 3) {
             throw new Error('bad rimraf')

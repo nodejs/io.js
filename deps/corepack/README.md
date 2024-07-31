@@ -1,5 +1,7 @@
 # <img src="./icon.svg" height="25" /> corepack
 
+[![Join us on OpenJS slack (channel #nodejs-corepack)](https://img.shields.io/badge/OpenJS%20Slack-%23nodejs--corepack-blue)](https://slack-invite.openjsf.org/)
+
 Corepack is a zero-runtime-dependency Node.js script that acts as a bridge
 between Node.js projects and the package managers they are intended to be used
 with during development. In practical terms, **Corepack lets you use Yarn, npm,
@@ -54,7 +56,7 @@ projects, `pnpm install` in pnpm projects, and `npm` in npm projects. Corepack
 will catch these calls, and depending on the situation:
 
 - **If the local project is configured for the package manager you're using**,
-  Corepack will silently download and cache the latest compatible version.
+  Corepack will download and cache the latest compatible version.
 
 - **If the local project is configured for a different package manager**,
   Corepack will request you to run the command again using the right package
@@ -81,18 +83,29 @@ along with the SHA-224 hash of this version for validation.
 recommended as a security practice. Permitted values for the package manager are
 `yarn`, `npm`, and `pnpm`.
 
+You can also provide a URL to a `.js` file (which will be interpreted as a
+CommonJS module) or a `.tgz` file (which will be interpreted as a package, and
+the `"bin"` field of the `package.json` will be used to determine which file to
+use in the archive).
+
+```json
+{
+  "packageManager": "yarn@https://registry.npmjs.org/@yarnpkg/cli-dist/-/cli-dist-3.2.3.tgz#sha224.16a0797d1710d1fb7ec40ab5c3801b68370a612a9b66ba117ad9924b"
+}
+```
+
 ## Known Good Releases
 
 When running Corepack within projects that don't list a supported package
-manager, it will default to a set of Known Good Releases. In a way, you can
-compare this to Node.js, where each version ships with a specific version of
-npm.
+manager, it will default to a set of Known Good Releases.
 
 If there is no Known Good Release for the requested package manager, Corepack
 looks up the npm registry for the latest available version and cache it for
 future use.
 
 The Known Good Releases can be updated system-wide using `corepack install -g`.
+When Corepack downloads a new version of a given package manager on the same
+major line as the Known Good Release, it auto-updates it by default.
 
 ## Offline Workflow
 
@@ -101,9 +114,6 @@ The utility commands detailed in the next section.
 - Either you can use the network while building your container image, in which
   case you'll simply run `corepack pack` to make sure that your image
   includes the Last Known Good release for the specified package manager.
-
-  - If you want to have _all_ Last Known Good releases for all package managers,
-    just use the `--all` flag which will do just that.
 
 - Or you're publishing your project to a system where the network is
   unavailable, in which case you'll preemptively generate a package manager
@@ -123,6 +133,14 @@ when looking for regressions.
 Note that those commands still check whether the local project is configured for
 the given package manager (ie you won't be able to run `corepack yarn install`
 on a project where the `packageManager` field references `pnpm`).
+
+### `corepack cache clean`
+
+Clears the local `COREPACK_HOME` cache directory.
+
+### `corepack cache clear`
+
+Clears the local `COREPACK_HOME` cache directory.
 
 ### `corepack enable [... name]`
 
@@ -177,11 +195,7 @@ This command doesn't change the global version used when running the package
 manager from outside the project (use the \`-g,--global\` flag if you wish
 to do this).
 
-### `corepack install <-g,--global> [--all] [... name@version]`
-
-| Option                | Description                                |
-| --------------------- | ------------------------------------------ |
-| `--all`               | Install all Last Known Good releases       |
+### `corepack install <-g,--global> [... name[@<version>]]`
 
 Install the selected package managers and install them on the system.
 
@@ -189,18 +203,17 @@ Package managers thus installed will be configured as the new default when
 calling their respective binaries outside of projects defining the
 `packageManager` field.
 
-### `corepack pack [--all] [... name@version]`
+### `corepack pack [... name[@<version>]]`
 
 | Option                | Description                                |
 | --------------------- | ------------------------------------------ |
-| `--all`               | Pack all Last Known Good releases          |
 | `--json `             | Print the output folder rather than logs   |
 | `-o,--output `        | Path where to generate the archive         |
 
 Download the selected package managers and store them inside a tarball
 suitable for use with `corepack install -g`.
 
-### `corepack use <name@version>`
+### `corepack use <name[@<version>]>`
 
 When run, this command will retrieve the latest release matching the provided
 descriptor, assign it to the project's package.json file, and automatically
@@ -215,13 +228,32 @@ it.
 Unlike `corepack use` this command doesn't take a package manager name nor a
 version range, as it will always select the latest available version from the
 same major line. Should you need to upgrade to a new major, use an explicit
-`corepack use {name}@latest` call.
+`corepack use {name}@latest` call (or simply `corepack use {name}`).
 
 ## Environment Variables
 
 - `COREPACK_DEFAULT_TO_LATEST` can be set to `0` in order to instruct Corepack
   not to lookup on the remote registry for the latest version of the selected
-  package manager.
+  package manager, and to not update the Last Known Good version when it
+  downloads a new version of the same major line.
+
+- `COREPACK_ENABLE_AUTO_PIN` can be set to `0` to prevent Corepack from
+  updating the `packageManager` field when it detects that the local package
+  doesn't list it. In general we recommend to always list a `packageManager`
+  field (which you can easily set through `corepack use [name]@[version]`), as
+  it ensures that your project installs are always deterministic.
+
+- `COREPACK_ENABLE_DOWNLOAD_PROMPT` can be set to `0` to
+  prevent Corepack showing the URL when it needs to download software, or can be
+  set to `1` to have the URL shown. By default, when Corepack is called
+  explicitly (e.g. `corepack pnpm …`), it is set to `0`; when Corepack is called
+  implicitly (e.g. `pnpm …`), it is set to `1`.
+  When standard input is a TTY and no CI environment is detected, Corepack will
+  ask for user input before starting the download.
+
+- `COREPACK_ENABLE_UNSAFE_CUSTOM_URLS` can be set to `1` to allow use of
+  custom URLs to load a package manager known by Corepack (`yarn`, `npm`, and
+  `pnpm`).
 
 - `COREPACK_ENABLE_NETWORK` can be set to `0` to prevent Corepack from accessing
   the network (in which case you'll be responsible for hydrating the package
@@ -264,11 +296,16 @@ same major line. Should you need to upgrade to a new major, use an explicit
 - `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` are supported through
   [`node-proxy-agent`](https://github.com/TooTallNate/node-proxy-agent).
 
+- `COREPACK_INTEGRITY_KEYS` can be set to an empty string or `0` to
+  instruct Corepack to skip integrity checks, or to a JSON string containing
+  custom keys.
+
 ## Troubleshooting
 
 ### Networking
 
-There are a wide variety of networking issues that can occur while running `corepack` commands. Things to check:
+There are a wide variety of networking issues that can occur while running
+`corepack` commands. Things to check:
 
 - Make sure your network connection is active.
 - Make sure the host for your request can be resolved by your DNS; try using
@@ -278,10 +315,6 @@ There are a wide variety of networking issues that can occur while running `core
 ## Contributing
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-
-## Design
-
-See [`DESIGN.md`](/DESIGN.md).
 
 ## License (MIT)
 

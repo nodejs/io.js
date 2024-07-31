@@ -103,7 +103,7 @@ function addGlobalGetterAndSetter(builder, index, name, type) {
   let builder1 = new WasmModuleBuilder();
   let builder2 = new WasmModuleBuilder();
   for (let [index, {name, type}] of globalDesc.entries()) {
-    builder1.addGlobal(type, true).exportAs(name);
+    builder1.addGlobal(type, true, false).exportAs(name);
     addGlobalGetterAndSetter(builder1, index, name, type);
 
     builder2.addImportedGlobal("mod", name, type, true);
@@ -155,7 +155,7 @@ function addGlobalGetterAndSetter(builder, index, name, type) {
   };
 
   let builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI64, true).exportAs('i64');
+  builder.addGlobal(kWasmI64, true, false).exportAs('i64');
   addGettersAndSetters(builder);
   let inst1 = builder.instantiate();
 
@@ -176,7 +176,7 @@ function addGlobalGetterAndSetter(builder, index, name, type) {
 
 (function TestImportMutableAcrossGc() {
   let builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI32, true).exportAs('i32');
+  builder.addGlobal(kWasmI32, true, false).exportAs('i32');
   let inst1 = builder.instantiate();
 
   builder = new WasmModuleBuilder();
@@ -195,6 +195,6 @@ function addGlobalGetterAndSetter(builder, index, name, type) {
   let global = new WebAssembly.Global({value: 'i32', mutable: true}, 1);
   let builder = new WasmModuleBuilder();
   builder.addImportedGlobal("mod", "g", kWasmI32, true);
-  builder.addGlobal(kWasmI32, true).exportAs('i32');
+  builder.addGlobal(kWasmI32, true, false).exportAs('i32');
   builder.instantiate({mod: {g: global}});
 })();

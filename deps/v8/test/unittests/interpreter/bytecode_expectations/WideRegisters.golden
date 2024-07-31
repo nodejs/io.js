@@ -169,495 +169,6 @@ snippet: "
 "
 frame size: 157
 parameter count: 1
-bytecode array length: 532
-bytecodes: [
-  /*   43 S> */ B(LdaZero),
-                B(Star0),
-  /*   55 S> */ B(LdaZero),
-                B(Star1),
-  /*   67 S> */ B(LdaZero),
-                B(Star2),
-  /*   79 S> */ B(LdaZero),
-                B(Star3),
-  /*   91 S> */ B(LdaZero),
-                B(Star4),
-  /*  103 S> */ B(LdaZero),
-                B(Star5),
-  /*  115 S> */ B(LdaZero),
-                B(Star6),
-  /*  127 S> */ B(LdaZero),
-                B(Star7),
-  /*  139 S> */ B(LdaZero),
-                B(Star8),
-  /*  151 S> */ B(LdaZero),
-                B(Star9),
-  /*  164 S> */ B(LdaZero),
-                B(Star10),
-  /*  177 S> */ B(LdaZero),
-                B(Star11),
-  /*  190 S> */ B(LdaZero),
-                B(Star12),
-  /*  203 S> */ B(LdaZero),
-                B(Star13),
-  /*  216 S> */ B(LdaZero),
-                B(Star14),
-  /*  229 S> */ B(LdaZero),
-                B(Star15),
-  /*  242 S> */ B(LdaZero),
-                B(Star), R(16),
-  /*  255 S> */ B(LdaZero),
-                B(Star), R(17),
-  /*  268 S> */ B(LdaZero),
-                B(Star), R(18),
-  /*  281 S> */ B(LdaZero),
-                B(Star), R(19),
-  /*  294 S> */ B(LdaZero),
-                B(Star), R(20),
-  /*  307 S> */ B(LdaZero),
-                B(Star), R(21),
-  /*  320 S> */ B(LdaZero),
-                B(Star), R(22),
-  /*  333 S> */ B(LdaZero),
-                B(Star), R(23),
-  /*  346 S> */ B(LdaZero),
-                B(Star), R(24),
-  /*  359 S> */ B(LdaZero),
-                B(Star), R(25),
-  /*  372 S> */ B(LdaZero),
-                B(Star), R(26),
-  /*  385 S> */ B(LdaZero),
-                B(Star), R(27),
-  /*  398 S> */ B(LdaZero),
-                B(Star), R(28),
-  /*  411 S> */ B(LdaZero),
-                B(Star), R(29),
-  /*  424 S> */ B(LdaZero),
-                B(Star), R(30),
-  /*  437 S> */ B(LdaZero),
-                B(Star), R(31),
-  /*  450 S> */ B(LdaZero),
-                B(Star), R(32),
-  /*  463 S> */ B(LdaZero),
-                B(Star), R(33),
-  /*  476 S> */ B(LdaZero),
-                B(Star), R(34),
-  /*  489 S> */ B(LdaZero),
-                B(Star), R(35),
-  /*  502 S> */ B(LdaZero),
-                B(Star), R(36),
-  /*  515 S> */ B(LdaZero),
-                B(Star), R(37),
-  /*  528 S> */ B(LdaZero),
-                B(Star), R(38),
-  /*  541 S> */ B(LdaZero),
-                B(Star), R(39),
-  /*  554 S> */ B(LdaZero),
-                B(Star), R(40),
-  /*  567 S> */ B(LdaZero),
-                B(Star), R(41),
-  /*  580 S> */ B(LdaZero),
-                B(Star), R(42),
-  /*  593 S> */ B(LdaZero),
-                B(Star), R(43),
-  /*  606 S> */ B(LdaZero),
-                B(Star), R(44),
-  /*  619 S> */ B(LdaZero),
-                B(Star), R(45),
-  /*  632 S> */ B(LdaZero),
-                B(Star), R(46),
-  /*  645 S> */ B(LdaZero),
-                B(Star), R(47),
-  /*  658 S> */ B(LdaZero),
-                B(Star), R(48),
-  /*  671 S> */ B(LdaZero),
-                B(Star), R(49),
-  /*  684 S> */ B(LdaZero),
-                B(Star), R(50),
-  /*  697 S> */ B(LdaZero),
-                B(Star), R(51),
-  /*  710 S> */ B(LdaZero),
-                B(Star), R(52),
-  /*  723 S> */ B(LdaZero),
-                B(Star), R(53),
-  /*  736 S> */ B(LdaZero),
-                B(Star), R(54),
-  /*  749 S> */ B(LdaZero),
-                B(Star), R(55),
-  /*  762 S> */ B(LdaZero),
-                B(Star), R(56),
-  /*  775 S> */ B(LdaZero),
-                B(Star), R(57),
-  /*  788 S> */ B(LdaZero),
-                B(Star), R(58),
-  /*  801 S> */ B(LdaZero),
-                B(Star), R(59),
-  /*  814 S> */ B(LdaZero),
-                B(Star), R(60),
-  /*  827 S> */ B(LdaZero),
-                B(Star), R(61),
-  /*  840 S> */ B(LdaZero),
-                B(Star), R(62),
-  /*  853 S> */ B(LdaZero),
-                B(Star), R(63),
-  /*  866 S> */ B(LdaZero),
-                B(Star), R(64),
-  /*  879 S> */ B(LdaZero),
-                B(Star), R(65),
-  /*  892 S> */ B(LdaZero),
-                B(Star), R(66),
-  /*  905 S> */ B(LdaZero),
-                B(Star), R(67),
-  /*  918 S> */ B(LdaZero),
-                B(Star), R(68),
-  /*  931 S> */ B(LdaZero),
-                B(Star), R(69),
-  /*  944 S> */ B(LdaZero),
-                B(Star), R(70),
-  /*  957 S> */ B(LdaZero),
-                B(Star), R(71),
-  /*  970 S> */ B(LdaZero),
-                B(Star), R(72),
-  /*  983 S> */ B(LdaZero),
-                B(Star), R(73),
-  /*  996 S> */ B(LdaZero),
-                B(Star), R(74),
-  /* 1009 S> */ B(LdaZero),
-                B(Star), R(75),
-  /* 1022 S> */ B(LdaZero),
-                B(Star), R(76),
-  /* 1035 S> */ B(LdaZero),
-                B(Star), R(77),
-  /* 1048 S> */ B(LdaZero),
-                B(Star), R(78),
-  /* 1061 S> */ B(LdaZero),
-                B(Star), R(79),
-  /* 1074 S> */ B(LdaZero),
-                B(Star), R(80),
-  /* 1087 S> */ B(LdaZero),
-                B(Star), R(81),
-  /* 1100 S> */ B(LdaZero),
-                B(Star), R(82),
-  /* 1113 S> */ B(LdaZero),
-                B(Star), R(83),
-  /* 1126 S> */ B(LdaZero),
-                B(Star), R(84),
-  /* 1139 S> */ B(LdaZero),
-                B(Star), R(85),
-  /* 1152 S> */ B(LdaZero),
-                B(Star), R(86),
-  /* 1165 S> */ B(LdaZero),
-                B(Star), R(87),
-  /* 1178 S> */ B(LdaZero),
-                B(Star), R(88),
-  /* 1191 S> */ B(LdaZero),
-                B(Star), R(89),
-  /* 1204 S> */ B(LdaZero),
-                B(Star), R(90),
-  /* 1217 S> */ B(LdaZero),
-                B(Star), R(91),
-  /* 1230 S> */ B(LdaZero),
-                B(Star), R(92),
-  /* 1243 S> */ B(LdaZero),
-                B(Star), R(93),
-  /* 1256 S> */ B(LdaZero),
-                B(Star), R(94),
-  /* 1269 S> */ B(LdaZero),
-                B(Star), R(95),
-  /* 1282 S> */ B(LdaZero),
-                B(Star), R(96),
-  /* 1295 S> */ B(LdaZero),
-                B(Star), R(97),
-  /* 1308 S> */ B(LdaZero),
-                B(Star), R(98),
-  /* 1321 S> */ B(LdaZero),
-                B(Star), R(99),
-  /* 1335 S> */ B(LdaZero),
-                B(Star), R(100),
-  /* 1349 S> */ B(LdaZero),
-                B(Star), R(101),
-  /* 1363 S> */ B(LdaZero),
-                B(Star), R(102),
-  /* 1377 S> */ B(LdaZero),
-                B(Star), R(103),
-  /* 1391 S> */ B(LdaZero),
-                B(Star), R(104),
-  /* 1405 S> */ B(LdaZero),
-                B(Star), R(105),
-  /* 1419 S> */ B(LdaZero),
-                B(Star), R(106),
-  /* 1433 S> */ B(LdaZero),
-                B(Star), R(107),
-  /* 1447 S> */ B(LdaZero),
-                B(Star), R(108),
-  /* 1461 S> */ B(LdaZero),
-                B(Star), R(109),
-  /* 1475 S> */ B(LdaZero),
-                B(Star), R(110),
-  /* 1489 S> */ B(LdaZero),
-                B(Star), R(111),
-  /* 1503 S> */ B(LdaZero),
-                B(Star), R(112),
-  /* 1517 S> */ B(LdaZero),
-                B(Star), R(113),
-  /* 1531 S> */ B(LdaZero),
-                B(Star), R(114),
-  /* 1545 S> */ B(LdaZero),
-                B(Star), R(115),
-  /* 1559 S> */ B(LdaZero),
-                B(Star), R(116),
-  /* 1573 S> */ B(LdaZero),
-                B(Star), R(117),
-  /* 1587 S> */ B(LdaZero),
-                B(Star), R(118),
-  /* 1601 S> */ B(LdaZero),
-                B(Star), R(119),
-  /* 1615 S> */ B(LdaZero),
-                B(Star), R(120),
-  /* 1629 S> */ B(LdaZero),
-                B(Star), R(121),
-  /* 1643 S> */ B(LdaZero),
-                B(Star), R(122),
-  /* 1657 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(123),
-  /* 1671 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(124),
-  /* 1685 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(125),
-  /* 1699 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(126),
-  /* 1713 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(127),
-  /* 1727 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(128),
-  /* 1741 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(129),
-  /* 1755 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(130),
-  /* 1769 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(131),
-  /* 1783 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(132),
-  /* 1797 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(133),
-  /* 1811 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(134),
-  /* 1825 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(135),
-  /* 1839 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(136),
-  /* 1853 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(137),
-  /* 1867 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(138),
-  /* 1881 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(139),
-  /* 1895 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(140),
-  /* 1909 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(141),
-  /* 1923 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(142),
-  /* 1937 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(143),
-  /* 1951 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(144),
-  /* 1965 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(145),
-  /* 1979 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(146),
-  /* 1993 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(147),
-  /* 2007 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(148),
-  /* 2021 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(149),
-  /* 2035 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(150),
-  /* 2049 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(151),
-  /* 2063 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(152),
-  /* 2077 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(153),
-  /* 2091 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(154),
-  /* 2105 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(155),
-  /* 2119 S> */ B(LdaZero),
-                B(Wide), B(Star), R16(156),
-  /* 2122 S> */ B(Wide), B(Mov), R16(127), R16(0),
-  /* 2133 S> */ B(Ldar), R(0),
-  /* 2143 S> */ B(Return),
-]
-constant pool: [
-]
-handlers: [
-]
-
----
-snippet: "
-  var x0 = 0;
-  var x1 = 0;
-  var x2 = 0;
-  var x3 = 0;
-  var x4 = 0;
-  var x5 = 0;
-  var x6 = 0;
-  var x7 = 0;
-  var x8 = 0;
-  var x9 = 0;
-  var x10 = 0;
-  var x11 = 0;
-  var x12 = 0;
-  var x13 = 0;
-  var x14 = 0;
-  var x15 = 0;
-  var x16 = 0;
-  var x17 = 0;
-  var x18 = 0;
-  var x19 = 0;
-  var x20 = 0;
-  var x21 = 0;
-  var x22 = 0;
-  var x23 = 0;
-  var x24 = 0;
-  var x25 = 0;
-  var x26 = 0;
-  var x27 = 0;
-  var x28 = 0;
-  var x29 = 0;
-  var x30 = 0;
-  var x31 = 0;
-  var x32 = 0;
-  var x33 = 0;
-  var x34 = 0;
-  var x35 = 0;
-  var x36 = 0;
-  var x37 = 0;
-  var x38 = 0;
-  var x39 = 0;
-  var x40 = 0;
-  var x41 = 0;
-  var x42 = 0;
-  var x43 = 0;
-  var x44 = 0;
-  var x45 = 0;
-  var x46 = 0;
-  var x47 = 0;
-  var x48 = 0;
-  var x49 = 0;
-  var x50 = 0;
-  var x51 = 0;
-  var x52 = 0;
-  var x53 = 0;
-  var x54 = 0;
-  var x55 = 0;
-  var x56 = 0;
-  var x57 = 0;
-  var x58 = 0;
-  var x59 = 0;
-  var x60 = 0;
-  var x61 = 0;
-  var x62 = 0;
-  var x63 = 0;
-  var x64 = 0;
-  var x65 = 0;
-  var x66 = 0;
-  var x67 = 0;
-  var x68 = 0;
-  var x69 = 0;
-  var x70 = 0;
-  var x71 = 0;
-  var x72 = 0;
-  var x73 = 0;
-  var x74 = 0;
-  var x75 = 0;
-  var x76 = 0;
-  var x77 = 0;
-  var x78 = 0;
-  var x79 = 0;
-  var x80 = 0;
-  var x81 = 0;
-  var x82 = 0;
-  var x83 = 0;
-  var x84 = 0;
-  var x85 = 0;
-  var x86 = 0;
-  var x87 = 0;
-  var x88 = 0;
-  var x89 = 0;
-  var x90 = 0;
-  var x91 = 0;
-  var x92 = 0;
-  var x93 = 0;
-  var x94 = 0;
-  var x95 = 0;
-  var x96 = 0;
-  var x97 = 0;
-  var x98 = 0;
-  var x99 = 0;
-  var x100 = 0;
-  var x101 = 0;
-  var x102 = 0;
-  var x103 = 0;
-  var x104 = 0;
-  var x105 = 0;
-  var x106 = 0;
-  var x107 = 0;
-  var x108 = 0;
-  var x109 = 0;
-  var x110 = 0;
-  var x111 = 0;
-  var x112 = 0;
-  var x113 = 0;
-  var x114 = 0;
-  var x115 = 0;
-  var x116 = 0;
-  var x117 = 0;
-  var x118 = 0;
-  var x119 = 0;
-  var x120 = 0;
-  var x121 = 0;
-  var x122 = 0;
-  var x123 = 0;
-  var x124 = 0;
-  var x125 = 0;
-  var x126 = 0;
-  var x127 = 0;
-  var x128 = 0;
-  var x129 = 0;
-  var x130 = 0;
-  var x131 = 0;
-  var x132 = 0;
-  var x133 = 0;
-  var x134 = 0;
-  var x135 = 0;
-  var x136 = 0;
-  var x137 = 0;
-  var x138 = 0;
-  var x139 = 0;
-  var x140 = 0;
-  var x141 = 0;
-  var x142 = 0;
-  var x143 = 0;
-  var x144 = 0;
-  var x145 = 0;
-  var x146 = 0;
-  var x147 = 0;
-  var x148 = 0;
-  var x149 = 0;
-  var x150 = 0;
-  var x151 = 0;
-  var x152 = 0;
-  var x153 = 0;
-  var x154 = 0;
-  var x155 = 0;
-  var x156 = 0;
-  x127 = x126;
-  return x127;
-"
-frame size: 157
-parameter count: 1
 bytecode array length: 534
 bytecodes: [
   /*   43 S> */ B(LdaZero),
@@ -905,7 +416,7 @@ bytecodes: [
   /* 1629 S> */ B(LdaZero),
                 B(Star), R(121),
   /* 1643 S> */ B(LdaZero),
-                B(Star), R(122),
+                B(Wide), B(Star), R16(122),
   /* 1657 S> */ B(LdaZero),
                 B(Wide), B(Star), R16(123),
   /* 1671 S> */ B(LdaZero),
@@ -974,9 +485,9 @@ bytecodes: [
                 B(Wide), B(Star), R16(155),
   /* 2119 S> */ B(LdaZero),
                 B(Wide), B(Star), R16(156),
-  /* 2122 S> */ B(Wide), B(Mov), R16(126), R16(127),
-  /* 2135 S> */ B(Wide), B(Ldar), R16(127),
-  /* 2147 S> */ B(Return),
+  /* 2122 S> */ B(Wide), B(Mov), R16(127), R16(0),
+  /* 2133 S> */ B(Ldar), R(0),
+  /* 2143 S> */ B(Return),
 ]
 constant pool: [
 ]
@@ -1142,12 +653,12 @@ snippet: "
   var x154 = 0;
   var x155 = 0;
   var x156 = 0;
-  if (x2 > 3) { return x129; }
-  return x128;
+  x127 = x126;
+  return x127;
 "
 frame size: 157
 parameter count: 1
-bytecode array length: 540
+bytecode array length: 536
 bytecodes: [
   /*   43 S> */ B(LdaZero),
                 B(Star0),
@@ -1394,7 +905,496 @@ bytecodes: [
   /* 1629 S> */ B(LdaZero),
                 B(Star), R(121),
   /* 1643 S> */ B(LdaZero),
-                B(Star), R(122),
+                B(Wide), B(Star), R16(122),
+  /* 1657 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(123),
+  /* 1671 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(124),
+  /* 1685 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(125),
+  /* 1699 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(126),
+  /* 1713 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(127),
+  /* 1727 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(128),
+  /* 1741 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(129),
+  /* 1755 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(130),
+  /* 1769 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(131),
+  /* 1783 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(132),
+  /* 1797 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(133),
+  /* 1811 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(134),
+  /* 1825 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(135),
+  /* 1839 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(136),
+  /* 1853 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(137),
+  /* 1867 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(138),
+  /* 1881 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(139),
+  /* 1895 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(140),
+  /* 1909 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(141),
+  /* 1923 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(142),
+  /* 1937 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(143),
+  /* 1951 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(144),
+  /* 1965 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(145),
+  /* 1979 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(146),
+  /* 1993 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(147),
+  /* 2007 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(148),
+  /* 2021 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(149),
+  /* 2035 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(150),
+  /* 2049 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(151),
+  /* 2063 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(152),
+  /* 2077 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(153),
+  /* 2091 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(154),
+  /* 2105 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(155),
+  /* 2119 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(156),
+  /* 2122 S> */ B(Wide), B(Mov), R16(126), R16(127),
+  /* 2135 S> */ B(Wide), B(Ldar), R16(127),
+  /* 2147 S> */ B(Return),
+]
+constant pool: [
+]
+handlers: [
+]
+
+---
+snippet: "
+  var x0 = 0;
+  var x1 = 0;
+  var x2 = 0;
+  var x3 = 0;
+  var x4 = 0;
+  var x5 = 0;
+  var x6 = 0;
+  var x7 = 0;
+  var x8 = 0;
+  var x9 = 0;
+  var x10 = 0;
+  var x11 = 0;
+  var x12 = 0;
+  var x13 = 0;
+  var x14 = 0;
+  var x15 = 0;
+  var x16 = 0;
+  var x17 = 0;
+  var x18 = 0;
+  var x19 = 0;
+  var x20 = 0;
+  var x21 = 0;
+  var x22 = 0;
+  var x23 = 0;
+  var x24 = 0;
+  var x25 = 0;
+  var x26 = 0;
+  var x27 = 0;
+  var x28 = 0;
+  var x29 = 0;
+  var x30 = 0;
+  var x31 = 0;
+  var x32 = 0;
+  var x33 = 0;
+  var x34 = 0;
+  var x35 = 0;
+  var x36 = 0;
+  var x37 = 0;
+  var x38 = 0;
+  var x39 = 0;
+  var x40 = 0;
+  var x41 = 0;
+  var x42 = 0;
+  var x43 = 0;
+  var x44 = 0;
+  var x45 = 0;
+  var x46 = 0;
+  var x47 = 0;
+  var x48 = 0;
+  var x49 = 0;
+  var x50 = 0;
+  var x51 = 0;
+  var x52 = 0;
+  var x53 = 0;
+  var x54 = 0;
+  var x55 = 0;
+  var x56 = 0;
+  var x57 = 0;
+  var x58 = 0;
+  var x59 = 0;
+  var x60 = 0;
+  var x61 = 0;
+  var x62 = 0;
+  var x63 = 0;
+  var x64 = 0;
+  var x65 = 0;
+  var x66 = 0;
+  var x67 = 0;
+  var x68 = 0;
+  var x69 = 0;
+  var x70 = 0;
+  var x71 = 0;
+  var x72 = 0;
+  var x73 = 0;
+  var x74 = 0;
+  var x75 = 0;
+  var x76 = 0;
+  var x77 = 0;
+  var x78 = 0;
+  var x79 = 0;
+  var x80 = 0;
+  var x81 = 0;
+  var x82 = 0;
+  var x83 = 0;
+  var x84 = 0;
+  var x85 = 0;
+  var x86 = 0;
+  var x87 = 0;
+  var x88 = 0;
+  var x89 = 0;
+  var x90 = 0;
+  var x91 = 0;
+  var x92 = 0;
+  var x93 = 0;
+  var x94 = 0;
+  var x95 = 0;
+  var x96 = 0;
+  var x97 = 0;
+  var x98 = 0;
+  var x99 = 0;
+  var x100 = 0;
+  var x101 = 0;
+  var x102 = 0;
+  var x103 = 0;
+  var x104 = 0;
+  var x105 = 0;
+  var x106 = 0;
+  var x107 = 0;
+  var x108 = 0;
+  var x109 = 0;
+  var x110 = 0;
+  var x111 = 0;
+  var x112 = 0;
+  var x113 = 0;
+  var x114 = 0;
+  var x115 = 0;
+  var x116 = 0;
+  var x117 = 0;
+  var x118 = 0;
+  var x119 = 0;
+  var x120 = 0;
+  var x121 = 0;
+  var x122 = 0;
+  var x123 = 0;
+  var x124 = 0;
+  var x125 = 0;
+  var x126 = 0;
+  var x127 = 0;
+  var x128 = 0;
+  var x129 = 0;
+  var x130 = 0;
+  var x131 = 0;
+  var x132 = 0;
+  var x133 = 0;
+  var x134 = 0;
+  var x135 = 0;
+  var x136 = 0;
+  var x137 = 0;
+  var x138 = 0;
+  var x139 = 0;
+  var x140 = 0;
+  var x141 = 0;
+  var x142 = 0;
+  var x143 = 0;
+  var x144 = 0;
+  var x145 = 0;
+  var x146 = 0;
+  var x147 = 0;
+  var x148 = 0;
+  var x149 = 0;
+  var x150 = 0;
+  var x151 = 0;
+  var x152 = 0;
+  var x153 = 0;
+  var x154 = 0;
+  var x155 = 0;
+  var x156 = 0;
+  if (x2 > 3) { return x129; }
+  return x128;
+"
+frame size: 157
+parameter count: 1
+bytecode array length: 542
+bytecodes: [
+  /*   43 S> */ B(LdaZero),
+                B(Star0),
+  /*   55 S> */ B(LdaZero),
+                B(Star1),
+  /*   67 S> */ B(LdaZero),
+                B(Star2),
+  /*   79 S> */ B(LdaZero),
+                B(Star3),
+  /*   91 S> */ B(LdaZero),
+                B(Star4),
+  /*  103 S> */ B(LdaZero),
+                B(Star5),
+  /*  115 S> */ B(LdaZero),
+                B(Star6),
+  /*  127 S> */ B(LdaZero),
+                B(Star7),
+  /*  139 S> */ B(LdaZero),
+                B(Star8),
+  /*  151 S> */ B(LdaZero),
+                B(Star9),
+  /*  164 S> */ B(LdaZero),
+                B(Star10),
+  /*  177 S> */ B(LdaZero),
+                B(Star11),
+  /*  190 S> */ B(LdaZero),
+                B(Star12),
+  /*  203 S> */ B(LdaZero),
+                B(Star13),
+  /*  216 S> */ B(LdaZero),
+                B(Star14),
+  /*  229 S> */ B(LdaZero),
+                B(Star15),
+  /*  242 S> */ B(LdaZero),
+                B(Star), R(16),
+  /*  255 S> */ B(LdaZero),
+                B(Star), R(17),
+  /*  268 S> */ B(LdaZero),
+                B(Star), R(18),
+  /*  281 S> */ B(LdaZero),
+                B(Star), R(19),
+  /*  294 S> */ B(LdaZero),
+                B(Star), R(20),
+  /*  307 S> */ B(LdaZero),
+                B(Star), R(21),
+  /*  320 S> */ B(LdaZero),
+                B(Star), R(22),
+  /*  333 S> */ B(LdaZero),
+                B(Star), R(23),
+  /*  346 S> */ B(LdaZero),
+                B(Star), R(24),
+  /*  359 S> */ B(LdaZero),
+                B(Star), R(25),
+  /*  372 S> */ B(LdaZero),
+                B(Star), R(26),
+  /*  385 S> */ B(LdaZero),
+                B(Star), R(27),
+  /*  398 S> */ B(LdaZero),
+                B(Star), R(28),
+  /*  411 S> */ B(LdaZero),
+                B(Star), R(29),
+  /*  424 S> */ B(LdaZero),
+                B(Star), R(30),
+  /*  437 S> */ B(LdaZero),
+                B(Star), R(31),
+  /*  450 S> */ B(LdaZero),
+                B(Star), R(32),
+  /*  463 S> */ B(LdaZero),
+                B(Star), R(33),
+  /*  476 S> */ B(LdaZero),
+                B(Star), R(34),
+  /*  489 S> */ B(LdaZero),
+                B(Star), R(35),
+  /*  502 S> */ B(LdaZero),
+                B(Star), R(36),
+  /*  515 S> */ B(LdaZero),
+                B(Star), R(37),
+  /*  528 S> */ B(LdaZero),
+                B(Star), R(38),
+  /*  541 S> */ B(LdaZero),
+                B(Star), R(39),
+  /*  554 S> */ B(LdaZero),
+                B(Star), R(40),
+  /*  567 S> */ B(LdaZero),
+                B(Star), R(41),
+  /*  580 S> */ B(LdaZero),
+                B(Star), R(42),
+  /*  593 S> */ B(LdaZero),
+                B(Star), R(43),
+  /*  606 S> */ B(LdaZero),
+                B(Star), R(44),
+  /*  619 S> */ B(LdaZero),
+                B(Star), R(45),
+  /*  632 S> */ B(LdaZero),
+                B(Star), R(46),
+  /*  645 S> */ B(LdaZero),
+                B(Star), R(47),
+  /*  658 S> */ B(LdaZero),
+                B(Star), R(48),
+  /*  671 S> */ B(LdaZero),
+                B(Star), R(49),
+  /*  684 S> */ B(LdaZero),
+                B(Star), R(50),
+  /*  697 S> */ B(LdaZero),
+                B(Star), R(51),
+  /*  710 S> */ B(LdaZero),
+                B(Star), R(52),
+  /*  723 S> */ B(LdaZero),
+                B(Star), R(53),
+  /*  736 S> */ B(LdaZero),
+                B(Star), R(54),
+  /*  749 S> */ B(LdaZero),
+                B(Star), R(55),
+  /*  762 S> */ B(LdaZero),
+                B(Star), R(56),
+  /*  775 S> */ B(LdaZero),
+                B(Star), R(57),
+  /*  788 S> */ B(LdaZero),
+                B(Star), R(58),
+  /*  801 S> */ B(LdaZero),
+                B(Star), R(59),
+  /*  814 S> */ B(LdaZero),
+                B(Star), R(60),
+  /*  827 S> */ B(LdaZero),
+                B(Star), R(61),
+  /*  840 S> */ B(LdaZero),
+                B(Star), R(62),
+  /*  853 S> */ B(LdaZero),
+                B(Star), R(63),
+  /*  866 S> */ B(LdaZero),
+                B(Star), R(64),
+  /*  879 S> */ B(LdaZero),
+                B(Star), R(65),
+  /*  892 S> */ B(LdaZero),
+                B(Star), R(66),
+  /*  905 S> */ B(LdaZero),
+                B(Star), R(67),
+  /*  918 S> */ B(LdaZero),
+                B(Star), R(68),
+  /*  931 S> */ B(LdaZero),
+                B(Star), R(69),
+  /*  944 S> */ B(LdaZero),
+                B(Star), R(70),
+  /*  957 S> */ B(LdaZero),
+                B(Star), R(71),
+  /*  970 S> */ B(LdaZero),
+                B(Star), R(72),
+  /*  983 S> */ B(LdaZero),
+                B(Star), R(73),
+  /*  996 S> */ B(LdaZero),
+                B(Star), R(74),
+  /* 1009 S> */ B(LdaZero),
+                B(Star), R(75),
+  /* 1022 S> */ B(LdaZero),
+                B(Star), R(76),
+  /* 1035 S> */ B(LdaZero),
+                B(Star), R(77),
+  /* 1048 S> */ B(LdaZero),
+                B(Star), R(78),
+  /* 1061 S> */ B(LdaZero),
+                B(Star), R(79),
+  /* 1074 S> */ B(LdaZero),
+                B(Star), R(80),
+  /* 1087 S> */ B(LdaZero),
+                B(Star), R(81),
+  /* 1100 S> */ B(LdaZero),
+                B(Star), R(82),
+  /* 1113 S> */ B(LdaZero),
+                B(Star), R(83),
+  /* 1126 S> */ B(LdaZero),
+                B(Star), R(84),
+  /* 1139 S> */ B(LdaZero),
+                B(Star), R(85),
+  /* 1152 S> */ B(LdaZero),
+                B(Star), R(86),
+  /* 1165 S> */ B(LdaZero),
+                B(Star), R(87),
+  /* 1178 S> */ B(LdaZero),
+                B(Star), R(88),
+  /* 1191 S> */ B(LdaZero),
+                B(Star), R(89),
+  /* 1204 S> */ B(LdaZero),
+                B(Star), R(90),
+  /* 1217 S> */ B(LdaZero),
+                B(Star), R(91),
+  /* 1230 S> */ B(LdaZero),
+                B(Star), R(92),
+  /* 1243 S> */ B(LdaZero),
+                B(Star), R(93),
+  /* 1256 S> */ B(LdaZero),
+                B(Star), R(94),
+  /* 1269 S> */ B(LdaZero),
+                B(Star), R(95),
+  /* 1282 S> */ B(LdaZero),
+                B(Star), R(96),
+  /* 1295 S> */ B(LdaZero),
+                B(Star), R(97),
+  /* 1308 S> */ B(LdaZero),
+                B(Star), R(98),
+  /* 1321 S> */ B(LdaZero),
+                B(Star), R(99),
+  /* 1335 S> */ B(LdaZero),
+                B(Star), R(100),
+  /* 1349 S> */ B(LdaZero),
+                B(Star), R(101),
+  /* 1363 S> */ B(LdaZero),
+                B(Star), R(102),
+  /* 1377 S> */ B(LdaZero),
+                B(Star), R(103),
+  /* 1391 S> */ B(LdaZero),
+                B(Star), R(104),
+  /* 1405 S> */ B(LdaZero),
+                B(Star), R(105),
+  /* 1419 S> */ B(LdaZero),
+                B(Star), R(106),
+  /* 1433 S> */ B(LdaZero),
+                B(Star), R(107),
+  /* 1447 S> */ B(LdaZero),
+                B(Star), R(108),
+  /* 1461 S> */ B(LdaZero),
+                B(Star), R(109),
+  /* 1475 S> */ B(LdaZero),
+                B(Star), R(110),
+  /* 1489 S> */ B(LdaZero),
+                B(Star), R(111),
+  /* 1503 S> */ B(LdaZero),
+                B(Star), R(112),
+  /* 1517 S> */ B(LdaZero),
+                B(Star), R(113),
+  /* 1531 S> */ B(LdaZero),
+                B(Star), R(114),
+  /* 1545 S> */ B(LdaZero),
+                B(Star), R(115),
+  /* 1559 S> */ B(LdaZero),
+                B(Star), R(116),
+  /* 1573 S> */ B(LdaZero),
+                B(Star), R(117),
+  /* 1587 S> */ B(LdaZero),
+                B(Star), R(118),
+  /* 1601 S> */ B(LdaZero),
+                B(Star), R(119),
+  /* 1615 S> */ B(LdaZero),
+                B(Star), R(120),
+  /* 1629 S> */ B(LdaZero),
+                B(Star), R(121),
+  /* 1643 S> */ B(LdaZero),
+                B(Wide), B(Star), R16(122),
   /* 1657 S> */ B(LdaZero),
                 B(Wide), B(Star), R16(123),
   /* 1671 S> */ B(LdaZero),
@@ -1642,7 +1642,7 @@ snippet: "
 "
 frame size: 157
 parameter count: 1
-bytecode array length: 560
+bytecode array length: 562
 bytecodes: [
   /*   43 S> */ B(LdaZero),
                 B(Star0),
@@ -1889,7 +1889,7 @@ bytecodes: [
   /* 1629 S> */ B(LdaZero),
                 B(Star), R(121),
   /* 1643 S> */ B(LdaZero),
-                B(Star), R(122),
+                B(Wide), B(Star), R16(122),
   /* 1657 S> */ B(LdaZero),
                 B(Wide), B(Star), R16(123),
   /* 1671 S> */ B(LdaZero),
@@ -2143,7 +2143,7 @@ snippet: "
 "
 frame size: 158
 parameter count: 1
-bytecode array length: 575
+bytecode array length: 577
 bytecodes: [
   /*   43 S> */ B(LdaZero),
                 B(Star0),
@@ -2390,7 +2390,7 @@ bytecodes: [
   /* 1629 S> */ B(LdaZero),
                 B(Star), R(121),
   /* 1643 S> */ B(LdaZero),
-                B(Star), R(122),
+                B(Wide), B(Star), R16(122),
   /* 1657 S> */ B(LdaZero),
                 B(Wide), B(Star), R16(123),
   /* 1671 S> */ B(LdaZero),
@@ -2649,7 +2649,7 @@ snippet: "
 "
 frame size: 163
 parameter count: 1
-bytecode array length: 606
+bytecode array length: 608
 bytecodes: [
   /*   43 S> */ B(LdaZero),
                 B(Star0),
@@ -2896,7 +2896,7 @@ bytecodes: [
   /* 1629 S> */ B(LdaZero),
                 B(Star), R(121),
   /* 1643 S> */ B(LdaZero),
-                B(Star), R(122),
+                B(Wide), B(Star), R16(122),
   /* 1657 S> */ B(LdaZero),
                 B(Wide), B(Star), R16(123),
   /* 1671 S> */ B(LdaZero),
@@ -3162,7 +3162,7 @@ snippet: "
 "
 frame size: 159
 parameter count: 1
-bytecode array length: 573
+bytecode array length: 575
 bytecodes: [
   /*   43 S> */ B(LdaZero),
                 B(Star0),
@@ -3409,7 +3409,7 @@ bytecodes: [
   /* 1629 S> */ B(LdaZero),
                 B(Star), R(121),
   /* 1643 S> */ B(LdaZero),
-                B(Star), R(122),
+                B(Wide), B(Star), R16(122),
   /* 1657 S> */ B(LdaZero),
                 B(Wide), B(Star), R16(123),
   /* 1671 S> */ B(LdaZero),

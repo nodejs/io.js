@@ -1,0 +1,300 @@
+# Copyright 2018 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("traits") {
+  public = [ "traits.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("distribution_caller") {
+  public = [ "distribution_caller.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:fast_type_id",
+    "//third_party/abseil-cpp/absl/utility",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("fast_uniform_bits") {
+  public = [ "fast_uniform_bits.h" ]
+  deps = [
+    ":traits",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("seed_material") {
+  public = [ "seed_material.h" ]
+  sources = [ "seed_material.cc" ]
+  if (is_win) {
+    # TODO(mbonadei): In the bazel file this is -DEFAULTLIB:bcrypt.lib.
+    libs = [ "bcrypt.lib" ]
+  }
+  deps = [
+    ":fast_uniform_bits",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:dynamic_annotations",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/abseil-cpp/absl/types:optional",
+    "//third_party/abseil-cpp/absl/types:span",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("pool_urbg") {
+  public = [ "pool_urbg.h" ]
+  sources = [ "pool_urbg.cc" ]
+  deps = [
+    ":randen",
+    ":seed_material",
+    ":traits",
+    "//third_party/abseil-cpp/absl/base",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:endian",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+    "//third_party/abseil-cpp/absl/random:seed_gen_exception",
+    "//third_party/abseil-cpp/absl/types:span",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("explicit_seed_seq") {
+  testonly = true
+  public = [ "explicit_seed_seq.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:endian",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("sequence_urbg") {
+  testonly = true
+  public = [ "sequence_urbg.h" ]
+  deps = [ "//third_party/abseil-cpp/absl/base:config" ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("salted_seed_seq") {
+  public = [ "salted_seed_seq.h" ]
+  deps = [
+    ":seed_material",
+    "//third_party/abseil-cpp/absl/container:inlined_vector",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/types:optional",
+    "//third_party/abseil-cpp/absl/types:span",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("iostream_state_saver") {
+  public = [ "iostream_state_saver.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("generate_real") {
+  public = [ "generate_real.h" ]
+  deps = [
+    ":fastmath",
+    ":traits",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("fastmath") {
+  public = [ "fastmath.h" ]
+  deps = [ "//third_party/abseil-cpp/absl/numeric:bits" ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("wide_multiply") {
+  public = [ "wide_multiply.h" ]
+  deps = [
+    ":traits",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("nonsecure_base") {
+  public = [ "nonsecure_base.h" ]
+  deps = [
+    ":pool_urbg",
+    ":salted_seed_seq",
+    ":seed_material",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/container:inlined_vector",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/types:span",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("pcg_engine") {
+  public = [ "pcg_engine.h" ]
+  deps = [
+    ":fastmath",
+    ":iostream_state_saver",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("randen_engine") {
+  public = [ "randen_engine.h" ]
+  deps = [
+    ":iostream_state_saver",
+    ":randen",
+    "//third_party/abseil-cpp/absl/base:endian",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("platform") {
+  public = [
+    "platform.h",
+    "randen_traits.h",
+  ]
+  sources = [ "randen_round_keys.cc" ]
+  deps = [
+    "//build:chromeos_buildflags",
+    "//third_party/abseil-cpp/absl/base:config",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("randen") {
+  public = [ "randen.h" ]
+  sources = [ "randen.cc" ]
+  deps = [
+    ":platform",
+    ":randen_hwaes",
+    ":randen_slow",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("randen_slow") {
+  public = [ "randen_slow.h" ]
+  sources = [ "randen_slow.cc" ]
+  deps = [
+    ":platform",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:endian",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("randen_hwaes") {
+  public = [
+    "randen_detect.h",
+    "randen_hwaes.h",
+  ]
+  sources = [ "randen_detect.cc" ]
+  deps = [
+    ":platform",
+    ":randen_hwaes_impl",
+    "//third_party/abseil-cpp/absl/base:config",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("randen_hwaes_impl") {
+  sources = [
+    "randen_hwaes.cc",
+    "randen_hwaes.h",
+  ]
+  deps = [
+    ":platform",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+executable("gaussian_distribution_gentables") {
+  sources = [ "gaussian_distribution_gentables.cc" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/random:distributions",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+absl_source_set("distribution_test_util") {
+  testonly = true
+  public = [
+    "chi_square.h",
+    "distribution_test_util.h",
+  ]
+  sources = [
+    "chi_square.cc",
+    "distribution_test_util.cc",
+  ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:str_format",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/abseil-cpp/absl/types:span",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}
+
+# TODO(danilchap): Enable when can be compiled on all chromium bots.
+# nanobenchmark uses platform specific functions to take accurate current time,
+# and fallbacks to clock_gettime. Several chromium configurations lack both
+# dedicated code and the clock_gettime system function.
+# absl_source_set("nanobenchmark") {
+#  sources = [ "nanobenchmark.cc" ]
+#  deps = [
+#    ":platform",
+#    ":randen_engine",
+#    "//third_party/abseil-cpp/absl/base:config",
+#    "//third_party/abseil-cpp/absl/base:core_headers",
+#    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+#  ]
+# }
+
+absl_source_set("uniform_helper") {
+  public = [ "uniform_helper.h" ]
+  deps = [
+    ":traits",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/numeric:int128",
+  ]
+  visibility = ["//third_party/abseil-cpp/absl/random/*"]
+}

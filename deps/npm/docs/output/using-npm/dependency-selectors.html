@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="dependency-selector-syntax--querying">Dependency Selector Syntax &amp; Querying</h1>
+<h1 id="----dependency-selector-syntax--querying----1082">
+    <span>Dependency Selector Syntax &amp; Querying</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Dependency Selector Syntax &amp; Querying</span>
 </header>
 
@@ -153,7 +161,7 @@ npm command-line interface
 <li>Unlocks the ability to answer complex, multi-faceted questions about dependencies, their relationships &amp; associative metadata</li>
 <li>Consolidates redundant logic of similar query commands in <code>npm</code> (ex. <code>npm fund</code>, <code>npm ls</code>, <code>npm outdated</code>, <code>npm audit</code> ...)</li>
 </ul>
-<h3 id="dependency-selector-syntax-v100">Dependency Selector Syntax <code>v1.0.0</code></h3>
+<h3 id="dependency-selector-syntax">Dependency Selector Syntax</h3>
 <h4 id="overview">Overview:</h4>
 <ul>
 <li>there is no "type" or "tag" selectors (ex. <code>div, h1, a</code>) as a dependency/target is the only type of <code>Node</code> that can be queried</li>
@@ -202,6 +210,7 @@ npm command-line interface
 <li><code>:path(&lt;path&gt;)</code> <a href="https://www.npmjs.com/package/glob">glob</a> matching based on dependencies path relative to the project</li>
 <li><code>:type(&lt;type&gt;)</code> <a href="https://github.com/npm/npm-package-arg#result-object">based on currently recognized types</a></li>
 <li><code>:outdated(&lt;type&gt;)</code> when a dependency is outdated</li>
+<li><code>:vuln(&lt;selector&gt;)</code> when a dependency has a known vulnerability</li>
 </ul>
 <h5 id="semverspec-selector-function"><code>:semver(&lt;spec&gt;, [selector], [function])</code></h5>
 <p>The <code>:semver()</code> pseudo selector allows comparing fields from each node's <code>package.json</code> using <a href="https://github.com/npm/node-semver#readme">semver</a> methods. It accepts up to 3 parameters, all but the first of which are optional.</p>
@@ -221,8 +230,8 @@ npm command-line interface
 <p>The <code>:outdated</code> pseudo selector retrieves data from the registry and returns information about which of your dependencies are outdated. The type parameter may be one of the following:</p>
 <ul>
 <li><code>any</code> (default) a version exists that is greater than the current one</li>
-<li><code>in-range</code> a version exists that is greater than the current one, and satisfies at least one if its dependents</li>
-<li><code>out-of-range</code> a version exists that is greater than the current one, does not satisfy at least one of its dependents</li>
+<li><code>in-range</code> a version exists that is greater than the current one, and satisfies at least one if its parent's dependencies</li>
+<li><code>out-of-range</code> a version exists that is greater than the current one, does not satisfy at least one of its parent's dependencies</li>
 <li><code>major</code> a version exists that is a semver major greater than the current one</li>
 <li><code>minor</code> a version exists that is a semver minor greater than the current one</li>
 <li><code>patch</code> a version exists that is a semver patch greater than the current one</li>
@@ -236,13 +245,24 @@ npm command-line interface
 <p>Some examples:</p>
 <ul>
 <li><code>:root &gt; :outdated(major)</code> returns every direct dependency that has a new semver major release</li>
-<li><code>.prod:outdated(in-range)</code> returns production dependencies that have a new release that satisfies at least one of its edges in</li>
+<li><code>.prod:outdated(in-range)</code> returns production dependencies that have a new release that satisfies at least one of its parent's dependencies</li>
+</ul>
+<h5 id="vuln"><code>:vuln</code></h5>
+<p>The <code>:vuln</code> pseudo selector retrieves data from the registry and returns information about which if your dependencies has a known vulnerability.  Only dependencies whose current version matches a vulnerability will be returned.  For example if you have <code>semver@7.6.0</code> in your tree, a vulnerability for <code>semver</code> which affects versions <code>&lt;=6.3.1</code> will not match.</p>
+<p>You can also filter results by certain attributes in advisories.  Currently that includes <code>severity</code> and <code>cwe</code>.  Note that severity filtering is done per severity, it does not include severities "higher" or "lower" than the one specified.</p>
+<p>In addition to the filtering performed by the pseudo selector, info about each relevant advisory will be added to the <code>queryContext</code> attribute of each node under the <code>advisories</code> attribute.</p>
+<p>Some examples:</p>
+<ul>
+<li><code>:root &gt; .prod:vuln</code> returns direct production dependencies with any known vulnerability</li>
+<li><code>:vuln([severity=high])</code> returns only dependencies with a vulnerability with a <code>high</code> severity.</li>
+<li><code>:vuln([severity=high],[severity=moderate])</code> returns only dependencies with a vulnerability with a <code>high</code>  or <code>moderate</code> severity.</li>
+<li><code>:vuln([cwe=1333])</code> returns only dependencies with a vulnerability that includes CWE-1333 (ReDoS)</li>
 </ul>
 <h4 id="attribute-selectors"><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors">Attribute Selectors</a></h4>
 <p>The attribute selector evaluates the key/value pairs in <code>package.json</code> if they are <code>String</code>s.</p>
 <ul>
 <li><code>[]</code> attribute selector (ie. existence of attribute)</li>
-<li><code>[attribute=value]</code> attribute value is equivalant...</li>
+<li><code>[attribute=value]</code> attribute value is equivalent...</li>
 <li><code>[attribute~=value]</code> attribute value contains word...</li>
 <li><code>[attribute*=value]</code> attribute value contains string...</li>
 <li><code>[attribute|=value]</code> attribute value is equal to or starts with...</li>

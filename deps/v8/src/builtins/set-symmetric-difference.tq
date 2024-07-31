@@ -19,15 +19,15 @@ transitioning javascript builtin SetPrototypeSymmetricDifference(
   // 3. Let otherRec be ? GetSetRecord(other).
   let otherRec = GetSetRecord(other, methodName);
 
-  const table = Cast<OrderedHashSet>(o.table) otherwise unreachable;
-
   // 4. Let keysIter be ? GetKeysIterator(otherRec).
   let keysIter =
       GetKeysIterator(otherRec.object, UnsafeCast<Callable>(otherRec.keys));
 
   // 5. Let resultSetData be a copy of O.[[SetData]].
-  const resultSetData = Cast<OrderedHashSet>(CloneFixedArray(
-      table, ExtractFixedArrayFlag::kFixedArrays)) otherwise unreachable;
+  let table = NewStableBackingTableWitness(o);
+  const resultSetData = Cast<OrderedHashSet>(
+      CloneFixedArray(table.GetTable(), ExtractFixedArrayFlag::kFixedArrays))
+      otherwise unreachable;
   let resultAndNumberOfElements = OrderedHashSetAndNumberOfElements{
     setData: resultSetData,
     numberOfElements: UnsafeCast<Smi>(
@@ -39,11 +39,10 @@ transitioning javascript builtin SetPrototypeSymmetricDifference(
       case (otherSet: JSSetWithNoCustomIteration): {
         CheckSetRecordHasJSSetMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashSet>(otherSet.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherSet);
 
-        let otherIterator =
-            collections::NewUnmodifiedOrderedHashSetIterator(otherTable);
+        let otherIterator = collections::NewUnmodifiedOrderedHashSetIterator(
+            otherTable.GetTable());
 
         while (true) {
           const nextValue = otherIterator.Next() otherwise Done;
@@ -55,11 +54,10 @@ transitioning javascript builtin SetPrototypeSymmetricDifference(
       case (otherMap: JSMapWithNoCustomIteration): {
         CheckSetRecordHasJSMapMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashMap>(otherMap.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherMap);
 
-        let otherIterator =
-            collections::NewUnmodifiedOrderedHashMapIterator(otherTable);
+        let otherIterator = collections::NewUnmodifiedOrderedHashMapIterator(
+            otherTable.GetTable());
 
         while (true) {
           const nextValue = otherIterator.Next() otherwise Done;
@@ -94,7 +92,8 @@ transitioning javascript builtin SetPrototypeSymmetricDifference(
           TableHasKey(resultAndNumberOfElements.setData, nextValue);
 
       //      iv. If SetDataHas(O.[[SetData]], nextValue) is true, then
-      if (TableHasKey(table, nextValue)) {
+      table.ReloadTable();
+      if (table.HasKey(nextValue)) {
         //  1. If inResult is true, remove nextValue from resultSetData.
         if (inResult) {
           resultAndNumberOfElements.numberOfElements =
@@ -132,8 +131,10 @@ struct OrderedHashSetAndNumberOfElements {
   setData: OrderedHashSet;
   numberOfElements: Smi;
 }
+
 macro FastSymmetricDifference(
-    implicit context: Context)(nextValue: JSAny, table: OrderedHashSet,
+    implicit context: Context)(nextValue: JSAny,
+    table: StableJSSetBackingTableWitness,
     resultSetDataAndNumberOfElements: OrderedHashSetAndNumberOfElements,
     methodName: constexpr string): OrderedHashSetAndNumberOfElements {
   let key = nextValue;
@@ -147,7 +148,7 @@ macro FastSymmetricDifference(
   const inResult = TableHasKey(resultSetData, key);
 
   // iv. If SetDataHas(O.[[SetData]], nextValue) is true, then
-  dcheck(inResult == TableHasKey(table, key));
+  dcheck(inResult == table.HasKey(key));
   //  1. If inResult is true, remove nextValue from resultSetData.
   if (inResult) {
     numberOfElements = DeleteFromSetTable(resultSetData, key)

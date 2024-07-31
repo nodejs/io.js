@@ -1,0 +1,158 @@
+#
+# Copyright 2017 The Abseil Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+load(
+    "//absl:copts/configure_copts.bzl",
+    "ABSL_DEFAULT_COPTS",
+    "ABSL_DEFAULT_LINKOPTS",
+    "ABSL_TEST_COPTS",
+)
+
+package(
+    default_visibility = ["//visibility:public"],
+    features = [
+        "header_modules",
+        "layering_check",
+        "parse_headers",
+    ],
+)
+
+licenses(["notice"])
+
+cc_library(
+    name = "time",
+    srcs = [
+        "civil_time.cc",
+        "clock.cc",
+        "duration.cc",
+        "format.cc",
+        "internal/get_current_time_chrono.inc",
+        "internal/get_current_time_posix.inc",
+        "time.cc",
+    ],
+    hdrs = [
+        "civil_time.h",
+        "clock.h",
+        "time.h",
+    ],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:raw_logging_internal",
+        "//absl/numeric:int128",
+        "//absl/strings",
+        "//absl/time/internal/cctz:civil_time",
+        "//absl/time/internal/cctz:time_zone",
+        "//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "test_util",
+    testonly = True,
+    srcs = ["internal/test_util.cc"],
+    hdrs = ["internal/test_util.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":time",
+        "//absl/base:config",
+        "//absl/base:raw_logging_internal",
+    ],
+)
+
+cc_test(
+    name = "time_test",
+    srcs = [
+        "civil_time_test.cc",
+        "clock_test.cc",
+        "duration_test.cc",
+        "format_test.cc",
+        "time_test.cc",
+        "time_zone_test.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    data = ["//absl/time/internal/cctz:zoneinfo"],
+    env = {"TZDIR": "absl/time/internal/cctz/testdata/zoneinfo"},
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":test_util",
+        ":time",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/numeric:int128",
+        "//absl/strings:str_format",
+        "//absl/time/internal/cctz:time_zone",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "flag_test",
+    srcs = [
+        "flag_test.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    tags = [
+        "no_test_android_arm",
+        "no_test_android_arm64",
+        "no_test_android_x86",
+        "no_test_ios_x86_64",
+        "no_test_lexan",
+        "no_test_loonix",
+        "no_test_wasm",
+    ],
+    deps = [
+        ":time",
+        "//absl/flags:flag",
+        "//absl/flags:reflection",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "time_benchmark",
+    srcs = [
+        "civil_time_benchmark.cc",
+        "clock_benchmark.cc",
+        "duration_benchmark.cc",
+        "format_benchmark.cc",
+        "time_benchmark.cc",
+    ],
+    copts = ABSL_TEST_COPTS,
+    data = ["//absl/time/internal/cctz:zoneinfo"],
+    env = {"TZDIR": "absl/time/internal/cctz/testdata/zoneinfo"},
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    tags = [
+        "benchmark",
+    ],
+    deps = [
+        ":test_util",
+        ":time",
+        "//absl/base",
+        "//absl/base:core_headers",
+        "//absl/flags:flag",
+        "//absl/hash",
+        "@com_github_google_benchmark//:benchmark_main",
+    ],
+)

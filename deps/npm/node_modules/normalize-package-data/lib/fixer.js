@@ -2,7 +2,7 @@ var isValidSemver = require('semver/functions/valid')
 var cleanSemver = require('semver/functions/clean')
 var validateLicense = require('validate-npm-package-license')
 var hostedGitInfo = require('hosted-git-info')
-var isBuiltinModule = require('is-core-module')
+var moduleBuiltin = require('node:module')
 var depTypes = ['dependencies', 'devDependencies', 'optionalDependencies']
 var extractDescription = require('./extract_description')
 var url = require('url')
@@ -139,7 +139,7 @@ module.exports = {
     }
   },
 
-  fixDependencies: function (data, strict) {
+  fixDependencies: function (data) {
     objectifyDeps(data, this.warn)
     addOptionalDepsToDeps(data, this.warn)
     this.fixBundleDependenciesField(data)
@@ -231,7 +231,7 @@ module.exports = {
       data.name = data.name.trim()
     }
     ensureValidName(data.name, strict, options.allowLegacyCase)
-    if (isBuiltinModule(data.name)) {
+    if (moduleBuiltin.builtinModules.includes(data.name)) {
       this.warn('conflictingName', data.name)
     }
   },
@@ -415,7 +415,7 @@ function parsePerson (person) {
   return obj
 }
 
-function addOptionalDepsToDeps (data, warn) {
+function addOptionalDepsToDeps (data) {
   var o = data.optionalDependencies
   if (!o) {
     return

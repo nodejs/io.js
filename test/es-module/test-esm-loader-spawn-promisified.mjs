@@ -4,7 +4,7 @@ import assert from 'node:assert';
 import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
-describe('Loader hooks throwing errors', { concurrency: true }, () => {
+describe('Loader hooks throwing errors', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('throws on nonexistent modules', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
@@ -161,7 +161,7 @@ describe('Loader hooks throwing errors', { concurrency: true }, () => {
   });
 });
 
-describe('Loader hooks parsing modules', { concurrency: true }, () => {
+describe('Loader hooks parsing modules', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('can parse .js files as ESM', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',

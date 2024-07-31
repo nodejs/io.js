@@ -3,5 +3,8 @@
 # found in the LICENSE file.
 
 declare_args() {
-  is_on_release_branch = true
+  # TODO(liviurau): Remove old name after Chromium config update
+  # https://crbug.com/1476977.
+  is_on_release_branch = false
+  v8_is_on_release_branch = true
 }

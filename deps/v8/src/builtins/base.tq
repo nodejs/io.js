@@ -75,6 +75,13 @@ macro WeakToStrong<T: type>(x: Weak<T>): T labels ClearedWeakPointer {
   return %RawDownCast<T>(x);
 }
 
+macro MaybeObjectToStrong(maybeObject: MaybeObject):
+    HeapObject labels IfCleared {
+  dcheck(IsWeakOrCleared(maybeObject));
+  const weakObject = %RawDownCast<Weak<HeapObject>>(maybeObject);
+  return WeakToStrong(weakObject) otherwise IfCleared;
+}
+
 // Defined to coincide with https://tc39.es/ecma262/#sec-ispropertykey
 // Doesn't include PrivateSymbol.
 type PropertyKey = String|PublicSymbol;
@@ -116,6 +123,7 @@ type int64 generates 'TNode<Int64T>' constexpr 'int64_t';
 type uint64 generates 'TNode<Uint64T>' constexpr 'uint64_t';
 type intptr generates 'TNode<IntPtrT>' constexpr 'intptr_t';
 type uintptr generates 'TNode<UintPtrT>' constexpr 'uintptr_t';
+type float16 generates 'TNode<Float16T>' constexpr 'uint16_t';
 type float32 generates 'TNode<Float32T>' constexpr 'float';
 type float64 generates 'TNode<Float64T>' constexpr 'double';
 type bool generates 'TNode<BoolT>' constexpr 'bool';
@@ -236,16 +244,15 @@ type IndirectPointer
     generates 'TNode<IndirectPointerHandleT>'
     constexpr 'IndirectPointerHandle';
 // TODO(saelo): implement accessors and type checkers for these fields.
-type IndirectPointer<To: type> extends IndirectPointer;
-extern class InstructionStream extends HeapObject;
+type IndirectPointer<To : type extends ExposedTrustedObject> extends
+    IndirectPointer;
+type ProtectedPointer extends Tagged;
+type ProtectedPointer<To : type extends TrustedObject> extends ProtectedPointer;
+extern class InstructionStream extends TrustedObject;
 type BuiltinPtr extends Smi generates 'TNode<BuiltinPtr>';
 
 type Number = Smi|HeapNumber;
 type Numeric = Number|BigInt;
-
-extern class ObjectBoilerplateDescription extends FixedArray;
-extern class ClosureFeedbackCellArray extends FixedArray;
-extern class ScriptContextTable extends FixedArray;
 
 extern class TransitionArray extends WeakFixedArray;
 
@@ -321,6 +328,7 @@ extern enum ElementsKind extends int32 {
   INT16_ELEMENTS,
   UINT32_ELEMENTS,
   INT32_ELEMENTS,
+  FLOAT16_ELEMENTS,
   FLOAT32_ELEMENTS,
   FLOAT64_ELEMENTS,
   UINT8_CLAMPED_ELEMENTS,
@@ -332,6 +340,7 @@ extern enum ElementsKind extends int32 {
   RAB_GSAB_INT16_ELEMENTS,
   RAB_GSAB_UINT32_ELEMENTS,
   RAB_GSAB_INT32_ELEMENTS,
+  RAB_GSAB_FLOAT16_ELEMENTS,
   RAB_GSAB_FLOAT32_ELEMENTS,
   RAB_GSAB_FLOAT64_ELEMENTS,
   RAB_GSAB_UINT8_CLAMPED_ELEMENTS,
@@ -416,6 +425,7 @@ extern enum MessageTemplate {
   kTypedArraySetOffsetOutOfBounds,
   kInvalidArgument,
   kInvalidRegExpExecResult,
+  kInvalidSizeValue,
   kRegExpNonRegExp,
   kRegExpNonObject,
   kPromiseNonCallable,
@@ -470,6 +480,12 @@ extern enum MessageTemplate {
   kArgumentIsNonObject,
   kKeysMethodInvalid,
   kGeneratorRunning,
+  kFirstArgumentAsyncIteratorSymbolNonCallable,
+  kIteratorResultNotAnObject,
+  kFlattenPastSafeLength,
+  kStrictReadOnlyProperty,
+  kInvalidUsingInForInLoop,
+  kIllegalInvocation,
   ...
 }
 
@@ -485,8 +501,6 @@ extern enum PropertyAttributes extends int31 {
 
 const kArrayBufferMaxByteLength:
     constexpr uintptr generates 'JSArrayBuffer::kMaxByteLength';
-const kTypedArrayMaxLength:
-    constexpr uintptr generates 'JSTypedArray::kMaxLength';
 const kMaxTypedArrayInHeap:
     constexpr int31 generates 'JSTypedArray::kMaxSizeInHeap';
 // CSA does not support 64-bit types on 32-bit platforms so as a workaround the
@@ -536,21 +550,26 @@ const kHeapObjectHeaderSize:
     constexpr int32 generates 'HeapObject::kHeaderSize';
 
 type TheHole extends Hole;
+type PromiseHole extends Hole;
 type Exception extends Oddball;
 type EmptyString extends String;
 
 type NumberOrUndefined = Number|Undefined;
 
+extern macro ConstructorStringConstant(): String;
 extern macro DefaultStringConstant(): String;
 extern macro EmptyStringConstant(): EmptyString;
+extern macro ErrorStringConstant(): String;
 extern macro ErrorsStringConstant(): String;
 extern macro FalseConstant(): False;
 extern macro GetStringConstant(): String;
 extern macro HasStringConstant(): String;
 extern macro Int32FalseConstant(): bool;
 extern macro Int32TrueConstant(): bool;
+extern macro IteratorStringConstant(): String;
 extern macro IteratorSymbolConstant(): PublicSymbol;
 extern macro KeysStringConstant(): String;
+extern macro AsyncIteratorSymbolConstant(): PublicSymbol;
 extern macro LengthStringConstant(): String;
 extern macro MatchSymbolConstant(): Symbol;
 extern macro MessageStringConstant(): String;
@@ -559,19 +578,24 @@ extern macro NameStringConstant(): String;
 extern macro NextStringConstant(): String;
 extern macro NullConstant(): Null;
 extern macro NumberStringConstant(): String;
+extern macro objectStringConstant(): String;
 extern macro ReturnStringConstant(): String;
 extern macro SearchSymbolConstant(): Symbol;
 extern macro SizeStringConstant(): String;
 extern macro StringStringConstant(): String;
+extern macro SuppressedStringConstant(): String;
 extern macro TheHoleConstant(): TheHole;
+extern macro PromiseHoleConstant(): PromiseHole;
 extern macro ToPrimitiveSymbolConstant(): PublicSymbol;
 extern macro ToStringStringConstant(): String;
+extern macro ToStringTagSymbolConstant(): PublicSymbol;
 extern macro TrueConstant(): True;
 extern macro UndefinedConstant(): Undefined;
 extern macro ValueOfStringConstant(): String;
 extern macro WasmWrappedObjectSymbolConstant(): Symbol;
 
 const TheHole: TheHole = TheHoleConstant();
+const PromiseHole: PromiseHole = PromiseHoleConstant();
 const Null: Null = NullConstant();
 const Undefined: Undefined = UndefinedConstant();
 const True: True = TrueConstant();
@@ -985,7 +1009,7 @@ macro Float64IsNaN(n: float64): bool {
 // The type of all tagged values that can safely be compared with TaggedEqual.
 @if(V8_ENABLE_WEBASSEMBLY)
   type TaggedWithIdentity = JSReceiver|FixedArrayBase|Oddball|Hole|Map|WeakCell|
-      Context|EmptyString|Symbol|WasmInternalFunction|WasmNull;
+      Context|EmptyString|Symbol|WasmFuncRef|WasmNull;
 @ifnot(V8_ENABLE_WEBASSEMBLY)
   type TaggedWithIdentity = JSReceiver|FixedArrayBase|Oddball|Hole|Map|WeakCell|
       Context|EmptyString|Symbol;
@@ -1274,9 +1298,9 @@ extern macro IntPtrRoundUpToPowerOfTwo32(intptr): intptr;
 extern macro ChangeFloat32ToFloat64(float32): float64;
 extern macro RoundInt32ToFloat32(int32): float32;
 extern macro ChangeNumberToFloat64(Number): float64;
-extern macro ChangeNumberToUint32(Number): uint32;
 extern macro ChangeTaggedNonSmiToInt32(
     implicit context: Context)(HeapObject): int32;
+extern macro ChangeFloat16ToFloat64(float16): float64;
 extern macro ChangeFloat32ToTagged(float32): Number;
 extern macro ChangeTaggedToFloat64(implicit context: Context)(JSAny): float64;
 extern macro ChangeFloat64ToTagged(float64): Number;
@@ -1289,6 +1313,8 @@ extern macro ChangeUint32ToWord(uint32): uintptr;  // Doesn't sign-extend.
 extern macro ChangeInt32ToInt64(int32): int64;  // Sign-extends.
 extern macro ChangeUint32ToUint64(uint32): uint64;  // Doesn't sign-extend.
 extern macro LoadNativeContext(Context): NativeContext;
+extern macro TruncateFloat64ToFloat16(float64): float16;
+extern macro TruncateFloat32ToFloat16(float32): float16;
 extern macro TruncateFloat64ToFloat32(float64): float32;
 extern macro TruncateHeapNumberValueToWord32(HeapNumber): int32;
 extern macro LoadJSArrayElementsMap(
@@ -1329,6 +1355,8 @@ extern macro PointerConstant(constexpr RawPtr): RawPtr;
 extern macro SingleCharacterStringConstant(constexpr string): String;
 extern macro Float64SilenceNaN(float64): float64;
 
+extern macro BitcastFloat16ToUint32(float16): uint32;
+extern macro BitcastUint32ToFloat16(uint32): float16;
 extern macro BitcastWordToTaggedSigned(intptr): Smi;
 extern macro BitcastWordToTaggedSigned(uintptr): Smi;
 extern macro BitcastWordToTagged(intptr): Object;
@@ -1488,6 +1516,9 @@ macro GetWeakCellMap(implicit context: Context)(): Map {
 }
 macro GetPrototypeApplyFunction(implicit context: Context)(): JSFunction {
   return *NativeContextSlot(ContextSlot::FUNCTION_PROTOTYPE_APPLY_INDEX);
+}
+macro GetIteratorPrototype(implicit context: Context)(): JSObject {
+  return *NativeContextSlot(ContextSlot::INITIAL_ITERATOR_PROTOTYPE_INDEX);
 }
 
 // Call(Context, Target, Receiver, ...Args)

@@ -636,7 +636,7 @@ public:
      * @return   The TimeZone's raw GMT offset.
      * @stable ICU 2.0
      */
-    virtual int32_t getRawOffset(void) const override;
+    virtual int32_t getRawOffset() const override;
 
     /**
      * Sets the TimeZone's raw GMT offset (i.e., the number of milliseconds to add
@@ -666,7 +666,7 @@ public:
      * but not 0.
      * @stable ICU 2.0
      */
-    virtual int32_t getDSTSavings(void) const override;
+    virtual int32_t getDSTSavings() const override;
 
     /**
      * Queries if this TimeZone uses Daylight Savings Time.
@@ -674,7 +674,7 @@ public:
      * @return   True if this TimeZone uses Daylight Savings Time; false otherwise.
      * @stable ICU 2.0
      */
-    virtual UBool useDaylightTime(void) const override;
+    virtual UBool useDaylightTime() const override;
 
 #ifndef U_FORCE_HIDE_DEPRECATED_API
     /**
@@ -773,7 +773,7 @@ public:
      *           same class ID. Objects of other classes have different class IDs.
      * @stable ICU 2.0
      */
-    virtual UClassID getDynamicClassID(void) const override;
+    virtual UClassID getDynamicClassID() const override;
 
     /**
      * Return the class ID for this class. This is useful only for comparing to a return
@@ -786,7 +786,7 @@ public:
      * @return   The class ID for all objects of this class.
      * @stable ICU 2.0
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
 private:
     /**
@@ -882,8 +882,8 @@ private:
     /* Private for BasicTimeZone implementation */
     void checkTransitionRules(UErrorCode& status) const;
     void initTransitionRules(UErrorCode& status);
-    void clearTransitionRules(void);
-    void deleteTransitionRules(void);
+    void clearTransitionRules();
+    void deleteTransitionRules();
     UBool   transitionRulesInitialized;
     InitialTimeZoneRule*    initialRule;
     TimeZoneTransition*     firstTransition;

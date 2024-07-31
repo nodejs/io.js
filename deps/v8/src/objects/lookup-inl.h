@@ -229,7 +229,7 @@ bool LookupIterator::IsElement(Tagged<JSReceiver> object) const {
 }
 
 bool LookupIterator::IsPrivateName() const {
-  return !IsElement() && name()->IsPrivateName(isolate());
+  return !IsElement() && name()->IsPrivateName();
 }
 
 bool LookupIterator::is_dictionary_holder() const {
@@ -257,8 +257,8 @@ bool LookupIterator::ExtendingNonExtensible(Handle<JSReceiver> receiver) {
   // Shared objects have fixed layout. No properties may be added to them, not
   // even private symbols.
   return !receiver->map(isolate_)->is_extensible() &&
-         (IsElement() || (!name_->IsPrivate(isolate_) ||
-                          IsAlwaysSharedSpaceJSObject(*receiver)));
+         (IsElement() ||
+          (!name_->IsPrivate() || IsAlwaysSharedSpaceJSObject(*receiver)));
 }
 
 bool LookupIterator::IsCacheableTransition() {
@@ -287,7 +287,8 @@ void LookupIterator::UpdateProtector(Isolate* isolate, Handle<Object> receiver,
       *name == roots.is_concat_spreadable_symbol() ||
       *name == roots.iterator_symbol() || *name == roots.species_symbol() ||
       *name == roots.match_all_symbol() || *name == roots.replace_symbol() ||
-      *name == roots.split_symbol();
+      *name == roots.split_symbol() || *name == roots.to_primitive_symbol() ||
+      *name == roots.valueOf_string();
   DCHECK_EQ(maybe_protector, debug_maybe_protector);
 #endif  // DEBUG
 
@@ -320,8 +321,8 @@ InternalIndex LookupIterator::dictionary_entry() const {
 // static
 LookupIterator::Configuration LookupIterator::ComputeConfiguration(
     Isolate* isolate, Configuration configuration, Handle<Name> name) {
-  return (!name.is_null() && name->IsPrivate(isolate)) ? OWN_SKIP_INTERCEPTOR
-                                                       : configuration;
+  return (!name.is_null() && name->IsPrivate()) ? OWN_SKIP_INTERCEPTOR
+                                                : configuration;
 }
 
 // static

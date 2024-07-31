@@ -148,9 +148,9 @@ module.exports = {
           suggest: [{
             desc: 'Use RegexpPrototypeExec instead',
             fix(fixer) {
-              const testRange = { ...node.range };
-              testRange.start = testRange.start + 'RegexpPrototype'.length;
-              testRange.end = testRange.start + 'Test'.length;
+              const testRange = [ ...node.range ];
+              testRange[0] = testRange[0] + 'RegexpPrototype'.length;
+              testRange[1] = testRange[0] + 'Test'.length;
               return [
                 fixer.replaceTextRange(testRange, 'Exec'),
                 fixer.insertTextAfter(node, ' !== null'),

@@ -3,7 +3,7 @@ const common = require('../common');
 const tmpdir = require('../common/tmpdir');
 const fs = require('fs');
 const assert = require('assert');
-const { spawnSyncAndExitWithoutError } = require('../common/child_process');
+const { spawnSyncAndAssert } = require('../common/child_process');
 
 // Test that --prof also tracks Worker threads.
 // Refs: https://github.com/nodejs/node/issues/24016
@@ -50,7 +50,7 @@ if (process.argv[2] === 'child') {
 
   const workerProfRegexp = /worker prof file: (.+\.log)/;
   const parentProfRegexp = /parent prof file: (.+\.log)/;
-  const { stdout } = spawnSyncAndExitWithoutError(
+  const { stdout } = spawnSyncAndAssert(
     process.execPath, ['--prof', __filename, 'child'],
     { cwd: tmpdir.path, encoding: 'utf8' }, {
       stdout(output) {

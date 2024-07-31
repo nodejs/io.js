@@ -147,8 +147,8 @@ DispatchResponse TracingAgent::start(
   std::set<std::string> categories_set;
   protocol::Array<std::string>* categories =
       traceConfig->getIncludedCategories();
-  for (size_t i = 0; i < categories->length(); i++)
-    categories_set.insert(categories->get(i));
+  for (size_t i = 0; i < categories->size(); i++)
+    categories_set.insert((*categories)[i]);
 
   if (categories_set.empty())
     return DispatchResponse::Error("At least one category should be enabled");
@@ -172,29 +172,29 @@ DispatchResponse TracingAgent::stop() {
 
 DispatchResponse TracingAgent::getCategories(
     std::unique_ptr<protocol::Array<String>>* categories) {
-  *categories = Array<String>::create();
+  *categories = std::make_unique<Array<String>>();
   protocol::Array<String>* categories_list = categories->get();
   // In alphabetical order
-  categories_list->addItem("node");
-  categories_list->addItem("node.async_hooks");
-  categories_list->addItem("node.bootstrap");
-  categories_list->addItem("node.console");
-  categories_list->addItem("node.dns.native");
-  categories_list->addItem("node.environment");
-  categories_list->addItem("node.fs.async");
-  categories_list->addItem("node.fs.sync");
-  categories_list->addItem("node.fs_dir.async");
-  categories_list->addItem("node.fs_dir.sync");
-  categories_list->addItem("node.http");
-  categories_list->addItem("node.net.native");
-  categories_list->addItem("node.perf");
-  categories_list->addItem("node.perf.timerify");
-  categories_list->addItem("node.perf.usertiming");
-  categories_list->addItem("node.promises.rejections");
-  categories_list->addItem("node.threadpoolwork.async");
-  categories_list->addItem("node.threadpoolwork.sync");
-  categories_list->addItem("node.vm.script");
-  categories_list->addItem("v8");
+  categories_list->emplace_back("node");
+  categories_list->emplace_back("node.async_hooks");
+  categories_list->emplace_back("node.bootstrap");
+  categories_list->emplace_back("node.console");
+  categories_list->emplace_back("node.dns.native");
+  categories_list->emplace_back("node.environment");
+  categories_list->emplace_back("node.fs.async");
+  categories_list->emplace_back("node.fs.sync");
+  categories_list->emplace_back("node.fs_dir.async");
+  categories_list->emplace_back("node.fs_dir.sync");
+  categories_list->emplace_back("node.http");
+  categories_list->emplace_back("node.net.native");
+  categories_list->emplace_back("node.perf");
+  categories_list->emplace_back("node.perf.timerify");
+  categories_list->emplace_back("node.perf.usertiming");
+  categories_list->emplace_back("node.promises.rejections");
+  categories_list->emplace_back("node.threadpoolwork.async");
+  categories_list->emplace_back("node.threadpoolwork.sync");
+  categories_list->emplace_back("node.vm.script");
+  categories_list->emplace_back("v8");
   return DispatchResponse::OK();
 }
 

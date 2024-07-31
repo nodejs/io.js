@@ -133,7 +133,8 @@ transitioning javascript builtin PromiseAnyRejectElementClosure(
   const newCapacity =
       IntPtrMax(SmiUntag(remainingElementsCount) - 1, index + 1);
   if (newCapacity > errors.length_intptr) deferred {
-      errors = ExtractFixedArray(errors, 0, errors.length_intptr, newCapacity);
+      errors = ExtractFixedArray(
+          errors, 0, errors.length_intptr, newCapacity, PromiseHole);
       *errorsRef = errors;
     }
   errors.objects[index] = value;
@@ -383,7 +384,7 @@ transitioning javascript builtin PromiseAny(
     goto Reject(e);
   } label Reject(e: JSAny) deferred {
     // Exception must be bound to a JS value.
-    dcheck(e != TheHole);
+    dcheck(e != PromiseHole);
     Call(
         context, UnsafeCast<Callable>(capability.reject), Undefined,
         UnsafeCast<JSAny>(e));

@@ -107,6 +107,22 @@ static napi_value staticBuffer(napi_env env, napi_callback_info info) {
   return theBuffer;
 }
 
+static napi_value invalidObjectAsBuffer(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value args[1];
+  NODE_API_CALL(env, napi_get_cb_info(env, info, &argc, args, NULL, NULL));
+  NODE_API_ASSERT(env, argc == 1, "Wrong number of arguments");
+
+  napi_value notTheBuffer = args[0];
+  napi_status status = napi_get_buffer_info(env, notTheBuffer, NULL, NULL);
+  NODE_API_ASSERT(env,
+                  status == napi_invalid_arg,
+                  "napi_get_buffer_info: should fail with napi_invalid_arg "
+                  "when passed non buffer");
+
+  return notTheBuffer;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
   napi_value theValue;
 
@@ -123,6 +139,7 @@ static napi_value Init(napi_env env, napi_value exports) {
       DECLARE_NODE_API_PROPERTY("bufferHasInstance", bufferHasInstance),
       DECLARE_NODE_API_PROPERTY("bufferInfo", bufferInfo),
       DECLARE_NODE_API_PROPERTY("staticBuffer", staticBuffer),
+      DECLARE_NODE_API_PROPERTY("invalidObjectAsBuffer", invalidObjectAsBuffer),
   };
 
   NODE_API_CALL(env, napi_define_properties(

@@ -1,11 +1,11 @@
-.TH "WORKSPACES" "7" "October 2023" "" ""
+.TH "WORKSPACES" "7" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBworkspaces\fR - Working with workspaces
 .SS "Description"
 .P
-\fBWorkspaces\fR is a generic term that refers to the set of features in the npm cli that provides support to managing multiple packages from your local file system from within a singular top-level, root package.
+\fBWorkspaces\fR is a generic term that refers to the set of features in the npm cli that provides support for managing multiple packages from your local file system from within a singular top-level, root package.
 .P
-This set of features makes up for a much more streamlined workflow handling linked packages from the local file system. Automating the linking process as part of \fBnpm install\fR and avoiding manually having to use \fBnpm link\fR in order to add references to packages that should be symlinked into the current \fBnode_modules\fR folder.
+This set of features makes up for a much more streamlined workflow handling linked packages from the local file system. It automates the linking process as part of \fBnpm install\fR and removes the need to manually use \fBnpm link\fR in order to add references to packages that should be symlinked into the current \fBnode_modules\fR folder.
 .P
 We also refer to these packages being auto-symlinked during \fBnpm install\fR as a single \fBworkspace\fR, meaning it's a nested package within the current local file system that is explicitly defined in the \fB\fBpackage.json\fR\fR \fI\(la/configuring-npm/package-json#workspaces\(ra\fR \fBworkspaces\fR configuration.
 .SS "Defining workspaces"
@@ -91,7 +91,7 @@ npm install abbrev -w a
 Note: other installing commands such as \fBuninstall\fR, \fBci\fR, etc will also respect the provided \fBworkspace\fR configuration.
 .SS "Using workspaces"
 .P
-Given the \fBspecifities of how Node.js handles module resolution\fR \fI\(lahttps://nodejs.org/dist/latest-v14.x/docs/api/modules.html#modules_all_together\(ra\fR it's possible to consume any defined workspace by its declared \fBpackage.json\fR \fBname\fR. Continuing from the example defined above, let's also create a Node.js script that will require the workspace \fBa\fR example module, e.g:
+Given the \fBspecifics of how Node.js handles module resolution\fR \fI\(lahttps://nodejs.org/dist/latest-v14.x/docs/api/modules.html#modules_all_together\(ra\fR it's possible to consume any defined workspace by its declared \fBpackage.json\fR \fBname\fR. Continuing from the example defined above, let's also create a Node.js script that will require the workspace \fBa\fR example module, e.g:
 .P
 .RS 2
 .nf

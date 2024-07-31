@@ -357,7 +357,7 @@ enum {
 /* definitions for 16-bit case properties word ------------------------------ */
 
 U_CFUNC const UTrie2 * U_EXPORT2
-ucase_getTrie();
+ucase_getTrie(void);
 
 /* 2-bit constants for types of cased characters */
 #define UCASE_TYPE_MASK     3

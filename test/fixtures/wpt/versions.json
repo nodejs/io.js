@@ -3,6 +3,10 @@
     "commit": "dbd648158d337580885e70a54f929daf215211a0",
     "path": "common"
   },
+  "compression": {
+    "commit": "5aa50dd4151b5bc1d04d5505366c6e27df30af5b",
+    "path": "compression"
+  },
   "console": {
     "commit": "767ae354642bee1e4d90b28df4480475b9260e14",
     "path": "console"
@@ -16,7 +20,7 @@
     "path": "dom/events"
   },
   "encoding": {
-    "commit": "a58bbf6d8c0db1f1fd5352e846acb0754ee55567",
+    "commit": "5aa50dd4151b5bc1d04d5505366c6e27df30af5b",
     "path": "encoding"
   },
   "fetch/data-urls/resources": {
@@ -24,7 +28,7 @@
     "path": "fetch/data-urls/resources"
   },
   "FileAPI": {
-    "commit": "e36dbb6f00fb59f9fc792f509194432e9e6d0b6d",
+    "commit": "cceaf3628da950621004d9b5d8c1d1f367073347",
     "path": "FileAPI"
   },
   "hr-time": {
@@ -48,7 +52,7 @@
     "path": "html/webappapis/timers"
   },
   "interfaces": {
-    "commit": "df731dab88a1a25c04eb7e6238c11dc28fda0801",
+    "commit": "e90ece61d6e7ff84a0dc9c496588690e6a61cb17",
     "path": "interfaces"
   },
   "performance-timeline": {
@@ -60,15 +64,15 @@
     "path": "resource-timing"
   },
   "resources": {
-    "commit": "919874f84ff3703365063e749161a34af38c3d2a",
+    "commit": "1e140d63ec885703ce24b3798abd81912696bb85",
     "path": "resources"
   },
   "streams": {
-    "commit": "517e945bbfaf903f37a35c11700eb96662efbdd3",
+    "commit": "9b03282a99ef2314c1c2d5050a105a74a2940019",
     "path": "streams"
   },
   "url": {
-    "commit": "c2d7e70b52cbd9a5b938aa32f37078d7a71e0b21",
+    "commit": "6a39784534e118acc102cf5252c542378831401d",
     "path": "url"
   },
   "user-timing": {
@@ -84,7 +88,7 @@
     "path": "wasm/webapi"
   },
   "WebCryptoAPI": {
-    "commit": "d4e14d714c5242e174ba9aec43caf5eb514d0f09",
+    "commit": "5e042cbc4ecab7b2279a5fd411c6daa24ca886c6",
     "path": "WebCryptoAPI"
   },
   "webidl/ecmascript-binding/es-exceptions": {
@@ -94,5 +98,9 @@
   "webmessaging/broadcastchannel": {
     "commit": "e97fac4791931fb7455ba3fad759d362c7108b09",
     "path": "webmessaging/broadcastchannel"
+  },
+  "webstorage": {
+    "commit": "9dafa892146c4b5b1f604a39b3cf8677f8f70d44",
+    "path": "webstorage"
   }
 }

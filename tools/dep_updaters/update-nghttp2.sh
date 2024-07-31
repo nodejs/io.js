@@ -73,6 +73,9 @@ cp "$DEPS_DIR/nghttp2/lib/includes/config.h" "$WORKSPACE/nghttp2/lib/includes"
 echo "Copying existing gyp files"
 cp "$DEPS_DIR/nghttp2/nghttp2.gyp" "$WORKSPACE/nghttp2"
 
+echo "Copying existing GN files"
+cp "$DEPS_DIR/nghttp2/"*.gn "$DEPS_DIR/nghttp2/"*.gni "$WORKSPACE/nghttp2"
+
 echo "Replacing existing nghttp2"
 rm -rf "$DEPS_DIR/nghttp2"
 mv "$WORKSPACE/nghttp2" "$DEPS_DIR/"

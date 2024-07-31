@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,shadowrealm
 'use strict';
 
 const error1 = new Error('error1');

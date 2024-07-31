@@ -14,7 +14,14 @@ UOBJECT_DEFINE_RTTI_IMPLEMENTATION(ISO8601Calendar)
 ISO8601Calendar::ISO8601Calendar(const Locale& aLocale, UErrorCode& success)
 :   GregorianCalendar(aLocale, success)
 {
-    setFirstDayOfWeek(UCAL_MONDAY);
+    UErrorCode tempStatus = U_ZERO_ERROR;
+    int32_t length = aLocale.getKeywordValue("fw", nullptr, 0, tempStatus) +
+        aLocale.getKeywordValue("rg", nullptr, 0, tempStatus);
+    // Do not set first day of week for iso8601 to Monday if we have fw or rg keywords
+    // and let the value set by the Calendar constructor to take care of it.
+    if (U_SUCCESS(tempStatus) && length == 0) {
+        setFirstDayOfWeek(UCAL_MONDAY);
+    }
     setMinimalDaysInFirstWeek(4);
 }
 

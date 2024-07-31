@@ -286,10 +286,8 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
   V(_, FreeSpaceMap, free_space_map, FreeSpace)                                \
   V(_, FeedbackVectorMap, feedback_vector_map, FeedbackVector)                 \
   V(_, FixedDoubleArrayMap, fixed_double_array_map, FixedDoubleArray)          \
-  V(_, FunctionTemplateInfoMap, function_template_info_map,                    \
-    FunctionTemplateInfo)                                                      \
+  V(_, InterpreterDataMap, interpreter_data_map, InterpreterData)              \
   V(_, MegaDomHandlerMap, mega_dom_handler_map, MegaDomHandler)                \
-  V(_, MetaMap, meta_map, Map)                                                 \
   V(_, PreparseDataMap, preparse_data_map, PreparseData)                       \
   V(_, PropertyArrayMap, property_array_map, PropertyArray)                    \
   V(_, PrototypeInfoMap, prototype_info_map, PrototypeInfo)                    \
@@ -307,19 +305,28 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
 
 // This list must contain only maps that are shared by all objects of their
 // instance type.
-#define UNIQUE_INSTANCE_TYPE_MAP_LIST_GENERATOR(V, _)                 \
-  UNIQUE_LEAF_INSTANCE_TYPE_MAP_LIST_GENERATOR(V, _)                  \
-  V(_, ByteArrayMap, byte_array_map, ByteArray)                       \
-  V(_, NameDictionaryMap, name_dictionary_map, NameDictionary)        \
-  V(_, OrderedNameDictionaryMap, ordered_name_dictionary_map,         \
-    OrderedNameDictionary)                                            \
-  V(_, GlobalDictionaryMap, global_dictionary_map, GlobalDictionary)  \
-  V(_, GlobalPropertyCellMap, global_property_cell_map, PropertyCell) \
-  V(_, HeapNumberMap, heap_number_map, HeapNumber)                    \
-  V(_, WeakFixedArrayMap, weak_fixed_array_map, WeakFixedArray)       \
-  V(_, ScopeInfoMap, scope_info_map, ScopeInfo)                       \
-  V(_, WeakArrayListMap, weak_array_list_map, WeakArrayList)          \
+#define UNIQUE_INSTANCE_TYPE_MAP_LIST_GENERATOR(V, _)                     \
+  UNIQUE_LEAF_INSTANCE_TYPE_MAP_LIST_GENERATOR(V, _)                      \
+  V(_, ByteArrayMap, byte_array_map, ByteArray)                           \
+  V(_, NameDictionaryMap, name_dictionary_map, NameDictionary)            \
+  V(_, OrderedNameDictionaryMap, ordered_name_dictionary_map,             \
+    OrderedNameDictionary)                                                \
+  V(_, GlobalDictionaryMap, global_dictionary_map, GlobalDictionary)      \
+  V(_, GlobalPropertyCellMap, global_property_cell_map, PropertyCell)     \
+  V(_, GlobalConstTrackingLetCellMap, global_const_tracking_let_cell_map, \
+    ConstTrackingLetCell)                                                 \
+  V(_, HeapNumberMap, heap_number_map, HeapNumber)                        \
+  V(_, WeakFixedArrayMap, weak_fixed_array_map, WeakFixedArray)           \
+  V(_, ScopeInfoMap, scope_info_map, ScopeInfo)                           \
+  V(_, WeakArrayListMap, weak_array_list_map, WeakArrayList)              \
   TORQUE_DEFINED_MAP_CSA_LIST_GENERATOR(V, _)
+
+#ifdef V8_ENABLE_SWISS_NAME_DICTIONARY
+static constexpr InstanceType PROPERTY_DICTIONARY_TYPE =
+    SWISS_NAME_DICTIONARY_TYPE;
+#else
+static constexpr InstanceType PROPERTY_DICTIONARY_TYPE = NAME_DICTIONARY_TYPE;
+#endif
 
 }  // namespace internal
 }  // namespace v8

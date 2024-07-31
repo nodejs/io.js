@@ -1,18 +1,5 @@
 .\"
 .\" Copyright 2020 Danny Sonnenschein <my.card.god@web.de>
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_PARSE_CAA_REPLY 3 "16 September 2020"
@@ -114,7 +101,7 @@ static void dns_callback(void *arg,
     ares_free_data (caa_out);
   }
 
-static void main_loop(ares_channel *channel)
+static void main_loop(ares_channel_t **channel)
   {
     int nfds, count;
     fd_set readers, writers;
@@ -145,7 +132,7 @@ int main(int argc, char **argv)
     if (argc > 1)
       domain = argv[1];
 
-    ares_channel channel;
+    ares_channel_t *channel;
     if ((err = ares_init (&channel)) != ARES_SUCCESS)
       {
         printf ("ares_init() failed (%i)\\n", err);
@@ -169,5 +156,3 @@ This function was first introduced in c-ares version 1.17.0.
 .SH SEE ALSO
 .BR ares_query (3)
 .BR ares_free_data (3)
-.SH AUTHOR
-Written by Danny Sonnenschein <my.card.god@web.de>, on behalf of platynum, https://platynum.ch

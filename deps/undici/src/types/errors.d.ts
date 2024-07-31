@@ -125,4 +125,25 @@ declare namespace Errors {
     name: 'ResponseExceededMaxSizeError';
     code: 'UND_ERR_RES_EXCEEDED_MAX_SIZE';
   }
+
+  export class RequestRetryError extends UndiciError {
+    constructor (
+      message: string,
+      statusCode: number,
+      headers?: IncomingHttpHeaders | string[] | null,
+      body?: null | Record<string, any> | string
+    );
+    name: 'RequestRetryError';
+    code: 'UND_ERR_REQ_RETRY';
+    statusCode: number;
+    data: {
+      count: number;
+    };
+    headers: Record<string, string | string[]>;
+  }
+
+  export class SecureProxyConnectionError extends UndiciError {
+    name: 'SecureProxyConnectionError';
+    code: 'UND_ERR_PRX_TLS';
+  }
 }

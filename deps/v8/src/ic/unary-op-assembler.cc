@@ -5,6 +5,7 @@
 #include "src/ic/unary-op-assembler.h"
 
 #include "src/common/globals.h"
+#include "torque-generated/src/objects/oddball-tq-csa.h"
 
 namespace v8 {
 namespace internal {
@@ -191,8 +192,7 @@ class UnaryOpAssemblerImpl final : public CodeStubAssembler {
                                   SmiConstant(BinaryOperationFeedback::kNone)));
         OverwriteFeedback(&var_feedback,
                           BinaryOperationFeedback::kNumberOrOddball);
-        var_value =
-            LoadObjectField(value_heap_object, Oddball::kToNumberOffset);
+        var_value = LoadOddballToNumber(CAST(value_heap_object));
         Goto(&start);
       }
 

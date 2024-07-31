@@ -90,7 +90,7 @@ const checkTree = (tree, checkUnreachable = true) => {
       })
     }
 
-    if (node.path === tree.root.path && node !== tree.root) {
+    if (node.path === tree.root.path && node !== tree.root && !tree.root.isLink) {
       throw Object.assign(new Error('node with same path as root'), {
         node: node.path,
         tree: tree.path,

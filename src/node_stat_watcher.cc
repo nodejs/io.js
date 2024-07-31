@@ -107,7 +107,7 @@ void StatWatcher::Start(const FunctionCallbackInfo<Value>& args) {
   CHECK_EQ(args.Length(), 2);
 
   StatWatcher* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
   CHECK(!uv_is_active(wrap->GetHandle()));
 
   node::Utf8Value path(args.GetIsolate(), args[0]);

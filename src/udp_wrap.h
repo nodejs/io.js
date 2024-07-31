@@ -32,6 +32,7 @@
 
 namespace node {
 
+class ExternalReferenceRegistry;
 class UDPWrapBase;
 
 // A listener that can be attached to an `UDPWrapBase` object and generally
@@ -110,6 +111,7 @@ class UDPWrapBase {
   static void RecvStart(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void RecvStop(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void AddMethods(Environment* env, v8::Local<v8::FunctionTemplate> t);
+  static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
 
  private:
   UDPListener* listener_ = nullptr;
@@ -126,6 +128,7 @@ class UDPWrap final : public HandleWrap,
                          v8::Local<v8::Value> unused,
                          v8::Local<v8::Context> context,
                          void* priv);
+  static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
   static void GetFD(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void Open(const v8::FunctionCallbackInfo<v8::Value>& args);

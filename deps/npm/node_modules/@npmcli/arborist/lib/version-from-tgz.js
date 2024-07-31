@@ -1,22 +1,21 @@
-/* eslint node/no-deprecated-api: "off" */
 const semver = require('semver')
-const { basename } = require('path')
-const { parse } = require('url')
+const { basename } = require('node:path')
+const { URL } = require('node:url')
 module.exports = (name, tgz) => {
   const base = basename(tgz)
   if (!base.endsWith('.tgz')) {
     return null
   }
 
-  const u = parse(tgz)
-  if (/^https?:/.test(u.protocol)) {
+  if (tgz.startsWith('http:/') || tgz.startsWith('https:/')) {
+    const u = new URL(tgz)
     // registry url?  check for most likely pattern.
     // either /@foo/bar/-/bar-1.2.3.tgz or
     // /foo/-/foo-1.2.3.tgz, and fall through to
     // basename checking.  Note that registries can
     // be mounted below the root url, so /a/b/-/x/y/foo/-/foo-1.2.3.tgz
     // is a potential option.
-    const tfsplit = u.path.slice(1).split('/-/')
+    const tfsplit = u.pathname.slice(1).split('/-/')
     if (tfsplit.length > 1) {
       const afterTF = tfsplit.pop()
       if (afterTF === base) {

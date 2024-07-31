@@ -8,312 +8,250 @@
 #include "src/compiler/backend/instruction-selector-impl.h"
 #include "src/compiler/backend/instruction-selector.h"
 #include "src/compiler/graph-visualizer.h"
+#include "src/compiler/js-heap-broker.h"
 #include "src/compiler/pipeline.h"
 #include "src/compiler/turboshaft/operations.h"
+#include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/sidetable.h"
+#include "src/diagnostics/code-tracer.h"
 
 namespace v8::internal::compiler::turboshaft {
 
-// Compute the special reverse-post-order block ordering, which is essentially
-// a RPO of the graph where loop bodies are contiguous. Properties:
-// 1. If block A is a predecessor of B, then A appears before B in the order,
-//    unless B is a loop header and A is in the loop headed at B
-//    (i.e. A -> B is a backedge).
-// => If block A dominates block B, then A appears before B in the order.
-// => If block A is a loop header, A appears before all blocks in the loop
-//    headed at A.
-// 2. All loops are contiguous in the order (i.e. no intervening blocks that
-//    do not belong to the loop.)
-// Note a simple RPO traversal satisfies (1) but not (2).
-// TODO(nicohartmann@): Investigate faster and simpler alternatives.
-class TurboshaftSpecialRPONumberer {
- public:
-  // Numbering for BasicBlock::rpo_number for this block traversal:
-  static const int kBlockOnStack = -2;
-  static const int kBlockVisited1 = -3;
-  static const int kBlockVisited2 = -4;
-  static const int kBlockUnvisited = -1;
+namespace {
 
-  using Backedge = std::pair<const Block*, size_t>;
+void TraceSequence(OptimizedCompilationInfo* info,
+                   InstructionSequence* sequence, JSHeapBroker* broker,
+                   CodeTracer* code_tracer, const char* phase_name) {
+  if (info->trace_turbo_json()) {
+    UnparkedScopeIfNeeded scope(broker);
+    AllowHandleDereference allow_deref;
+    TurboJsonFile json_of(info, std::ios_base::app);
+    json_of << "{\"name\":\"" << phase_name << "\",\"type\":\"sequence\""
+            << ",\"blocks\":" << InstructionSequenceAsJSON{sequence}
+            << ",\"register_allocation\":{"
+            << "\"fixed_double_live_ranges\": {}"
+            << ",\"fixed_live_ranges\": {}"
+            << ",\"live_ranges\": {}"
+            << "}},\n";
+  }
+  if (info->trace_turbo_graph()) {
+    UnparkedScopeIfNeeded scope(broker);
+    AllowHandleDereference allow_deref;
+    CodeTracer::StreamScope tracing_scope(code_tracer);
+    tracing_scope.stream() << "----- Instruction sequence " << phase_name
+                           << " -----\n"
+                           << *sequence;
+  }
+}
 
-  struct SpecialRPOStackFrame {
-    const Block* block = nullptr;
-    size_t index = 0;
-    base::SmallVector<Block*, 4> successors;
+}  // namespace
 
-    SpecialRPOStackFrame(const Block* block, size_t index,
-                         base::SmallVector<Block*, 4> successors)
-        : block(block), index(index), successors(std::move(successors)) {}
+ZoneVector<uint32_t> TurboshaftSpecialRPONumberer::ComputeSpecialRPO() {
+  ZoneVector<SpecialRPOStackFrame> stack(zone());
+  ZoneVector<Backedge> backedges(zone());
+  // Determined empirically on a large Wasm module. Since they are allocated
+  // only once per function compilation, the memory usage is not critical.
+  stack.reserve(64);
+  backedges.reserve(32);
+  size_t num_loops = 0;
+
+  auto Push = [&](const Block* block) {
+    auto succs = SuccessorBlocks(*block, *graph_);
+    stack.emplace_back(block, 0, std::move(succs));
+    set_rpo_number(block, kBlockOnStack);
   };
 
-  struct LoopInfo {
-    const Block* header;
-    base::SmallVector<Block const*, 2> outgoing;
-    BitVector* members;
-    LoopInfo* prev;
-    const Block* end;
-    const Block* start;
+  const Block* entry = &graph_->StartBlock();
 
-    void AddOutgoing(Zone* zone, const Block* block) {
-      outgoing.push_back(block);
-    }
-  };
+  // Find correct insertion point within existing order.
+  const Block* order = nullptr;
 
-  struct BlockData {
-    static constexpr size_t kNoLoopNumber = std::numeric_limits<size_t>::max();
-    int32_t rpo_number = kBlockUnvisited;
-    size_t loop_number = kNoLoopNumber;
-    const Block* rpo_next = nullptr;
-  };
+  Push(&graph_->StartBlock());
 
-  TurboshaftSpecialRPONumberer(const Graph& graph, Zone* zone)
-      : graph_(&graph), block_data_(graph.block_count(), zone), zone_(zone) {}
+  while (!stack.empty()) {
+    SpecialRPOStackFrame& frame = stack.back();
 
-  ZoneVector<uint32_t> ComputeSpecialRPO() {
-    std::stack<SpecialRPOStackFrame> stack;
-    std::vector<Backedge> backedges;
-    size_t num_loops = 0;
-
-    auto Push = [&](const Block* block) {
-      auto succs = SuccessorBlocks(*block, *graph_);
-      stack.emplace(block, 0, succs);
-      set_rpo_number(block, kBlockOnStack);
-    };
-
-    const Block* entry = &graph_->StartBlock();
-
-    // Find correct insertion point within existing order.
-    const Block* order = nullptr;
-
-    Push(&graph_->StartBlock());
-
-    while (!stack.empty()) {
-      SpecialRPOStackFrame& frame = stack.top();
-
-      if (frame.index < frame.successors.size()) {
-        // Process the next successor.
-        const Block* succ = frame.successors[frame.index++];
-        if (rpo_number(succ) == kBlockVisited1) continue;
-        if (rpo_number(succ) == kBlockOnStack) {
-          // The successor is on the stack, so this is a backedge (cycle).
-          DCHECK_EQ(frame.index - 1, 0);
-          backedges.emplace_back(frame.block, frame.index - 1);
-          // Assign a new loop number to the header.
-          DCHECK(!has_loop_number(succ));
-          set_loop_number(succ, num_loops++);
-        } else {
-          // Push the successor onto the stack.
-          DCHECK_EQ(rpo_number(succ), kBlockUnvisited);
-          Push(succ);
-        }
+    if (frame.index < frame.successors.size()) {
+      // Process the next successor.
+      const Block* succ = frame.successors[frame.index++];
+      if (rpo_number(succ) == kBlockVisited1) continue;
+      if (rpo_number(succ) == kBlockOnStack) {
+        // The successor is on the stack, so this is a backedge (cycle).
+        DCHECK_EQ(frame.index - 1, 0);
+        backedges.emplace_back(frame.block, frame.index - 1);
+        // Assign a new loop number to the header.
+        DCHECK(!has_loop_number(succ));
+        set_loop_number(succ, num_loops++);
       } else {
-        // Finished with all successors; pop the stack and add the block.
-        order = PushFront(order, frame.block);
-        set_rpo_number(frame.block, kBlockVisited1);
-        stack.pop();
+        // Push the successor onto the stack.
+        DCHECK_EQ(rpo_number(succ), kBlockUnvisited);
+        Push(succ);
+      }
+    } else {
+      // Finished with all successors; pop the stack and add the block.
+      order = PushFront(order, frame.block);
+      set_rpo_number(frame.block, kBlockVisited1);
+      stack.pop_back();
+    }
+  }
+
+  // If no loops were encountered, then the order we computed was correct.
+  if (num_loops == 0) return ComputeBlockPermutation(entry);
+
+  // Otherwise, compute the loop information from the backedges in order
+  // to perform a traversal that groups loop bodies together.
+  ComputeLoopInfo(num_loops, backedges);
+
+  // Initialize the "loop stack". We assume that the entry cannot be a loop
+  // header.
+  CHECK(!has_loop_number(entry));
+  LoopInfo* loop = nullptr;
+  order = nullptr;
+
+  // Perform an iterative post-order traversal, visiting loop bodies before
+  // edges that lead out of loops. Visits each block once, but linking loop
+  // sections together is linear in the loop size, so overall is
+  // O(|B| + max(loop_depth) * max(|loop|))
+  DCHECK(stack.empty());
+  Push(&graph_->StartBlock());
+  while (!stack.empty()) {
+    SpecialRPOStackFrame& frame = stack.back();
+    const Block* block = frame.block;
+    const Block* succ = nullptr;
+
+    if (frame.index < frame.successors.size()) {
+      // Process the next normal successor.
+      succ = frame.successors[frame.index++];
+    } else if (has_loop_number(block)) {
+      // Process additional outgoing edges from the loop header.
+      if (rpo_number(block) == kBlockOnStack) {
+        // Finish the loop body the first time the header is left on the
+        // stack.
+        DCHECK_NOT_NULL(loop);
+        DCHECK_EQ(loop->header, block);
+        loop->start = PushFront(order, block);
+        order = loop->end;
+        set_rpo_number(block, kBlockVisited2);
+        // Pop the loop stack and continue visiting outgoing edges within
+        // the context of the outer loop, if any.
+        loop = loop->prev;
+        // We leave the loop header on the stack; the rest of this iteration
+        // and later iterations will go through its outgoing edges list.
+      }
+
+      // Use the next outgoing edge if there are any.
+      size_t outgoing_index = frame.index - frame.successors.size();
+      LoopInfo* info = &loops_[loop_number(block)];
+      DCHECK_NE(loop, info);
+      if (block != entry && outgoing_index < info->outgoing.size()) {
+        succ = info->outgoing[outgoing_index];
+        ++frame.index;
       }
     }
 
-    // If no loops were encountered, then the order we computed was correct.
-    if (num_loops == 0) return ComputeBlockPermutation(entry);
-
-    // Otherwise, compute the loop information from the backedges in order
-    // to perform a traversal that groups loop bodies together.
-    ComputeLoopInfo(num_loops, backedges);
-
-    // Initialize the "loop stack". We assume that the entry cannot be a loop
-    // header.
-    CHECK(!has_loop_number(entry));
-    LoopInfo* loop = nullptr;
-    order = nullptr;
-
-    // Perform an iterative post-order traversal, visiting loop bodies before
-    // edges that lead out of loops. Visits each block once, but linking loop
-    // sections together is linear in the loop size, so overall is
-    // O(|B| + max(loop_depth) * max(|loop|))
-    DCHECK(stack.empty());
-    Push(&graph_->StartBlock());
-    while (!stack.empty()) {
-      SpecialRPOStackFrame& frame = stack.top();
-      const Block* block = frame.block;
-      const Block* succ = nullptr;
-
-      if (frame.index < frame.successors.size()) {
-        // Process the next normal successor.
-        succ = frame.successors[frame.index++];
-      } else if (has_loop_number(block)) {
-        // Process additional outgoing edges from the loop header.
-        if (rpo_number(block) == kBlockOnStack) {
-          // Finish the loop body the first time the header is left on the
-          // stack.
-          DCHECK_NOT_NULL(loop);
-          DCHECK_EQ(loop->header, block);
-          loop->start = PushFront(order, block);
-          order = loop->end;
-          set_rpo_number(block, kBlockVisited2);
-          // Pop the loop stack and continue visiting outgoing edges within
-          // the context of the outer loop, if any.
-          loop = loop->prev;
-          // We leave the loop header on the stack; the rest of this iteration
-          // and later iterations will go through its outgoing edges list.
+    if (succ != nullptr) {
+      // Process the next successor.
+      if (rpo_number(succ) == kBlockOnStack) continue;
+      if (rpo_number(succ) == kBlockVisited2) continue;
+      DCHECK_EQ(kBlockVisited1, rpo_number(succ));
+      if (loop != nullptr && !loop->members->Contains(succ->index().id())) {
+        // The successor is not in the current loop or any nested loop.
+        // Add it to the outgoing edges of this loop and visit it later.
+        loop->AddOutgoing(zone(), succ);
+      } else {
+        // Push the successor onto the stack.
+        Push(succ);
+        if (has_loop_number(succ)) {
+          // Push the inner loop onto the loop stack.
+          DCHECK_LT(loop_number(succ), num_loops);
+          LoopInfo* next = &loops_[loop_number(succ)];
+          next->end = order;
+          next->prev = loop;
+          loop = next;
         }
-
-        // Use the next outgoing edge if there are any.
-        size_t outgoing_index = frame.index - frame.successors.size();
+      }
+    } else {
+      // Finish with all successors of the current block.
+      if (has_loop_number(block)) {
+        // If we are going to pop a loop header, then add its entire body.
         LoopInfo* info = &loops_[loop_number(block)];
-        DCHECK_NE(loop, info);
-        if (block != entry && outgoing_index < info->outgoing.size()) {
-          succ = info->outgoing[outgoing_index];
-          ++frame.index;
-        }
-      }
-
-      if (succ != nullptr) {
-        // Process the next successor.
-        if (rpo_number(succ) == kBlockOnStack) continue;
-        if (rpo_number(succ) == kBlockVisited2) continue;
-        DCHECK_EQ(kBlockVisited1, rpo_number(succ));
-        if (loop != nullptr && !loop->members->Contains(succ->index().id())) {
-          // The successor is not in the current loop or any nested loop.
-          // Add it to the outgoing edges of this loop and visit it later.
-          loop->AddOutgoing(zone_, succ);
-        } else {
-          // Push the successor onto the stack.
-          Push(succ);
-          if (has_loop_number(succ)) {
-            // Push the inner loop onto the loop stack.
-            DCHECK_LT(loop_number(succ), num_loops);
-            LoopInfo* next = &loops_[loop_number(succ)];
-            next->end = order;
-            next->prev = loop;
-            loop = next;
+        for (const Block* b = info->start; true;
+             b = block_data_[b->index()].rpo_next) {
+          if (block_data_[b->index()].rpo_next == info->end) {
+            PushFront(order, b);
+            info->end = order;
+            break;
           }
         }
+        order = info->start;
       } else {
-        // Finish with all successors of the current block.
-        if (has_loop_number(block)) {
-          // If we are going to pop a loop header, then add its entire body.
-          LoopInfo* info = &loops_[loop_number(block)];
-          for (const Block* b = info->start; true;
-               b = block_data_[b->index()].rpo_next) {
-            if (block_data_[b->index()].rpo_next == info->end) {
-              PushFront(order, b);
-              info->end = order;
-              break;
-            }
-          }
-          order = info->start;
-        } else {
-          // Pop a single node off the stack and add it to the order.
-          order = PushFront(order, block);
-          set_rpo_number(block, kBlockVisited2);
-        }
-        stack.pop();
+        // Pop a single node off the stack and add it to the order.
+        order = PushFront(order, block);
+        set_rpo_number(block, kBlockVisited2);
       }
+      stack.pop_back();
     }
-
-    return ComputeBlockPermutation(entry);
   }
 
- private:
-  // Computes loop membership from the backedges of the control flow graph.
-  void ComputeLoopInfo(size_t num_loops, std::vector<Backedge>& backedges) {
-    std::stack<const Block*> stack;
+  return ComputeBlockPermutation(entry);
+}
 
-    // Extend loop information vector.
-    loops_.resize(num_loops, LoopInfo{});
+// Computes loop membership from the backedges of the control flow graph.
+void TurboshaftSpecialRPONumberer::ComputeLoopInfo(
+    size_t num_loops, ZoneVector<Backedge>& backedges) {
+  ZoneVector<const Block*> stack(zone());
 
-    // Compute loop membership starting from backedges.
-    // O(max(loop_depth) * |loop|)
-    for (auto [backedge, header_index] : backedges) {
-      const Block* header = SuccessorBlocks(*backedge, *graph_)[header_index];
-      DCHECK(header->IsLoop());
-      size_t loop_num = loop_number(header);
-      DCHECK_NULL(loops_[loop_num].header);
-      loops_[loop_num].header = header;
-      loops_[loop_num].members =
-          zone_->New<BitVector>(graph_->block_count(), zone_);
+  // Extend loop information vector.
+  loops_.resize(num_loops, LoopInfo{});
 
-      if (backedge != header) {
-        // As long as the header doesn't have a backedge to itself,
-        // Push the member onto the queue and process its predecessors.
-        DCHECK(!loops_[loop_num].members->Contains(backedge->index().id()));
-        loops_[loop_num].members->Add(backedge->index().id());
-        stack.push(backedge);
-      }
+  // Compute loop membership starting from backedges.
+  // O(max(loop_depth) * |loop|)
+  for (auto [backedge, header_index] : backedges) {
+    const Block* header = SuccessorBlocks(*backedge, *graph_)[header_index];
+    DCHECK(header->IsLoop());
+    size_t loop_num = loop_number(header);
+    DCHECK_NULL(loops_[loop_num].header);
+    loops_[loop_num].header = header;
+    loops_[loop_num].members =
+        zone()->New<BitVector>(graph_->block_count(), zone());
 
-      // Propagate loop membership backwards. All predecessors of M up to the
-      // loop header H are members of the loop too. O(|blocks between M and H|).
-      while (!stack.empty()) {
-        const Block* block = stack.top();
-        stack.pop();
-        for (const Block* pred = block->LastPredecessor(); pred;
-             pred = pred->NeighboringPredecessor()) {
-          if (pred != header) {
-            if (!loops_[loop_num].members->Contains(pred->index().id())) {
-              loops_[loop_num].members->Add(pred->index().id());
-              stack.push(pred);
-            }
+    if (backedge != header) {
+      // As long as the header doesn't have a backedge to itself,
+      // Push the member onto the queue and process its predecessors.
+      DCHECK(!loops_[loop_num].members->Contains(backedge->index().id()));
+      loops_[loop_num].members->Add(backedge->index().id());
+      stack.push_back(backedge);
+    }
+
+    // Propagate loop membership backwards. All predecessors of M up to the
+    // loop header H are members of the loop too. O(|blocks between M and H|).
+    while (!stack.empty()) {
+      const Block* block = stack.back();
+      stack.pop_back();
+      for (const Block* pred : block->PredecessorsIterable()) {
+        if (pred != header) {
+          if (!loops_[loop_num].members->Contains(pred->index().id())) {
+            loops_[loop_num].members->Add(pred->index().id());
+            stack.push_back(pred);
           }
         }
       }
     }
   }
+}
 
-  ZoneVector<uint32_t> ComputeBlockPermutation(const Block* entry) {
-    ZoneVector<uint32_t> result(graph_->block_count(), zone_);
-    size_t i = 0;
-    for (const Block* b = entry; b; b = block_data_[b->index()].rpo_next) {
-      result[i++] = b->index().id();
-    }
-    DCHECK_EQ(i, graph_->block_count());
-    return result;
+ZoneVector<uint32_t> TurboshaftSpecialRPONumberer::ComputeBlockPermutation(
+    const Block* entry) {
+  ZoneVector<uint32_t> result(graph_->block_count(), zone());
+  size_t i = 0;
+  for (const Block* b = entry; b; b = block_data_[b->index()].rpo_next) {
+    result[i++] = b->index().id();
   }
+  DCHECK_EQ(i, graph_->block_count());
+  return result;
+}
 
-  int32_t rpo_number(const Block* block) const {
-    return block_data_[block->index()].rpo_number;
-  }
-
-  void set_rpo_number(const Block* block, int32_t rpo_number) {
-    block_data_[block->index()].rpo_number = rpo_number;
-  }
-
-  bool has_loop_number(const Block* block) const {
-    return block_data_[block->index()].loop_number != BlockData::kNoLoopNumber;
-  }
-
-  size_t loop_number(const Block* block) const {
-    DCHECK(has_loop_number(block));
-    return block_data_[block->index()].loop_number;
-  }
-
-  void set_loop_number(const Block* block, size_t loop_number) {
-    block_data_[block->index()].loop_number = loop_number;
-  }
-
-  const Block* PushFront(const Block* head, const Block* block) {
-    block_data_[block->index()].rpo_next = head;
-    return block;
-  }
-
-  const Graph* graph_;
-  FixedBlockSidetable<BlockData> block_data_;
-  std::vector<LoopInfo> loops_;
-  Zone* zone_;
-};
-
-base::Optional<BailoutReason> InstructionSelectionPhase::Run(
-    Zone* temp_zone, const CallDescriptor* call_descriptor, Linkage* linkage,
-    CodeTracer* code_tracer) {
-  PipelineData* data = &PipelineData::Get();
-  Graph& graph = PipelineData::Get().graph();
-
-  // Compute special RPO order....
-  TurboshaftSpecialRPONumberer numberer(graph, temp_zone);
-  auto schedule = numberer.ComputeSpecialRPO();
-  graph.ReorderBlocks(base::VectorOf(schedule));
-
-  // Determine deferred blocks.
+void PropagateDeferred(Graph& graph) {
   graph.StartBlock().set_custom_data(
       0, Block::CustomDataKind::kDeferredInSchedule);
   for (Block& block : graph.blocks()) {
@@ -352,6 +290,21 @@ base::Optional<BailoutReason> InstructionSelectionPhase::Run(
       }
     }
   }
+}
+
+base::Optional<BailoutReason> InstructionSelectionPhase::Run(
+    Zone* temp_zone, const CallDescriptor* call_descriptor, Linkage* linkage,
+    CodeTracer* code_tracer) {
+  PipelineData* data = &PipelineData::Get();
+  Graph& graph = PipelineData::Get().graph();
+
+  // Compute special RPO order....
+  TurboshaftSpecialRPONumberer numberer(graph, temp_zone);
+  auto schedule = numberer.ComputeSpecialRPO();
+  graph.ReorderBlocks(base::VectorOf(schedule));
+
+  // Determine deferred blocks.
+  PropagateDeferred(graph);
 
   // Print graph once before instruction selection.
   turboshaft::PrintTurboshaftGraph(temp_zone, code_tracer,
@@ -386,13 +339,8 @@ base::Optional<BailoutReason> InstructionSelectionPhase::Run(
   if (base::Optional<BailoutReason> bailout = selector.SelectInstructions()) {
     return bailout;
   }
-  if (data->info()->trace_turbo_json()) {
-    TurboJsonFile json_of(data->info(), std::ios_base::app);
-    json_of << "{\"name\":\"" << phase_name() << "\",\"type\":\"instructions\""
-            << InstructionRangesAsJSON{data->sequence(),
-                                       &selector.instr_origins()}
-            << "},\n";
-  }
+  TraceSequence(data->info(), data->sequence(), data->broker(), code_tracer,
+                "after instruction selection");
   return base::nullopt;
 }
 

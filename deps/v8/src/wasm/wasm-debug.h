@@ -174,12 +174,12 @@ class V8_EXPORT_PRIVATE DebugInfo {
   // For the frame inspection methods below:
   // {fp} is the frame pointer of the Liftoff frame, {debug_break_fp} that of
   // the {WasmDebugBreak} frame (if any).
-  int GetNumLocals(Address pc);
+  int GetNumLocals(Address pc, Isolate* isolate);
   WasmValue GetLocalValue(int local, Address pc, Address fp,
                           Address debug_break_fp, Isolate* isolate);
-  int GetStackDepth(Address pc);
+  int GetStackDepth(Address pc, Isolate* isolate);
 
-  const wasm::WasmFunction& GetFunctionAtAddress(Address pc);
+  const wasm::WasmFunction& GetFunctionAtAddress(Address pc, Isolate* isolate);
 
   WasmValue GetStackValue(int index, Address pc, Address fp,
                           Address debug_break_fp, Isolate* isolate);

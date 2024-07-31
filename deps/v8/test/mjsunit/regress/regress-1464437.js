@@ -23,6 +23,25 @@ function get_keys() {
   assertEquals("none", optimized);
 })();
 
+function get_keys_tracking() {
+  const buffer = new ArrayBuffer(12, { "maxByteLength": 4096 });
+  const u16array = new Uint16Array(buffer,  6);
+  buffer.resize(0);
+  let keys = "none";
+  try { keys = u16array.keys(); } catch (e) {}
+  return keys;
+}
+
+(function() {
+ // Testing array.prototype.keys
+  %PrepareFunctionForOptimization(get_keys_tracking);
+  let interpreted = get_keys_tracking();
+  assertEquals("none", interpreted);
+  %OptimizeFunctionOnNextCall(get_keys_tracking);
+  let optimized = get_keys_tracking();
+  assertEquals("none", optimized);
+})();
+
 function get_values() {
   const buffer = new ArrayBuffer(12, { "maxByteLength": 4096 });
   const u16array = new Uint16Array(buffer, 0, 5);

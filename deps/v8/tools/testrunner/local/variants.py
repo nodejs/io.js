@@ -39,15 +39,14 @@ ALL_VARIANT_FLAGS = {
         "--turboshaft",
         "--turboshaft-future",
         "--turboshaft-wasm",
+        "--turboshaft-wasm-wrappers",
+        "--no-wasm-generic-wrapper",
+        "--no-wasm-to-js-generic-wrapper",
         "--no-liftoff",
-        # We need this to correctly bailout for call_indirect with subtyping
-        # until we turn it on by default, or remove the bailout.
-        "--wasm-final-types"
     ]],
     "concurrent_sparkplug": [["--concurrent-sparkplug", "--sparkplug"]],
     "always_sparkplug": [["--always-sparkplug", "--sparkplug"]],
     "minor_ms": [["--minor-ms"]],
-    "concurrent_minor_ms": [["--concurrent-minor-ms-marking"]],
     "no_lfa": [["--no-lazy-feedback-allocation"]],
     # No optimization means disable all optimizations. OptimizeFunctionOnNextCall
     # would not force optimization too. It turns into a Nop. Please see
@@ -59,13 +58,14 @@ ALL_VARIANT_FLAGS = {
     # compilation. "Liftoff-only" and eager compilation is not a problem,
     # because test functions do typically not get optimized to TurboFan anyways.
     "nooptimization": [[
-        "--no-turbofan", "--no-maglev", "--liftoff", "--no-wasm-tier-up",
-        "--no-wasm-lazy-compilation"
+        "--disable-optimizing-compilers", "--no-wasm-lazy-compilation"
     ]],
+    "rehash_snapshot": [["--rehash-snapshot"]],
     "slow_path": [["--force-slow-path"]],
     "stress": [[
         "--no-liftoff", "--stress-lazy-source-positions",
-        "--no-wasm-generic-wrapper", "--no-wasm-lazy-compilation"
+        "--no-wasm-generic-wrapper", "--no-wasm-lazy-compilation",
+        "--no-wasm-to-js-generic-wrapper"
     ]],
     "stress_concurrent_allocation": [["--stress-concurrent-allocation"]],
     "stress_concurrent_inlining": [["--stress-concurrent-inlining"]],
@@ -104,7 +104,9 @@ INCOMPATIBLE_FLAGS_PER_VARIANT = {
             "--no-regexp-interpret-all", "--interpreted-frames-native-stack"
         ],
     "nooptimization": [
-        "--turbofan", "--always-turbofan", "--stress-concurrent-inlining"
+        "--turbofan", "--always-turbofan", "--turboshaft",
+        "--turboshaft-future", "--maglev", "--no-liftoff", "--wasm-tier-up",
+        "--validate-asm", "--track-field-types", "--stress-concurrent-inlining"
     ],
     "slow_path": ["--no-force-slow-path"],
     "stress_concurrent_allocation": [
@@ -112,8 +114,8 @@ INCOMPATIBLE_FLAGS_PER_VARIANT = {
     ],
     "stress_concurrent_inlining": [
         "--single-threaded", "--predictable", "--lazy-feedback-allocation",
-        "--assert-types", "--no-concurrent-recompilation", "--no-turbofan",
-        "--jitless"
+        "--assert-types", "--turboshaft-assert-types",
+        "--no-concurrent-recompilation", "--no-turbofan", "--jitless"
     ],
     # The fast API tests initialize an embedder object that never needs to be
     # serialized to the snapshot, so we don't have a
@@ -161,10 +163,9 @@ INCOMPATIBLE_FLAGS_PER_VARIANT = {
         "--concurrent-recompilation", "--stress_concurrent_inlining",
         "--no-assert-types"
     ],
-    "concurrent_minor_ms": [
-        "--predictable", "--single_threaded_gc", "--single_threaded",
-        "--stress_snapshot", "--trace_gc_object_stats",
-        "--no-incremental-marking", "--no-concurrent-marking"
+    "--turboshaft-assert-types": [
+        "--concurrent-recompilation", "--stress_concurrent_inlining",
+        "--no-turboshaft-assert-types"
     ],
 }
 

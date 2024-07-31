@@ -28,6 +28,8 @@ class Protectors : public AllStatic {
                                                                               \
   V(MegaDOM, MegaDOMProtector, mega_dom_protector)                            \
   V(NoProfiling, NoProfilingProtector, no_profiling_protector)                \
+  V(NoUndetectableObjects, NoUndetectableObjectsProtector,                    \
+    no_undetectable_objects_protector)                                        \
                                                                               \
   /* The MapIterator protector protects the original iteration behaviors   */ \
   /* of Map.prototype.keys(), Map.prototype.values(), and                  */ \
@@ -92,6 +94,10 @@ class Protectors : public AllStatic {
     string_iterator_protector)                                                \
   V(StringLengthOverflowLookupChain, StringLengthProtector,                   \
     string_length_protector)                                                  \
+  /* This protects the ToPrimitive conversion of string wrappers (with the */ \
+  /* default type hint NUMBER). */                                            \
+  V(StringWrapperToPrimitive, StringWrapperToPrimitiveProtector,              \
+    string_wrapper_to_primitive_protector)                                    \
   V(TypedArraySpeciesLookupChain, TypedArraySpeciesProtector,                 \
     typed_array_species_protector)
 

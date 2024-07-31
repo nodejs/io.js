@@ -1,4 +1,4 @@
-const Minipass = require('minipass')
+const { Minipass } = require('minipass')
 const _data = Symbol('_data')
 const _length = Symbol('_length')
 class Collect extends Minipass {

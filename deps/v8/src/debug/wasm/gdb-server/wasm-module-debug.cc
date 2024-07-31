@@ -43,8 +43,8 @@ Handle<WasmInstanceObject> WasmModuleDebug::GetFirstWasmInstance() {
   Handle<WeakArrayList> weak_instance_list(script->wasm_weak_instance_list(),
                                            GetIsolate());
   if (weak_instance_list->length() > 0) {
-    MaybeObject maybe_instance = weak_instance_list->Get(0);
-    if (maybe_instance->IsWeak()) {
+    Tagged<MaybeObject> maybe_instance = weak_instance_list->Get(0);
+    if (maybe_instance.IsWeak()) {
       Handle<WasmInstanceObject> instance(
           WasmInstanceObject::cast(maybe_instance.GetHeapObjectAssumeWeak()),
           GetIsolate());

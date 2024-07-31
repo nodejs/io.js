@@ -7,6 +7,7 @@
 
 #include "src/base/contextual.h"
 #include "src/codegen/optimized-compilation-info.h"
+#include "src/compiler/graph-visualizer.h"
 #include "src/compiler/turboshaft/graph-visualizer.h"
 #include "src/compiler/turboshaft/graph.h"
 
@@ -29,13 +30,15 @@ class Tracing : public base::ContextualClass<Tracing> {
                              OperationDataPrinter printer) {
     DCHECK(printer);
     if (!is_enabled()) return;
-    PrintTurboshaftCustomDataPerOperation(info_, data_name, graph, printer);
+    TurboJsonFile json_of(info_, std::ios_base::app);
+    PrintTurboshaftCustomDataPerOperation(json_of, data_name, graph, printer);
   }
   void PrintPerBlockData(const char* data_name, const Graph& graph,
                          BlockDataPrinter printer) {
     DCHECK(printer);
     if (!is_enabled()) return;
-    PrintTurboshaftCustomDataPerBlock(info_, data_name, graph, printer);
+    TurboJsonFile json_of(info_, std::ios_base::app);
+    PrintTurboshaftCustomDataPerBlock(json_of, data_name, graph, printer);
   }
 
  private:

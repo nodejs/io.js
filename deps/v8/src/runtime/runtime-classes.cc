@@ -75,8 +75,9 @@ RUNTIME_FUNCTION(Runtime_ThrowSuperNotCalled) {
 
 namespace {
 
-Object ThrowNotSuperConstructor(Isolate* isolate, Handle<Object> constructor,
-                                Handle<JSFunction> function) {
+Tagged<Object> ThrowNotSuperConstructor(Isolate* isolate,
+                                        Handle<Object> constructor,
+                                        Handle<JSFunction> function) {
   Handle<String> super_name;
   if (IsJSFunction(*constructor)) {
     super_name = handle(Handle<JSFunction>::cast(constructor)->shared()->Name(),
@@ -138,7 +139,8 @@ Handle<Name> KeyToName<NumberDictionary>(Isolate* isolate, Handle<Object> key) {
 //    shared name.
 template <typename Dictionary>
 MaybeHandle<Object> GetMethodAndSetName(Isolate* isolate,
-                                        RuntimeArguments& args, Smi index,
+                                        RuntimeArguments& args,
+                                        Tagged<Smi> index,
                                         Handle<String> name_prefix,
                                         Handle<Object> key) {
   int int_index = index.value();
@@ -169,8 +171,8 @@ MaybeHandle<Object> GetMethodAndSetName(Isolate* isolate,
 // This is a simplified version of GetMethodAndSetName()
 // function above that is used when it's guaranteed that the method has
 // shared name.
-Object GetMethodWithSharedName(Isolate* isolate, RuntimeArguments& args,
-                               Object index) {
+Tagged<Object> GetMethodWithSharedName(Isolate* isolate, RuntimeArguments& args,
+                                       Tagged<Object> index) {
   DisallowGarbageCollection no_gc;
   int int_index = Smi::ToInt(index);
 
@@ -191,7 +193,7 @@ Handle<Dictionary> ShallowCopyDictionaryTemplate(
       Dictionary::ShallowCopy(isolate, dictionary_template);
   // Clone all AccessorPairs in the dictionary.
   for (InternalIndex i : dictionary->IterateEntries()) {
-    Object value = dictionary->ValueAt(i);
+    Tagged<Object> value = dictionary->ValueAt(i);
     if (IsAccessorPair(value)) {
       Handle<AccessorPair> pair(AccessorPair::cast(value), isolate);
       pair = AccessorPair::Copy(isolate, pair);
@@ -207,13 +209,13 @@ bool SubstituteValues(Isolate* isolate, Handle<Dictionary> dictionary,
   // Replace all indices with proper methods.
   ReadOnlyRoots roots(isolate);
   for (InternalIndex i : dictionary->IterateEntries()) {
-    Object maybe_key = dictionary->KeyAt(i);
+    Tagged<Object> maybe_key = dictionary->KeyAt(i);
     if (!Dictionary::IsKey(roots, maybe_key)) continue;
     Handle<Object> key(maybe_key, isolate);
     Handle<Object> value(dictionary->ValueAt(i), isolate);
     if (IsAccessorPair(*value)) {
       Handle<AccessorPair> pair = Handle<AccessorPair>::cast(value);
-      Object tmp = pair->getter();
+      Tagged<Object> tmp = pair->getter();
       if (IsSmi(tmp)) {
         Handle<Object> result;
         ASSIGN_RETURN_ON_EXCEPTION_VALUE(
@@ -254,7 +256,7 @@ void UpdateProtectors(Isolate* isolate, Handle<JSObject> receiver,
                       Handle<Dictionary> properties_dictionary) {
   ReadOnlyRoots roots(isolate);
   for (InternalIndex i : properties_dictionary->IterateEntries()) {
-    Object maybe_key = properties_dictionary->KeyAt(i);
+    Tagged<Object> maybe_key = properties_dictionary->KeyAt(i);
     if (!Dictionary::IsKey(roots, maybe_key)) continue;
     Handle<Name> name(Name::cast(maybe_key), isolate);
     LookupIterator::UpdateProtector(isolate, receiver, name);
@@ -304,14 +306,14 @@ bool AddDescriptorsByTemplate(
   // values into "instantiated" |descriptors| array.
   int field_index = 0;
   for (InternalIndex i : InternalIndex::Range(nof_descriptors)) {
-    Object value = descriptors_template->GetStrongValue(i);
+    Tagged<Object> value = descriptors_template->GetStrongValue(i);
     if (IsAccessorPair(value)) {
       Handle<AccessorPair> pair = AccessorPair::Copy(
           isolate, handle(AccessorPair::cast(value), isolate));
       value = *pair;
     }
     DisallowGarbageCollection no_gc;
-    Name name = descriptors_template->GetKey(i);
+    Tagged<Name> name = descriptors_template->GetKey(i);
     // TODO(v8:5799): consider adding a ClassBoilerplate flag
     // "has_interesting_properties".
     if (name->IsInteresting(isolate)) {
@@ -329,8 +331,8 @@ bool AddDescriptorsByTemplate(
       } else {
         DCHECK_EQ(PropertyKind::kAccessor, details.kind());
         if (IsAccessorPair(value)) {
-          AccessorPair pair = AccessorPair::cast(value);
-          Object tmp = pair->getter();
+          Tagged<AccessorPair> pair = AccessorPair::cast(value);
+          Tagged<Object> tmp = pair->getter();
           if (IsSmi(tmp)) {
             pair->set_getter(GetMethodWithSharedName(isolate, args, tmp));
           }
@@ -354,10 +356,9 @@ bool AddDescriptorsByTemplate(
 
       property_array->set(field_index, value);
       field_index++;
-      descriptors->Set(i, name, MaybeObject::FromObject(FieldType::Any()),
-                       details);
+      descriptors->Set(i, name, FieldType::Any(), details);
     } else {
-      descriptors->Set(i, name, MaybeObject::FromObject(value), details);
+      descriptors->Set(i, name, value, details);
     }
   }
 
@@ -422,7 +423,7 @@ bool AddDescriptorsByTemplate(
 
     ValueKind value_kind = ComputedEntryFlags::ValueKindBits::decode(flags);
     int key_index = ComputedEntryFlags::KeyIndexBits::decode(flags);
-    Smi value = Smi::FromInt(key_index + 1);  // Value follows name.
+    Tagged<Smi> value = Smi::FromInt(key_index + 1);  // Value follows name.
 
     Handle<Object> key = args.at(key_index);
     DCHECK(IsName(*key));
@@ -517,19 +518,11 @@ bool InitClassPrototype(Isolate* isolate,
     map->set_may_have_interesting_properties(true);
     map->set_construction_counter(Map::kNoSlackTracking);
 
-    if constexpr (V8_ENABLE_SWISS_NAME_DICTIONARY_BOOL) {
-      Handle<SwissNameDictionary> properties_dictionary_template =
-          Handle<SwissNameDictionary>::cast(properties_template);
-      return AddDescriptorsByTemplate(
-          isolate, map, properties_dictionary_template,
-          elements_dictionary_template, computed_properties, prototype, args);
-    } else {
-      Handle<NameDictionary> properties_dictionary_template =
-          Handle<NameDictionary>::cast(properties_template);
-      return AddDescriptorsByTemplate(
-          isolate, map, properties_dictionary_template,
-          elements_dictionary_template, computed_properties, prototype, args);
-    }
+    Handle<PropertyDictionary> properties_dictionary_template =
+        Handle<PropertyDictionary>::cast(properties_template);
+    return AddDescriptorsByTemplate(
+        isolate, map, properties_dictionary_template,
+        elements_dictionary_template, computed_properties, prototype, args);
   }
 }
 
@@ -646,7 +639,7 @@ MaybeHandle<Object> DefineClass(Isolate* isolate,
       !InitClassPrototype(isolate, class_boilerplate, prototype,
                           Handle<HeapObject>::cast(prototype_parent),
                           constructor, args)) {
-    DCHECK(isolate->has_pending_exception());
+    DCHECK(isolate->has_exception());
     return MaybeHandle<Object>();
   }
   if (v8_flags.log_maps) {

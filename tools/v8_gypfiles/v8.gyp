@@ -48,7 +48,7 @@
       'type': 'none',
       'toolsets': ['host', 'target'],
       'conditions': [
-        ['OS=="win"', {
+        ['OS=="win" and clang==0', {
           'direct_dependent_settings': {
             'msvs_precompiled_header': '<(V8_ROOT)/../../tools/msvs/pch/v8_pch.h',
             'msvs_precompiled_source': '<(V8_ROOT)/../../tools/msvs/pch/v8_pch.cc',
@@ -248,11 +248,41 @@
         'v8_base_without_compiler',
         'v8_initializers',
         'v8_maybe_icu',
+        'v8_abseil',
       ],
       'sources': [
         '<(V8_ROOT)/src/init/setup-isolate-full.cc',
       ],
     },  # v8_init
+    {
+      # This target is used to work around a GCC issue that causes the
+      # compilation to take several minutes when using -O2 or -O3.
+      # This is fixed in GCC 13.
+      'target_name': 'v8_initializers_slow',
+      'type': 'static_library',
+      'toolsets': ['host', 'target'],
+      'dependencies': [
+        'generate_bytecode_builtins_list',
+        'run_torque',
+        'v8_abseil',
+      ],
+      'cflags!': ['-O3'],
+      'cflags': ['-O1'],
+      'sources': [
+        '<(SHARED_INTERMEDIATE_DIR)/torque-generated/src/builtins/js-to-wasm-tq-csa.h',
+        '<(SHARED_INTERMEDIATE_DIR)/torque-generated/src/builtins/js-to-wasm-tq-csa.cc',
+        '<(SHARED_INTERMEDIATE_DIR)/torque-generated/src/builtins/wasm-to-js-tq-csa.h',
+        '<(SHARED_INTERMEDIATE_DIR)/torque-generated/src/builtins/wasm-to-js-tq-csa.cc',
+      ],
+      'conditions': [
+        ['v8_enable_i18n_support==1', {
+          'dependencies': [
+            '<(icu_gyp_path):icui18n',
+            '<(icu_gyp_path):icuuc',
+          ],
+        }],
+      ],
+    },  # v8_initializers_slow
     {
       'target_name': 'v8_initializers',
       'type': 'static_library',
@@ -262,6 +292,7 @@
         'v8_base_without_compiler',
         'v8_shared_internal_headers',
         'v8_pch',
+        'v8_abseil',
       ],
       'include_dirs': [
         '<(SHARED_INTERMEDIATE_DIR)',
@@ -272,6 +303,16 @@
       ],
       'conditions': [
         ['v8_enable_webassembly==1', {
+          'dependencies': [
+            'v8_initializers_slow',
+          ],
+          # Compiled by v8_initializers_slow target.
+          'sources!': [
+            '<(SHARED_INTERMEDIATE_DIR)/torque-generated/src/builtins/js-to-wasm-tq-csa.h',
+            '<(SHARED_INTERMEDIATE_DIR)/torque-generated/src/builtins/js-to-wasm-tq-csa.cc',
+            '<(SHARED_INTERMEDIATE_DIR)/torque-generated/src/builtins/wasm-to-js-tq-csa.h',
+            '<(SHARED_INTERMEDIATE_DIR)/torque-generated/src/builtins/wasm-to-js-tq-csa.cc',
+          ],
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_initializers.*?v8_enable_webassembly.*?sources \\+= ")',
           ],
@@ -300,12 +341,12 @@
           'sources': [
             '<(V8_ROOT)/src/builtins/riscv/builtins-riscv.cc',
           ],
-        }],        
+        }],
         ['v8_target_arch=="loong64" or v8_target_arch=="loong64"', {
           'sources': [
             '<(V8_ROOT)/src/builtins/loong64/builtins-loong64.cc',
           ],
-        }],        
+        }],
         ['v8_target_arch=="mips64" or v8_target_arch=="mips64el"', {
           'sources': [
             '<(V8_ROOT)/src/builtins/mips64/builtins-mips64.cc',
@@ -342,38 +383,6 @@
       'target_name': 'v8_snapshot',
       'type': 'static_library',
       'toolsets': ['target'],
-      'conditions': [
-        ['want_separate_host_toolset', {
-          'conditions': [
-            ['v8_target_arch=="arm64"', {
-              'msvs_enable_marmasm': 1,
-            }]
-          ],
-          'dependencies': [
-            'generate_bytecode_builtins_list',
-            'run_torque',
-            'mksnapshot#host',
-            'v8_maybe_icu',
-            # [GYP] added explicitly, instead of inheriting from the other deps
-            'v8_base_without_compiler',
-            'v8_compiler_for_mksnapshot',
-            'v8_initializers',
-            'v8_libplatform',
-          ]
-        }, {
-          'dependencies': [
-            'generate_bytecode_builtins_list',
-            'run_torque',
-            'mksnapshot',
-            'v8_maybe_icu',
-            # [GYP] added explicitly, instead of inheriting from the other deps
-            'v8_base_without_compiler',
-            'v8_compiler_for_mksnapshot',
-            'v8_initializers',
-            'v8_libplatform',
-          ]
-        }],
-      ],
       'sources': [
         '<(V8_ROOT)/src/init/setup-isolate-deserialize.cc',
       ],
@@ -389,6 +398,7 @@
           'variables': {
             'mksnapshot_flags': [
               '--turbo_instruction_scheduling',
+              '--stress-turbo-late-spilling',
               # In cross builds, the snapshot may be generated for both the host and
               # target toolchains.  The same host binary is used to generate both, so
               # mksnapshot needs to know which target OS to use at runtime.  It's weird,
@@ -447,6 +457,54 @@
             '>@(mksnapshot_flags)',
           ],
         },
+      ],
+      'conditions': [
+        ['want_separate_host_toolset', {
+          'dependencies': [
+            'generate_bytecode_builtins_list',
+            'run_torque',
+            'mksnapshot#host',
+            'v8_maybe_icu',
+            # [GYP] added explicitly, instead of inheriting from the other deps
+            'v8_base_without_compiler',
+            'v8_compiler_for_mksnapshot',
+            'v8_initializers',
+            'v8_libplatform',
+          ]
+        }, {
+          'dependencies': [
+            'generate_bytecode_builtins_list',
+            'run_torque',
+            'mksnapshot',
+            'v8_maybe_icu',
+            # [GYP] added explicitly, instead of inheriting from the other deps
+            'v8_base_without_compiler',
+            'v8_compiler_for_mksnapshot',
+            'v8_initializers',
+            'v8_libplatform',
+          ]
+        }],
+        ['OS=="win" and clang==1', {
+          'actions': [
+            {
+              'action_name': 'asm_to_inline_asm',
+              'message': 'generating: >@(_outputs)',
+              'inputs': [
+                '<(INTERMEDIATE_DIR)/embedded.S',
+              ],
+              'outputs': [
+                '<(INTERMEDIATE_DIR)/embedded.cc',
+              ],
+              'process_outputs_as_sources': 1,
+              'action': [
+                '<(python)',
+                '<(V8_ROOT)/tools/snapshot/asm_to_inline_asm.py',
+                '<@(_inputs)',
+                '<(INTERMEDIATE_DIR)/embedded.cc',
+              ],
+            },
+          ],
+        }],
       ],
     },  # v8_snapshot
     {
@@ -518,6 +576,7 @@
       'direct_dependent_settings': {
         'sources': [
           '<(V8_ROOT)/src/flags/flag-definitions.h',
+          '<(V8_ROOT)/src/flags/flags-impl.h',
           '<(V8_ROOT)/src/flags/flags.h',
         ],
       },
@@ -535,7 +594,9 @@
         'v8_heap_base_headers',
         'generate_bytecode_builtins_list',
         'run_torque',
+        'v8_abseil',
         'v8_libbase',
+        'fp16',
       ],
       'direct_dependent_settings': {
         'sources': [
@@ -547,11 +608,21 @@
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_snapshot_compression.*?sources \\+= ")',
             ],
           }],
+          ['v8_enable_sparkplug==1', {
+            'sources': [
+              '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_sparkplug.*?sources \\+= ")',
+            ],
+          }],
           ['v8_enable_maglev==1', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_maglev.*?sources \\+= ")',
             ],
             'conditions': [
+              ['v8_target_arch=="arm"', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_maglev.*?v8_current_cpu == \\"arm\\".*?sources \\+= ")',
+                ],
+              }],
               ['v8_target_arch=="arm64"', {
                 'sources': [
                   '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_maglev.*?v8_current_cpu == \\"arm64\\".*?sources \\+= ")',
@@ -588,6 +659,13 @@
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"x86\\".*?sources \\+= ")',
             ],
+            'conditions': [
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"x86\\".*?v8_enable_sparkplug.*?sources \\+= ")',
+                ],
+              }],
+            ],
           }],
           ['v8_target_arch=="x64"', {
             'sources': [
@@ -597,6 +675,11 @@
               ['OS=="win"', {
                 'sources': [
                   '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"x64\\".*?is_win.*?sources \\+= ")',
+                ],
+              }],
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"x64\\".*?v8_enable_sparkplug.*?sources \\+= ")',
                 ],
               }],
               ['v8_enable_webassembly==1', {
@@ -619,6 +702,13 @@
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"arm\\".*?sources \\+= ")',
             ],
+            'conditions': [
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"arm\\".*?v8_enable_sparkplug.*?sources \\+= ")',
+                ],
+              }],
+            ],
           }],
           ['v8_target_arch=="arm64"', {
             'sources': [
@@ -628,6 +718,11 @@
               ['v8_control_flow_integrity==1', {
                 'sources': [
                   '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"arm64\\".*?v8_control_flow_integrity.*?sources \\+= ")',
+                ],
+              }],
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"arm64\\".*?v8_enable_sparkplug.*?sources \\+= ")',
                 ],
               }],
               ['v8_enable_webassembly==1', {
@@ -655,6 +750,13 @@
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"mips64\\".*?sources \\+= ")',
             ],
+            'conditions': [
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"mips64\\".*?v8_enable_sparkplug.*?sources \\+= ")',
+                ],
+              }],
+            ],
           }],
           ['v8_target_arch=="ppc"', {
             'sources': [
@@ -665,20 +767,48 @@
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"ppc64\\".*?sources \\+= ")',
             ],
+            'conditions': [
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"ppc64\\".*?v8_enable_sparkplug.*?sources \\+= ")',
+                ],
+              }],
+            ],
           }],
           ['v8_target_arch=="s390x"', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"s390\\".*?sources \\+= ")',
+            ],
+            'conditions': [
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"s390\\".*?v8_enable_sparkplug.*?sources \\+= ")',
+                ],
+              }],
             ],
           }],
           ['v8_target_arch=="riscv64"', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"riscv64\\".*?sources \\+= ")',
             ],
+            'conditions': [
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"riscv64\\".*?v8_enable_sparkplug.*?sources \\+= ")',
+                ],
+              }],
+            ],
           }],
           ['v8_target_arch=="loong64"', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"loong64\\".*?sources \\+= ")',
+            ],
+            'conditions': [
+              ['v8_enable_sparkplug==1', {
+                'sources': [
+                  '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"loong64\\".*?v8_enable_sparkplug.*?sources \\+= ")',
+                ],
+              }],
             ],
           }],
         ],
@@ -785,6 +915,7 @@
         'v8_shared_internal_headers',
         'v8_turboshaft',
         'v8_pch',
+        'v8_abseil',
       ],
       'conditions': [
         ['v8_enable_turbofan==1', {
@@ -807,10 +938,25 @@
         'v8_libbase',
         'v8_shared_internal_headers',
         'v8_pch',
+        'v8_abseil',
       ],
       'sources': [
         '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_source_set.\\"v8_turboshaft.*?sources = ")',
       ],
+      'conditions': [
+        ['v8_enable_maglev==0', {
+          'sources': [
+            '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_source_set.\\"v8_turboshaft.*?!v8_enable_maglev.*?sources \\+= ")',
+          ],
+        }],
+      ],
+      'msvs_settings': {
+        'VCCLCompilerTool': {
+          'AdditionalOptions': [
+            '/bigobj'
+          ],
+        },
+      },
     },  # v8_turboshaft
     {
       'target_name': 'v8_compiler_for_mksnapshot',
@@ -859,6 +1005,8 @@
         'v8_maybe_icu',
         'v8_zlib',
         'v8_pch',
+        'v8_abseil',
+        'fp16',
       ],
       'includes': ['inspector.gypi'],
       'direct_dependent_settings': {
@@ -880,19 +1028,29 @@
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_snapshot_compression.*?sources \\+= ")',
           ],
         }],
+        ['v8_enable_sparkplug==1', {
+          'sources': [
+            '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_sparkplug.*?sources \\+= ")',
+          ],
+        }],
         ['v8_enable_maglev==1', {
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_maglev.*?sources \\+= ")',
           ],
           'conditions': [
+            ['v8_target_arch=="arm"', {
+              'sources': [
+                '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_maglev.*?v8_current_cpu == \\"arm\\".*?sources \\+= ")',
+              ],
+            }],
             ['v8_target_arch=="arm64"', {
               'sources': [
-                '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_base_without_compiler.*?v8_enable_maglev.*?v8_current_cpu == \\"arm64\\".*?sources \\+= ")',
+                '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_maglev.*?v8_current_cpu == \\"arm64\\".*?sources \\+= ")',
               ],
             }],
             ['v8_target_arch=="x64"', {
               'sources': [
-                '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_base_without_compiler.*?v8_enable_maglev.*?v8_current_cpu == \\"x64\\".*?sources \\+= ")',
+                '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_maglev.*?v8_current_cpu == \\"x64\\".*?sources \\+= ")',
               ],
             }],
           ],
@@ -900,6 +1058,7 @@
         ['v8_enable_webassembly==1', {
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_webassembly.*?sources \\+= ")',
+            '<(V8_ROOT)/src/wasm/fuzzing/random-module-generation.cc',
           ],
         }],
         ['v8_enable_third_party_heap==1', {
@@ -1009,12 +1168,24 @@
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_wasm_gdb_remote_debugging.*?v8_current_cpu == \\"riscv64\\".*?sources \\+= ")',
           ],
-        }],        
+        }],
         ['v8_target_arch=="loong64"', {
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_wasm_gdb_remote_debugging.*?v8_current_cpu == \\"loong64\\".*?sources \\+= ")',
           ],
-        }],        
+          'conditions': [
+            ['v8_enable_webassembly==1', {
+              'conditions': [
+                ['(_toolset=="host" and host_arch=="arm64" or _toolset=="target" and target_arch=="arm64") or (_toolset=="host" and host_arch=="loong64" or _toolset=="target" and target_arch=="loong64") or (_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64")', {
+                  'sources': [
+                    '<(V8_ROOT)/src/trap-handler/handler-inside-posix.cc',
+                    '<(V8_ROOT)/src/trap-handler/handler-outside-posix.cc',
+                  ],
+                }],
+              ],
+            }],
+          ],
+        }],
         ['OS=="win"', {
           # This will prevent V8's .cc files conflicting with the inspector's
           # .cpp files in the same shard.
@@ -1223,8 +1394,7 @@
             'target_conditions': [
               ['_toolset=="host" and host_os=="linux"', {
                 'libraries': [
-                  '-ldl',
-                  '-lrt'
+                  '-ldl'
                 ],
               }],
             ],
@@ -1534,6 +1704,7 @@
         'v8_maybe_icu',
         'v8_turboshaft',
         'v8_pch',
+        'v8_abseil',
         # "build/win:default_exe_manifest",
       ],
       'sources': [
@@ -1726,7 +1897,7 @@
           ['enable_lto=="true"', {
             'cflags_cc': [ '-fno-lto' ],
           }],
-          ['clang or OS!="win"', {
+          ['clang==1 or OS!="win"', {
             'conditions': [
               ['_toolset == "host" and host_arch == "x64" or _toolset == "target" and target_arch=="x64"', {
                 'sources': [
@@ -1775,16 +1946,11 @@
               }],
             ]
           }],
-          ['OS=="win"', {
+          ['OS=="win" and clang==0', {
             'conditions': [
               ['_toolset == "host" and host_arch == "x64" or _toolset == "target" and target_arch=="x64"', {
                 'sources': [
                   '<(V8_ROOT)/src/heap/base/asm/x64/push_registers_masm.asm',
-                ],
-              }],
-              ['_toolset == "host" and host_arch == "ia32" or _toolset == "target" and target_arch=="ia32"', {
-                'sources': [
-                  '<(V8_ROOT)/src/heap/base/asm/ia32/push_registers_masm.asm',
                 ],
               }],
               ['_toolset == "host" and host_arch == "arm64" or _toolset == "target" and target_arch=="arm64"', {
@@ -2026,5 +2192,325 @@
         '<(V8_ROOT)/third_party/zlib/google/compression_utils_portable.h',
       ],
     },  # v8_zlib
+    {
+      'target_name': 'v8_abseil',
+      'type': 'static_library',
+      'toolsets': ['host', 'target'],
+      'variables': {
+        'ABSEIL_ROOT': '../../deps/v8/third_party/abseil-cpp',
+      },
+      'direct_dependent_settings': {
+        'include_dirs': [
+          '<(ABSEIL_ROOT)',
+        ],
+      },
+      'include_dirs': [
+        '<(ABSEIL_ROOT)',
+      ],
+      'sources': [
+        '<(ABSEIL_ROOT)/absl/algorithm/algorithm.h',
+        '<(ABSEIL_ROOT)/absl/algorithm/container.h',
+        '<(ABSEIL_ROOT)/absl/base/attributes.h',
+        '<(ABSEIL_ROOT)/absl/base/call_once.h',
+        '<(ABSEIL_ROOT)/absl/base/casts.h',
+        '<(ABSEIL_ROOT)/absl/base/config.h',
+        '<(ABSEIL_ROOT)/absl/base/const_init.h',
+        '<(ABSEIL_ROOT)/absl/base/dynamic_annotations.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/atomic_hook.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/cycleclock.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/cycleclock.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/cycleclock_config.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/direct_mmap.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/endian.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/errno_saver.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/hide_ptr.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/identity.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/inline_variable.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/invoke.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/low_level_alloc.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/low_level_alloc.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/low_level_scheduling.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/per_thread_tls.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/raw_logging.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/raw_logging.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/scheduling_mode.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/spinlock.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/spinlock.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/spinlock_akaros.inc',
+        '<(ABSEIL_ROOT)/absl/base/internal/spinlock_linux.inc',
+        '<(ABSEIL_ROOT)/absl/base/internal/spinlock_posix.inc',
+        '<(ABSEIL_ROOT)/absl/base/internal/spinlock_wait.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/spinlock_wait.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/spinlock_win32.inc',
+        '<(ABSEIL_ROOT)/absl/base/internal/sysinfo.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/sysinfo.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/thread_identity.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/thread_identity.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/throw_delegate.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/throw_delegate.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/tsan_mutex_interface.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/unaligned_access.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/unscaledcycleclock.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/unscaledcycleclock.cc',
+        '<(ABSEIL_ROOT)/absl/base/internal/unscaledcycleclock_config.h',
+        '<(ABSEIL_ROOT)/absl/base/log_severity.h',
+        '<(ABSEIL_ROOT)/absl/base/log_severity.cc',
+        '<(ABSEIL_ROOT)/absl/base/macros.h',
+        '<(ABSEIL_ROOT)/absl/base/optimization.h',
+        '<(ABSEIL_ROOT)/absl/base/options.h',
+        '<(ABSEIL_ROOT)/absl/base/policy_checks.h',
+        '<(ABSEIL_ROOT)/absl/base/port.h',
+        '<(ABSEIL_ROOT)/absl/base/prefetch.h',
+        '<(ABSEIL_ROOT)/absl/base/thread_annotations.h',
+        '<(ABSEIL_ROOT)/absl/container/flat_hash_map.h',
+        '<(ABSEIL_ROOT)/absl/container/fixed_array.h',
+        '<(ABSEIL_ROOT)/absl/container/inlined_vector.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/common.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/common_policy_traits.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/compressed_tuple.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/container_memory.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/inlined_vector.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/hash_function_defaults.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/hash_policy_traits.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/hashtable_debug_hooks.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/hashtablez_sampler.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/hashtablez_sampler.cc',
+        '<(ABSEIL_ROOT)/absl/container/internal/hashtablez_sampler_force_weak_definition.cc',
+        '<(ABSEIL_ROOT)/absl/container/internal/raw_hash_map.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/raw_hash_set.h',
+        '<(ABSEIL_ROOT)/absl/container/internal/raw_hash_set.cc',
+        '<(ABSEIL_ROOT)/absl/crc/crc32c.h',
+        '<(ABSEIL_ROOT)/absl/crc/crc32c.cc',
+        '<(ABSEIL_ROOT)/absl/crc/internal/cpu_detect.h',
+        '<(ABSEIL_ROOT)/absl/crc/internal/cpu_detect.cc',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc.h',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc.cc',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc32c.h',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc32c_inline.h',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc32_x86_arm_combined_simd.h',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc_cord_state.h',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc_cord_state.cc',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc_internal.h',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc_memcpy.h',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc_memcpy_fallback.cc',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc_memcpy_x86_arm_combined.cc',
+        '<(ABSEIL_ROOT)/absl/crc/internal/crc_x86_arm_combined.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/address_is_readable.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/address_is_readable.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/demangle.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/demangle.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/elf_mem_image.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/elf_mem_image.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_aarch64-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_arm-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_config.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_emscripten-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_generic-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_powerpc-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_riscv-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_unimplemented-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_win32-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_x86-inl.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/symbolize.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/vdso_support.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/vdso_support.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/stacktrace.h',
+        '<(ABSEIL_ROOT)/absl/debugging/stacktrace.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/symbolize.h',
+        '<(ABSEIL_ROOT)/absl/debugging/symbolize.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/symbolize_darwin.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/symbolize_elf.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/symbolize_emscripten.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/symbolize_unimplemented.inc',
+        '<(ABSEIL_ROOT)/absl/debugging/symbolize_win32.inc',
+        '<(ABSEIL_ROOT)/absl/functional/any_invocable.h',
+        '<(ABSEIL_ROOT)/absl/functional/function_ref.h',
+        '<(ABSEIL_ROOT)/absl/functional/internal/any_invocable.h',
+        '<(ABSEIL_ROOT)/absl/functional/internal/function_ref.h',
+        '<(ABSEIL_ROOT)/absl/hash/hash.h',
+        '<(ABSEIL_ROOT)/absl/hash/internal/city.h',
+        '<(ABSEIL_ROOT)/absl/hash/internal/city.cc',
+        '<(ABSEIL_ROOT)/absl/hash/internal/hash.h',
+        '<(ABSEIL_ROOT)/absl/hash/internal/hash.cc',
+        '<(ABSEIL_ROOT)/absl/hash/internal/low_level_hash.h',
+        '<(ABSEIL_ROOT)/absl/hash/internal/low_level_hash.cc',
+        '<(ABSEIL_ROOT)/absl/meta/type_traits.h',
+        '<(ABSEIL_ROOT)/absl/memory/memory.h',
+        '<(ABSEIL_ROOT)/absl/numeric/bits.h',
+        '<(ABSEIL_ROOT)/absl/numeric/int128.h',
+        '<(ABSEIL_ROOT)/absl/numeric/int128.cc',
+        '<(ABSEIL_ROOT)/absl/numeric/internal/bits.h',
+        '<(ABSEIL_ROOT)/absl/numeric/internal/representation.h',
+        '<(ABSEIL_ROOT)/absl/profiling/internal/exponential_biased.h',
+        '<(ABSEIL_ROOT)/absl/profiling/internal/exponential_biased.cc',
+        '<(ABSEIL_ROOT)/absl/profiling/internal/sample_recorder.h',
+        '<(ABSEIL_ROOT)/absl/strings/ascii.h',
+        '<(ABSEIL_ROOT)/absl/strings/ascii.cc',
+        '<(ABSEIL_ROOT)/absl/strings/charconv.h',
+        '<(ABSEIL_ROOT)/absl/strings/charconv.cc',
+        '<(ABSEIL_ROOT)/absl/strings/charset.h',
+        '<(ABSEIL_ROOT)/absl/strings/cord.h',
+        '<(ABSEIL_ROOT)/absl/strings/cord.cc',
+        '<(ABSEIL_ROOT)/absl/strings/cord_analysis.h',
+        '<(ABSEIL_ROOT)/absl/strings/cord_analysis.cc',
+        '<(ABSEIL_ROOT)/absl/strings/cord_buffer.h',
+        '<(ABSEIL_ROOT)/absl/strings/cord_buffer.cc',
+        '<(ABSEIL_ROOT)/absl/strings/escaping.h',
+        '<(ABSEIL_ROOT)/absl/strings/escaping.cc',
+        '<(ABSEIL_ROOT)/absl/strings/has_absl_stringify.h',
+        '<(ABSEIL_ROOT)/absl/strings/has_ostream_operator.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/charconv_bigint.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/charconv_bigint.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/charconv_parse.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/charconv_parse.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_data_edge.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_internal.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_internal.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_btree.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_btree.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_btree_navigator.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_btree_navigator.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_btree_reader.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_btree_reader.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_consume.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_consume.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_crc.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_crc.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cord_rep_flat.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_functions.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_functions.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_handle.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_handle.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_info.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_info.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_sample_token.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_sample_token.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_statistics.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_update_scope.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/cordz_update_tracker.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/damerau_levenshtein_distance.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/damerau_levenshtein_distance.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/escaping.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/escaping.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/has_absl_stringify.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/memutil.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/memutil.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/ostringstream.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/ostringstream.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/pow10_helper.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/pow10_helper.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/resize_uninitialized.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/arg.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/arg.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/bind.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/bind.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/checker.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/constexpr_parser.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/extension.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/extension.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/float_conversion.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/float_conversion.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/output.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/output.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/parser.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_format/parser.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/string_constant.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/stringify_sink.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/stringify_sink.cc',
+        '<(ABSEIL_ROOT)/absl/strings/internal/stl_type_traits.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_join_internal.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/str_split_internal.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/utf8.h',
+        '<(ABSEIL_ROOT)/absl/strings/internal/utf8.cc',
+        '<(ABSEIL_ROOT)/absl/strings/match.h',
+        '<(ABSEIL_ROOT)/absl/strings/match.cc',
+        '<(ABSEIL_ROOT)/absl/strings/numbers.h',
+        '<(ABSEIL_ROOT)/absl/strings/numbers.cc',
+        '<(ABSEIL_ROOT)/absl/strings/str_cat.h',
+        '<(ABSEIL_ROOT)/absl/strings/str_cat.cc',
+        '<(ABSEIL_ROOT)/absl/strings/str_format.h',
+        '<(ABSEIL_ROOT)/absl/strings/str_join.h',
+        '<(ABSEIL_ROOT)/absl/strings/str_replace.h',
+        '<(ABSEIL_ROOT)/absl/strings/str_replace.cc',
+        '<(ABSEIL_ROOT)/absl/strings/str_split.h',
+        '<(ABSEIL_ROOT)/absl/strings/str_split.cc',
+        '<(ABSEIL_ROOT)/absl/strings/strip.h',
+        '<(ABSEIL_ROOT)/absl/strings/string_view.h',
+        '<(ABSEIL_ROOT)/absl/strings/string_view.cc',
+        '<(ABSEIL_ROOT)/absl/strings/substitute.h',
+        '<(ABSEIL_ROOT)/absl/strings/substitute.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/create_thread_identity.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/create_thread_identity.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/futex.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/futex_waiter.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/futex_waiter.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/graphcycles.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/graphcycles.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/kernel_timeout.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/kernel_timeout.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/per_thread_sem.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/per_thread_sem.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/pthread_waiter.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/pthread_waiter.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/sem_waiter.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/sem_waiter.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/stdcpp_waiter.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/stdcpp_waiter.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/waiter.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/waiter_base.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/internal/waiter_base.cc',
+        '<(ABSEIL_ROOT)/absl/synchronization/mutex.h',
+        '<(ABSEIL_ROOT)/absl/synchronization/mutex.cc',
+        '<(ABSEIL_ROOT)/absl/time/civil_time.h',
+        '<(ABSEIL_ROOT)/absl/time/civil_time.cc',
+        '<(ABSEIL_ROOT)/absl/time/clock.h',
+        '<(ABSEIL_ROOT)/absl/time/clock.cc',
+        '<(ABSEIL_ROOT)/absl/time/duration.cc',
+        '<(ABSEIL_ROOT)/absl/time/format.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/include/cctz/civil_time.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/include/cctz/civil_time_detail.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/include/cctz/time_zone.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/include/cctz/zone_info_source.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/civil_time_detail.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_fixed.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_fixed.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_format.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_if.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_if.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_impl.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_impl.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_info.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_info.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_libc.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_libc.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_lookup.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_posix.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/time_zone_posix.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/tzfile.h',
+        '<(ABSEIL_ROOT)/absl/time/internal/cctz/src/zone_info_source.cc',
+        '<(ABSEIL_ROOT)/absl/time/internal/get_current_time_chrono.inc',
+        '<(ABSEIL_ROOT)/absl/time/internal/get_current_time_posix.inc',
+        '<(ABSEIL_ROOT)/absl/time/time.h',
+        '<(ABSEIL_ROOT)/absl/time/time.cc',
+        '<(ABSEIL_ROOT)/absl/types/optional.h',
+        '<(ABSEIL_ROOT)/absl/types/span.h',
+        '<(ABSEIL_ROOT)/absl/types/internal/span.h',
+        '<(ABSEIL_ROOT)/absl/types/variant.h',
+        '<(ABSEIL_ROOT)/absl/utility/utility.h',
+      ]
+    },  # v8_abseil
+    {
+      'target_name': 'fp16',
+      'type': 'none',
+      'toolsets': ['host', 'target'],
+      'variables': {
+        'FP16_ROOT': '../../deps/v8/third_party/fp16',
+      },
+      'direct_dependent_settings': {
+        'include_dirs': [
+          '<(FP16_ROOT)/src/include',
+        ],
+      },
+    },  # fp16
   ],
 }

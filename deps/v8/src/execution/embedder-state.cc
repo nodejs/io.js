@@ -18,7 +18,7 @@ EmbedderState::EmbedderState(v8::Isolate* isolate, Local<v8::Context> context,
       previous_embedder_state_(isolate_->current_embedder_state()) {
   if (!context.IsEmpty()) {
     native_context_address_ =
-        v8::Utils::OpenHandle(*context)->native_context().address();
+        v8::Utils::OpenDirectHandle(*context)->native_context().address();
   }
 
   DCHECK_NE(this, isolate_->current_embedder_state());

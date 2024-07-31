@@ -246,24 +246,25 @@ TEST_F(AccessorTest, CachedAccessorOnGlobalObject) {
 namespace {
 
 // Getter return value should be non-null to trigger lazy property paths.
-static void Getter(v8::Local<v8::Name> name,
-                   const v8::PropertyCallbackInfo<v8::Value>& info) {
+void Getter(v8::Local<v8::Name> name,
+            const v8::PropertyCallbackInfo<v8::Value>& info) {
   info.GetReturnValue().Set(
       v8::String::NewFromUtf8(info.GetIsolate(), "return value")
           .ToLocalChecked());
 }
 
-static void StringGetter(v8::Local<v8::String> name,
-                         const v8::PropertyCallbackInfo<v8::Value>& info) {}
+void StringGetter(v8::Local<v8::Name> name,
+                  const v8::PropertyCallbackInfo<v8::Value>& info) {}
 
-static int set_accessor_call_count = 0;
+int set_accessor_call_count = 0;
 
-static void Setter(v8::Local<v8::Name> name, v8::Local<v8::Value> value,
-                   const v8::PropertyCallbackInfo<void>& info) {
+void Setter(v8::Local<v8::Name> name, v8::Local<v8::Value> value,
+            const v8::PropertyCallbackInfo<void>& info) {
   set_accessor_call_count++;
 }
 
-static void EmptyCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {}
+void EmptyCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {}
+
 }  // namespace
 
 // Re-declaration of non-configurable accessors should throw.
@@ -273,9 +274,9 @@ TEST_F(AccessorTest, RedeclareAccessor) {
   v8::Local<v8::FunctionTemplate> templ = v8::FunctionTemplate::New(isolate());
 
   v8::Local<v8::ObjectTemplate> object_template = templ->InstanceTemplate();
-  object_template->SetAccessor(
-      NewString("foo"), nullptr, Setter, v8::Local<v8::Value>(),
-      v8::AccessControl::DEFAULT, v8::PropertyAttribute::DontDelete);
+  object_template->SetNativeDataProperty(NewString("foo"), nullptr, Setter,
+                                         v8::Local<v8::Value>(),
+                                         v8::PropertyAttribute::DontDelete);
 
   v8::Local<v8::Context> ctx =
       v8::Context::New(isolate(), nullptr, object_template);
@@ -304,8 +305,8 @@ static void CheckSideEffectFreeAccesses(v8::Isolate* isolate,
   // Check getter. Run enough number of times to ensure IC creates data handler.
   for (int i = 0; i < kIterationsCountForICProgression; i++) {
     v8::TryCatch try_catch(isolate);
-    CHECK(EvaluateGlobalForTesting(
-              isolate, func,
+    CHECK(EvaluateGlobal(
+              isolate, call_getter,
               v8::debug::EvaluateGlobalMode::kDisableBreaksAndThrowOnSideEffect,
               true)
               .IsEmpty());
@@ -320,8 +321,8 @@ static void CheckSideEffectFreeAccesses(v8::Isolate* isolate,
   // Check setter. Run enough number of times to ensure IC creates data handler.
   for (int i = 0; i < kIterationsCountForICProgression; i++) {
     v8::TryCatch try_catch(isolate);
-    CHECK(EvaluateGlobalForTesting(
-              isolate, func,
+    CHECK(EvaluateGlobal(
+              isolate, call_setter,
               v8::debug::EvaluateGlobalMode::kDisableBreaksAndThrowOnSideEffect,
               true)
               .IsEmpty());
@@ -359,16 +360,19 @@ TEST_F(AccessorTest, AccessorsWithSideEffects) {
   obj->SetAccessorProperty(
       NewString("get"),
       templ_with_sideffect->GetFunction(context()).ToLocalChecked(), {},
-      v8::PropertyAttribute::None, v8::AccessControl::DEFAULT);
+      v8::PropertyAttribute::None);
 
   obj->SetAccessorProperty(
       NewString("set"),
       templ_no_sideffect->GetFunction(context()).ToLocalChecked(),
       templ_with_sideffect->GetFunction(context()).ToLocalChecked(),
-      v8::PropertyAttribute::None, v8::AccessControl::DEFAULT);
+      v8::PropertyAttribute::None);
 
-  CheckSideEffectFreeAccesses(isolate(), NewString("obj.get"),
-                              NewString("obj.set = 123;"));
+  RunJS(
+      "function callGetter() { obj.get; }"
+      "function callSetter() { obj.set = 123; }");
+  CheckSideEffectFreeAccesses(isolate(), NewString("callGetter()"),
+                              NewString("callSetter()"));
 }
 
 TEST_F(AccessorTest, TemplateAccessorsWithSideEffects) {
@@ -396,8 +400,11 @@ TEST_F(AccessorTest, TemplateAccessorsWithSideEffects) {
   v8::Local<v8::Object> obj = templ->NewInstance(context()).ToLocalChecked();
   CHECK(context()->Global()->Set(context(), NewString("obj"), obj).FromJust());
 
-  CheckSideEffectFreeAccesses(isolate(), NewString("obj.get"),
-                              NewString("obj.set = 123;"));
+  RunJS(
+      "function callGetter() { obj.get; }"
+      "function callSetter() { obj.set = 123; }");
+  CheckSideEffectFreeAccesses(isolate(), NewString("callGetter()"),
+                              NewString("callSetter()"));
 }
 
 TEST_F(AccessorTest, NativeTemplateAccessorWithSideEffects) {
@@ -408,19 +415,22 @@ TEST_F(AccessorTest, NativeTemplateAccessorWithSideEffects) {
   i_isolate->debug()->SetDebugDelegate(&delegate);
 
   v8::Local<v8::ObjectTemplate> templ = v8::ObjectTemplate::New(isolate());
-  templ->SetAccessor(NewString("get"), Getter, nullptr, v8::Local<v8::Value>(),
-                     v8::AccessControl::DEFAULT, v8::PropertyAttribute::None,
-                     v8::SideEffectType::kHasSideEffect);
-  templ->SetAccessor(NewString("set"), Getter, Setter, v8::Local<v8::Value>(),
-                     v8::AccessControl::DEFAULT, v8::PropertyAttribute::None,
-                     v8::SideEffectType::kHasNoSideEffect,
-                     v8::SideEffectType::kHasSideEffect);
+  templ->SetNativeDataProperty(
+      NewString("get"), Getter, nullptr, v8::Local<v8::Value>(),
+      v8::PropertyAttribute::None, v8::SideEffectType::kHasSideEffect);
+  templ->SetNativeDataProperty(
+      NewString("set"), Getter, Setter, v8::Local<v8::Value>(),
+      v8::PropertyAttribute::None, v8::SideEffectType::kHasNoSideEffect,
+      v8::SideEffectType::kHasSideEffect);
 
   v8::Local<v8::Object> obj = templ->NewInstance(context()).ToLocalChecked();
   CHECK(context()->Global()->Set(context(), NewString("obj"), obj).FromJust());
 
-  CheckSideEffectFreeAccesses(isolate(), NewString("obj.get"),
-                              NewString("obj.set = 123;"));
+  RunJS(
+      "function callGetter() { obj.get; }"
+      "function callSetter() { obj.set = 123; }");
+  CheckSideEffectFreeAccesses(isolate(), NewString("callGetter()"),
+                              NewString("callSetter()"));
 }
 
 TEST_F(AccessorTest, NativeAccessorsWithSideEffects) {
@@ -431,23 +441,24 @@ TEST_F(AccessorTest, NativeAccessorsWithSideEffects) {
   CHECK(context()->Global()->Set(context(), NewString("obj"), obj).FromJust());
 
   // Install native data property with side effects.
-  obj->SetAccessor(context(), NewString("get"), Getter, nullptr,
-                   v8::MaybeLocal<v8::Value>(), v8::AccessControl::DEFAULT,
-                   v8::PropertyAttribute::None,
-                   v8::SideEffectType::kHasSideEffect)
+  obj->SetNativeDataProperty(context(), NewString("get"), Getter, nullptr, {},
+                             v8::PropertyAttribute::None,
+                             v8::SideEffectType::kHasSideEffect)
       .ToChecked();
-  obj->SetAccessor(context(), NewString("set"), Getter, Setter,
-                   v8::MaybeLocal<v8::Value>(), v8::AccessControl::DEFAULT,
-                   v8::PropertyAttribute::None,
-                   v8::SideEffectType::kHasNoSideEffect,
-                   v8::SideEffectType::kHasSideEffect)
+  obj->SetNativeDataProperty(context(), NewString("set"), Getter, Setter, {},
+                             v8::PropertyAttribute::None,
+                             v8::SideEffectType::kHasNoSideEffect,
+                             v8::SideEffectType::kHasSideEffect)
       .ToChecked();
 
-  CheckSideEffectFreeAccesses(isolate(), NewString("obj.get"),
-                              NewString("obj.set = 123;"));
+  RunJS(
+      "function callGetter() { obj.get; }"
+      "function callSetter() { obj.set = 123; }");
+  CheckSideEffectFreeAccesses(isolate(), NewString("callGetter()"),
+                              NewString("callSetter()"));
 }
 
-// Accessors can be allowlisted as side-effect-free via SetAccessor.
+// Accessors can be allowlisted as side-effect-free via SetNativeDataProperty.
 TEST_F(AccessorTest, AccessorSetHasNoSideEffect) {
   v8::HandleScope scope(isolate());
 
@@ -458,16 +469,15 @@ TEST_F(AccessorTest, AccessorSetHasNoSideEffect) {
   v8::Local<v8::ObjectTemplate> templ = v8::ObjectTemplate::New(isolate());
   v8::Local<v8::Object> obj = templ->NewInstance(context()).ToLocalChecked();
   CHECK(context()->Global()->Set(context(), NewString("obj"), obj).FromJust());
-  obj->SetAccessor(context(), NewString("foo"), Getter).ToChecked();
+  obj->SetNativeDataProperty(context(), NewString("foo"), Getter).ToChecked();
   CHECK(v8::debug::EvaluateGlobal(
             isolate(), NewString("obj.foo"),
             v8::debug::EvaluateGlobalMode::kDisableBreaksAndThrowOnSideEffect)
             .IsEmpty());
 
-  obj->SetAccessor(context(), NewString("foo"), Getter, nullptr,
-                   v8::MaybeLocal<v8::Value>(), v8::AccessControl::DEFAULT,
-                   v8::PropertyAttribute::None,
-                   v8::SideEffectType::kHasNoSideEffect)
+  obj->SetNativeDataProperty(context(), NewString("foo"), Getter, nullptr, {},
+                             v8::PropertyAttribute::None,
+                             v8::SideEffectType::kHasNoSideEffect)
       .ToChecked();
   v8::debug::EvaluateGlobal(
       isolate(), NewString("obj.foo"),
@@ -489,8 +499,9 @@ TEST_F(AccessorTest, AccessorSetHasNoSideEffect) {
   CHECK_EQ(0, set_accessor_call_count);
 }
 
-// Set accessors can be allowlisted as side-effect-free via SetAccessor.
-TEST_F(AccessorTest, SetAccessorSetSideEffectReceiverCheck1) {
+// Set accessors can be allowlisted as side-effect-free via
+// SetNativeDataProperty.
+TEST_F(AccessorTest, SetNativeDataPropertySetSideEffectReceiverCheck1) {
   v8::HandleScope scope(isolate());
 
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate());
@@ -500,11 +511,10 @@ TEST_F(AccessorTest, SetAccessorSetSideEffectReceiverCheck1) {
   v8::Local<v8::ObjectTemplate> templ = v8::ObjectTemplate::New(isolate());
   v8::Local<v8::Object> obj = templ->NewInstance(context()).ToLocalChecked();
   CHECK(context()->Global()->Set(context(), NewString("obj"), obj).FromJust());
-  obj->SetAccessor(context(), NewString("foo"), Getter, Setter,
-                   v8::MaybeLocal<v8::Value>(), v8::AccessControl::DEFAULT,
-                   v8::PropertyAttribute::None,
-                   v8::SideEffectType::kHasNoSideEffect,
-                   v8::SideEffectType::kHasSideEffectToReceiver)
+  obj->SetNativeDataProperty(context(), NewString("foo"), Getter, Setter, {},
+                             v8::PropertyAttribute::None,
+                             v8::SideEffectType::kHasNoSideEffect,
+                             v8::SideEffectType::kHasSideEffectToReceiver)
       .ToChecked();
   CHECK(v8::debug::EvaluateGlobal(
             isolate(), NewString("obj.foo"),
@@ -524,7 +534,7 @@ TEST_F(AccessorTest, SetAccessorSetSideEffectReceiverCheck1) {
 static void ConstructCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
 }
 
-TEST_F(AccessorTest, SetAccessorSetSideEffectReceiverCheck2) {
+TEST_F(AccessorTest, SetNativeDataPropertySetSideEffectReceiverCheck2) {
   v8::HandleScope scope(isolate());
 
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate());
@@ -535,10 +545,9 @@ TEST_F(AccessorTest, SetAccessorSetSideEffectReceiverCheck2) {
       isolate(), ConstructCallback, v8::Local<v8::Value>(),
       v8::Local<v8::Signature>(), 0, v8::ConstructorBehavior::kAllow,
       v8::SideEffectType::kHasNoSideEffect);
-  templ->InstanceTemplate()->SetAccessor(
+  templ->InstanceTemplate()->SetNativeDataProperty(
       NewString("bar"), Getter, Setter, v8::Local<v8::Value>(),
-      v8::AccessControl::DEFAULT, v8::PropertyAttribute::None,
-      v8::SideEffectType::kHasSideEffectToReceiver,
+      v8::PropertyAttribute::None, v8::SideEffectType::kHasSideEffectToReceiver,
       v8::SideEffectType::kHasSideEffectToReceiver);
   CHECK(context()
             ->Global()
@@ -638,7 +647,7 @@ TEST_F(AccessorTest, AccessorSetLazyDataPropertyHasNoSideEffect) {
                   .FromJust());
 }
 
-TEST_F(AccessorTest, ObjectTemplateSetAccessorHasNoSideEffect) {
+TEST_F(AccessorTest, ObjectTemplateSetNativeDataPropertyHasNoSideEffect) {
   v8::HandleScope scope(isolate());
 
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate());
@@ -646,11 +655,10 @@ TEST_F(AccessorTest, ObjectTemplateSetAccessorHasNoSideEffect) {
   i_isolate->debug()->SetDebugDelegate(&delegate);
 
   v8::Local<v8::ObjectTemplate> templ = v8::ObjectTemplate::New(isolate());
-  templ->SetAccessor(NewString("foo"), StringGetter);
-  templ->SetAccessor(NewString("foo2"), StringGetter, nullptr,
-                     v8::Local<v8::Value>(), v8::AccessControl::DEFAULT,
-                     v8::PropertyAttribute::None,
-                     v8::SideEffectType::kHasNoSideEffect);
+  templ->SetNativeDataProperty(NewString("foo"), StringGetter);
+  templ->SetNativeDataProperty(
+      NewString("foo2"), StringGetter, nullptr, v8::Local<v8::Value>(),
+      v8::PropertyAttribute::None, v8::SideEffectType::kHasNoSideEffect);
   v8::Local<v8::Object> obj = templ->NewInstance(context()).ToLocalChecked();
   CHECK(context()->Global()->Set(context(), NewString("obj"), obj).FromJust());
 
@@ -686,10 +694,9 @@ TEST_F(AccessorTest, ObjectTemplateSetNativePropertyHasNoSideEffect) {
 
   v8::Local<v8::ObjectTemplate> templ = v8::ObjectTemplate::New(isolate());
   templ->SetNativeDataProperty(NewString("foo"), Getter);
-  templ->SetNativeDataProperty(
-      NewString("foo2"), Getter, nullptr, v8::Local<v8::Value>(),
-      v8::PropertyAttribute::None, v8::AccessControl::DEFAULT,
-      v8::SideEffectType::kHasNoSideEffect);
+  templ->SetNativeDataProperty(NewString("foo2"), Getter, nullptr, {},
+                               v8::PropertyAttribute::None,
+                               v8::SideEffectType::kHasNoSideEffect);
   v8::Local<v8::Object> obj = templ->NewInstance(context()).ToLocalChecked();
   CHECK(context()->Global()->Set(context(), NewString("obj"), obj).FromJust());
 
@@ -755,7 +762,7 @@ TEST_F(AccessorTest, ObjectTemplateSetLazyPropertyHasNoSideEffect) {
 }
 
 namespace {
-void FunctionNativeGetter(v8::Local<v8::String> property,
+void FunctionNativeGetter(v8::Local<v8::Name> property,
                           const v8::PropertyCallbackInfo<v8::Value>& info) {
   info.GetIsolate()->ThrowError(
       v8::String::NewFromUtf8(info.GetIsolate(), "side effect in getter")
@@ -813,7 +820,7 @@ v8::MaybeLocal<v8::Context> TestHostCreateShadowRealmContextCallback(
   // Check that getter is called on Function.prototype.bind.
   global_template->SetNativeDataProperty(
       v8::String::NewFromUtf8(isolate, "func1").ToLocalChecked(),
-      [](v8::Local<v8::String> property,
+      [](v8::Local<v8::Name> property,
          const v8::PropertyCallbackInfo<v8::Value>& info) {
         v8::Isolate* isolate = info.GetIsolate();
         v8::Local<v8::FunctionTemplate> templ =
@@ -828,7 +835,7 @@ v8::MaybeLocal<v8::Context> TestHostCreateShadowRealmContextCallback(
   // Check that getter is called on Function.prototype.bind.
   global_template->SetNativeDataProperty(
       v8::String::NewFromUtf8(isolate, "func2").ToLocalChecked(),
-      [](v8::Local<v8::String> property,
+      [](v8::Local<v8::Name> property,
          const v8::PropertyCallbackInfo<v8::Value>& info) {
         v8::Isolate* isolate = info.GetIsolate();
         v8::Local<v8::FunctionTemplate> templ =

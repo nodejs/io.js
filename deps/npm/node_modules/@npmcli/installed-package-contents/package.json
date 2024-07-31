@@ -1,17 +1,17 @@
 {
   "name": "@npmcli/installed-package-contents",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "Get the list of files installed in a package in node_modules, including bundled dependencies",
   "author": "GitHub Inc.",
   "main": "lib/index.js",
   "bin": {
-    "installed-package-contents": "lib/index.js"
+    "installed-package-contents": "bin/index.js"
   },
   "license": "ISC",
   "scripts": {
     "test": "tap",
     "snap": "tap",
-    "lint": "eslint \"**/*.js\"",
+    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
     "postlint": "template-oss-check",
     "template-oss-apply": "template-oss-apply --force",
     "lintfix": "npm run lint -- --fix",
@@ -19,8 +19,7 @@
   },
   "devDependencies": {
     "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.11.4",
-    "require-inject": "^1.4.4",
+    "@npmcli/template-oss": "4.21.4",
     "tap": "^16.3.0"
   },
   "dependencies": {
@@ -40,7 +39,8 @@
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.11.4"
+    "version": "4.21.4",
+    "publish": true
   },
   "tap": {
     "nyc-arg": [

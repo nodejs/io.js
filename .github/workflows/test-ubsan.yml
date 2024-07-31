@@ -1,0 +1,67 @@
+name: Test UBSan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - .mailmap
+      - '**.md'
+      - AUTHORS
+      - doc/**
+      - .github/**
+      - '!.github/workflows/test-ubsan.yml'
+  push:
+    branches:
+      - main
+      - canary
+      - v[0-9]+.x-staging
+      - v[0-9]+.x
+    paths-ignore:
+      - .mailmap
+      - '**.md'
+      - AUTHORS
+      - doc/**
+      - .github/**
+      - '!.github/workflows/test-ubsan.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+  FLAKY_TESTS: keep_retrying
+
+permissions:
+  contents: read
+
+jobs:
+  test-ubsan:
+    if: false  # Temporary disabled. Reference: https://github.com/nodejs/node/pull/52293#issuecomment-2059270585
+    runs-on: ubuntu-latest
+    env:
+      CC: sccache gcc
+      CXX: sccache g++
+      LINK: sccache g++
+      CONFIG_FLAGS: --enable-ubsan
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+        with:
+          persist-credentials: false
+      - name: Store suppressions path
+        run: |
+          echo "UBSAN_OPTIONS=suppressions=$GITHUB_WORKSPACE/suppressions.supp" >> $GITHUB_ENV
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@89e9040de88b577a072e3760aaf59f585da083af  # v0.0.5
+        with:
+          version: v0.8.0
+      - name: Environment Information
+        run: npx envinfo
+      - name: Build
+        run: make build-ci -j2 V=1
+      - name: Test
+        run: make run-ci -j2 V=1 TEST_CI_ARGS="-p actions --node-args='--test-reporter=spec' --node-args='--test-reporter-destination=stdout' -t 300 --measure-flakiness 9"

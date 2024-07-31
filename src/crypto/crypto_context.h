@@ -19,10 +19,9 @@ constexpr int kMaxSupportedVersion = TLS1_3_VERSION;
 void GetRootCertificates(
     const v8::FunctionCallbackInfo<v8::Value>& args);
 
-void IsExtraRootCertsFileLoaded(
-    const v8::FunctionCallbackInfo<v8::Value>& args);
-
 X509_STORE* NewRootCertStore();
+
+X509_STORE* GetOrCreateRootCertStore();
 
 BIOPointer LoadBIO(Environment* env, v8::Local<v8::Value> v);
 
@@ -58,9 +57,9 @@ class SecureContext final : public BaseObject {
   inline const X509Pointer& issuer() const { return issuer_; }
   inline const X509Pointer& cert() const { return cert_; }
 
-  v8::Maybe<bool> AddCert(Environment* env, BIOPointer&& bio);
-  v8::Maybe<bool> SetCRL(Environment* env, const BIOPointer& bio);
-  v8::Maybe<bool> UseKey(Environment* env, std::shared_ptr<KeyObjectData> key);
+  v8::Maybe<void> AddCert(Environment* env, BIOPointer&& bio);
+  v8::Maybe<void> SetCRL(Environment* env, const BIOPointer& bio);
+  v8::Maybe<void> UseKey(Environment* env, std::shared_ptr<KeyObjectData> key);
 
   void SetCACert(const BIOPointer& bio);
   void SetRootCerts();
@@ -145,13 +144,18 @@ class SecureContext final : public BaseObject {
   X509Pointer issuer_;
 #ifndef OPENSSL_NO_ENGINE
   bool client_cert_engine_provided_ = false;
-  EnginePointer private_key_engine_;
+  ncrypto::EnginePointer private_key_engine_;
 #endif  // !OPENSSL_NO_ENGINE
 
   unsigned char ticket_key_name_[16];
   unsigned char ticket_key_aes_[16];
   unsigned char ticket_key_hmac_[16];
 };
+
+int SSL_CTX_use_certificate_chain(SSL_CTX* ctx,
+                                  BIOPointer&& in,
+                                  X509Pointer* cert,
+                                  X509Pointer* issuer);
 
 }  // namespace crypto
 }  // namespace node

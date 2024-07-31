@@ -57,8 +57,8 @@ typedef struct HashToBinaryTree {
 static void FN(Initialize)(
     HasherCommon* common, HashToBinaryTree* BROTLI_RESTRICT self,
     const BrotliEncoderParams* params) {
-  self->buckets_ = (uint32_t*)common->extra;
-  self->forest_ = &self->buckets_[BUCKET_SIZE];
+  self->buckets_ = (uint32_t*)common->extra[0];
+  self->forest_ = (uint32_t*)common->extra[1];
 
   self->window_mask_ = (1u << params->lgwin) - 1u;
   self->invalid_pos_ = (uint32_t)(0 - self->window_mask_);
@@ -78,14 +78,15 @@ static void FN(Prepare)
   }
 }
 
-static BROTLI_INLINE size_t FN(HashMemAllocInBytes)(
+static BROTLI_INLINE void FN(HashMemAllocInBytes)(
     const BrotliEncoderParams* params, BROTLI_BOOL one_shot,
-    size_t input_size) {
+    size_t input_size, size_t* alloc_size) {
   size_t num_nodes = (size_t)1 << params->lgwin;
   if (one_shot && input_size < num_nodes) {
     num_nodes = input_size;
   }
-  return sizeof(uint32_t) * BUCKET_SIZE + 2 * sizeof(uint32_t) * num_nodes;
+  alloc_size[0] = sizeof(uint32_t) * BUCKET_SIZE;
+  alloc_size[1] = 2 * sizeof(uint32_t) * num_nodes;
 }
 
 static BROTLI_INLINE size_t FN(LeftChildIndex)(

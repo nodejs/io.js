@@ -1,16 +1,30 @@
-// Flags: --expose-internals
 'use strict';
 
-// This list must be computed before we require any modules to
+// This list must be computed before we require any builtins to
 // to eliminate the noise.
-const actualModules = new Set(process.moduleLoadList.slice());
+const list = process.moduleLoadList.slice();
 
 const common = require('../common');
 const assert = require('assert');
+const { inspect } = require('util');
 
-const expectedModules = new Set([
+const preExecIndex =
+  list.findIndex((i) => i.includes('pre_execution'));
+const actual = {
+  beforePreExec: new Set(list.slice(0, preExecIndex)),
+  atRunTime: new Set(list.slice(preExecIndex)),
+};
+
+// Currently, we don't add additional builtins to worker snapshots.
+// So for worker snapshots we'll just concatenate the two. Once we
+// add more builtins to worker snapshots, we should also distinguish
+// the two stages for them.
+const expected = {};
+
+expected.beforePreExec = new Set([
   'Internal Binding builtins',
   'Internal Binding encoding_binding',
+  'Internal Binding modules',
   'Internal Binding errors',
   'Internal Binding util',
   'NativeModule internal/errors',
@@ -84,22 +98,26 @@ const expectedModules = new Set([
   'NativeModule internal/modules/package_json_reader',
   'Internal Binding module_wrap',
   'NativeModule internal/modules/cjs/loader',
-  'NativeModule internal/vm/module',
-  'NativeModule internal/modules/esm/utils',
+  'NativeModule diagnostics_channel',
   'Internal Binding wasm_web_api',
+  'NativeModule internal/events/abort_listener',
+]);
+
+expected.atRunTime = new Set([
   'Internal Binding worker',
   'NativeModule internal/modules/run_main',
   'NativeModule internal/net',
   'NativeModule internal/dns/utils',
   'NativeModule internal/process/pre_execution',
+  'NativeModule internal/modules/esm/utils',
 ]);
 
 if (common.isMainThread) {
   [
     'NativeModule internal/idna',
     'NativeModule url',
-  ].forEach(expectedModules.add.bind(expectedModules));
-} else {
+  ].forEach(expected.beforePreExec.add.bind(expected.beforePreExec));
+} else {  // Worker.
   [
     'NativeModule diagnostics_channel',
     'NativeModule internal/abort_controller',
@@ -110,6 +128,7 @@ if (common.isMainThread) {
     'NativeModule internal/streams/compose',
     'NativeModule internal/streams/destroy',
     'NativeModule internal/streams/duplex',
+    'NativeModule internal/streams/duplexpair',
     'NativeModule internal/streams/end-of-stream',
     'NativeModule internal/streams/from',
     'NativeModule internal/streams/legacy',
@@ -123,39 +142,103 @@ if (common.isMainThread) {
     'NativeModule internal/streams/writable',
     'NativeModule internal/worker',
     'NativeModule internal/worker/io',
+    'NativeModule internal/worker/messaging',
     'NativeModule stream',
     'NativeModule stream/promises',
     'NativeModule string_decoder',
     'NativeModule worker_threads',
-  ].forEach(expectedModules.add.bind(expectedModules));
+  ].forEach(expected.atRunTime.add.bind(expected.atRunTime));
+  // For now we'll concatenate the two stages for workers. We prefer
+  // atRunTime here because that's what currently happens for these.
 }
 
 if (common.isWindows) {
   // On Windows fs needs SideEffectFreeRegExpPrototypeExec which uses vm.
-  expectedModules.add('NativeModule vm');
+  expected.atRunTime.add('NativeModule vm');
 }
 
 if (common.hasIntl) {
-  expectedModules.add('Internal Binding icu');
+  expected.beforePreExec.add('Internal Binding icu');
 }
 
 if (process.features.inspector) {
-  expectedModules.add('Internal Binding inspector');
-  expectedModules.add('NativeModule internal/inspector_async_hook');
-  expectedModules.add('NativeModule internal/util/inspector');
+  expected.beforePreExec.add('Internal Binding inspector');
+  expected.beforePreExec.add('NativeModule internal/util/inspector');
+  expected.atRunTime.add('NativeModule internal/inspector_async_hook');
 }
 
-const difference = (setA, setB) => {
-  return new Set([...setA].filter((x) => !setB.has(x)));
-};
-const missingModules = difference(expectedModules, actualModules);
-const extraModules = difference(actualModules, expectedModules);
-const printSet = (s) => { return `${[...s].sort().join(',\n  ')}\n`; };
+// This is loaded if the test is run with NODE_V8_COVERAGE.
+if (process.env.NODE_V8_COVERAGE) {
+  expected.atRunTime.add('Internal Binding profiler');
+}
 
-assert.deepStrictEqual(actualModules, expectedModules,
-                       (missingModules.size > 0 ?
-                         'These modules were not loaded:\n  ' +
-                         printSet(missingModules) : '') +
-                       (extraModules.size > 0 ?
-                         'These modules were unexpectedly loaded:\n  ' +
-                         printSet(extraModules) : ''));
+// Accumulate all the errors and print them at the end instead of throwing
+// immediately which makes it harder to update the test.
+const errorLogs = [];
+function err(message) {
+  if (typeof message === 'string') {
+    errorLogs.push(message);
+  } else {
+    // Show the items in individual lines for easier copy-pasting.
+    errorLogs.push(inspect(message, { compact: false }));
+  }
+}
+
+if (common.isMainThread) {
+  const missing = expected.beforePreExec.difference(actual.beforePreExec);
+  const extra = actual.beforePreExec.difference(expected.beforePreExec);
+  if (missing.size !== 0) {
+    err('These builtins are now no longer loaded before pre-execution.');
+    err('If this is intentional, remove them from `expected.beforePreExec`.');
+    err('\n--- These could be removed from expected.beforePreExec ---');
+    err([...missing].sort());
+    err('');
+  }
+  if (extra.size !== 0) {
+    err('These builtins are now unexpectedly loaded before pre-execution.');
+    err('If this is intentional, add them to `expected.beforePreExec`.');
+    err('\n# Note: loading more builtins before pre-execution can lead to ' +
+        'startup performance regression or invalid snapshots.');
+    err('- Consider lazy loading builtins that are not used universally.');
+    err('- Make sure that the builtins do not access environment dependent ' +
+        'states e.g. command line arguments or environment variables ' +
+        'during loading.');
+    err('- When in doubt, ask @nodejs/startup.');
+    err('\n--- These could be added to expected.beforePreExec ---');
+    err([...extra].sort());
+    err('');
+  }
+}
+
+if (!common.isMainThread) {
+  // For workers, just merge beforePreExec into atRunTime for now.
+  // When we start adding modules to the worker snapshot, this branch
+  // can be removed and  we can just remove the common.isMainThread
+  // conditions.
+  expected.beforePreExec.forEach(expected.atRunTime.add.bind(expected.atRunTime));
+  actual.beforePreExec.forEach(actual.atRunTime.add.bind(actual.atRunTime));
+}
+
+{
+  const missing = expected.atRunTime.difference(actual.atRunTime);
+  const extra = actual.atRunTime.difference(expected.atRunTime);
+  if (missing.size !== 0) {
+    err('These builtins are now no longer loaded at run time.');
+    err('If this is intentional, remove them from `expected.atRunTime`.');
+    err('\n--- These could be removed from expected.atRunTime ---');
+    err([...missing].sort());
+    err('');
+  }
+  if (extra.size !== 0) {
+    err('These builtins are now unexpectedly loaded at run time.');
+    err('If this is intentional, add them to `expected.atRunTime`.');
+    err('\n# Note: loading more builtins at run time can lead to ' +
+        'startup performance regression.');
+    err('- Consider lazy loading builtins that are not used universally.');
+    err('\n--- These could be added to expected.atRunTime ---');
+    err([...extra].sort());
+    err('');
+  }
+}
+
+assert.strictEqual(errorLogs.length, 0, errorLogs.join('\n'));

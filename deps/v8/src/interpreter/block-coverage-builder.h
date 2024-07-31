@@ -54,6 +54,22 @@ class BlockCoverageBuilder final : public ZoneObject {
     return slot;
   }
 
+  int AllocateConditionalChainBlockCoverageSlot(ConditionalChain* node,
+                                                SourceRangeKind kind,
+                                                size_t index) {
+    ConditionalChainSourceRanges* ranges =
+        static_cast<ConditionalChainSourceRanges*>(
+            source_range_map_->Find(node));
+    if (ranges == nullptr) return kNoCoverageArraySlot;
+
+    SourceRange range = ranges->GetRangeAtIndex(kind, index);
+    if (range.IsEmpty()) return kNoCoverageArraySlot;
+
+    const int slot = static_cast<int>(slots_.size());
+    slots_.emplace_back(range);
+    return slot;
+  }
+
   void IncrementBlockCounter(int coverage_array_slot) {
     if (coverage_array_slot == kNoCoverageArraySlot) return;
     builder_->IncBlockCounter(coverage_array_slot);

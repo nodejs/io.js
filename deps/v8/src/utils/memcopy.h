@@ -11,6 +11,7 @@
 
 #include <algorithm>
 
+#include "src/base/bits.h"
 #include "src/base/logging.h"
 #include "src/base/macros.h"
 #include "src/utils/utils.h"
@@ -61,6 +62,60 @@ V8_EXPORT_PRIVATE V8_INLINE void MemMove(void* dest, const void* src,
 // For values < 12, the assembler function is slower than the inlined C code.
 const int kMinComplexConvertMemCopy = 12;
 #else
+#if defined(V8_OPTIMIZE_WITH_NEON)
+// Overlapping writes help to save instructions, e.g. doing 2 two-byte writes
+// instead 3 one-byte write for count == 3.
+template <typename IntType>
+V8_INLINE void OverlappingWrites(void* dst, const void* src, size_t count) {
+  *reinterpret_cast<IntType*>(dst) = *reinterpret_cast<const IntType*>(src);
+  *reinterpret_cast<IntType*>(static_cast<uint8_t*>(dst) + count -
+                              sizeof(IntType)) =
+      *reinterpret_cast<const IntType*>(static_cast<const uint8_t*>(src) +
+                                        count - sizeof(IntType));
+}
+
+inline void MemCopy(void* dst, const void* src, size_t count) {
+  auto* dst_u = static_cast<uint8_t*>(dst);
+  const auto* src_u = static_cast<const uint8_t*>(src);
+  // Common cases. Handle before doing clz.
+  if (count == 0) {
+    return;
+  }
+  if (count == 1) {
+    *dst_u = *src_u;
+    return;
+  }
+  const size_t order =
+      sizeof(count) * CHAR_BIT - base::bits::CountLeadingZeros(count - 1);
+  switch (order) {
+    case 1:  // count: [2, 2]
+      *reinterpret_cast<uint16_t*>(dst_u) =
+          *reinterpret_cast<const uint16_t*>(src_u);
+      return;
+    case 2:  // count: [3, 4]
+      OverlappingWrites<uint16_t>(dst_u, src_u, count);
+      return;
+    case 3:  // count: [5, 8]
+      OverlappingWrites<uint32_t>(dst_u, src_u, count);
+      return;
+    case 4:  // count: [9, 16]
+      OverlappingWrites<uint64_t>(dst_u, src_u, count);
+      return;
+    case 5:  // count: [17, 32]
+      vst1q_u8(dst_u, vld1q_u8(src_u));
+      vst1q_u8(dst_u + count - sizeof(uint8x16_t),
+               vld1q_u8(src_u + count - sizeof(uint8x16_t)));
+      return;
+    default:  // count: [33, ...]
+      vst1q_u8(dst_u, vld1q_u8(src_u));
+      for (size_t i = count % sizeof(uint8x16_t); i < count;
+           i += sizeof(uint8x16_t)) {
+        vst1q_u8(dst_u + i, vld1q_u8(src_u + i));
+      }
+      return;
+  }
+}
+#else  // !defined(V8_OPTIMIZE_WITH_NEON)
 // Copy memory area to disjoint memory area.
 inline void MemCopy(void* dest, const void* src, size_t size) {
   // Fast path for small sizes. The compiler will expand the {memcpy} for small
@@ -93,6 +148,7 @@ inline void MemCopy(void* dest, const void* src, size_t size) {
       return;
   }
 }
+#endif  // !defined(V8_OPTIMIZE_WITH_NEON)
 #if V8_TARGET_BIG_ENDIAN
 inline void MemCopyAndSwitchEndianness(void* dst, void* src,
                                        size_t num_elements,
@@ -300,6 +356,14 @@ void CopyChars(DstType* dst, const SrcType* src, size_t count) {
 
   auto* dst_u = reinterpret_cast<DstTypeUnsigned*>(dst);
   auto* src_u = reinterpret_cast<const SrcTypeUnsigned*>(src);
+
+#if defined(V8_OPTIMIZE_WITH_NEON)
+  if constexpr (sizeof(DstType) == 1 && sizeof(SrcType) == 1) {
+    // Use simd optimized memcpy.
+    MemCopy(dst, src, count);
+    return;
+  }
+#endif  // defined(V8_OPTIMIZE_WITH_NEON)
 
   // Especially Atom CPUs profit from this explicit instantiation for small
   // counts. This gives up to 20 percent improvement for microbenchmarks such as

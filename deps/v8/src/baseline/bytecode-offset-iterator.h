@@ -19,10 +19,10 @@ namespace baseline {
 
 class V8_EXPORT_PRIVATE BytecodeOffsetIterator {
  public:
-  explicit BytecodeOffsetIterator(Handle<ByteArray> mapping_table,
+  explicit BytecodeOffsetIterator(Handle<TrustedByteArray> mapping_table,
                                   Handle<BytecodeArray> bytecodes);
   // Non-handlified version for use when no GC can happen.
-  explicit BytecodeOffsetIterator(Tagged<ByteArray> mapping_table,
+  explicit BytecodeOffsetIterator(Tagged<TrustedByteArray> mapping_table,
                                   Tagged<BytecodeArray> bytecodes);
   ~BytecodeOffsetIterator();
 
@@ -77,14 +77,14 @@ class V8_EXPORT_PRIVATE BytecodeOffsetIterator {
     return base::VLQDecodeUnsigned(data_start_address_, &current_index_);
   }
 
-  Handle<ByteArray> mapping_table_;
+  Handle<TrustedByteArray> mapping_table_;
   uint8_t* data_start_address_;
   int data_length_;
   int current_index_;
   Address current_pc_start_offset_;
   Address current_pc_end_offset_;
   int current_bytecode_offset_;
-  BytecodeArray bytecode_handle_storage_;
+  Tagged<BytecodeArray> bytecode_handle_storage_;
   interpreter::BytecodeArrayIterator bytecode_iterator_;
   LocalHeap* local_heap_;
   base::Optional<DisallowGarbageCollection> no_gc_;

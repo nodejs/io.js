@@ -691,6 +691,23 @@ const isValid = URL.canParse('/foo', 'https://example.org/'); // true
 const isNotValid = URL.canParse('/foo'); // false
 ```
 
+#### `URL.parse(input[, base])`
+
+<!-- YAML
+added: v22.1.0
+-->
+
+* `input` {string} The absolute or relative input URL to parse. If `input`
+  is relative, then `base` is required. If `input` is absolute, the `base`
+  is ignored. If `input` is not a string, it is [converted to a string][] first.
+* `base` {string} The base URL to resolve against if the `input` is not
+  absolute. If `base` is not a string, it is [converted to a string][] first.
+* Returns: {URL|null}
+
+Parses a string as a URL. If `base` is provided, it will be used as the base
+URL for the purpose of resolving non-absolute `input` URLs. Returns `null`
+if `input` is not a valid.
+
 ### Class: `URLSearchParams`
 
 <!-- YAML
@@ -921,8 +938,8 @@ myURL.searchParams.forEach((value, name, searchParams) => {
 #### `urlSearchParams.get(name)`
 
 * `name` {string}
-* Returns: {string} or `null` if there is no name-value pair with the given
-  `name`.
+* Returns: {string | null} A string or `null` if there is no name-value pair
+  with the given `name`.
 
 Returns the value of the first name-value pair whose name is `name`. If there
 are no such pairs, `null` is returned.
@@ -1151,13 +1168,25 @@ console.log(url.domainToUnicode('xn--iñvalid.com'));
 // Prints an empty string
 ```
 
-### `url.fileURLToPath(url)`
+### `url.fileURLToPath(url[, options])`
 
 <!-- YAML
 added: v10.12.0
+changes:
+  - version:
+    - v22.1.0
+    - v20.13.0
+    pr-url: https://github.com/nodejs/node/pull/52509
+    description: The `options` argument can now be used to
+                 determine how to parse the `path` argument.
 -->
 
 * `url` {URL | string} The file URL string or URL object to convert to a path.
+* `options` {Object}
+  * `windows` {boolean|undefined} `true` if the `path` should be
+    return as a windows filepath, `false` for posix, and
+    `undefined` for the system default.
+    **Default:** `undefined`.
 * Returns: {string} The fully-resolved platform-specific Node.js file path.
 
 This function ensures the correct decodings of percent-encoded characters as
@@ -1251,13 +1280,25 @@ console.log(url.format(myURL, { fragment: false, unicode: true, auth: false }));
 // Prints 'https://測試/?abc'
 ```
 
-### `url.pathToFileURL(path)`
+### `url.pathToFileURL(path[, options])`
 
 <!-- YAML
 added: v10.12.0
+changes:
+  - version:
+    - v22.1.0
+    - v20.13.0
+    pr-url: https://github.com/nodejs/node/pull/52509
+    description: The `options` argument can now be used to
+                 determine how to return the `path` value.
 -->
 
 * `path` {string} The path to convert to a File URL.
+* `options` {Object}
+  * `windows` {boolean|undefined} `true` if the `path` should be
+    treated as a windows filepath, `false` for posix, and
+    `undefined` for the system default.
+    **Default:** `undefined`.
 * Returns: {URL} The file URL object.
 
 This function ensures that `path` is resolved absolutely, and that the URL

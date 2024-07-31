@@ -10,7 +10,6 @@ extern transitioning runtime ResolvePromise(
 }
 
 namespace promise {
-extern macro ConstructorStringConstant(): String;
 const kConstructorString: String = ConstructorStringConstant();
 
 // https://tc39.es/ecma262/#sec-promise.resolve

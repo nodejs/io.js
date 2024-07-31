@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gyp-next"
+version = "0.18.1"
+authors = [
+  { name="Node.js contributors", email="ryzokuken@disroot.org" },
+]
+description = "A fork of the GYP build system for use in the Node.js projects"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.8"
+dependencies = ["packaging>=24.0", "setuptools>=69.5.1"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Natural Language :: English",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+gyp = "gyp:script_main"
+
+[project.urls]
+"Homepage" = "https://github.com/nodejs/gyp-next"
+
+[tool.ruff]
+extend-exclude = ["pylib/packaging"]
+line-length = 88
+target-version = "py37"
+
+[tool.ruff.lint]
+select = [
+  "C4",   # flake8-comprehensions
+  "C90",  # McCabe cyclomatic complexity
+  "DTZ",  # flake8-datetimez
+  "E",    # pycodestyle
+  "F",    # Pyflakes
+  "G",    # flake8-logging-format
+  "ICN",  # flake8-import-conventions
+  "INT",  # flake8-gettext
+  "PL",   # Pylint
+  "PYI",  # flake8-pyi
+  "RSE",  # flake8-raise
+  "RUF",  # Ruff-specific rules
+  "T10",  # flake8-debugger
+  "TCH",  # flake8-type-checking
+  "TID",  # flake8-tidy-imports
+  "UP",   # pyupgrade
+  "W",    # pycodestyle
+  "YTT",  # flake8-2020
+  # "A",    # flake8-builtins
+  # "ANN",  # flake8-annotations
+  # "ARG",  # flake8-unused-arguments
+  # "B",    # flake8-bugbear
+  # "BLE",  # flake8-blind-except
+  # "COM",  # flake8-commas
+  # "D",    # pydocstyle
+  # "DJ",   # flake8-django
+  # "EM",   # flake8-errmsg
+  # "ERA",  # eradicate
+  # "EXE",  # flake8-executable
+  # "FBT",  # flake8-boolean-trap
+  # "I",    # isort
+  # "INP",  # flake8-no-pep420
+  # "ISC",  # flake8-implicit-str-concat
+  # "N",    # pep8-naming
+  # "NPY",  # NumPy-specific rules
+  # "PD",   # pandas-vet
+  # "PGH",  # pygrep-hooks
+  # "PIE",  # flake8-pie
+  # "PT",   # flake8-pytest-style
+  # "PTH",  # flake8-use-pathlib
+  # "Q",    # flake8-quotes
+  # "RET",  # flake8-return
+  # "S",    # flake8-bandit
+  # "SIM",  # flake8-simplify
+  # "SLF",  # flake8-self
+  # "T20",  # flake8-print
+  # "TRY",  # tryceratops
+]
+ignore = [
+  "E721",
+  "PLC1901",
+  "PLR0402",
+  "PLR1714",
+  "PLR2004",
+  "PLR5501",
+  "PLW0603",
+  "PLW2901",
+  "PYI024",
+  "RUF005",
+  "RUF012",
+  "UP031",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 101
+
+[tool.ruff.lint.pylint]
+max-args = 11
+max-branches = 108
+max-returns = 10
+max-statements = 286
+
+[tool.setuptools]
+package-dir = {"" = "pylib"}
+packages = ["gyp", "gyp.generator"]

@@ -137,7 +137,7 @@ RUNTIME_FUNCTION(Runtime_AsyncGeneratorHasCatchHandlerForPC) {
   // not reach a catch handler.
   if (state < 1) return ReadOnlyRoots(isolate).false_value();
 
-  SharedFunctionInfo shared = generator->function()->shared();
+  Tagged<SharedFunctionInfo> shared = generator->function()->shared();
   DCHECK(shared->HasBytecodeArray());
   HandlerTable handler_table(shared->GetBytecodeArray(isolate));
 

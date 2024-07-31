@@ -1,0 +1,74 @@
+Checks that we don't crash with a mixture of direct/indirect eval and language modes
+Pausing via the snippet: 
+    
+    var x = `
+      (function y() {
+        with ({}) {
+          var z = () => { debugger; };
+          z();
+        }
+      })();
+    `;
+    (0, eval)(x);
+  
+Evaluating "this" on top call frame: 
+{
+    result : {
+        type : undefined
+    }
+}
+Pausing via the snippet: 
+    
+    var x = `
+      (function y() {
+        with ({}) {
+          var z = () => { debugger; };
+          z();
+        }
+      })();
+    `;
+    eval(x);
+  
+Evaluating "this" on top call frame: 
+{
+    result : {
+        type : undefined
+    }
+}
+Pausing via the snippet: 
+    'use strict';
+    var x = `
+      (function y() {
+        with ({}) {
+          var z = () => { debugger; };
+          z();
+        }
+      })();
+    `;
+    (0, eval)(x);
+  
+Evaluating "this" on top call frame: 
+{
+    result : {
+        type : undefined
+    }
+}
+Pausing via the snippet: 
+    'use strict';
+    var x = `
+      (function y() {
+        with ({}) {
+          var z = () => { debugger; };
+          z();
+        }
+      })();
+    `;
+    eval(x);
+  
+{
+    className : SyntaxError
+    description : SyntaxError: Strict mode code may not include a with statement     at <anonymous>:11:10
+    objectId : 1.1.37
+    subtype : error
+    type : object
+}

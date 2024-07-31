@@ -184,7 +184,7 @@ Notation stem_to_object::notation(skeleton::StemEnum stem) {
 MeasureUnit stem_to_object::unit(skeleton::StemEnum stem) {
     switch (stem) {
         case STEM_BASE_UNIT:
-            return MeasureUnit();
+            return {};
         case STEM_PERCENT:
             return MeasureUnit::getPercent();
         case STEM_PERMILLE:
@@ -1287,7 +1287,6 @@ void blueprint_helpers::parseScientificStem(const StringSegment& segment, MacroP
     fail: void();
     // throw new SkeletonSyntaxException("Invalid scientific stem", segment);
     status = U_NUMBER_SKELETON_SYNTAX_ERROR;
-    return;
 }
 
 void blueprint_helpers::parseIntegerStem(const StringSegment& segment, MacroProps& macros, UErrorCode& status) {
@@ -1305,7 +1304,6 @@ void blueprint_helpers::parseIntegerStem(const StringSegment& segment, MacroProp
         return;
     }
     macros.integerWidth = IntegerWidth::zeroFillTo(offset);
-    return;
 }
 
 bool blueprint_helpers::parseFracSigOption(const StringSegment& segment, MacroProps& macros,
@@ -1344,7 +1342,7 @@ bool blueprint_helpers::parseFracSigOption(const StringSegment& segment, MacroPr
         // @, @@, @@@
         maxSig = minSig;
     }
-    auto& oldPrecision = static_cast<const FractionPrecision&>(macros.precision);
+    const auto& oldPrecision = static_cast<const FractionPrecision&>(macros.precision);
     if (offset < segment.length()) {
         UNumberRoundingPriority priority;
         if (maxSig == -1) {

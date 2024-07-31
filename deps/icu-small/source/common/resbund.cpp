@@ -179,7 +179,7 @@ UOBJECT_DEFINE_RTTI_IMPLEMENTATION(ResourceBundle)
 ResourceBundle::ResourceBundle(UErrorCode &err)
                                 :UObject(), fLocale(nullptr)
 {
-    fResource = ures_open(0, Locale::getDefault().getName(), &err);
+    fResource = ures_open(nullptr, Locale::getDefault().getName(), &err);
 }
 
 ResourceBundle::ResourceBundle(const ResourceBundle &other)
@@ -188,7 +188,7 @@ ResourceBundle::ResourceBundle(const ResourceBundle &other)
     UErrorCode status = U_ZERO_ERROR;
 
     if (other.fResource) {
-        fResource = ures_copyResb(0, other.fResource, &status);
+        fResource = ures_copyResb(nullptr, other.fResource, &status);
     } else {
         /* Copying a bad resource bundle */
         fResource = nullptr;
@@ -199,7 +199,7 @@ ResourceBundle::ResourceBundle(UResourceBundle *res, UErrorCode& err)
                                :UObject(), fLocale(nullptr)
 {
     if (res) {
-        fResource = ures_copyResb(0, res, &err);
+        fResource = ures_copyResb(nullptr, res, &err);
     } else {
         /* Copying a bad resource bundle */
         fResource = nullptr;
@@ -218,7 +218,7 @@ ResourceBundle& ResourceBundle::operator=(const ResourceBundle& other)
     if(this == &other) {
         return *this;
     }
-    if(fResource != 0) {
+    if (fResource != nullptr) {
         ures_close(fResource);
         fResource = nullptr;
     }
@@ -228,7 +228,7 @@ ResourceBundle& ResourceBundle::operator=(const ResourceBundle& other)
     }
     UErrorCode status = U_ZERO_ERROR;
     if (other.fResource) {
-        fResource = ures_copyResb(0, other.fResource, &status);
+        fResource = ures_copyResb(nullptr, other.fResource, &status);
     } else {
         /* Copying a bad resource bundle */
         fResource = nullptr;
@@ -238,12 +238,10 @@ ResourceBundle& ResourceBundle::operator=(const ResourceBundle& other)
 
 ResourceBundle::~ResourceBundle()
 {
-    if(fResource != 0) {
+    if (fResource != nullptr) {
         ures_close(fResource);
     }
-    if(fLocale != nullptr) {
-      delete(fLocale);
-    }
+    delete fLocale;
 }
 
 ResourceBundle *
@@ -311,7 +309,7 @@ ResourceBundle ResourceBundle::getNext(UErrorCode& status) {
 
 UnicodeString ResourceBundle::getNextString(UErrorCode& status) {
     int32_t len = 0;
-    const char16_t* r = ures_getNextString(fResource, &len, 0, &status);
+    const char16_t* r = ures_getNextString(fResource, &len, nullptr, &status);
     return UnicodeString(true, r, len);
 }
 

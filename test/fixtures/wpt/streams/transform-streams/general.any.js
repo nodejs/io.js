@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,shadowrealm
 // META: script=../resources/test-utils.js
 // META: script=../resources/rs-utils.js
 'use strict';
@@ -388,9 +388,24 @@ promise_test(t => {
   controller.terminate();
   return Promise.all([
     cancelPromise,
-    promise_rejects_exactly(t, cancelReason, ts.writable.getWriter().closed, 'closed should reject with cancelReason')
+    promise_rejects_js(t, TypeError, ts.writable.getWriter().closed, 'closed should reject with TypeError')
   ]);
-}, 'terminate() should do nothing after readable.cancel()');
+}, 'terminate() should abort writable immediately after readable.cancel()');
+
+promise_test(t => {
+  let controller;
+  const ts = new TransformStream({
+    start(c) {
+      controller = c;
+    }
+  });
+  const cancelReason = { name: 'cancelReason' };
+  return ts.readable.cancel(cancelReason).then(() => {
+    controller.terminate();
+    return promise_rejects_exactly(t, cancelReason, ts.writable.getWriter().closed, 'closed should reject with TypeError');
+  })
+}, 'terminate() should do nothing after readable.cancel() resolves');
+
 
 promise_test(() => {
   let calls = 0;

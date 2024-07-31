@@ -9,71 +9,25 @@
 
 #include "src/common/assert-scope.h"
 #include "src/handles/persistent-handles.h"
-#include "src/heap/concurrent-allocator-inl.h"
 #include "src/heap/heap.h"
+#include "src/heap/large-spaces.h"
 #include "src/heap/local-heap.h"
+#include "src/heap/main-allocator-inl.h"
 #include "src/heap/parked-scope.h"
 #include "src/heap/zapping.h"
 
 namespace v8 {
 namespace internal {
 
+#define ROOT_ACCESSOR(type, name, CamelName) \
+  inline Tagged<type> LocalHeap::name() { return heap()->name(); }
+MUTABLE_ROOT_LIST(ROOT_ACCESSOR)
+#undef ROOT_ACCESSOR
+
 AllocationResult LocalHeap::AllocateRaw(int size_in_bytes, AllocationType type,
                                         AllocationOrigin origin,
                                         AllocationAlignment alignment) {
-  DCHECK(!v8_flags.enable_third_party_heap);
-#if DEBUG
-  VerifyCurrent();
-  DCHECK(AllowHandleAllocation::IsAllowed());
-  DCHECK(AllowHeapAllocation::IsAllowed());
-  DCHECK_IMPLIES(type == AllocationType::kCode || type == AllocationType::kMap,
-                 alignment == AllocationAlignment::kTaggedAligned);
-  Heap::HeapState state = heap()->gc_state();
-  DCHECK(state == Heap::TEAR_DOWN || state == Heap::NOT_IN_GC);
-  DCHECK(IsRunning());
-#endif
-
-  // Each allocation is supposed to be a safepoint.
-  Safepoint();
-
-  bool large_object = size_in_bytes > heap_->MaxRegularHeapObjectSize(type);
-
-  if (type == AllocationType::kCode) {
-    CodePageHeaderModificationScope header_modification_scope(
-        "Code allocation needs header access.");
-
-    AllocationResult alloc;
-    if (large_object) {
-      alloc =
-          heap()->code_lo_space()->AllocateRawBackground(this, size_in_bytes);
-    } else {
-      alloc =
-          code_space_allocator()->AllocateRaw(size_in_bytes, alignment, origin);
-    }
-    Tagged<HeapObject> object;
-    if (heap::ShouldZapGarbage() && alloc.To(&object) &&
-        !V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-      heap::ZapCodeBlock(object.address(), size_in_bytes);
-    }
-    return alloc;
-  }
-
-  if (type == AllocationType::kOld) {
-    if (large_object)
-      return heap()->lo_space()->AllocateRawBackground(this, size_in_bytes);
-    else
-      return old_space_allocator()->AllocateRaw(size_in_bytes, alignment,
-                                                origin);
-  }
-
-  DCHECK_EQ(type, AllocationType::kSharedOld);
-  if (large_object) {
-    return heap()->shared_lo_allocation_space()->AllocateRawBackground(
-        this, size_in_bytes);
-  } else {
-    return shared_old_space_allocator()->AllocateRaw(size_in_bytes, alignment,
-                                                     origin);
-  }
+  return heap_allocator_.AllocateRaw(size_in_bytes, type, origin, alignment);
 }
 
 template <typename LocalHeap::AllocationRetryMode mode>
@@ -117,37 +71,34 @@ V8_INLINE void LocalHeap::ParkAndExecuteCallback(Callback callback) {
 }
 
 template <typename Callback>
-V8_INLINE void LocalHeap::BlockWhileParked(Callback callback) {
+V8_INLINE void LocalHeap::ExecuteWithStackMarker(Callback callback) {
   if (is_main_thread()) {
-    BlockMainThreadWhileParked(callback);
+    heap()->stack().SetMarkerIfNeededAndCallback(callback);
   } else {
-    ParkAndExecuteCallback(callback);
+    heap()->stack().SetMarkerForBackgroundThreadAndCallback(
+        ThreadId::Current().ToInteger(), callback);
   }
 }
 
 template <typename Callback>
-V8_INLINE void LocalHeap::BlockMainThreadWhileParked(Callback callback) {
+V8_INLINE void LocalHeap::BlockWhileParked(Callback callback) {
   ExecuteWithStackMarker(
       [this, callback]() { ParkAndExecuteCallback(callback); });
 }
 
 template <typename Callback>
-V8_INLINE void LocalHeap::ExecuteWithStackMarker(Callback callback) {
-  // Conservative stack scanning is only performed for main threads, therefore
-  // this method should only be invoked from the main thread. In this case,
-  // heap()->stack() below is the stack object of the main thread that has last
-  // entered the isolate.
+V8_INLINE void LocalHeap::BlockMainThreadWhileParked(Callback callback) {
   DCHECK(is_main_thread());
-  heap()->stack().SetMarkerIfNeededAndCallback(callback);
+  heap()->stack().SetMarkerIfNeededAndCallback(
+      [this, callback]() { ParkAndExecuteCallback(callback); });
 }
 
 template <typename Callback>
-V8_INLINE void LocalHeap::ExecuteWithStackMarkerIfNeeded(Callback callback) {
-  if (is_main_thread()) {
-    ExecuteWithStackMarker(callback);
-  } else {
-    callback();
-  }
+V8_INLINE void LocalHeap::BlockBackgroundThreadWhileParked(Callback callback) {
+  DCHECK(!is_main_thread());
+  heap()->stack().SetMarkerForBackgroundThreadAndCallback(
+      ThreadId::Current().ToInteger(),
+      [this, callback]() { ParkAndExecuteCallback(callback); });
 }
 
 }  // namespace internal

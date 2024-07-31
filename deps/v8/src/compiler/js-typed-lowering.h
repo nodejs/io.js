@@ -90,6 +90,14 @@ class V8_EXPORT_PRIVATE JSTypedLowering final
   // Helper for ReduceJSLoadModule and ReduceJSStoreModule.
   Node* BuildGetModuleCell(Node* node);
 
+  // Helpers for ReduceJSAdd.
+  Reduction GenerateStringAddition(Node* node, Node* left, Node* right,
+                                   Node* context, Node* frame_state,
+                                   Node** effect, Node** control,
+                                   bool should_create_cons_string);
+  Node* UnwrapStringWrapper(Node* string_or_wrapper, Node** effect,
+                            Node** control);
+
   Factory* factory() const;
   Graph* graph() const;
   JSGraph* jsgraph() const { return jsgraph_; }

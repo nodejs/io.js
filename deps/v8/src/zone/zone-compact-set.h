@@ -31,7 +31,7 @@ struct ZoneCompactSetTraits<Handle<T>> {
     // Use address() instead of location() to get around handle access checks
     // (we're not actually dereferencing the handle so it's safe to read its
     // location)
-    return base::bit_cast<Address*>(handle.address());
+    return reinterpret_cast<Address*>(handle.address());
   }
   static handle_type PointerToHandle(data_type* ptr) {
     return handle_type(ptr);

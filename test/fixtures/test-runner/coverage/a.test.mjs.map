@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": ["a.test.ts", "b.test.ts"],
+  "mappings": "AAAA,OAAS,QAAAA,MAAY,YCArB,OAAS,eAAAC,MAAmB,cAErB,SAASC,GAAU,CACxBD,EAAY,EAAG,CAAC,CAClB,CDDAE,EAAK,QAAS,IAAM,CAClBC,EAAQ,CACV,CAAC",
+  "names": ["test", "strictEqual", "covered", "test", "covered"]
+}

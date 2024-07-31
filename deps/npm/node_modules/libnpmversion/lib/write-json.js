@@ -1,6 +1,5 @@
 // write the json back, preserving the line breaks and indent
-const { promisify } = require('util')
-const writeFile = promisify(require('fs').writeFile)
+const { writeFile } = require('node:fs/promises')
 const kIndent = Symbol.for('indent')
 const kNewline = Symbol.for('newline')
 

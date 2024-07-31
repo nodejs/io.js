@@ -34,7 +34,6 @@ class AccessCheckTest : public TestWithIsolate {
 
     // Running script in this context should work.
     RunJS("this.foo = 42; this[23] = true;");
-    EXPECT_THAT(RunJS("this.all_can_read"), IsInt32(42));
     RunJS("this.cross_context_int = 23");
     CHECK_EQ(g_cross_context_int, 23);
     EXPECT_THAT(RunJS("this.cross_context_int"), IsInt32(23));
@@ -58,12 +57,6 @@ class AccessCheckTest : public TestWithIsolate {
     {
       TryCatch try_catch(isolate());
       CHECK(TryRunJS("this.other[23]").IsEmpty());
-    }
-
-    // AllCanRead properties are also inaccessible.
-    {
-      TryCatch try_catch(isolate());
-      CHECK(TryRunJS("this.other.all_can_read").IsEmpty());
     }
 
     // Intercepted properties are accessible, however.
@@ -240,7 +233,7 @@ TEST_F(AccessRegressionTest,
       context2,
       "Object.getOwnPropertyDescriptor(object_from_context1, 'property').get");
 
-  ASSERT_EQ(getter->native_context(), *Utils::OpenHandle(*context1));
+  ASSERT_EQ(getter->native_context(), *Utils::OpenDirectHandle(*context1));
 }
 
 // Regression test for https://crbug.com/986063.
@@ -300,8 +293,8 @@ TEST_F(AccessRegressionTest,
   i::Handle<i::JSFunction> getter_c2 = RetrieveFunctionFrom(
       context2, "Object.getOwnPropertyDescriptor(object, 'property').get");
 
-  ASSERT_EQ(getter_c1->native_context(), *Utils::OpenHandle(*context1));
-  ASSERT_EQ(getter_c2->native_context(), *Utils::OpenHandle(*context2));
+  ASSERT_EQ(getter_c1->native_context(), *Utils::OpenDirectHandle(*context1));
+  ASSERT_EQ(getter_c2->native_context(), *Utils::OpenDirectHandle(*context2));
 }
 
 void NamedGetter(Local<Name> property,
@@ -370,31 +363,49 @@ void NamedEnumerator(const PropertyCallbackInfo<Array>& info) {
   info.GetReturnValue().Set(names);
 }
 
-void IndexedGetter(uint32_t index, const PropertyCallbackInfo<Value>& info) {
+v8::Intercepted IndexedGetter(uint32_t index,
+                              const PropertyCallbackInfo<Value>& info) {
   CHECK(g_expect_interceptor_call);
-  if (index == 7) info.GetReturnValue().Set(g_cross_context_int);
-}
-
-void IndexedSetter(uint32_t index, Local<Value> value,
-                   const PropertyCallbackInfo<Value>& info) {
-  CHECK(g_expect_interceptor_call);
-  Isolate* isolate = info.GetIsolate();
-  Local<Context> context = isolate->GetCurrentContext();
-  if (index != 7) return;
-  if (value->IsInt32()) {
-    g_cross_context_int = value->ToInt32(context).ToLocalChecked()->Value();
+  if (index == 7) {
+    info.GetReturnValue().Set(g_cross_context_int);
+    return v8::Intercepted::kYes;
   }
-  info.GetReturnValue().Set(value);
+  return v8::Intercepted::kNo;
 }
 
-void IndexedQuery(uint32_t index, const PropertyCallbackInfo<Integer>& info) {
+v8::Intercepted IndexedSetter(uint32_t index, Local<Value> value,
+                              const PropertyCallbackInfo<void>& info) {
   CHECK(g_expect_interceptor_call);
-  if (index == 7) info.GetReturnValue().Set(DontDelete);
+  if (index == 7) {
+    Isolate* isolate = info.GetIsolate();
+    Local<Context> context = isolate->GetCurrentContext();
+    if (value->IsInt32()) {
+      g_cross_context_int = value->ToInt32(context).ToLocalChecked()->Value();
+    }
+    info.GetReturnValue().Set(value);
+    return v8::Intercepted::kYes;
+  }
+  return v8::Intercepted::kNo;
 }
 
-void IndexedDeleter(uint32_t index, const PropertyCallbackInfo<Boolean>& info) {
+v8::Intercepted IndexedQuery(uint32_t index,
+                             const PropertyCallbackInfo<Integer>& info) {
   CHECK(g_expect_interceptor_call);
-  if (index == 7) info.GetReturnValue().Set(false);
+  if (index == 7) {
+    info.GetReturnValue().Set(DontDelete);
+    return v8::Intercepted::kYes;
+  }
+  return v8::Intercepted::kNo;
+}
+
+v8::Intercepted IndexedDeleter(uint32_t index,
+                               const PropertyCallbackInfo<Boolean>& info) {
+  CHECK(g_expect_interceptor_call);
+  if (index == 7) {
+    info.GetReturnValue().Set(false);
+    return v8::Intercepted::kYes;
+  }
+  return v8::Intercepted::kNo;
 }
 
 void IndexedEnumerator(const PropertyCallbackInfo<Array>& info) {
@@ -448,13 +459,13 @@ void IndexedSetterThrowsException(uint32_t index, Local<Value> value,
       String::NewFromUtf8(info.GetIsolate(), "exception").ToLocalChecked());
 }
 
-void GetCrossContextInt(Local<String> property,
+void GetCrossContextInt(Local<Name> property,
                         const PropertyCallbackInfo<Value>& info) {
   CHECK(!g_expect_interceptor_call);
   info.GetReturnValue().Set(g_cross_context_int);
 }
 
-void SetCrossContextInt(Local<String> property, Local<Value> value,
+void SetCrossContextInt(Local<Name> property, Local<Value> value,
                         const PropertyCallbackInfo<void>& info) {
   CHECK(!g_expect_interceptor_call);
   Isolate* isolate = info.GetIsolate();
@@ -483,9 +494,6 @@ TEST_F(AccessCheckTest, AccessCheckWithInterceptor) {
                                           IndexedEnumerator));
   global_template->SetNativeDataProperty(
       NewString("cross_context_int"), GetCrossContextInt, SetCrossContextInt);
-  global_template->SetNativeDataProperty(NewString("all_can_read"), Return42,
-                                         nullptr, Local<Value>(), None,
-                                         ALL_CAN_READ);
 
   Local<Context> context0 = Context::New(isolate(), nullptr, global_template);
   CheckCanRunScriptInContext(context0);
@@ -562,9 +570,6 @@ TEST_F(AccessCheckTest, NewRemoteContext) {
                                           IndexedEnumerator));
   global_template->SetNativeDataProperty(
       NewString("cross_context_int"), GetCrossContextInt, SetCrossContextInt);
-  global_template->SetNativeDataProperty(NewString("all_can_read"), Return42,
-                                         nullptr, Local<Value>(), None,
-                                         ALL_CAN_READ);
 
   Local<Object> global0 =
       Context::NewRemoteContext(isolate(), global_template).ToLocalChecked();
@@ -621,9 +626,6 @@ TEST_F(AccessCheckTest, NewRemoteInstance) {
       IndexedPropertyHandlerConfiguration(IndexedGetter, IndexedSetter,
                                           IndexedQuery, IndexedDeleter,
                                           IndexedEnumerator));
-  tmpl->SetNativeDataProperty(NewString("all_can_read"), Return42, nullptr,
-                              Local<Value>(), None, ALL_CAN_READ);
-
   Local<Object> obj = tmpl->NewRemoteInstance().ToLocalChecked();
 
   Local<Context> context = Context::New(isolate());

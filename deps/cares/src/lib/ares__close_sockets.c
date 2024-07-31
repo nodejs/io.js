@@ -25,80 +25,114 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
-
-#include "ares.h"
 #include "ares_private.h"
 #include <assert.h>
 
+static void ares__requeue_queries(struct server_connection *conn,
+                                  ares_status_t requeue_status)
+{
+  struct query  *query;
+  ares_timeval_t now;
 
-void ares__close_connection(struct server_connection *conn)
+  ares__tvnow(&now);
+
+  while ((query = ares__llist_first_val(conn->queries_to_conn)) != NULL) {
+    ares__requeue_query(query, &now, requeue_status);
+  }
+}
+
+void ares__close_connection(struct server_connection *conn,
+                            ares_status_t requeue_status)
 {
   struct server_state *server  = conn->server;
-  ares_channel         channel = server->channel;
+  ares_channel_t      *channel = server->channel;
+
+  /* Unlink */
+  ares__llist_node_claim(
+    ares__htable_asvp_get_direct(channel->connnode_by_socket, conn->fd));
+  ares__htable_asvp_remove(channel->connnode_by_socket, conn->fd);
 
   if (conn->is_tcp) {
     /* Reset any existing input and output buffer. */
     ares__buf_consume(server->tcp_parser, ares__buf_len(server->tcp_parser));
     ares__buf_consume(server->tcp_send, ares__buf_len(server->tcp_send));
-    server->tcp_connection_generation = ++channel->tcp_connection_generation;
     server->tcp_conn = NULL;
   }
 
+  /* Requeue queries to other connections */
+  ares__requeue_queries(conn, requeue_status);
+
+  ares__llist_destroy(conn->queries_to_conn);
 
   SOCK_STATE_CALLBACK(channel, conn->fd, 0, 0);
   ares__close_socket(channel, conn->fd);
-  ares__llist_node_claim(
-    ares__htable_asvp_get_direct(channel->connnode_by_socket, conn->fd)
-  );
-  ares__htable_asvp_remove(channel->connnode_by_socket, conn->fd);
 
-#ifndef NDEBUG
-  assert(ares__llist_len(conn->queries_to_conn) == 0);
-#endif
-  ares__llist_destroy(conn->queries_to_conn);
   ares_free(conn);
 }
 
 void ares__close_sockets(struct server_state *server)
 {
-  ares__llist_node_t  *node;
+  ares__llist_node_t *node;
 
   while ((node = ares__llist_node_first(server->connections)) != NULL) {
     struct server_connection *conn = ares__llist_node_val(node);
-    ares__close_connection(conn);
+    ares__close_connection(conn, ARES_SUCCESS);
   }
 }
 
-void ares__check_cleanup_conn(ares_channel channel, ares_socket_t fd)
+void ares__check_cleanup_conns(const ares_channel_t *channel)
 {
-  ares__llist_node_t       *node;
-  struct server_connection *conn;
-  int                       do_cleanup = 0;
+  ares__slist_node_t *snode;
 
-  node = ares__htable_asvp_get_direct(channel->connnode_by_socket, fd);
-  if (node == NULL) {
-    return;
+  if (channel == NULL) {
+    return; /* LCOV_EXCL_LINE: DefensiveCoding */
   }
 
-  conn = ares__llist_node_val(node);
+  /* Iterate across each server */
+  for (snode = ares__slist_node_first(channel->servers); snode != NULL;
+       snode = ares__slist_node_next(snode)) {
 
-  if (ares__llist_len(conn->queries_to_conn)) {
-    return;
-  }
+    struct server_state *server = ares__slist_node_val(snode);
+    ares__llist_node_t  *cnode;
 
-  /* If we are configured not to stay open, close it out */
-  if (!(channel->flags & ARES_FLAG_STAYOPEN)) {
-    do_cleanup = 1;
-  }
+    /* Iterate across each connection */
+    cnode = ares__llist_node_first(server->connections);
+    while (cnode != NULL) {
+      ares__llist_node_t       *next       = ares__llist_node_next(cnode);
+      struct server_connection *conn       = ares__llist_node_val(cnode);
+      ares_bool_t               do_cleanup = ARES_FALSE;
+      cnode = next;
 
-  /* If the udp connection hit its max queries, always close it */
-  if (!conn->is_tcp && channel->udp_max_queries > 0 &&
-      conn->total_queries >= (size_t)channel->udp_max_queries) {
-    do_cleanup = 1;
-  }
+      /* Has connections, not eligible */
+      if (ares__llist_len(conn->queries_to_conn)) {
+        continue;
+      }
 
-  if (do_cleanup) {
-    ares__close_connection(conn);
+      /* If we are configured not to stay open, close it out */
+      if (!(channel->flags & ARES_FLAG_STAYOPEN)) {
+        do_cleanup = ARES_TRUE;
+      }
+
+      /* If the associated server has failures, close it out. Resetting the
+       * connection (and specifically the source port number) can help resolve
+       * situations where packets are being dropped.
+       */
+      if (conn->server->consec_failures > 0) {
+        do_cleanup = ARES_TRUE;
+      }
+
+      /* If the udp connection hit its max queries, always close it */
+      if (!conn->is_tcp && channel->udp_max_queries > 0 &&
+          conn->total_queries >= channel->udp_max_queries) {
+        do_cleanup = ARES_TRUE;
+      }
+
+      if (!do_cleanup) {
+        continue;
+      }
+
+      /* Clean it up */
+      ares__close_connection(conn, ARES_SUCCESS);
+    }
   }
 }

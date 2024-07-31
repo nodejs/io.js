@@ -59,7 +59,7 @@ class MemoryLowering::AllocationGroup final : public ZoneObject {
 };
 
 MemoryLowering::MemoryLowering(JSGraph* jsgraph, Zone* zone,
-                               JSGraphAssembler* graph_assembler,
+                               JSGraphAssembler* graph_assembler, bool is_wasm,
                                AllocationFolding allocation_folding,
                                WriteBarrierAssertFailedCallback callback,
                                const char* function_debug_name)
@@ -69,6 +69,7 @@ MemoryLowering::MemoryLowering(JSGraph* jsgraph, Zone* zone,
       common_(jsgraph->common()),
       machine_(jsgraph->machine()),
       graph_assembler_(graph_assembler),
+      is_wasm_(is_wasm),
       allocation_folding_(allocation_folding),
       write_barrier_assert_failed_(callback),
       function_debug_name_(function_debug_name) {}
@@ -180,26 +181,34 @@ Reduction MemoryLowering::ReduceAllocateRaw(Node* node,
   gasm()->InitializeEffectControl(effect, control);
 
   Node* allocate_builtin;
-  if (isolate_ != nullptr) {
+  if (!is_wasm_) {
     if (allocation_type == AllocationType::kYoung) {
       allocate_builtin = __ AllocateInYoungGenerationStubConstant();
     } else {
       allocate_builtin = __ AllocateInOldGenerationStubConstant();
     }
   } else {
+#if V8_ENABLE_WEBASSEMBLY
     // This lowering is used by Wasm, where we compile isolate-independent
     // code. Builtin calls simply encode the target builtin ID, which will
     // be patched to the builtin's address later.
-#if V8_ENABLE_WEBASSEMBLY
-    Builtin builtin;
-    if (allocation_type == AllocationType::kYoung) {
-      builtin = Builtin::kAllocateInYoungGeneration;
+    if (isolate_ == nullptr) {
+      Builtin builtin;
+      if (allocation_type == AllocationType::kYoung) {
+        builtin = Builtin::kWasmAllocateInYoungGeneration;
+      } else {
+        builtin = Builtin::kWasmAllocateInOldGeneration;
+      }
+      static_assert(std::is_same<Smi, BuiltinPtr>(), "BuiltinPtr must be Smi");
+      allocate_builtin =
+          graph()->NewNode(common()->NumberConstant(static_cast<int>(builtin)));
     } else {
-      builtin = Builtin::kAllocateInOldGeneration;
+      if (allocation_type == AllocationType::kYoung) {
+        allocate_builtin = __ WasmAllocateInYoungGenerationStubConstant();
+      } else {
+        allocate_builtin = __ WasmAllocateInOldGenerationStubConstant();
+      }
     }
-    static_assert(std::is_same<Smi, BuiltinPtr>(), "BuiltinPtr must be Smi");
-    allocate_builtin =
-        graph()->NewNode(common()->NumberConstant(static_cast<int>(builtin)));
 #else
     UNREACHABLE();
 #endif
@@ -224,12 +233,12 @@ Reduction MemoryLowering::ReduceAllocateRaw(Node* node,
     Node* instance_node = GetWasmInstanceNode();
     int top_address_offset =
         allocation_type == AllocationType::kYoung
-            ? WasmInstanceObject::kNewAllocationTopAddressOffset
-            : WasmInstanceObject::kOldAllocationTopAddressOffset;
+            ? WasmTrustedInstanceData::kNewAllocationTopAddressOffset
+            : WasmTrustedInstanceData::kOldAllocationTopAddressOffset;
     int limit_address_offset =
         allocation_type == AllocationType::kYoung
-            ? WasmInstanceObject::kNewAllocationLimitAddressOffset
-            : WasmInstanceObject::kOldAllocationLimitAddressOffset;
+            ? WasmTrustedInstanceData::kNewAllocationLimitAddressOffset
+            : WasmTrustedInstanceData::kOldAllocationLimitAddressOffset;
     top_address =
         __ Load(MachineType::Pointer(), instance_node,
                 __ IntPtrConstant(top_address_offset - kHeapObjectTag));
@@ -606,9 +615,21 @@ Reduction MemoryLowering::ReduceStoreField(Node* node,
     node->ReplaceInput(2, mapword);
 #endif
   }
-  NodeProperties::ChangeOp(
-      node, machine()->Store(StoreRepresentation(machine_type.representation(),
-                                                 write_barrier_kind)));
+  if (machine_type.representation() ==
+      MachineRepresentation::kIndirectPointer) {
+    // Indirect pointer stores require knowledge of the indirect pointer tag of
+    // the field. This is technically only required for stores that need a
+    // write barrier, but currently we track the tag for all such stores.
+    DCHECK_NE(access.indirect_pointer_tag, kIndirectPointerNullTag);
+    Node* tag = __ IntPtrConstant(access.indirect_pointer_tag);
+    node->InsertInput(graph_zone(), 3, tag);
+    NodeProperties::ChangeOp(
+        node, machine()->StoreIndirectPointer(write_barrier_kind));
+  } else {
+    NodeProperties::ChangeOp(
+        node, machine()->Store(StoreRepresentation(
+                  machine_type.representation(), write_barrier_kind)));
+  }
   return Changed(node);
 }
 
@@ -647,24 +668,22 @@ Node* MemoryLowering::ComputeIndex(ElementAccess const& access, Node* index) {
 namespace {
 
 bool ValueNeedsWriteBarrier(Node* value, Isolate* isolate) {
-  while (true) {
-    switch (value->opcode()) {
-      case IrOpcode::kBitcastWordToTaggedSigned:
+  switch (value->opcode()) {
+    case IrOpcode::kBitcastWordToTaggedSigned:
+      return false;
+    case IrOpcode::kHeapConstant: {
+      RootIndex root_index;
+      if (isolate->roots_table().IsRootHandle(HeapConstantOf(value->op()),
+                                              &root_index) &&
+          RootsTable::IsImmortalImmovable(root_index)) {
         return false;
-      case IrOpcode::kHeapConstant: {
-        RootIndex root_index;
-        if (isolate->roots_table().IsRootHandle(HeapConstantOf(value->op()),
-                                                &root_index) &&
-            RootsTable::IsImmortalImmovable(root_index)) {
-          return false;
-        }
-        break;
       }
-      default:
-        break;
+      break;
     }
-    return true;
+    default:
+      break;
   }
+  return true;
 }
 
 }  // namespace

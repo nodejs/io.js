@@ -8,13 +8,13 @@ const {
   kOrigin,
   kGetNetConnect
 } = require('./mock-symbols')
-const { buildURL, nop } = require('../core/util')
-const { STATUS_CODES } = require('http')
+const { buildURL } = require('../core/util')
+const { STATUS_CODES } = require('node:http')
 const {
   types: {
     isPromise
   }
-} = require('util')
+} = require('node:util')
 
 function matchValue (match, value) {
   if (typeof match === 'string') {
@@ -138,19 +138,20 @@ function getMockDispatch (mockDispatches, key) {
   // Match method
   matchedMockDispatches = matchedMockDispatches.filter(({ method }) => matchValue(method, key.method))
   if (matchedMockDispatches.length === 0) {
-    throw new MockNotMatchedError(`Mock dispatch not matched for method '${key.method}'`)
+    throw new MockNotMatchedError(`Mock dispatch not matched for method '${key.method}' on path '${resolvedPath}'`)
   }
 
   // Match body
   matchedMockDispatches = matchedMockDispatches.filter(({ body }) => typeof body !== 'undefined' ? matchValue(body, key.body) : true)
   if (matchedMockDispatches.length === 0) {
-    throw new MockNotMatchedError(`Mock dispatch not matched for body '${key.body}'`)
+    throw new MockNotMatchedError(`Mock dispatch not matched for body '${key.body}' on path '${resolvedPath}'`)
   }
 
   // Match headers
   matchedMockDispatches = matchedMockDispatches.filter((mockDispatch) => matchHeaders(mockDispatch, key.headers))
   if (matchedMockDispatches.length === 0) {
-    throw new MockNotMatchedError(`Mock dispatch not matched for headers '${typeof key.headers === 'object' ? JSON.stringify(key.headers) : key.headers}'`)
+    const headers = typeof key.headers === 'object' ? JSON.stringify(key.headers) : key.headers
+    throw new MockNotMatchedError(`Mock dispatch not matched for headers '${headers}' on path '${resolvedPath}'`)
   }
 
   return matchedMockDispatches[0]
@@ -188,11 +189,21 @@ function buildKey (opts) {
 }
 
 function generateKeyValues (data) {
-  return Object.entries(data).reduce((keyValuePairs, [key, value]) => [
-    ...keyValuePairs,
-    Buffer.from(`${key}`),
-    Array.isArray(value) ? value.map(x => Buffer.from(`${x}`)) : Buffer.from(`${value}`)
-  ], [])
+  const keys = Object.keys(data)
+  const result = []
+  for (let i = 0; i < keys.length; ++i) {
+    const key = keys[i]
+    const value = data[key]
+    const name = Buffer.from(`${key}`)
+    if (Array.isArray(value)) {
+      for (let j = 0; j < value.length; ++j) {
+        result.push(name, Buffer.from(`${value[j]}`))
+      }
+    } else {
+      result.push(name, Buffer.from(`${value}`))
+    }
+  }
+  return result
 }
 
 /**
@@ -274,10 +285,10 @@ function mockDispatch (opts, handler) {
     const responseHeaders = generateKeyValues(headers)
     const responseTrailers = generateKeyValues(trailers)
 
-    handler.abort = nop
-    handler.onHeaders(statusCode, responseHeaders, resume, getStatusText(statusCode))
-    handler.onData(Buffer.from(responseData))
-    handler.onComplete(responseTrailers)
+    handler.onConnect?.(err => handler.onError(err), null)
+    handler.onHeaders?.(statusCode, responseHeaders, resume, getStatusText(statusCode))
+    handler.onData?.(Buffer.from(responseData))
+    handler.onComplete?.(responseTrailers)
     deleteMockDispatch(mockDispatches, key)
   }
 
@@ -347,5 +358,6 @@ module.exports = {
   buildMockDispatch,
   checkNetConnect,
   buildMockOptions,
-  getHeaderByName
+  getHeaderByName,
+  buildHeadersFromArray
 }

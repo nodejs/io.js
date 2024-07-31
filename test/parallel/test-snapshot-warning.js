@@ -9,7 +9,7 @@ require('../common');
 const assert = require('assert');
 const tmpdir = require('../common/tmpdir');
 const fixtures = require('../common/fixtures');
-const { spawnSyncAndExitWithoutError } = require('../common/child_process');
+const { spawnSyncAndAssert, spawnSyncAndExitWithoutError } = require('../common/child_process');
 const fs = require('fs');
 
 const warningScript = fixtures.path('snapshot', 'warning.js');
@@ -30,7 +30,7 @@ tmpdir.refresh();
   const stats = fs.statSync(blobPath);
   assert(stats.isFile());
 
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     warningScript,
@@ -49,7 +49,7 @@ tmpdir.refresh();
 {
   console.log('\n# Check snapshot scripts that emit ' +
               'warnings and --trace-warnings hint.');
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     '--build-snapshot',
@@ -68,7 +68,7 @@ tmpdir.refresh();
   const stats = fs.statSync(blobPath);
   assert(stats.isFile());
 
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     warningScript,
@@ -92,7 +92,7 @@ tmpdir.refresh();
   const warningFile1 = tmpdir.resolve('warnings.txt');
   const warningFile2 = tmpdir.resolve('warnings2.txt');
 
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     '--redirect-warnings',
@@ -120,7 +120,7 @@ tmpdir.refresh();
     maxRetries: 3, recursive: false, force: true
   });
 
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     '--redirect-warnings',

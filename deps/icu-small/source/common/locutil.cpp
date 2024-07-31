@@ -145,9 +145,7 @@ LocaleUtility::canonicalLocaleString(const UnicodeString* id, UnicodeString& res
 Locale&
 LocaleUtility::initLocaleFromName(const UnicodeString& id, Locale& result)
 {
-    enum { BUFLEN = 128 }; // larger than ever needed
-
-    if (id.isBogus() || id.length() >= BUFLEN) {
+    if (id.isBogus()) {
         result.setToBogus();
     } else {
         /*
@@ -168,24 +166,29 @@ LocaleUtility::initLocaleFromName(const UnicodeString& id, Locale& result)
          *
          * There should be only at most one '@' in a locale ID.
          */
-        char buffer[BUFLEN];
+        CharString buffer;
         int32_t prev, i;
         prev = 0;
-        for(;;) {
+        UErrorCode status = U_ZERO_ERROR;
+        do {
             i = id.indexOf((char16_t)0x40, prev);
             if(i < 0) {
                 // no @ between prev and the rest of the string
-                id.extract(prev, INT32_MAX, buffer + prev, BUFLEN - prev, US_INV);
+                buffer.appendInvariantChars(id.tempSubString(prev), status);
                 break; // done
             } else {
                 // normal invariant-character conversion for text between @s
-                id.extract(prev, i - prev, buffer + prev, BUFLEN - prev, US_INV);
+                buffer.appendInvariantChars(id.tempSubString(prev, i - prev), status);
                 // manually "convert" U+0040 at id[i] into '@' at buffer[i]
-                buffer[i] = '@';
+                buffer.append('@', status);
                 prev = i + 1;
             }
+        } while (U_SUCCESS(status));
+        if (U_FAILURE(status)) {
+            result.setToBogus();
+        } else {
+            result = Locale::createFromName(buffer.data());
         }
-        result = Locale::createFromName(buffer);
     }
     return result;
 }
@@ -259,7 +262,7 @@ LocaleUtility::getAvailableLocaleNames(const UnicodeString& bundleID)
     return htp;
 }
 
-UBool
+bool
 LocaleUtility::isFallbackOf(const UnicodeString& root, const UnicodeString& child)
 {
     return child.indexOf(root) == 0 &&
@@ -271,5 +274,3 @@ U_NAMESPACE_END
 
 /* !UCONFIG_NO_SERVICE */
 #endif
-
-

@@ -212,7 +212,7 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
   // Lookup support for serialized scope info.  Returns the name and index of
   // the saved class variable in context local slots if scope is a class scope
   // and it contains static private methods that may be accessed.
-  std::pair<String, int> SavedClassVariable() const;
+  std::pair<Tagged<String>, int> SavedClassVariable() const;
 
   FunctionKind function_kind() const;
 

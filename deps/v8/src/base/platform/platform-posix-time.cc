@@ -24,6 +24,7 @@ double PosixDefaultTimezoneCache::LocalTimeOffset(double time_ms, bool is_utc) {
   time_t tv = time(nullptr);
   struct tm tm;
   struct tm* t = localtime_r(&tv, &tm);
+  DCHECK_NOT_NULL(t);
   // tm_gmtoff includes any daylight savings offset, so subtract it.
   return static_cast<double>(t->tm_gmtoff * msPerSecond -
                              (t->tm_isdst > 0 ? 3600 * msPerSecond : 0));

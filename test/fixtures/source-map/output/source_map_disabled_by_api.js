@@ -15,10 +15,10 @@ try {
   console.log(e);
 }
 
+// Delete the CJS module cache and loading the module again with source maps
+// support enabled programmatically.
 delete require.cache[require
   .resolve('../enclosing-call-site-min.js')];
-
-// Re-enable.
 process.setSourceMapsEnabled(true);
 assert.strictEqual(process.sourceMapsEnabled, true);
 

@@ -10,16 +10,6 @@ const resolver = new Resolver();
 const desiredQueries = 11;
 let finishedQueries = 0;
 
-const addMessageListener = () => {
-  server.removeAllListeners('message');
-
-  server.once('message', () => {
-    server.once('message', common.mustNotCall);
-
-    resolver.cancel();
-  });
-};
-
 server.bind(0, common.mustCall(async () => {
   resolver.setServers([`127.0.0.1:${server.address().port}`]);
 
@@ -37,7 +27,9 @@ server.bind(0, common.mustCall(async () => {
   const next = (...args) => {
     callback(...args);
 
-    addMessageListener();
+    server.once('message', () => {
+      resolver.cancel();
+    });
 
     // Multiple queries
     for (let i = 1; i < desiredQueries; i++) {
@@ -45,7 +37,10 @@ server.bind(0, common.mustCall(async () => {
     }
   };
 
+  server.once('message', () => {
+    resolver.cancel();
+  });
+
   // Single query
-  addMessageListener();
   resolver.resolve4('example0.org', next);
 }));

@@ -5,6 +5,7 @@
 
 #include "debug_utils-inl.h"
 #include "env.h"
+#include "node_buffer.h"
 #include "v8.h"
 
 // Use ostringstream to print exact-width integer types
@@ -19,9 +20,14 @@ void AppendExceptionLine(Environment* env,
                          v8::Local<v8::Message> message,
                          enum ErrorHandlingMode mode);
 
+// This function calls backtrace, it should have not be marked as [[noreturn]].
+// But it is a public API, removing the attribute can break.
+// Prefer UNREACHABLE() internally instead, it doesn't need manually set
+// location.
 [[noreturn]] void OnFatalError(const char* location, const char* message);
-[[noreturn]] void OOMErrorHandler(const char* location,
-                                  const v8::OOMDetails& details);
+// This function calls backtrace, do not mark as [[noreturn]]. Read more in the
+// ABORT macro.
+void OOMErrorHandler(const char* location, const v8::OOMDetails& details);
 
 // Helpers to construct errors similar to the ones provided by
 // lib/internal/errors.js.
@@ -65,6 +71,13 @@ void AppendExceptionLine(Environment* env,
   V(ERR_DLOPEN_FAILED, Error)                                                  \
   V(ERR_ENCODING_INVALID_ENCODED_DATA, TypeError)                              \
   V(ERR_EXECUTION_ENVIRONMENT_NOT_AVAILABLE, Error)                            \
+  V(ERR_FS_CP_EINVAL, Error)                                                   \
+  V(ERR_FS_CP_DIR_TO_NON_DIR, Error)                                           \
+  V(ERR_FS_CP_NON_DIR_TO_DIR, Error)                                           \
+  V(ERR_FS_EISDIR, Error)                                                      \
+  V(ERR_FS_CP_SOCKET, Error)                                                   \
+  V(ERR_FS_CP_FIFO_PIPE, Error)                                                \
+  V(ERR_FS_CP_UNKNOWN, Error)                                                  \
   V(ERR_ILLEGAL_CONSTRUCTOR, Error)                                            \
   V(ERR_INVALID_ADDRESS, Error)                                                \
   V(ERR_INVALID_ARG_VALUE, TypeError)                                          \
@@ -72,6 +85,7 @@ void AppendExceptionLine(Environment* env,
   V(ERR_INVALID_ARG_TYPE, TypeError)                                           \
   V(ERR_INVALID_FILE_URL_HOST, TypeError)                                      \
   V(ERR_INVALID_FILE_URL_PATH, TypeError)                                      \
+  V(ERR_INVALID_PACKAGE_CONFIG, Error)                                         \
   V(ERR_INVALID_OBJECT_DEFINE_PROPERTY, TypeError)                             \
   V(ERR_INVALID_MODULE, Error)                                                 \
   V(ERR_INVALID_STATE, Error)                                                  \
@@ -86,6 +100,7 @@ void AppendExceptionLine(Environment* env,
   V(ERR_MODULE_NOT_FOUND, Error)                                               \
   V(ERR_NON_CONTEXT_AWARE_DISABLED, Error)                                     \
   V(ERR_OUT_OF_RANGE, RangeError)                                              \
+  V(ERR_REQUIRE_ASYNC_MODULE, Error)                                           \
   V(ERR_SCRIPT_EXECUTION_INTERRUPTED, Error)                                   \
   V(ERR_SCRIPT_EXECUTION_TIMEOUT, Error)                                       \
   V(ERR_STRING_TOO_LONG, Error)                                                \
@@ -124,6 +139,10 @@ void AppendExceptionLine(Environment* env,
   inline void THROW_##code(                                                    \
       Environment* env, const char* format, Args&&... args) {                  \
     THROW_##code(env->isolate(), format, std::forward<Args>(args)...);         \
+  }                                                                            \
+  template <typename... Args>                                                  \
+  inline void THROW_##code(Realm* realm, const char* format, Args&&... args) { \
+    THROW_##code(realm->isolate(), format, std::forward<Args>(args)...);       \
   }
 ERRORS_WITH_CODE(V)
 #undef V
@@ -179,6 +198,10 @@ ERRORS_WITH_CODE(V)
     "creating Workers")                                                        \
   V(ERR_NON_CONTEXT_AWARE_DISABLED,                                            \
     "Loading non context-aware native addons has been disabled")               \
+  V(ERR_REQUIRE_ASYNC_MODULE,                                                  \
+    "require() cannot be used on an ESM graph with top-level await. Use "      \
+    "import() instead. To see where the top-level await comes from, use "      \
+    "--experimental-print-required-tla.")                                      \
   V(ERR_SCRIPT_EXECUTION_INTERRUPTED,                                          \
     "Script execution was interrupted by `SIGINT`")                            \
   V(ERR_TLS_PSK_SET_IDENTIY_HINT_FAILED, "Failed to set PSK identity hint")    \
@@ -212,9 +235,10 @@ inline void THROW_ERR_SCRIPT_EXECUTION_TIMEOUT(Environment* env,
 
 inline v8::Local<v8::Value> ERR_BUFFER_TOO_LARGE(v8::Isolate* isolate) {
   char message[128];
-  snprintf(message, sizeof(message),
-      "Cannot create a Buffer larger than 0x%zx bytes",
-      v8::TypedArray::kMaxLength);
+  snprintf(message,
+           sizeof(message),
+           "Cannot create a Buffer larger than 0x%zx bytes",
+           Buffer::kMaxLength);
   return ERR_BUFFER_TOO_LARGE(isolate, message);
 }
 
@@ -280,6 +304,9 @@ void PerIsolateMessageListener(v8::Local<v8::Message> message,
 
 void DecorateErrorStack(Environment* env,
                         const errors::TryCatchScope& try_catch);
+void DecorateErrorStack(Environment* env,
+                        v8::Local<v8::Value> error,
+                        v8::Local<v8::Message> message);
 
 class PrinterTryCatch : public v8::TryCatch {
  public:

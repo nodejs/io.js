@@ -6,9 +6,7 @@
 test(() => {
   const decoder = new TextDecoder('utf-8');
   const buffer = new SharedArrayBuffer(4);
-  assert_throws_js(TypeError, () => {
-    decoder.decode(new Uint8Array(buffer));
-  }, 'constructing TextDecoder with SharedArrayBuffer view should throw');
+  assert_equals(decoder.decode(new Uint8Array(buffer)), "\u0000\u0000\u0000\u0000");
 }, 'decoding SharedArrayBuffer');
 
 </script>

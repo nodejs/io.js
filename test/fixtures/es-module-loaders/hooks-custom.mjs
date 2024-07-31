@@ -97,5 +97,13 @@ export function load(url, context, next) {
     };
   }
 
+  if (url.endsWith('esmHook/commonJsNullSource.mjs')) {
+    return {
+      format: 'commonjs',
+      shortCircuit: true,
+      source: 1n,
+    };
+  }
+
   return next(url);
 }

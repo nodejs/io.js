@@ -48,7 +48,7 @@ class JSCallReducerTest : public TypedGraphTest {
             isolate(), isolate()->global_object(),
             isolate()->factory()->NewStringFromAsciiChecked(name))
             .ToHandleChecked());
-    return HeapConstant(CanonicalHandle(f));
+    return HeapConstantNoHole(CanonicalHandle(f));
   }
 
   Node* MathFunction(const std::string& name) {
@@ -62,7 +62,7 @@ class JSCallReducerTest : public TypedGraphTest {
             isolate(), m,
             isolate()->factory()->NewStringFromAsciiChecked(name.c_str()))
             .ToHandleChecked());
-    return HeapConstant(CanonicalHandle(f));
+    return HeapConstantNoHole(CanonicalHandle(f));
   }
 
   Node* StringFunction(const char* name) {
@@ -75,7 +75,7 @@ class JSCallReducerTest : public TypedGraphTest {
         Object::GetProperty(
             isolate(), m, isolate()->factory()->NewStringFromAsciiChecked(name))
             .ToHandleChecked());
-    return HeapConstant(CanonicalHandle(f));
+    return HeapConstantNoHole(CanonicalHandle(f));
   }
 
   Node* NumberFunction(const char* name) {
@@ -88,7 +88,7 @@ class JSCallReducerTest : public TypedGraphTest {
         Object::GetProperty(
             isolate(), m, isolate()->factory()->NewStringFromAsciiChecked(name))
             .ToHandleChecked());
-    return HeapConstant(CanonicalHandle(f));
+    return HeapConstantNoHole(CanonicalHandle(f));
   }
 
   std::string op_name_for(const char* fnc) {
@@ -125,7 +125,7 @@ class JSCallReducerTest : public TypedGraphTest {
 
 TEST_F(JSCallReducerTest, PromiseConstructorNoArgs) {
   Node* promise =
-      HeapConstant(CanonicalHandle(native_context()->promise_function()));
+      HeapConstantNoHole(CanonicalHandle(native_context()->promise_function()));
   Node* effect = graph()->start();
   Node* control = graph()->start();
   Node* context = UndefinedConstant();
@@ -143,9 +143,9 @@ TEST_F(JSCallReducerTest, PromiseConstructorNoArgs) {
 
 TEST_F(JSCallReducerTest, PromiseConstructorSubclass) {
   Node* promise =
-      HeapConstant(CanonicalHandle(native_context()->promise_function()));
+      HeapConstantNoHole(CanonicalHandle(native_context()->promise_function()));
   Node* new_target =
-      HeapConstant(CanonicalHandle(native_context()->array_function()));
+      HeapConstantNoHole(CanonicalHandle(native_context()->array_function()));
   Node* effect = graph()->start();
   Node* control = graph()->start();
   Node* context = UndefinedConstant();
@@ -164,7 +164,7 @@ TEST_F(JSCallReducerTest, PromiseConstructorSubclass) {
 
 TEST_F(JSCallReducerTest, PromiseConstructorBasic) {
   Node* promise =
-      HeapConstant(CanonicalHandle(native_context()->promise_function()));
+      HeapConstantNoHole(CanonicalHandle(native_context()->promise_function()));
   Node* effect = graph()->start();
   Node* control = graph()->start();
   Node* context = UndefinedConstant();
@@ -184,7 +184,7 @@ TEST_F(JSCallReducerTest, PromiseConstructorBasic) {
 // except that we invalidate the protector cell.
 TEST_F(JSCallReducerTest, PromiseConstructorWithHook) {
   Node* promise =
-      HeapConstant(CanonicalHandle(native_context()->promise_function()));
+      HeapConstantNoHole(CanonicalHandle(native_context()->promise_function()));
   Node* effect = graph()->start();
   Node* control = graph()->start();
   Node* context = UndefinedConstant();

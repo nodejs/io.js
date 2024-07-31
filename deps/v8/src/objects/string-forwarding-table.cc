@@ -95,7 +95,7 @@ void StringForwardingTable::Block::UpdateAfterYoungEvacuation(
     if (!IsHeapObject(original)) continue;
     Tagged<HeapObject> object = HeapObject::cast(original);
     if (Heap::InFromPage(object)) {
-      DCHECK(!object.InWritableSharedSpace());
+      DCHECK(!InWritableSharedSpace(object));
       const bool was_forwarded = UpdateForwardedSlot(object, slot);
       if (!was_forwarded) {
         // The object died in young space.
@@ -206,9 +206,9 @@ StringForwardingTable::BlockVector* StringForwardingTable::EnsureCapacity(
 int StringForwardingTable::AddForwardString(Tagged<String> string,
                                             Tagged<String> forward_to) {
   DCHECK_IMPLIES(!v8_flags.always_use_string_forwarding_table,
-                 Object::InSharedHeap(string));
+                 InAnySharedSpace(string));
   DCHECK_IMPLIES(!v8_flags.always_use_string_forwarding_table,
-                 Object::InSharedHeap(forward_to));
+                 InAnySharedSpace(forward_to));
   int index = next_free_index_++;
   uint32_t index_in_block;
   const uint32_t block_index = BlockForIndex(index, &index_in_block);
@@ -237,7 +237,7 @@ int StringForwardingTable::AddExternalResourceAndHash(Tagged<String> string,
       std::is_base_of_v<v8::String::ExternalOneByteStringResource, T>;
 
   DCHECK_IMPLIES(!v8_flags.always_use_string_forwarding_table,
-                 Object::InSharedHeap(string));
+                 InAnySharedSpace(string));
   int index = next_free_index_++;
   uint32_t index_in_block;
   const uint32_t block_index = BlockForIndex(index, &index_in_block);

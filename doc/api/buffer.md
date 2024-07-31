@@ -808,8 +808,8 @@ A `TypeError` will be thrown if `size` is not a number.
 The `Buffer` module pre-allocates an internal `Buffer` instance of
 size [`Buffer.poolSize`][] that is used as a pool for the fast allocation of new
 `Buffer` instances created using [`Buffer.allocUnsafe()`][], [`Buffer.from(array)`][],
-and [`Buffer.concat()`][] only when `size` is less than or equal to
-`Buffer.poolSize >> 1` (floor of [`Buffer.poolSize`][] divided by two).
+[`Buffer.from(string)`][], and [`Buffer.concat()`][] only when `size` is less than
+`Buffer.poolSize >>> 1` (floor of [`Buffer.poolSize`][] divided by two).
 
 Use of this pre-allocated internal memory pool is a key difference between
 calling `Buffer.alloc(size, fill)` vs. `Buffer.allocUnsafe(size).fill(fill)`.
@@ -846,11 +846,11 @@ _may contain sensitive data_. Use [`buf.fill(0)`][`buf.fill()`] to initialize
 such `Buffer` instances with zeroes.
 
 When using [`Buffer.allocUnsafe()`][] to allocate new `Buffer` instances,
-allocations under 4 KiB are sliced from a single pre-allocated `Buffer`. This
-allows applications to avoid the garbage collection overhead of creating many
-individually allocated `Buffer` instances. This approach improves both
-performance and memory usage by eliminating the need to track and clean up as
-many individual `ArrayBuffer` objects.
+allocations less than `Buffer.poolSize >>> 1` (4KiB when default poolSize is used) are sliced
+from a single pre-allocated `Buffer`. This allows applications to avoid the
+garbage collection overhead of creating many individually allocated `Buffer`
+instances. This approach improves both performance and memory usage by
+eliminating the need to track and clean up as many individual `ArrayBuffer` objects.
 
 However, in the case where a developer may need to retain a small chunk of
 memory from a pool for an indeterminate amount of time, it may be appropriate
@@ -1389,6 +1389,9 @@ console.log(buf1.toString('latin1'));
 
 A `TypeError` will be thrown if `string` is not a string or another type
 appropriate for `Buffer.from()` variants.
+
+[`Buffer.from(string)`][] may also use the internal `Buffer` pool like
+[`Buffer.allocUnsafe()`][] does.
 
 ### Static method: `Buffer.isBuffer(obj)`
 
@@ -2224,7 +2227,7 @@ added: v1.1.0
 
 * Returns: {Iterator}
 
-Creates and returns an [iterator][] of `buf` keys (indices).
+Creates and returns an [iterator][] of `buf` keys (indexes).
 
 ```mjs
 import { Buffer } from 'node:buffer';
@@ -3343,7 +3346,7 @@ added: v3.0.0
 * Returns: {Buffer}
 
 Returns a new `Buffer` that references the same memory as the original, but
-offset and cropped by the `start` and `end` indices.
+offset and cropped by the `start` and `end` indexes.
 
 Specifying `end` greater than [`buf.length`][] will return the same result as
 that of `end` equal to [`buf.length`][].
@@ -3470,7 +3473,7 @@ changes:
 > Stability: 0 - Deprecated: Use [`buf.subarray`][] instead.
 
 Returns a new `Buffer` that references the same memory as the original, but
-offset and cropped by the `start` and `end` indices.
+offset and cropped by the `start` and `end` indexes.
 
 This method is not compatible with the `Uint8Array.prototype.slice()`,
 which is a superclass of `Buffer`. To copy the slice, use
@@ -5444,10 +5447,10 @@ to one of these new APIs._
   uninitialized, the allocated segment of memory might contain old data that is
   potentially sensitive.
 
-`Buffer` instances returned by [`Buffer.allocUnsafe()`][] and
-[`Buffer.from(array)`][] _may_ be allocated off a shared internal memory pool
-if `size` is less than or equal to half [`Buffer.poolSize`][]. Instances
-returned by [`Buffer.allocUnsafeSlow()`][] _never_ use the shared internal
+`Buffer` instances returned by [`Buffer.allocUnsafe()`][], [`Buffer.from(string)`][],
+[`Buffer.concat()`][] and [`Buffer.from(array)`][] _may_ be allocated off a shared
+internal memory pool if `size` is less than or equal to half [`Buffer.poolSize`][].
+Instances returned by [`Buffer.allocUnsafeSlow()`][] _never_ use the shared internal
 memory pool.
 
 ### The `--zero-fill-buffers` command-line option

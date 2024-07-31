@@ -239,9 +239,9 @@ int OSSL_PARAM_BLD_push_utf8_string(OSSL_PARAM_BLD *bld, const char *key,
     OSSL_PARAM_BLD_DEF *pd;
     int secure;
 
-    if (bsize == 0) {
+    if (bsize == 0)
         bsize = strlen(buf);
-    } else if (bsize > INT_MAX) {
+    if (bsize > INT_MAX) {
         ERR_raise(ERR_LIB_CRYPTO, CRYPTO_R_STRING_TOO_LONG);
         return 0;
     }
@@ -258,9 +258,9 @@ int OSSL_PARAM_BLD_push_utf8_ptr(OSSL_PARAM_BLD *bld, const char *key,
 {
     OSSL_PARAM_BLD_DEF *pd;
 
-    if (bsize == 0) {
+    if (bsize == 0)
         bsize = strlen(buf);
-    } else if (bsize > INT_MAX) {
+    if (bsize > INT_MAX) {
         ERR_raise(ERR_LIB_CRYPTO, CRYPTO_R_STRING_TOO_LONG);
         return 0;
     }

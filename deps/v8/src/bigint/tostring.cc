@@ -352,7 +352,7 @@ class RecursionLevel {
   RecursionLevel* next_{nullptr};
   ScratchDigits divisor_;
   std::unique_ptr<Storage> inverse_storage_;
-  Digits inverse_{nullptr, 0};
+  Digits inverse_;
 };
 
 // static

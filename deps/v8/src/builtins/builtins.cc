@@ -6,6 +6,7 @@
 
 #include "src/api/api-inl.h"
 #include "src/builtins/builtins-descriptors.h"
+#include "src/builtins/data-view-ops.h"
 #include "src/codegen/assembler-inl.h"
 #include "src/codegen/callable.h"
 #include "src/codegen/macro-assembler-inl.h"
@@ -121,52 +122,6 @@ const char* Builtins::Lookup(Address pc) {
   return nullptr;
 }
 
-Handle<Code> Builtins::CallFunction(ConvertReceiverMode mode) {
-  switch (mode) {
-    case ConvertReceiverMode::kNullOrUndefined:
-      return code_handle(Builtin::kCallFunction_ReceiverIsNullOrUndefined);
-    case ConvertReceiverMode::kNotNullOrUndefined:
-      return code_handle(Builtin::kCallFunction_ReceiverIsNotNullOrUndefined);
-    case ConvertReceiverMode::kAny:
-      return code_handle(Builtin::kCallFunction_ReceiverIsAny);
-  }
-  UNREACHABLE();
-}
-
-Handle<Code> Builtins::Call(ConvertReceiverMode mode) {
-  switch (mode) {
-    case ConvertReceiverMode::kNullOrUndefined:
-      return code_handle(Builtin::kCall_ReceiverIsNullOrUndefined);
-    case ConvertReceiverMode::kNotNullOrUndefined:
-      return code_handle(Builtin::kCall_ReceiverIsNotNullOrUndefined);
-    case ConvertReceiverMode::kAny:
-      return code_handle(Builtin::kCall_ReceiverIsAny);
-  }
-  UNREACHABLE();
-}
-
-Handle<Code> Builtins::NonPrimitiveToPrimitive(ToPrimitiveHint hint) {
-  switch (hint) {
-    case ToPrimitiveHint::kDefault:
-      return code_handle(Builtin::kNonPrimitiveToPrimitive_Default);
-    case ToPrimitiveHint::kNumber:
-      return code_handle(Builtin::kNonPrimitiveToPrimitive_Number);
-    case ToPrimitiveHint::kString:
-      return code_handle(Builtin::kNonPrimitiveToPrimitive_String);
-  }
-  UNREACHABLE();
-}
-
-Handle<Code> Builtins::OrdinaryToPrimitive(OrdinaryToPrimitiveHint hint) {
-  switch (hint) {
-    case OrdinaryToPrimitiveHint::kNumber:
-      return code_handle(Builtin::kOrdinaryToPrimitive_Number);
-    case OrdinaryToPrimitiveHint::kString:
-      return code_handle(Builtin::kOrdinaryToPrimitive_String);
-  }
-  UNREACHABLE();
-}
-
 FullObjectSlot Builtins::builtin_slot(Builtin builtin) {
   Address* location = &isolate_->builtin_table()[Builtins::ToInt(builtin)];
   return FullObjectSlot(location);
@@ -188,7 +143,7 @@ void Builtins::set_code(Builtin builtin, Tagged<Code> code) {
 
 Tagged<Code> Builtins::code(Builtin builtin) {
   Address ptr = isolate_->builtin_table()[Builtins::ToInt(builtin)];
-  return Code::cast(Object(ptr));
+  return Code::cast(Tagged<Object>(ptr));
 }
 
 Handle<Code> Builtins::code_handle(Builtin builtin) {
@@ -247,7 +202,7 @@ const char* Builtins::name(Builtin builtin) {
 }
 
 // static
-const char* Builtins::NameForStackTrace(Builtin builtin) {
+const char* Builtins::NameForStackTrace(Isolate* isolate, Builtin builtin) {
 #if V8_ENABLE_WEBASSEMBLY
   // Most builtins are never shown in stack traces. Those that are exposed
   // to JavaScript get their name from the object referring to them. Here
@@ -257,6 +212,58 @@ const char* Builtins::NameForStackTrace(Builtin builtin) {
   // - builtins that throw the same error as one of those above, but would
   //   lose information and e.g. print "indexOf" instead of "String.indexOf".
   switch (builtin) {
+    case Builtin::kDataViewPrototypeGetBigInt64:
+      return "DataView.prototype.getBigInt64";
+    case Builtin::kDataViewPrototypeGetBigUint64:
+      return "DataView.prototype.getBigUint64";
+    case Builtin::kDataViewPrototypeGetFloat16:
+      return "DataView.prototype.getFloat16";
+    case Builtin::kDataViewPrototypeGetFloat32:
+      return "DataView.prototype.getFloat32";
+    case Builtin::kDataViewPrototypeGetFloat64:
+      return "DataView.prototype.getFloat64";
+    case Builtin::kDataViewPrototypeGetInt8:
+      return "DataView.prototype.getInt8";
+    case Builtin::kDataViewPrototypeGetInt16:
+      return "DataView.prototype.getInt16";
+    case Builtin::kDataViewPrototypeGetInt32:
+      return "DataView.prototype.getInt32";
+    case Builtin::kDataViewPrototypeGetUint8:
+      return "DataView.prototype.getUint8";
+    case Builtin::kDataViewPrototypeGetUint16:
+      return "DataView.prototype.getUint16";
+    case Builtin::kDataViewPrototypeGetUint32:
+      return "DataView.prototype.getUint32";
+    case Builtin::kDataViewPrototypeSetBigInt64:
+      return "DataView.prototype.setBigInt64";
+    case Builtin::kDataViewPrototypeSetBigUint64:
+      return "DataView.prototype.setBigUint64";
+    case Builtin::kDataViewPrototypeSetFloat16:
+      return "DataView.prototype.setFloat16";
+    case Builtin::kDataViewPrototypeSetFloat32:
+      return "DataView.prototype.setFloat32";
+    case Builtin::kDataViewPrototypeSetFloat64:
+      return "DataView.prototype.setFloat64";
+    case Builtin::kDataViewPrototypeSetInt8:
+      return "DataView.prototype.setInt8";
+    case Builtin::kDataViewPrototypeSetInt16:
+      return "DataView.prototype.setInt16";
+    case Builtin::kDataViewPrototypeSetInt32:
+      return "DataView.prototype.setInt32";
+    case Builtin::kDataViewPrototypeSetUint8:
+      return "DataView.prototype.setUint8";
+    case Builtin::kDataViewPrototypeSetUint16:
+      return "DataView.prototype.setUint16";
+    case Builtin::kDataViewPrototypeSetUint32:
+      return "DataView.prototype.setUint32";
+    case Builtin::kDataViewPrototypeGetByteLength:
+      return "get DataView.prototype.byteLength";
+    case Builtin::kThrowDataViewDetachedError:
+    case Builtin::kThrowDataViewOutOfBounds:
+    case Builtin::kThrowDataViewTypeError: {
+      DataViewOp op = static_cast<DataViewOp>(isolate->error_message_param());
+      return ToString(op);
+    }
     case Builtin::kStringPrototypeToLocaleLowerCase:
       return "String.toLocaleLowerCase";
     case Builtin::kStringPrototypeIndexOf:
@@ -460,12 +467,34 @@ bool Builtins::IsCpp(Builtin builtin) {
 }
 
 // static
+CodeEntrypointTag Builtins::EntrypointTagFor(Builtin builtin) {
+  if (builtin == Builtin::kNoBuiltinId) {
+    // Special case needed for example for tests.
+    return kDefaultCodeEntrypointTag;
+  }
+
+  Kind kind = Builtins::KindOf(builtin);
+  switch (kind) {
+    case CPP:
+    case TFJ:
+      return kJSEntrypointTag;
+    case BCH:
+      return kBytecodeHandlerEntrypointTag;
+    case TFC:
+    case TFS:
+    case TFH:
+    case ASM:
+      return CallInterfaceDescriptorFor(builtin).tag();
+  }
+  UNREACHABLE();
+}
+
+// static
 bool Builtins::AllowDynamicFunction(Isolate* isolate, Handle<JSFunction> target,
                                     Handle<JSObject> target_global_proxy) {
   if (v8_flags.allow_unsafe_function_constructor) return true;
   HandleScopeImplementer* impl = isolate->handle_scope_implementer();
-  Handle<NativeContext> responsible_context =
-      impl->LastEnteredOrMicrotaskContext();
+  Handle<NativeContext> responsible_context = impl->LastEnteredContext();
   // TODO(verwaest): Remove this.
   if (responsible_context.is_null()) {
     return true;

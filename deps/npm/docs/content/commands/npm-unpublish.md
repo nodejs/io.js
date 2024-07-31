@@ -10,9 +10,8 @@ description: Remove a package from the registry
 npm unpublish [<package-spec>]
 ```
 
-To learn more about how the npm registry treats unpublish, see our <a
-href="https://docs.npmjs.com/policies/unpublish" target="_blank"
-rel="noopener noreferrer"> unpublish policies</a>
+To learn more about how the npm registry treats unpublish, see our
+[unpublish policies](https://docs.npmjs.com/policies/unpublish).
 
 ### Warning
 
@@ -28,8 +27,12 @@ removing the tarball.
 The npm registry will return an error if you are not [logged
 in](/commands/npm-adduser).
 
-If you do not specify a version or if you remove all of a package's
-versions then the registry will remove the root package entry entirely.
+If you do not specify a package name at all, the name and version to be
+unpublished will be pulled from the project in the current directory.
+
+If you specify a package name but do not specify a version or if you
+remove all of a package's versions then the registry will remove the
+root package entry entirely.
 
 Even if you unpublish a package version, that specific name and version
 combination can never be reused. In order to publish the package again,

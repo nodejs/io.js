@@ -904,7 +904,7 @@ function js_div(a, b) { return (a / b) | 0; }
 (function TestNonImportedGlobalInElementSegment() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  let global = builder.addGlobal(kWasmFuncRef, false,
+  let global = builder.addGlobal(kWasmFuncRef, true, false,
                                  [kExprRefNull, kFuncRefCode]);
   let table = builder.addTable(kWasmFuncRef, 10, 10);
   builder.addActiveElementSegment(
@@ -914,5 +914,5 @@ function js_div(a, b) { return (a / b) | 0; }
 
   assertThrows(
     () => builder.instantiate(), WebAssembly.CompileError,
-    /non-imported globals cannot be used in constant expressions/);
+    /mutable globals cannot be used in constant expressions/);
 })();

@@ -99,7 +99,7 @@ class V8_EXPORT_PRIVATE LocalIsolate final : private HiddenLocalFactory {
 
   AccountingAllocator* allocator() { return isolate_->allocator(); }
 
-  bool has_pending_exception() const { return false; }
+  bool has_exception() const { return false; }
   bool serializer_enabled() const { return isolate_->serializer_enabled(); }
 
   void RegisterDeserializerStarted();
@@ -149,7 +149,7 @@ class V8_EXPORT_PRIVATE LocalIsolate final : private HiddenLocalFactory {
   const v8::StartupData* snapshot_blob() const {
     return isolate_->snapshot_blob();
   }
-  Object* pending_message_address() {
+  Tagged<Object>* pending_message_address() {
     return isolate_->pending_message_address();
   }
 
@@ -166,6 +166,10 @@ class V8_EXPORT_PRIVATE LocalIsolate final : private HiddenLocalFactory {
  private:
   friend class v8::internal::LocalFactory;
   friend class LocalIsolateFactory;
+  friend class IsolateForSandbox;
+
+  // See IsolateForSandbox.
+  Isolate* ForSandbox() { return isolate_; }
 
   void InitializeBigIntProcessor();
 

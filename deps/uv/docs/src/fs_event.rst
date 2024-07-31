@@ -39,8 +39,12 @@ Data types
 .. c:type:: void (*uv_fs_event_cb)(uv_fs_event_t* handle, const char* filename, int events, int status)
 
     Callback passed to :c:func:`uv_fs_event_start` which will be called repeatedly
-    after the handle is started. If the handle was started with a directory the
-    `filename` parameter will be a relative path to a file contained in the directory.
+    after the handle is started.
+
+    If the handle was started with a directory the `filename` parameter will
+    be a relative path to a file contained in the directory, or `NULL` if the
+    file name cannot be determined.
+
     The `events` parameter is an ORed mask of :c:type:`uv_fs_event` elements.
 
 .. c:type:: uv_fs_event

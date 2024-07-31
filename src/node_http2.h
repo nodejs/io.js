@@ -627,6 +627,15 @@ class Http2Session : public AsyncWrap,
     flags_ |= kSessionStateClosed;
   }
 
+  struct custom_settings_state {
+    size_t number;
+    nghttp2_settings_entry entries[MAX_ADDITIONAL_SETTINGS];
+  };
+
+  custom_settings_state& custom_settings(bool local) {
+    return local ? local_custom_settings_ : remote_custom_settings_;
+  }
+
 #define IS_FLAG(name, flag)                                                    \
   bool is_##name() const { return flags_ & flag; }                             \
   void set_##name(bool on = true) {                                            \
@@ -715,7 +724,7 @@ class Http2Session : public AsyncWrap,
   static void AltSvc(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void Origin(const v8::FunctionCallbackInfo<v8::Value>& args);
 
-  template <get_setting fn>
+  template <get_setting fn, bool local>
   static void RefreshSettings(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   uv_loop_t* event_loop() const {
@@ -738,6 +747,9 @@ class Http2Session : public AsyncWrap,
     DCHECK_LE(amount, current_session_memory_);
     current_session_memory_ -= amount;
   }
+
+  void UpdateLocalCustomSettings(size_t count_,
+                                 nghttp2_settings_entry* entries_);
 
   // Tell our custom memory allocator that this rcbuf is independent of
   // this session now, and may outlive it.
@@ -775,6 +787,8 @@ class Http2Session : public AsyncWrap,
 
  private:
   void EmitStatistics();
+
+  void FetchAllowedRemoteCustomSettings();
 
   // Frame Padding Strategies
   ssize_t OnDWordAlignedPadding(size_t frameLength,
@@ -915,6 +929,9 @@ class Http2Session : public AsyncWrap,
   size_t max_outstanding_settings_ = kDefaultMaxSettings;
   std::queue<BaseObjectPtr<Http2Settings>> outstanding_settings_;
 
+  struct custom_settings_state local_custom_settings_;
+  struct custom_settings_state remote_custom_settings_;
+
   std::vector<NgHttp2StreamWrite> outgoing_buffers_;
   std::vector<uint8_t> outgoing_storage_;
   size_t outgoing_length_ = 0;
@@ -1018,8 +1035,7 @@ class Http2Settings : public AsyncWrap {
   static void RefreshDefaults(Http2State* http2_state);
 
   // Update the local or remote settings for the given session
-  static void Update(Http2Session* session,
-                     get_setting fn);
+  static void Update(Http2Session* session, get_setting fn, bool local);
 
  private:
   static size_t Init(
@@ -1035,7 +1051,7 @@ class Http2Settings : public AsyncWrap {
   v8::Global<v8::Function> callback_;
   uint64_t startTime_;
   size_t count_ = 0;
-  nghttp2_settings_entry entries_[IDX_SETTINGS_COUNT];
+  nghttp2_settings_entry entries_[IDX_SETTINGS_COUNT + MAX_ADDITIONAL_SETTINGS];
 };
 
 class Origins {

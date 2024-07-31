@@ -99,7 +99,7 @@ findDirname(const char *path, char *buffer, int32_t bufLen, UErrorCode* status);
  * Return the current year in the Gregorian calendar. Used for copyright generation.
  */
 U_CAPI int32_t U_EXPORT2
-getCurrentYear();
+getCurrentYear(void);
 
 /*
  * Creates a directory with pathname.

@@ -55,7 +55,7 @@ assert.strictEqual(r1.output, stream);
 assert.strictEqual(r1.input, r1.inputStream);
 assert.strictEqual(r1.output, r1.outputStream);
 assert.strictEqual(r1.terminal, true);
-assert.strictEqual(r1.useColors, r1.terminal);
+assert.strictEqual(r1.useColors, false);
 assert.strictEqual(r1.useGlobal, false);
 assert.strictEqual(r1.ignoreUndefined, false);
 assert.strictEqual(r1.replMode, repl.REPL_MODE_SLOPPY);

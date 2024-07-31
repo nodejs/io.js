@@ -211,6 +211,15 @@ inline std::ostream& operator<<(std::ostream& out, StructType type) {
   return out;
 }
 
+// Support base::hash<StructType>.
+inline size_t hash_value(const StructType& type) {
+  return base::Hasher{}
+      .Add(type.field_count())
+      .AddRange(type.fields())
+      .AddRange(type.mutabilities())
+      .hash();
+}
+
 class ArrayType : public ZoneObject {
  public:
   constexpr explicit ArrayType(ValueType rep, bool mutability)
@@ -234,6 +243,11 @@ class ArrayType : public ZoneObject {
 };
 
 inline constexpr intptr_t ArrayType::kRepOffset = offsetof(ArrayType, rep_);
+
+// Support base::hash<ArrayType>.
+inline size_t hash_value(const ArrayType& type) {
+  return base::Hasher::Combine(type.element_type(), type.mutability());
+}
 
 }  // namespace wasm
 }  // namespace internal

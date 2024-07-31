@@ -7,6 +7,7 @@ const { Readable } = require('stream');
 const buf = Buffer.alloc(8192);
 
 const readable = new Readable({
+  highWaterMark: 16 * 1024,
   read: common.mustCall(function() {
     this.push(buf);
   }, 31)

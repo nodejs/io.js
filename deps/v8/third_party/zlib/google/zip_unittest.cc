@@ -206,7 +206,7 @@ class VirtualFileSystem : public zip::FileAccessor {
 
     info->is_directory = !files_.count(path);
     info->last_modified =
-        base::Time::FromDoubleT(172097977);  // Some random date.
+        base::Time::FromSecondsSinceUnixEpoch(172097977);  // Some random date.
 
     return true;
   }
@@ -256,7 +256,7 @@ class ZipTest : public PlatformTest {
 
   static base::FilePath GetDataDirectory() {
     base::FilePath path;
-    bool success = base::PathService::Get(base::DIR_SOURCE_ROOT, &path);
+    bool success = base::PathService::Get(base::DIR_SRC_TEST_DATA_ROOT, &path);
     EXPECT_TRUE(success);
     return std::move(path)
         .AppendASCII("third_party")

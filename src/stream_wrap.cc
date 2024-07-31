@@ -311,7 +311,7 @@ void LibuvStreamWrap::GetWriteQueueSize(
 
 void LibuvStreamWrap::SetBlocking(const FunctionCallbackInfo<Value>& args) {
   LibuvStreamWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
 
   CHECK_GT(args.Length(), 0);
   if (!wrap->IsAlive())

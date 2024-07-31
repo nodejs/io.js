@@ -25,43 +25,67 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
-#include <assert.h>
-#include "ares.h"
+#include "ares_private.h"
 
 const char *ares_strerror(int code)
 {
-  /* Return a string literal from a table. */
-  const char *errtext[] = {
-    "Successful completion",
-    "DNS server returned answer with no data",
-    "DNS server claims query was misformatted",
-    "DNS server returned general failure",
-    "Domain name not found",
-    "DNS server does not implement requested operation",
-    "DNS server refused query",
-    "Misformatted DNS query",
-    "Misformatted domain name",
-    "Unsupported address family",
-    "Misformatted DNS reply",
-    "Could not contact DNS servers",
-    "Timeout while contacting DNS servers",
-    "End of file",
-    "Error reading file",
-    "Out of memory",
-    "Channel is being destroyed",
-    "Misformatted string",
-    "Illegal flags specified",
-    "Given hostname is not numeric",
-    "Illegal hints flags specified",
-    "c-ares library initialization not yet performed",
-    "Error loading iphlpapi.dll",
-    "Could not find GetNetworkParams function",
-    "DNS query cancelled"
-  };
+  ares_status_t status = (ares_status_t)code;
+  switch (status) {
+    case ARES_SUCCESS:
+      return "Successful completion";
+    case ARES_ENODATA:
+      return "DNS server returned answer with no data";
+    case ARES_EFORMERR:
+      return "DNS server claims query was misformatted";
+    case ARES_ESERVFAIL:
+      return "DNS server returned general failure";
+    case ARES_ENOTFOUND:
+      return "Domain name not found";
+    case ARES_ENOTIMP:
+      return "DNS server does not implement requested operation";
+    case ARES_EREFUSED:
+      return "DNS server refused query";
+    case ARES_EBADQUERY:
+      return "Misformatted DNS query";
+    case ARES_EBADNAME:
+      return "Misformatted domain name";
+    case ARES_EBADFAMILY:
+      return "Unsupported address family";
+    case ARES_EBADRESP:
+      return "Misformatted DNS reply";
+    case ARES_ECONNREFUSED:
+      return "Could not contact DNS servers";
+    case ARES_ETIMEOUT:
+      return "Timeout while contacting DNS servers";
+    case ARES_EOF:
+      return "End of file";
+    case ARES_EFILE:
+      return "Error reading file";
+    case ARES_ENOMEM:
+      return "Out of memory";
+    case ARES_EDESTRUCTION:
+      return "Channel is being destroyed";
+    case ARES_EBADSTR:
+      return "Misformatted string";
+    case ARES_EBADFLAGS:
+      return "Illegal flags specified";
+    case ARES_ENONAME:
+      return "Given hostname is not numeric";
+    case ARES_EBADHINTS:
+      return "Illegal hints flags specified";
+    case ARES_ENOTINITIALIZED:
+      return "c-ares library initialization not yet performed";
+    case ARES_ELOADIPHLPAPI:
+      return "Error loading iphlpapi.dll";
+    case ARES_EADDRGETNETWORKPARAMS:
+      return "Could not find GetNetworkParams function";
+    case ARES_ECANCELLED:
+      return "DNS query cancelled";
+    case ARES_ESERVICE:
+      return "Invalid service name or number";
+    case ARES_ENOSERVER:
+      return "No DNS servers were configured";
+  }
 
-  if(code >= 0 && code < (int)(sizeof(errtext) / sizeof(*errtext)))
-    return errtext[code];
-  else
-    return "unknown";
+  return "unknown";
 }

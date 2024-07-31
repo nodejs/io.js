@@ -30,6 +30,9 @@ namespace cares_wrap {
 
 constexpr int ns_t_cname_or_a = -1;
 constexpr int DNS_ESETSRVPENDING = -1000;
+constexpr uint8_t DNS_ORDER_VERBATIM = 0;
+constexpr uint8_t DNS_ORDER_IPV4_FIRST = 1;
+constexpr uint8_t DNS_ORDER_IPV6_FIRST = 2;
 
 class ChannelWrap;
 
@@ -195,16 +198,16 @@ class GetAddrInfoReqWrap final : public ReqWrap<uv_getaddrinfo_t> {
  public:
   GetAddrInfoReqWrap(Environment* env,
                      v8::Local<v8::Object> req_wrap_obj,
-                     bool verbatim);
+                     uint8_t order);
 
   SET_NO_MEMORY_INFO()
   SET_MEMORY_INFO_NAME(GetAddrInfoReqWrap)
   SET_SELF_SIZE(GetAddrInfoReqWrap)
 
-  bool verbatim() const { return verbatim_; }
+  uint8_t order() const { return order_; }
 
  private:
-  const bool verbatim_;
+  const uint8_t order_;
 };
 
 class GetNameInfoReqWrap final : public ReqWrap<uv_getnameinfo_t> {

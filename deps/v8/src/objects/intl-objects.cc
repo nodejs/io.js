@@ -204,11 +204,15 @@ icu::UnicodeString Intl::ToICUUnicodeString(Isolate* isolate,
   std::unique_ptr<base::uc16[]> sap;
   // Short one-byte strings can be expanded on the stack to avoid allocating a
   // temporary buffer.
-  constexpr int kShortStringSize = 80;
+  constexpr unsigned int kShortStringSize = 80;
   UChar short_string_buffer[kShortStringSize];
   const UChar* uchar_buffer = nullptr;
   const String::FlatContent& flat = string->GetFlatContent(no_gc);
-  int32_t length = string->length();
+  // We read the length from the heap, so it may be untrusted (in the sandbox
+  // attacker model) and we therefore need to use an unsigned int here when
+  // comparing it against the kShortStringSize.
+  // TODO(saelo): consider using uint32_t for the size in String objects.
+  uint32_t length = string->length();
   DCHECK_LE(offset, length);
   if (flat.IsOneByte() && length <= kShortStringSize) {
     CopyChars(short_string_buffer, flat.ToOneByteVector().begin(), length);
@@ -669,7 +673,7 @@ Maybe<std::string> CanonicalizeLanguageTag(Isolate* isolate,
                                            const std::string& locale_in) {
   std::string locale = locale_in;
 
-  if (locale.length() == 0 ||
+  if (locale.empty() ||
       !String::IsAscii(locale.data(), static_cast<int>(locale.length()))) {
     THROW_NEW_ERROR_RETURN_VALUE(
         isolate,
@@ -875,7 +879,7 @@ MaybeHandle<String> Intl::StringLocaleConvertCase(Isolate* isolate,
   if (!CanonicalizeLocaleList(isolate, locales, true).To(&requested_locales)) {
     return MaybeHandle<String>();
   }
-  std::string requested_locale = requested_locales.size() == 0
+  std::string requested_locale = requested_locales.empty()
                                      ? isolate->DefaultLocale()
                                      : requested_locales[0];
   size_t dash = requested_locale.find('-');
@@ -1597,27 +1601,14 @@ Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
   // 6. Set intlObj.[[MinimumIntegerDigits]] to mnid.
   digit_options.minimum_integer_digits = mnid;
 
-  // 7. Let roundingPriority be ? GetOption(options, "roundingPriority",
-  // "string", « "auto", "morePrecision", "lessPrecision" », "auto").
-
-  Maybe<RoundingPriority> maybe_rounding_priority =
-      GetStringOption<RoundingPriority>(
-          isolate, options, "roundingPriority", service,
-          {"auto", "morePrecision", "lessPrecision"},
-          {RoundingPriority::kAuto, RoundingPriority::kMorePrecision,
-           RoundingPriority::kLessPrecision},
-          RoundingPriority::kAuto);
-  MAYBE_RETURN(maybe_rounding_priority, Nothing<NumberFormatDigitOptions>());
-  digit_options.rounding_priority = maybe_rounding_priority.FromJust();
-
-  // 8. Let roundingIncrement be ? GetNumberOption(options, "roundingIncrement",
+  // 7. Let roundingIncrement be ? GetNumberOption(options, "roundingIncrement",
   // 1, 5000, 1).
   Maybe<int> maybe_rounding_increment = GetNumberOption(
       isolate, options, factory->roundingIncrement_string(), 1, 5000, 1);
   if (!maybe_rounding_increment.To(&digit_options.rounding_increment)) {
     return Nothing<NumberFormatDigitOptions>();
   }
-  // 9. If roundingIncrement is not in « 1, 2, 5, 10, 20, 25, 50, 100, 200, 250,
+  // 8. If roundingIncrement is not in « 1, 2, 5, 10, 20, 25, 50, 100, 200, 250,
   // 500, 1000, 2000, 2500, 5000 », throw a RangeError exception.
   if (!IsValidRoundingIncrement(digit_options.rounding_increment)) {
     THROW_NEW_ERROR_RETURN_VALUE(
@@ -1627,7 +1618,7 @@ Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
         Nothing<NumberFormatDigitOptions>());
   }
 
-  // 10. Let roundingMode be ? GetOption(options, "roundingMode", string, «
+  // 9. Let roundingMode be ? GetOption(options, "roundingMode", string, «
   // "ceil", "floor", "expand", "trunc", "halfCeil", "halfFloor", "halfExpand",
   // "halfTrunc", "halfEven" », "halfExpand").
   Maybe<RoundingMode> maybe_rounding_mode = GetStringOption<RoundingMode>(
@@ -1641,6 +1632,19 @@ Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
       RoundingMode::kHalfExpand);
   MAYBE_RETURN(maybe_rounding_mode, Nothing<NumberFormatDigitOptions>());
   digit_options.rounding_mode = maybe_rounding_mode.FromJust();
+
+  // 10. Let roundingPriority be ? GetOption(options, "roundingPriority",
+  // "string", « "auto", "morePrecision", "lessPrecision" », "auto").
+
+  Maybe<RoundingPriority> maybe_rounding_priority =
+      GetStringOption<RoundingPriority>(
+          isolate, options, "roundingPriority", service,
+          {"auto", "morePrecision", "lessPrecision"},
+          {RoundingPriority::kAuto, RoundingPriority::kMorePrecision,
+           RoundingPriority::kLessPrecision},
+          RoundingPriority::kAuto);
+  MAYBE_RETURN(maybe_rounding_priority, Nothing<NumberFormatDigitOptions>());
+  digit_options.rounding_priority = maybe_rounding_priority.FromJust();
 
   // 11. Let trailingZeroDisplay be ? GetOption(options, "trailingZeroDisplay",
   // string, « "auto", "stripIfInteger" », "auto").
@@ -2153,7 +2157,7 @@ MaybeHandle<JSArray> VectorToJSArray(Isolate* isolate,
   Handle<FixedArray> fixed_array =
       factory->NewFixedArray(static_cast<int32_t>(array.size()));
   int32_t index = 0;
-  for (std::string item : array) {
+  for (const std::string& item : array) {
     Handle<String> str = factory->NewStringFromAsciiChecked(item.c_str());
     fixed_array->set(index++, *str);
   }
@@ -2256,7 +2260,7 @@ MaybeHandle<JSArray> AvailableUnits(Isolate* isolate) {
   Handle<FixedArray> fixed_array =
       factory->NewFixedArray(static_cast<int32_t>(sanctioned.size()));
   int32_t index = 0;
-  for (std::string item : sanctioned) {
+  for (const std::string& item : sanctioned) {
     Handle<String> str = factory->NewStringFromAsciiChecked(item.c_str());
     fixed_array->set(index++, *str);
   }
@@ -2387,7 +2391,7 @@ bool Intl::IsValidNumberingSystem(const std::string& value) {
   UErrorCode status = U_ZERO_ERROR;
   std::unique_ptr<icu::NumberingSystem> numbering_system(
       icu::NumberingSystem::createInstanceByName(value.c_str(), status));
-  return U_SUCCESS(status) && numbering_system.get() != nullptr &&
+  return U_SUCCESS(status) && numbering_system != nullptr &&
          !numbering_system->isAlgorithmic();
 }
 

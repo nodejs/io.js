@@ -63,6 +63,9 @@
   'debug/es8/async-debug-caught-exception-cases2': [SKIP],
   'debug/es8/async-debug-caught-exception-cases3': [SKIP],
   'debug/es8/async-function-debug-scopes': [SKIP],
+
+  # https://crbug.com/v8/14420
+  'debug/side-effect/debug-evaluate-no-side-effect-builtins': [SKIP],
 }],  # 'gc_stress == True'
 
 ##############################################################################

@@ -88,8 +88,10 @@
              Description="!(loc.npm_Description)">
       <ComponentRef Id="NpmCmdScript"/>
       <ComponentRef Id="NpmBashScript"/>
+      <ComponentRef Id="NpmPowerShellScript"/>
       <ComponentRef Id="NpxCmdScript"/>
       <ComponentRef Id="NpxBashScript"/>
+      <ComponentRef Id="NpxPowerShellScript"/>
       <ComponentRef Id="NpmConfigurationFile"/>
       <ComponentRef Id="SetInstallDirPermission" />
       <ComponentGroupRef Id="NpmSourceFiles"/>
@@ -224,12 +226,20 @@
         <File Id="npm.sh" KeyPath="yes" Source="$(var.NpmSourceDir)\bin\npm"/>
       </Component>
 
+      <Component Id="NpmPowerShellScript">
+        <File Id="npm.ps1" KeyPath="yes" Source="$(var.NpmSourceDir)\bin\npm.ps1"/>
+      </Component>
+
       <Component Id="NpxCmdScript">
         <File Id="npx.cmd" KeyPath="yes" Source="$(var.NpmSourceDir)\bin\npx.cmd"/>
       </Component>
 
       <Component Id="NpxBashScript">
         <File Id="npx.sh" KeyPath="yes" Source="$(var.NpmSourceDir)\bin\npx"/>
+      </Component>
+
+      <Component Id="NpxPowerShellScript">
+        <File Id="npx.ps1" KeyPath="yes" Source="$(var.NpmSourceDir)\bin\npx.ps1"/>
       </Component>
 
       <Directory Id="NodeModulesFolder" Name="node_modules">

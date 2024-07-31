@@ -5,8 +5,7 @@
 // Helpers to test interoperability of Wasm objects in JavaScript.
 
 // The following flags are required:
-// Flags: --turbofan --no-always-turbofan --experimental-wasm-gc
-// Flags: --allow-natives-syntax
+// Flags: --turbofan --no-always-turbofan --allow-natives-syntax
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -19,14 +18,14 @@ function CreateWasmObjects() {
       .addBody([
         kExprI32Const, 42,                       // --
         kGCPrefix, kExprStructNew, struct_type,  // --
-        kGCPrefix, kExprExternExternalize        // --
+        kGCPrefix, kExprExternConvertAny        // --
       ]);
   builder.addFunction('MakeArray', makeSig([], [kWasmExternRef]))
       .exportFunc()
       .addBody([
         kExprI32Const, 2,                             // length
         kGCPrefix, kExprArrayNewDefault, array_type,  // --
-        kGCPrefix, kExprExternExternalize             // --
+        kGCPrefix, kExprExternConvertAny             // --
       ]);
 
   let instance = builder.instantiate();

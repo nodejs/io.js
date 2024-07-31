@@ -1,19 +1,6 @@
 .\"
 .\" Copyright (C) the Massachusetts Institute of Technology.
 .\" Copyright (C) Daniel Stenberg
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ADIG "1" "April 2011" "c-ares utilities"
@@ -44,12 +31,13 @@ Print some extra debugging output.
 \fB\-f\fR flag
 Add a behavior control flag.
 Possible values for flag are
- igntc - ignore to query in TCP to get truncated UDP answer,
+ igntc     - ignore query truncation, return answer as-is instead of retrying
+             via tcp.
  noaliases - don't honor the HOSTALIASES environment variable,
  norecurse - don't query upstream servers recursively,
- primary - use the first server,
- stayopen - don't close the communication sockets, and
- usevc - always use TCP.
+ primary   - use the first server,
+ stayopen  - don't close the communication sockets, and
+ usevc     - always use TCP.
 .TP
 \fB\-h\fR, \fB\-?\fR
 Display this help and exit.
@@ -61,27 +49,14 @@ Servers are tried in round-robin, if the previous one failed.
 \fB\-t\fR type
 Query records of specified type.
 Possible values for type are
-A (default), AAAA, AFSDB, ANY, AXFR, CNAME, GPOS, HINFO, ISDN, KEY, LOC, MAILA,
-MAILB, MB, MD, MF, MG, MINFO, MR, MX, NAPTR, NS, NSAP, NSAP_PTR, NULL,
-PTR, PX, RP, RT, SIG, SOA, SRV, TXT, URI, WKS and X25.
+A (default), AAAA, ANY, AXFR, CNAME, HINFO, MX, NAPTR, NS, PTR, SOA, SRV, TXT,
+URI, CAA, SVCB, and HTTPS.
 .TP
 \fB\-T\fR port
 Connect to the specified TCP port of DNS server.
 .TP
 \fB\-U\fR port
 Connect to the specified UDP port of DNS server.
-.TP
-\fB\-x\fR
-For an IPv4 \fB-t PTR a.b.c.d\fR lookup, query for
-.br
-\fBd.c.b.a.in-addr.arpa.\fR
-This more often gives correct names in the \fBANSWER\fR.
-.br
-For an IPv6 \fB-t PTR addr\fR lookup, query for \fBa.b.c....z.IP6.ARPA.\fR
-.TP
-\fB\-xx\fR
-As for \fB-x\fR and an IPv6 address, compact \fBa.b.c....z.IP6.ARPA.\fR into a RFC-2673 bit-string.
-This compacted \fBbit-string\fR form is not supported by many DNS-servers.
 
 .SH "REPORTING BUGS"
 Report bugs to the c-ares mailing list:
@@ -89,21 +64,4 @@ Report bugs to the c-ares mailing list:
 \fBhttps://lists.haxx.se/listinfo/c-ares\fR
 .SH "SEE ALSO"
 .PP
-acountry(1), ahost(1).
-.SH COPYRIGHT
-This utility is based on code/ideas contained in sofware written by Greg Hudson (ares)
-carrying the following notice:
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.
-.br
-Permission to use, copy, modify, and distribute this software and its
-documentation for any purpose and without fee is hereby granted,
-provided that the above copyright notice appear in all copies and that
-both that copyright notice and this permission notice appear in
-supporting documentation, and that the name of M.I.T. not be used in
-advertising or publicity pertaining to distribution of the software
-without specific, written prior permission. M.I.T. makes no
-representations about the suitability of this software for any
-purpose. It is provided "as is" without express or implied warranty.
-.br
-No further copyright claims are being made by the author(s) of this utility.
+ahost(1).

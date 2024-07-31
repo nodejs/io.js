@@ -68,7 +68,7 @@ static int32_t submit_headers_shared(nghttp2_session *session, uint8_t flags,
                                      int32_t stream_id,
                                      const nghttp2_priority_spec *pri_spec,
                                      nghttp2_nv *nva_copy, size_t nvlen,
-                                     const nghttp2_data_provider *data_prd,
+                                     const nghttp2_data_provider_wrap *dpw,
                                      void *stream_user_data) {
   int rv;
   uint8_t flags_copy;
@@ -87,8 +87,8 @@ static int32_t submit_headers_shared(nghttp2_session *session, uint8_t flags,
 
   nghttp2_outbound_item_init(item);
 
-  if (data_prd != NULL && data_prd->read_callback != NULL) {
-    item->aux_data.headers.data_prd = *data_prd;
+  if (dpw != NULL && dpw->data_prd.read_callback != NULL) {
+    item->aux_data.headers.dpw = *dpw;
   }
 
   item->aux_data.headers.stream_user_data = stream_user_data;
@@ -143,7 +143,7 @@ static int32_t submit_headers_shared_nva(nghttp2_session *session,
                                          uint8_t flags, int32_t stream_id,
                                          const nghttp2_priority_spec *pri_spec,
                                          const nghttp2_nv *nva, size_t nvlen,
-                                         const nghttp2_data_provider *data_prd,
+                                         const nghttp2_data_provider_wrap *dpw,
                                          void *stream_user_data) {
   int rv;
   nghttp2_nv *nva_copy;
@@ -165,7 +165,7 @@ static int32_t submit_headers_shared_nva(nghttp2_session *session,
   }
 
   return submit_headers_shared(session, flags, stream_id, &copy_pri_spec,
-                               nva_copy, nvlen, data_prd, stream_user_data);
+                               nva_copy, nvlen, dpw, stream_user_data);
 }
 
 int nghttp2_submit_trailer(nghttp2_session *session, int32_t stream_id,
@@ -411,10 +411,10 @@ int nghttp2_submit_window_update(nghttp2_session *session, uint8_t flags,
   if (window_size_increment > 0) {
     if (stream_id == 0) {
       session->consumed_size =
-          nghttp2_max(0, session->consumed_size - window_size_increment);
+          nghttp2_max_int32(0, session->consumed_size - window_size_increment);
     } else {
       stream->consumed_size =
-          nghttp2_max(0, stream->consumed_size - window_size_increment);
+          nghttp2_max_int32(0, stream->consumed_size - window_size_increment);
     }
 
     return nghttp2_session_add_window_update(session, 0, stream_id,
@@ -740,9 +740,9 @@ fail_item_malloc:
 }
 
 static uint8_t set_request_flags(const nghttp2_priority_spec *pri_spec,
-                                 const nghttp2_data_provider *data_prd) {
+                                 const nghttp2_data_provider_wrap *dpw) {
   uint8_t flags = NGHTTP2_FLAG_NONE;
-  if (data_prd == NULL || data_prd->read_callback == NULL) {
+  if (dpw == NULL || dpw->data_prd.read_callback == NULL) {
     flags |= NGHTTP2_FLAG_END_STREAM;
   }
 
@@ -753,11 +753,11 @@ static uint8_t set_request_flags(const nghttp2_priority_spec *pri_spec,
   return flags;
 }
 
-int32_t nghttp2_submit_request(nghttp2_session *session,
-                               const nghttp2_priority_spec *pri_spec,
-                               const nghttp2_nv *nva, size_t nvlen,
-                               const nghttp2_data_provider *data_prd,
-                               void *stream_user_data) {
+static int32_t submit_request_shared(nghttp2_session *session,
+                                     const nghttp2_priority_spec *pri_spec,
+                                     const nghttp2_nv *nva, size_t nvlen,
+                                     const nghttp2_data_provider_wrap *dpw,
+                                     void *stream_user_data) {
   uint8_t flags;
   int rv;
 
@@ -775,23 +775,47 @@ int32_t nghttp2_submit_request(nghttp2_session *session,
     pri_spec = NULL;
   }
 
-  flags = set_request_flags(pri_spec, data_prd);
+  flags = set_request_flags(pri_spec, dpw);
 
   return submit_headers_shared_nva(session, flags, -1, pri_spec, nva, nvlen,
-                                   data_prd, stream_user_data);
+                                   dpw, stream_user_data);
 }
 
-static uint8_t set_response_flags(const nghttp2_data_provider *data_prd) {
+int32_t nghttp2_submit_request(nghttp2_session *session,
+                               const nghttp2_priority_spec *pri_spec,
+                               const nghttp2_nv *nva, size_t nvlen,
+                               const nghttp2_data_provider *data_prd,
+                               void *stream_user_data) {
+  nghttp2_data_provider_wrap dpw;
+
+  return submit_request_shared(session, pri_spec, nva, nvlen,
+                               nghttp2_data_provider_wrap_v1(&dpw, data_prd),
+                               stream_user_data);
+}
+
+int32_t nghttp2_submit_request2(nghttp2_session *session,
+                                const nghttp2_priority_spec *pri_spec,
+                                const nghttp2_nv *nva, size_t nvlen,
+                                const nghttp2_data_provider2 *data_prd,
+                                void *stream_user_data) {
+  nghttp2_data_provider_wrap dpw;
+
+  return submit_request_shared(session, pri_spec, nva, nvlen,
+                               nghttp2_data_provider_wrap_v2(&dpw, data_prd),
+                               stream_user_data);
+}
+
+static uint8_t set_response_flags(const nghttp2_data_provider_wrap *dpw) {
   uint8_t flags = NGHTTP2_FLAG_NONE;
-  if (data_prd == NULL || data_prd->read_callback == NULL) {
+  if (dpw == NULL || dpw->data_prd.read_callback == NULL) {
     flags |= NGHTTP2_FLAG_END_STREAM;
   }
   return flags;
 }
 
-int nghttp2_submit_response(nghttp2_session *session, int32_t stream_id,
-                            const nghttp2_nv *nva, size_t nvlen,
-                            const nghttp2_data_provider *data_prd) {
+static int submit_response_shared(nghttp2_session *session, int32_t stream_id,
+                                  const nghttp2_nv *nva, size_t nvlen,
+                                  const nghttp2_data_provider_wrap *dpw) {
   uint8_t flags;
 
   if (stream_id <= 0) {
@@ -802,14 +826,32 @@ int nghttp2_submit_response(nghttp2_session *session, int32_t stream_id,
     return NGHTTP2_ERR_PROTO;
   }
 
-  flags = set_response_flags(data_prd);
+  flags = set_response_flags(dpw);
   return submit_headers_shared_nva(session, flags, stream_id, NULL, nva, nvlen,
-                                   data_prd, NULL);
+                                   dpw, NULL);
 }
 
-int nghttp2_submit_data(nghttp2_session *session, uint8_t flags,
-                        int32_t stream_id,
-                        const nghttp2_data_provider *data_prd) {
+int nghttp2_submit_response(nghttp2_session *session, int32_t stream_id,
+                            const nghttp2_nv *nva, size_t nvlen,
+                            const nghttp2_data_provider *data_prd) {
+  nghttp2_data_provider_wrap dpw;
+
+  return submit_response_shared(session, stream_id, nva, nvlen,
+                                nghttp2_data_provider_wrap_v1(&dpw, data_prd));
+}
+
+int nghttp2_submit_response2(nghttp2_session *session, int32_t stream_id,
+                             const nghttp2_nv *nva, size_t nvlen,
+                             const nghttp2_data_provider2 *data_prd) {
+  nghttp2_data_provider_wrap dpw;
+
+  return submit_response_shared(session, stream_id, nva, nvlen,
+                                nghttp2_data_provider_wrap_v2(&dpw, data_prd));
+}
+
+int nghttp2_submit_data_shared(nghttp2_session *session, uint8_t flags,
+                               int32_t stream_id,
+                               const nghttp2_data_provider_wrap *dpw) {
   int rv;
   nghttp2_outbound_item *item;
   nghttp2_frame *frame;
@@ -832,7 +874,7 @@ int nghttp2_submit_data(nghttp2_session *session, uint8_t flags,
 
   frame = &item->frame;
   aux_data = &item->aux_data.data;
-  aux_data->data_prd = *data_prd;
+  aux_data->dpw = *dpw;
   aux_data->eof = 0;
   aux_data->flags = nflags;
 
@@ -848,9 +890,37 @@ int nghttp2_submit_data(nghttp2_session *session, uint8_t flags,
   return 0;
 }
 
+int nghttp2_submit_data(nghttp2_session *session, uint8_t flags,
+                        int32_t stream_id,
+                        const nghttp2_data_provider *data_prd) {
+  nghttp2_data_provider_wrap dpw;
+
+  assert(data_prd);
+
+  return nghttp2_submit_data_shared(
+      session, flags, stream_id, nghttp2_data_provider_wrap_v1(&dpw, data_prd));
+}
+
+int nghttp2_submit_data2(nghttp2_session *session, uint8_t flags,
+                         int32_t stream_id,
+                         const nghttp2_data_provider2 *data_prd) {
+  nghttp2_data_provider_wrap dpw;
+
+  assert(data_prd);
+
+  return nghttp2_submit_data_shared(
+      session, flags, stream_id, nghttp2_data_provider_wrap_v2(&dpw, data_prd));
+}
+
 ssize_t nghttp2_pack_settings_payload(uint8_t *buf, size_t buflen,
                                       const nghttp2_settings_entry *iv,
                                       size_t niv) {
+  return (ssize_t)nghttp2_pack_settings_payload2(buf, buflen, iv, niv);
+}
+
+nghttp2_ssize nghttp2_pack_settings_payload2(uint8_t *buf, size_t buflen,
+                                             const nghttp2_settings_entry *iv,
+                                             size_t niv) {
   if (!nghttp2_iv_check(iv, niv)) {
     return NGHTTP2_ERR_INVALID_ARGUMENT;
   }
@@ -859,7 +929,7 @@ ssize_t nghttp2_pack_settings_payload(uint8_t *buf, size_t buflen,
     return NGHTTP2_ERR_INSUFF_BUFSIZE;
   }
 
-  return (ssize_t)nghttp2_frame_pack_settings_payload(buf, iv, niv);
+  return (nghttp2_ssize)nghttp2_frame_pack_settings_payload(buf, iv, niv);
 }
 
 int nghttp2_submit_extension(nghttp2_session *session, uint8_t type,
@@ -875,7 +945,8 @@ int nghttp2_submit_extension(nghttp2_session *session, uint8_t type,
     return NGHTTP2_ERR_INVALID_ARGUMENT;
   }
 
-  if (!session->callbacks.pack_extension_callback) {
+  if (!session->callbacks.pack_extension_callback2 &&
+      !session->callbacks.pack_extension_callback) {
     return NGHTTP2_ERR_INVALID_STATE;
   }
 

@@ -4,11 +4,10 @@
     {"app_args": "--future", "app_name": "d8", "probability": 0.25},
     {"app_args": "--harmony-struct", "app_name": "d8", "probability": 0.1},
     {"app_args": "--jit-fuzzing", "app_name": "d8", "probability": 0.25},
-    {"app_args": "--jitless", "app_name": "d8", "probability": 0.1, "contradicts": ["--stress-concurrent-inlining", "--stress-concurrent-inlining-attach-code"]},
+    {"app_args": "--jitless", "app_name": "d8", "probability": 0.1, "contradicts": ["--maglev-future", "--stress-concurrent-inlining", "--stress-concurrent-inlining-attach-code", "--stress-maglev"]},
     {"app_args": "--maglev", "app_name": "d8", "probability": 0.1, "contradicts": ["--jitless"]},
     {"app_args": "--maglev-future", "app_name": "d8", "probability": 0.05, "contradicts": ["--jitless"]},
     {"app_args": "--minor-ms", "app_name": "d8", "probability": 0.25},
-    {"app_args": "--concurrent-minor-ms-marking", "app_name": "d8", "probability": 0.1},
     {"app_args": "--random-gc-interval=2000", "app_name": "d8", "probability": 0.05},
     {"app_args": "--optimize-on-next-call-optimizes-to-maglev", "app_name": "d8", "probability": 0.1},
     {"app_args": "--noanalyze-environment-liveness", "app_name": "d8", "probability": 0.1},
@@ -37,7 +36,7 @@
     {"app_args": "--stress-concurrent-inlining", "app_name": "d8", "probability": 0.25, "contradicts": ["--assert-types", "--jitless"]},
     {"app_args": "--stress-concurrent-inlining-attach-code", "app_name": "d8", "probability": 0.05, "contradicts": ["--assert-types", "--jitless"]},
     {"app_args": "--stress-flush-code", "app_name": "d8", "probability": 0.25},
-    {"app_args": "--stress-maglev", "app_name": "d8", "probability": 0.05},
+    {"app_args": "--stress-maglev", "app_name": "d8", "probability": 0.05, "contradicts": ["--jitless"]},
     {"app_args": "--stress-marking=100", "app_name": "d8", "probability": 0.05},
     {"app_args": "--stress-scavenge=100", "app_name": "d8", "probability": 0.05},
     {"app_args": "--turboshaft", "app_name": "d8", "probability": 0.2},
@@ -45,5 +44,7 @@
     {"app_args": "--turbo-stress-instruction-scheduling", "app_name": "d8", "probability": 0.1},
     {"app_args": "--stress-wasm-code-gc", "app_name": "d8", "probability": 0.1},
     {"app_args": "--lazy", "app_name": "d8", "probability": 0.1},
-    {"app_args": "--no-stress-lazy-source-positions", "app_name": "d8", "probability": 0.1}
+    {"app_args": "--no-stress-lazy-source-positions", "app_name": "d8", "probability": 0.1},
+    {"app_args": "--wasm-staging", "app_name": "d8", "probability": 0.25},
+    {"app_args": "--stress-wasm-memory-moving", "app_name": "d8", "probability": 0.1}
 ]

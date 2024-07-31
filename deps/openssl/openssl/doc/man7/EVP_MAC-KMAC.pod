@@ -27,7 +27,8 @@ properties, to be used with EVP_MAC_fetch():
 The general description of these parameters can be found in
 L<EVP_MAC(3)/PARAMETERS>.
 
-All these parameters can be set with EVP_MAC_CTX_set_params().
+All these parameters (except for "block-size") can be set with
+EVP_MAC_CTX_set_params().
 Furthermore, the "size" parameter can be retrieved with
 EVP_MAC_CTX_get_params(), or with EVP_MAC_CTX_get_mac_size().
 The length of the "size" parameter should not exceed that of a B<size_t>.
@@ -45,18 +46,19 @@ The length of the key (in bytes) must be in the range 4...512.
 
 =item "custom" (B<OSSL_MAC_PARAM_CUSTOM>) <octet string>
 
-Sets the custom value.
-It is an optional value with a length of at most 512 bytes, and is empty by default.
+Sets the customization string.
+It is an optional value with a length of at most 512 bytes, and is
+empty by default.
 
 =item "size" (B<OSSL_MAC_PARAM_SIZE>) <unsigned integer>
 
 Sets the MAC size.
-By default, it is 16 for C<KMAC-128> and 32 for C<KMAC-256>.
+By default, it is 32 for C<KMAC-128> and 64 for C<KMAC-256>.
 
-=item "block-size" (B<OSSL_MAC_PARAM_SIZE>) <unsigned integer>
+=item "block-size" (B<OSSL_MAC_PARAM_BLOCK_SIZE>) <unsigned integer>
 
 Gets the MAC block size.
-By default, it is 168 for C<KMAC-128> and 136 for C<KMAC-256>.
+It is 168 for C<KMAC-128> and 136 for C<KMAC-256>.
 
 =item "xof" (B<OSSL_MAC_PARAM_XOF>) <integer>
 

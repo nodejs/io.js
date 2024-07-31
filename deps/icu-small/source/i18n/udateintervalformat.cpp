@@ -57,7 +57,7 @@ udtitvfmt_open(const char*  locale,
     if (U_FAILURE(*status)) {
         return nullptr;
     }
-    if(tzID != 0) {
+    if (tzID != nullptr) {
         TimeZone *zone = TimeZone::createTimeZone(UnicodeString((UBool)(tzIDLength == -1), tzID, tzIDLength));
         if(zone == nullptr) {
             *status = U_MEMORY_ALLOCATION_ERROR;
@@ -99,7 +99,7 @@ udtitvfmt_format(const UDateIntervalFormat* formatter,
         res.setTo(result, 0, resultCapacity);
     }
     FieldPosition fp;
-    if (position != 0) {
+    if (position != nullptr) {
         fp.setField(position->field);
     }
 
@@ -108,7 +108,7 @@ udtitvfmt_format(const UDateIntervalFormat* formatter,
     if (U_FAILURE(*status)) {
         return -1;
     }
-    if (position != 0) {
+    if (position != nullptr) {
         position->beginIndex = fp.getBeginIndex();
         position->endIndex = fp.getEndIndex();
     }

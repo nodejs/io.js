@@ -7,21 +7,22 @@
 /* Algorithms for distributing the literals and commands of a metablock between
    block types and contexts. */
 
-#include "./memory.h"
+#include "memory.h"
 
 #include <stdlib.h>  /* exit, free, malloc */
 #include <string.h>  /* memcpy */
 
-#include "../common/platform.h"
 #include <brotli/types.h>
+
+#include "../common/platform.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
 
-#define MAX_PERM_ALLOCATED 128
-#define MAX_NEW_ALLOCATED 64
-#define MAX_NEW_FREED 64
+#define MAX_NEW_ALLOCATED (BROTLI_ENCODER_MEMORY_MANAGER_SLOTS >> 2)
+#define MAX_NEW_FREED (BROTLI_ENCODER_MEMORY_MANAGER_SLOTS >> 2)
+#define MAX_PERM_ALLOCATED (BROTLI_ENCODER_MEMORY_MANAGER_SLOTS >> 1)
 
 #define PERM_ALLOCATED_OFFSET 0
 #define NEW_ALLOCATED_OFFSET MAX_PERM_ALLOCATED
@@ -67,6 +68,7 @@ void BrotliWipeOutMemoryManager(MemoryManager* m) {
 
 static void SortPointers(void** items, const size_t n) {
   /* Shell sort. */
+  /* TODO(eustas): fine-tune for "many slots" case */
   static const size_t gaps[] = {23, 10, 4, 1};
   int g = 0;
   for (; g < 4; ++g) {
@@ -164,6 +166,28 @@ void BrotliWipeOutMemoryManager(MemoryManager* m) {
 }
 
 #endif  /* BROTLI_ENCODER_EXIT_ON_OOM */
+
+void* BrotliBootstrapAlloc(size_t size,
+    brotli_alloc_func alloc_func, brotli_free_func free_func, void* opaque) {
+  if (!alloc_func && !free_func) {
+    return malloc(size);
+  } else if (alloc_func && free_func) {
+    return alloc_func(opaque, size);
+  }
+  return NULL;
+}
+
+void BrotliBootstrapFree(void* address, MemoryManager* m) {
+  if (!address) {
+    /* Should not happen! */
+    return;
+  } else {
+    /* Copy values, as those would be freed. */
+    brotli_free_func free_func = m->free_func;
+    void* opaque = m->opaque;
+    free_func(opaque, address);
+  }
+}
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */

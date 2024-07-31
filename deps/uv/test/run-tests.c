@@ -25,6 +25,7 @@
 
 #ifdef _WIN32
 # include <io.h>
+# define read _read
 #else
 # include <unistd.h>
 #endif
@@ -145,7 +146,7 @@ static int maybe_run_test(int argc, char **argv) {
   if (strcmp(argv[1], "spawn_helper3") == 0) {
     char buffer[256];
     notify_parent_process();
-    ASSERT(buffer == fgets(buffer, sizeof(buffer) - 1, stdin));
+    ASSERT_PTR_EQ(buffer, fgets(buffer, sizeof(buffer) - 1, stdin));
     buffer[sizeof(buffer) - 1] = '\0';
     fputs(buffer, stdout);
     return 1;
@@ -183,10 +184,10 @@ static int maybe_run_test(int argc, char **argv) {
     notify_parent_process();
 
     r = fprintf(stdout, "hello world\n");
-    ASSERT(r > 0);
+    ASSERT_GT(r, 0);
 
     r = fprintf(stderr, "hello errworld\n");
-    ASSERT(r > 0);
+    ASSERT_GT(r, 0);
 
     return 1;
   }
@@ -202,7 +203,7 @@ static int maybe_run_test(int argc, char **argv) {
     ASSERT_NOT_NULL(test);
 
     r = fprintf(stdout, "%s", test);
-    ASSERT(r > 0);
+    ASSERT_GT(r, 0);
 
     return 1;
   }
@@ -216,23 +217,24 @@ static int maybe_run_test(int argc, char **argv) {
     sCompareObjectHandles pCompareObjectHandles; /* function introduced in Windows 10 */
 #endif
     notify_parent_process();
-    ASSERT(sizeof(closed_fd) == read(0, &closed_fd, sizeof(closed_fd)));
-    ASSERT(sizeof(open_fd) == read(0, &open_fd, sizeof(open_fd)));
+    ASSERT_EQ(sizeof(closed_fd), read(0, &closed_fd, sizeof(closed_fd)));
+    ASSERT_EQ(sizeof(open_fd), read(0, &open_fd, sizeof(open_fd)));
 #ifdef _WIN32
-    ASSERT((intptr_t) closed_fd > 0);
-    ASSERT((intptr_t) open_fd > 0);
-    ASSERT(0 != GetHandleInformation(open_fd, &flags));
+    ASSERT_GT((intptr_t) closed_fd, 0);
+    ASSERT_GT((intptr_t) open_fd, 0);
+    ASSERT_NE(0, GetHandleInformation(open_fd, &flags));
     kernelbase_module = GetModuleHandleA("kernelbase.dll");
     pCompareObjectHandles = (sCompareObjectHandles)
         GetProcAddress(kernelbase_module, "CompareObjectHandles");
-    ASSERT(pCompareObjectHandles == NULL || !pCompareObjectHandles(open_fd, closed_fd));
+    ASSERT_NE(pCompareObjectHandles == NULL || \
+              !pCompareObjectHandles(open_fd, closed_fd), 0);
 #else
-    ASSERT(open_fd > 2);
-    ASSERT(closed_fd > 2);
+    ASSERT_GT(open_fd, 2);
+    ASSERT_GT(closed_fd, 2);
 # if defined(__PASE__)  /* On IBMi PASE, write() returns 1 */
-    ASSERT(1 == write(closed_fd, "x", 1));
+    ASSERT_EQ(1, write(closed_fd, "x", 1));
 # else
-    ASSERT(-1 == write(closed_fd, "x", 1));
+    ASSERT_EQ(-1, write(closed_fd, "x", 1));
 # endif  /* !__PASE__ */
 #endif
     return 1;
@@ -249,8 +251,8 @@ static int maybe_run_test(int argc, char **argv) {
     uv_uid_t uid = atoi(argv[2]);
     uv_gid_t gid = atoi(argv[3]);
 
-    ASSERT(uid == getuid());
-    ASSERT(gid == getgid());
+    ASSERT_EQ(uid, getuid());
+    ASSERT_EQ(gid, getgid());
     notify_parent_process();
 
     return 1;

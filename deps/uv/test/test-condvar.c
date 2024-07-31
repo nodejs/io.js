@@ -55,10 +55,10 @@ void worker_config_init(worker_config* wc,
   wc->use_broadcast = use_broadcast;
 
   /* Init. */
-  ASSERT(0 == uv_sem_init(&wc->sem_waiting, 0));
-  ASSERT(0 == uv_sem_init(&wc->sem_signaled, 0));
-  ASSERT(0 == uv_cond_init(&wc->cond));
-  ASSERT(0 == uv_mutex_init(&wc->mutex));
+  ASSERT_OK(uv_sem_init(&wc->sem_waiting, 0));
+  ASSERT_OK(uv_sem_init(&wc->sem_signaled, 0));
+  ASSERT_OK(uv_cond_init(&wc->cond));
+  ASSERT_OK(uv_mutex_init(&wc->mutex));
 }
 
 void worker_config_destroy(worker_config* wc) {
@@ -87,7 +87,7 @@ static void condvar_signal(worker_config* c, int* flag) {
   uv_mutex_lock(&c->mutex);
 
   /* Help waiter differentiate between spurious and legitimate wakeup. */
-  ASSERT(*flag == 0);
+  ASSERT_OK(*flag);
   *flag = 1;
 
   if (c->use_broadcast)
@@ -113,7 +113,7 @@ static int condvar_wait(worker_config* c, const int* flag) {
   do {
     uv_cond_wait(&c->cond, &c->mutex);
   } while (*flag == 0);
-  ASSERT(*flag == 1);
+  ASSERT_EQ(1, *flag);
 
   uv_mutex_unlock(&c->mutex);
 
@@ -130,13 +130,13 @@ TEST_IMPL(condvar_1) {
 
   /* Helper signal-then-wait. */
   worker_config_init(&wc, 0, condvar_signal, condvar_wait);
-  ASSERT(0 == uv_thread_create(&thread, worker, &wc));
+  ASSERT_OK(uv_thread_create(&thread, worker, &wc));
 
   /* We wait-then-signal. */
-  ASSERT(0 == wc.wait_cond(&wc, &wc.posted_1));
+  ASSERT_OK(wc.wait_cond(&wc, &wc.posted_1));
   wc.signal_cond(&wc, &wc.posted_2);
 
-  ASSERT(0 == uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
   worker_config_destroy(&wc);
 
   return 0;
@@ -149,13 +149,13 @@ TEST_IMPL(condvar_2) {
 
   /* Helper to signal-then-wait. */
   worker_config_init(&wc, 1, condvar_signal, condvar_wait);
-  ASSERT(0 == uv_thread_create(&thread, worker, &wc));
+  ASSERT_OK(uv_thread_create(&thread, worker, &wc));
 
   /* We wait-then-signal. */
-  ASSERT(0 == wc.wait_cond(&wc, &wc.posted_1));
+  ASSERT_OK(wc.wait_cond(&wc, &wc.posted_1));
   wc.signal_cond(&wc, &wc.posted_2);
 
-  ASSERT(0 == uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
   worker_config_destroy(&wc);
 
   return 0;
@@ -176,9 +176,9 @@ static int condvar_timedwait(worker_config* c, const int* flag) {
   /* Wait until I get a non-spurious signal. */
   do {
     r = uv_cond_timedwait(&c->cond, &c->mutex, (uint64_t)(1 * 1e9)); /* 1 s */
-    ASSERT(r == 0); /* Should not time out. */
+    ASSERT_OK(r); /* Should not time out. */
   } while (*flag == 0);
-  ASSERT(*flag == 1);
+  ASSERT_EQ(1, *flag);
 
   uv_mutex_unlock(&c->mutex);
 
@@ -194,13 +194,13 @@ TEST_IMPL(condvar_3) {
 
   /* Helper to signal-then-wait. */
   worker_config_init(&wc, 0, condvar_signal, condvar_timedwait);
-  ASSERT(0 == uv_thread_create(&thread, worker, &wc));
+  ASSERT_OK(uv_thread_create(&thread, worker, &wc));
 
   /* We wait-then-signal. */
   wc.wait_cond(&wc, &wc.posted_1);
   wc.signal_cond(&wc, &wc.posted_2);
 
-  ASSERT(0 == uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
   worker_config_destroy(&wc);
 
   return 0;
@@ -213,13 +213,13 @@ TEST_IMPL(condvar_4) {
 
   /* Helper to signal-then-wait. */
   worker_config_init(&wc, 1, condvar_signal, condvar_timedwait);
-  ASSERT(0 == uv_thread_create(&thread, worker, &wc));
+  ASSERT_OK(uv_thread_create(&thread, worker, &wc));
 
   /* We wait-then-signal. */
   wc.wait_cond(&wc, &wc.posted_1);
   wc.signal_cond(&wc, &wc.posted_2);
 
-  ASSERT(0 == uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
   worker_config_destroy(&wc);
 
   return 0;

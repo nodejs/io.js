@@ -150,10 +150,11 @@ void MeasureMemoryDelegate::MeasurementComplete(Result result) {
   v8::Context::Scope scope(v8_context);
   size_t total_size = 0;
   size_t current_size = 0;
-  for (const auto& context_and_size : result.context_sizes_in_bytes) {
-    total_size += context_and_size.second;
-    if (*Utils::OpenHandle(*context_and_size.first) == *context_) {
-      current_size = context_and_size.second;
+  DCHECK_EQ(result.contexts.size(), result.sizes_in_bytes.size());
+  for (size_t i = 0; i < result.contexts.size(); ++i) {
+    total_size += result.sizes_in_bytes[i];
+    if (*Utils::OpenDirectHandle(*result.contexts[i]) == *context_) {
+      current_size = result.sizes_in_bytes[i];
     }
   }
   MemoryMeasurementResultBuilder result_builder(isolate_, isolate_->factory());
@@ -165,9 +166,9 @@ void MeasureMemoryDelegate::MeasurementComplete(Result result) {
   if (mode_ == v8::MeasureMemoryMode::kDetailed) {
     result_builder.AddCurrent(current_size, current_size,
                               current_size + shared_size);
-    for (const auto& context_and_size : result.context_sizes_in_bytes) {
-      if (*Utils::OpenHandle(*context_and_size.first) != *context_) {
-        size_t other_size = context_and_size.second;
+    for (size_t i = 0; i < result.contexts.size(); ++i) {
+      if (*Utils::OpenDirectHandle(*result.contexts[i]) != *context_) {
+        size_t other_size = result.sizes_in_bytes[i];
         result_builder.AddOther(other_size, other_size,
                                 other_size + shared_size);
       }
@@ -175,7 +176,9 @@ void MeasureMemoryDelegate::MeasurementComplete(Result result) {
   }
 
   Handle<JSObject> jsresult = result_builder.Build();
-  JSPromise::Resolve(promise_, jsresult).ToHandleChecked();
+  if (JSPromise::Resolve(promise_, jsresult).is_null()) {
+    CHECK(isolate_->is_execution_terminating());
+  }
 }
 
 MemoryMeasurement::MemoryMeasurement(Isolate* isolate)
@@ -195,7 +198,7 @@ bool MemoryMeasurement::EnqueueRequest(
   Handle<WeakFixedArray> weak_contexts =
       isolate_->factory()->NewWeakFixedArray(length);
   for (int i = 0; i < length; ++i) {
-    weak_contexts->Set(i, HeapObjectReference::Weak(*contexts[i]));
+    weak_contexts->set(i, MakeWeak(*contexts[i]));
   }
   Handle<WeakFixedArray> global_weak_contexts =
       isolate_->global_handles()->Create(*weak_contexts);
@@ -221,7 +224,7 @@ std::vector<Address> MemoryMeasurement::StartProcessing() {
     Handle<WeakFixedArray> contexts = request.contexts;
     for (int i = 0; i < contexts->length(); i++) {
       Tagged<HeapObject> context;
-      if (contexts->Get(i).GetHeapObject(&context)) {
+      if (contexts->get(i).GetHeapObject(&context)) {
         unique_contexts.insert(context.ptr());
       }
     }
@@ -244,7 +247,7 @@ void MemoryMeasurement::FinishProcessing(const NativeContextStats& stats) {
     processing_.pop_front();
     for (int i = 0; i < static_cast<int>(request.sizes.size()); i++) {
       Tagged<HeapObject> context;
-      if (!request.contexts->Get(i).GetHeapObject(&context)) {
+      if (!request.contexts->get(i).GetHeapObject(&context)) {
         continue;
       }
       request.sizes[i] = stats.Get(context.ptr());
@@ -336,24 +339,27 @@ void MemoryMeasurement::ReportResults() {
     Request request = std::move(done_.front());
     done_.pop_front();
     HandleScope handle_scope(isolate_);
-    std::vector<std::pair<v8::Local<v8::Context>, size_t>> sizes;
+    v8::LocalVector<v8::Context> contexts(
+        reinterpret_cast<v8::Isolate*>(isolate_));
+    std::vector<size_t> size_in_bytes;
     DCHECK_EQ(request.sizes.size(),
               static_cast<size_t>(request.contexts->length()));
     for (int i = 0; i < request.contexts->length(); i++) {
       Tagged<HeapObject> raw_context;
-      if (!request.contexts->Get(i).GetHeapObject(&raw_context)) {
+      if (!request.contexts->get(i).GetHeapObject(&raw_context)) {
         continue;
       }
-      v8::Local<v8::Context> context = Utils::Convert<HeapObject, v8::Context>(
-          handle(raw_context, isolate_));
-      sizes.push_back(std::make_pair(context, request.sizes[i]));
+      Local<v8::Context> context = Utils::Convert<HeapObject, v8::Context>(
+          direct_handle(raw_context, isolate_), isolate_);
+      contexts.push_back(context);
+      size_in_bytes.push_back(request.sizes[i]);
     }
-    START_ALLOW_USE_DEPRECATED()
-    // Temporarily call both old and new callbacks.
-    request.delegate->MeasurementComplete(sizes, request.shared);
-    END_ALLOW_USE_DEPRECATED()
     request.delegate->MeasurementComplete(
-        {sizes, request.shared, request.wasm_code, request.wasm_metadata});
+        {{contexts.begin(), contexts.end()},
+         {size_in_bytes.begin(), size_in_bytes.end()},
+         request.shared,
+         request.wasm_code,
+         request.wasm_metadata});
     isolate_->counters()->measure_memory_delay_ms()->AddSample(
         static_cast<int>(request.timer.Elapsed().InMilliseconds()));
   }
@@ -364,60 +370,6 @@ std::unique_ptr<v8::MeasureMemoryDelegate> MemoryMeasurement::DefaultDelegate(
     v8::MeasureMemoryMode mode) {
   return std::make_unique<MeasureMemoryDelegate>(isolate, context, promise,
                                                  mode);
-}
-
-bool NativeContextInferrer::InferForContext(Isolate* isolate,
-                                            Tagged<Context> context,
-                                            Address* native_context) {
-  PtrComprCageBase cage_base(isolate);
-  Tagged<Map> context_map = context->map(cage_base, kAcquireLoad);
-  Tagged<Object> maybe_native_context =
-      TaggedField<Object, Map::kConstructorOrBackPointerOrNativeContextOffset>::
-          Acquire_Load(cage_base, context_map);
-  if (IsNativeContext(maybe_native_context, cage_base)) {
-    *native_context = maybe_native_context.ptr();
-    return true;
-  }
-  return false;
-}
-
-bool NativeContextInferrer::InferForJSFunction(Isolate* isolate,
-                                               Tagged<JSFunction> function,
-                                               Address* native_context) {
-  Tagged<Object> maybe_context =
-      TaggedField<Object, JSFunction::kContextOffset>::Acquire_Load(isolate,
-                                                                    function);
-  // The context may be a smi during deserialization.
-  if (IsSmi(maybe_context)) {
-    DCHECK_EQ(maybe_context, Smi::uninitialized_deserialization_value());
-    return false;
-  }
-  if (!IsContext(maybe_context)) {
-    // The function does not have a context.
-    return false;
-  }
-  return InferForContext(isolate, Context::cast(maybe_context), native_context);
-}
-
-bool NativeContextInferrer::InferForJSObject(Isolate* isolate, Tagged<Map> map,
-                                             Tagged<JSObject> object,
-                                             Address* native_context) {
-  if (map->instance_type() == JS_GLOBAL_OBJECT_TYPE) {
-    Tagged<Object> maybe_context =
-        JSGlobalObject::cast(object)->native_context_unchecked(isolate);
-    if (IsNativeContext(maybe_context)) {
-      *native_context = maybe_context.ptr();
-      return true;
-    }
-  }
-  // The maximum number of steps to perform when looking for the context.
-  const int kMaxSteps = 3;
-  Tagged<Object> maybe_constructor = map->TryGetConstructor(isolate, kMaxSteps);
-  if (IsJSFunction(maybe_constructor)) {
-    return InferForJSFunction(isolate, JSFunction::cast(maybe_constructor),
-                              native_context);
-  }
-  return false;
 }
 
 void NativeContextStats::Clear() { size_by_context_.clear(); }

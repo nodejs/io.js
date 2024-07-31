@@ -360,17 +360,17 @@ Address ArrayIndexOfIncludes(Address array_start, uintptr_t array_len,
 
   if constexpr (kind == ArrayIndexOfIncludesKind::DOUBLE) {
     Tagged<FixedDoubleArray> fixed_array =
-        FixedDoubleArray::cast(Object(array_start));
+        FixedDoubleArray::cast(Tagged<Object>(array_start));
     double* array = static_cast<double*>(
         fixed_array->RawField(FixedDoubleArray::OffsetOfElementAt(0))
             .ToVoidPtr());
 
     double search_num;
-    if (IsSmi(Object(search_element))) {
-      search_num = Object(search_element).ToSmi().value();
+    if (IsSmi(Tagged<Object>(search_element))) {
+      search_num = Tagged<Object>(search_element).ToSmi().value();
     } else {
-      DCHECK(IsHeapNumber(Object(search_element)));
-      search_num = HeapNumber::cast(Object(search_element))->value();
+      DCHECK(IsHeapNumber(Tagged<Object>(search_element)));
+      search_num = HeapNumber::cast(Tagged<Object>(search_element))->value();
     }
 
     DCHECK(!std::isnan(search_num));
@@ -395,13 +395,14 @@ Address ArrayIndexOfIncludes(Address array_start, uintptr_t array_len,
   }
 
   if constexpr (kind == ArrayIndexOfIncludesKind::OBJECTORSMI) {
-    Tagged<FixedArray> fixed_array = FixedArray::cast(Object(array_start));
-    Tagged_t* array =
-        static_cast<Tagged_t*>(fixed_array->data_start().ToVoidPtr());
+    Tagged<FixedArray> fixed_array =
+        FixedArray::cast(Tagged<Object>(array_start));
+    Tagged_t* array = static_cast<Tagged_t*>(
+        fixed_array->RawFieldOfFirstElement().ToVoidPtr());
 
-    DCHECK(!IsHeapNumber(Object(search_element)));
-    DCHECK(!IsBigInt(Object(search_element)));
-    DCHECK(!IsString(Object(search_element)));
+    DCHECK(!IsHeapNumber(Tagged<Object>(search_element)));
+    DCHECK(!IsBigInt(Tagged<Object>(search_element)));
+    DCHECK(!IsString(Tagged<Object>(search_element)));
 
     return search<Tagged_t>(array, array_len, from_index,
                             static_cast<Tagged_t>(search_element));

@@ -22,7 +22,12 @@ MaglevPipelineStatistics::MaglevPipelineStatistics(
   set_function_name(info->toplevel_function()->shared()->DebugNameCStr().get());
 }
 
+MaglevPipelineStatistics::~MaglevPipelineStatistics() {
+  if (Base::InPhaseKind()) EndPhaseKind();
+}
+
 void MaglevPipelineStatistics::BeginPhaseKind(const char* name) {
+  if (Base::InPhaseKind()) EndPhaseKind();
   Base::BeginPhaseKind(name);
   TRACE_EVENT_BEGIN1(kTraceCategory, name, "kind",
                      CodeKindToString(code_kind()));

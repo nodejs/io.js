@@ -21,7 +21,7 @@ class CallOptimization {
   // If the holder is a remote object returns empty optional.
   // This method must not be called for holder maps with null constructor
   // because they can't be holders for lazy accessor pairs anyway.
-  base::Optional<NativeContext> GetAccessorContext(
+  base::Optional<Tagged<NativeContext>> GetAccessorContext(
       Tagged<Map> holder_map) const;
 
   // Return true if the accessor context for given holder doesn't match
@@ -47,7 +47,7 @@ class CallOptimization {
     return expected_receiver_type_;
   }
 
-  Handle<CallHandlerInfo> api_call_info() const {
+  Handle<FunctionTemplateInfo> api_call_info() const {
     DCHECK(is_simple_api_call());
     return api_call_info_;
   }
@@ -77,7 +77,7 @@ class CallOptimization {
 
   Handle<JSFunction> constant_function_;
   Handle<FunctionTemplateInfo> expected_receiver_type_;
-  Handle<CallHandlerInfo> api_call_info_;
+  Handle<FunctionTemplateInfo> api_call_info_;
 
   // TODO(gsathya): Change these to be a bitfield and do a single fast check
   // rather than two checks.

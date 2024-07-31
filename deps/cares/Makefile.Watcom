@@ -41,9 +41,9 @@ MD = mkdir
 RD = rmdir /q /s 2>NUL
 CP = copy
 
-CFLAGS = -3r -mf -hc -zff -zgf -zq -zm -zc -s -fr=con -w2 -fpi -oilrtfm -aa &
-         -wcd=201 -bt=nt -d+ -dWIN32 -dCARES_BUILDING_LIBRARY               &
-         -dNTDDI_VERSION=0x06000000 -I. -I.\include -I.\src\lib $(SYS_INCL)
+CFLAGS = -3r -mf -hc -zff -zgf -zq -zm -zc -s -fr=con -w2 -fpi -oilrtfm -aa   &
+         -wcd=201 -bt=nt -d+ -dCARES_BUILDING_LIBRARY &
+         -dNTDDI_VERSION=0x06020000 -I. -I.\include -I.\src\lib $(SYS_INCL)
 
 LFLAGS = option quiet, map, caseexact, eliminate
 
@@ -55,7 +55,7 @@ LFLAGS += debug all
 CFLAGS += -d0
 !endif
 
-CFLAGS += -d_WIN32_WINNT=0x0600
+CFLAGS += -d_WIN32_WINNT=0x0602
 
 #
 # Change to suite.

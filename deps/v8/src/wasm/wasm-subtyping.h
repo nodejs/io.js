@@ -11,9 +11,7 @@
 
 #include "src/wasm/value-type.h"
 
-namespace v8 {
-namespace internal {
-namespace wasm {
+namespace v8::internal::wasm {
 
 struct WasmModule;
 
@@ -112,6 +110,7 @@ V8_INLINE bool HeapTypesUnrelated(HeapType heap1, HeapType heap2,
 // Checks whether {subtype_index} is valid as a declared subtype of
 // {supertype_index}.
 // - Both type must be of the same kind (function, struct, or array).
+// - Both type must have the same {is_shared} flag.
 // - Structs: Subtype must have at least as many fields as supertype,
 //   covariance for respective immutable fields, equivalence for respective
 //   mutable fields.
@@ -123,6 +122,8 @@ V8_EXPORT_PRIVATE bool ValidSubtypeDefinition(uint32_t subtype_index,
                                               uint32_t supertype_index,
                                               const WasmModule* sub_module,
                                               const WasmModule* super_module);
+
+V8_EXPORT_PRIVATE bool IsShared(ValueType type, const WasmModule* module);
 
 struct TypeInModule {
   ValueType type;
@@ -173,8 +174,6 @@ ValueType ToNullSentinel(TypeInModule type);
 bool IsSameTypeHierarchy(HeapType type1, HeapType type2,
                          const WasmModule* module);
 
-}  // namespace wasm
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::wasm
 
 #endif  // V8_WASM_WASM_SUBTYPING_H_

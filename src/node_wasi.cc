@@ -1,14 +1,15 @@
-#include "env-inl.h"
+#include "node_wasi.h"
 #include "base_object-inl.h"
 #include "debug_utils-inl.h"
+#include "env-inl.h"
 #include "memory_tracker-inl.h"
-#include "node_mem-inl.h"
-#include "util-inl.h"
 #include "node.h"
 #include "node_errors.h"
+#include "node_mem-inl.h"
+#include "permission/permission.h"
+#include "util-inl.h"
 #include "uv.h"
 #include "uvwasi.h"
-#include "node_wasi.h"
 
 namespace node {
 namespace wasi {
@@ -120,8 +121,9 @@ void WASI::New(const FunctionCallbackInfo<Value>& args) {
   CHECK(args[1]->IsArray());
   CHECK(args[2]->IsArray());
   CHECK(args[3]->IsArray());
-
   Environment* env = Environment::GetCurrent(args);
+  THROW_IF_INSUFFICIENT_PERMISSIONS(
+      env, permission::PermissionScope::kWASI, "");
   Local<Context> context = env->context();
   Local<Array> argv = args[0].As<Array>();
   const uint32_t argc = argv->Length();

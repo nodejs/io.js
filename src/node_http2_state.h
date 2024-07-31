@@ -21,6 +21,9 @@ namespace http2 {
     IDX_SETTINGS_COUNT
   };
 
+  // number of max additional settings, thus settings not implemented by nghttp2
+  const size_t MAX_ADDITIONAL_SETTINGS = 10;
+
   enum Http2SessionStateIndex {
     IDX_SESSION_STATE_EFFECTIVE_LOCAL_WINDOW_SIZE,
     IDX_SESSION_STATE_EFFECTIVE_RECV_DATA_LENGTH,
@@ -108,10 +111,11 @@ class Http2State : public BaseObject {
                        offsetof(http2_state_internal, options_buffer),
                        IDX_OPTIONS_FLAGS + 1,
                        root_buffer),
-        settings_buffer(realm->isolate(),
-                        offsetof(http2_state_internal, settings_buffer),
-                        IDX_SETTINGS_COUNT + 1,
-                        root_buffer) {}
+        settings_buffer(
+            realm->isolate(),
+            offsetof(http2_state_internal, settings_buffer),
+            IDX_SETTINGS_COUNT + 1 + 1 + 2 * MAX_ADDITIONAL_SETTINGS,
+            root_buffer) {}
 
   AliasedUint8Array root_buffer;
   AliasedFloat64Array session_state_buffer;
@@ -135,7 +139,12 @@ class Http2State : public BaseObject {
     double stream_stats_buffer[IDX_STREAM_STATS_COUNT];
     double session_stats_buffer[IDX_SESSION_STATS_COUNT];
     uint32_t options_buffer[IDX_OPTIONS_FLAGS + 1];
-    uint32_t settings_buffer[IDX_SETTINGS_COUNT + 1];
+    // first + 1: number of actual nghttp2 supported settings
+    // second + 1: number of additional settings not supported by nghttp2
+    // 2 * MAX_ADDITIONAL_SETTINGS: settings id and value for each
+    // additional setting
+    uint32_t settings_buffer[IDX_SETTINGS_COUNT + 1 + 1 +
+                             2 * MAX_ADDITIONAL_SETTINGS];
   };
 };
 

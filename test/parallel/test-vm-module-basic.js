@@ -84,13 +84,15 @@ const util = require('util');
 
   assert.strictEqual(util.inspect(m, { depth: -1 }), '[SourceTextModule]');
 
-  assert.throws(
-    () => m[util.inspect.custom].call({ __proto__: null }),
-    {
-      code: 'ERR_VM_MODULE_NOT_MODULE',
-      message: 'Provided module is not an instance of Module'
-    },
-  );
+  for (const value of [null, { __proto__: null }, SourceTextModule.prototype]) {
+    assert.throws(
+      () => m[util.inspect.custom].call(value),
+      {
+        code: 'ERR_INVALID_ARG_TYPE',
+        message: /The "this" argument must be an instance of Module/,
+      },
+    );
+  }
 }
 
 {

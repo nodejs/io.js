@@ -6,7 +6,7 @@
 // for a given branch of the tree being mutated.
 
 const { depth } = require('treeverse')
-const { existsSync } = require('fs')
+const { existsSync } = require('node:fs')
 
 const ssri = require('ssri')
 

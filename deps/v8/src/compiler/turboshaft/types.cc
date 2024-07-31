@@ -110,7 +110,7 @@ void Type::PrintTo(std::ostream& stream) const {
 void Type::Print() const {
   StdoutStream os;
   PrintTo(os);
-  os << std::endl;
+  os << '\n';
 }
 
 // static

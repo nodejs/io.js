@@ -27,15 +27,21 @@ constexpr Opcode RO_LHU = LOAD | (0b101 << kFunct3Shift);
 constexpr Opcode RO_SB = STORE | (0b000 << kFunct3Shift);
 constexpr Opcode RO_SH = STORE | (0b001 << kFunct3Shift);
 constexpr Opcode RO_SW = STORE | (0b010 << kFunct3Shift);
+
 constexpr Opcode RO_ADDI = OP_IMM | (0b000 << kFunct3Shift);
 constexpr Opcode RO_SLTI = OP_IMM | (0b010 << kFunct3Shift);
 constexpr Opcode RO_SLTIU = OP_IMM | (0b011 << kFunct3Shift);
 constexpr Opcode RO_XORI = OP_IMM | (0b100 << kFunct3Shift);
 constexpr Opcode RO_ORI = OP_IMM | (0b110 << kFunct3Shift);
 constexpr Opcode RO_ANDI = OP_IMM | (0b111 << kFunct3Shift);
-constexpr Opcode RO_SLLI = OP_IMM | (0b001 << kFunct3Shift);
-constexpr Opcode RO_SRLI = OP_IMM | (0b101 << kFunct3Shift);
-// RO_SRAI = OP_IMM | (0b101 << kFunct3Shift), // Same as SRLI, use func7
+
+constexpr Opcode OP_SHL = OP_IMM | (0b001 << kFunct3Shift);
+constexpr Opcode RO_SLLI = OP_SHL | (0b000000 << kFunct6Shift);
+
+constexpr Opcode OP_SHR = OP_IMM | (0b101 << kFunct3Shift);
+constexpr Opcode RO_SRLI = OP_SHR | (0b000000 << kFunct6Shift);
+constexpr Opcode RO_SRAI = OP_SHR | (0b010000 << kFunct6Shift);
+
 constexpr Opcode RO_ADD =
     OP | (0b000 << kFunct3Shift) | (0b0000000 << kFunct7Shift);
 constexpr Opcode RO_SUB =
@@ -66,9 +72,14 @@ constexpr Opcode RO_LWU = LOAD | (0b110 << kFunct3Shift);
 constexpr Opcode RO_LD = LOAD | (0b011 << kFunct3Shift);
 constexpr Opcode RO_SD = STORE | (0b011 << kFunct3Shift);
 constexpr Opcode RO_ADDIW = OP_IMM_32 | (0b000 << kFunct3Shift);
-constexpr Opcode RO_SLLIW = OP_IMM_32 | (0b001 << kFunct3Shift);
-constexpr Opcode RO_SRLIW = OP_IMM_32 | (0b101 << kFunct3Shift);
-// RO_SRAIW = OP_IMM_32 | (0b101 << kFunct3Shift), // Same as SRLIW, use func7
+
+constexpr Opcode OP_SHLW = OP_IMM_32 | (0b001 << kFunct3Shift);
+constexpr Opcode RO_SLLIW = OP_SHLW | (0b0000000 << kFunct7Shift);
+
+constexpr Opcode OP_SHRW = OP_IMM_32 | (0b101 << kFunct3Shift);
+constexpr Opcode RO_SRLIW = OP_SHRW | (0b0000000 << kFunct7Shift);
+constexpr Opcode RO_SRAIW = OP_SHRW | (0b0100000 << kFunct7Shift);
+
 constexpr Opcode RO_ADDW =
     OP_32 | (0b000 << kFunct3Shift) | (0b0000000 << kFunct7Shift);
 constexpr Opcode RO_SUBW =

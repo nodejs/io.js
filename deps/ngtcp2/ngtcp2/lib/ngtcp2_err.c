@@ -137,6 +137,9 @@ uint64_t ngtcp2_err_infer_quic_transport_error_code(int liberr) {
   case NGTCP2_ERR_INVALID_ARGUMENT:
   case NGTCP2_ERR_NOMEM:
   case NGTCP2_ERR_CALLBACK_FAILURE:
+  case NGTCP2_ERR_HANDSHAKE_TIMEOUT:
+  case NGTCP2_ERR_PKT_NUM_EXHAUSTED:
+  case NGTCP2_ERR_INTERNAL:
     return NGTCP2_INTERNAL_ERROR;
   case NGTCP2_ERR_STREAM_STATE:
     return NGTCP2_STREAM_STATE_ERROR;
@@ -147,7 +150,7 @@ uint64_t ngtcp2_err_infer_quic_transport_error_code(int liberr) {
   case NGTCP2_ERR_NO_VIABLE_PATH:
     return NGTCP2_NO_VIABLE_PATH;
   case NGTCP2_ERR_VERSION_NEGOTIATION_FAILURE:
-    return NGTCP2_VERSION_NEGOTIATION_ERROR_DRAFT;
+    return NGTCP2_VERSION_NEGOTIATION_ERROR;
   default:
     return NGTCP2_PROTOCOL_VIOLATION;
   }

@@ -391,6 +391,7 @@ execute_CTX_##SETN##_##GETN##_##FIELD(OSSL_CMP_CTX_TEST_FIXTURE *fixture) \
     } else { \
         if (DUP && val1_read == val1) { \
             TEST_error("first set did not dup the value"); \
+            val1_read = 0; \
             res = 0; \
         } \
         if (DEFAULT(val1_read)) { \
@@ -419,6 +420,7 @@ execute_CTX_##SETN##_##GETN##_##FIELD(OSSL_CMP_CTX_TEST_FIXTURE *fixture) \
     } else { \
         if (DUP && val2_read == val2) { \
             TEST_error("second set did not dup the value"); \
+            val2_read = 0; \
             res = 0; \
         } \
         if (val2 == val1) { \
@@ -448,6 +450,7 @@ execute_CTX_##SETN##_##GETN##_##FIELD(OSSL_CMP_CTX_TEST_FIXTURE *fixture) \
     } else { \
         if (DUP && val3_read == val2_read) { \
             TEST_error("third get did not create a new dup"); \
+            val3_read = 0; \
             res = 0; \
         } \
     } \

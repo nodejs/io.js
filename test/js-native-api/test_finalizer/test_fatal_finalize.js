@@ -27,5 +27,5 @@ const { spawnSync } = require('child_process');
 const child = spawnSync(process.execPath, [
   '--expose-gc', __filename, 'child',
 ]);
-assert.strictEqual(child.signal, common.isWindows ? null : 'SIGABRT');
+assert(common.nodeProcessAborted(child.status, child.signal));
 assert.match(child.stderr.toString(), /Finalizer is calling a function that may affect GC state/);

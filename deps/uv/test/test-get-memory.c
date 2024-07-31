@@ -35,13 +35,13 @@ TEST_IMPL(get_memory) {
          (unsigned long long) constrained_mem,
          (unsigned long long) available_mem);
 
-  ASSERT(free_mem > 0);
-  ASSERT(total_mem > 0);
+  ASSERT_GT(free_mem, 0);
+  ASSERT_GT(total_mem, 0);
   /* On IBMi PASE, the amount of memory in use is always zero. */
 #ifdef __PASE__
-  ASSERT(total_mem == free_mem);
+  ASSERT_EQ(total_mem, free_mem);
 #else
-  ASSERT(total_mem > free_mem);
+  ASSERT_GT(total_mem, free_mem);
 #endif
   ASSERT_LE(available_mem, total_mem);
   /* we'd really want to test if available <= free, but that is fragile:

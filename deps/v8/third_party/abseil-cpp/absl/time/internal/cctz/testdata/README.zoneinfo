@@ -1,0 +1,38 @@
+testdata/zoneinfo contains time-zone data files that may be used with CCTZ.
+Install them in a location referenced by the ${TZDIR} environment variable.
+Symbolic and hard links have been eliminated for portability.
+
+On Linux systems the distribution's versions of these files can probably
+already be found in the default ${TZDIR} location, /usr/share/zoneinfo.
+
+New versions can be generated using the following shell script.
+
+  #!/bin/sh -
+  set -e
+  DESTDIR=$(mktemp -d)
+  trap "rm -fr ${DESTDIR}" 0 2 15
+  (
+    cd ${DESTDIR}
+    git clone https://github.com/eggert/tz.git
+    make --directory=tz \
+        install DESTDIR=${DESTDIR} \
+                DATAFORM=vanguard \
+                TZDIR=/zoneinfo \
+                REDO=posix_only \
+                LOCALTIME=Factory \
+                TZDATA_TEXT= \
+                PACKRATDATA=backzone PACKRATLIST=zone.tab \
+                ZONETABLES=zone1970.tab\ zonenow.tab
+    tar --create --dereference --hard-dereference --file tzfile.tar \
+        --directory=tz tzfile.h
+    tar --create --dereference --hard-dereference --file zoneinfo.tar \
+        --exclude=zoneinfo/posixrules zoneinfo \
+        --directory=tz version
+  )
+  tar --extract --directory src --file ${DESTDIR}/tzfile.tar
+  tar --extract --directory testdata --file ${DESTDIR}/zoneinfo.tar
+  exit 0
+
+To run the CCTZ tests using the testdata/zoneinfo files, execute:
+
+  bazel test --test_env=TZDIR=${PWD}/testdata/zoneinfo ...

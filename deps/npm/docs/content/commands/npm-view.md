@@ -32,6 +32,13 @@ For example, to show the dependencies of the `ronn` package at version
 npm view ronn@0.3.5 dependencies
 ```
 
+By default, `npm view` shows data about the current project context (by looking for a `package.json`).
+To show field data for the current project use a file path (i.e. `.`):
+
+```bash
+npm view . dependencies
+```
+
 You can view child fields by separating them with a period.
 To view the git repository URL for the latest version of `npm`, you would run the following command:
 

@@ -1,0 +1,25 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+import("../../node.gni")
+import("$node_v8_path/gni/v8.gni")
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("ada_gn_build") {
+  config("ada_config") {
+    include_dirs = [ "." ]
+  }
+
+  gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                            [ rebase_path("ada.gyp") ],
+                            "scope",
+                            [ "ada.gyp" ])
+
+  source_set(target_name) {
+    forward_variables_from(invoker, "*")
+    public_configs = [ ":ada_config" ]
+    sources = gypi_values.ada_sources
+  }
+}

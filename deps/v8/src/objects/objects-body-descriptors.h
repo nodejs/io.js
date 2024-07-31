@@ -18,7 +18,8 @@ namespace internal {
 // 1) Iterate object's body using stateful object visitor.
 //
 //   template <typename ObjectVisitor>
-//   static inline void IterateBody(Map map, HeapObject obj, int object_size,
+//   static inline void IterateBody(Tagged<Map> map, HeapObject obj, int
+//   object_size,
 //                                  ObjectVisitor* v);
 class BodyDescriptorBase {
  public:
@@ -53,12 +54,23 @@ class BodyDescriptorBase {
   static inline void IterateMaybeWeakPointer(Tagged<HeapObject> obj, int offset,
                                              ObjectVisitor* v);
 
-  // Visits a field that contains either an indirect pointer (if the sandbox is
-  // enabled) or a regular/tagged pointer (otherwise).
   template <typename ObjectVisitor>
-  static void IterateMaybeIndirectPointer(Tagged<HeapObject> obj, int offset,
-                                          ObjectVisitor* visitor,
-                                          IndirectPointerMode mode);
+  static inline void IterateTrustedPointer(Tagged<HeapObject> obj, int offset,
+                                           ObjectVisitor* visitor,
+                                           IndirectPointerMode mode,
+                                           IndirectPointerTag tag);
+  template <typename ObjectVisitor>
+  static inline void IterateCodePointer(Tagged<HeapObject> obj, int offset,
+                                        ObjectVisitor* visitor,
+                                        IndirectPointerMode mode);
+  template <typename ObjectVisitor>
+  static inline void IterateSelfIndirectPointer(Tagged<HeapObject> obj,
+                                                IndirectPointerTag tag,
+                                                ObjectVisitor* v);
+
+  template <typename ObjectVisitor>
+  static inline void IterateProtectedPointer(Tagged<HeapObject> obj, int offset,
+                                             ObjectVisitor* v);
 
  protected:
   // Returns true for all header and embedder fields.
@@ -155,7 +167,7 @@ class StructBodyDescriptor
 
 // This class describes a body of an object in which all pointer fields are
 // located in the [start_offset, object_size) interval.
-// Pointers may be strong or may be MaybeObject-style weak pointers.
+// Pointers may be strong or may be Tagged<MaybeObject>-style weak pointers.
 template <int start_offset>
 class SuffixRangeWeakBodyDescriptor : public BodyDescriptorBase {
  public:
@@ -177,7 +189,7 @@ class SuffixRangeWeakBodyDescriptor : public BodyDescriptorBase {
 // This class describes a body of an object of a variable size
 // in which all pointer fields are located in the [start_offset, object_size)
 // interval.
-// Pointers may be strong or may be MaybeObject-style weak pointers.
+// Pointers may be strong or may be Tagged<MaybeObject>-style weak pointers.
 template <int start_offset>
 class FlexibleWeakBodyDescriptor
     : public SuffixRangeWeakBodyDescriptor<start_offset> {

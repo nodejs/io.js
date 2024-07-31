@@ -21,8 +21,8 @@
 
 #include "string_bytes.h"
 
-#include "base64-inl.h"
 #include "env-inl.h"
+#include "nbytes.h"
 #include "node_buffer.h"
 #include "node_errors.h"
 #include "simdutf.h"
@@ -200,67 +200,6 @@ MaybeLocal<Value> ExternTwoByteString::NewSimpleFromCopy(Isolate* isolate,
 
 }  // anonymous namespace
 
-// supports regular and URL-safe base64
-const int8_t unbase64_table[256] =
-  { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -2, -1, -1, -2, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, 62, -1, 63,
-    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -1, -1, -1, -1, -1, -1,
-    -1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
-    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -1, -1, -1, -1, 63,
-    -1, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
-  };
-
-
-static const int8_t unhex_table[256] =
-  { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, -1, -1, -1, -1, -1, -1,
-    -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
-  };
-
-static inline unsigned unhex(uint8_t x) {
-  return unhex_table[x];
-}
-
-template <typename TypeName>
-static size_t hex_decode(char* buf,
-                         size_t len,
-                         const TypeName* src,
-                         const size_t srcLen) {
-  size_t i;
-  for (i = 0; i < len && i * 2 + 1 < srcLen; ++i) {
-    unsigned a = unhex(static_cast<uint8_t>(src[i * 2 + 0]));
-    unsigned b = unhex(static_cast<uint8_t>(src[i * 2 + 1]));
-    if (!~a || !~b)
-      return i;
-    buf[i] = (a << 4) | b;
-  }
-
-  return i;
-}
-
 size_t StringBytes::WriteUCS2(
     Isolate* isolate, char* buf, size_t buflen, Local<String> str, int flags) {
   uint16_t* const dst = reinterpret_cast<uint16_t*>(buf);
@@ -270,7 +209,7 @@ size_t StringBytes::WriteUCS2(
     return 0;
   }
 
-  uint16_t* const aligned_dst = AlignUp(dst, sizeof(*dst));
+  uint16_t* const aligned_dst = nbytes::AlignUp(dst, sizeof(*dst));
   size_t nchars;
   if (aligned_dst == dst) {
     nchars = str->Write(isolate, dst, 0, max_chars, flags);
@@ -339,31 +278,130 @@ size_t StringBytes::Write(Isolate* isolate,
       // the Buffer, so we need to reorder on BE platforms.  See
       // https://nodejs.org/api/buffer.html regarding Node's "ucs2"
       // encoding specification
-      if (IsBigEndian())
-        SwapBytes16(buf, nbytes);
+      if constexpr (IsBigEndian()) CHECK(nbytes::SwapBytes16(buf, nbytes));
 
       break;
     }
 
     case BASE64URL:
-      // Fall through
-    case BASE64:
-      if (str->IsExternalOneByte()) {
+      if (str->IsExternalOneByte()) {  // 8-bit case
         auto ext = str->GetExternalOneByteStringResource();
-        nbytes = base64_decode(buf, buflen, ext->data(), ext->length());
+        size_t written_len = buflen;
+        auto result = simdutf::base64_to_binary_safe(
+            ext->data(), ext->length(), buf, written_len, simdutf::base64_url);
+        if (result.error == simdutf::error_code::SUCCESS) {
+          nbytes = written_len;
+        } else {
+          // The input does not follow the WHATWG forgiving-base64 specification
+          // adapted for base64url
+          // https://infra.spec.whatwg.org/#forgiving-base64-decode
+          nbytes =
+              nbytes::Base64Decode(buf, buflen, ext->data(), ext->length());
+        }
+      } else if (str->IsOneByte()) {
+        MaybeStackBuffer<uint8_t> stack_buf(str->Length());
+        str->WriteOneByte(isolate,
+                          stack_buf.out(),
+                          0,
+                          str->Length(),
+                          String::NO_NULL_TERMINATION);
+        size_t written_len = buflen;
+        auto result = simdutf::base64_to_binary_safe(
+            reinterpret_cast<const char*>(*stack_buf),
+            stack_buf.length(),
+            buf,
+            written_len,
+            simdutf::base64_url);
+        if (result.error == simdutf::error_code::SUCCESS) {
+          nbytes = written_len;
+        } else {
+          // The input does not follow the WHATWG forgiving-base64 specification
+          // (adapted for base64url with + and / replaced by - and _).
+          // https://infra.spec.whatwg.org/#forgiving-base64-decode
+          nbytes =
+              nbytes::Base64Decode(buf, buflen, *stack_buf, stack_buf.length());
+        }
       } else {
         String::Value value(isolate, str);
-        nbytes = base64_decode(buf, buflen, *value, value.length());
+        size_t written_len = buflen;
+        auto result = simdutf::base64_to_binary_safe(
+            reinterpret_cast<const char16_t*>(*value),
+            value.length(),
+            buf,
+            written_len,
+            simdutf::base64_url);
+        if (result.error == simdutf::error_code::SUCCESS) {
+          nbytes = written_len;
+        } else {
+          // The input does not follow the WHATWG forgiving-base64 specification
+          // (adapted for base64url with + and / replaced by - and _).
+          // https://infra.spec.whatwg.org/#forgiving-base64-decode
+          nbytes = nbytes::Base64Decode(buf, buflen, *value, value.length());
+        }
       }
       break;
 
+    case BASE64: {
+      if (str->IsExternalOneByte()) {  // 8-bit case
+        auto ext = str->GetExternalOneByteStringResource();
+        size_t written_len = buflen;
+        auto result = simdutf::base64_to_binary_safe(
+            ext->data(), ext->length(), buf, written_len);
+        if (result.error == simdutf::error_code::SUCCESS) {
+          nbytes = written_len;
+        } else {
+          // The input does not follow the WHATWG forgiving-base64 specification
+          // https://infra.spec.whatwg.org/#forgiving-base64-decode
+          nbytes =
+              nbytes::Base64Decode(buf, buflen, ext->data(), ext->length());
+        }
+      } else if (str->IsOneByte()) {
+        MaybeStackBuffer<uint8_t> stack_buf(str->Length());
+        str->WriteOneByte(isolate,
+                          stack_buf.out(),
+                          0,
+                          str->Length(),
+                          String::NO_NULL_TERMINATION);
+        size_t written_len = buflen;
+        auto result = simdutf::base64_to_binary_safe(
+            reinterpret_cast<const char*>(*stack_buf),
+            stack_buf.length(),
+            buf,
+            written_len);
+        if (result.error == simdutf::error_code::SUCCESS) {
+          nbytes = written_len;
+        } else {
+          // The input does not follow the WHATWG forgiving-base64 specification
+          // (adapted for base64url with + and / replaced by - and _).
+          // https://infra.spec.whatwg.org/#forgiving-base64-decode
+          nbytes =
+              nbytes::Base64Decode(buf, buflen, *stack_buf, stack_buf.length());
+        }
+      } else {
+        String::Value value(isolate, str);
+        size_t written_len = buflen;
+        auto result = simdutf::base64_to_binary_safe(
+            reinterpret_cast<const char16_t*>(*value),
+            value.length(),
+            buf,
+            written_len);
+        if (result.error == simdutf::error_code::SUCCESS) {
+          nbytes = written_len;
+        } else {
+          // The input does not follow the WHATWG base64 specification
+          // https://infra.spec.whatwg.org/#forgiving-base64-decode
+          nbytes = nbytes::Base64Decode(buf, buflen, *value, value.length());
+        }
+      }
+      break;
+    }
     case HEX:
       if (str->IsExternalOneByte()) {
         auto ext = str->GetExternalOneByteStringResource();
-        nbytes = hex_decode(buf, buflen, ext->data(), ext->length());
+        nbytes = nbytes::HexDecode(buf, buflen, ext->data(), ext->length());
       } else {
         String::Value value(isolate, str);
-        nbytes = hex_decode(buf, buflen, *value, value.length());
+        nbytes = nbytes::HexDecode(buf, buflen, *value, value.length());
       }
       break;
 
@@ -411,9 +449,12 @@ Maybe<size_t> StringBytes::StorageSize(Isolate* isolate,
       break;
 
     case BASE64URL:
-      // Fall through
+      data_size = simdutf::base64_length_from_binary(str->Length(),
+                                                     simdutf::base64_url);
+      break;
+
     case BASE64:
-      data_size = base64_decoded_size_fast(str->Length());
+      data_size = simdutf::base64_length_from_binary(str->Length());
       break;
 
     case HEX:
@@ -452,11 +493,15 @@ Maybe<size_t> StringBytes::Size(Isolate* isolate,
     case UCS2:
       return Just(str->Length() * sizeof(uint16_t));
 
-    case BASE64URL:
-      // Fall through
+    case BASE64URL: {
+      String::Value value(isolate, str);
+      return Just(simdutf::base64_length_from_binary(value.length(),
+                                                     simdutf::base64_url));
+    }
+
     case BASE64: {
       String::Value value(isolate, str);
-      return Just(base64_decoded_size(*value, value.length()));
+      return Just(simdutf::base64_length_from_binary(value.length()));
     }
 
     case HEX:
@@ -464,85 +509,6 @@ Maybe<size_t> StringBytes::Size(Isolate* isolate,
   }
 
   UNREACHABLE();
-}
-
-static void force_ascii_slow(const char* src, char* dst, size_t len) {
-  for (size_t i = 0; i < len; ++i) {
-    dst[i] = src[i] & 0x7f;
-  }
-}
-
-
-static void force_ascii(const char* src, char* dst, size_t len) {
-  if (len < 16) {
-    force_ascii_slow(src, dst, len);
-    return;
-  }
-
-  const unsigned bytes_per_word = sizeof(uintptr_t);
-  const unsigned align_mask = bytes_per_word - 1;
-  const unsigned src_unalign = reinterpret_cast<uintptr_t>(src) & align_mask;
-  const unsigned dst_unalign = reinterpret_cast<uintptr_t>(dst) & align_mask;
-
-  if (src_unalign > 0) {
-    if (src_unalign == dst_unalign) {
-      const unsigned unalign = bytes_per_word - src_unalign;
-      force_ascii_slow(src, dst, unalign);
-      src += unalign;
-      dst += unalign;
-      len -= src_unalign;
-    } else {
-      force_ascii_slow(src, dst, len);
-      return;
-    }
-  }
-
-#if defined(_WIN64) || defined(_LP64)
-  const uintptr_t mask = ~0x8080808080808080ll;
-#else
-  const uintptr_t mask = ~0x80808080l;
-#endif
-
-  const uintptr_t* srcw = reinterpret_cast<const uintptr_t*>(src);
-  uintptr_t* dstw = reinterpret_cast<uintptr_t*>(dst);
-
-  for (size_t i = 0, n = len / bytes_per_word; i < n; ++i) {
-    dstw[i] = srcw[i] & mask;
-  }
-
-  const unsigned remainder = len & align_mask;
-  if (remainder > 0) {
-    const size_t offset = len - remainder;
-    force_ascii_slow(src + offset, dst + offset, remainder);
-  }
-}
-
-
-size_t StringBytes::hex_encode(
-    const char* src,
-    size_t slen,
-    char* dst,
-    size_t dlen) {
-  // We know how much we'll write, just make sure that there's space.
-  CHECK(dlen >= slen * 2 &&
-      "not enough space provided for hex encode");
-
-  dlen = slen * 2;
-  for (uint32_t i = 0, k = 0; k < dlen; i += 1, k += 2) {
-    static const char hex[] = "0123456789abcdef";
-    uint8_t val = static_cast<uint8_t>(src[i]);
-    dst[k + 0] = hex[val >> 4];
-    dst[k + 1] = hex[val & 15];
-  }
-
-  return dlen;
-}
-
-std::string StringBytes::hex_encode(const char* src, size_t slen) {
-  size_t dlen = slen * 2;
-  std::string dst(dlen, '\0');
-  hex_encode(src, slen, dst.data(), dlen);
-  return dst;
 }
 
 #define CHECK_BUFLEN_IN_RANGE(len)                                    \
@@ -586,7 +552,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
           *error = node::ERR_MEMORY_ALLOCATION_FAILED(isolate);
           return MaybeLocal<Value>();
         }
-        force_ascii(buf, out, buflen);
+        nbytes::ForceAscii(buf, out, buflen);
         return ExternOneByteString::New(isolate, out, buflen, error);
       } else {
         return ExternOneByteString::NewFromCopy(isolate, buf, buflen, error);
@@ -609,28 +575,30 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
       return ExternOneByteString::NewFromCopy(isolate, buf, buflen, error);
 
     case BASE64: {
-      size_t dlen = base64_encoded_size(buflen);
+      size_t dlen = simdutf::base64_length_from_binary(buflen);
       char* dst = node::UncheckedMalloc(dlen);
       if (dst == nullptr) {
         *error = node::ERR_MEMORY_ALLOCATION_FAILED(isolate);
         return MaybeLocal<Value>();
       }
 
-      size_t written = base64_encode(buf, buflen, dst, dlen);
+      size_t written = simdutf::binary_to_base64(buf, buflen, dst);
       CHECK_EQ(written, dlen);
 
       return ExternOneByteString::New(isolate, dst, dlen, error);
     }
 
     case BASE64URL: {
-      size_t dlen = base64_encoded_size(buflen, Base64Mode::URL);
+      size_t dlen =
+          simdutf::base64_length_from_binary(buflen, simdutf::base64_url);
       char* dst = node::UncheckedMalloc(dlen);
       if (dst == nullptr) {
         *error = node::ERR_MEMORY_ALLOCATION_FAILED(isolate);
         return MaybeLocal<Value>();
       }
 
-      size_t written = base64_encode(buf, buflen, dst, dlen, Base64Mode::URL);
+      size_t written =
+          simdutf::binary_to_base64(buf, buflen, dst, simdutf::base64_url);
       CHECK_EQ(written, dlen);
 
       return ExternOneByteString::New(isolate, dst, dlen, error);
@@ -643,7 +611,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
         *error = node::ERR_MEMORY_ALLOCATION_FAILED(isolate);
         return MaybeLocal<Value>();
       }
-      size_t written = hex_encode(buf, buflen, dst, dlen);
+      size_t written = nbytes::HexEncode(buf, buflen, dst, dlen);
       CHECK_EQ(written, dlen);
 
       return ExternOneByteString::New(isolate, dst, dlen, error);
@@ -651,7 +619,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
 
     case UCS2: {
       size_t str_len = buflen / 2;
-      if (IsBigEndian()) {
+      if constexpr (IsBigEndian()) {
         uint16_t* dst = node::UncheckedMalloc<uint16_t>(str_len);
         if (str_len != 0 && dst == nullptr) {
           *error = node::ERR_MEMORY_ALLOCATION_FAILED(isolate);
@@ -698,7 +666,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
   // Buffer, so we need to reorder on BE platforms.  See
   // https://nodejs.org/api/buffer.html regarding Node's "ucs2"
   // encoding specification
-  if (IsBigEndian()) {
+  if constexpr (IsBigEndian()) {
     uint16_t* dst = node::UncheckedMalloc<uint16_t>(buflen);
     if (dst == nullptr) {
       *error = node::ERR_MEMORY_ALLOCATION_FAILED(isolate);
@@ -706,7 +674,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
     }
     size_t nbytes = buflen * sizeof(uint16_t);
     memcpy(dst, buf, nbytes);
-    SwapBytes16(reinterpret_cast<char*>(dst), nbytes);
+    CHECK(nbytes::SwapBytes16(reinterpret_cast<char*>(dst), nbytes));
     return ExternTwoByteString::New(isolate, dst, buflen, error);
   } else {
     return ExternTwoByteString::NewFromCopy(isolate, buf, buflen, error);

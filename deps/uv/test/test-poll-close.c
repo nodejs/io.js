@@ -50,7 +50,7 @@ TEST_IMPL(poll_close) {
   {
     struct WSAData wsa_data;
     int r = WSAStartup(MAKEWORD(2, 2), &wsa_data);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
   }
 #endif
 
@@ -66,7 +66,7 @@ TEST_IMPL(poll_close) {
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(close_cb_called == NUM_SOCKETS);
+  ASSERT_EQ(close_cb_called, NUM_SOCKETS);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

@@ -1,0 +1,13 @@
+// Copyright 2023 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+@abstract
+@cppObjectDefinition
+extern class TrustedObject extends HeapObject {}
+
+@abstract
+@cppObjectDefinition
+extern class ExposedTrustedObject extends TrustedObject {
+  @if(V8_ENABLE_SANDBOX) self_indirect_pointer: IndirectPointer;
+}

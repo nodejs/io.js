@@ -18,8 +18,6 @@
 #include "src/common/code-memory-access-inl.h"
 #include "src/execution/isolate-data.h"
 #include "src/execution/isolate.h"
-#include "src/heap/concurrent-allocator-inl.h"
-#include "src/heap/concurrent-allocator.h"
 #include "src/heap/heap-allocator-inl.h"
 #include "src/heap/heap-write-barrier.h"
 #include "src/heap/heap.h"
@@ -27,7 +25,7 @@
 #include "src/heap/marking-state-inl.h"
 #include "src/heap/memory-allocator.h"
 #include "src/heap/memory-chunk-layout.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page.h"
 #include "src/heap/new-spaces-inl.h"
 #include "src/heap/paged-spaces-inl.h"
 #include "src/heap/read-only-heap.h"
@@ -101,12 +99,6 @@ Isolate* Heap::isolate() const { return Isolate::FromHeap(this); }
 
 bool Heap::IsMainThread() const {
   return isolate()->thread_id() == ThreadId::Current();
-}
-
-bool Heap::IsSharedMainThread() const {
-  if (!isolate()->has_shared_space()) return false;
-  Isolate* shared_space_isolate = isolate()->shared_space_isolate();
-  return shared_space_isolate->thread_id() == ThreadId::Current();
 }
 
 int64_t Heap::external_memory() { return external_memory_.total(); }
@@ -189,26 +181,31 @@ void Heap::SetFunctionsMarkedForManualOptimization(Tagged<Object> hash_table) {
 }
 
 PagedSpace* Heap::paged_space(int idx) const {
-  DCHECK(idx == OLD_SPACE || idx == CODE_SPACE || idx == SHARED_SPACE);
+  DCHECK(idx == OLD_SPACE || idx == CODE_SPACE || idx == SHARED_SPACE ||
+         idx == TRUSTED_SPACE);
   return static_cast<PagedSpace*>(space_[idx].get());
 }
 
 Space* Heap::space(int idx) const { return space_[idx].get(); }
 
 Address* Heap::NewSpaceAllocationTopAddress() {
-  return new_space_ ? new_space_->allocation_top_address() : nullptr;
+  return new_space_
+             ? isolate()->isolate_data()->new_allocation_info_.top_address()
+             : nullptr;
 }
 
 Address* Heap::NewSpaceAllocationLimitAddress() {
-  return new_space_ ? new_space_->allocation_limit_address() : nullptr;
+  return new_space_
+             ? isolate()->isolate_data()->new_allocation_info_.limit_address()
+             : nullptr;
 }
 
 Address* Heap::OldSpaceAllocationTopAddress() {
-  return old_space_->allocation_top_address();
+  return allocator()->old_space_allocator()->allocation_top_address();
 }
 
 Address* Heap::OldSpaceAllocationLimitAddress() {
-  return old_space_->allocation_limit_address();
+  return allocator()->old_space_allocator()->allocation_limit_address();
 }
 
 inline const base::AddressRegion& Heap::code_region() {
@@ -237,15 +234,15 @@ int Heap::MaxRegularHeapObjectSize(AllocationType allocation) {
 AllocationResult Heap::AllocateRaw(int size_in_bytes, AllocationType type,
                                    AllocationOrigin origin,
                                    AllocationAlignment alignment) {
-  return heap_allocator_.AllocateRaw(size_in_bytes, type, origin, alignment);
+  return heap_allocator_->AllocateRaw(size_in_bytes, type, origin, alignment);
 }
 
 Address Heap::AllocateRawOrFail(int size, AllocationType allocation,
                                 AllocationOrigin origin,
                                 AllocationAlignment alignment) {
   return heap_allocator_
-      .AllocateRawWith<HeapAllocator::kRetryOrFail>(size, allocation, origin,
-                                                    alignment)
+      ->AllocateRawWith<HeapAllocator::kRetryOrFail>(size, allocation, origin,
+                                                     alignment)
       .address();
 }
 
@@ -260,7 +257,7 @@ void Heap::FinalizeExternalString(Tagged<String> string) {
   Tagged<ExternalString> ext_string = Tagged<ExternalString>::cast(string);
 
   if (!v8_flags.enable_third_party_heap) {
-    Page* page = Page::FromHeapObject(string);
+    PageMetadata* page = PageMetadata::FromHeapObject(string);
     page->DecrementExternalBackingStoreBytes(
         ExternalBackingStoreType::kExternalString,
         ext_string->ExternalPayloadSize());
@@ -270,7 +267,12 @@ void Heap::FinalizeExternalString(Tagged<String> string) {
 }
 
 Address Heap::NewSpaceTop() {
-  return new_space_ ? new_space_->top() : kNullAddress;
+  return new_space_ ? allocator()->new_space_allocator()->top() : kNullAddress;
+}
+
+Address Heap::NewSpaceLimit() {
+  return new_space_ ? allocator()->new_space_allocator()->limit()
+                    : kNullAddress;
 }
 
 bool Heap::InYoungGeneration(Tagged<Object> object) {
@@ -279,7 +281,7 @@ bool Heap::InYoungGeneration(Tagged<Object> object) {
 }
 
 // static
-bool Heap::InYoungGeneration(MaybeObject object) {
+bool Heap::InYoungGeneration(Tagged<MaybeObject> object) {
   Tagged<HeapObject> heap_object;
   return object.GetHeapObject(&heap_object) && InYoungGeneration(heap_object);
 }
@@ -287,8 +289,7 @@ bool Heap::InYoungGeneration(MaybeObject object) {
 // static
 bool Heap::InYoungGeneration(Tagged<HeapObject> heap_object) {
   if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) return false;
-  bool result =
-      BasicMemoryChunk::FromHeapObject(heap_object)->InYoungGeneration();
+  bool result = MemoryChunk::FromHeapObject(heap_object)->InYoungGeneration();
 #ifdef DEBUG
   // If in the young generation, then check we're either not in the middle of
   // GC or the object is in to-space.
@@ -303,27 +304,20 @@ bool Heap::InYoungGeneration(Tagged<HeapObject> heap_object) {
 }
 
 // static
-bool Heap::InWritableSharedSpace(MaybeObject object) {
-  Tagged<HeapObject> heap_object;
-  return object.GetHeapObject(&heap_object) &&
-         heap_object.InWritableSharedSpace();
-}
-
-// static
 bool Heap::InFromPage(Tagged<Object> object) {
   DCHECK(!HasWeakHeapObjectTag(object));
   return IsHeapObject(object) && InFromPage(HeapObject::cast(object));
 }
 
 // static
-bool Heap::InFromPage(MaybeObject object) {
+bool Heap::InFromPage(Tagged<MaybeObject> object) {
   Tagged<HeapObject> heap_object;
   return object.GetHeapObject(&heap_object) && InFromPage(heap_object);
 }
 
 // static
 bool Heap::InFromPage(Tagged<HeapObject> heap_object) {
-  return BasicMemoryChunk::FromHeapObject(heap_object)->IsFromPage();
+  return MemoryChunk::FromHeapObject(heap_object)->IsFromPage();
 }
 
 // static
@@ -333,14 +327,14 @@ bool Heap::InToPage(Tagged<Object> object) {
 }
 
 // static
-bool Heap::InToPage(MaybeObject object) {
+bool Heap::InToPage(Tagged<MaybeObject> object) {
   Tagged<HeapObject> heap_object;
   return object.GetHeapObject(&heap_object) && InToPage(heap_object);
 }
 
 // static
 bool Heap::InToPage(Tagged<HeapObject> heap_object) {
-  return BasicMemoryChunk::FromHeapObject(heap_object)->IsToPage();
+  return MemoryChunk::FromHeapObject(heap_object)->IsToPage();
 }
 
 bool Heap::InOldSpace(Tagged<Object> object) {
@@ -356,7 +350,7 @@ Heap* Heap::FromWritableHeapObject(Tagged<HeapObject> obj) {
   if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
     return Heap::GetIsolateFromWritableObject(obj)->heap();
   }
-  BasicMemoryChunk* chunk = BasicMemoryChunk::FromHeapObject(obj);
+  MemoryChunkMetadata* chunk = MemoryChunkMetadata::FromHeapObject(obj);
   // RO_SPACE can be shared between heaps, so we can't use RO_SPACE objects to
   // find a heap. The exception is when the ReadOnlySpace is writeable, during
   // bootstrapping, so explicitly allow this case.
@@ -378,35 +372,32 @@ bool Heap::IsPendingAllocationInternal(Tagged<HeapObject> object) {
     return tp_heap_->IsPendingAllocation(object);
   }
 
-  BasicMemoryChunk* chunk = BasicMemoryChunk::FromHeapObject(object);
+  MemoryChunk* chunk = MemoryChunk::FromHeapObject(object);
   if (chunk->InReadOnlySpace()) return false;
 
-  BaseSpace* base_space = chunk->owner();
+  BaseSpace* base_space = chunk->Metadata()->owner();
   Address addr = object.address();
 
   switch (base_space->identity()) {
     case NEW_SPACE: {
-      base::SharedMutexGuard<base::kShared> guard(
-          new_space_->linear_area_lock());
-      Address top = new_space_->original_top_acquire();
-      Address limit = new_space_->original_limit_relaxed();
-      DCHECK_LE(top, limit);
-      return top && top <= addr && addr < limit;
+      return allocator()->new_space_allocator()->IsPendingAllocation(addr);
     }
 
-    case OLD_SPACE:
+    case OLD_SPACE: {
+      return allocator()->old_space_allocator()->IsPendingAllocation(addr);
+    }
+
     case CODE_SPACE: {
-      PagedSpace* paged_space = static_cast<PagedSpace*>(base_space);
-      base::SharedMutexGuard<base::kShared> guard(
-          paged_space->linear_area_lock());
-      Address top = paged_space->original_top_acquire();
-      Address limit = paged_space->original_limit_relaxed();
-      DCHECK_LE(top, limit);
-      return top && top <= addr && addr < limit;
+      return allocator()->code_space_allocator()->IsPendingAllocation(addr);
+    }
+
+    case TRUSTED_SPACE: {
+      return allocator()->trusted_space_allocator()->IsPendingAllocation(addr);
     }
 
     case LO_SPACE:
     case CODE_LO_SPACE:
+    case TRUSTED_LO_SPACE:
     case NEW_LO_SPACE: {
       LargeObjectSpace* large_space =
           static_cast<LargeObjectSpace*>(base_space);
@@ -552,48 +543,8 @@ PagedNewSpace* Heap::paged_new_space() const {
   return PagedNewSpace::From(new_space());
 }
 
-#ifdef V8_ENABLE_THIRD_PARTY_HEAP
-CodePageMemoryModificationScope::CodePageMemoryModificationScope(
-    InstructionStream code)
-    :
-#if V8_HEAP_USE_PTHREAD_JIT_WRITE_PROTECT || V8_HEAP_USE_PKU_JIT_WRITE_PROTECT
-      rwx_write_scope_("A part of CodePageMemoryModificationScope"),
-#endif
-      chunk_(nullptr),
-      scope_active_(false) {
-}
-#else
-CodePageMemoryModificationScope::CodePageMemoryModificationScope(
-    Tagged<InstructionStream> code)
-    : CodePageMemoryModificationScope(BasicMemoryChunk::FromHeapObject(code)) {}
-#endif
-
-#if V8_HEAP_USE_PTHREAD_JIT_WRITE_PROTECT || V8_HEAP_USE_PKU_JIT_WRITE_PROTECT
-CodePageMemoryModificationScope::CodePageMemoryModificationScope(
-    BasicMemoryChunk* chunk) {
-  if (chunk->IsFlagSet(BasicMemoryChunk::IS_EXECUTABLE)) {
-    rwx_write_scope_.emplace("A part of CodePageMemoryModificationScope");
-  }
-}
-#else
-CodePageMemoryModificationScope::CodePageMemoryModificationScope(
-    BasicMemoryChunk* chunk)
-    : chunk_(chunk),
-      scope_active_(chunk_->IsFlagSet(BasicMemoryChunk::IS_EXECUTABLE) &&
-                    chunk_->heap()->write_protect_code_memory()) {
-  if (scope_active_) {
-    DCHECK(IsAnyCodeSpace(chunk_->owner()->identity()));
-    guard_.emplace(MemoryChunk::cast(chunk_)->SetCodeModificationPermissions());
-  }
-}
-#endif
-
-CodePageMemoryModificationScope::~CodePageMemoryModificationScope() {
-#if !V8_HEAP_USE_PTHREAD_JIT_WRITE_PROTECT && !V8_HEAP_USE_PKU_JIT_WRITE_PROTECT
-  if (scope_active_) {
-    MemoryChunk::cast(chunk_)->SetDefaultCodePermissions();
-  }
-#endif
+SemiSpaceNewSpace* Heap::semi_space_new_space() const {
+  return SemiSpaceNewSpace::From(new_space());
 }
 
 IgnoreLocalGCRequests::IgnoreLocalGCRequests(Heap* heap) : heap_(heap) {

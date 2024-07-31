@@ -127,6 +127,7 @@ static void map_bucket_set_data(nghttp3_map_bucket *bkt, uint32_t hash,
   bkt->data = data;
 }
 
+#ifndef WIN32
 void nghttp3_map_print_distance(nghttp3_map *map) {
   uint32_t i;
   size_t idx;
@@ -146,6 +147,7 @@ void nghttp3_map_print_distance(nghttp3_map *map) {
             distance(map->tablelen, map->tablelenbits, bkt, idx));
   }
 }
+#endif /* !WIN32 */
 
 static int insert(nghttp3_map_bucket *table, uint32_t tablelen,
                   uint32_t tablelenbits, uint32_t hash,

@@ -145,8 +145,7 @@ void ConsoleCall(
     void (debug::ConsoleDelegate::*func)(const v8::debug::ConsoleCallArguments&,
                                          const v8::debug::ConsoleContext&)) {
   if (isolate->is_execution_terminating()) return;
-  CHECK(!isolate->has_pending_exception());
-  CHECK(!isolate->has_scheduled_exception());
+  CHECK(!isolate->has_exception());
   if (!isolate->console_delegate()) return;
   HandleScope scope(isolate);
   debug::ConsoleCallArguments wrapper(isolate, args);
@@ -184,7 +183,7 @@ void LogTimerEvent(Isolate* isolate, BuiltinArguments args,
 #define CONSOLE_BUILTIN_IMPLEMENTATION(call, name)             \
   BUILTIN(Console##call) {                                     \
     ConsoleCall(isolate, args, &debug::ConsoleDelegate::call); \
-    RETURN_FAILURE_IF_SCHEDULED_EXCEPTION(isolate);            \
+    RETURN_FAILURE_IF_EXCEPTION(isolate);                      \
     return ReadOnlyRoots(isolate).undefined_value();           \
   }
 CONSOLE_METHOD_LIST(CONSOLE_BUILTIN_IMPLEMENTATION)
@@ -196,7 +195,7 @@ CONSOLE_METHOD_LIST(CONSOLE_BUILTIN_IMPLEMENTATION)
       return ReadOnlyRoots(isolate).exception();               \
     }                                                          \
     ConsoleCall(isolate, args, &debug::ConsoleDelegate::call); \
-    RETURN_FAILURE_IF_SCHEDULED_EXCEPTION(isolate);            \
+    RETURN_FAILURE_IF_EXCEPTION(isolate);                      \
     return ReadOnlyRoots(isolate).undefined_value();           \
   }
 CONSOLE_METHOD_WITH_FORMATTER_LIST(CONSOLE_BUILTIN_IMPLEMENTATION)
@@ -205,21 +204,21 @@ CONSOLE_METHOD_WITH_FORMATTER_LIST(CONSOLE_BUILTIN_IMPLEMENTATION)
 BUILTIN(ConsoleTime) {
   LogTimerEvent(isolate, args, v8::LogEventStatus::kStart);
   ConsoleCall(isolate, args, &debug::ConsoleDelegate::Time);
-  RETURN_FAILURE_IF_SCHEDULED_EXCEPTION(isolate);
+  RETURN_FAILURE_IF_EXCEPTION(isolate);
   return ReadOnlyRoots(isolate).undefined_value();
 }
 
 BUILTIN(ConsoleTimeEnd) {
   LogTimerEvent(isolate, args, v8::LogEventStatus::kEnd);
   ConsoleCall(isolate, args, &debug::ConsoleDelegate::TimeEnd);
-  RETURN_FAILURE_IF_SCHEDULED_EXCEPTION(isolate);
+  RETURN_FAILURE_IF_EXCEPTION(isolate);
   return ReadOnlyRoots(isolate).undefined_value();
 }
 
 BUILTIN(ConsoleTimeStamp) {
   LogTimerEvent(isolate, args, v8::LogEventStatus::kStamp);
   ConsoleCall(isolate, args, &debug::ConsoleDelegate::TimeStamp);
-  RETURN_FAILURE_IF_SCHEDULED_EXCEPTION(isolate);
+  RETURN_FAILURE_IF_EXCEPTION(isolate);
   return ReadOnlyRoots(isolate).undefined_value();
 }
 

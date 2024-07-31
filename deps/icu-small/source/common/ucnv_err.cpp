@@ -109,7 +109,6 @@ UCNV_FROM_U_CALLBACK_STOP (
         *err = U_ZERO_ERROR;
     }
     /* the caller must have set the error code accordingly */
-    return;
 }
 
 
@@ -125,7 +124,6 @@ UCNV_TO_U_CALLBACK_STOP (
 {
     /* the caller must have set the error code accordingly */
     (void)context; (void)toUArgs; (void)codePoints; (void)length; (void)reason; (void)err;
-    return;
 }
 
 U_CAPI void    U_EXPORT2
@@ -353,8 +351,6 @@ UCNV_FROM_U_CALLBACK_ESCAPE (
       *err = err2;
       return;
   }
-
-  return;
 }
 
 

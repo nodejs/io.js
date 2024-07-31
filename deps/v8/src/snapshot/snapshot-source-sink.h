@@ -112,6 +112,7 @@ class SnapshotByteSource final {
   void set_position(int position) { position_ = position; }
 
   const uint8_t* data() const { return data_; }
+  int length() const { return length_; }
 
  private:
   const uint8_t* data_;

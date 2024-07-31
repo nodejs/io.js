@@ -71,7 +71,9 @@ RTLIBD = /MTd
 # otherwise Winsock tcp/ip stack will be used as default.
 # --------------------------------------------------------
 
+!IFNDEF USE_WATT32
 USE_WATT32 = 0
+!ENDIF
 
 # --------------------------------------------------------
 # Detect compiler version.
@@ -176,11 +178,14 @@ PROG3_OBJDIR = $(PROG3_OUTDIR)\obj
 # -------------------------------------
 
 !IF "$(USE_WATT32)" == "1"
-CFLAGS  = /UWIN32 /DWATT32 /I$(WATT_ROOT)\inc
-EX_LIBS_REL = $(WATT_ROOT)\lib\wattcpvc_imp.lib
-EX_LIBS_DBG = $(WATT_ROOT)\lib\wattcpvc_imp_d.lib
+CFLAGS  = /D_WIN32_WINNT=0x0602 /DWATT32 /I$(WATT_ROOT)\inc
+!  IFNDEF PLATFORM
+PLATFORM = x86
+!  ENDIF
+EX_LIBS_REL = $(WATT_ROOT)\lib\$(PLATFORM)\wattcpvc_imp.lib advapi32.lib
+EX_LIBS_DBG = $(WATT_ROOT)\lib\$(PLATFORM)\wattcpvc_imp_d.lib advapi32.lib
 !ELSE
-CFLAGS  = /DWIN32 /D_WIN32_WINNT=0x0600
+CFLAGS  = /D_WIN32_WINNT=0x0602
 EX_LIBS_REL = ws2_32.lib advapi32.lib kernel32.lib iphlpapi.lib
 EX_LIBS_DBG = ws2_32.lib advapi32.lib kernel32.lib iphlpapi.lib
 !ENDIF
@@ -209,7 +214,7 @@ RT_ERROR_CHECKING = /RTCsu
 
 CC_CMD_REL = cl.exe /nologo $(RTLIB) /DNDEBUG /O2
 CC_CMD_DBG = cl.exe /nologo $(RTLIBD) /D_DEBUG /Od /Zi $(RT_ERROR_CHECKING)
-CC_CFLAGS  = $(CFLAGS) /I.\src\lib /I.\include /W3 /EHsc /FD
+CC_CFLAGS  = $(CFLAGS) /D_REENTRANT /I.\src\lib /I.\include /W3 /EHsc /FD
 
 RC_CMD_REL = rc.exe /l 0x409 /d "NDEBUG"
 RC_CMD_DBG = rc.exe /l 0x409 /d "_DEBUG"
@@ -229,7 +234,7 @@ LINK_CMD_EXE_DBG = $(LINK_CMD_EXE) /debug $(PDBTYPE_CONSOLIDATE)
 CARES_TARGET = $(STA_LIB_REL).lib
 CARES_CFLAGS = /DCARES_BUILDING_LIBRARY /DCARES_STATICLIB
 CARES_LFLAGS =
-SPROG_CFLAGS = /DCARES_STATICLIB
+SPROG_CFLAGS = /DCARES_STATICLIB /DCARES_NO_DEPRECATED
 SPROG_LFLAGS = /libpath:$(CARES_OUTDIR) $(EX_LIBS_REL) $(STA_LIB_REL).lib
 CARES_LINK   = $(LINK_CMD_LIB)
 SPROG_LINK   = $(LINK_CMD_EXE_REL)
@@ -240,7 +245,7 @@ CC_CMD       = $(CC_CMD_REL)
 CARES_TARGET = $(STA_LIB_DBG).lib
 CARES_CFLAGS = /DCARES_BUILDING_LIBRARY /DCARES_STATICLIB /DDEBUGBUILD
 CARES_LFLAGS =
-SPROG_CFLAGS = /DCARES_STATICLIB
+SPROG_CFLAGS = /DCARES_STATICLIB /DCARES_NO_DEPRECATED
 SPROG_LFLAGS = /libpath:$(CARES_OUTDIR) $(EX_LIBS_DBG) $(STA_LIB_DBG).lib
 CARES_LINK   = $(LINK_CMD_LIB)
 SPROG_LINK   = $(LINK_CMD_EXE_DBG)
@@ -251,7 +256,7 @@ CC_CMD       = $(CC_CMD_DBG)
 CARES_TARGET = $(DYN_LIB_REL).dll
 CARES_CFLAGS = /DCARES_BUILDING_LIBRARY
 CARES_LFLAGS = /release $(EX_LIBS_REL) /implib:$(CARES_OUTDIR)\$(IMP_LIB_REL).lib $(PDB_NONE)
-SPROG_CFLAGS =
+SPROG_CFLAGS = /DCARES_NO_DEPRECATED
 SPROG_LFLAGS = /libpath:$(CARES_OUTDIR) $(EX_LIBS_REL) $(IMP_LIB_REL).lib
 CARES_LINK   = $(LINK_CMD_DLL)
 SPROG_LINK   = $(LINK_CMD_EXE_REL)
@@ -264,7 +269,7 @@ RC_CMD       = $(RC_CMD_REL)
 CARES_TARGET = $(DYN_LIB_DBG).dll
 CARES_CFLAGS = /DCARES_BUILDING_LIBRARY /DDEBUGBUILD
 CARES_LFLAGS = /debug $(EX_LIBS_DBG) /implib:$(CARES_OUTDIR)\$(IMP_LIB_DBG).lib /pdb:$(CARES_OUTDIR)\$(DYN_LIB_DBG).pdb $(PDBTYPE_CONSOLIDATE)
-SPROG_CFLAGS =
+SPROG_CFLAGS = /DCARES_NO_DEPRECATED
 SPROG_LFLAGS = /libpath:$(CARES_OUTDIR) $(EX_LIBS_DBG) $(IMP_LIB_DBG).lib
 CARES_LINK   = $(LINK_CMD_DLL)
 SPROG_LINK   = $(LINK_CMD_EXE_DBG)
@@ -435,8 +440,8 @@ install:
     @copy /y $(CARES_OUTDIR)\*.*              "$(INSTALL_DIR_LIB)" >NUL
     @copy /y $(SRCDIR)\include\ares.h         "$(INSTALL_DIR_INC)" >NUL
     @copy /y $(SRCDIR)\include\ares_build.h   "$(INSTALL_DIR_INC)" >NUL
-    @copy /y $(SRCDIR)\include\ares_rules.h   "$(INSTALL_DIR_INC)" >NUL
     @copy /y $(SRCDIR)\include\ares_version.h "$(INSTALL_DIR_INC)" >NUL
+    @copy /y $(SRCDIR)\include\ares_dns_record.h "$(INSTALL_DIR_INC)" >NUL
     @echo Installed c-ares $(CFG)
 
 !ENDIF

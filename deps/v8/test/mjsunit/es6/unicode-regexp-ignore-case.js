@@ -60,12 +60,3 @@ assertEquals(["s"], /^\u017F/ui.exec("s"));
 assertEquals(["s"], /^\u017F/ui.exec("s\u1234"));
 assertEquals(["as"], /^a[\u017F]/ui.exec("as"));
 assertEquals(["as"], /^a[\u017F]/ui.exec("as\u1234"));
-
-// Non-simple mappings created by UnicodeSet::closeOver() requiring special
-// treatment.
-assertFalse(/[\u0390]/ui.test("\u1fd3"));
-assertFalse(/[\u1fd3]/ui.test("\u0390"));
-assertFalse(/[\u03b0]/ui.test("\u1fe3"));
-assertFalse(/[\u1fe3]/ui.test("\u03b0"));
-assertFalse(/[\ufb05]/ui.test("\ufb06"));
-assertFalse(/[\ufb06]/ui.test("\ufb05"));

@@ -210,7 +210,7 @@ TEST(TryProbeStubCache) {
     Handle<Name> name = names[index % names.size()];
     Handle<JSObject> receiver = receivers[index % receivers.size()];
     Handle<Code> handler = handlers[index % handlers.size()];
-    stub_cache.Set(*name, receiver->map(), MaybeObject::FromObject(*handler));
+    stub_cache.Set(*name, receiver->map(), *handler);
   }
 
   // Perform some queries.
@@ -220,7 +220,7 @@ TEST(TryProbeStubCache) {
     int index = rand_gen.NextInt();
     Handle<Name> name = names[index % names.size()];
     Handle<JSObject> receiver = receivers[index % receivers.size()];
-    MaybeObject handler = stub_cache.Get(*name, receiver->map());
+    Tagged<MaybeObject> handler = stub_cache.Get(*name, receiver->map());
     if (handler.ptr() == kNullAddress) {
       queried_non_existing = true;
     } else {
@@ -236,7 +236,7 @@ TEST(TryProbeStubCache) {
     int index2 = rand_gen.NextInt();
     Handle<Name> name = names[index1 % names.size()];
     Handle<JSObject> receiver = receivers[index2 % receivers.size()];
-    MaybeObject handler = stub_cache.Get(*name, receiver->map());
+    Tagged<MaybeObject> handler = stub_cache.Get(*name, receiver->map());
     if (handler.ptr() == kNullAddress) {
       queried_non_existing = true;
     } else {

@@ -5,7 +5,7 @@ import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
 
-describe('ESM: named JSON exports', { concurrency: true }, () => {
+describe('ESM: named JSON exports', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should throw, citing named import', async () => {
     const { code, stderr } = await spawnPromisified(execPath, [
       fixtures.path('es-modules', 'import-json-named-export.mjs'),

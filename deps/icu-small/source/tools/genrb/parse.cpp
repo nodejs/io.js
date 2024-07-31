@@ -668,7 +668,7 @@ parseAlias(ParseState* state, char *tag, uint32_t startline, const struct UStrin
 
 namespace {
 
-static struct SResource* resLookup(struct SResource* res, const char* key){
+struct SResource* resLookup(struct SResource* res, const char* key) {
     if (res == res_none() || !res->isTable()) {
         return nullptr;
     }
@@ -794,7 +794,7 @@ GenrbImporter::getRules(
 
 // Quick-and-dirty escaping function.
 // Assumes that we are on an ASCII-based platform.
-static void
+void
 escape(const char16_t *s, char *buffer, size_t n) {
     int32_t length = u_strlen(s);
     int32_t i = 0;

@@ -50,28 +50,13 @@ models are defined. The initial list includes:
 * Single executable application
 * CI/CD pipeline components
 
-### Support experimentation on features like permissions and policies
+### Support experimentation on features like permissions
 
 The project is not currently planning to provide supported
 sandbox functionality, but wants to support experimentation on
-related features like policies and permission enforcement.
+related features like permission enforcement.
 
 Features in this category should:
 
 * be opt-in, and additional overhead when not enabled must be low
 * limit change in core to just what is needed to enable experimentation
-
-## Current implementation and assets
-
-Node.js has an experimental implementation of
-[policies](https://nodejs.org/docs/latest/api/policy.html#policies).
-
-The core implementation is in:
-
-* [`lib/internal/process/policy.js`](https://github.com/nodejs/node/blob/HEAD/lib/internal/process/policy.js)
-* [`lib/internal/policy`](https://github.com/nodejs/node/blob/HEAD/lib/internal/policy)
-
-along with integration into the CJS and ESM loaders in:
-
-* [`lib/internal/modules/esm`](https://github.com/nodejs/node/blob/HEAD/lib/internal/modules/esm)
-* [`lib/internal/modules/cjs`](https://github.com/nodejs/node/blob/HEAD/lib/internal/modules/cjs)

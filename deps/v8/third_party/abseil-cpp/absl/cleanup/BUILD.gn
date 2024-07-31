@@ -1,0 +1,33 @@
+# Copyright 2021 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("cleanup_internal") {
+  public = [ "internal/cleanup.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:base_internal",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/utility",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("cleanup") {
+  public = [ "cleanup.h" ]
+  deps = [
+    ":cleanup_internal",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+  ]
+}
+
+absl_test("cleanup_test") {
+  sources = [ "cleanup_test.cc" ]
+  deps = [
+    ":cleanup",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/utility",
+  ]
+}

@@ -526,8 +526,9 @@ build_all_generated: $(GENERATED_MANDATORY) $(GENERATED) build_docs
 all: build_sw build_docs
 
 test: tests
-{- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep link-utils run_tests
-run_tests:
+{- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep link-utils
+	$(MAKE) run_tests
+run_tests: FORCE
 	@ : {- output_off() if $disabled{tests}; "" -}
 	( SRCTOP=$(SRCDIR) \
 	  BLDTOP=$(BLDDIR) \

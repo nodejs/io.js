@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5.1)
 cmake_policy(SET CMP0069 NEW)
 
-project(llhttp VERSION 9.1.3)
+project(llhttp VERSION 9.2.1)
 include(GNUInstallDirs)
 
 set(CMAKE_C_STANDARD 99)

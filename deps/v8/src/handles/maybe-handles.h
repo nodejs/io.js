@@ -33,20 +33,18 @@ class MaybeHandle final {
 
   // Constructor for handling automatic up casting from Handle.
   // Ex. Handle<JSArray> can be passed when MaybeHandle<Object> is expected.
-  template <typename S, typename = typename std::enable_if<
-                            std::is_convertible<S*, T*>::value>::type>
+  template <typename S, typename = std::enable_if_t<is_subtype_v<S, T>>>
   V8_INLINE MaybeHandle(Handle<S> handle) : location_(handle.location_) {}
 
   // Constructor for handling automatic up casting.
   // Ex. MaybeHandle<JSArray> can be passed when MaybeHandle<Object> is
   // expected.
-  template <typename S, typename = typename std::enable_if<
-                            std::is_convertible<S*, T*>::value>::type>
+  template <typename S, typename = std::enable_if_t<is_subtype_v<S, T>>>
   V8_INLINE MaybeHandle(MaybeHandle<S> maybe_handle)
       : location_(maybe_handle.location_) {}
 
-  V8_INLINE MaybeHandle(T object, Isolate* isolate);
-  V8_INLINE MaybeHandle(T object, LocalHeap* local_heap);
+  V8_INLINE MaybeHandle(Tagged<T> object, Isolate* isolate);
+  V8_INLINE MaybeHandle(Tagged<T> object, LocalHeap* local_heap);
 
   V8_INLINE void Assert() const { DCHECK_NOT_NULL(location_); }
   V8_INLINE void Check() const { CHECK_NOT_NULL(location_); }
@@ -67,6 +65,11 @@ class MaybeHandle final {
       return true;
     }
   }
+
+#ifdef V8_ENABLE_DIRECT_HANDLE
+  template <typename S>
+  V8_WARN_UNUSED_RESULT V8_INLINE bool ToHandle(DirectHandle<S>* out) const;
+#endif
 
   // Location equality.
   bool equals(MaybeHandle<T> other) const {
@@ -103,17 +106,19 @@ class MaybeObjectHandle {
  public:
   inline MaybeObjectHandle()
       : reference_type_(HeapObjectReferenceType::STRONG) {}
-  inline MaybeObjectHandle(MaybeObject object, Isolate* isolate);
+  inline MaybeObjectHandle(Tagged<MaybeObject> object, Isolate* isolate);
   inline MaybeObjectHandle(Tagged<Object> object, Isolate* isolate);
-  inline MaybeObjectHandle(MaybeObject object, LocalHeap* local_heap);
+  inline MaybeObjectHandle(Tagged<Smi> object, Isolate* isolate);
+  inline MaybeObjectHandle(Tagged<MaybeObject> object, LocalHeap* local_heap);
   inline MaybeObjectHandle(Tagged<Object> object, LocalHeap* local_heap);
+  inline MaybeObjectHandle(Tagged<Smi> object, LocalHeap* local_heap);
   inline explicit MaybeObjectHandle(Handle<Object> object);
 
   static inline MaybeObjectHandle Weak(Tagged<Object> object, Isolate* isolate);
   static inline MaybeObjectHandle Weak(Handle<Object> object);
 
-  inline MaybeObject operator*() const;
-  inline MaybeObject operator->() const;
+  inline Tagged<MaybeObject> operator*() const;
+  inline Tagged<MaybeObject> operator->() const;
   inline Handle<Object> object() const;
 
   inline bool is_identical_to(const MaybeObjectHandle& other) const;
@@ -142,39 +147,35 @@ class MaybeDirectHandle final {
   // Constructor for handling automatic up casting from DirectHandle.
   // Ex. DirectHandle<JSArray> can be passed when MaybeDirectHandle<Object> is
   // expected.
-  template <typename S, typename = typename std::enable_if<
-                            std::is_convertible<S*, T*>::value>::type>
+  template <typename S, typename = std::enable_if_t<is_subtype_v<S, T>>>
   V8_INLINE MaybeDirectHandle(DirectHandle<S> handle)
       : location_(handle.address()) {}
 
   // Constructor for handling automatic up casting from Handle.
   // Ex. Handle<JSArray> can be passed when MaybeDirectHandle<Object> is
   // expected.
-  template <typename S, typename = typename std::enable_if<
-                            std::is_convertible<S*, T*>::value>::type>
+  template <typename S, typename = std::enable_if_t<is_subtype_v<S, T>>>
   V8_INLINE MaybeDirectHandle(Handle<S> handle)
       : MaybeDirectHandle(DirectHandle<S>(handle)) {}
 
   // Constructor for handling automatic up casting.
   // Ex. MaybeDirectHandle<JSArray> can be passed when MaybeDirectHandle<Object>
   // is expected.
-  template <typename S, typename = typename std::enable_if<
-                            std::is_convertible<S*, T*>::value>::type>
+  template <typename S, typename = std::enable_if_t<is_subtype_v<S, T>>>
   V8_INLINE MaybeDirectHandle(MaybeDirectHandle<S> maybe_handle)
       : location_(maybe_handle.location_) {}
 
   // Constructor for handling automatic up casting from MaybeHandle.
   // Ex. MaybeHandle<JSArray> can be passed when
   // MaybeDirectHandle<Object> is expected.
-  template <typename S, typename = typename std::enable_if<
-                            std::is_convertible<S*, T*>::value>::type>
+  template <typename S, typename = std::enable_if_t<is_subtype_v<S, T>>>
   V8_INLINE MaybeDirectHandle(MaybeHandle<S> maybe_handle)
       : location_(maybe_handle.location_ == nullptr ? kTaggedNullAddress
                                                     : *maybe_handle.location_) {
   }
 
-  V8_INLINE MaybeDirectHandle(T object, Isolate* isolate);
-  V8_INLINE MaybeDirectHandle(T object, LocalHeap* local_heap);
+  V8_INLINE MaybeDirectHandle(Tagged<T> object, Isolate* isolate);
+  V8_INLINE MaybeDirectHandle(Tagged<T> object, LocalHeap* local_heap);
 
   V8_INLINE void Assert() const { DCHECK_NE(location_, kTaggedNullAddress); }
   V8_INLINE void Check() const { CHECK_NE(location_, kTaggedNullAddress); }
@@ -208,30 +209,34 @@ class MaybeDirectHandle final {
   // other's location_.
   template <typename>
   friend class MaybeDirectHandle;
+  template <typename>
+  friend class MaybeHandle;
 };
 
 class MaybeObjectDirectHandle {
  public:
   inline MaybeObjectDirectHandle()
       : reference_type_(HeapObjectReferenceType::STRONG) {}
-  inline MaybeObjectDirectHandle(MaybeObject object, Isolate* isolate);
-  inline MaybeObjectDirectHandle(Object object, Isolate* isolate);
-  inline MaybeObjectDirectHandle(MaybeObject object, LocalHeap* local_heap);
-  inline MaybeObjectDirectHandle(Object object, LocalHeap* local_heap);
+  inline MaybeObjectDirectHandle(Tagged<MaybeObject> object, Isolate* isolate);
+  inline MaybeObjectDirectHandle(Tagged<Object> object, Isolate* isolate);
+  inline MaybeObjectDirectHandle(Tagged<MaybeObject> object,
+                                 LocalHeap* local_heap);
+  inline MaybeObjectDirectHandle(Tagged<Object> object, LocalHeap* local_heap);
   inline explicit MaybeObjectDirectHandle(DirectHandle<Object> object);
 
-  static inline MaybeObjectDirectHandle Weak(Object object, Isolate* isolate);
+  static inline MaybeObjectDirectHandle Weak(Tagged<Object> object,
+                                             Isolate* isolate);
   static inline MaybeObjectDirectHandle Weak(DirectHandle<Object> object);
 
-  inline MaybeObject operator*() const;
-  inline MaybeObject operator->() const;
+  inline Tagged<MaybeObject> operator*() const;
+  inline Tagged<MaybeObject> operator->() const;
   inline DirectHandle<Object> object() const;
 
   inline bool is_identical_to(const MaybeObjectDirectHandle& other) const;
   bool is_null() const { return handle_.is_null(); }
 
  private:
-  inline MaybeObjectDirectHandle(Object object,
+  inline MaybeObjectDirectHandle(Tagged<Object> object,
                                  HeapObjectReferenceType reference_type,
                                  Isolate* isolate);
   inline MaybeObjectDirectHandle(DirectHandle<Object> object,

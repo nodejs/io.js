@@ -131,6 +131,9 @@ class JSDurationFormat
 #undef DECLARE_INLINE_STYLE_SETTER_GETTER
 #undef DECLARE_INLINE_FIELD_STYLE_SETTER_GETTER
 
+  // Since we store the fractional_digits in 4 bits but only use 0-9 as valid
+  // value. We use value 15 (max of 4 bits) to denote "undefined".
+  static const uint32_t kUndefinedFractionalDigits = 15;
   inline void set_fractional_digits(int32_t digits);
   inline int32_t fractional_digits() const;
 

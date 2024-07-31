@@ -16,7 +16,7 @@ const path = require('path');
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'FileSystemWrite',
-    resource: path.toNamespacedPath(path.resolve('./secret.txt')),
+    resource: path.toNamespacedPath('./secret.txt'),
   }));
 }
 

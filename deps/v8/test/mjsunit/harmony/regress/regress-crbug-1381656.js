@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-change-array-by-copy
 
 // Returning arguments for a function with 1 parameter results in toSorted code
 // initially under-allocating a sorting worklist of length 1 (instead of

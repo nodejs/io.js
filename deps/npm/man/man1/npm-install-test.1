@@ -1,4 +1,4 @@
-.TH "NPM-INSTALL-TEST" "1" "October 2023" "" ""
+.TH "NPM-INSTALL-TEST" "1" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBnpm-install-test\fR - Install package(s) and run tests
 .SS "Synopsis"
@@ -172,7 +172,7 @@ For \fBlist\fR this means the output will be based on the tree described by the 
 .SS "\fBforeground-scripts\fR"
 .RS 0
 .IP \(bu 4
-Default: false
+Default: \fBfalse\fR unless when using \fBnpm pack\fR or \fBnpm publish\fR where it defaults to \fBtrue\fR
 .IP \(bu 4
 Type: Boolean
 .RE 0
@@ -257,6 +257,16 @@ Type: null or String
 
 .P
 Override OS of native modules to install. Acceptable values are same as \fBos\fR field of package.json, which comes from \fBprocess.platform\fR.
+.SS "\fBlibc\fR"
+.RS 0
+.IP \(bu 4
+Default: null
+.IP \(bu 4
+Type: null or String
+.RE 0
+
+.P
+Override libc of native modules to install. Acceptable values are same as \fBlibc\fR field of package.json
 .SS "\fBworkspace\fR"
 .RS 0
 .IP \(bu 4

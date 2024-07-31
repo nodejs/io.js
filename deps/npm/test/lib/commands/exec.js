@@ -1,6 +1,6 @@
 const t = require('tap')
-const fs = require('fs/promises')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 const { load: loadMockNpm } = require('../../fixtures/mock-npm.js')
 const MockRegistry = require('@npmcli/mock-registry')
 
@@ -41,6 +41,7 @@ t.test('registry package', async t => {
   })
 
   await registry.package({
+    times: 2,
     manifest,
     tarballs: {
       '1.0.0': path.join(npm.prefix, 'npm-exec-test'),
@@ -75,7 +76,7 @@ t.test('--prefix', async t => {
   })
 
   // This is what `--prefix` does
-  npm.globalPrefix = npm.localPrefix
+  npm.config.globalPrefix = npm.config.localPrefix
 
   await registry.package({
     manifest,
@@ -88,7 +89,7 @@ t.test('--prefix', async t => {
   t.ok(exists.isFile(), 'bin ran, creating file')
 })
 
-t.test('workspaces', async t => {
+t.test('runs in workspace path', async t => {
   const registry = new MockRegistry({
     tap: t,
     registry: 'https://registry.npmjs.org/',
@@ -124,10 +125,99 @@ t.test('workspaces', async t => {
   await registry.package({ manifest,
     tarballs: {
       '1.0.0': path.join(npm.prefix, 'npm-exec-test'),
-    } })
+    },
+  })
   await npm.exec('exec', ['@npmcli/npx-test'])
   const exists = await fs.stat(path.join(npm.prefix, 'workspace-a', 'npm-exec-test-success'))
   t.ok(exists.isFile(), 'bin ran, creating file inside workspace')
+})
+
+t.test('finds workspace bin first', async t => {
+  const { npm } = await loadMockNpm(t, {
+    config: {
+      workspace: ['workspace-a'],
+    },
+    prefixDir: {
+      'package.json': JSON.stringify({
+        name: '@npmcli/npx-workspace-root-test',
+        bin: { 'npx-test': 'index.js' },
+        workspaces: ['workspace-a'],
+      }),
+      'index.js': `#!/usr/bin/env node
+  require('fs').writeFileSync('npm-exec-test-fail', '')`,
+      'workspace-a': {
+        'package.json': JSON.stringify({
+          name: '@npmcli/npx-workspace-test',
+          bin: { 'npx-test': 'index.js' },
+        }),
+        'index.js': `#!/usr/bin/env node
+  require('fs').writeFileSync('npm-exec-test-success', '')`,
+      },
+    },
+  })
+
+  await npm.exec('install', []) // reify
+  await npm.exec('exec', ['npx-test'])
+  const exists = await fs.stat(path.join(npm.prefix, 'workspace-a', 'npm-exec-test-success'))
+  t.ok(exists.isFile(), 'bin ran, creating file inside workspace')
+  t.rejects(fs.stat(path.join(npm.prefix, 'npm-exec-test-fail')))
+})
+
+t.test('finds workspace dep first', async t => {
+  const registry = new MockRegistry({
+    tap: t,
+    registry: 'https://registry.npmjs.org/',
+  })
+
+  const manifest = registry.manifest({ name: '@npmcli/subdep', versions: ['1.0.0', '2.0.0'] })
+  manifest.versions['1.0.0'].bin = { 'npx-test': 'index.js' }
+  manifest.versions['2.0.0'].bin = { 'npx-test': 'index.js' }
+
+  const { npm } = await loadMockNpm(t, {
+    prefixDir: {
+      subdep: {
+        one: {
+          'package.json': JSON.stringify(manifest.versions['1.0.0']),
+          'index.js': `#!/usr/bin/env node
+  require('fs').writeFileSync('npm-exec-test-one', '')`,
+        },
+        two: {
+          'package.json': JSON.stringify(manifest.versions['2.0.0']),
+          'index.js': `#!/usr/bin/env node
+  require('fs').writeFileSync('npm-exec-test-two', '')`,
+        },
+      },
+      'package.json': JSON.stringify({
+        name: '@npmcli/npx-workspace-root-test',
+        dependencies: { '@npmcli/subdep': '1.0.0' },
+        bin: { 'npx-test': 'index.js' },
+        workspaces: ['workspace-a'],
+      }),
+      'index.js': `#!/usr/bin/env node
+  require('fs').writeFileSync('npm-exec-test-fail', '')`,
+      'workspace-a': {
+        'package.json': JSON.stringify({
+          name: '@npmcli/npx-workspace-test',
+          dependencies: { '@npmcli/subdep': '2.0.0' },
+          bin: { 'npx-test': 'index.js' },
+        }),
+        'index.js': `#!/usr/bin/env node
+  require('fs').writeFileSync('npm-exec-test-success', '')`,
+      },
+    },
+  })
+
+  await registry.package({ manifest,
+    tarballs: {
+      '1.0.0': path.join(npm.prefix, 'subdep', 'one'),
+      '2.0.0': path.join(npm.prefix, 'subdep', 'two'),
+    },
+  })
+  await npm.exec('install', [])
+  npm.config.set('workspace', ['workspace-a'])
+  await npm.exec('exec', ['npx-test'])
+  const exists = await fs.stat(path.join(npm.prefix, 'workspace-a', 'npm-exec-test-success'))
+  t.ok(exists.isFile(), 'bin ran, creating file')
 })
 
 t.test('npx --no-install @npmcli/npx-test', async t => {

@@ -12,8 +12,10 @@ assertEquals(42, Atomics.Mutex.lock(mutex, () => {
 }));
 assertEquals(locked_count, 1);
 
-// tryLock returns true when successful.
-assertTrue(Atomics.Mutex.tryLock(mutex, () => { locked_count++; }));
+let lockResult = Atomics.Mutex.tryLock(mutex, () => {
+  locked_count++;
+});
+assertEquals(true, lockResult.success);
 assertEquals(locked_count, 2);
 
 // Recursively locking throws.
@@ -25,10 +27,14 @@ Atomics.Mutex.lock(mutex, () => {
 });
 assertEquals(locked_count, 3);
 
-// Recursive tryLock'ing returns false.
+// Recursive tryLocking returns returns false success value.
 Atomics.Mutex.lock(mutex, () => {
   locked_count++;
-  assertFalse(Atomics.Mutex.tryLock(mutex, () => { throw "unreachable"; }));
+  lockResult = Atomics.Mutex.tryLock(mutex, () => {
+    throw 'unreachable';
+  });
+  assertEquals(false, lockResult.success);
+  assertEquals(undefined, lockResult.value);
 });
 assertEquals(locked_count, 4);
 
@@ -51,3 +57,20 @@ assertEquals(locked_count, 6);
   const box = new Box;
   box.payload = mutex;
 })();
+
+// lockWithTimeout's return value is an object with a value field
+// and a success field.
+lockResult = Atomics.Mutex.lockWithTimeout(mutex, () => 42, 1);
+assertEquals(42, lockResult.value);
+assertEquals(true, lockResult.success);
+
+// Timeout must be a number.
+assertThrows(() => {
+  Atomics.Mutex.lockWithTimeout(mutex, () => {}, '42');
+})
+assertThrows(() => {
+  Atomics.Mutex.lockWithTimeout(mutex, () => {}, {});
+})
+assertThrows(() => {
+  Atomics.Mutex.lockWithTimeout(mutex, () => {});
+})

@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "src/base/macros.h"
-#include "third_party/google_benchmark/src/include/benchmark/benchmark.h"
+#include "third_party/google_benchmark_chrome/src/include/benchmark/benchmark.h"
 
 static void BM_Empty(benchmark::State& state) {
   for (auto _ : state) {

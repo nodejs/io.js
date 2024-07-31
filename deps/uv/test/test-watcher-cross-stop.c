@@ -76,22 +76,22 @@ TEST_IMPL(watcher_cross_stop) {
 
   TEST_FILE_LIMIT(ARRAY_SIZE(sockets) + 32);
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
   memset(big_string, 'A', sizeof(big_string));
   buf = uv_buf_init(big_string, sizeof(big_string));
 
   for (i = 0; i < ARRAY_SIZE(sockets); i++) {
-    ASSERT(0 == uv_udp_init(loop, &sockets[i]));
-    ASSERT(0 == uv_udp_bind(&sockets[i],
-                            (const struct sockaddr*) &addr,
-                            UV_UDP_REUSEADDR));
-    ASSERT(0 == uv_udp_recv_start(&sockets[i], alloc_cb, recv_cb));
-    ASSERT(0 == uv_udp_send(&reqs[i],
-                            &sockets[i],
-                            &buf,
-                            1,
-                            (const struct sockaddr*) &addr,
-                            send_cb));
+    ASSERT_OK(uv_udp_init(loop, &sockets[i]));
+    ASSERT_OK(uv_udp_bind(&sockets[i],
+                          (const struct sockaddr*) &addr,
+                          UV_UDP_REUSEADDR));
+    ASSERT_OK(uv_udp_recv_start(&sockets[i], alloc_cb, recv_cb));
+    ASSERT_OK(uv_udp_send(&reqs[i],
+                          &sockets[i],
+                          &buf,
+                          1,
+                          (const struct sockaddr*) &addr,
+                          send_cb));
   }
 
   while (recv_cb_called == 0)
@@ -100,12 +100,12 @@ TEST_IMPL(watcher_cross_stop) {
   for (i = 0; i < ARRAY_SIZE(sockets); i++)
     uv_close((uv_handle_t*) &sockets[i], close_cb);
 
-  ASSERT(recv_cb_called > 0);
+  ASSERT_GT(recv_cb_called, 0);
 
   uv_run(loop, UV_RUN_DEFAULT);
 
-  ASSERT(ARRAY_SIZE(sockets) == send_cb_called);
-  ASSERT(ARRAY_SIZE(sockets) == close_cb_called);
+  ASSERT_EQ(ARRAY_SIZE(sockets), send_cb_called);
+  ASSERT_EQ(ARRAY_SIZE(sockets), close_cb_called);
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

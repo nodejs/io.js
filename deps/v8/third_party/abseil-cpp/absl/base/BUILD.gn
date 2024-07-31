@@ -1,0 +1,329 @@
+# Copyright 2018 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("atomic_hook") {
+  public = [ "internal/atomic_hook.h" ]
+  public_deps = [
+    ":config",
+    ":core_headers",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("errno_saver") {
+  public = [ "internal/errno_saver.h" ]
+  public_deps = [ ":config" ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("log_severity") {
+  sources = [ "log_severity.cc" ]
+  public = [ "log_severity.h" ]
+  public_deps = [
+    ":config",
+    ":core_headers",
+  ]
+}
+
+absl_source_set("no_destructor") {
+  public = [ "no_destructor.h" ]
+  deps = [
+    ":config",
+    ":nullability",
+  ]
+}
+
+absl_source_set("nullability") {
+  sources = [ "internal/nullability_impl.h" ]
+  public = [ "nullability.h" ]
+  deps = [
+    ":core_headers",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+}
+
+absl_source_set("raw_logging_internal") {
+  sources = [ "internal/raw_logging.cc" ]
+  public = [ "internal/raw_logging.h" ]
+  public_deps = [
+    ":atomic_hook",
+    ":config",
+    ":core_headers",
+    ":errno_saver",
+    ":log_severity",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("spinlock_wait") {
+  sources = [
+    "internal/spinlock_akaros.inc",
+    "internal/spinlock_linux.inc",
+    "internal/spinlock_posix.inc",
+    "internal/spinlock_wait.cc",
+    "internal/spinlock_win32.inc",
+  ]
+  public = [ "internal/spinlock_wait.h" ]
+  deps = [
+    ":base_internal",
+    ":core_headers",
+    ":errno_saver",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/base:*" ]
+}
+
+absl_source_set("config") {
+  public = [
+    "config.h",
+    "options.h",
+    "policy_checks.h",
+  ]
+}
+
+absl_source_set("cycleclock_internal") {
+  public = [
+    "internal/cycleclock_config.h",
+    "internal/unscaledcycleclock_config.h",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+  deps = [
+    ":base_internal",
+    ":config",
+  ]
+}
+
+absl_source_set("dynamic_annotations") {
+  public = [ "dynamic_annotations.h" ]
+
+  # Abseil's dynamic annotations are only visible inside Abseil because
+  # their usage is deprecated in Chromium (see README.chromium for more info).
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+  deps = [
+    ":config",
+    ":core_headers",
+  ]
+}
+
+absl_source_set("core_headers") {
+  public = [
+    "attributes.h",
+    "const_init.h",
+    "macros.h",
+    "optimization.h",
+    "port.h",
+    "thread_annotations.h",
+  ]
+  public_deps = [ ":config" ]
+}
+
+absl_source_set("malloc_internal") {
+  sources = [ "internal/low_level_alloc.cc" ]
+  public = [
+    "internal/direct_mmap.h",
+    "internal/low_level_alloc.h",
+  ]
+  public_deps = [
+    ":base",
+    ":base_internal",
+    ":config",
+    ":core_headers",
+    ":dynamic_annotations",
+    ":raw_logging_internal",
+  ]
+}
+
+absl_source_set("base_internal") {
+  public = [
+    "internal/hide_ptr.h",
+    "internal/identity.h",
+    "internal/inline_variable.h",
+    "internal/invoke.h",
+    "internal/scheduling_mode.h",
+  ]
+  public_deps = [
+    ":config",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("base") {
+  sources = [
+    "internal/cycleclock.cc",
+    "internal/spinlock.cc",
+    "internal/sysinfo.cc",
+    "internal/thread_identity.cc",
+    "internal/unscaledcycleclock.cc",
+  ]
+  public = [
+    "call_once.h",
+    "casts.h",
+    "internal/cycleclock.h",
+    "internal/low_level_scheduling.h",
+    "internal/per_thread_tls.h",
+    "internal/spinlock.h",
+    "internal/sysinfo.h",
+    "internal/thread_identity.h",
+    "internal/tsan_mutex_interface.h",
+    "internal/unscaledcycleclock.h",
+  ]
+
+  # TODO(mbonadei): The bazel file has:
+  #   "-DEFAULTLIB:advapi32.lib"
+  # understand if this is needed here as well.
+  public_deps = [
+    ":atomic_hook",
+    ":base_internal",
+    ":config",
+    ":core_headers",
+    ":cycleclock_internal",
+    ":dynamic_annotations",
+    ":log_severity",
+    ":nullability",
+    ":raw_logging_internal",
+    ":spinlock_wait",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+}
+
+absl_source_set("throw_delegate") {
+  sources = [ "internal/throw_delegate.cc" ]
+  public = [ "internal/throw_delegate.h" ]
+  public_deps = [
+    ":config",
+    ":raw_logging_internal",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("exception_testing") {
+  testonly = true
+  public = [ "internal/exception_testing.h" ]
+  public_deps = [ ":config" ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("pretty_function") {
+  public = [ "internal/pretty_function.h" ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+# TODO(mbonadei): This target throws by design. We should probably
+# just remove it.
+# source_set("exception_safety_testing") {
+#   testonly = true
+#   configs -= [ "//build/config/compiler:chromium_code" ]
+#   configs += [
+#     "//build/config/compiler:no_chromium_code",
+#     "//third_party/abseil-cpp:absl_test_cflags_cc",
+#   ]
+#   public_configs = [ "//third_party/abseil-cpp:absl_include_config" ]
+#   sources = [
+#     "internal/exception_safety_testing.cc",
+#   ]
+#   public = [
+#     "internal/exception_safety_testing.h",
+#   ]
+#   deps = [
+#     ":config",
+#     ":pretty_function",
+#     "//third_party/abseil-cpp/absl/memory",
+#     "//third_party/abseil-cpp/absl/meta:type_traits",
+#     "//third_party/abseil-cpp/absl/strings",
+#     "//third_party/abseil-cpp/absl/utility",
+#     "//third_party/googletest:gtest",
+#   ]
+# }
+
+absl_source_set("spinlock_test_common") {
+  testonly = true
+  sources = [ "spinlock_test_common.cc" ]
+  deps = [
+    ":base",
+    ":base_internal",
+    ":config",
+    ":core_headers",
+    "//third_party/abseil-cpp/absl/synchronization",
+    "//third_party/googletest:gtest",
+  ]
+}
+
+absl_source_set("endian") {
+  public = [
+    "internal/endian.h",
+    "internal/unaligned_access.h",
+  ]
+  public_deps = [
+    ":base",
+    ":config",
+    ":core_headers",
+    ":nullability",
+  ]
+}
+
+absl_source_set("scoped_set_env") {
+  testonly = true
+  public = [ "internal/scoped_set_env.h" ]
+  sources = [ "internal/scoped_set_env.cc" ]
+  public_deps = [ ":config" ]
+  deps = [ ":raw_logging_internal" ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("strerror") {
+  sources = [ "internal/strerror.cc" ]
+  public = [ "internal/strerror.h" ]
+  public_deps = [ ":config" ]
+  deps = [
+    ":core_headers",
+    ":errno_saver",
+  ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("fast_type_id") {
+  public = [ "internal/fast_type_id.h" ]
+  public_deps = [ ":config" ]
+  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+}
+
+absl_source_set("prefetch") {
+  public = [ "prefetch.h" ]
+  deps = [
+    ":config",
+    ":core_headers",
+  ]
+}
+
+absl_test("prefetch_test") {
+  sources = [ "prefetch_test.cc" ]
+  deps = [ ":prefetch" ]
+}
+
+absl_test("config_test") {
+  sources = [ "config_test.cc" ]
+  deps = [
+    ":config",
+    "//third_party/abseil-cpp/absl/synchronization:thread_pool",
+  ]
+}
+
+absl_test("no_destructor_test") {
+  sources = [ "no_destructor_test.cc" ]
+  deps = [
+    ":config",
+    ":no_destructor",
+    ":raw_logging_internal",
+  ]
+}
+
+absl_test("nullability_test") {
+  sources = [ "nullability_test.cc" ]
+  deps = [
+    ":core_headers",
+    ":nullability",
+  ]
+}

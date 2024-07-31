@@ -10,10 +10,11 @@
 #ifndef BROTLI_ENC_PREFIX_H_
 #define BROTLI_ENC_PREFIX_H_
 
+#include <brotli/types.h>
+
 #include "../common/constants.h"
 #include "../common/platform.h"
-#include <brotli/types.h>
-#include "./fast_log.h"
+#include "fast_log.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {

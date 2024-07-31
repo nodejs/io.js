@@ -238,11 +238,17 @@ int CRYPTO_secure_allocated(const void *ptr)
 
 size_t CRYPTO_secure_used(void)
 {
+    size_t ret = 0;
+
 #ifndef OPENSSL_NO_SECURE_MEMORY
-    return secure_mem_used;
-#else
-    return 0;
+    if (!CRYPTO_THREAD_read_lock(sec_malloc_lock))
+        return 0;
+
+    ret = secure_mem_used;
+
+    CRYPTO_THREAD_unlock(sec_malloc_lock);
 #endif /* OPENSSL_NO_SECURE_MEMORY */
+    return ret;
 }
 
 size_t CRYPTO_secure_actual_size(void *ptr)

@@ -1,0 +1,37 @@
+From 15f51edf989cc47588c3d8635a62c255cdeb0072 Mon Sep 17 00:00:00 2001
+From: Daniel Cheng <dcheng@chromium.org>
+Date: Wed, 6 Oct 2021 03:23:23 -0700
+Subject: [PATCH] Turn on hardened mode and alias absl types to STL types..
+
+The absl implementations contain various hardening checks where the
+standard is UB. At the time, libc++ lacked corresponding hardening
+checks, so we forced the use of absl types. As of
+https://crbug.com/1335422, this is no longer true. Switching to the STL
+version of variant is tracked by https://crbug.com/1373620.
+---
+ third_party/abseil-cpp/absl/base/options.h | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/third_party/abseil-cpp/absl/base/options.h b/third_party/abseil-cpp/absl/base/options.h
+index 230bf1eecc4a4..1641271cd3ff9 100644
+--- a/third_party/abseil-cpp/absl/base/options.h
++++ b/third_party/abseil-cpp/absl/base/options.h
+@@ -180,7 +180,7 @@
+ // absl::variant is a typedef of std::variant, use the feature macro
+ // ABSL_USES_STD_VARIANT.
+ 
+-#define ABSL_OPTION_USE_STD_VARIANT 2
++#define ABSL_OPTION_USE_STD_VARIANT 0
+ 
+ 
+ // ABSL_OPTION_USE_INLINE_NAMESPACE
+@@ -233,6 +233,6 @@
+ // checks enabled by this option may abort the program in a different way and
+ // log additional information when `NDEBUG` is not defined.
+ 
+-#define ABSL_OPTION_HARDENED 0
++#define ABSL_OPTION_HARDENED 1
+ 
+ #endif  // ABSL_BASE_OPTIONS_H_
+-- 
+2.33.0.882.g93a45727a2-goog

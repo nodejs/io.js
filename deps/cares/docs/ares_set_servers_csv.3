@@ -1,49 +1,62 @@
 .\"
 .\" Copyright 2010 by Ben Greear <greearb@candelatech.com>
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
-.TH ARES_SET_SERVERS_CSV 3 "30 June 2010"
+.TH ARES_SET_SERVERS_CSV 3 "5 Dec 2023"
 .SH NAME
-ares_set_servers_csv, ares_set_servers_ports_csv \- Set list of DNS servers to be used.
+ares_set_servers_csv, ares_set_servers_ports_csv, ares_get_servers_csv \- Set
+or Get a list of DNS servers used for queries.
 .SH SYNOPSIS
 .nf
 #include <ares.h>
 
-int ares_set_servers_csv(ares_channel \fIchannel\fP, const char* \fIservers\fP)
+int ares_set_servers_csv(ares_channel_t *\fIchannel\fP, const char* \fIservers\fP)
 
-int ares_set_servers_ports_csv(ares_channel \fIchannel\fP, const char* \fIservers\fP)
+int ares_set_servers_ports_csv(ares_channel_t *\fIchannel\fP, const char* \fIservers\fP)
+
+char *ares_get_servers_csv(const ares_channel_t *\fIchannel\fP)
 .fi
 .SH DESCRIPTION
-The \fBares_set_servers_csv\fP and \fBares_set_servers_ports_csv\fPfunctions set
-the list of DNS servers that ARES will query.  The format of the servers option is:
+The \fBares_set_servers_csv\fP and \fBares_set_servers_ports_csv\fP functions set
+the list of DNS servers that c-ares will query.  As of v1.22.0 this function can
+be called on an active channel with running queries, previously it would return
+ARES_ENOTIMP.
 
-host[:port][,host[:port]]...
+Though not recommended, passing NULL for servers will clear all configured
+servers and make an inoperable channel, this may be advantageous for test
+simulation but unlikely to be useful in production.
+
+The \fBares_get_servers_csv\fP retrieves the list of servers in comma delimited
+format.
+
+The input and output format is a comma separated list of servers.  Each server
+entry may contain these forms:
+
+ip[:port][%iface]
+
+The \fBip\fP may be encapsulated in square brackets ([ ]), and must be if
+using ipv6 and also specifying a port.
+
+The \fBport\fP is optional, and will default to 53 or the value specified in
+\fBares_init_options(3)\fP.
+
+The \fBiface\fP is specific to IPv6 link-local servers (fe80::/10) and should
+not otherwise be used.
 
 For example:
 
-192.168.1.100,192.168.1.101,3.4.5.6
+192.168.1.100,192.168.1.101:53,[1:2:3::4]:53,[fe80::1]:53%eth0
 .PP
-The \fBares_set_servers_csv\fP function will ignore any port values specified in
-the input string, whereare the \fBares_set_servers_ports_csv\fP function will
-apply any specified port values as the UDP and TCP port to be used for that
-particular nameserver.
+As of c-ares 1.24.0, \fBares_set_servers_csv\fP and \fBares_set_servers_ports_csv\fP
+are identical.  Prior versions would simply omit ports in \fBares_set_servers_csv\fP
+but due to the addition of link local interface support, this difference was
+removed.
 
 .SH RETURN VALUES
 .B ares_set_servers_csv(3)
-This function may return any of the following values:
+and
+.B ares_set_servers_ports_csv(3)
+may return any of the following values:
 .TP 15
 .B ARES_SUCCESS
 The name servers configuration was successfully initialized.
@@ -58,13 +71,13 @@ was invalid.
 .TP 15
 .B ARES_ENOTINITIALIZED
 c-ares library initialization not yet performed.
-.TP 15
-.B ARES_ENOTIMP
-Changing name servers configuration while queries are outstanding is not implemented.
+.PP
+.B ares_get_servers_csv(3)
+returns a string representing the servers configured which must be freed with
+\fBares_free_string(3)\fP.  If it returns NULL, this is an out of memory condition.
 .SH SEE ALSO
 .BR ares_set_servers (3)
 .SH AVAILABILITY
-\fBares_set_servers_csv\fP was added in c-ares 1.7.2;
+\fBares_set_servers_csv\fP was added in c-ares 1.7.2
 \fBares_set_servers_ports_csv\fP was added in c-ares 1.11.0.
-.SH AUTHOR
-Ben Greear
+\fBares_get_servers_csv\fP was added in c-ares 1.24.0.

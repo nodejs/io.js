@@ -13,7 +13,7 @@ function randomFn() {
 }
 
 const bench = common.createBenchmark(main, {
-  n: [1e5],
+  n: [1e6],
   pending: [1, 10],
 }, {
   options: ['--expose-internals'],

@@ -6,8 +6,8 @@ const bench = common.createBenchmark(main, {
   encoding: ['utf-8', 'latin1', 'iso-8859-3'],
   ignoreBOM: [0, 1],
   fatal: [0, 1],
-  len: [256, 1024 * 16, 1024 * 512],
-  n: [1e2],
+  len: [256, 1024 * 16, 1024 * 128],
+  n: [1e3],
   type: ['SharedArrayBuffer', 'ArrayBuffer', 'Buffer'],
 });
 

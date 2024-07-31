@@ -20,7 +20,10 @@ async function runTest() {
     { 'method': 'Runtime.runIfWaitingForDebugger' },
   ];
 
-  session.send(commands);
+  await session.send({ method: 'NodeRuntime.enable' });
+  await session.waitForNotification('NodeRuntime.waitingForDebugger');
+  await session.send(commands);
+  await session.send({ method: 'NodeRuntime.disable' });
 
   const msg = await session.waitForNotification('Runtime.consoleAPICalled');
 

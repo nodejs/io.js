@@ -26,7 +26,35 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Flags: --allow-natives-syntax
-//
+
+// Test that elements are replaced with holes.
+// This test must be the first test to guarantee elements protectors are valid.
+(function() {
+  function pop(arr) {
+    return arr.pop();
+  }
+  let smi_arr = [1, 2, 3, 4];
+  let object_arr = [{}, {}, {}, {}];
+  let double_arr = [1.1, 2.2, 3.3, 4.4];
+  %PrepareFunctionForOptimization(pop);
+  assertEquals(4, pop(smi_arr));
+  assertEquals({}, pop(object_arr));
+  assertEquals(4.4, pop(double_arr));
+  assertEquals(3, pop(smi_arr));
+  assertEquals({}, pop(object_arr));
+  assertEquals(3.3, pop(double_arr));
+  %OptimizeFunctionOnNextCall(pop);
+  assertEquals(2, pop(smi_arr));
+  assertEquals({}, pop(object_arr));
+  assertEquals(2.2, pop(double_arr));
+  smi_arr[2] = 3;
+  object_arr[2] = {};
+  double_arr[2] = 3.3;
+  assertEquals(undefined, smi_arr[1]);
+  assertEquals(undefined, object_arr[1]);
+  assertEquals(undefined, double_arr[1]);
+})();
+
 // Check pops with various number of arguments.
 (function() {
   var a = [];

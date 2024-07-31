@@ -55,7 +55,7 @@ As generating DH parameters is extremely time consuming, an application
 should not generate the parameters on the fly. DH parameters can be reused, as
 the actual key is newly generated during the negotiation.
 
-Typically applications should use well know DH parameters that have built-in
+Typically applications should use well known DH parameters that have built-in
 support in OpenSSL. The macros SSL_CTX_set_dh_auto() and SSL_set_dh_auto()
 configure OpenSSL to use the default built-in DH parameters for the B<SSL_CTX>
 and B<SSL> objects respectively. Passing a value of 1 in the I<onoff> parameter

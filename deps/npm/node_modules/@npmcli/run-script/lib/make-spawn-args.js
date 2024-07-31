@@ -9,10 +9,10 @@ const makeSpawnArgs = options => {
     path,
     scriptShell = true,
     binPaths,
-    env = {},
+    env,
     stdio,
     cmd,
-    args = [],
+    args,
     stdioString,
   } = options
 

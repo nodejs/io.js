@@ -115,10 +115,9 @@ Tagged<Object> ObjectLookupAccessor(Isolate* isolate, Handle<Object> object,
   LookupIterator it(isolate, object, lookup_key,
                     LookupIterator::PROTOTYPE_CHAIN_SKIP_INTERCEPTOR);
 
-  for (; it.IsFound(); it.Next()) {
+  for (;; it.Next()) {
     switch (it.state()) {
       case LookupIterator::INTERCEPTOR:
-      case LookupIterator::NOT_FOUND:
       case LookupIterator::TRANSITION:
         UNREACHABLE();
 
@@ -151,25 +150,26 @@ Tagged<Object> ObjectLookupAccessor(Isolate* isolate, Handle<Object> object,
         return ObjectLookupAccessor(isolate, prototype, key, component);
       }
       case LookupIterator::WASM_OBJECT:
-      case LookupIterator::INTEGER_INDEXED_EXOTIC:
+      case LookupIterator::TYPED_ARRAY_INDEX_NOT_FOUND:
       case LookupIterator::DATA:
+      case LookupIterator::NOT_FOUND:
         return ReadOnlyRoots(isolate).undefined_value();
 
       case LookupIterator::ACCESSOR: {
         Handle<Object> maybe_pair = it.GetAccessors();
         if (IsAccessorPair(*maybe_pair)) {
-          Handle<NativeContext> native_context = it.GetHolder<JSReceiver>()
-                                                     ->GetCreationContext()
-                                                     .ToHandleChecked();
+          Handle<NativeContext> holder_realm(
+              it.GetHolder<JSReceiver>()->GetCreationContext().value(),
+              isolate);
           return *AccessorPair::GetComponent(
-              isolate, native_context, Handle<AccessorPair>::cast(maybe_pair),
+              isolate, holder_realm, Handle<AccessorPair>::cast(maybe_pair),
               component);
         }
+        continue;
       }
     }
+    UNREACHABLE();
   }
-
-  return ReadOnlyRoots(isolate).undefined_value();
 }
 
 }  // namespace
@@ -339,7 +339,7 @@ BUILTIN(ObjectGetOwnPropertyDescriptors) {
       isolate->factory()->NewJSObject(isolate->object_function());
 
   for (int i = 0; i < keys->length(); ++i) {
-    Handle<Name> key = Handle<Name>::cast(FixedArray::get(*keys, i, isolate));
+    Handle<Name> key(Name::cast(keys->get(i)), isolate);
     PropertyDescriptor descriptor;
     Maybe<bool> did_get_descriptor = JSReceiver::GetOwnPropertyDescriptor(
         isolate, receiver, key, &descriptor);

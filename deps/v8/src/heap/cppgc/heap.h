@@ -37,9 +37,21 @@ class V8_EXPORT_PRIVATE Heap final : public HeapBase,
   void FinalizeIncrementalGarbageCollectionIfRunning(GCConfig);
 
   size_t epoch() const final { return epoch_; }
-  const EmbedderStackState* override_stack_state() const final {
-    return HeapBase::override_stack_state();
+
+  std::optional<EmbedderStackState> overridden_stack_state() const final {
+    return override_stack_state_;
   }
+  void set_override_stack_state(EmbedderStackState state) final {
+    CHECK(!override_stack_state_);
+    override_stack_state_ = state;
+  }
+  void clear_overridden_stack_state() final { override_stack_state_.reset(); }
+
+#ifdef V8_ENABLE_ALLOCATION_TIMEOUT
+  v8::base::Optional<int> UpdateAllocationTimeout() final {
+    return v8::base::nullopt;
+  }
+#endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
   void EnableGenerationalGC();
 
@@ -61,6 +73,8 @@ class V8_EXPORT_PRIVATE Heap final : public HeapBase,
   bool generational_gc_enabled_ = false;
 
   size_t epoch_ = 0;
+
+  std::optional<cppgc::EmbedderStackState> override_stack_state_;
 };
 
 }  // namespace internal

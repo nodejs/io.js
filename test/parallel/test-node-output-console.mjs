@@ -11,7 +11,7 @@ function replaceStackTrace(str) {
   return snapshot.replaceStackTrace(str, '$1at *$7\n');
 }
 
-describe('console output', { concurrency: true }, () => {
+describe('console output', { concurrency: !process.env.TEST_PARALLEL }, () => {
   function normalize(str) {
     return str.replaceAll(snapshot.replaceWindowsPaths(process.cwd()), '').replaceAll('/', '*').replaceAll(process.version, '*').replaceAll(/\d+/g, '*');
   }
@@ -31,7 +31,11 @@ describe('console output', { concurrency: true }, () => {
     .transform(snapshot.replaceWindowsLineEndings, snapshot.replaceWindowsPaths, replaceStackTrace);
   for (const { name, transform, env } of tests) {
     it(name, async () => {
-      await snapshot.spawnAndAssert(fixtures.path(name), transform ?? defaultTransform, { env });
+      await snapshot.spawnAndAssert(
+        fixtures.path(name),
+        transform ?? defaultTransform,
+        { env: { ...env, ...process.env } },
+      );
     });
   }
 });

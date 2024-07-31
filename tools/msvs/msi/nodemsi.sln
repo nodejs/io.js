@@ -13,36 +13,26 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
 		Debug|x64 = Debug|x64
-		Debug|x86 = Debug|x86
 		Release|ARM64 = Release|ARM64
 		Release|x64 = Release|x64
-		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Debug|ARM64.ActiveCfg = Debug|arm64
 		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Debug|ARM64.Build.0 = Debug|arm64
 		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Debug|x64.ActiveCfg = Debug|x64
 		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Debug|x64.Build.0 = Debug|x64
-		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Debug|x86.ActiveCfg = Debug|x86
-		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Debug|x86.Build.0 = Debug|x86
 		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Release|ARM64.ActiveCfg = Release|arm64
 		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Release|ARM64.Build.0 = Release|arm64
 		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Release|x64.ActiveCfg = Release|x64
 		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Release|x64.Build.0 = Release|x64
-		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Release|x86.ActiveCfg = Release|x86
-		{1D808FF0-B5A9-4BE9-859D-B334B6F48BE2}.Release|x86.Build.0 = Release|x86
 		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Debug|ARM64.ActiveCfg = Debug|ARM64
 		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Debug|ARM64.Build.0 = Debug|ARM64
 		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Debug|x64.ActiveCfg = Debug|x64
 		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Debug|x64.Build.0 = Debug|x64
-		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Debug|x86.ActiveCfg = Debug|Win32
-		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Debug|x86.Build.0 = Debug|Win32
 		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Release|ARM64.ActiveCfg = Release|ARM64
 		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Release|ARM64.Build.0 = Release|ARM64
 		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Release|x64.ActiveCfg = Release|x64
 		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Release|x64.Build.0 = Release|x64
-		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Release|x86.ActiveCfg = Release|Win32
-		{B70585F8-DAB7-40FA-9904-13CF53A73A06}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

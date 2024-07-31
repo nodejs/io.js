@@ -15,28 +15,39 @@ namespace compiler {
 
 GraphTest::GraphTest(int num_parameters)
     : TestWithNativeContextAndZone(kCompressGraphZone),
-      common_(zone()),
-      graph_(zone()),
-      broker_(isolate(), zone()),
-      broker_scope_(&broker_, isolate(), zone()),
+      data_(std::make_unique<Data>(isolate(), zone(), num_parameters)) {}
+
+void GraphTest::Reset() {
+  int num_parameters = data_->num_parameters_;
+  data_ = nullptr;
+  zone()->Reset();
+  data_ = std::make_unique<Data>(isolate(), zone(), num_parameters);
+}
+
+GraphTest::Data::Data(Isolate* isolate, Zone* zone, int num_parameters)
+    : common_(zone),
+      graph_(zone),
+      broker_(isolate, zone),
+      broker_scope_(&broker_, isolate, zone),
       current_broker_(&broker_),
       source_positions_(&graph_),
-      node_origins_(&graph_) {
+      node_origins_(&graph_),
+      num_parameters_(num_parameters) {
   // PersistentHandlesScope currently requires an active handle before it can
   // be opened and they can't be nested.
   // TODO(v8:13897): Remove once PersistentHandlesScopes can be opened
   // uncontionally.
-  if (!PersistentHandlesScope::IsActive(isolate())) {
-    Handle<Object> dummy(ReadOnlyRoots(isolate()->heap()).empty_string(),
-                         isolate());
-    persistent_scope_ = std::make_unique<PersistentHandlesScope>(isolate());
+  if (!PersistentHandlesScope::IsActive(isolate)) {
+    Handle<Object> dummy(ReadOnlyRoots(isolate->heap()).empty_string(),
+                         isolate);
+    persistent_scope_ = std::make_unique<PersistentHandlesScope>(isolate);
   }
-  graph()->SetStart(graph()->NewNode(common()->Start(num_parameters)));
-  graph()->SetEnd(graph()->NewNode(common()->End(1), graph()->start()));
-  broker()->SetTargetNativeContextRef(isolate()->native_context());
+  graph_.SetStart(graph_.NewNode(common_.Start(num_parameters)));
+  graph_.SetEnd(graph_.NewNode(common_.End(1), graph_.start()));
+  broker_.SetTargetNativeContextRef(isolate->native_context());
 }
 
-GraphTest::~GraphTest() {
+GraphTest::Data::~Data() {
   if (persistent_scope_ != nullptr) {
     persistent_scope_->Detach();
   }
@@ -76,27 +87,34 @@ Node* GraphTest::NumberConstant(double value) {
   return graph()->NewNode(common()->NumberConstant(value));
 }
 
-
-Node* GraphTest::HeapConstant(const Handle<HeapObject>& value) {
+Node* GraphTest::HeapConstantNoHole(const Handle<HeapObject>& value) {
+  CHECK(!IsAnyHole(*value));
   Node* node = graph()->NewNode(common()->HeapConstant(value));
   Type type = Type::Constant(broker(), value, zone());
   NodeProperties::SetType(node, type);
   return node;
 }
 
+Node* GraphTest::HeapConstantHole(const Handle<HeapObject>& value) {
+  CHECK(IsAnyHole(*value));
+  Node* node = graph()->NewNode(common()->HeapConstant(value));
+  Type type = Type::Constant(broker(), value, zone());
+  NodeProperties::SetType(node, type);
+  return node;
+}
 
 Node* GraphTest::FalseConstant() {
-  return HeapConstant(factory()->false_value());
+  return HeapConstantNoHole(factory()->false_value());
 }
 
 
 Node* GraphTest::TrueConstant() {
-  return HeapConstant(factory()->true_value());
+  return HeapConstantNoHole(factory()->true_value());
 }
 
 
 Node* GraphTest::UndefinedConstant() {
-  return HeapConstant(factory()->undefined_value());
+  return HeapConstantNoHole(factory()->undefined_value());
 }
 
 

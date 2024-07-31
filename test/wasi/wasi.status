@@ -5,3 +5,4 @@ prefix wasi
 # sample-test                        : PASS,FLAKY
 
 [true] # This section applies to all platforms
+

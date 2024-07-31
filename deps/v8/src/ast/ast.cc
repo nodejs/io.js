@@ -831,7 +831,7 @@ Handle<TemplateObjectDescription> GetTemplateObject::GetOrBuildDescription(
       if (this->cooked_strings()->at(i) != nullptr) {
         cooked_strings->set(i, *this->cooked_strings()->at(i)->string());
       } else {
-        cooked_strings->set_undefined(roots, i);
+        cooked_strings->set(i, roots.undefined_value(), SKIP_WRITE_BARRIER);
       }
     }
   }
@@ -847,8 +847,8 @@ template EXPORT_TEMPLATE_DEFINE(V8_BASE_EXPORT)
 
 static bool IsCommutativeOperationWithSmiLiteral(Token::Value op) {
   // Add is not commutative due to potential for string addition.
-  return op == Token::MUL || op == Token::BIT_AND || op == Token::BIT_OR ||
-         op == Token::BIT_XOR;
+  return op == Token::kMul || op == Token::kBitAnd || op == Token::kBitOr ||
+         op == Token::kBitXor;
 }
 
 // Check for the pattern: x + 1.
@@ -869,32 +869,9 @@ bool BinaryOperation::IsSmiLiteralOperation(Expression** subexpr,
           MatchSmiLiteralOperation(right_, left_, subexpr, literal));
 }
 
-static bool IsTypeof(Expression* expr) {
-  UnaryOperation* maybe_unary = expr->AsUnaryOperation();
-  return maybe_unary != nullptr && maybe_unary->op() == Token::TYPEOF;
-}
-
-// Check for the pattern: typeof <expression> equals <string literal>.
-static bool MatchLiteralCompareTypeof(Expression* left, Token::Value op,
-                                      Expression* right, Expression** expr,
-                                      Literal** literal) {
-  if (IsTypeof(left) && right->IsStringLiteral() && Token::IsEqualityOp(op)) {
-    *expr = left->AsUnaryOperation()->expression();
-    *literal = right->AsLiteral();
-    return true;
-  }
-  return false;
-}
-
-bool CompareOperation::IsLiteralCompareTypeof(Expression** expr,
-                                              Literal** literal) {
-  return MatchLiteralCompareTypeof(left_, op(), right_, expr, literal) ||
-         MatchLiteralCompareTypeof(right_, op(), left_, expr, literal);
-}
-
 static bool IsVoidOfLiteral(Expression* expr) {
   UnaryOperation* maybe_unary = expr->AsUnaryOperation();
-  return maybe_unary != nullptr && maybe_unary->op() == Token::VOID &&
+  return maybe_unary != nullptr && maybe_unary->op() == Token::kVoid &&
          maybe_unary->expression()->IsLiteral();
 }
 
@@ -902,7 +879,7 @@ static bool MatchLiteralStrictCompareBoolean(Expression* left, Token::Value op,
                                              Expression* right,
                                              Expression** expr,
                                              Literal** literal) {
-  if (left->IsBooleanLiteral() && op == Token::EQ_STRICT) {
+  if (left->IsBooleanLiteral() && op == Token::kEqStrict) {
     *expr = right;
     *literal = left->AsLiteral();
     return true;

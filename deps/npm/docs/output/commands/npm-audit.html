@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-audit">npm-audit</h1>
+<h1 id="----npm-audit----1082">
+    <span>npm-audit</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Run a security audit</span>
 </header>
 
@@ -174,6 +182,12 @@ re-build the dependency tree each time.</p>
 <p>Registry signatures can be verified using the following <code>audit</code> command:</p>
 <pre><code class="language-bash">$ npm audit signatures
 </code></pre>
+<p>The <code>audit signatures</code> command will also verify the provenance attestations of
+downloaded packages. Because provenance attestations are such a new feature,
+security features may be added to (or changed in) the attestation format over
+time. To ensure that you're always able to verify attestation signatures check
+that you're running the latest version of the npm CLI. Please note this often
+means updating npm beyond the version that ships with Node.js.</p>
 <p>The npm CLI supports registry signatures and signing keys provided by any registry if the following conventions are followed:</p>
 <ol>
 <li>Signatures are provided in the package's <code>packument</code> in each published version within the <code>dist</code> object:</li>
@@ -203,13 +217,13 @@ re-build the dependency tree each time.</p>
 </code></pre>
 <p>Keys response:</p>
 <ul>
-<li><code>expires</code>: null or a simplified extended ISO 8601 format: <code>YYYY-MM-DDTHH:mm:ss.sssZ</code></li>
+<li><code>expires</code>: null or a simplified extended <a href="https://en.wikipedia.org/wiki/ISO_8601">ISO 8601 format</a>: <code>YYYY-MM-DDTHH:mm:ss.sssZ</code></li>
 <li><code>keydid</code>: sha256 fingerprint of the public key</li>
 <li><code>keytype</code>: only <code>ecdsa-sha2-nistp256</code> is currently supported by the npm CLI</li>
 <li><code>scheme</code>: only <code>ecdsa-sha2-nistp256</code> is currently supported by the npm CLI</li>
 <li><code>key</code>: base64 encoded public key</li>
 </ul>
-<p>See this example key's response from the public npm registry.</p>
+<p>See this <a href="https://registry.npmjs.org/-/npm/v1/keys">example key's response from the public npm registry</a>.</p>
 <h3 id="audit-endpoints">Audit Endpoints</h3>
 <p>There are two audit endpoints that npm may use to fetch vulnerability
 information: the <code>Bulk Advisory</code> endpoint and the <code>Quick Audit</code> endpoint.</p>
@@ -410,7 +424,8 @@ variable will be set to <code>'production'</code> for all lifecycle scripts.</p>
 the order in which omit/include are specified on the command-line.</p>
 <h4 id="foreground-scripts"><code>foreground-scripts</code></h4>
 <ul>
-<li>Default: false</li>
+<li>Default: <code>false</code> unless when using <code>npm pack</code> or <code>npm publish</code> where it
+defaults to <code>true</code></li>
 <li>Type: Boolean</li>
 </ul>
 <p>Run all build scripts (ie, <code>preinstall</code>, <code>install</code>, and <code>postinstall</code>)

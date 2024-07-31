@@ -157,7 +157,6 @@ class V8InspectorImpl : public V8Inspector {
     const InjectedScript::Scope& m_scope;
     v8::Isolate* m_isolate;
     std::shared_ptr<CancelToken> m_cancelToken;
-    v8::Isolate::SafeForTerminationScope m_safeForTerminationScope;
   };
 
  private:

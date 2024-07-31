@@ -162,12 +162,12 @@ fingerprint, computed with the given digest.
 Indicates that the caller wants to search for an object with the given
 alias (some call it a "friendly name").
 
-=item "properties" (B<OSSL_STORE_PARAM_PROPERTIES) <utf8 string>
+=item "properties" (B<OSSL_STORE_PARAM_PROPERTIES>) <utf8 string>
 
 Property string to use when querying for algorithms such as the B<OSSL_DECODER>
 decoder implementations.
 
-=item "input-type" (B<OSSL_STORE_PARAM_INPUT_TYPE) <utf8 string>
+=item "input-type" (B<OSSL_STORE_PARAM_INPUT_TYPE>) <utf8 string>
 
 Type of the input format as a hint to use when decoding the objects in the
 store.

@@ -120,10 +120,10 @@ function assertInvalid(fn, message) {
   let kSig_z_v = makeSig([], [kWasmStringViewIter]);
   let builder = new WasmModuleBuilder();
 
-  builder.addGlobal(kWasmStringRef, true).exportAs('w');
-  builder.addGlobal(kWasmStringViewWtf8, true).exportAs('x');
-  builder.addGlobal(kWasmStringViewWtf16, true).exportAs('y');
-  builder.addGlobal(kWasmStringViewIter, true).exportAs('z');
+  builder.addGlobal(kWasmStringRef, true, false).exportAs('w');
+  builder.addGlobal(kWasmStringViewWtf8, true, false).exportAs('x');
+  builder.addGlobal(kWasmStringViewWtf16, true, false).exportAs('y');
+  builder.addGlobal(kWasmStringViewIter, true, false).exportAs('z');
 
   builder.addFunction("get_stringref", kSig_w_v)
     .exportFunc()

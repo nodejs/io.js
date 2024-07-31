@@ -25,7 +25,7 @@ void IC::update_lookup_start_object_map(Handle<Object> object) {
   }
 }
 
-bool IC::IsHandler(MaybeObject object) {
+bool IC::IsHandler(Tagged<MaybeObject> object) {
   Tagged<HeapObject> heap_object;
   return (IsSmi(object) && (object.ptr() != kNullAddress)) ||
          (object.GetHeapObjectIfWeak(&heap_object) &&

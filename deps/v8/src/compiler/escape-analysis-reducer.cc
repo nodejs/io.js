@@ -305,12 +305,12 @@ void EscapeAnalysisReducer::Finalize() {
           case IrOpcode::kLoadElement: {
             Node* index = NodeProperties::GetValueInput(load, 1);
             Node* formal_parameter_count =
-                jsgraph()->Constant(params.formal_parameter_count());
+                jsgraph()->ConstantNoHole(params.formal_parameter_count());
             NodeProperties::SetType(
                 formal_parameter_count,
                 Type::Constant(params.formal_parameter_count(),
                                jsgraph()->graph()->zone()));
-            Node* offset_to_first_elem = jsgraph()->Constant(
+            Node* offset_to_first_elem = jsgraph()->ConstantNoHole(
                 CommonFrameConstants::kFixedSlotCountAboveFp);
             if (!NodeProperties::IsTyped(offset_to_first_elem)) {
               NodeProperties::SetType(
@@ -374,7 +374,7 @@ NodeHashCache::Constructor::Constructor(NodeHashCache* cache,
                                         const Operator* op, int input_count,
                                         Node** inputs, Type type)
     : node_cache_(cache), from_(nullptr) {
-  if (node_cache_->temp_nodes_.size() > 0) {
+  if (!node_cache_->temp_nodes_.empty()) {
     tmp_ = node_cache_->temp_nodes_.back();
     node_cache_->temp_nodes_.pop_back();
     int tmp_input_count = tmp_->InputCount();

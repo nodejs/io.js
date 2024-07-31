@@ -1,24 +1,22 @@
-// Flags: --expose-gc
+// Flags: --max-old-space-size=16
 'use strict';
 
 // This test ensures that diagnostic channel references aren't leaked.
 
-require('../common');
-const { ok } = require('assert');
+const common = require('../common');
 
-const { subscribe, unsubscribe } = require('diagnostics_channel');
+const { subscribe, unsubscribe, Channel } = require('diagnostics_channel');
+const { checkIfCollectableByCounting } = require('../common/gc');
 
 function noop() {}
 
-const heapUsedBefore = process.memoryUsage().heapUsed;
-
-for (let i = 0; i < 1000; i++) {
-  subscribe(String(i), noop);
-  unsubscribe(String(i), noop);
-}
-
-global.gc();
-
-const heapUsedAfter = process.memoryUsage().heapUsed;
-
-ok(heapUsedBefore >= heapUsedAfter);
+const outer = 64;
+const inner = 256;
+checkIfCollectableByCounting((i) => {
+  for (let j = 0; j < inner; j++) {
+    const key = String(i * inner + j);
+    subscribe(key, noop);
+    unsubscribe(key, noop);
+  }
+  return inner;
+}, Channel, outer).then(common.mustCall());

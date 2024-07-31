@@ -22,9 +22,9 @@ class LocalLogger {
   }
   void ScriptDetails(Tagged<Script> script);
   void ScriptEvent(ScriptEventType type, int script_id);
-  void CodeLinePosInfoRecordEvent(Address code_start,
-                                  Tagged<ByteArray> source_position_table,
-                                  JitCodeEvent::CodeType code_type);
+  void CodeLinePosInfoRecordEvent(
+      Address code_start, Tagged<TrustedByteArray> source_position_table,
+      JitCodeEvent::CodeType code_type);
 
   void MapCreate(Tagged<Map> map);
   void MapDetails(Tagged<Map> map);

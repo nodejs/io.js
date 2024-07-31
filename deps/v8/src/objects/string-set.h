@@ -13,7 +13,7 @@
 namespace v8 {
 namespace internal {
 
-class StringSetShape : public BaseShape<String> {
+class StringSetShape : public BaseShape<Tagged<String>> {
  public:
   static inline bool IsMatch(Tagged<String> key, Tagged<Object> value);
   static inline uint32_t Hash(ReadOnlyRoots roots, Tagged<String> key);

@@ -320,7 +320,6 @@ U_CFUNC void initNumsysNames(UErrorCode &status) {
     if (U_SUCCESS(status)) {
         gNumsysNames = numsysNames.orphan();
     }
-    return;
 }
 
 }   // end anonymous namespace

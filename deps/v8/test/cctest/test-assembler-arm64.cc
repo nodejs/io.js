@@ -250,7 +250,7 @@ static void InitializeVM() {
   CHECK(Equal64(expected, &core, result))
 
 #define CHECK_FULL_HEAP_OBJECT_IN_REGISTER(expected, result) \
-  CHECK(Equal64(expected->ptr(), &core, result))
+  CHECK(Equal64((*expected).ptr(), &core, result))
 
 #define CHECK_NOT_ZERO_AND_NOT_EQUAL_64(reg0, reg1) \
   {                                                 \

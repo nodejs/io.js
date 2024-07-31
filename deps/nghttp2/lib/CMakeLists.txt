@@ -14,7 +14,7 @@ set(NGHTTP2_SOURCES
   nghttp2_stream.c nghttp2_outbound_item.c
   nghttp2_session.c nghttp2_submit.c
   nghttp2_helper.c
-  nghttp2_npn.c
+  nghttp2_alpn.c
   nghttp2_hd.c nghttp2_hd_huffman.c nghttp2_hd_huffman_data.c
   nghttp2_version.c
   nghttp2_priority_spec.c
@@ -31,6 +31,12 @@ set(NGHTTP2_SOURCES
 )
 
 set(NGHTTP2_RES "")
+set(STATIC_LIB "nghttp2_static")
+set(SHARED_LIB "nghttp2")
+
+if(BUILD_SHARED_LIBS AND BUILD_STATIC_LIBS AND MSVC AND NOT STATIC_LIB_SUFFIX)
+  set(STATIC_LIB_SUFFIX "_static")
+endif()
 
 if(WIN32)
   configure_file(
@@ -41,40 +47,61 @@ if(WIN32)
   set(NGHTTP2_RES ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 endif()
 
+set(EXPORT_SET "${PROJECT_NAME}-targets")
+
 # Public shared library
-if(ENABLE_SHARED_LIB)
-  add_library(nghttp2 SHARED ${NGHTTP2_SOURCES} ${NGHTTP2_RES})
-  set_target_properties(nghttp2 PROPERTIES
+if(BUILD_SHARED_LIBS)
+  add_library(${SHARED_LIB} SHARED ${NGHTTP2_SOURCES} ${NGHTTP2_RES})
+
+  set_target_properties(${SHARED_LIB} PROPERTIES
     COMPILE_FLAGS "${WARNCFLAGS}"
     VERSION ${LT_VERSION} SOVERSION ${LT_SOVERSION}
     C_VISIBILITY_PRESET hidden
   )
-  target_include_directories(nghttp2 INTERFACE
-    "${CMAKE_CURRENT_BINARY_DIR}/includes"
-    "${CMAKE_CURRENT_SOURCE_DIR}/includes"
+
+  target_include_directories(${SHARED_LIB} INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/includes>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/includes>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   )
 
-  install(TARGETS nghttp2
-    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+  install(TARGETS ${SHARED_LIB} EXPORT ${EXPORT_SET})
+  list(APPEND nghttp2_exports ${SHARED_LIB})
 endif()
 
-if(HAVE_CUNIT OR ENABLE_STATIC_LIB)
-  # Static library (for unittests because of symbol visibility)
-  add_library(nghttp2_static STATIC ${NGHTTP2_SOURCES})
-  set_target_properties(nghttp2_static PROPERTIES
+# Static library (for unittests because of symbol visibility)
+if(BUILD_STATIC_LIBS)
+  add_library(${STATIC_LIB} STATIC ${NGHTTP2_SOURCES})
+
+  set_target_properties(${STATIC_LIB} PROPERTIES
     COMPILE_FLAGS "${WARNCFLAGS}"
     VERSION ${LT_VERSION} SOVERSION ${LT_SOVERSION}
     ARCHIVE_OUTPUT_NAME nghttp2${STATIC_LIB_SUFFIX}
   )
-  target_compile_definitions(nghttp2_static PUBLIC "-DNGHTTP2_STATICLIB")
-  if(ENABLE_STATIC_LIB)
-    install(TARGETS nghttp2_static
-      DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-  endif()
+
+  target_include_directories(${STATIC_LIB} INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/includes>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/includes>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  )
+
+  target_compile_definitions(${STATIC_LIB} PUBLIC "-DNGHTTP2_STATICLIB")
+
+  install(TARGETS ${STATIC_LIB} EXPORT ${EXPORT_SET})
+  list(APPEND nghttp2_exports ${STATIC_LIB})
 endif()
 
+if(BUILD_SHARED_LIBS)
+  set(LIB_SELECTED ${SHARED_LIB})
+else()
+  set(LIB_SELECTED ${STATIC_LIB})
+endif()
+
+add_library(${PROJECT_NAME}::nghttp2 ALIAS ${LIB_SELECTED})
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libnghttp2.pc"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+
+install(EXPORT ${EXPORT_SET}
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  NAMESPACE ${PROJECT_NAME}::)

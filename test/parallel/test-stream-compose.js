@@ -4,6 +4,7 @@
 
 const common = require('../common');
 const {
+  Duplex,
   Readable,
   Transform,
   Writable,
@@ -493,4 +494,48 @@ const assert = require('assert');
 
     assert.deepStrictEqual(await newStream.toArray(), [Buffer.from('Steve RogersOn your left')]);
   })().then(common.mustCall());
+}
+
+{
+  class DuplexProcess extends Duplex {
+    constructor(options) {
+      super({ ...options, objectMode: true });
+      this.stuff = [];
+    }
+
+    _write(message, _, callback) {
+      this.stuff.push(message);
+      callback();
+    }
+
+    _destroy(err, cb) {
+      cb(err);
+    }
+
+    _read() {
+      if (this.stuff.length) {
+        this.push(this.stuff.shift());
+      } else if (this.writableEnded) {
+        this.push(null);
+      } else {
+        this._read();
+      }
+    }
+  }
+
+  const pass = new PassThrough({ objectMode: true });
+  const duplex = new DuplexProcess();
+
+  const composed = compose(
+    pass,
+    duplex
+  ).on('error', () => {});
+
+  composed.write('hello');
+  composed.write('world');
+  composed.end();
+
+  composed.destroy(new Error('an unexpected error'));
+  assert.strictEqual(duplex.destroyed, true);
+
 }

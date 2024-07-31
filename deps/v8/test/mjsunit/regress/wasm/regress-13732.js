@@ -5,7 +5,8 @@
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 let builder1 = new WasmModuleBuilder();
-builder1.addGlobal(kWasmS128, false, wasmS128Const(0, 0)).exportAs("mv128");
+builder1.addGlobal(kWasmS128, false, false, wasmS128Const(0, 0))
+  .exportAs("mv128");
 let instance1 = builder1.instantiate();
 
 let builder2 = new WasmModuleBuilder();

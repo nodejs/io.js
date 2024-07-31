@@ -76,7 +76,7 @@ class InnerPointerResolutionTest
   int CreateLargePage(size_t size) {
     OldLargeObjectSpace* lo_space = heap()->lo_space();
     EXPECT_NE(nullptr, lo_space);
-    LargePage* page =
+    LargePageMetadata* page =
         allocator()->AllocateLargePage(lo_space, size, NOT_EXECUTABLE);
     EXPECT_NE(nullptr, page);
     int page_id = next_page_id_++;
@@ -93,7 +93,7 @@ class InnerPointerResolutionTest
     pages_.erase(it);
   }
 
-  MemoryChunk* LookupPage(int page_id) {
+  MutablePageMetadata* LookupPage(int page_id) {
     DCHECK_LE(0, page_id);
     auto it = pages_.find(page_id);
     DCHECK_NE(pages_.end(), it);
@@ -108,7 +108,7 @@ class InnerPointerResolutionTest
   // Creates a list of objects in a page and ensures that the page is iterable.
   int CreateObjectsInPage(const std::vector<ObjectRequest>& objects) {
     int page_id = CreateNormalPage();
-    MemoryChunk* page = LookupPage(page_id);
+    MutablePageMetadata* page = LookupPage(page_id);
     Address ptr = page->area_start();
     for (auto object : objects) {
       DCHECK_NE(ObjectRequest::LARGE, object.type);
@@ -179,7 +179,7 @@ class InnerPointerResolutionTest
     for (auto object : objects) {
       DCHECK_EQ(ObjectRequest::LARGE, object.type);
       int page_id = CreateLargePage(object.size);
-      MemoryChunk* page = LookupPage(page_id);
+      MutablePageMetadata* page = LookupPage(page_id);
       object.page_id = page_id;
       object.address = page->area_start();
       CHECK_EQ(object.address + object.size, page->area_end());
@@ -199,12 +199,12 @@ class InnerPointerResolutionTest
       case ObjectRequest::LARGE: {
         DCHECK_LE(2 * kTaggedSize, object.size);
         ReadOnlyRoots roots(heap());
-        HeapObject heap_object(HeapObject::FromAddress(object.address));
-        heap_object.set_map_after_allocation(roots.unchecked_fixed_array_map(),
-                                             SKIP_WRITE_BARRIER);
-        FixedArray arr(FixedArray::cast(heap_object));
-        arr.set_length((object.size - FixedArray::SizeFor(0)) / kTaggedSize);
-        DCHECK_EQ(object.size, arr.AllocatedSize());
+        Tagged<HeapObject> heap_object(HeapObject::FromAddress(object.address));
+        heap_object->set_map_after_allocation(roots.unchecked_fixed_array_map(),
+                                              SKIP_WRITE_BARRIER);
+        Tagged<FixedArray> arr(FixedArray::cast(heap_object));
+        arr->set_length((object.size - FixedArray::SizeFor(0)) / kTaggedSize);
+        DCHECK_EQ(object.size, arr->AllocatedSize());
         break;
       }
       case ObjectRequest::FREE:
@@ -221,7 +221,7 @@ class InnerPointerResolutionTest
             HeapObject::FromAddress(object.address));
         break;
       case ObjectRequest::MARKED_AREA: {
-        MemoryChunk* page = LookupPage(object.page_id);
+        MutablePageMetadata* page = LookupPage(object.page_id);
         page->marking_bitmap()->SetRange<AccessMode::NON_ATOMIC>(
             MarkingBitmap::AddressToIndex(object.address),
             MarkingBitmap::LimitAddressToIndex(object.address + object.size));
@@ -258,7 +258,7 @@ class InnerPointerResolutionTest
     }
     for (auto [id, page] : pages_) {
       const Address outside_ptr = page->area_start() - 42;
-      DCHECK_LE(page->address(), outside_ptr);
+      DCHECK_LE(page->ChunkAddress(), outside_ptr);
       RunTestOutside(outside_ptr);
     }
     RunTestOutside(kNullAddress);
@@ -267,7 +267,7 @@ class InnerPointerResolutionTest
   }
 
  private:
-  std::map<int, MemoryChunk*> pages_;
+  std::map<int, MutablePageMetadata*> pages_;
   int next_page_id_ = 0;
   std::vector<ObjectRequest> objects_;
 };
@@ -614,7 +614,7 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
 
   Persistent<v8::FixedArray> weak1, weak2, strong;
   Address inner_ptr1, inner_ptr2, inner_ptr3, outside_ptr1, outside_ptr2;
-  Page *page1, *page2;
+  MemoryChunk *page1, *page2;
 
   auto allocator = heap()->memory_allocator();
 
@@ -636,10 +636,10 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
     weak2.SetWeak();
     auto obj1 = *h1;
     auto obj2 = *h2;
-    page1 = Page::FromHeapObject(obj1);
+    page1 = MemoryChunk::FromHeapObject(obj1);
     EXPECT_TRUE(!page1->IsLargePage());
     EXPECT_TRUE(v8_flags.minor_ms || page1->IsToPage());
-    page2 = Page::FromHeapObject(obj2);
+    page2 = MemoryChunk::FromHeapObject(obj2);
     EXPECT_TRUE(!page2->IsLargePage());
     EXPECT_TRUE(v8_flags.minor_ms || page2->IsToPage());
     EXPECT_NE(page1, page2);
@@ -649,7 +649,7 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
     auto h3 = factory()->NewFixedArray(16, AllocationType::kYoung);
     strong.Reset(v8_isolate(), Utils::FixedArrayToLocal(h3));
     auto obj3 = *h3;
-    auto page3 = Page::FromHeapObject(obj3);
+    auto page3 = MemoryChunk::FromHeapObject(obj3);
     EXPECT_TRUE(page3 == page1 || page3 == page2);
     if (page3 == page1) {
       EXPECT_EQ(obj3.address(), obj1.address() + obj1->Size(cage_base));
@@ -663,8 +663,8 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
     inner_ptr3 = obj3.address() + 7 * kTaggedSize;
 
     // Keep pointers to the end of the pages, after the objects.
-    outside_ptr1 = page1->area_end() - 3 * kTaggedSize;
-    outside_ptr2 = page2->area_end() - 2 * kTaggedSize;
+    outside_ptr1 = page1->Metadata()->area_end() - 3 * kTaggedSize;
+    outside_ptr2 = page2->Metadata()->area_end() - 2 * kTaggedSize;
     EXPECT_LE(obj1.address() + obj1->Size(cage_base), outside_ptr1);
     EXPECT_LE(obj2.address() + obj2->Size(cage_base), outside_ptr2);
     if (page3 == page1) {
@@ -674,7 +674,10 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
     }
 
     // Ensure the young generation space is iterable.
-    heap()->new_space()->MakeLinearAllocationAreaIterable();
+    heap()
+        ->allocator()
+        ->new_space_allocator()
+        ->MakeLinearAllocationAreaIterable();
 
     // Inner pointer resolution should work now, finding the objects in the
     // case of the inner pointers.
@@ -707,8 +710,10 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
   // The two pages should still be around, in the new space.
   EXPECT_EQ(page1, allocator->LookupChunkContainingAddress(inner_ptr1));
   EXPECT_EQ(page2, allocator->LookupChunkContainingAddress(inner_ptr2));
-  EXPECT_EQ(AllocationSpace::NEW_SPACE, page1->owner_identity());
-  EXPECT_EQ(AllocationSpace::NEW_SPACE, page2->owner_identity());
+  EXPECT_EQ(AllocationSpace::NEW_SPACE,
+            MutablePageMetadata::cast(page1->Metadata())->owner_identity());
+  EXPECT_EQ(AllocationSpace::NEW_SPACE,
+            MutablePageMetadata::cast(page2->Metadata())->owner_identity());
   EXPECT_TRUE(v8_flags.minor_ms || page1->IsFromPage());
   EXPECT_TRUE(v8_flags.minor_ms || page2->IsFromPage());
 
@@ -723,8 +728,10 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
 
   // Garbage collection once more.
   InvokeAtomicMinorGC();
-  EXPECT_EQ(AllocationSpace::NEW_SPACE, page1->owner_identity());
-  EXPECT_EQ(AllocationSpace::NEW_SPACE, page2->owner_identity());
+  EXPECT_EQ(AllocationSpace::NEW_SPACE,
+            MutablePageMetadata::cast(page1->Metadata())->owner_identity());
+  EXPECT_EQ(AllocationSpace::NEW_SPACE,
+            MutablePageMetadata::cast(page2->Metadata())->owner_identity());
   // The two pages should still be around, in the new space.
   EXPECT_EQ(page1, allocator->LookupChunkContainingAddress(inner_ptr1));
   EXPECT_EQ(page2, allocator->LookupChunkContainingAddress(inner_ptr2));
@@ -761,9 +768,10 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedLargeYoungPage) {
     weak.Reset(v8_isolate(), Utils::FixedArrayToLocal(h));
     weak.SetWeak();
     auto obj = *h;
-    auto page = Page::FromHeapObject(obj);
+    auto page = MemoryChunk::FromHeapObject(obj);
     EXPECT_TRUE(page->IsLargePage());
-    EXPECT_EQ(AllocationSpace::NEW_LO_SPACE, page->owner_identity());
+    EXPECT_EQ(AllocationSpace::NEW_LO_SPACE,
+              MutablePageMetadata::cast(page->Metadata())->owner_identity());
     EXPECT_TRUE(v8_flags.minor_ms || page->IsToPage());
 
     // Keep inner pointer.
@@ -798,13 +806,13 @@ TEST_F(InnerPointerResolutionHeapTest, RegularPageAfterEnd) {
   const Address mark = page->area_start() + size;
   heap()->CreateFillerObjectAt(page->area_start(), size);
   heap()->CreateFillerObjectAt(mark, static_cast<int>(page->area_end() - mark));
-  Page::UpdateHighWaterMark(mark);
+  PageMetadata::UpdateHighWaterMark(mark);
   page->ShrinkToHighWaterMark();
-  EXPECT_FALSE(Page::IsAlignedToPageSize(page->area_end()));
+  EXPECT_FALSE(PageMetadata::IsAlignedToPageSize(page->area_end()));
 
   // Inner pointer resolution after the end of the page area should work.
   Address inner_ptr = page->area_end() + kTaggedSize;
-  EXPECT_FALSE(Page::IsAlignedToPageSize(inner_ptr));
+  EXPECT_FALSE(PageMetadata::IsAlignedToPageSize(inner_ptr));
   EXPECT_EQ(kNullAddress, ResolveInnerPointer(inner_ptr));
 
   // Deallocate the page.
@@ -818,17 +826,17 @@ TEST_F(InnerPointerResolutionHeapTest, LargePageAfterEnd) {
   OldLargeObjectSpace* lo_space = heap()->lo_space();
   EXPECT_NE(nullptr, lo_space);
   const int size = 3 * (1 << kPageSizeBits) / 2;
-  LargePage* page =
+  LargePageMetadata* page =
       allocator->AllocateLargePage(lo_space, size, NOT_EXECUTABLE);
   EXPECT_NE(nullptr, page);
 
   // The end of the page area is expected not to coincide with the beginning of
   // the next page.
-  EXPECT_FALSE(Page::IsAlignedToPageSize(page->area_end()));
+  EXPECT_FALSE(PageMetadata::IsAlignedToPageSize(page->area_end()));
 
   // Inner pointer resolution after the end of the pare area should work.
   Address inner_ptr = page->area_end() + kTaggedSize;
-  EXPECT_FALSE(Page::IsAlignedToPageSize(inner_ptr));
+  EXPECT_FALSE(PageMetadata::IsAlignedToPageSize(inner_ptr));
   EXPECT_EQ(kNullAddress, ResolveInnerPointer(inner_ptr));
 
   // Deallocate the page.

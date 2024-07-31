@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<script src="./partitioning-utils.js"></script>
+<script>
+window.addEventListener("load", () => {
+  localStorage.clear();
+
+  const userID = getOrCreateID("userID4");
+  const payload = {
+    message: "window loaded",
+    userID,
+  }
+
+  let win = window.opener ? window.opener : window.parent;
+  win.postMessage(payload, "*");
+});
+
+window.addEventListener("message", e => {
+  let win = window.opener ? parent.window.opener : window.parent;
+
+  if (e.data.command == "open about:blank window") {
+    window.blankWindow = window.open("about:blank");
+    const payload = {
+      message: "about:blank frame ID",
+      userID: window.blankWindow?.localStorage["userID4"],
+    }
+
+    let win = window.opener ? parent.window.opener : window.parent;
+    win.postMessage(payload, "*");
+  }
+
+  if (e.data.command == "close about:blank window") {
+    window.blankWindow.close();
+    win.postMessage({message: "about:blank window closed"}, "*");
+  }
+});
+</script>

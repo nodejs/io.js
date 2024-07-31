@@ -65,7 +65,6 @@ var array_int_holey_50 = HoleyIntArray(50);
 
 var empty_proto_5_10 = ObjectWithKeys(5);
 empty_proto_5_10.__proto__ = ObjectWithProtoKeys(10, 0);
-var empty_proto_5_0 = ObjectWithKeys(5);
 
 var empty_proto_5_5_slow = ObjectWithKeys(5);
 empty_proto_5_5_slow.__proto__ = ObjectWithProtoKeys(5, 0, false);
@@ -144,18 +143,6 @@ var TestFunctions = {
       count++;
       result = value;
     });
-    return [result, count];
-  }),
-  "for-in-multi-objects": CreateTestFunctionGen(() => {
-    var count = 0;
-    var result;
-    for (var key in object) {
-      count++;
-      result = object[key];
-      if (empty_proto_5_0[key]) {
-        count++;
-      }
-    }
     return [result, count];
   }),
 }

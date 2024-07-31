@@ -101,6 +101,22 @@ tmpdir.refresh();
   assert.strictEqual(content, 'hello world!');
 }
 
+// Test writeFileSync with no flags
+{
+  const utf8Data = 'hello world!';
+  for (const test of [
+    { data: utf8Data },
+    { data: utf8Data, options: { encoding: 'utf8' } },
+    { data: Buffer.from(utf8Data, 'utf8').toString('hex'), options: { encoding: 'hex' } },
+  ]) {
+    const file = tmpdir.resolve(`testWriteFileSyncNewFile_${Math.random()}.txt`);
+    fs.writeFileSync(file, test.data, test.options);
+
+    const content = fs.readFileSync(file, { encoding: 'utf-8' });
+    assert.strictEqual(content, utf8Data);
+  }
+}
+
 // Test writeFileSync with an invalid input
 {
   const file = tmpdir.resolve('testWriteFileSyncInvalid.txt');

@@ -146,14 +146,13 @@ public:
      * will return distinct unequal values.
      * @stable ICU 2.0
      */
-    virtual UClassID getDynamicClassID(void) const override = 0;
+    virtual UClassID getDynamicClassID() const override = 0;
 
     /**
      * Return a CharacterIterator over the text being analyzed.
      * @stable ICU 2.0
      */
-    virtual CharacterIterator& getText(void) const = 0;
-
+    virtual CharacterIterator& getText() const = 0;
 
     /**
       *  Get a UText for the text being analyzed.
@@ -228,14 +227,14 @@ public:
      * @return The offset of the beginning of the text, zero.
      * @stable ICU 2.0
      */
-    virtual int32_t first(void) = 0;
+    virtual int32_t first() = 0;
 
     /**
      * Set the iterator position to the index immediately BEYOND the last character in the text being scanned.
      * @return The index immediately BEYOND the last character in the text being scanned.
      * @stable ICU 2.0
      */
-    virtual int32_t last(void) = 0;
+    virtual int32_t last() = 0;
 
     /**
      * Set the iterator position to the boundary preceding the current boundary.
@@ -243,7 +242,7 @@ public:
      * boundaries have been returned.
      * @stable ICU 2.0
      */
-    virtual int32_t previous(void) = 0;
+    virtual int32_t previous() = 0;
 
     /**
      * Advance the iterator to the boundary following the current boundary.
@@ -251,14 +250,14 @@ public:
      * boundaries have been returned.
      * @stable ICU 2.0
      */
-    virtual int32_t next(void) = 0;
+    virtual int32_t next() = 0;
 
     /**
      * Return character index of the current iterator position within the text.
      * @return The boundary most recently returned.
      * @stable ICU 2.0
      */
-    virtual int32_t current(void) const = 0;
+    virtual int32_t current() const = 0;
 
     /**
      * Advance the iterator to the first boundary following the specified offset.
@@ -530,7 +529,7 @@ public:
      *   must be closed by an explicit call to the destructor (not delete).
      * @deprecated ICU 52. Always delete the BreakIterator.
      */
-    inline UBool isBufferClone(void);
+    inline UBool isBufferClone();
 
 #endif /* U_HIDE_DEPRECATED_API */
 
@@ -575,7 +574,7 @@ public:
      * @return a StringEnumeration over the locales available at the time of the call
      * @stable ICU 2.4
      */
-    static StringEnumeration* U_EXPORT2 getAvailableLocales(void);
+    static StringEnumeration* U_EXPORT2 getAvailableLocales();
 #endif
 
     /**
@@ -649,6 +648,7 @@ private:
     /** @internal (private) */
     char actualLocale[ULOC_FULLNAME_CAPACITY];
     char validLocale[ULOC_FULLNAME_CAPACITY];
+    char requestLocale[ULOC_FULLNAME_CAPACITY];
 };
 
 #ifndef U_HIDE_DEPRECATED_API

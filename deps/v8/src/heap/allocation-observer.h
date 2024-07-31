@@ -77,6 +77,13 @@ class AllocationCounter final {
     return next_counter_ - current_counter_;
   }
 
+#if DEBUG
+  bool HasAllocationObservers() const {
+    return !observers_.empty() || !pending_added_.empty() ||
+           !pending_removed_.empty();
+  }
+#endif  // DEBUG
+
  private:
   struct AllocationObserverCounter final {
     AllocationObserverCounter(AllocationObserver* observer, size_t prev_counter,

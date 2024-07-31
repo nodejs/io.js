@@ -24,14 +24,18 @@ class PrototypeInfo
  public:
   static const int UNREGISTERED = -1;
 
-  // [object_create_map]: A field caching the map for Object.create(prototype).
-  DECL_GETTER(object_create_map, MaybeObject)
-  DECL_RELEASE_ACQUIRE_WEAK_ACCESSORS(object_create_map)
+  // For caching derived maps for Object.create, Reflect.construct and proxies.
+  DECL_GETTER(derived_maps, Tagged<HeapObject>)
+  DECL_RELEASE_ACQUIRE_ACCESSORS(derived_maps, Tagged<HeapObject>)
 
   static inline void SetObjectCreateMap(Handle<PrototypeInfo> info,
-                                        Handle<Map> map);
-  inline Tagged<Map> ObjectCreateMap();
-  inline bool HasObjectCreateMap();
+                                        Handle<Map> map, Isolate* isolate);
+  inline Tagged<MaybeObject> ObjectCreateMap(AcquireLoadTag);
+  inline Tagged<MaybeObject> ObjectCreateMap();
+
+  static inline void AddDerivedMap(Handle<PrototypeInfo> info, Handle<Map> to,
+                                   Isolate* isolate);
+  inline Tagged<MaybeObject> GetDerivedMap(Handle<Map> from);
 
   static inline bool IsPrototypeInfoFast(Tagged<Object> object);
 

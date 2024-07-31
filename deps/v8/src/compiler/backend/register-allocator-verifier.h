@@ -135,12 +135,14 @@ class BlockAssessments : public ZoneObject {
  public:
   using OperandMap = ZoneMap<InstructionOperand, Assessment*, OperandAsKeyLess>;
   using OperandSet = ZoneSet<InstructionOperand, OperandAsKeyLess>;
-  explicit BlockAssessments(Zone* zone, int spill_slot_delta)
+  explicit BlockAssessments(Zone* zone, int spill_slot_delta,
+                            const InstructionSequence* sequence)
       : map_(zone),
         map_for_moves_(zone),
         stale_ref_stack_slots_(zone),
         spill_slot_delta_(spill_slot_delta),
-        zone_(zone) {}
+        zone_(zone),
+        sequence_(sequence) {}
   BlockAssessments(const BlockAssessments&) = delete;
   BlockAssessments& operator=(const BlockAssessments&) = delete;
 
@@ -172,7 +174,8 @@ class BlockAssessments : public ZoneObject {
                                   other->stale_ref_stack_slots_.end());
   }
   void CheckReferenceMap(const ReferenceMap* reference_map);
-  bool IsStaleReferenceStackSlot(InstructionOperand op);
+  bool IsStaleReferenceStackSlot(InstructionOperand op,
+                                 base::Optional<int> vreg = base::nullopt);
 
   OperandMap& map() { return map_; }
   const OperandMap& map() const { return map_; }
@@ -189,9 +192,12 @@ class BlockAssessments : public ZoneObject {
  private:
   OperandMap map_;
   OperandMap map_for_moves_;
+  // TODOC(dmercadier): how do stack slots become stale exactly? What are the
+  // implications of a stack slot being stale?
   OperandSet stale_ref_stack_slots_;
   int spill_slot_delta_;
   Zone* zone_;
+  const InstructionSequence* sequence_;
 };
 
 class RegisterAllocatorVerifier final : public ZoneObject {

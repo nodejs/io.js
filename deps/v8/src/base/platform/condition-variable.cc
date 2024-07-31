@@ -190,7 +190,7 @@ void ConditionVariable::Wait(Mutex* mutex) {
 }
 
 bool ConditionVariable::WaitFor(Mutex* mutex, const TimeDelta& rel_time) {
-  SbTime microseconds = static_cast<SbTime>(rel_time.InMicroseconds());
+  int64_t microseconds = static_cast<int64_t>(rel_time.InMicroseconds());
   SbConditionVariableResult result = SbConditionVariableWaitTimed(
       &native_handle_, &mutex->native_handle(), microseconds);
   DCHECK(result != kSbConditionVariableFailed);

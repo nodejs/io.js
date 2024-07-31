@@ -61,6 +61,11 @@ wheel: <
 >
 
 wheel: <
+  name: "infra/python/wheels/httplib2-py3"
+  version: "version:0.19.1"
+>
+
+wheel: <
   name: "infra/python/wheels/mock-py2_py3"
   version: "version:2.0.0"
 >
@@ -75,6 +80,10 @@ wheel: <
   version: "version:3.19.3"
 >
 
+wheel: <
+  name: "infra/python/wheels/pyparsing-py3"
+  version: "version:2.4.7"
+>
 # requests and its dependencies.
 wheel: <
   name: "infra/python/wheels/requests-py3"
@@ -110,4 +119,9 @@ wheel: <
 wheel: <
   name: "infra/python/wheels/psutil/${vpython_platform}"
   version: "version:5.8.0.chromium.3"
+>
+
+wheel: <
+  name: "infra/python/wheels/pyfakefs-py2_py3"
+  version: "version:3.7.2"
 >

@@ -6,13 +6,14 @@
 
 /* Entropy encoding (Huffman) utilities. */
 
-#include "./entropy_encode.h"
+#include "entropy_encode.h"
 
 #include <string.h>  /* memset */
 
+#include <brotli/types.h>
+
 #include "../common/constants.h"
 #include "../common/platform.h"
-#include <brotli/types.h>
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {

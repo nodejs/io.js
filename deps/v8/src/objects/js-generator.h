@@ -23,7 +23,7 @@ class StructBodyDescriptor;
 class JSGeneratorObject
     : public TorqueGeneratedJSGeneratorObject<JSGeneratorObject, JSObject> {
  public:
-  enum ResumeMode { kNext, kReturn, kThrow };
+  enum ResumeMode { kNext, kReturn, kThrow, kRethrow };
 
   inline bool is_closed() const;
   inline bool is_executing() const;

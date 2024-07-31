@@ -96,3 +96,7 @@ wheel: <
   name: "infra/python/wheels/charset_normalizer-py3"
   version: "version:2.0.4"
 >
+wheel: <
+  name: "infra/python/wheels/pyfakefs-py2_py3"
+  version: "version:3.7.2"
+>

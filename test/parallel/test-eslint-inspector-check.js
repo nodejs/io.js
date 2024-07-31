@@ -6,7 +6,7 @@ if ((!common.hasCrypto) || (!common.hasIntl)) {
 }
 common.skipIfEslintMissing();
 
-const RuleTester = require('../../tools/node_modules/eslint').RuleTester;
+const RuleTester = require('../../tools/eslint/node_modules/eslint').RuleTester;
 const rule = require('../../tools/eslint-rules/inspector-check');
 
 const message = 'Please add a skipIfInspectorDisabled() call to allow this ' +

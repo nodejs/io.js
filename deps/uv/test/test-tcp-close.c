@@ -49,7 +49,7 @@ static void connect_cb(uv_connect_t* conn_req, int status) {
     ASSERT_NOT_NULL(req);
 
     r = uv_write(req, (uv_stream_t*)&tcp_handle, &buf, 1, write_cb);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
   }
 
   uv_close((uv_handle_t*)&tcp_handle, close_cb);
@@ -58,21 +58,21 @@ static void connect_cb(uv_connect_t* conn_req, int status) {
 
 static void write_cb(uv_write_t* req, int status) {
   /* write callbacks should run before the close callback */
-  ASSERT(close_cb_called == 0);
-  ASSERT(req->handle == (uv_stream_t*)&tcp_handle);
+  ASSERT_OK(close_cb_called);
+  ASSERT_PTR_EQ(req->handle, (uv_stream_t*)&tcp_handle);
   write_cb_called++;
   free(req);
 }
 
 
 static void close_cb(uv_handle_t* handle) {
-  ASSERT(handle == (uv_handle_t*)&tcp_handle);
+  ASSERT_PTR_EQ(handle, (uv_handle_t*)&tcp_handle);
   close_cb_called++;
 }
 
 
 static void connection_cb(uv_stream_t* server, int status) {
-  ASSERT(status == 0);
+  ASSERT_OK(status);
 }
 
 
@@ -80,16 +80,16 @@ static void start_server(uv_loop_t* loop, uv_tcp_t* handle) {
   struct sockaddr_in addr;
   int r;
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
 
   r = uv_tcp_init(loop, handle);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_tcp_bind(handle, (const struct sockaddr*) &addr, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_listen((uv_stream_t*)handle, 128, connection_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_unref((uv_handle_t*)handle);
 }
@@ -104,7 +104,7 @@ TEST_IMPL(tcp_close) {
   uv_loop_t* loop;
   int r;
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
 
   loop = uv_default_loop();
 
@@ -112,24 +112,24 @@ TEST_IMPL(tcp_close) {
   start_server(loop, &tcp_server);
 
   r = uv_tcp_init(loop, &tcp_handle);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_tcp_connect(&connect_req,
                      &tcp_handle,
                      (const struct sockaddr*) &addr,
                      connect_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(write_cb_called == 0);
-  ASSERT(close_cb_called == 0);
+  ASSERT_OK(write_cb_called);
+  ASSERT_OK(close_cb_called);
 
   r = uv_run(loop, UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   printf("%d of %d write reqs seen\n", write_cb_called, NUM_WRITE_REQS);
 
-  ASSERT(write_cb_called == NUM_WRITE_REQS);
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(write_cb_called, NUM_WRITE_REQS);
+  ASSERT_EQ(1, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

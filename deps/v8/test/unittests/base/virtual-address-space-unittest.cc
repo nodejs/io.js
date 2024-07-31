@@ -14,7 +14,7 @@ constexpr size_t KB = 1024;
 constexpr size_t MB = KB * 1024;
 
 void TestRandomPageAddressGeneration(v8::VirtualAddressSpace* space) {
-  space->SetRandomSeed(::testing::FLAGS_gtest_random_seed);
+  space->SetRandomSeed(GTEST_FLAG_GET(random_seed));
   for (int i = 0; i < 10; i++) {
     Address addr = space->RandomPageAddress();
     EXPECT_GE(addr, space->base());
@@ -81,7 +81,7 @@ void TestPageAllocationAlignment(v8::VirtualAddressSpace* space) {
 
 void TestParentSpaceCannotAllocateInChildSpace(v8::VirtualAddressSpace* parent,
                                                v8::VirtualAddressSpace* child) {
-  child->SetRandomSeed(::testing::FLAGS_gtest_random_seed);
+  child->SetRandomSeed(GTEST_FLAG_GET(random_seed));
 
   size_t chunksize = parent->allocation_granularity();
   size_t alignment = chunksize;

@@ -269,6 +269,27 @@ assert.strictEqual(util.format('%s', -Infinity), '-Infinity');
   );
 }
 
+// Symbol.toPrimitive handling for string format specifier
+{
+  const objectWithToPrimitive = {
+    [Symbol.toPrimitive](hint) {
+      switch (hint) {
+        case 'number':
+          return 42;
+        case 'string':
+          return 'string representation';
+        case 'default':
+        default:
+          return 'default context';
+      }
+    }
+  };
+
+  assert.strictEqual(util.format('%s', +objectWithToPrimitive), '42');
+  assert.strictEqual(util.format('%s', objectWithToPrimitive), 'string representation');
+  assert.strictEqual(util.format('%s', objectWithToPrimitive + ''), 'default context');
+}
+
 // JSON format specifier
 assert.strictEqual(util.format('%j'), '%j');
 assert.strictEqual(util.format('%j', 42), '42');

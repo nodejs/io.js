@@ -1,65 +1,101 @@
-c-ares
-======
+# [![c-ares logo](https://c-ares.org/art/c-ares-logo.svg)](https://c-ares.org/)
 
-[![Build Status](https://api.cirrus-ci.com/github/c-ares/c-ares.svg)](https://cirrus-ci.com/github/c-ares/c-ares)
-[![Windows Build Status](https://ci.appveyor.com/api/projects/status/aevgc5914tm72pvs/branch/master?svg=true)](https://ci.appveyor.com/project/c-ares/c-ares/branch/master)
-[![Coverage Status](https://coveralls.io/repos/github/c-ares/c-ares/badge.svg)](https://coveralls.io/github/c-ares/c-ares)
+[![Build Status](https://api.cirrus-ci.com/github/c-ares/c-ares.svg?branch=main)](https://cirrus-ci.com/github/c-ares/c-ares)
+[![Windows Build Status](https://ci.appveyor.com/api/projects/status/aevgc5914tm72pvs/branch/main?svg=true)](https://ci.appveyor.com/project/c-ares/c-ares/branch/main)
+[![Coverage Status](https://coveralls.io/repos/github/c-ares/c-ares/badge.svg?branch=main)](https://coveralls.io/github/c-ares/c-ares?branch=main)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/291/badge)](https://bestpractices.coreinfrastructure.org/projects/291)
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/c-ares.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:c-ares)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=c-ares_c-ares&metric=bugs)](https://sonarcloud.io/summary/new_code?id=c-ares_c-ares)
+[![Coverity Scan Status](https://scan.coverity.com/projects/c-ares/badge.svg)](https://scan.coverity.com/projects/c-ares)
 
-This is c-ares, an asynchronous resolver library.  It is intended for
+## Overview
+[c-ares](https://c-ares.org) is a modern DNS (stub) resolver library, written in
+C. It provides interfaces for asynchronous queries while trying to abstract the
+intricacies of the underlying DNS protocol.  It was originally intended for
 applications which need to perform DNS queries without blocking, or need to
-perform multiple DNS queries in parallel.  The primary examples of such
-applications are servers which communicate with multiple clients and programs
-with graphical user interfaces.
+perform multiple DNS queries in parallel.
 
-The full source code is available in the ['c-ares' release archives](https://c-ares.org/download/),
-and in a git repository: https://github.com/c-ares/c-ares.  See the
-[INSTALL.md](INSTALL.md) file for build information.
+One of the goals of c-ares is to be a better DNS resolver than is provided by
+your system, regardless of which system you use.  We recommend using
+the c-ares library in all network applications even if the initial goal of
+asynchronous resolution is not necessary to your application.
 
-If you find bugs, correct flaws, have questions or have comments in general in
-regard to c-ares (or by all means the original ares too), get in touch with us
-on the c-ares mailing list: https://lists.haxx.se/listinfo/c-ares
+c-ares will build with any C89 compiler and is [MIT licensed](LICENSE.md),
+which makes it suitable for both free and commercial software. c-ares runs on
+Linux, FreeBSD, OpenBSD, MacOS, Solaris, AIX, Windows, Android, iOS and many
+more operating systems.
 
-c-ares is distributed the MIT license.
+c-ares has a strong focus on security, implementing safe parsers and data
+builders used throughout the code, thus avoiding many of the common pitfalls
+of other C libraries.  Through automated testing with our extensive testing
+framework, c-ares is constantly validated with a range of static and dynamic
+analyzers, as well as being constantly fuzzed by [OSS Fuzz](https://github.com/google/oss-fuzz).
 
-You'll find all c-ares details and news here:
-        https://c-ares.org/
+While c-ares has been around for over 20 years, it has been actively maintained
+both in regards to the latest DNS RFCs as well as updated to follow the latest
+best practices in regards to C coding standards.
+
+## Code
+
+The full source code and revision history is available in our
+[GitHub  repository](https://github.com/c-ares/c-ares).  Our signed releases
+are available in the [release archives](https://c-ares.org/download/).
 
 
-Notes for c-ares hackers
-------------------------
+See the [INSTALL.md](INSTALL.md) file for build information.
 
-* The distributed `ares_build.h` file is only intended to be used on systems
-  which can not run the also distributed configure script.
+## Communication
 
-* The distributed `ares_build.h` file is generated as a copy of `ares_build.h.dist`
-  when the c-ares source code distribution archive file is originally created.
+**Issues** and **Feature Requests** should be reported to our
+[GitHub Issues](https://github.com/c-ares/c-ares/issues) page.
 
-* If you check out from git on a non-configure platform, you must run the
-  appropriate `buildconf*` script to set up `ares_build.h` and other local files
-  before being able to compile the library.
+**Discussions** around c-ares and its use, are held on
+[GitHub Discussions](https://github.com/c-ares/c-ares/discussions/categories/q-a)
+or the [Mailing List](https://lists.haxx.se/mailman/listinfo/c-ares).  Mailing
+List archive [here](https://lists.haxx.se/pipermail/c-ares/).
+Please, do not mail volunteers privately about c-ares.
 
-* On systems capable of running the `configure` script, the `configure` process
-  will overwrite the distributed `ares_build.h` file with one that is suitable
-  and specific to the library being configured and built, this new file is
-  generated from the `ares_build.h.in` template file.
+**Security vulnerabilities** are treated according to our
+[Security Procedure](SECURITY.md), please email c-ares-security at
+ haxx.se if you suspect one.
 
-* If you intend to distribute an already compiled c-ares library you **MUST**
-  also distribute along with it the generated `ares_build.h` which has been
-  used to compile it. Otherwise the library will be of no use for the users of
-  the library that you have built. It is **your** responsibility to provide this
-  file. No one at the c-ares project can know how you have built the library.
 
-* File `ares_build.h` includes platform and configuration dependent info,
-  and must not be modified by anyone. Configure script generates it for you.
+## Release keys
 
-* We cannot assume anything else but very basic compiler features being
-  present. While c-ares requires an ANSI C compiler to build, some of the
-  earlier ANSI compilers clearly can't deal with some preprocessor operators.
+Primary GPG keys for c-ares Releasers (some Releasers sign with subkeys):
 
-* Newlines must remain unix-style for older compilers' sake.
+* **Daniel Stenberg** <<daniel@haxx.se>>
+  `27EDEAF22F3ABCEB50DB9A125CC908FDB71E12C2`
+* **Brad House** <<brad@brad-house.com>>
+  `DA7D64E4C82C6294CB73A20E22E3D13B5411B7CA`
 
-* Comments must be written in the old-style /* unnested C-fashion */
+To import the full set of trusted release keys (including subkeys possibly used
+to sign releases):
 
-* Try to keep line lengths below 80 columns.
+```bash
+gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 27EDEAF22F3ABCEB50DB9A125CC908FDB71E12C2 # Daniel Stenberg
+gpg --keyserver hkps://keys.openpgp.org --recv-keys DA7D64E4C82C6294CB73A20E22E3D13B5411B7CA     # Brad House
+```
+
+### Verifying signatures
+
+For each release `c-ares-X.Y.Z.tar.gz` there is a corresponding
+`c-ares-X.Y.Z.tar.gz.asc` file which contains the detached signature for the
+release.
+
+After fetching all of the possible valid signing keys and loading into your
+keychain as per the prior section, you can simply run the command below on
+the downloaded package and detached signature:
+
+```bash
+% gpg -v --verify c-ares-1.29.0.tar.gz.asc c-ares-1.29.0.tar.gz
+gpg: enabled compatibility flags:
+gpg: Signature made Fri May 24 02:50:38 2024 EDT
+gpg:                using RSA key 27EDEAF22F3ABCEB50DB9A125CC908FDB71E12C2
+gpg: using pgp trust model
+gpg: Good signature from "Daniel Stenberg <daniel@haxx.se>" [unknown]
+gpg: WARNING: This key is not certified with a trusted signature!
+gpg:          There is no indication that the signature belongs to the owner.
+Primary key fingerprint: 27ED EAF2 2F3A BCEB 50DB  9A12 5CC9 08FD B71E 12C2
+gpg: binary signature, digest algorithm SHA512, key algorithm rsa2048
+```

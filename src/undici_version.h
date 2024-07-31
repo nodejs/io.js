@@ -2,5 +2,5 @@
 // Refer to tools/dep_updaters/update-undici.sh
 #ifndef SRC_UNDICI_VERSION_H_
 #define SRC_UNDICI_VERSION_H_
-#define UNDICI_VERSION "5.26.4"
+#define UNDICI_VERSION "6.19.2"
 #endif  // SRC_UNDICI_VERSION_H_

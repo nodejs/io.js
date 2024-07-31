@@ -1,11 +1,15 @@
-// Flags: --expose-internals
 import * as common from '../common/index.mjs';
 import tmpdir from '../common/tmpdir.js';
-import { resolve, dirname, sep } from 'node:path';
-import { mkdir, writeFile, symlink } from 'node:fs/promises';
-import { test } from 'node:test';
+import { resolve, dirname, sep, basename } from 'node:path';
+import { mkdir, writeFile, symlink, glob as asyncGlob } from 'node:fs/promises';
+import { glob, globSync, Dirent } from 'node:fs';
+import { test, describe } from 'node:test';
+import { promisify } from 'node:util';
 import assert from 'node:assert';
-import glob from 'internal/fs/glob';
+
+function assertDirents(dirents) {
+  assert.ok(dirents.every((dirent) => dirent instanceof Dirent));
+}
 
 tmpdir.refresh();
 
@@ -65,6 +69,7 @@ const patterns = {
   ],
   'a/{b,c,d,e,f}/**/g': [],
   'a/b/**': ['a/b', 'a/b/c', 'a/b/c/d'],
+  'a/{b/**,b/c}': ['a/b', 'a/b/c', 'a/b/c/d'],
   './**/g': ['a/abcdef/g', 'a/abcfed/g'],
   'a/abc{fed,def}/g/h': ['a/abcdef/g/h', 'a/abcfed/g/h'],
   'a/abc{fed/g,def}/**/': ['a/abcdef', 'a/abcdef/g', 'a/abcfed/g'],
@@ -300,10 +305,82 @@ const patterns = {
   ],
 };
 
-for (const [pattern, expected] of Object.entries(patterns)) {
-  test(pattern, () => {
-    const actual = new glob.Glob([pattern], { cwd: fixtureDir }).globSync().sort();
-    const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
-    assert.deepStrictEqual(actual, normalized);
-  });
-}
+describe('glob', function() {
+  const promisified = promisify(glob);
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, async () => {
+      const actual = (await promisified(pattern, { cwd: fixtureDir })).sort();
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual, normalized);
+    });
+  }
+});
+
+describe('globSync', function() {
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, () => {
+      const actual = globSync(pattern, { cwd: fixtureDir }).sort();
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual, normalized);
+    });
+  }
+});
+
+describe('fsPromises glob', function() {
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, async () => {
+      const actual = [];
+      for await (const item of asyncGlob(pattern, { cwd: fixtureDir })) actual.push(item);
+      actual.sort();
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual, normalized);
+    });
+  }
+});
+
+describe('glob - withFileTypes', function() {
+  const promisified = promisify(glob);
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, async () => {
+      const actual = await promisified(pattern, {
+        cwd: fixtureDir,
+        withFileTypes: true,
+        exclude: (dirent) => assert.ok(dirent instanceof Dirent),
+      });
+      assertDirents(actual);
+      const normalized = expected.filter(Boolean).map((item) => basename(item)).sort();
+      assert.deepStrictEqual(actual.map((dirent) => dirent.name).sort(), normalized.sort());
+    });
+  }
+});
+
+describe('globSync - withFileTypes', function() {
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, () => {
+      const actual = globSync(pattern, {
+        cwd: fixtureDir,
+        withFileTypes: true,
+        exclude: (dirent) => assert.ok(dirent instanceof Dirent),
+      });
+      assertDirents(actual);
+      const normalized = expected.filter(Boolean).map((item) => basename(item)).sort();
+      assert.deepStrictEqual(actual.map((dirent) => dirent.name).sort(), normalized.sort());
+    });
+  }
+});
+
+describe('fsPromises glob - withFileTypes', function() {
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, async () => {
+      const actual = [];
+      for await (const item of asyncGlob(pattern, {
+        cwd: fixtureDir,
+        withFileTypes: true,
+        exclude: (dirent) => assert.ok(dirent instanceof Dirent),
+      })) actual.push(item);
+      assertDirents(actual);
+      const normalized = expected.filter(Boolean).map((item) => basename(item)).sort();
+      assert.deepStrictEqual(actual.map((dirent) => dirent.name).sort(), normalized.sort());
+    });
+  }
+});

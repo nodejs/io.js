@@ -6,6 +6,9 @@
 #include "unicode/uniset.h"
 #include <stdio.h>
 
+using icu::LocalUConverterPointer;
+using icu::UnicodeSet;
+
 static const char *kConverter = "ibm-1047";
 
 int main(int argc, const char *argv[]) {

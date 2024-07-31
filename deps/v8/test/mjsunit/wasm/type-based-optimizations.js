@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --no-liftoff
+// Flags: --no-liftoff
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -35,7 +35,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
         // while (true) {
         kExprLoop, kWasmVoid,
           // if (ref.test temp bottom1) {
-          kExprLocalGet, 2, kGCPrefix, kExprRefTestDeprecated, bottom1,
+          kExprLocalGet, 2, kGCPrefix, kExprRefTest, bottom1,
           kExprIf, kWasmVoid,
             // counter += ((bottom1) temp).field_2;
             // Note: This cast should get optimized away with path-based type

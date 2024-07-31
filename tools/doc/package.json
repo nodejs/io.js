@@ -7,7 +7,7 @@
     "node": ">=14.8.0"
   },
   "devDependencies": {
-    "highlight.js": "^11.8.0",
+    "highlight.js": "^11.9.0",
     "js-yaml": "^4.1.0",
     "rehype-raw": "^7.0.0",
     "rehype-stringify": "^10.0.0",
@@ -17,8 +17,8 @@
     "remark-parse": "^10.0.2",
     "remark-rehype": "^10.1.0",
     "to-vfile": "^8.0.0",
-    "unified": "^11.0.2",
-    "unist-util-select": "^5.0.0",
+    "unified": "^11.0.4",
+    "unist-util-select": "^5.1.0",
     "unist-util-visit": "^5.0.0"
   },
   "bin": {

@@ -36,7 +36,7 @@ static uv_barrier_t barrier;
 static void thread_main(void* arg) {
   ASSERT_LE(0, uv_barrier_wait(&barrier));
   uv_sleep(250);
-  ASSERT_EQ(0, uv_async_send(&async));
+  ASSERT_OK(uv_async_send(&async));
 }
 
 
@@ -50,9 +50,9 @@ TEST_IMPL(embed) {
   uv_loop_t* loop;
 
   loop = uv_default_loop();
-  ASSERT_EQ(0, uv_async_init(loop, &async, async_cb));
-  ASSERT_EQ(0, uv_barrier_init(&barrier, 2));
-  ASSERT_EQ(0, uv_thread_create(&thread, thread_main, NULL));
+  ASSERT_OK(uv_async_init(loop, &async, async_cb));
+  ASSERT_OK(uv_barrier_init(&barrier, 2));
+  ASSERT_OK(uv_thread_create(&thread, thread_main, NULL));
   ASSERT_LE(0, uv_barrier_wait(&barrier));
 
   while (uv_loop_alive(loop)) {
@@ -71,7 +71,7 @@ TEST_IMPL(embed) {
 #endif
   }
 
-  ASSERT_EQ(0, uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
   uv_barrier_destroy(&barrier);
 
   MAKE_VALGRIND_HAPPY(loop);

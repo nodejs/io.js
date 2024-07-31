@@ -74,6 +74,12 @@ class V8_NODISCARD LocalHandleScope {
   LocalHeap* local_heap_;
   Address* prev_limit_;
   Address* prev_next_;
+
+#ifdef V8_ENABLE_CHECKS
+  int scope_level_ = 0;
+
+  V8_EXPORT_PRIVATE void VerifyMainThreadScope() const;
+#endif
 };
 
 }  // namespace internal

@@ -1053,7 +1053,7 @@ enum MSAMinorOpcode : uint32_t {
 // The 'U' prefix is used to specify unsigned comparisons.
 // Opposite conditions must be paired as odd/even numbers
 // because 'NegateCondition' function flips LSB to negate condition.
-enum Condition {
+enum Condition : int {
   overflow = 0,
   no_overflow = 1,
   Uless = 2,

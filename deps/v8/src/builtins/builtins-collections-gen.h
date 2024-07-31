@@ -42,10 +42,16 @@ class BaseCollectionsAssembler : public CodeStubAssembler {
                            Label* if_exception = nullptr,
                            TVariable<Object>* var_exception = nullptr);
 
+  virtual void GetEntriesIfFastCollectionOrIterable(
+      Variant variant, TNode<Object> initial_entries, TNode<Context> context,
+      TVariable<HeapObject>* var_entries_table,
+      TVariable<IntPtrT>* var_number_of_elements,
+      Label* if_not_fast_collection) = 0;
+
   // Adds constructor entries to a collection.  Choosing a fast path when
   // possible.
   void AddConstructorEntries(Variant variant, TNode<Context> context,
-                             TNode<Context> native_context,
+                             TNode<NativeContext> native_context,
                              TNode<HeapObject> collection,
                              TNode<Object> initial_entries);
 
@@ -61,6 +67,10 @@ class BaseCollectionsAssembler : public CodeStubAssembler {
       Variant variant, TNode<Context> context, TNode<Context> native_context,
       TNode<Object> collection, TNode<Object> iterable, Label* if_exception,
       TVariable<JSReceiver>* var_iterator, TVariable<Object>* var_exception);
+
+  virtual void AddConstructorEntriesFromFastCollection(
+      Variant variant, TNode<HeapObject> collection,
+      TNode<HeapObject> source_table) = 0;
 
   // Constructs a collection instance. Choosing a fast path when possible.
   TNode<JSObject> AllocateJSCollection(TNode<Context> context,
@@ -114,12 +124,6 @@ class BaseCollectionsAssembler : public CodeStubAssembler {
 
   // Retrieves the offset to access the backing table from the collection.
   int GetTableOffset(Variant variant);
-
-  // Estimates the number of entries the collection will have after adding the
-  // entries passed in the constructor. AllocateTable() can use this to avoid
-  // the time of growing/rehashing when adding the constructor entries.
-  TNode<IntPtrT> EstimatedInitialSize(TNode<Object> initial_entries,
-                                      TNode<BoolT> is_fast_jsarray);
 
   // Determines whether the collection's prototype has been modified.
   TNode<BoolT> HasInitialCollectionPrototype(Variant variant,
@@ -245,12 +249,40 @@ class CollectionsBuiltinsAssembler : public BaseCollectionsAssembler {
       const TNode<IteratorType> iterator);
 
   template <typename TableType>
-  std::tuple<TNode<Object>, TNode<IntPtrT>, TNode<IntPtrT>> NextSkipHoles(
-      TNode<TableType> table, TNode<IntPtrT> index, Label* if_end);
+  std::tuple<TNode<Object>, TNode<IntPtrT>, TNode<IntPtrT>>
+  NextSkipHashTableHoles(TNode<TableType> table, TNode<IntPtrT> index,
+                         Label* if_end);
   template <typename TableType>
-  std::tuple<TNode<Object>, TNode<IntPtrT>, TNode<IntPtrT>> NextSkipHoles(
-      TNode<TableType> table, TNode<Int32T> number_of_buckets,
-      TNode<Int32T> used_capacity, TNode<IntPtrT> index, Label* if_end);
+  std::tuple<TNode<Object>, TNode<IntPtrT>, TNode<IntPtrT>>
+  NextSkipHashTableHoles(TNode<TableType> table,
+                         TNode<Int32T> number_of_buckets,
+                         TNode<Int32T> used_capacity, TNode<IntPtrT> index,
+                         Label* if_end);
+
+  // A helper function to help extract the {table} from either a Set or
+  // SetIterator. The function has a side effect of marking the
+  // SetIterator (if SetIterator is passed) as exhausted.
+  TNode<OrderedHashSet> SetOrSetIteratorToSet(TNode<Object> iterator);
+
+  // Adds constructor entries to a collection when constructing from a Set
+  void AddConstructorEntriesFromSet(TNode<JSSet> collection,
+                                    TNode<OrderedHashSet> table);
+
+  // a helper function to unwrap a fast js collection and load its length.
+  // var_entries_table is a variable meant to store the unwrapped collection.
+  // var_number_of_elements is a variable meant to store the length of the
+  // unwrapped collection. the function jumps to if_not_fast_collection if the
+  // collection is not a fast js collection.
+  void GetEntriesIfFastCollectionOrIterable(
+      Variant variant, TNode<Object> initial_entries, TNode<Context> context,
+      TVariable<HeapObject>* var_entries_table,
+      TVariable<IntPtrT>* var_number_of_elements,
+      Label* if_not_fast_collection) override;
+
+  // a helper to load constructor entries from a fast js collection.
+  void AddConstructorEntriesFromFastCollection(
+      Variant variant, TNode<HeapObject> collection,
+      TNode<HeapObject> source_table) override;
 
   // Specialization for Smi.
   // The {result} variable will contain the entry index if the key was found,
@@ -344,6 +376,29 @@ class CollectionsBuiltinsAssembler : public BaseCollectionsAssembler {
                                       Label* if_entry_found,
                                       Label* if_not_found);
 
+  // Helper function to store a new entry when constructing sets from sets.
+  template <typename CollectionType>
+  void AddNewToOrderedHashTable(
+      const TNode<CollectionType> table, const TNode<Object> normalised_key,
+      const TNode<IntPtrT> number_of_buckets, const TNode<IntPtrT> occupancy,
+      const StoreAtEntry<CollectionType>& store_at_new_entry);
+
+  void AddNewToOrderedHashSet(const TNode<OrderedHashSet> table,
+                              const TNode<Object> key,
+                              const TNode<IntPtrT> number_of_buckets,
+                              const TNode<IntPtrT> occupancy) {
+    TNode<Object> normalised_key = NormalizeNumberKey(key);
+    StoreAtEntry<OrderedHashSet> store_at_new_entry =
+        [this, normalised_key](const TNode<OrderedHashSet> table,
+                               const TNode<IntPtrT> entry_start) {
+          UnsafeStoreKeyInOrderedHashSetEntry(table, normalised_key,
+                                              entry_start);
+        };
+    AddNewToOrderedHashTable<OrderedHashSet>(table, normalised_key,
+                                             number_of_buckets, occupancy,
+                                             store_at_new_entry);
+  }
+
   // Generates code to store a new entry into {table}, connecting to the bucket
   // chain, and updating the bucket head. {store_new_entry} is called to
   // generate the code to store the payload (e.g., the key and value for
@@ -382,24 +437,26 @@ class CollectionsBuiltinsAssembler : public BaseCollectionsAssembler {
                                          CheckBounds::kDebugOnly);
   }
 
+  TNode<Object> LoadValueFromOrderedHashMapEntry(
+      const TNode<OrderedHashMap> table, const TNode<IntPtrT> entry,
+      CheckBounds check_bounds = CheckBounds::kAlways);
+
+  TNode<Object> UnsafeLoadValueFromOrderedHashMapEntry(
+      const TNode<OrderedHashMap> table, const TNode<IntPtrT> entry) {
+    return LoadValueFromOrderedHashMapEntry(table, entry,
+                                            CheckBounds::kDebugOnly);
+  }
+
   // Load payload (key or value) from {table} at {entry}.
   template <typename CollectionType>
   TNode<Object> LoadKeyFromOrderedHashTableEntry(
       const TNode<CollectionType> table, const TNode<IntPtrT> entry,
-      CheckBounds check_bounds = CheckBounds::kAlways);
-  TNode<Object> LoadValueFromOrderedHashMapEntry(
-      const TNode<OrderedHashMap> table, const TNode<IntPtrT> entry,
       CheckBounds check_bounds = CheckBounds::kAlways);
 
   template <typename CollectionType>
   TNode<Object> UnsafeLoadKeyFromOrderedHashTableEntry(
       const TNode<CollectionType> table, const TNode<IntPtrT> entry) {
     return LoadKeyFromOrderedHashTableEntry(table, entry,
-                                            CheckBounds::kDebugOnly);
-  }
-  TNode<Object> UnsafeLoadValueFromOrderedHashMapEntry(
-      const TNode<OrderedHashMap> table, const TNode<IntPtrT> entry) {
-    return LoadValueFromOrderedHashMapEntry(table, entry,
                                             CheckBounds::kDebugOnly);
   }
 
@@ -502,6 +559,20 @@ class WeakCollectionsBuiltinsAssembler : public BaseCollectionsAssembler {
   TNode<Word32T> ShouldShrink(TNode<IntPtrT> capacity,
                               TNode<IntPtrT> number_of_elements);
   TNode<IntPtrT> ValueIndexFromKeyIndex(TNode<IntPtrT> key_index);
+
+  void GetEntriesIfFastCollectionOrIterable(
+      Variant variant, TNode<Object> initial_entries, TNode<Context> context,
+      TVariable<HeapObject>* var_entries_table,
+      TVariable<IntPtrT>* var_number_of_elements,
+      Label* if_not_fast_collection) override {
+    UNREACHABLE();
+  }
+
+  void AddConstructorEntriesFromFastCollection(
+      Variant variant, TNode<HeapObject> collection,
+      TNode<HeapObject> source_table) override {
+    UNREACHABLE();
+  }
 };
 
 // Controls the key coercion behavior for Object.groupBy and Map.groupBy.

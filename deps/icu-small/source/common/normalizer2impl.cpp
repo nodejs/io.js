@@ -1390,8 +1390,11 @@ Normalizer2Impl::composePair(UChar32 a, UChar32 b) const {
     } else if(norm16<minYesNoMappingsOnly) {
         // a combines forward.
         if(isJamoL(norm16)) {
+            if (b < Hangul::JAMO_V_BASE) {
+                return U_SENTINEL;
+            }
             b-=Hangul::JAMO_V_BASE;
-            if(0<=b && b<Hangul::JAMO_V_COUNT) {
+            if(b<Hangul::JAMO_V_COUNT) {
                 return
                     (Hangul::HANGUL_BASE+
                      ((a-Hangul::JAMO_L_BASE)*Hangul::JAMO_V_COUNT+b)*
@@ -1400,8 +1403,11 @@ Normalizer2Impl::composePair(UChar32 a, UChar32 b) const {
                 return U_SENTINEL;
             }
         } else if(isHangulLV(norm16)) {
+            if (b <= Hangul::JAMO_T_BASE) {
+               return U_SENTINEL;
+            }
             b-=Hangul::JAMO_T_BASE;
-            if(0<b && b<Hangul::JAMO_T_COUNT) {  // not b==0!
+            if(b<Hangul::JAMO_T_COUNT) {  // not b==0!
                 return a+b;
             } else {
                 return U_SENTINEL;

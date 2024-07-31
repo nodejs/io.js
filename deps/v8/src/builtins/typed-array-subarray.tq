@@ -13,7 +13,7 @@ transitioning javascript builtin TypedArrayPrototypeSubArray(
   // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
   const source = Cast<JSTypedArray>(receiver)
       otherwise ThrowTypeError(
-      MessageTemplate::kIncompatibleMethodReceiver, methodName);
+      MessageTemplate::kIncompatibleMethodReceiver, methodName, receiver);
 
   // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
   // 4. Let buffer be O.[[ViewedArrayBuffer]].

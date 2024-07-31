@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -33,10 +33,13 @@ int SMIME_write_PKCS7(BIO *bio, PKCS7 *p7, BIO *data, int flags)
     int ctype_nid = OBJ_obj2nid(p7->type);
     const PKCS7_CTX *ctx = ossl_pkcs7_get0_ctx(p7);
 
-    if (ctype_nid == NID_pkcs7_signed)
+    if (ctype_nid == NID_pkcs7_signed) {
+        if (p7->d.sign == NULL)
+            return 0;
         mdalgs = p7->d.sign->md_algs;
-    else
+    } else {
         mdalgs = NULL;
+    }
 
     flags ^= SMIME_OLDMIME;
 

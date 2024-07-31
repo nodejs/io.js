@@ -33,6 +33,10 @@ enum Constants {
     CONSTANT_METERS_PER_AU,
     CONSTANT_SEC_PER_JULIAN_YEAR,
     CONSTANT_SPEED_OF_LIGHT_METERS_PER_SECOND,
+    CONSTANT_SHO_TO_M3,   // https://en.wikipedia.org/wiki/Japanese_units_of_measurement
+    CONSTANT_TSUBO_TO_M2, // https://en.wikipedia.org/wiki/Japanese_units_of_measurement
+    CONSTANT_SHAKU_TO_M,  // https://en.wikipedia.org/wiki/Japanese_units_of_measurement
+    CONSTANT_AMU,         // Atomic Mass Unit https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-5-units-outside-si#table7
 
     // Must be the last element.
     CONSTANTS_COUNT
@@ -55,6 +59,10 @@ static const double constantsValues[CONSTANTS_COUNT] = {
     149597870700,              // CONSTANT_METERS_PER_AU
     31557600,                  // CONSTANT_SEC_PER_JULIAN_YEAR
     299792458,                 // CONSTANT_SPEED_OF_LIGHT_METERS_PER_SECOND
+    2401.0 / (1331.0 * 1000.0),
+    400.0 / 121.0,
+    4.0 / 121.0,
+    1.66053878283E-27,         // CONSTANT_AMU
 };
 
 typedef enum Signum {
@@ -102,10 +110,14 @@ void U_I18N_API addSingleFactorConstant(StringPiece baseStr, int32_t power, Sign
 
 /**
  * Represents the conversion rate between `source` and `target`.
+ * TODO ICU-22683: COnsider moving the handling of special mappings (e.g. beaufort) to a separate
+ * struct.
  */
 struct U_I18N_API ConversionRate : public UMemory {
     const MeasureUnitImpl source;
     const MeasureUnitImpl target;
+    CharString specialSource;
+    CharString specialTarget;
     double factorNum = 1;
     double factorDen = 1;
     double sourceOffset = 0;
@@ -113,7 +125,7 @@ struct U_I18N_API ConversionRate : public UMemory {
     bool reciprocal = false;
 
     ConversionRate(MeasureUnitImpl &&source, MeasureUnitImpl &&target)
-        : source(std::move(source)), target(std::move(target)) {}
+        : source(std::move(source)), target(std::move(target)), specialSource(), specialTarget() {}
 };
 
 enum Convertibility {
@@ -214,8 +226,23 @@ class U_I18N_API UnitsConverter : public UMemory {
 
     /**
      * Initialises the object.
-     */ 
+     */
     void init(const ConversionRates &ratesInfo, UErrorCode &status);
+
+    /**
+     * Convert from what should be discrete scale values for a particular unit like beaufort
+     * to a corresponding value in the base unit (which can have any decimal value, like meters/sec).
+     * This can handle different scales, specified by minBaseForScaleValues[].
+     */
+    double scaleToBase(double scaleValue, double minBaseForScaleValues[], int scaleMax) const;
+
+    /**
+     * Convert from a value in the base unit (which can have any decimal value, like meters/sec) to a corresponding
+     * discrete value in a scale (like beaufort), where each scale value represents a range of base values.
+     * This can handle different scales, specified by minBaseForScaleValues[].
+     */
+    double baseToScale(double baseValue, double minBaseForScaleValues[], int scaleMax) const;
+
 };
 
 } // namespace units

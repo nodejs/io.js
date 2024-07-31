@@ -5,6 +5,7 @@
 filegroup(
     name = "icudata",
     srcs = ["common/icudtl.dat"],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -21,17 +22,11 @@ cc_library(
             "/utf-8",  # ICU source files are in UTF-8.
         ],
         "//conditions:default": [
-            "-Wno-unused-function",
-            "-Wno-parentheses",
-            "-Wno-unused-function",
-            "-Wno-unused-variable",
             "-Wno-deprecated-declarations",
         ],
     }),
     data = [":icudata"],
     defines = [
-        "U_COMMON_IMPLEMENTATION",
-        "U_ICUDATAENTRY_IN_COMMON",
         "HAVE_DLOPEN=0",
         "UCONFIG_ONLY_HTML_CONVERSION=1",
         "U_CHARSET_IS_UTF8=1",
@@ -54,6 +49,10 @@ cc_library(
         "source/common",
         "source/i18n",
     ],
+    local_defines = [
+        "U_COMMON_IMPLEMENTATION",
+        "U_ICUDATAENTRY_IN_COMMON",
+    ],
     tags = ["requires-rtti"],
     alwayslink = 1,
 )
@@ -71,18 +70,13 @@ cc_library(
             "/wd4267",  # Conversion from size_t on 64-bits.
             "/utf-8",  # ICU source files are in UTF-8.
         ],
-        "//conditions:default": [],
-    }),
-    defines = [
-        "U_I18N_IMPLEMENTATION",
-    ] + select({
-        "@platforms//os:windows": [
-            "U_STATIC_IMPLEMENTATION",
-            "UNICODE",
-            "_UNICODE",
+        "//conditions:default": [
+            "-Wno-deprecated-declarations",
         ],
-        "//conditions:default": [],
     }),
+    local_defines = [
+        "U_I18N_IMPLEMENTATION",
+    ],
     deps = [":icuuc"],
     alwayslink = 1,
 )
@@ -91,6 +85,7 @@ cc_library(
     name = "icu",
     srcs = [
         "source/stubdata/stubdata.cpp",
+        "source/stubdata/stubdata.h",
     ],
     hdrs = glob([
         "source/common/unicode/*.h",
@@ -105,17 +100,10 @@ cc_library(
         ],
         "//conditions:default": [],
     }),
-    defines = [
-        "U_I18N_IMPLEMENTATION",
-    ] + select({
-        "@platforms//os:windows": [
-            "U_STATIC_IMPLEMENTATION",
-            "UNICODE",
-            "_UNICODE",
-        ],
-        "//conditions:default": [],
-    }),
     include_prefix = "third_party/icu",
+    local_defines = [
+        "U_COMMON_IMPLEMENTATION",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":icui18n",

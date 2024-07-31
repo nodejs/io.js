@@ -11,12 +11,13 @@
 
 #include <string.h>  /* memset */
 
+#include <brotli/types.h>
+
 #include "../common/constants.h"
 #include "../common/context.h"
 #include "../common/platform.h"
-#include <brotli/types.h>
-#include "./block_splitter.h"
-#include "./command.h"
+#include "block_splitter.h"
+#include "command.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -28,7 +29,7 @@ extern "C" {
 #define FN(X) X ## Literal
 #define DATA_SIZE BROTLI_NUM_LITERAL_SYMBOLS
 #define DataType uint8_t
-#include "./histogram_inc.h"  /* NOLINT(build/include) */
+#include "histogram_inc.h"  /* NOLINT(build/include) */
 #undef DataType
 #undef DATA_SIZE
 #undef FN
@@ -36,13 +37,13 @@ extern "C" {
 #define FN(X) X ## Command
 #define DataType uint16_t
 #define DATA_SIZE BROTLI_NUM_COMMAND_SYMBOLS
-#include "./histogram_inc.h"  /* NOLINT(build/include) */
+#include "histogram_inc.h"  /* NOLINT(build/include) */
 #undef DATA_SIZE
 #undef FN
 
 #define FN(X) X ## Distance
 #define DATA_SIZE BROTLI_NUM_HISTOGRAM_DISTANCE_SYMBOLS
-#include "./histogram_inc.h"  /* NOLINT(build/include) */
+#include "histogram_inc.h"  /* NOLINT(build/include) */
 #undef DataType
 #undef DATA_SIZE
 #undef FN

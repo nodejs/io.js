@@ -1,6 +1,6 @@
 {
   "name": "minipass-collect",
-  "version": "1.0.2",
+  "version": "2.0.1",
   "description": "A Minipass stream that collects all the data into a single chunk",
   "author": "Isaac Z. Schlueter <i@izs.me> (https://izs.me)",
   "license": "ISC",
@@ -9,21 +9,22 @@
     "snap": "tap",
     "preversion": "npm test",
     "postversion": "npm publish",
-    "postpublish": "git push origin --follow-tags"
+    "prepublishOnly": "git push origin --follow-tags"
   },
   "tap": {
     "check-coverage": true
   },
   "devDependencies": {
-    "tap": "^14.6.9"
+    "tap": "^16.3.8"
   },
   "dependencies": {
-    "minipass": "^3.0.0"
+    "minipass": "^7.0.3"
   },
   "files": [
     "index.js"
   ],
   "engines": {
-    "node": ">= 8"
-  }
+    "node": ">=16 || 14 >=14.17"
+  },
+  "repository": "https://github.com/isaacs/minipass-collect"
 }

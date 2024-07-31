@@ -27,6 +27,7 @@ class SmallVector {
 
  public:
   static constexpr size_t kInlineSize = kSize;
+  using value_type = T;
 
   SmallVector() = default;
   explicit SmallVector(const Allocator& allocator) : allocator_(allocator) {}
@@ -197,9 +198,17 @@ class SmallVector {
     end_ = begin_ + new_size;
   }
 
-  void reserve_no_init(size_t new_capacity) {
-    // Resizing without initialization is safe if T is trivially copyable.
-    ASSERT_TRIVIALLY_COPYABLE(T);
+  void resize_and_init(size_t new_size, const T& initial_value = {}) {
+    static_assert(std::is_trivially_destructible_v<T>);
+    if (new_size > capacity()) Grow(new_size);
+    T* new_end = begin_ + new_size;
+    if (new_end > end_) {
+      std::uninitialized_fill(end_, new_end, initial_value);
+    }
+    end_ = new_end;
+  }
+
+  void reserve(size_t new_capacity) {
     if (new_capacity > capacity()) Grow(new_capacity);
   }
 
@@ -220,11 +229,7 @@ class SmallVector {
         base::bits::RoundUpToPowerOfTwo(std::max(min_capacity, 2 * capacity()));
     T* new_storage = AllocateDynamicStorage(new_capacity);
     if (new_storage == nullptr) {
-      // Should be: V8::FatalProcessOutOfMemory, but we don't include V8 from
-      // base. The message is intentionally the same as FatalProcessOutOfMemory
-      // since that will help fuzzers and chromecrash to categorize such
-      // crashes appropriately.
-      FATAL("Fatal process out of memory: base::SmallVector::Grow");
+      FatalOOM(OOMType::kProcess, "base::SmallVector::Grow");
     }
     memcpy(new_storage, begin_, sizeof(T) * in_use);
     if (is_big()) FreeDynamicStorage();

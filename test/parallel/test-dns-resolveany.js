@@ -11,7 +11,7 @@ const answers = [
   { type: 'AAAA', address: '::42', ttl: 123 },
   { type: 'MX', priority: 42, exchange: 'foobar.com', ttl: 124 },
   { type: 'NS', value: 'foobar.org', ttl: 457 },
-  { type: 'TXT', entries: [ 'v=spf1 ~all', 'xyz\0foo' ] },
+  { type: 'TXT', entries: [ 'v=spf1 ~all xyz\0foo' ] },
   { type: 'PTR', value: 'baz.org', ttl: 987 },
   {
     type: 'SOA',

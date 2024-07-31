@@ -1,9 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateSocksClientChainOptions = exports.validateSocksClientOptions = void 0;
+exports.ipToBuffer = exports.int32ToIpv4 = exports.ipv4ToInt32 = exports.validateSocksClientChainOptions = exports.validateSocksClientOptions = void 0;
 const util_1 = require("./util");
 const constants_1 = require("./constants");
 const stream = require("stream");
+const ip_address_1 = require("ip-address");
+const net = require("net");
 /**
  * Validates the provided SocksClientOptions
  * @param options { SocksClientOptions }
@@ -125,4 +127,40 @@ function isValidSocksProxy(proxy) {
 function isValidTimeoutValue(value) {
     return typeof value === 'number' && value > 0;
 }
+function ipv4ToInt32(ip) {
+    const address = new ip_address_1.Address4(ip);
+    // Convert the IPv4 address parts to an integer
+    return address.toArray().reduce((acc, part) => (acc << 8) + part, 0);
+}
+exports.ipv4ToInt32 = ipv4ToInt32;
+function int32ToIpv4(int32) {
+    // Extract each byte (octet) from the 32-bit integer
+    const octet1 = (int32 >>> 24) & 0xff;
+    const octet2 = (int32 >>> 16) & 0xff;
+    const octet3 = (int32 >>> 8) & 0xff;
+    const octet4 = int32 & 0xff;
+    // Combine the octets into a string in IPv4 format
+    return [octet1, octet2, octet3, octet4].join('.');
+}
+exports.int32ToIpv4 = int32ToIpv4;
+function ipToBuffer(ip) {
+    if (net.isIPv4(ip)) {
+        // Handle IPv4 addresses
+        const address = new ip_address_1.Address4(ip);
+        return Buffer.from(address.toArray());
+    }
+    else if (net.isIPv6(ip)) {
+        // Handle IPv6 addresses
+        const address = new ip_address_1.Address6(ip);
+        return Buffer.from(address
+            .canonicalForm()
+            .split(':')
+            .map((segment) => segment.padStart(4, '0'))
+            .join(''), 'hex');
+    }
+    else {
+        throw new Error('Invalid IP address format');
+    }
+}
+exports.ipToBuffer = ipToBuffer;
 //# sourceMappingURL=helpers.js.map

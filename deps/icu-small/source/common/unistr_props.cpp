@@ -68,7 +68,7 @@ UnicodeString::trim()
 
   // move string forward over leading white space
   if(start > 0) {
-    doReplace(0, start, 0, 0, 0);
+    doReplace(0, start, nullptr, 0, 0);
   }
 
   return *this;

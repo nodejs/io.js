@@ -1037,7 +1037,7 @@ RuleBasedNumberFormat::getNumberOfRuleSetDisplayNameLocales() const {
 Locale 
 RuleBasedNumberFormat::getRuleSetDisplayNameLocale(int32_t index, UErrorCode& status) const {
     if (U_FAILURE(status)) {
-        return Locale("");
+        return {""};
     }
     if (localizations && index >= 0 && index < localizations->getNumberOfDisplayLocales()) {
         UnicodeString name(true, localizations->getLocaleName(index), -1);
@@ -1048,7 +1048,7 @@ RuleBasedNumberFormat::getRuleSetDisplayNameLocale(int32_t index, UErrorCode& st
             bp = (char *)uprv_malloc(cap);
             if (bp == nullptr) {
                 status = U_MEMORY_ALLOCATION_ERROR;
-                return Locale("");
+                return {""};
             }
         }
         name.extract(0, name.length(), bp, cap, UnicodeString::kInvariant);
@@ -1557,7 +1557,7 @@ RuleBasedNumberFormat::init(const UnicodeString& rules, LocalizationInfo* locali
     // our rule list is an array of the appropriate size
     fRuleSets = (NFRuleSet **)uprv_malloc((numRuleSets + 1) * sizeof(NFRuleSet *));
     /* test for nullptr */
-    if (fRuleSets == 0) {
+    if (fRuleSets == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         return;
     }
@@ -1923,10 +1923,7 @@ RuleBasedNumberFormat::adoptDecimalFormatSymbols(DecimalFormatSymbols* symbolsTo
         return; // do not allow caller to set decimalFormatSymbols to nullptr
     }
 
-    if (decimalFormatSymbols != nullptr) {
-        delete decimalFormatSymbols;
-    }
-
+    delete decimalFormatSymbols;
     decimalFormatSymbols = symbolsToAdopt;
 
     {

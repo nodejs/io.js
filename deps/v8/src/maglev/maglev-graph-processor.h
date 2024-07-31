@@ -85,34 +85,25 @@ class GraphProcessor {
 
     node_processor_.PreProcessGraph(graph);
 
-    for (const auto& [ref, constant] : graph->constants()) {
-      node_processor_.Process(constant, GetCurrentState());
-      USE(ref);
-    }
-    for (const auto& [index, constant] : graph->root()) {
-      node_processor_.Process(constant, GetCurrentState());
-      USE(index);
-    }
-    for (const auto& [index, constant] : graph->smi()) {
-      node_processor_.Process(constant, GetCurrentState());
-      USE(index);
-    }
-    for (const auto& [index, constant] : graph->tagged_index()) {
-      node_processor_.Process(constant, GetCurrentState());
-      USE(index);
-    }
-    for (const auto& [index, constant] : graph->int32()) {
-      node_processor_.Process(constant, GetCurrentState());
-      USE(index);
-    }
-    for (const auto& [index, constant] : graph->float64()) {
-      node_processor_.Process(constant, GetCurrentState());
-      USE(index);
-    }
-    for (const auto& [address, constant] : graph->external_references()) {
-      node_processor_.Process(constant, GetCurrentState());
-      USE(address);
-    }
+    auto process_constants = [&](auto& map) {
+      for (auto it = map.begin(); it != map.end();) {
+        ProcessResult result =
+            node_processor_.Process(it->second, GetCurrentState());
+        if (V8_UNLIKELY(result == ProcessResult::kRemove)) {
+          it = map.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    };
+    process_constants(graph->constants());
+    process_constants(graph->root());
+    process_constants(graph->smi());
+    process_constants(graph->tagged_index());
+    process_constants(graph->int32());
+    process_constants(graph->uint32());
+    process_constants(graph->float64());
+    process_constants(graph->external_references());
 
     for (block_it_ = graph->begin(); block_it_ != graph->end(); ++block_it_) {
       BasicBlock* block = *block_it_;
@@ -120,8 +111,16 @@ class GraphProcessor {
       node_processor_.PreProcessBasicBlock(block);
 
       if (block->has_phi()) {
-        for (Phi* phi : *block->phis()) {
-          node_processor_.Process(phi, GetCurrentState());
+        auto& phis = *block->phis();
+        for (auto it = phis.begin(); it != phis.end();) {
+          Phi* phi = *it;
+          ProcessResult result =
+              node_processor_.Process(phi, GetCurrentState());
+          if (V8_UNLIKELY(result == ProcessResult::kRemove)) {
+            it = phis.RemoveAt(it);
+          } else {
+            ++it;
+          }
         }
       }
 

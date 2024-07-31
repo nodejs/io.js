@@ -29,7 +29,7 @@ Measure::Measure(const Formattable& _number, MeasureUnit* adoptedUnit,
                  UErrorCode& ec) :
     number(_number), unit(adoptedUnit) {
     if (U_SUCCESS(ec) &&
-        (!number.isNumeric() || adoptedUnit == 0)) {
+        (!number.isNumeric() || adoptedUnit == nullptr)) {
         ec = U_ILLEGAL_ARGUMENT_ERROR;
     }
 }

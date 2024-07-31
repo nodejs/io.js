@@ -77,6 +77,7 @@ struct FrameStateData {
     base::SmallVector<MachineType, 32> machine_types_;
     base::SmallVector<uint32_t, 16> int_operands_;
     base::SmallVector<OpIndex, 32> inputs_;
+
     bool inlined_ = false;
   };
 

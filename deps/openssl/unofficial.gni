@@ -1,0 +1,151 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+declare_args() {
+  # Do not build optimized assembly for OpenSSL
+  # FIXME(zcbenz): asm code does not compile with clang.
+  openssl_no_asm = true
+}
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("openssl_gn_build") {
+  config("openssl_external_config") {
+    include_dirs = [
+      "openssl/crypto/include",
+      "openssl/include",
+    ]
+  }
+
+  config("openssl_internal_config") {
+    gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                              [ rebase_path("openssl.gypi") ],
+                              "scope",
+                              [ "openssl.gypi" ])
+
+    defines = [
+      "MODULESDIR=\"deps/openssl/lib/openssl-modules\"",
+      "OPENSSL_API_COMPAT=0x10100001L",
+      "STATIC_LEGACY",
+    ] + gypi_values.openssl_default_defines_all
+    if (is_win) {
+      defines += [
+        ## default of Win. See INSTALL in openssl repo.
+        "OPENSSLDIR=\"C:\\\Program\ Files\\\Common\ Files\\\SSL\"",
+        "ENGINESDIR=\"NUL\"",
+        "OPENSSL_SYS_WIN32", "WIN32_LEAN_AND_MEAN", "L_ENDIAN",
+        "_CRT_SECURE_NO_DEPRECATE", "UNICODE", "_UNICODE",
+      ]
+    } else if (is_mac) {
+      defines += [
+        "OPENSSLDIR=\"/System/Library/OpenSSL/\"",
+        "ENGINESDIR=\"/dev/null\"",
+      ]
+    } else {
+      defines += [
+        "OPENSSLDIR=\"/etc/ssl\"",
+        "ENGINESDIR=\"/dev/null\"",
+        "TERMIOS",
+      ]
+    }
+
+    if (is_posix) {
+      asmflags = [ "-fPIC" ]
+      cflags = [ "-fPIC" ]
+      ldflags = [ "-fPIC" ]
+    }
+    if (is_clang || !is_win) {
+      cflags_c = [
+        "-Wno-atomic-alignment",
+        "-Wno-constant-conversion",
+        "-Wno-implicit-fallthrough",
+        "-Wno-implicit-function-declaration",
+        "-Wno-sign-compare",
+        "-Wno-unknown-escape-sequence",
+        "-Wno-unreachable-code",
+        "-Wno-unreachable-code-break",
+        "-Wno-unreachable-code-return",
+        "-Wno-unused-function",
+      ]
+    }
+    if (is_win) {
+      libs = [ "crypt32.lib" ]
+    } else if (is_linux) {
+      libs = [ "atomic" ]
+    }
+
+    common_gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                                     [ rebase_path("openssl_common.gypi") ],
+                                     "scope",
+                                     [ "openssl_common.gypi" ])
+    include_dirs = common_gypi_values.include_dirs
+  }
+
+  static_library(target_name) {
+    forward_variables_from(invoker, "*")
+
+    configs += [ ":openssl_internal_config" ]
+    public_configs = [ ":openssl_external_config" ]
+
+    if (is_posix) {
+      configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
+      configs += [ "//build/config/gcc:symbol_visibility_default" ]
+    }
+
+    config_path_name = ""
+    if (is_win) {
+      if (current_cpu == "x86") {
+        config_path_name = "VC-WIN32"
+      } else if (current_cpu == "x64") {
+        config_path_name = "VC-WIN64A"
+      } else if (current_cpu == "arm64") {
+        config_path_name = "VC-WIN64-ARM"
+      }
+    } else if (is_linux) {
+      if (current_cpu == "x86") {
+        config_path_name = "linux-elf"
+      } else if (current_cpu == "x64") {
+        config_path_name = "linux-x86_64"
+      } else if (current_cpu == "arm") {
+        config_path_name = "linux-armv4"
+      } else if (current_cpu == "arm64") {
+        config_path_name = "linux-aarch64"
+      }
+    } else if (is_apple) {
+      if (current_cpu == "x86") {
+        config_path_name = "darwin-i386-cc"
+      } else if (current_cpu == "x64") {
+        config_path_name = "darwin64-x86_64-cc"
+      } else if (current_cpu == "arm64") {
+        config_path_name = "darwin64-arm64-cc"
+      }
+    }
+    assert(config_path_name != "", "Unsupported platform")
+
+    # GN variables can not have - in name.
+    config_name = string_replace(config_path_name, "-", "_")
+
+    if (openssl_no_asm) {
+      asm_name = "no-asm"
+    } else {
+      # TODO(zcbenz): Check gas_version and nasm_version.
+      asm_name = "asm_avx2"
+    }
+    if (is_win && current_cpu == "arm64") {
+      asm_name = "no-asm"
+    }
+    config_path = "config/archs/" + config_path_name + "/" + asm_name
+
+    gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                              [ rebase_path(config_path + "/openssl.gypi"), ],
+                              "scope",
+                              [ config_path + "/openssl.gypi" ])
+
+    include_dirs = rebase_path(gypi_values.include_dirs, ".", config_path)
+    defines = gypi_values["openssl_defines_" + config_name]
+    sources = filter_exclude(gypi_values.openssl_sources +
+                             gypi_values["openssl_sources_" + config_name],
+                             [ "*.ld" ])
+  }
+}

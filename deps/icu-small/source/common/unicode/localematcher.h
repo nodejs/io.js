@@ -11,6 +11,8 @@
 
 #if U_SHOW_CPLUSPLUS_API
 
+#include <optional>
+
 #include "unicode/locid.h"
 #include "unicode/stringpiece.h"
 #include "unicode/uobject.h"
@@ -133,10 +135,10 @@ U_NAMESPACE_BEGIN
 
 struct LSR;
 
+class LikelySubtags;
 class LocaleDistance;
 class LocaleLsrIterator;
 class UVector;
-class XLikelySubtags;
 
 /**
  * Immutable class that picks the best match between a user's desired locales and
@@ -678,9 +680,9 @@ private:
 
     int32_t putIfAbsent(const LSR &lsr, int32_t i, int32_t suppLength, UErrorCode &errorCode);
 
-    int32_t getBestSuppIndex(LSR desiredLSR, LocaleLsrIterator *remainingIter, UErrorCode &errorCode) const;
+    std::optional<int32_t> getBestSuppIndex(LSR desiredLSR, LocaleLsrIterator *remainingIter, UErrorCode &errorCode) const;
 
-    const XLikelySubtags &likelySubtags;
+    const LikelySubtags &likelySubtags;
     const LocaleDistance &localeDistance;
     int32_t thresholdDistance;
     int32_t demotionPerDesiredLocale;

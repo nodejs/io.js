@@ -1,0 +1,21 @@
+# Copyright 2018 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//third_party/abseil-cpp/absl.gni")
+
+absl_source_set("memory") {
+  public = [ "memory.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+}
+
+absl_test("memory_test") {
+  sources = [ "memory_test.cc" ]
+  deps = [
+    ":memory",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+  ]
+}

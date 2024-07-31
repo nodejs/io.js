@@ -2,6 +2,8 @@
 const common = require('../common');
 const assert = require('assert');
 
+Error.stackTraceLimit = Infinity;
+
 (function foobar() {
   require('domain');
 })();

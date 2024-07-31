@@ -87,7 +87,7 @@ Tagged<Code> DeoptimizableCodeIterator::Next() {
           // moving.
           safepoint_scope_.reset();
           state_ = kDone;
-          V8_FALLTHROUGH;
+          [[fallthrough]];
         case kDone:
           return Code();
       }
@@ -171,6 +171,15 @@ class FrameWriter {
                                                iterator);
   }
 
+  void PushFeedbackVectorForMaterialization(
+      const TranslatedFrame::iterator& iterator) {
+    // Push a marker temporarily.
+    PushRawObject(ReadOnlyRoots(deoptimizer_->isolate()).arguments_marker(),
+                  "feedback vector");
+    deoptimizer_->QueueFeedbackVectorForMaterialization(
+        output_address(top_offset_), iterator);
+  }
+
   void PushStackJSArguments(TranslatedFrame::iterator& iterator,
                             int parameters_count) {
     std::vector<TranslatedFrame::iterator> parameters;
@@ -248,7 +257,7 @@ class FrameWriter {
 Deoptimizer* Deoptimizer::New(Address raw_function, DeoptimizeKind kind,
                               Address from, int fp_to_sp_delta,
                               Isolate* isolate) {
-  Tagged<JSFunction> function = JSFunction::cast(Object(raw_function));
+  Tagged<JSFunction> function = JSFunction::cast(Tagged<Object>(raw_function));
   Deoptimizer* deoptimizer =
       new Deoptimizer(isolate, function, kind, from, fp_to_sp_delta);
   isolate->set_current_deoptimizer(deoptimizer);
@@ -325,7 +334,11 @@ class ActivationsFinder : public ThreadVisitor {
                 SafepointTable::FindEntry(isolate, code, it.frame()->pc());
             trampoline_pc = safepoint.trampoline_pc();
           }
-          DCHECK_IMPLIES(code == topmost_, safe_to_deopt_);
+          // TODO(saelo): currently we have to use full pointer comparison as
+          // builtin Code is still inside the sandbox while runtime-generated
+          // Code is in trusted space.
+          static_assert(!kAllCodeObjectsLiveInTrustedSpace);
+          DCHECK_IMPLIES(code.SafeEquals(topmost_), safe_to_deopt_);
           static_assert(SafepointEntry::kNoTrampolinePC == -1);
           CHECK_GE(trampoline_pc, 0);
           // Replace the current pc on the stack with the trampoline.
@@ -340,7 +353,7 @@ class ActivationsFinder : public ThreadVisitor {
 
  private:
 #ifdef DEBUG
-  GcSafeCode topmost_;
+  Tagged<GcSafeCode> topmost_;
   bool safe_to_deopt_;
 #endif
 };
@@ -422,8 +435,12 @@ void Deoptimizer::DeoptimizeFunction(Tagged<JSFunction> function,
   RCS_SCOPE(isolate, RuntimeCallCounterId::kDeoptimizeCode);
   TimerEventScope<TimerEventDeoptimizeCode> timer(isolate);
   TRACE_EVENT0("v8", "V8.DeoptimizeCode");
-  function->ResetIfCodeFlushed();
-  if (code.is_null()) code = function->code();
+  if (v8_flags.profile_guided_optimization) {
+    function->shared()->set_cached_tiering_decision(
+        CachedTieringDecision::kNormal);
+  }
+  function->ResetIfCodeFlushed(isolate);
+  if (code.is_null()) code = function->code(isolate);
 
   if (CodeKindCanDeoptimize(code->kind())) {
     // Mark the code for deoptimization and unlink any functions that also
@@ -557,10 +574,12 @@ Deoptimizer::Deoptimizer(Isolate* isolate, Tagged<JSFunction> function,
   // non-lazy deopt, so we use <=, similarly for the last non-lazy deopt and
   // the first deopt with resume entry.
   if (from_ <= lazy_deopt_start) {
+    DCHECK_EQ(kind, DeoptimizeKind::kEager);
     int offset = static_cast<int>(from_ - kEagerDeoptExitSize - deopt_start);
     DCHECK_EQ(0, offset % kEagerDeoptExitSize);
     deopt_exit_index_ = offset / kEagerDeoptExitSize;
   } else {
+    DCHECK_EQ(kind, DeoptimizeKind::kLazy);
     int offset =
         static_cast<int>(from_ - kLazyDeoptExitSize - lazy_deopt_start);
     DCHECK_EQ(0, offset % kLazyDeoptExitSize);
@@ -673,13 +692,12 @@ void Deoptimizer::TraceDeoptEnd(double deopt_duration) {
 void Deoptimizer::TraceMarkForDeoptimization(Isolate* isolate,
                                              Tagged<Code> code,
                                              const char* reason) {
+  DCHECK(code->uses_deoptimization_data());
   if (!v8_flags.trace_deopt && !v8_flags.log_deopt) return;
 
   DisallowGarbageCollection no_gc;
-  Tagged<Object> maybe_data = code->deoptimization_data();
-  if (maybe_data == ReadOnlyRoots(isolate).empty_fixed_array()) return;
-
-  Tagged<DeoptimizationData> deopt_data = DeoptimizationData::cast(maybe_data);
+  Tagged<DeoptimizationData> deopt_data =
+      DeoptimizationData::cast(code->deoptimization_data());
   CodeTracer::Scope scope(isolate->GetCodeTracer());
   if (v8_flags.trace_deopt) {
     PrintF(scope.file(), "[marking dependent code ");
@@ -828,10 +846,7 @@ void Deoptimizer::DoComputeOutputFrames() {
   }
 
   DCHECK_NULL(output_);
-  output_ = new FrameDescription*[count];
-  for (size_t i = 0; i < count; ++i) {
-    output_[i] = nullptr;
-  }
+  output_ = new FrameDescription* [count] {};
   output_count_ = static_cast<int>(count);
 
   // Translate each output frame.
@@ -895,9 +910,12 @@ void Deoptimizer::DoComputeOutputFrames() {
   // deoptimized.
   bool osr_early_exit = Deoptimizer::GetDeoptInfo().deopt_reason ==
                         DeoptimizeReason::kOSREarlyExit;
+  // TODO(saelo): We have to use full pointer comparisons here while not all
+  // Code objects have been migrated into trusted space.
+  static_assert(!kAllCodeObjectsLiveInTrustedSpace);
   if (IsJSFunction(function_) &&
       (compiled_code_->osr_offset().IsNone()
-           ? function_->code() == compiled_code_
+           ? function_->code(isolate()).SafeEquals(compiled_code_)
            : (!osr_early_exit &&
               DeoptExitIsInsideOsrLoop(isolate(), function_,
                                        bytecode_offset_in_outermost_frame_,
@@ -1012,9 +1030,10 @@ void Deoptimizer::DoComputeUnoptimizedFrame(TranslatedFrame* translated_frame,
   TranslatedFrame::iterator function_iterator = value_iterator++;
 
   Tagged<BytecodeArray> bytecode_array;
-  base::Optional<DebugInfo> debug_info = shared->TryGetDebugInfo(isolate());
-  if (debug_info.has_value() && debug_info->HasBreakInfo()) {
-    bytecode_array = debug_info->DebugBytecodeArray();
+  base::Optional<Tagged<DebugInfo>> debug_info =
+      shared->TryGetDebugInfo(isolate());
+  if (debug_info.has_value() && debug_info.value()->HasBreakInfo()) {
+    bytecode_array = debug_info.value()->DebugBytecodeArray(isolate());
   } else {
     bytecode_array = shared->GetBytecodeArray(isolate());
   }
@@ -1171,6 +1190,9 @@ void Deoptimizer::DoComputeUnoptimizedFrame(TranslatedFrame* translated_frame,
   Tagged<Smi> smi_bytecode_offset = Smi::FromInt(raw_bytecode_offset);
   frame_writer.PushRawObject(smi_bytecode_offset, "bytecode offset\n");
 
+  // We need to materialize the closure before getting the feedback vector.
+  frame_writer.PushFeedbackVectorForMaterialization(function_iterator);
+
   if (verbose_tracing_enabled()) {
     PrintF(trace_scope()->file(), "    -------------------------\n");
   }
@@ -1229,7 +1251,8 @@ void Deoptimizer::DoComputeUnoptimizedFrame(TranslatedFrame* translated_frame,
       // the exception (which lives in the result register).
       intptr_t accumulator_value =
           input_->GetRegister(kInterpreterAccumulatorRegister.code());
-      frame_writer.PushRawObject(Object(accumulator_value), "accumulator\n");
+      frame_writer.PushRawObject(Tagged<Object>(accumulator_value),
+                                 "accumulator\n");
     } else {
       // If we are lazily deoptimizing make sure we store the deopt
       // return value into the appropriate slot.
@@ -1278,7 +1301,8 @@ void Deoptimizer::DoComputeUnoptimizedFrame(TranslatedFrame* translated_frame,
 
   // Clear the context register. The context might be a de-materialized object
   // and will be materialized by {Runtime_NotifyDeoptimized}. For additional
-  // safety we use Smi(0) instead of the potential {arguments_marker} here.
+  // safety we use Tagged<Smi>(0) instead of the potential {arguments_marker}
+  // here.
   if (is_topmost) {
     intptr_t context_value = static_cast<intptr_t>(Smi::zero().ptr());
     Register context_reg = JavaScriptFrame::context_register();
@@ -1346,7 +1370,7 @@ void Deoptimizer::DoComputeInlinedExtraArguments(
     // The receiver and arguments with index below the formal parameter
     // count are in the fake adaptor frame, because they are used to create the
     // arguments object. We should however not push them, since the interpreter
-    // frame with do that.
+    // frame will do that.
     value_iterator++;  // Skip function.
     value_iterator++;  // Skip receiver.
     for (int i = 0; i < formal_parameter_count; i++) value_iterator++;
@@ -1491,7 +1515,8 @@ void Deoptimizer::DoComputeConstructCreateStubFrame(
 
   // Clear the context register. The context might be a de-materialized object
   // and will be materialized by {Runtime_NotifyDeoptimized}. For additional
-  // safety we use Smi(0) instead of the potential {arguments_marker} here.
+  // safety we use Tagged<Smi>(0) instead of the potential {arguments_marker}
+  // here.
   if (is_topmost) {
     intptr_t context_value = static_cast<intptr_t>(Smi::zero().ptr());
     Register context_reg = JavaScriptFrame::context_register();
@@ -1621,7 +1646,8 @@ void Deoptimizer::DoComputeConstructInvokeStubFrame(
 
   // Clear the context register. The context might be a de-materialized object
   // and will be materialized by {Runtime_NotifyDeoptimized}. For additional
-  // safety we use Smi(0) instead of the potential {arguments_marker} here.
+  // safety we use Tagged<Smi>(0) instead of the potential {arguments_marker}
+  // here.
   if (is_topmost) {
     intptr_t context_value = static_cast<intptr_t>(Smi::zero().ptr());
     Register context_reg = JavaScriptFrame::context_register();
@@ -1691,11 +1717,11 @@ TranslatedValue Deoptimizer::TranslatedValueForWasmReturnKind(
       case wasm::kI32:
         return TranslatedValue::NewInt32(
             &translated_state_,
-            (int32_t)input_->GetRegister(kReturnRegister0.code()));
+            static_cast<int32_t>(input_->GetRegister(kReturnRegister0.code())));
       case wasm::kI64:
         return TranslatedValue::NewInt64ToBigInt(
             &translated_state_,
-            (int64_t)input_->GetRegister(kReturnRegister0.code()));
+            static_cast<int64_t>(input_->GetRegister(kReturnRegister0.code())));
       case wasm::kF32:
         return TranslatedValue::NewFloat(
             &translated_state_,
@@ -1907,7 +1933,7 @@ void Deoptimizer::DoComputeBuiltinContinuation(
       case BuiltinContinuationMode::JAVASCRIPT_HANDLE_EXCEPTION: {
         intptr_t accumulator_value =
             input_->GetRegister(kInterpreterAccumulatorRegister.code());
-        frame_writer.PushRawObject(Object(accumulator_value),
+        frame_writer.PushRawObject(Tagged<Object>(accumulator_value),
                                    "exception (from accumulator)\n");
       } break;
     }
@@ -2040,7 +2066,8 @@ void Deoptimizer::DoComputeBuiltinContinuation(
 
   // Clear the context register. The context might be a de-materialized object
   // and will be materialized by {Runtime_NotifyDeoptimized}. For additional
-  // safety we use Smi(0) instead of the potential {arguments_marker} here.
+  // safety we use Tagged<Smi>(0) instead of the potential {arguments_marker}
+  // here.
   if (is_topmost) {
     intptr_t context_value = static_cast<intptr_t>(Smi::zero().ptr());
     Register context_reg = JavaScriptFrame::context_register();
@@ -2101,6 +2128,16 @@ void Deoptimizer::MaterializeHeapObjects() {
         (*value).ptr();
   }
 
+  for (auto& fbv_materialization : feedback_vector_to_materialize_) {
+    Handle<Object> closure = fbv_materialization.value_->GetValue();
+    DCHECK(IsJSFunction(*closure));
+    Tagged<Object> feedback_vector =
+        Tagged<JSFunction>::cast(*closure)->raw_feedback_cell()->value();
+    CHECK(IsFeedbackVector(feedback_vector));
+    *(reinterpret_cast<Address*>(fbv_materialization.output_slot_address_)) =
+        feedback_vector.ptr();
+  }
+
   translated_state_.VerifyMaterializedObjects();
 
   bool feedback_updated = translated_state_.DoUpdateFeedback();
@@ -2123,6 +2160,11 @@ void Deoptimizer::QueueValueForMaterialization(
   if (obj == ReadOnlyRoots(isolate_).arguments_marker()) {
     values_to_materialize_.push_back({output_address, iterator});
   }
+}
+
+void Deoptimizer::QueueFeedbackVectorForMaterialization(
+    Address output_address, const TranslatedFrame::iterator& iterator) {
+  feedback_vector_to_materialize_.push_back({output_address, iterator});
 }
 
 unsigned Deoptimizer::ComputeInputFrameAboveFpFixedSize() const {

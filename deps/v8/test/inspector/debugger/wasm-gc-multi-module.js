@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --experimental-wasm-typed-funcref
 // Flags: --experimental-wasm-type-reflection
 
 // Test debugger type name resolution for ref types with multiple modules.

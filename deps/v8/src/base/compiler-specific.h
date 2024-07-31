@@ -136,14 +136,10 @@
 #endif
 
 // Forces the linker to not GC the section corresponding to the symbol.
-#if defined(__has_attribute)
-#if __has_attribute(used) && __has_attribute(retain)
+#if V8_HAS_ATTRIBUTE_USED && V8_HAS_ATTRIBUTE_RETAIN
 #define V8_DONT_STRIP_SYMBOL __attribute__((used, retain))
-#endif  // __has_attribute(used) && __has_attribute(retain)
-#endif  // defined(__has_attribute)
-
-#if !defined(V8_DONT_STRIP_SYMBOL)
+#else
 #define V8_DONT_STRIP_SYMBOL
-#endif  // !defined(V8_DONT_STRIP_SYMBOL)
+#endif
 
 #endif  // V8_BASE_COMPILER_SPECIFIC_H_

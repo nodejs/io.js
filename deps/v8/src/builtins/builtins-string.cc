@@ -150,7 +150,7 @@ BUILTIN(StringPrototypeLocaleCompare) {
       isolate, str1, str2, args.atOrUndefined(isolate, 2),
       args.atOrUndefined(isolate, 3), kMethod);
   if (!result.has_value()) {
-    DCHECK(isolate->has_pending_exception());
+    DCHECK(isolate->has_exception());
     return ReadOnlyRoots(isolate).exception();
   }
   return Smi::FromInt(result.value());
@@ -244,9 +244,9 @@ inline bool ToUpperOverflows(base::uc32 character) {
 }
 
 template <class Converter>
-V8_WARN_UNUSED_RESULT static Object ConvertCaseHelper(
-    Isolate* isolate, String string, SeqString result, int result_length,
-    unibrow::Mapping<Converter, 128>* mapping) {
+V8_WARN_UNUSED_RESULT static Tagged<Object> ConvertCaseHelper(
+    Isolate* isolate, Tagged<String> string, Tagged<SeqString> result,
+    int result_length, unibrow::Mapping<Converter, 128>* mapping) {
   DisallowGarbageCollection no_gc;
   // We try this twice, once with the assumption that the result is no longer
   // than the input and, if that assumption breaks, again with the exact
@@ -272,16 +272,16 @@ V8_WARN_UNUSED_RESULT static Object ConvertCaseHelper(
     int char_length = mapping->get(current, next, chars);
     if (char_length == 0) {
       // The case conversion of this character is the character itself.
-      result.Set(i, current);
+      result->Set(i, current);
       i++;
     } else if (char_length == 1 &&
                (ignore_overflow || !ToUpperOverflows(current))) {
       // Common case: converting the letter resulted in one character.
       DCHECK(static_cast<base::uc32>(chars[0]) != current);
-      result.Set(i, chars[0]);
+      result->Set(i, chars[0]);
       has_changed_character = true;
       i++;
-    } else if (result_length == string.length()) {
+    } else if (result_length == string->length()) {
       bool overflows = ToUpperOverflows(current);
       // We've assumed that the result would be as long as the
       // input but here is a character that converts to several
@@ -322,7 +322,7 @@ V8_WARN_UNUSED_RESULT static Object ConvertCaseHelper(
                                              : Smi::FromInt(current_length);
     } else {
       for (int j = 0; j < char_length; j++) {
-        result.Set(i, chars[j]);
+        result->Set(i, chars[j]);
         i++;
       }
       has_changed_character = true;
@@ -341,7 +341,7 @@ V8_WARN_UNUSED_RESULT static Object ConvertCaseHelper(
 }
 
 template <class Converter>
-V8_WARN_UNUSED_RESULT static Object ConvertCase(
+V8_WARN_UNUSED_RESULT static Tagged<Object> ConvertCase(
     Handle<String> s, Isolate* isolate,
     unibrow::Mapping<Converter, 128>* mapping) {
   s = String::Flatten(isolate, s);
@@ -379,7 +379,8 @@ V8_WARN_UNUSED_RESULT static Object ConvertCase(
     result = isolate->factory()->NewRawTwoByteString(length).ToHandleChecked();
   }
 
-  Object answer = ConvertCaseHelper(isolate, *s, *result, length, mapping);
+  Tagged<Object> answer =
+      ConvertCaseHelper(isolate, *s, *result, length, mapping);
   if (IsException(answer, isolate) || IsString(answer)) return answer;
 
   DCHECK(IsSmi(answer));

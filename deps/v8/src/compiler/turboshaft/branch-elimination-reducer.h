@@ -18,6 +18,9 @@ namespace v8::internal::compiler::turboshaft {
 
 #include "src/compiler/turboshaft/define-assembler-macros.inc"
 
+template <typename>
+class VariableReducer;
+
 template <class Next>
 class BranchEliminationReducer : public Next {
   // # General overview
@@ -167,6 +170,10 @@ class BranchEliminationReducer : public Next {
   //    operation or is only preceded by FrameState operations),
   //    we can remove the merge and instead Goto the block from the new graph.
   //
+  //    5- Eliminating unneeded control flow edges: if a block has only one
+  //    successor and the successor only has one predecessor, we can merge these
+  //    blocks.
+  //
   // # Technical overview of the implementation
   //
   // We iterate the graph in dominator order, and maintain a hash map of
@@ -187,7 +194,9 @@ class BranchEliminationReducer : public Next {
   // that's the case, then we copy the destination block, and the 1st
   // optimization will replace its final Branch by a Goto when reaching it.
  public:
-  TURBOSHAFT_REDUCER_BOILERPLATE()
+  TURBOSHAFT_REDUCER_BOILERPLATE(BranchElimination)
+  // TODO(dmercadier): Add static_assert that this is ran as part of a
+  // CopyingPhase.
 
   void Bind(Block* new_block) {
     Next::Bind(new_block);
@@ -214,7 +223,7 @@ class BranchEliminationReducer : public Next {
       // along with its value in {known_conditions_}.
       DCHECK_EQ(new_block->PredecessorCount(), 1);
       const Operation& op =
-          new_block->LastPredecessor()->LastOperation(Asm().output_graph());
+          new_block->LastPredecessor()->LastOperation(__ output_graph());
       if (const BranchOp* branch = op.TryCast<BranchOp>()) {
         DCHECK_EQ(new_block, any_of(branch->if_true, branch->if_false));
         bool condition_value = branch->if_true == new_block;
@@ -232,12 +241,12 @@ class BranchEliminationReducer : public Next {
     }
     if (ShouldSkipOptimizationStep()) goto no_change;
 
-    if (const Block* if_true_origin = if_true->OriginForBlockStart()) {
-      if (const Block* if_false_origin = if_false->OriginForBlockStart()) {
+    if (const Block* if_true_origin = __ OriginForBlockStart(if_true)) {
+      if (const Block* if_false_origin = __ OriginForBlockStart(if_false)) {
         const Operation& first_op_true =
-            if_true_origin->FirstOperation(Asm().input_graph());
+            if_true_origin->FirstOperation(__ input_graph());
         const Operation& first_op_false =
-            if_false_origin->FirstOperation(Asm().input_graph());
+            if_false_origin->FirstOperation(__ input_graph());
         const GotoOp* true_goto = first_op_true.template TryCast<GotoOp>();
         const GotoOp* false_goto = first_op_false.template TryCast<GotoOp>();
         // We apply the fourth optimization, replacing empty braches with a
@@ -245,9 +254,9 @@ class BranchEliminationReducer : public Next {
         if (true_goto && false_goto &&
             true_goto->destination == false_goto->destination) {
           Block* merge_block = true_goto->destination;
-          if (!merge_block->HasPhis(Asm().input_graph())) {
+          if (!merge_block->HasPhis(__ input_graph())) {
             // Using `ReduceInputGraphGoto()` here enables more optimizations.
-            Asm().Goto(merge_block->MapToNextGraph());
+            __ Goto(__ MapToNewGraph(merge_block));
             return OpIndex::Invalid();
           }
         }
@@ -258,7 +267,8 @@ class BranchEliminationReducer : public Next {
       // We already know the value of {cond}. We thus remove the branch (this is
       // the "first" optimization in the documentation at the top of this
       // module).
-      return Asm().ReduceGoto(*cond_value ? if_true : if_false);
+      __ Goto(*cond_value ? if_true : if_false);
+      return OpIndex::Invalid();
     }
     // We can't optimize this branch.
     goto no_change;
@@ -282,26 +292,38 @@ class BranchEliminationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE(Goto)(Block* destination) {
-    LABEL_BLOCK(no_change) { return Next::ReduceGoto(destination); }
+  OpIndex REDUCE(Goto)(Block* destination, bool is_backedge) {
+    LABEL_BLOCK(no_change) {
+      return Next::ReduceGoto(destination, is_backedge);
+    }
     if (ShouldSkipOptimizationStep()) goto no_change;
 
-    const Block* destination_origin = destination->OriginForBlockStart();
-    if (!destination_origin || !destination_origin->IsMerge()) goto no_change;
-
-    if (destination_origin->HasExactlyNPredecessors(1)) {
-      // There is no point in trying the 2nd optimization: this would remove
-      // neither Phi nor Branch.
-      // TODO(dmercadier, tebbi): this block has a single predecessor and a
-      // single successor, so we might want to inline it.
+    const Block* destination_origin = __ OriginForBlockStart(destination);
+    if (!destination_origin || !destination_origin->IsMerge()) {
       goto no_change;
     }
 
+    // Maximum size up to which we allow cloning a block. Cloning too large
+    // blocks will lead to increasing the size of the graph too much, which will
+    // lead to slower compile time, and larger generated code.
+    // TODO(dmercadier): we might want to exclude Phis from this, since they are
+    // typically removed when we clone a block. However, computing the number of
+    // operations in a block excluding Phis is more costly (because we'd have to
+    // iterate all of the operations one by one).
+    // TODO(dmercadier): this "13" was selected fairly arbitrarily (= it sounded
+    // reasonable). It could be useful to run a few benchmarks to see if we can
+    // find a more optimal number.
+    static constexpr int kMaxOpCountForCloning = 13;
+
     const Operation& last_op =
-        destination_origin->LastOperation(Asm().input_graph());
+        destination_origin->LastOperation(__ input_graph());
+
+    if (destination_origin->OpCountUpperBound() > kMaxOpCountForCloning) {
+      goto no_change;
+    }
+
     if (const BranchOp* branch = last_op.template TryCast<BranchOp>()) {
-      OpIndex condition =
-          Asm().template MapToNewGraph<true>(branch->condition());
+      OpIndex condition = __ template MapToNewGraph<true>(branch->condition());
       if (condition.valid()) {
         base::Optional<bool> condition_value = known_conditions_.Get(condition);
         if (!condition_value.has_value()) {
@@ -314,7 +336,7 @@ class BranchEliminationReducer : public Next {
         // condition is already known. As per the 2nd optimization, we'll
         // process {new_dst} right away, and we'll end it with a Goto instead of
         // its current Branch.
-        Asm().CloneAndInlineBlock(destination_origin);
+        __ CloneBlockAndGoto(destination_origin);
         return OpIndex::Invalid();
       } else {
         // Optimization 2bis:
@@ -323,25 +345,30 @@ class BranchEliminationReducer : public Next {
         // input is coming from the current block, then it still makes sense to
         // inline {destination_origin}: the condition will then be known.
         if (destination_origin->Contains(branch->condition())) {
-          const PhiOp* cond = Asm()
-                                  .input_graph()
-                                  .Get(branch->condition())
-                                  .template TryCast<PhiOp>();
-          if (!cond) goto no_change;
-          Asm().CloneAndInlineBlock(destination_origin);
-          return OpIndex::Invalid();
+          if (const PhiOp* cond = __ input_graph()
+                                      .Get(branch->condition())
+                                      .template TryCast<PhiOp>()) {
+            __ CloneBlockAndGoto(destination_origin);
+            return OpIndex::Invalid();
+          } else if (CanBeConstantFolded(branch->condition(),
+                                         destination_origin)) {
+            // If the {cond} only uses constant Phis that come from the current
+            // block, it's probably worth it to clone the block in order to
+            // constant-fold away the Branch.
+            __ CloneBlockAndGoto(destination_origin);
+            return OpIndex::Invalid();
+          } else {
+            goto no_change;
+          }
         }
       }
-    } else if (const ReturnOp* return_op =
+    } else if ([[maybe_unused]] const ReturnOp* return_op =
                    last_op.template TryCast<ReturnOp>()) {
       // The destination block in the old graph ends with a Return
       // and the old destination is a merge block, so we can directly
       // inline the destination block in place of the Goto.
-      // TODO(nicohartmann@): Temporarily disable this "optimization" because
-      // it prevents dead code elimination in some cases. Reevaluate this and
-      // reenable if phases have been reordered properly.
-      // Asm().CloneAndInlineBlock(old_dst);
-      // return OpIndex::Invalid();
+      Asm().CloneAndInlineBlock(destination_origin);
+      return OpIndex::Invalid();
     }
 
     goto no_change;
@@ -371,8 +398,9 @@ class BranchEliminationReducer : public Next {
     }
   }
 
-  OpIndex REDUCE(TrapIf)(OpIndex condition, OpIndex frame_state, bool negated,
-                         const TrapId trap_id) {
+#if V8_ENABLE_WEBASSEMBLY
+  OpIndex REDUCE(TrapIf)(OpIndex condition, OptionalOpIndex frame_state,
+                         bool negated, const TrapId trap_id) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceTrapIf(condition, frame_state, negated, trap_id);
     }
@@ -384,18 +412,19 @@ class BranchEliminationReducer : public Next {
       goto no_change;
     }
 
-    if (Asm().template Is<ConstantOp>(condition)) {
+    if (__ matcher().template Is<ConstantOp>(condition)) {
       goto no_change;
     }
 
-    OpIndex static_condition = Asm().Word32Constant(*condition_value);
+    OpIndex static_condition = __ Word32Constant(*condition_value);
     if (negated) {
-      Asm().TrapIfNot(static_condition, frame_state, trap_id);
+      __ TrapIfNot(static_condition, frame_state, trap_id);
     } else {
-      Asm().TrapIf(static_condition, frame_state, trap_id);
+      __ TrapIf(static_condition, frame_state, trap_id);
     }
     return OpIndex::Invalid();
   }
+#endif  // V8_ENABLE_WEBASSEMBLY
 
  private:
   // Resets {known_conditions_} and {dominator_path_} up to the 1st dominator of
@@ -431,7 +460,7 @@ class BranchEliminationReducer : public Next {
   // ReplayMissingPredecessors adds to {known_conditions_} and {dominator_path_}
   // the conditions/blocks that related to the dominators of {block} that are
   // not already present. This can happen when control-flow changes during the
-  // OptimizationPhase, which results in a block being visited not right after
+  // CopyingPhase, which results in a block being visited not right after
   // its dominator. For instance, when optimizing a double-diamond like:
   //
   //                  B0
@@ -486,7 +515,7 @@ class BranchEliminationReducer : public Next {
 
       if (block->IsBranchTarget()) {
         const Operation& op =
-            block->LastPredecessor()->LastOperation(Asm().output_graph());
+            block->LastPredecessor()->LastOperation(__ output_graph());
         if (const BranchOp* branch = op.TryCast<BranchOp>()) {
           DCHECK(branch->if_true->index() == block->index() ||
                  branch->if_false->index() == block->index());
@@ -500,12 +529,59 @@ class BranchEliminationReducer : public Next {
     }
   }
 
+  // Checks that {idx} only depends on only on Constants or on Phi whose input
+  // from the current block is a Constant, and on a least one Phi (whose input
+  // from the current block is a Constant). If it is the case and {idx} is used
+  // in a Branch, then the Branch's block could be cloned in the current block,
+  // and {idx} could then be constant-folded away such that the Branch becomes a
+  // Goto.
+  bool CanBeConstantFolded(OpIndex idx, const Block* cond_input_block,
+                           bool has_phi = false, int depth = 0) {
+    // We limit the depth of the search to {kMaxDepth} in order to avoid
+    // potentially visiting a lot of nodes.
+    static constexpr int kMaxDepth = 4;
+    if (depth > kMaxDepth) return false;
+    const Operation& op = __ input_graph().Get(idx);
+    if (!cond_input_block->Contains(idx)) {
+      // If we reach a ConstantOp without having gone through a Phi, then the
+      // condition can be constant-folded without performing block cloning.
+      return has_phi && op.Is<ConstantOp>();
+    }
+    if (op.Is<PhiOp>()) {
+      int curr_block_pred_idx = cond_input_block->GetPredecessorIndex(
+          __ current_block()->OriginForBlockEnd());
+      // There is no need to increment {depth} on this recursive call, because
+      // it will anyways exit early because {idx} won't be in
+      // {cond_input_block}.
+      return CanBeConstantFolded(op.input(curr_block_pred_idx),
+                                 cond_input_block, /*has_phi*/ true, depth);
+    } else if (op.Is<ConstantOp>()) {
+      return true;
+    } else if (op.input_count == 0) {
+      // Any operation that has no input but is not a ConstantOp probably won't
+      // be able to be constant-folded away (eg, LoadRootRegister).
+      return false;
+    } else if (!op.Effects().can_be_constant_folded()) {
+      // Operations with side-effects won't be able to be constant-folded.
+      return false;
+    }
+
+    for (int i = 0; i < op.input_count; i++) {
+      if (!CanBeConstantFolded(op.input(i), cond_input_block, has_phi,
+                               depth + 1)) {
+        return false;
+      }
+    }
+
+    return has_phi;
+  }
+
   // TODO(dmercadier): use the SnapshotTable to replace {dominator_path_} and
   // {known_conditions_}, and to reuse the existing merging/replay logic of the
   // SnapshotTable.
-  ZoneVector<Block*> dominator_path_{Asm().phase_zone()};
+  ZoneVector<Block*> dominator_path_{__ phase_zone()};
   LayeredHashMap<OpIndex, bool> known_conditions_{
-      Asm().phase_zone(), Asm().input_graph().DominatorTreeDepth() * 2};
+      __ phase_zone(), __ input_graph().DominatorTreeDepth() * 2};
 };
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"

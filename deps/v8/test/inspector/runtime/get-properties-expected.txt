@@ -38,16 +38,23 @@ Running test: testNotOwnSet
   clear inherited function undefined
   constructor inherited function undefined
   delete inherited function undefined
+  difference inherited function undefined
   entries inherited function undefined
   forEach inherited function undefined
   has inherited function undefined
   hasOwnProperty inherited function undefined
+  intersection inherited function undefined
+  isDisjointFrom inherited function undefined
   isPrototypeOf inherited function undefined
+  isSubsetOf inherited function undefined
+  isSupersetOf inherited function undefined
   keys inherited function undefined
   propertyIsEnumerable inherited function undefined
   size inherited number 3
+  symmetricDifference inherited function undefined
   toLocaleString inherited function undefined
   toString inherited function undefined
+  union inherited function undefined
   valueOf inherited function undefined
   values inherited function undefined
 Internal properties

@@ -572,7 +572,6 @@ endloop:
     pArgs->source=(const char *)source;
     pArgs->target=target;
     pArgs->offsets=offsets;
-    return;
 }
 
 /*
@@ -864,7 +863,6 @@ endloop:
     /* write back the updated pointers */
     pArgs->source=(const char *)source;
     pArgs->target=target;
-    return;
 }
 U_CDECL_END
 /* SCSU-from-Unicode conversion functions ----------------------------------- */
@@ -1978,12 +1976,12 @@ _SCSUSafeClone(const UConverter *cnv,
     int32_t bufferSizeNeeded = sizeof(struct cloneSCSUStruct);
 
     if (U_FAILURE(*status)){
-        return 0;
+        return nullptr;
     }
 
     if (*pBufferSize == 0){ /* 'preflighting' request - set needed size into *pBufferSize */
         *pBufferSize = bufferSizeNeeded;
-        return 0;
+        return nullptr;
     }
 
     localClone = (struct cloneSCSUStruct *)stackBuffer;

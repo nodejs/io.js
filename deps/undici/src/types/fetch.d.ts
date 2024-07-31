@@ -27,12 +27,29 @@ export type BodyInit =
   | null
   | string
 
-export interface BodyMixin {
+export class BodyMixin {
   readonly body: ReadableStream | null
   readonly bodyUsed: boolean
 
   readonly arrayBuffer: () => Promise<ArrayBuffer>
   readonly blob: () => Promise<Blob>
+  /**
+   * @deprecated This method is not recommended for parsing multipart/form-data bodies in server environments.
+   * It is recommended to use a library such as [@fastify/busboy](https://www.npmjs.com/package/@fastify/busboy) as follows:
+   * 
+   * @example
+   * ```js
+   * import { Busboy } from '@fastify/busboy'
+   * import { Readable } from 'node:stream'
+   * 
+   * const response = await fetch('...')
+   * const busboy = new Busboy({ headers: { 'content-type': response.headers.get('content-type') } })
+   * 
+   * // handle events emitted from `busboy`
+   * 
+   * Readable.fromWeb(response.body).pipe(busboy)
+   * ```
+   */
   readonly formData: () => Promise<FormData>
   readonly json: () => Promise<unknown>
   readonly text: () => Promise<string>
@@ -68,7 +85,7 @@ export declare class Headers implements SpecIterable<[string, string]> {
   readonly keys: () => SpecIterableIterator<string>
   readonly values: () => SpecIterableIterator<string>
   readonly entries: () => SpecIterableIterator<[string, string]>
-  readonly [Symbol.iterator]: () => SpecIterator<[string, string]>
+  readonly [Symbol.iterator]: () => SpecIterableIterator<[string, string]>
 }
 
 export type RequestCache =
@@ -105,10 +122,10 @@ export interface RequestInit {
   method?: string
   keepalive?: boolean
   headers?: HeadersInit
-  body?: BodyInit
+  body?: BodyInit | null
   redirect?: RequestRedirect
   integrity?: string
-  signal?: AbortSignal
+  signal?: AbortSignal | null
   credentials?: RequestCredentials
   mode?: RequestMode
   referrer?: string
@@ -135,7 +152,7 @@ export type RequestRedirect = 'error' | 'follow' | 'manual'
 
 export type RequestDuplex = 'half'
 
-export declare class Request implements BodyMixin {
+export declare class Request extends BodyMixin {
   constructor (input: RequestInfo, init?: RequestInit)
 
   readonly cache: RequestCache
@@ -146,21 +163,13 @@ export declare class Request implements BodyMixin {
   readonly method: string
   readonly mode: RequestMode
   readonly redirect: RequestRedirect
-  readonly referrerPolicy: string
+  readonly referrer: string
+  readonly referrerPolicy: ReferrerPolicy
   readonly url: string
 
   readonly keepalive: boolean
   readonly signal: AbortSignal
   readonly duplex: RequestDuplex
-
-  readonly body: ReadableStream | null
-  readonly bodyUsed: boolean
-
-  readonly arrayBuffer: () => Promise<ArrayBuffer>
-  readonly blob: () => Promise<Blob>
-  readonly formData: () => Promise<FormData>
-  readonly json: () => Promise<unknown>
-  readonly text: () => Promise<string>
 
   readonly clone: () => Request
 }
@@ -181,7 +190,7 @@ export type ResponseType =
 
 export type ResponseRedirectStatus = 301 | 302 | 303 | 307 | 308
 
-export declare class Response implements BodyMixin {
+export declare class Response extends BodyMixin {
   constructor (body?: BodyInit, init?: ResponseInit)
 
   readonly headers: Headers
@@ -191,15 +200,6 @@ export declare class Response implements BodyMixin {
   readonly type: ResponseType
   readonly url: string
   readonly redirected: boolean
-
-  readonly body: ReadableStream | null
-  readonly bodyUsed: boolean
-
-  readonly arrayBuffer: () => Promise<ArrayBuffer>
-  readonly blob: () => Promise<Blob>
-  readonly formData: () => Promise<FormData>
-  readonly json: () => Promise<unknown>
-  readonly text: () => Promise<string>
 
   readonly clone: () => Response
 

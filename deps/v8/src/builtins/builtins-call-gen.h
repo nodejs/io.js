@@ -55,7 +55,8 @@ class CallOrConstructBuiltinsAssembler : public CodeStubAssembler {
 
   void CallFunctionTemplate(CallFunctionTemplateMode mode,
                             TNode<FunctionTemplateInfo> function_template_info,
-                            TNode<Int32T> argc, TNode<Context> context);
+                            TNode<Int32T> argc, TNode<Context> context,
+                            TNode<Object> maybe_incumbent_context);
 
   void BuildConstruct(TNode<Object> target, TNode<Object> new_target,
                       TNode<Int32T> argc, const LazyNode<Context>& context,
@@ -68,7 +69,12 @@ class CallOrConstructBuiltinsAssembler : public CodeStubAssembler {
                                 const LazyNode<HeapObject>& feedback_vector,
                                 TNode<UintPtrT> slot, UpdateFeedbackMode mode);
 
- private:
+  void BuildConstructForwardAllArgs(TNode<Object> target,
+                                    TNode<Object> new_target,
+                                    const LazyNode<Context>& context,
+                                    const LazyNode<HeapObject>& feedback_vector,
+                                    TNode<UintPtrT> slot);
+
   TNode<JSReceiver> GetCompatibleReceiver(TNode<JSReceiver> receiver,
                                           TNode<HeapObject> signature,
                                           TNode<Context> context);

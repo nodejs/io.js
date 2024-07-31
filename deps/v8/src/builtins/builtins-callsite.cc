@@ -163,7 +163,10 @@ BUILTIN(CallSitePrototypeGetThis) {
   isolate->CountUsage(v8::Isolate::kCallSiteAPIGetThisSloppyCall);
 #if V8_ENABLE_WEBASSEMBLY
   if (frame->IsAsmJsWasm()) {
-    return frame->GetWasmInstance()->native_context()->global_proxy();
+    return frame->GetWasmInstance()
+        ->trusted_data(isolate)
+        ->native_context()
+        ->global_proxy();
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
   return frame->receiver_or_instance();

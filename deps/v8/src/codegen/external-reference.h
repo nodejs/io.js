@@ -16,7 +16,7 @@ class CFunctionInfo;
 namespace internal {
 
 class Isolate;
-class Page;
+class PageMetadata;
 class SCTableReference;
 class StatsCounter;
 
@@ -56,7 +56,7 @@ class StatsCounter;
   V(handle_scope_level_address, "HandleScope::level")                          \
   V(handle_scope_next_address, "HandleScope::next")                            \
   V(handle_scope_limit_address, "HandleScope::limit")                          \
-  V(scheduled_exception_address, "Isolate::scheduled_exception")               \
+  V(exception_address, "Isolate::exception")                                   \
   V(address_of_pending_message, "address_of_pending_message")                  \
   V(promise_hook_flags_address, "Isolate::promise_hook_flags_address()")       \
   V(promise_hook_address, "Isolate::promise_hook_address()")                   \
@@ -69,6 +69,7 @@ class StatsCounter;
   V(execution_mode_address, "IsolateData::execution_mode")                     \
   V(debug_suspended_generator_address,                                         \
     "Debug::step_suspended_generator_address()")                               \
+  V(context_address, "Isolate::context_address()")                             \
   V(fast_c_call_caller_fp_address,                                             \
     "IsolateData::fast_c_call_caller_fp_address")                              \
   V(fast_c_call_caller_pc_address,                                             \
@@ -76,6 +77,8 @@ class StatsCounter;
   V(fast_api_call_target_address, "IsolateData::fast_api_call_target_address") \
   V(api_callback_thunk_argument_address,                                       \
     "IsolateData::api_callback_thunk_argument_address")                        \
+  V(continuation_preserved_embedder_data,                                      \
+    "IsolateData::continuation_preserved_embedder_data")                       \
   V(stack_is_iterable_address, "IsolateData::stack_is_iterable_address")       \
   V(address_of_regexp_stack_limit_address,                                     \
     "RegExpStack::limit_address_address()")                                    \
@@ -90,13 +93,13 @@ class StatsCounter;
   EXTERNAL_REFERENCE_LIST_WITH_ISOLATE_SANDBOX(V)
 
 #ifdef V8_ENABLE_SANDBOX
-#define EXTERNAL_REFERENCE_LIST_WITH_ISOLATE_SANDBOX(V)       \
-  V(external_pointer_table_address,                           \
-    "Isolate::external_pointer_table_address("                \
-    ")")                                                      \
-  V(shared_external_pointer_table_address_address,            \
-    "Isolate::shared_external_pointer_table_address_address(" \
-    ")")
+#define EXTERNAL_REFERENCE_LIST_WITH_ISOLATE_SANDBOX(V)         \
+  V(external_pointer_table_address,                             \
+    "Isolate::external_pointer_table_address()")                \
+  V(shared_external_pointer_table_address_address,              \
+    "Isolate::shared_external_pointer_table_address_address()") \
+  V(trusted_pointer_table_base_address,                         \
+    "Isolate::trusted_pointer_table_base_address()")
 #else
 #define EXTERNAL_REFERENCE_LIST_WITH_ISOLATE_SANDBOX(V)
 #endif  // V8_ENABLE_SANDBOX
@@ -260,6 +263,10 @@ class StatsCounter;
           "wasm::switch_to_the_central_stack")                                 \
   IF_WASM(V, wasm_switch_from_the_central_stack,                               \
           "wasm::switch_from_the_central_stack")                               \
+  IF_WASM(V, wasm_switch_to_the_central_stack_for_js,                          \
+          "wasm::switch_to_the_central_stack_for_js")                          \
+  IF_WASM(V, wasm_switch_from_the_central_stack_for_js,                        \
+          "wasm::switch_from_the_central_stack_for_js")                        \
   IF_WASM(V, wasm_f32_ceil, "wasm::f32_ceil_wrapper")                          \
   IF_WASM(V, wasm_f32_floor, "wasm::f32_floor_wrapper")                        \
   IF_WASM(V, wasm_f32_nearest_int, "wasm::f32_nearest_int_wrapper")            \
@@ -309,6 +316,39 @@ class StatsCounter;
   IF_WASM(V, wasm_array_copy, "wasm::array_copy")                              \
   IF_WASM(V, wasm_array_fill, "wasm::array_fill")                              \
   IF_WASM(V, wasm_string_to_f64, "wasm_string_to_f64")                         \
+  IF_WASM(V, wasm_atomic_notify, "wasm_atomic_notify")                         \
+  IF_WASM(V, wasm_WebAssemblyCompile, "wasm::WebAssemblyCompile")              \
+  IF_WASM(V, wasm_WebAssemblyException, "wasm::WebAssemblyException")          \
+  IF_WASM(V, wasm_WebAssemblyExceptionGetArg,                                  \
+          "wasm::WebAssemblyExceptionGetArg")                                  \
+  IF_WASM(V, wasm_WebAssemblyExceptionIs, "wasm::WebAssemblyExceptionIs")      \
+  IF_WASM(V, wasm_WebAssemblyGlobal, "wasm::WebAssemblyGlobal")                \
+  IF_WASM(V, wasm_WebAssemblyGlobalGetValue,                                   \
+          "wasm::WebAssemblyGlobalGetValue")                                   \
+  IF_WASM(V, wasm_WebAssemblyGlobalSetValue,                                   \
+          "wasm::WebAssemblyGlobalSetValue")                                   \
+  IF_WASM(V, wasm_WebAssemblyGlobalValueOf, "wasm::WebAssemblyGlobalValueOf")  \
+  IF_WASM(V, wasm_WebAssemblyInstance, "wasm::WebAssemblyInstance")            \
+  IF_WASM(V, wasm_WebAssemblyInstanceGetExports,                               \
+          "wasm::WebAssemblyInstanceGetExports")                               \
+  IF_WASM(V, wasm_WebAssemblyInstantiate, "wasm::WebAssemblyInstantiate")      \
+  IF_WASM(V, wasm_WebAssemblyMemory, "wasm::WebAssemblyMemory")                \
+  IF_WASM(V, wasm_WebAssemblyMemoryGetBuffer,                                  \
+          "wasm::WebAssemblyMemoryGetBuffer")                                  \
+  IF_WASM(V, wasm_WebAssemblyMemoryGrow, "wasm::WebAssemblyMemoryGrow")        \
+  IF_WASM(V, wasm_WebAssemblyModule, "wasm::WebAssemblyModule")                \
+  IF_WASM(V, wasm_WebAssemblyModuleCustomSections,                             \
+          "wasm::WebAssemblyModuleCustomSections")                             \
+  IF_WASM(V, wasm_WebAssemblyModuleExports, "wasm::WebAssemblyModuleExports")  \
+  IF_WASM(V, wasm_WebAssemblyModuleImports, "wasm::WebAssemblyModuleImports")  \
+  IF_WASM(V, wasm_WebAssemblyTable, "wasm::WebAssemblyTable")                  \
+  IF_WASM(V, wasm_WebAssemblyTableGet, "wasm::WebAssemblyTableGet")            \
+  IF_WASM(V, wasm_WebAssemblyTableGetLength,                                   \
+          "wasm::WebAssemblyTableGetLength")                                   \
+  IF_WASM(V, wasm_WebAssemblyTableGrow, "wasm::WebAssemblyTableGrow")          \
+  IF_WASM(V, wasm_WebAssemblyTableSet, "wasm::WebAssemblyTableSet")            \
+  IF_WASM(V, wasm_WebAssemblyTag, "wasm::WebAssemblyTag")                      \
+  IF_WASM(V, wasm_WebAssemblyValidate, "wasm::WebAssemblyValidate")            \
   V(address_of_wasm_i8x16_swizzle_mask, "wasm_i8x16_swizzle_mask")             \
   V(address_of_wasm_i8x16_popcnt_mask, "wasm_i8x16_popcnt_mask")               \
   V(address_of_wasm_i8x16_splat_0x01, "wasm_i8x16_splat_0x01")                 \

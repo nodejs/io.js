@@ -1,32 +1,19 @@
 .\"
 .\" Copyright 1998 by the Massachusetts Institute of Technology.
 .\" Copyright (C) 2008-2010 by Daniel Stenberg
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_GET_SERVERS 3 "5 March 2010"
 .SH NAME
-ares_get_servers, ares_get_servers_ports \- Retrieve name servers from an initialized ares_channel
+ares_get_servers, ares_get_servers_ports \- Retrieve name servers from an initialized ares_channel (deprecated)
 .SH SYNOPSIS
 .nf
 #include <ares.h>
 
-int ares_get_servers(ares_channel \fIchannel\fP,
+int ares_get_servers(const ares_channel_t *\fIchannel\fP,
                      struct ares_addr_node **\fIservers\fP)
 
-int ares_get_servers_ports(ares_channel \fIchannel\fP,
+int ares_get_servers_ports(const ares_channel_t *\fIchannel\fP,
                            struct ares_addr_port_node **\fIservers\fP)
 .fi
 .SH DESCRIPTION
@@ -77,13 +64,6 @@ was invalid.
 .SH AVAILABILITY
 \fBares_get_servers(3)\fP was added in c-ares 1.7.1;
 \fBares_get_servers_ports(3)\fP was added in c-ares 1.11.0.
-.SH AUTHOR
-Implementation of this function and associated library internals are based
-on code, comments and feedback provided in November and December of 2008 by
-Daniel Stenberg, Gregor Jasny, Phil Blundell and Yang Tse, December 2009
-by Cedric Bail, February 2010 by Jakub Hrozek. On March 2010 Yang Tse
-shuffled all the bits and this function popped out.
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.
-.br
-Copyright (C) 2008-2010 by Daniel Stenberg
+.SH NOTES
+As of c-ares 1.24, these functions are deprecated due to their lack of ability
+to store the entire server configuration.  Use \fBares_get_servers_csv(3)\fP.

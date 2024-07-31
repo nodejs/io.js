@@ -18,11 +18,21 @@ class RuntimeAgent : public NodeRuntime::Backend {
 
   DispatchResponse notifyWhenWaitingForDisconnect(bool enabled) override;
 
+  DispatchResponse enable() override;
+
+  DispatchResponse disable() override;
+
   bool notifyWaitingForDisconnect();
+
+  void setWaitingForDebugger();
+
+  void unsetWaitingForDebugger();
 
  private:
   std::shared_ptr<NodeRuntime::Frontend> frontend_;
   bool notify_when_waiting_for_disconnect_;
+  bool enabled_;
+  bool is_waiting_for_debugger_;
 };
 }  // namespace protocol
 }  // namespace inspector

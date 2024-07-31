@@ -12,7 +12,7 @@ const importStatementMultiline = `import {
 } from './module-named-exports.mjs';
 `;
 
-describe('ESM: nonexistent exports', { concurrency: true }, () => {
+describe('ESM: nonexistent exports', { concurrency: !process.env.TEST_PARALLEL }, () => {
   for (
     const { name, input }
     of [

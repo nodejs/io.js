@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="scripts">scripts</h1>
+<h1 id="----scripts----1082">
+    <span>scripts</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">How npm handles the "scripts" field</span>
 </header>
 
@@ -293,7 +301,6 @@ default the <code>install</code> command to compile using node-gyp via <code>nod
 <li><code>publish</code></li>
 <li><code>postpublish</code></li>
 </ul>
-<p><code>prepare</code> will not run during <code>--dry-run</code></p>
 <h4 id="npm-rebuild"><a href="../commands/npm-rebuild.html"><code>npm rebuild</code></a></h4>
 <ul>
 <li><code>preinstall</code></li>
@@ -403,17 +410,14 @@ see this in the script:</p>
 <pre><code class="language-json">{
   "scripts" : {
     "install" : "scripts/install.js",
-    "postinstall" : "scripts/install.js",
-    "uninstall" : "scripts/uninstall.js"
+    "postinstall" : "scripts/install.js"
   }
 }
 </code></pre>
-<p>then <code>scripts/install.js</code> will be called for the install
-and post-install stages of the lifecycle, and <code>scripts/uninstall.js</code>
-will be called when the package is uninstalled.  Since
-<code>scripts/install.js</code> is running for two different phases, it would
-be wise in this case to look at the <code>npm_lifecycle_event</code> environment
-variable.</p>
+<p>then <code>scripts/install.js</code> will be called for the install and post-install
+stages of the lifecycle.  Since <code>scripts/install.js</code> is running for two
+different phases, it would be wise in this case to look at the
+<code>npm_lifecycle_event</code> environment variable.</p>
 <p>If you want to run a make command, you can do so.  This works just
 fine:</p>
 <pre><code class="language-json">{
@@ -434,10 +438,8 @@ file.</p>
 <h3 id="best-practices">Best Practices</h3>
 <ul>
 <li>Don't exit with a non-zero error code unless you <em>really</em> mean it.
-Except for uninstall scripts, this will cause the npm action to
-fail, and potentially be rolled back.  If the failure is minor or
-only will prevent some optional features, then it's better to just
-print a warning and exit successfully.</li>
+If the failure is minor or only will prevent some optional features, then
+it's better to just print a warning and exit successfully.</li>
 <li>Try not to use scripts to do what npm can do for you.  Read through
 <a href="../configuring-npm/package-json.html"><code>package.json</code></a> to see all the things that you can specify and enable
 by simply describing your package appropriately.  In general, this

@@ -4,6 +4,9 @@
 #include <memory_tracker-inl.h>
 #include <node_mutex.h>
 #include <string_bytes.h>
+#include "nbytes.h"
+#include "ncrypto.h"
+#include "quic/defs.h"
 
 namespace node {
 namespace quic {
@@ -70,11 +73,10 @@ size_t CID::length() const {
 
 std::string CID::ToString() const {
   char dest[kMaxLength * 2];
-  size_t written =
-      StringBytes::hex_encode(reinterpret_cast<const char*>(ptr_->data),
-                              ptr_->datalen,
-                              dest,
-                              arraysize(dest));
+  size_t written = nbytes::HexEncode(reinterpret_cast<const char*>(ptr_->data),
+                                     ptr_->datalen,
+                                     dest,
+                                     arraysize(dest));
   return std::string(dest, written);
 }
 
@@ -99,10 +101,7 @@ namespace {
 class RandomCIDFactory : public CID::Factory {
  public:
   RandomCIDFactory() = default;
-  RandomCIDFactory(const RandomCIDFactory&) = delete;
-  RandomCIDFactory(RandomCIDFactory&&) = delete;
-  RandomCIDFactory& operator=(const RandomCIDFactory&) = delete;
-  RandomCIDFactory& operator=(RandomCIDFactory&&) = delete;
+  DISALLOW_COPY_AND_MOVE(RandomCIDFactory)
 
   CID Generate(size_t length_hint) const override {
     DCHECK_GE(length_hint, CID::kMinLength);
@@ -114,8 +113,8 @@ class RandomCIDFactory : public CID::Factory {
     return CID(start, length_hint);
   }
 
-  void GenerateInto(ngtcp2_cid* cid,
-                    size_t length_hint = CID::kMaxLength) const override {
+  CID GenerateInto(ngtcp2_cid* cid,
+                   size_t length_hint = CID::kMaxLength) const override {
     DCHECK_GE(length_hint, CID::kMinLength);
     DCHECK_LE(length_hint, CID::kMaxLength);
     Mutex::ScopedLock lock(mutex_);
@@ -123,6 +122,7 @@ class RandomCIDFactory : public CID::Factory {
     auto start = pool_ + pos_;
     pos_ += length_hint;
     ngtcp2_cid_init(cid, start, length_hint);
+    return CID(cid);
   }
 
  private:
@@ -133,7 +133,7 @@ class RandomCIDFactory : public CID::Factory {
     // a CID of the requested size, we regenerate the pool
     // and reset it to zero.
     if (pos_ + length_hint > kPoolSize) {
-      CHECK(crypto::CSPRNG(pool_, kPoolSize).is_ok());
+      CHECK(ncrypto::CSPRNG(pool_, kPoolSize));
       pos_ = 0;
     }
   }

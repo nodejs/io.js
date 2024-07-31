@@ -291,8 +291,8 @@ void LoopVariableOptimizer::ChangeToInductionVariablePhis() {
     InductionVariable* induction_var = entry.second;
     DCHECK_EQ(MachineRepresentation::kTagged,
               PhiRepresentationOf(induction_var->phi()->op()));
-    if (induction_var->upper_bounds().size() == 0 &&
-        induction_var->lower_bounds().size() == 0) {
+    if (induction_var->upper_bounds().empty() &&
+        induction_var->lower_bounds().empty()) {
       continue;
     }
     // Insert the increment value to the value inputs.

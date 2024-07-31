@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 @apiExposedInstanceTypeValue(0x83)
 @highestInstanceTypeWithinParentClassRange
 extern class Oddball extends PrimitiveHeapObject {
@@ -13,27 +13,27 @@ extern class Oddball extends PrimitiveHeapObject {
   kind: Smi;
 }
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 @hasSameInstanceTypeAsParent
 @doNotGenerateCast
 extern class Null extends Oddball {}
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 @hasSameInstanceTypeAsParent
 @doNotGenerateCast
 extern class Undefined extends Oddball {}
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 @hasSameInstanceTypeAsParent
 @doNotGenerateCast
 extern class Boolean extends Oddball {}
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 @hasSameInstanceTypeAsParent
 @doNotGenerateCast
 extern class True extends Boolean {}
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 @hasSameInstanceTypeAsParent
 @doNotGenerateCast
 extern class False extends Boolean {}

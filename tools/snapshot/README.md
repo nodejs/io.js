@@ -22,7 +22,7 @@ In the default build of the Node.js executable, to embed a V8 startup snapshot
 into the Node.js executable, `libnode` is first built with these unresolved
 symbols:
 
-- `node::NodeMainInstance::GetEmbeddedSnapshotData`
+- `node::SnapshotBuilder::GetEmbeddedSnapshotData`
 
 Then the `node_mksnapshot` executable is built with C++ files in this
 directory, as well as `src/node_snapshot_stub.cc` which defines the unresolved

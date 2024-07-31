@@ -13,7 +13,7 @@
 #include "src/heap/heap-inl.h"
 #include "src/heap/heap.h"
 #include "src/heap/memory-chunk-layout.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page.h"
 #include "src/heap/parked-scope-inl.h"
 #include "src/heap/remembered-set.h"
 #include "src/heap/safepoint.h"
@@ -111,32 +111,32 @@ UNINITIALIZED_TEST(InPlaceInternalizableStringsAreShared) {
   // Old generation 1- and 2-byte seq strings are in-place internalizable.
   Handle<String> old_one_byte_seq =
       factory1->NewStringFromAsciiChecked(raw_one_byte, AllocationType::kOld);
-  CHECK(Object::InSharedHeap(*old_one_byte_seq));
+  CHECK(InAnySharedSpace(*old_one_byte_seq));
   Handle<String> old_two_byte_seq =
       factory1->NewStringFromTwoByte(two_byte, AllocationType::kOld)
           .ToHandleChecked();
-  CHECK(Object::InSharedHeap(*old_two_byte_seq));
+  CHECK(InAnySharedSpace(*old_two_byte_seq));
 
   // Young generation are not internalizable and not shared when sharing the
   // string table.
   Handle<String> young_one_byte_seq =
       factory1->NewStringFromAsciiChecked(raw_one_byte, AllocationType::kYoung);
-  CHECK(!Object::InSharedHeap(*young_one_byte_seq));
+  CHECK(!InAnySharedSpace(*young_one_byte_seq));
   Handle<String> young_two_byte_seq =
       factory1->NewStringFromTwoByte(two_byte, AllocationType::kYoung)
           .ToHandleChecked();
-  CHECK(!Object::InSharedHeap(*young_two_byte_seq));
+  CHECK(!InAnySharedSpace(*young_two_byte_seq));
 
   // Internalized strings are shared.
   uint64_t seed = HashSeed(i_isolate1);
   Handle<String> one_byte_intern = factory1->NewOneByteInternalizedString(
       base::OneByteVector(raw_one_byte),
       StringHasher::HashSequentialString<char>(raw_one_byte, 3, seed));
-  CHECK(Object::InSharedHeap(*one_byte_intern));
+  CHECK(InAnySharedSpace(*one_byte_intern));
   Handle<String> two_byte_intern = factory1->NewTwoByteInternalizedString(
       two_byte,
       StringHasher::HashSequentialString<uint16_t>(raw_two_byte, 3, seed));
-  CHECK(Object::InSharedHeap(*two_byte_intern));
+  CHECK(InAnySharedSpace(*two_byte_intern));
 }
 
 UNINITIALIZED_TEST(InPlaceInternalization) {
@@ -145,6 +145,8 @@ UNINITIALIZED_TEST(InPlaceInternalization) {
   v8_flags.shared_string_table = true;
 
   MultiClientIsolateTest test;
+  ManualGCScope manual_gc_scope(test.i_main_isolate());
+
   IsolateParkOnDisposeWrapper isolate_wrapper(test.NewClientIsolate(),
                                               test.main_isolate());
   Isolate* i_isolate1 = test.i_main_isolate();
@@ -170,10 +172,10 @@ UNINITIALIZED_TEST(InPlaceInternalization) {
       factory1->InternalizeString(old_one_byte_seq1);
   Handle<String> two_byte_intern1 =
       factory1->InternalizeString(old_two_byte_seq1);
-  CHECK(Object::InSharedHeap(*old_one_byte_seq1));
-  CHECK(Object::InSharedHeap(*old_two_byte_seq1));
-  CHECK(Object::InSharedHeap(*one_byte_intern1));
-  CHECK(Object::InSharedHeap(*two_byte_intern1));
+  CHECK(InAnySharedSpace(*old_one_byte_seq1));
+  CHECK(InAnySharedSpace(*old_two_byte_seq1));
+  CHECK(InAnySharedSpace(*one_byte_intern1));
+  CHECK(InAnySharedSpace(*two_byte_intern1));
   CHECK(old_one_byte_seq1.equals(one_byte_intern1));
   CHECK(old_two_byte_seq1.equals(two_byte_intern1));
   CHECK_EQ(*old_one_byte_seq1, *one_byte_intern1);
@@ -191,10 +193,10 @@ UNINITIALIZED_TEST(InPlaceInternalization) {
       factory2->InternalizeString(old_one_byte_seq2);
   Handle<String> two_byte_intern2 =
       factory2->InternalizeString(old_two_byte_seq2);
-  CHECK(Object::InSharedHeap(*old_one_byte_seq2));
-  CHECK(Object::InSharedHeap(*old_two_byte_seq2));
-  CHECK(Object::InSharedHeap(*one_byte_intern2));
-  CHECK(Object::InSharedHeap(*two_byte_intern2));
+  CHECK(InAnySharedSpace(*old_one_byte_seq2));
+  CHECK(InAnySharedSpace(*old_two_byte_seq2));
+  CHECK(InAnySharedSpace(*one_byte_intern2));
+  CHECK(InAnySharedSpace(*two_byte_intern2));
   CHECK(!old_one_byte_seq2.equals(one_byte_intern2));
   CHECK(!old_two_byte_seq2.equals(two_byte_intern2));
   CHECK_NE(*old_one_byte_seq2, *one_byte_intern2);
@@ -238,10 +240,10 @@ UNINITIALIZED_TEST(YoungInternalization) {
             .ToHandleChecked();
     one_byte_intern1 = factory1->InternalizeString(young_one_byte_seq1);
     two_byte_intern1 = factory1->InternalizeString(young_two_byte_seq1);
-    CHECK(!Object::InSharedHeap(*young_one_byte_seq1));
-    CHECK(!Object::InSharedHeap(*young_two_byte_seq1));
-    CHECK(Object::InSharedHeap(*one_byte_intern1));
-    CHECK(Object::InSharedHeap(*two_byte_intern1));
+    CHECK(!InAnySharedSpace(*young_one_byte_seq1));
+    CHECK(!InAnySharedSpace(*young_two_byte_seq1));
+    CHECK(InAnySharedSpace(*one_byte_intern1));
+    CHECK(InAnySharedSpace(*two_byte_intern1));
     CHECK(!young_one_byte_seq1.equals(one_byte_intern1));
     CHECK(!young_two_byte_seq1.equals(two_byte_intern1));
     CHECK_NE(*young_one_byte_seq1, *one_byte_intern1);
@@ -361,25 +363,28 @@ class ConcurrentInternalizationThread final
 
 namespace {
 
-Handle<String> CreateSharedOneByteString(Isolate* isolate, Factory* factory,
-                                         int length, bool internalize) {
+std::pair<Handle<String>, MaybeHandle<String>> CreateSharedOneByteString(
+    Isolate* isolate, Factory* factory, int length, bool internalize) {
   char* ascii = new char[length + 1];
   // Don't make single character strings, which will end up deduplicating to
   // an RO string and mess up the string table hit test.
   CHECK_GT(length, 1);
   for (int j = 0; j < length; j++) ascii[j] = 'a';
   ascii[length] = '\0';
+  MaybeHandle<String> internalized;
   if (internalize) {
     // When testing concurrent string table hits, pre-internalize a string
     // of the same contents so all subsequent internalizations are hits.
-    factory->InternalizeString(factory->NewStringFromAsciiChecked(ascii));
+    internalized =
+        factory->InternalizeString(factory->NewStringFromAsciiChecked(ascii));
+    CHECK(IsInternalizedString(*internalized.ToHandleChecked()));
   }
   Handle<String> string = String::Share(
       isolate, factory->NewStringFromAsciiChecked(ascii, AllocationType::kOld));
   delete[] ascii;
   CHECK(string->IsShared());
   string->EnsureHash();
-  return string;
+  return std::make_pair(string, internalized);
 }
 
 Handle<FixedArray> CreateSharedOneByteStrings(Isolate* isolate,
@@ -388,22 +393,34 @@ Handle<FixedArray> CreateSharedOneByteStrings(Isolate* isolate,
                                               bool internalize = false) {
   Handle<FixedArray> shared_strings =
       factory->NewFixedArray(count + lo_count, AllocationType::kSharedOld);
+  // Buffer to keep internalized strings alive in the current scope.
+  Handle<FixedArray> internalized_handles;
+  if (internalize) {
+    internalized_handles =
+        factory->NewFixedArray(count + lo_count, AllocationType::kOld);
+  }
   {
     // Create strings in their own scope to be able to delete and GC them.
     HandleScope scope(isolate);
     for (int i = 0; i < count; i++) {
       int length = i + min_length + 1;
-      Handle<String> string =
+      auto strings =
           CreateSharedOneByteString(isolate, factory, length, internalize);
-      shared_strings->set(i, *string);
+      shared_strings->set(i, *strings.first);
+      if (internalize) {
+        internalized_handles->set(i, *strings.second.ToHandleChecked());
+      }
     }
     int min_lo_length =
         isolate->heap()->MaxRegularHeapObjectSize(AllocationType::kOld) + 1;
     for (int i = 0; i < lo_count; i++) {
       int length = i + min_lo_length + 1;
-      Handle<String> string =
+      auto strings =
           CreateSharedOneByteString(isolate, factory, length, internalize);
-      shared_strings->set(count + i, *string);
+      shared_strings->set(count + i, *strings.first);
+      if (internalize) {
+        internalized_handles->set(count + i, *strings.second.ToHandleChecked());
+      }
     }
   }
   return shared_strings;
@@ -478,7 +495,7 @@ class ConcurrentStringTableLookupThread final
   void RunForString(Handle<String> input_string, int counter) override {
     CHECK(input_string->IsShared());
     Tagged<Object> result =
-        Object(StringTable::TryStringToIndexOrLookupExisting(
+        Tagged<Object>(StringTable::TryStringToIndexOrLookupExisting(
             i_isolate, input_string->ptr()));
     if (IsString(result)) {
       Tagged<String> internalized = String::cast(result);
@@ -822,7 +839,8 @@ UNINITIALIZED_TEST(PromotionMarkCompact) {
     // 1st GC moves `one_byte_seq` to old space and 2nd GC evacuates it within
     // old space.
     heap::InvokeMajorGC(heap);
-    heap::ForceEvacuationCandidate(i::Page::FromHeapObject(*one_byte_seq));
+    heap::ForceEvacuationCandidate(
+        i::PageMetadata::FromHeapObject(*one_byte_seq));
     // We need to invoke GC without stack, otherwise no compaction is performed.
     DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
     heap::InvokeMajorGC(heap);
@@ -905,9 +923,11 @@ UNINITIALIZED_TEST(PromotionScavengeOldToShared) {
     CHECK(MemoryChunk::FromHeapObject(*one_byte_seq)->InYoungGeneration());
 
     old_object->set(0, *one_byte_seq);
-    ObjectSlot slot = old_object->GetFirstElementAddress();
-    CHECK(
-        RememberedSet<OLD_TO_NEW>::Contains(old_object_chunk, slot.address()));
+    ObjectSlot slot = old_object->RawFieldOfFirstElement();
+    CHECK(RememberedSet<OLD_TO_NEW>::Contains(
+        MutablePageMetadata::cast(
+            MutablePageMetadata::cast(old_object_chunk->Metadata())),
+        slot.address()));
 
     for (int i = 0; i < 2; i++) {
       heap::InvokeMinorGC(heap);
@@ -919,8 +939,9 @@ UNINITIALIZED_TEST(PromotionScavengeOldToShared) {
 
     // Since the GC promoted that string into shared heap, it also needs to
     // create an OLD_TO_SHARED slot.
-    CHECK(RememberedSet<OLD_TO_SHARED>::Contains(old_object_chunk,
-                                                 slot.address()));
+    CHECK(RememberedSet<OLD_TO_SHARED>::Contains(
+        MutablePageMetadata::cast(old_object_chunk->Metadata()),
+        slot.address()));
   }
 }
 
@@ -956,9 +977,10 @@ UNINITIALIZED_TEST(PromotionMarkCompactNewToShared) {
     CHECK(MemoryChunk::FromHeapObject(*one_byte_seq)->InYoungGeneration());
 
     old_object->set(0, *one_byte_seq);
-    ObjectSlot slot = old_object->GetFirstElementAddress();
-    CHECK(
-        RememberedSet<OLD_TO_NEW>::Contains(old_object_chunk, slot.address()));
+    ObjectSlot slot = old_object->RawFieldOfFirstElement();
+    CHECK(RememberedSet<OLD_TO_NEW>::Contains(
+        MutablePageMetadata::cast(old_object_chunk->Metadata()),
+        slot.address()));
 
     // We need to invoke GC without stack, otherwise no compaction is performed.
     DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
@@ -970,8 +992,9 @@ UNINITIALIZED_TEST(PromotionMarkCompactNewToShared) {
 
     // Since the GC promoted that string into shared heap, it also needs to
     // create an OLD_TO_SHARED slot.
-    CHECK(RememberedSet<OLD_TO_SHARED>::Contains(old_object_chunk,
-                                                 slot.address()));
+    CHECK(RememberedSet<OLD_TO_SHARED>::Contains(
+        MutablePageMetadata::cast(old_object_chunk->Metadata()),
+        slot.address()));
   }
 }
 
@@ -1019,11 +1042,12 @@ UNINITIALIZED_TEST(PromotionMarkCompactOldToShared) {
     CHECK(heap->Contains(*one_byte_seq));
 
     old_object->set(0, *one_byte_seq);
-    ObjectSlot slot = old_object->GetFirstElementAddress();
-    CHECK(
-        !RememberedSet<OLD_TO_NEW>::Contains(old_object_chunk, slot.address()));
+    ObjectSlot slot = old_object->RawFieldOfFirstElement();
+    CHECK(!RememberedSet<OLD_TO_NEW>::Contains(
+        MutablePageMetadata::cast(old_object_chunk->Metadata()),
+        slot.address()));
 
-    heap::ForceEvacuationCandidate(Page::FromHeapObject(*one_byte_seq));
+    heap::ForceEvacuationCandidate(PageMetadata::FromHeapObject(*one_byte_seq));
     // We need to invoke GC without stack, otherwise no compaction is performed.
     DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
     heap::InvokeMajorGC(heap);
@@ -1034,8 +1058,9 @@ UNINITIALIZED_TEST(PromotionMarkCompactOldToShared) {
 
     // Since the GC promoted that string into shared heap, it also needs to
     // create an OLD_TO_SHARED slot.
-    CHECK(RememberedSet<OLD_TO_SHARED>::Contains(old_object_chunk,
-                                                 slot.address()));
+    CHECK(RememberedSet<OLD_TO_SHARED>::Contains(
+        MutablePageMetadata::cast(old_object_chunk->Metadata()),
+        slot.address()));
   }
 }
 
@@ -1072,7 +1097,7 @@ UNINITIALIZED_TEST(PagePromotionRecordingOldToShared) {
 
     Handle<String> shared_string = factory->NewStringFromAsciiChecked(
         raw_one_byte, AllocationType::kSharedOld);
-    CHECK(shared_string->InWritableSharedSpace());
+    CHECK(InWritableSharedSpace(*shared_string));
 
     young_object->set(0, *shared_string);
 
@@ -1085,17 +1110,26 @@ UNINITIALIZED_TEST(PagePromotionRecordingOldToShared) {
 
     // Since the GC promoted that string into shared heap, it also needs to
     // create an OLD_TO_SHARED slot.
-    ObjectSlot slot = young_object->GetFirstElementAddress();
+    ObjectSlot slot = young_object->RawFieldOfFirstElement();
     CHECK(RememberedSet<OLD_TO_SHARED>::Contains(
-        MemoryChunk::FromHeapObject(*young_object), slot.address()));
+        MutablePageMetadata::FromHeapObject(*young_object), slot.address()));
   }
 }
+
+namespace {
+
+void TriggerGCWithTransitions(Heap* heap) {
+  v8_flags.transition_strings_during_gc_with_stack = true;
+  heap::CollectSharedGarbage(heap);
+  v8_flags.transition_strings_during_gc_with_stack = false;
+}
+
+}  // namespace
 
 UNINITIALIZED_TEST(InternalizedSharedStringsTransitionDuringGC) {
   if (!V8_CAN_CREATE_SHARED_HEAP_BOOL) return;
 
   v8_flags.shared_string_table = true;
-  v8_flags.transition_strings_during_gc_with_stack = true;
 
   constexpr int kStrings = 4096;
   constexpr int kLOStrings = 16;
@@ -1123,7 +1157,7 @@ UNINITIALIZED_TEST(InternalizedSharedStringsTransitionDuringGC) {
     }
 
     // Trigger garbage collection on the shared isolate.
-    heap::CollectSharedGarbage(i_isolate->heap());
+    TriggerGCWithTransitions(i_isolate->heap());
 
     // Check that GC cleared the forwarding table.
     CHECK_EQ(i_isolate->string_forwarding_table()->size(), 0);
@@ -1240,7 +1274,6 @@ UNINITIALIZED_TEST(ExternalizedSharedStringsTransitionDuringGC) {
   if (!V8_CAN_CREATE_SHARED_HEAP_BOOL) return;
 
   v8_flags.shared_string_table = true;
-  v8_flags.transition_strings_during_gc_with_stack = true;
 
   ExternalResourceFactory resource_factory;
   MultiClientIsolateTest test;
@@ -1257,7 +1290,7 @@ UNINITIALIZED_TEST(ExternalizedSharedStringsTransitionDuringGC) {
   for (int run = 0; run < 2; run++) {
     Handle<FixedArray> shared_strings = CreateSharedOneByteStrings(
         i_isolate, factory, kStrings - kLOStrings, kLOStrings,
-        ExternalString::kUncachedSize, run == 0);
+        sizeof(UncachedExternalString), run == 0);
 
     // Check strings are in the forwarding table after internalization.
     for (int i = 0; i < shared_strings->length(); i++) {
@@ -1276,8 +1309,7 @@ UNINITIALIZED_TEST(ExternalizedSharedStringsTransitionDuringGC) {
     }
 
     // Trigger garbage collection on the shared isolate.
-    i_isolate->heap()->CollectGarbageShared(i_isolate->main_thread_local_heap(),
-                                            GarbageCollectionReason::kTesting);
+    TriggerGCWithTransitions(i_isolate->heap());
 
     // Check that GC cleared the forwarding table.
     CHECK_EQ(i_isolate->string_forwarding_table()->size(), 0);
@@ -1358,7 +1390,6 @@ UNINITIALIZED_TEST(InternalizeSharedExternalString) {
   if (!V8_CAN_CREATE_SHARED_HEAP_BOOL) return;
 
   v8_flags.shared_string_table = true;
-  v8_flags.transition_strings_during_gc_with_stack = true;
 
   ExternalResourceFactory resource_factory;
   MultiClientIsolateTest test;
@@ -1388,8 +1419,8 @@ UNINITIALIZED_TEST(InternalizeSharedExternalString) {
   CHECK(shared_two_byte->HasExternalForwardingIndex(kAcquireLoad));
 
   // Trigger GC to externalize the shared string.
-  i_isolate1->heap()->CollectGarbageShared(i_isolate1->main_thread_local_heap(),
-                                           GarbageCollectionReason::kTesting);
+  TriggerGCWithTransitions(i_isolate1->heap());
+
   CHECK(shared_one_byte->IsShared());
   CHECK(IsExternalString(*shared_one_byte));
   CHECK(shared_two_byte->IsShared());
@@ -1404,7 +1435,7 @@ UNINITIALIZED_TEST(InternalizeSharedExternalString) {
   // Depending on the architecture/build options the two byte string might be
   // cached or uncached.
   const bool is_uncached =
-      two_byte->Size() < ExternalString::kSizeOfAllExternalStrings;
+      two_byte->Size() < static_cast<int>(sizeof(ExternalString));
 
   if (is_uncached) {
     // Shared uncached external strings are not internalizable. A new internal
@@ -1424,8 +1455,8 @@ UNINITIALIZED_TEST(InternalizeSharedExternalString) {
   // Another GC should create an externalized internalized string of the cached
   // (one byte) string and turn the uncached (two byte) string into a
   // ThinString, disposing the external resource.
-  i_isolate1->heap()->CollectGarbageShared(i_isolate1->main_thread_local_heap(),
-                                           GarbageCollectionReason::kTesting);
+  TriggerGCWithTransitions(i_isolate1->heap());
+
   CHECK_EQ(shared_one_byte->map()->instance_type(),
            InstanceType::EXTERNAL_INTERNALIZED_ONE_BYTE_STRING_TYPE);
   if (is_uncached) {
@@ -1669,7 +1700,6 @@ void TestConcurrentExternalization(bool share_resources) {
   if (!V8_CAN_CREATE_SHARED_HEAP_BOOL) return;
 
   v8_flags.shared_string_table = true;
-  v8_flags.transition_strings_during_gc_with_stack = true;
 
   ExternalResourceFactory resource_factory;
   MultiClientIsolateTest test;
@@ -1685,7 +1715,7 @@ void TestConcurrentExternalization(bool share_resources) {
 
   Handle<FixedArray> shared_strings = CreateSharedOneByteStrings(
       i_isolate, factory, kStrings - kLOStrings, kLOStrings,
-      ExternalString::kUncachedSize, false);
+      sizeof(UncachedExternalString), false);
 
   ParkingSemaphore sema_ready(0);
   ParkingSemaphore sema_execute_start(0);
@@ -1724,15 +1754,13 @@ void TestConcurrentExternalization(bool share_resources) {
     sema_execute_complete.ParkedWait(local_isolate);
   }
 
-  i_isolate->heap()->CollectGarbageShared(i_isolate->main_thread_local_heap(),
-                                          GarbageCollectionReason::kTesting);
+  TriggerGCWithTransitions(i_isolate->heap());
 
   for (int i = 0; i < shared_strings->length(); i++) {
     Handle<String> input_string(String::cast(shared_strings->get(i)),
                                 i_isolate);
     Tagged<String> string = *input_string;
-    CheckStringAndResource(string, i, true, String{}, true, share_resources,
-                           threads);
+    CheckStringAndResource(string, i, true, {}, true, share_resources, threads);
   }
 
   ParkingThread::ParkedJoinAll(local_isolate, threads);
@@ -1751,7 +1779,6 @@ void TestConcurrentExternalizationWithDeadStrings(bool share_resources,
   if (!V8_CAN_CREATE_SHARED_HEAP_BOOL) return;
 
   v8_flags.shared_string_table = true;
-  v8_flags.transition_strings_during_gc_with_stack = transition_with_stack;
 
   ExternalResourceFactory resource_factory;
   MultiClientIsolateTest test;
@@ -1763,11 +1790,14 @@ void TestConcurrentExternalizationWithDeadStrings(bool share_resources,
   Isolate* i_isolate = test.i_main_isolate();
   Factory* factory = i_isolate->factory();
 
+  ManualGCScope manual_gc_scope(i_isolate);
+  DisableConservativeStackScanningScopeForTesting no_css(i_isolate->heap());
+
   HandleScope scope(i_isolate);
 
   Handle<FixedArray> shared_strings = CreateSharedOneByteStrings(
       i_isolate, factory, kStrings - kLOStrings, kLOStrings,
-      ExternalString::kUncachedSize, false);
+      sizeof(UncachedExternalString), false);
 
   ParkingSemaphore sema_ready(0);
   ParkingSemaphore sema_execute_start(0);
@@ -1819,6 +1849,7 @@ void TestConcurrentExternalizationWithDeadStrings(bool share_resources,
     }
   }
 
+  v8_flags.transition_strings_during_gc_with_stack = transition_with_stack;
   i_isolate->heap()->CollectGarbageShared(i_isolate->main_thread_local_heap(),
                                           GarbageCollectionReason::kTesting);
 
@@ -1876,7 +1907,6 @@ void TestConcurrentExternalizationAndInternalization(
   if (!V8_CAN_CREATE_SHARED_HEAP_BOOL) return;
 
   v8_flags.shared_string_table = true;
-  v8_flags.transition_strings_during_gc_with_stack = true;
 
   ExternalResourceFactory resource_factory;
   MultiClientIsolateTest test;
@@ -1895,7 +1925,7 @@ void TestConcurrentExternalizationAndInternalization(
 
   Handle<FixedArray> shared_strings = CreateSharedOneByteStrings(
       i_isolate, factory, kStrings - kLOStrings, kLOStrings,
-      ExternalString::kUncachedSize, hit_or_miss == kTestHit);
+      sizeof(UncachedExternalString), hit_or_miss == kTestHit);
 
   ParkingSemaphore sema_ready(0);
   ParkingSemaphore sema_execute_start(0);
@@ -1930,8 +1960,7 @@ void TestConcurrentExternalizationAndInternalization(
     sema_execute_complete.ParkedWait(local_isolate);
   }
 
-  i_isolate->heap()->CollectGarbageShared(i_isolate->main_thread_local_heap(),
-                                          GarbageCollectionReason::kTesting);
+  TriggerGCWithTransitions(i_isolate->heap());
 
   for (int i = 0; i < shared_strings->length(); i++) {
     Handle<String> input_string(String::cast(shared_strings->get(i)),
@@ -1984,7 +2013,7 @@ UNINITIALIZED_TEST(SharedStringInGlobalHandle) {
   HandleScope handle_scope(i_isolate);
   Handle<String> shared_string =
       factory->NewStringFromAsciiChecked("foobar", AllocationType::kSharedOld);
-  CHECK(shared_string->InWritableSharedSpace());
+  CHECK(InWritableSharedSpace(*shared_string));
   v8::Local<v8::String> lh_shared_string = Utils::ToLocal(shared_string);
   v8::Global<v8::String> gh_shared_string(test.main_isolate(),
                                           lh_shared_string);
@@ -2023,7 +2052,7 @@ class WorkerIsolateThread : public v8::base::Thread {
       HandleScope handle_scope(i_client);
       Handle<String> shared_string = factory->NewStringFromAsciiChecked(
           "foobar", AllocationType::kSharedOld);
-      CHECK(shared_string->InWritableSharedSpace());
+      CHECK(InWritableSharedSpace(*shared_string));
       v8::Local<v8::String> lh_shared_string = Utils::ToLocal(shared_string);
       gh_shared_string.Reset(test_->main_isolate(), lh_shared_string);
       gh_shared_string.SetWeak();
@@ -2056,6 +2085,7 @@ UNINITIALIZED_TEST(SharedStringInClientGlobalHandle) {
   v8_flags.shared_string_table = true;
 
   MultiClientIsolateTest test;
+  ManualGCScope manual_gc_scope(test.i_main_isolate());
   WorkerIsolateThread thread("worker", &test);
   CHECK(thread.Start());
 
@@ -2114,9 +2144,9 @@ class ClientIsolateThreadForPagePromotions : public v8::base::Thread {
 
       // Since the GC promoted that string into shared heap, it also needs to
       // create an OLD_TO_SHARED slot.
-      ObjectSlot slot = young_object->GetFirstElementAddress();
+      ObjectSlot slot = young_object->RawFieldOfFirstElement();
       CHECK(RememberedSet<OLD_TO_SHARED>::Contains(
-          MemoryChunk::FromHeapObject(*young_object), slot.address()));
+          MutablePageMetadata::FromHeapObject(*young_object), slot.address()));
     }
 
     client->Dispose();
@@ -2200,7 +2230,7 @@ UNINITIALIZED_TEST(
 
   // Start an incremental shared GC such that shared_string resides on an
   // evacuation candidate.
-  heap::ForceEvacuationCandidate(Page::FromHeapObject(*shared_string));
+  heap::ForceEvacuationCandidate(PageMetadata::FromHeapObject(*shared_string));
   i::IncrementalMarking* marking = shared_heap->incremental_marking();
   CHECK(marking->IsStopped());
   {
@@ -2241,6 +2271,7 @@ class ClientIsolateThreadForRetainingByRememberedSet : public v8::base::Thread {
     Heap* heap = i_client->heap();
 
     {
+      v8::Isolate::Scope isolate_scope(client_isolate_);
       HandleScope scope(i_client);
 
       Handle<FixedArray> young_object =
@@ -2288,9 +2319,9 @@ class ClientIsolateThreadForRetainingByRememberedSet : public v8::base::Thread {
 
       // Since the GC promoted that string into shared heap, it also needs to
       // create an OLD_TO_SHARED slot.
-      ObjectSlot slot = young_object->GetFirstElementAddress();
+      ObjectSlot slot = young_object->RawFieldOfFirstElement();
       CHECK(RememberedSet<OLD_TO_SHARED>::Contains(
-          MemoryChunk::FromHeapObject(*young_object), slot.address()));
+          MutablePageMetadata::FromHeapObject(*young_object), slot.address()));
     }
 
     client_isolate_->Dispose();
@@ -2530,7 +2561,7 @@ class ProtectExternalStringTableAddStringClientIsolateThread
         Handle<String> string =
             i_isolate_->factory()->NewStringFromAsciiChecked(
                 text, AllocationType::kOld);
-        CHECK(string->InWritableSharedSpace());
+        CHECK(InWritableSharedSpace(*string));
         CHECK(!string->IsShared());
         CHECK(string->MakeExternal(new StaticOneByteResource(text)));
         CHECK(IsExternalOneByteString(*string));

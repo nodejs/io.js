@@ -27,7 +27,7 @@
 #include <string.h>
 
 #define CHECK_HANDLE(handle) \
-  ASSERT((uv_udp_t*)(handle) == &server || (uv_udp_t*)(handle) == &client)
+  ASSERT_NE((uv_udp_t*)(handle) == &server || (uv_udp_t*)(handle) == &client, 0)
 
 static uv_udp_t server;
 static uv_udp_t client;
@@ -60,7 +60,7 @@ static void cl_alloc_cb(uv_handle_t* handle,
 
 static void close_cb(uv_handle_t* handle) {
   CHECK_HANDLE(handle);
-  ASSERT(1 == uv_is_closing(handle));
+  ASSERT_EQ(1, uv_is_closing(handle));
   close_cb_called++;
 }
 
@@ -71,8 +71,8 @@ static void cl_recv_cb(uv_udp_t* handle,
                        const struct sockaddr* addr,
                        unsigned flags) {
   CHECK_HANDLE(handle);
-  ASSERT(flags == 0);
-  ASSERT(nread == UV_ENOBUFS);
+  ASSERT_OK(flags);
+  ASSERT_EQ(nread, UV_ENOBUFS);
 
   cl_recv_cb_called++;
 
@@ -84,11 +84,11 @@ static void cl_send_cb(uv_udp_send_t* req, int status) {
   int r;
 
   ASSERT_NOT_NULL(req);
-  ASSERT(status == 0);
+  ASSERT_OK(status);
   CHECK_HANDLE(req->handle);
 
   r = uv_udp_recv_start(req->handle, cl_alloc_cb, cl_recv_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   cl_send_cb_called++;
 }
@@ -96,7 +96,7 @@ static void cl_send_cb(uv_udp_send_t* req, int status) {
 
 static void sv_send_cb(uv_udp_send_t* req, int status) {
   ASSERT_NOT_NULL(req);
-  ASSERT(status == 0);
+  ASSERT_OK(status);
   CHECK_HANDLE(req->handle);
 
   uv_close((uv_handle_t*) req->handle, close_cb);
@@ -126,21 +126,21 @@ static void sv_recv_cb(uv_udp_t* handle,
   }
 
   CHECK_HANDLE(handle);
-  ASSERT(flags == 0);
+  ASSERT_OK(flags);
 
   ASSERT_NOT_NULL(addr);
-  ASSERT(nread == 4);
+  ASSERT_EQ(4, nread);
   ASSERT(!memcmp("PING", rcvbuf->base, nread));
 
   r = uv_udp_recv_stop(handle);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   req = malloc(sizeof *req);
   ASSERT_NOT_NULL(req);
 
   sndbuf = uv_buf_init("PONG", 4);
   r = uv_udp_send(req, handle, &sndbuf, 1, addr, sv_send_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   sv_recv_cb_called++;
 }
@@ -152,21 +152,21 @@ TEST_IMPL(udp_alloc_cb_fail) {
   uv_buf_t buf;
   int r;
 
-  ASSERT(0 == uv_ip4_addr("0.0.0.0", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("0.0.0.0", TEST_PORT, &addr));
 
   r = uv_udp_init(uv_default_loop(), &server);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_udp_bind(&server, (const struct sockaddr*) &addr, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_udp_recv_start(&server, sv_alloc_cb, sv_recv_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
 
   r = uv_udp_init(uv_default_loop(), &client);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   buf = uv_buf_init("PING", 4);
   r = uv_udp_send(&req,
@@ -175,21 +175,21 @@ TEST_IMPL(udp_alloc_cb_fail) {
                   1,
                   (const struct sockaddr*) &addr,
                   cl_send_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(close_cb_called == 0);
-  ASSERT(cl_send_cb_called == 0);
-  ASSERT(cl_recv_cb_called == 0);
-  ASSERT(sv_send_cb_called == 0);
-  ASSERT(sv_recv_cb_called == 0);
+  ASSERT_OK(close_cb_called);
+  ASSERT_OK(cl_send_cb_called);
+  ASSERT_OK(cl_recv_cb_called);
+  ASSERT_OK(sv_send_cb_called);
+  ASSERT_OK(sv_recv_cb_called);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(cl_send_cb_called == 1);
-  ASSERT(cl_recv_cb_called == 1);
-  ASSERT(sv_send_cb_called == 1);
-  ASSERT(sv_recv_cb_called == 1);
-  ASSERT(close_cb_called == 2);
+  ASSERT_EQ(1, cl_send_cb_called);
+  ASSERT_EQ(1, cl_recv_cb_called);
+  ASSERT_EQ(1, sv_send_cb_called);
+  ASSERT_EQ(1, sv_recv_cb_called);
+  ASSERT_EQ(2, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

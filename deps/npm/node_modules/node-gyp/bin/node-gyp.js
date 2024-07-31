@@ -6,7 +6,7 @@ process.title = 'node-gyp'
 
 const envPaths = require('env-paths')
 const gyp = require('../')
-const log = require('npmlog')
+const log = require('../lib/log')
 const os = require('os')
 
 /**
@@ -14,11 +14,11 @@ const os = require('os')
  */
 
 const prog = gyp()
-var completed = false
+let completed = false
 prog.parseArgv(process.argv)
 prog.devDir = prog.opts.devdir
 
-var homeDir = os.homedir()
+const homeDir = os.homedir()
 if (prog.devDir) {
   prog.devDir = prog.devDir.replace(/^~/, homeDir)
 } else if (homeDir) {
@@ -32,9 +32,9 @@ if (prog.devDir) {
 
 if (prog.todo.length === 0) {
   if (~process.argv.indexOf('-v') || ~process.argv.indexOf('--version')) {
-    console.log('v%s', prog.version)
+    log.stdout('v%s', prog.version)
   } else {
-    console.log('%s', prog.usage())
+    log.stdout('%s', prog.usage())
   }
   process.exit(0)
 }
@@ -48,11 +48,11 @@ log.info('using', 'node@%s | %s | %s', process.versions.node, process.platform, 
  * Change dir if -C/--directory was passed.
  */
 
-var dir = prog.opts.directory
+const dir = prog.opts.directory
 if (dir) {
-  var fs = require('fs')
+  const fs = require('fs')
   try {
-    var stat = fs.statSync(dir)
+    const stat = fs.statSync(dir)
     if (stat.isDirectory()) {
       log.info('chdir', dir)
       process.chdir(dir)
@@ -68,8 +68,8 @@ if (dir) {
   }
 }
 
-function run () {
-  var command = prog.todo.shift()
+async function run () {
+  const command = prog.todo.shift()
   if (!command) {
     // done!
     completed = true
@@ -77,30 +77,28 @@ function run () {
     return
   }
 
-  prog.commands[command.name](command.args, function (err) {
-    if (err) {
-      log.error(command.name + ' error')
-      log.error('stack', err.stack)
-      errorMessage()
-      log.error('not ok')
-      return process.exit(1)
-    }
+  try {
+    const args = await prog.commands[command.name](command.args) ?? []
+
     if (command.name === 'list') {
-      var versions = arguments[1]
-      if (versions.length > 0) {
-        versions.forEach(function (version) {
-          console.log(version)
-        })
+      if (args.length) {
+        args.forEach((version) => log.stdout(version))
       } else {
-        console.log('No node development files installed. Use `node-gyp install` to install a version.')
+        log.stdout('No node development files installed. Use `node-gyp install` to install a version.')
       }
-    } else if (arguments.length >= 2) {
-      console.log.apply(console, [].slice.call(arguments, 1))
+    } else if (args.length >= 1) {
+      log.stdout(...args.slice(1))
     }
 
     // now run the next command in the queue
-    process.nextTick(run)
-  })
+    return run()
+  } catch (err) {
+    log.error(command.name + ' error')
+    log.error('stack', err.stack)
+    errorMessage()
+    log.error('not ok')
+    return process.exit(1)
+  }
 }
 
 process.on('exit', function (code) {
@@ -120,7 +118,7 @@ process.on('uncaughtException', function (err) {
 
 function errorMessage () {
   // copied from npm's lib/utils/error-handler.js
-  var os = require('os')
+  const os = require('os')
   log.error('System', os.type() + ' ' + os.release())
   log.error('command', process.argv
     .map(JSON.stringify).join(' '))

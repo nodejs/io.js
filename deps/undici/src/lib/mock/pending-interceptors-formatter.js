@@ -1,7 +1,10 @@
 'use strict'
 
-const { Transform } = require('stream')
-const { Console } = require('console')
+const { Transform } = require('node:stream')
+const { Console } = require('node:console')
+
+const PERSISTENT = process.versions.icu ? '✅' : 'Y '
+const NOT_PERSISTENT = process.versions.icu ? '❌' : 'N '
 
 /**
  * Gets the output of `console.table(…)` as a string.
@@ -29,7 +32,7 @@ module.exports = class PendingInterceptorsFormatter {
         Origin: origin,
         Path: path,
         'Status code': statusCode,
-        Persistent: persist ? '✅' : '❌',
+        Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
         Invocations: timesInvoked,
         Remaining: persist ? Infinity : times - timesInvoked
       }))

@@ -6,6 +6,9 @@ prefix benchmark
 
 [true] # This section applies to all platforms
 
+# https://github.com/nodejs/node/issues/52690
+test-benchmark-crypto: PASS, FLAKY
+
 [$system==win32]
 
 [$system==linux]

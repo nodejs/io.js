@@ -8,6 +8,8 @@
 # include <dirent.h>
 # include <time.h>
 #else
+# define _CRT_INTERNAL_NONSTDC_NAMES 1
+# include <sys/stat.h>
 # include <io.h>
 #endif /* _WIN32 */
 
@@ -15,6 +17,10 @@
 
 #if !defined(_WIN32) && !defined(__ANDROID__)
 # define UVWASI_FD_READDIR_SUPPORTED 1
+#endif
+
+#if !defined(S_ISDIR) && defined(S_IFMT) && defined(S_IFDIR)
+  #define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #endif
 
 #include "uvwasi.h"
@@ -37,10 +43,13 @@
 
 #define VALIDATE_FSTFLAGS_OR_RETURN(flags)                                    \
   do {                                                                        \
-    if ((flags) & ~(UVWASI_FILESTAT_SET_ATIM |                                \
-                    UVWASI_FILESTAT_SET_ATIM_NOW |                            \
-                    UVWASI_FILESTAT_SET_MTIM |                                \
-                    UVWASI_FILESTAT_SET_MTIM_NOW)) {                          \
+    uvwasi_fstflags_t f = flags;                                              \
+    if (((f) & ~(UVWASI_FILESTAT_SET_ATIM | UVWASI_FILESTAT_SET_ATIM_NOW |    \
+                 UVWASI_FILESTAT_SET_MTIM | UVWASI_FILESTAT_SET_MTIM_NOW)) || \
+        ((f) & (UVWASI_FILESTAT_SET_ATIM | UVWASI_FILESTAT_SET_ATIM_NOW))     \
+            == (UVWASI_FILESTAT_SET_ATIM | UVWASI_FILESTAT_SET_ATIM_NOW) ||   \
+        ((f) & (UVWASI_FILESTAT_SET_MTIM | UVWASI_FILESTAT_SET_MTIM_NOW))     \
+            == (UVWASI_FILESTAT_SET_MTIM | UVWASI_FILESTAT_SET_MTIM_NOW)) {   \
       return UVWASI_EINVAL;                                                   \
     }                                                                         \
   } while (0)
@@ -624,9 +633,10 @@ uvwasi_errno_t uvwasi_fd_advise(uvwasi_t* uvwasi,
                                 uvwasi_advice_t advice) {
   struct uvwasi_fd_wrap_t* wrap;
   uvwasi_errno_t err;
+  uv_fs_t req;
+  int r;
 #ifdef POSIX_FADV_NORMAL
   int mapped_advice;
-  int r;
 #endif /* POSIX_FADV_NORMAL */
 
   UVWASI_DEBUG("uvwasi_fd_advise(uvwasi=%p, fd=%d, offset=%"PRIu64", "
@@ -679,6 +689,17 @@ uvwasi_errno_t uvwasi_fd_advise(uvwasi_t* uvwasi,
   if (err != UVWASI_ESUCCESS)
     return err;
 
+  r = uv_fs_fstat(NULL, &req, wrap->fd, NULL);
+  if (r == -1) {
+    err = uvwasi__translate_uv_error(r);
+    goto exit;
+  }
+
+  if (S_ISDIR(req.statbuf.st_mode)) {
+    err = UVWASI_EBADF;
+    goto exit;
+  }
+
   err = UVWASI_ESUCCESS;
 
 #ifdef POSIX_FADV_NORMAL
@@ -686,7 +707,9 @@ uvwasi_errno_t uvwasi_fd_advise(uvwasi_t* uvwasi,
   if (r != 0)
     err = uvwasi__translate_uv_error(uv_translate_sys_error(r));
 #endif /* POSIX_FADV_NORMAL */
+exit:
   uv_mutex_unlock(&wrap->mutex);
+  uv_fs_req_cleanup(&req);
   return err;
 }
 
@@ -1135,7 +1158,7 @@ uvwasi_errno_t uvwasi_fd_pread(uvwasi_t* uvwasi,
                offset,
                nread);
 
-  if (uvwasi == NULL || iovs == NULL || nread == NULL)
+  if (uvwasi == NULL || (iovs == NULL && iovs_len > 0) || nread == NULL || offset > INT64_MAX)
     return UVWASI_EINVAL;
 
   err = uvwasi_fd_table_get(uvwasi->fds,
@@ -1145,6 +1168,14 @@ uvwasi_errno_t uvwasi_fd_pread(uvwasi_t* uvwasi,
                             0);
   if (err != UVWASI_ESUCCESS)
     return err;
+
+  // libuv returns EINVAL in this case.  To behave consistently with other
+  // Wasm runtimes, return OK here with a no-op.
+  if (iovs_len == 0) {
+    uv_mutex_unlock(&wrap->mutex);
+    *nread = 0;
+    return UVWASI_ESUCCESS;
+  }
 
   err = uvwasi__setup_iovs(uvwasi, &bufs, iovs, iovs_len);
   if (err != UVWASI_ESUCCESS) {
@@ -1259,7 +1290,7 @@ uvwasi_errno_t uvwasi_fd_pwrite(uvwasi_t* uvwasi,
                offset,
                nwritten);
 
-  if (uvwasi == NULL || iovs == NULL || nwritten == NULL)
+  if (uvwasi == NULL || (iovs == NULL && iovs_len > 0) || nwritten == NULL || offset > INT64_MAX)
     return UVWASI_EINVAL;
 
   err = uvwasi_fd_table_get(uvwasi->fds,
@@ -1269,6 +1300,14 @@ uvwasi_errno_t uvwasi_fd_pwrite(uvwasi_t* uvwasi,
                             0);
   if (err != UVWASI_ESUCCESS)
     return err;
+
+  // libuv returns EINVAL in this case.  To behave consistently with other
+  // Wasm runtimes, return OK here with a no-op.
+  if (iovs_len == 0) {
+    uv_mutex_unlock(&wrap->mutex);
+    *nwritten = 0;
+    return UVWASI_ESUCCESS;
+  }
 
   err = uvwasi__setup_ciovs(uvwasi, &bufs, iovs, iovs_len);
   if (err != UVWASI_ESUCCESS) {
@@ -1309,13 +1348,20 @@ uvwasi_errno_t uvwasi_fd_read(uvwasi_t* uvwasi,
                iovs,
                iovs_len,
                nread);
-
-  if (uvwasi == NULL || iovs == NULL || nread == NULL)
+  if (uvwasi == NULL || (iovs == NULL && iovs_len > 0) || nread == NULL)
     return UVWASI_EINVAL;
 
   err = uvwasi_fd_table_get(uvwasi->fds, fd, &wrap, UVWASI_RIGHT_FD_READ, 0);
   if (err != UVWASI_ESUCCESS)
     return err;
+
+  // libuv returns EINVAL in this case.  To behave consistently with other
+  // Wasm runtimes, return OK here with a no-op.
+  if (iovs_len == 0) {
+    uv_mutex_unlock(&wrap->mutex);
+    *nread = 0;
+    return UVWASI_ESUCCESS;
+  }
 
   err = uvwasi__setup_iovs(uvwasi, &bufs, iovs, iovs_len);
   if (err != UVWASI_ESUCCESS) {
@@ -1611,12 +1657,20 @@ uvwasi_errno_t uvwasi_fd_write(uvwasi_t* uvwasi,
                iovs_len,
                nwritten);
 
-  if (uvwasi == NULL || iovs == NULL || nwritten == NULL)
+  if (uvwasi == NULL || (iovs == NULL && iovs_len > 0) || nwritten == NULL)
     return UVWASI_EINVAL;
 
   err = uvwasi_fd_table_get(uvwasi->fds, fd, &wrap, UVWASI_RIGHT_FD_WRITE, 0);
   if (err != UVWASI_ESUCCESS)
     return err;
+
+  // libuv returns EINVAL in this case.  To behave consistently with other
+  // Wasm runtimes, return OK here with a no-op.
+  if (iovs_len == 0) {
+    uv_mutex_unlock(&wrap->mutex);
+    *nwritten = 0;
+    return UVWASI_ESUCCESS;
+  }
 
   err = uvwasi__setup_ciovs(uvwasi, &bufs, iovs, iovs_len);
   if (err != UVWASI_ESUCCESS) {
@@ -1775,8 +1829,6 @@ uvwasi_errno_t uvwasi_path_filestat_set_times(uvwasi_t* uvwasi,
   if (uvwasi == NULL || path == NULL)
     return UVWASI_EINVAL;
 
-  VALIDATE_FSTFLAGS_OR_RETURN(fst_flags);
-
   err = uvwasi_fd_table_get(uvwasi->fds,
                             fd,
                             &wrap,
@@ -1784,6 +1836,8 @@ uvwasi_errno_t uvwasi_path_filestat_set_times(uvwasi_t* uvwasi,
                             0);
   if (err != UVWASI_ESUCCESS)
     return err;
+
+  VALIDATE_FSTFLAGS_OR_RETURN(fst_flags);
 
   err = uvwasi__resolve_path(uvwasi,
                              wrap,
@@ -2145,7 +2199,7 @@ uvwasi_errno_t uvwasi_path_readlink(uvwasi_t* uvwasi,
 
   memcpy(buf, req.ptr, len);
   buf[len] = '\0';
-  *bufused = len + 1;
+  *bufused = len;
   uv_fs_req_cleanup(&req);
   return UVWASI_ESUCCESS;
 }
@@ -2306,6 +2360,7 @@ uvwasi_errno_t uvwasi_path_symlink(uvwasi_t* uvwasi,
                                    uvwasi_fd_t fd,
                                    const char* new_path,
                                    uvwasi_size_t new_path_len) {
+  char* truncated_old_path;
   char* resolved_new_path;
   struct uvwasi_fd_wrap_t* wrap;
   uvwasi_errno_t err;
@@ -2332,6 +2387,15 @@ uvwasi_errno_t uvwasi_path_symlink(uvwasi_t* uvwasi,
   if (err != UVWASI_ESUCCESS)
     return err;
 
+  truncated_old_path = uvwasi__malloc(uvwasi, old_path_len + 1);
+  if (truncated_old_path == NULL) {
+    uv_mutex_unlock(&wrap->mutex);
+    return UVWASI_ENOMEM;
+  }
+
+  memcpy(truncated_old_path, old_path, old_path_len);
+  truncated_old_path[old_path_len] = '\0';
+
   err = uvwasi__resolve_path(uvwasi,
                              wrap,
                              new_path,
@@ -2340,12 +2404,14 @@ uvwasi_errno_t uvwasi_path_symlink(uvwasi_t* uvwasi,
                              0);
   if (err != UVWASI_ESUCCESS) {
     uv_mutex_unlock(&wrap->mutex);
+    uvwasi__free(uvwasi, truncated_old_path);
     return err;
   }
 
   /* Windows support may require setting the flags option. */
-  r = uv_fs_symlink(NULL, &req, old_path, resolved_new_path, 0, NULL);
+  r = uv_fs_symlink(NULL, &req, truncated_old_path, resolved_new_path, 0, NULL);
   uv_mutex_unlock(&wrap->mutex);
+  uvwasi__free(uvwasi, truncated_old_path);
   uvwasi__free(uvwasi, resolved_new_path);
   uv_fs_req_cleanup(&req);
   if (r != 0)
@@ -2696,7 +2762,7 @@ uvwasi_errno_t uvwasi_sock_shutdown(uvwasi_t* uvwasi,
                                     uvwasi_sdflags_t how) {
   struct uvwasi_fd_wrap_t* wrap;
   uvwasi_errno_t err = 0;
-  shutdown_data_t shutdown_data;
+  shutdown_data_t shutdown_data = {0};
 
   if (how & ~UVWASI_SHUT_WR)
     return UVWASI_ENOTSUP;
@@ -2794,7 +2860,7 @@ uvwasi_errno_t uvwasi_sock_accept(uvwasi_t* uvwasi,
         goto close_sock_and_error_exit;
       }
 
-      int r = uv_accept((uv_stream_t*) wrap->sock, (uv_stream_t*) uv_connect_sock);
+      r = uv_accept((uv_stream_t*) wrap->sock, (uv_stream_t*) uv_connect_sock);
       if (r == UV_EAGAIN) {
 	// still no connection or error so run the loop again
         continue;

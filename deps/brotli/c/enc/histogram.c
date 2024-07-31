@@ -6,11 +6,11 @@
 
 /* Build per-context histograms of literals, commands and distance codes. */
 
-#include "./histogram.h"
+#include "histogram.h"
 
 #include "../common/context.h"
-#include "./block_splitter.h"
-#include "./command.h"
+#include "block_splitter.h"
+#include "command.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -63,7 +63,7 @@ void BrotliBuildHistogramsWithContext(
     BlockSplitIteratorNext(&insert_and_copy_it);
     HistogramAddCommand(&insert_and_copy_histograms[insert_and_copy_it.type_],
         cmd->cmd_prefix_);
-    /* TODO: unwrap iterator blocks. */
+    /* TODO(eustas): unwrap iterator blocks. */
     for (j = cmd->insert_len_; j != 0; --j) {
       size_t context;
       BlockSplitIteratorNext(&literal_it);

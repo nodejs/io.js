@@ -8,10 +8,12 @@ LHASH_DOALL_ARG_FN_TYPE,
 IMPLEMENT_LHASH_HASH_FN, IMPLEMENT_LHASH_COMP_FN,
 lh_TYPE_new, lh_TYPE_free, lh_TYPE_flush,
 lh_TYPE_insert, lh_TYPE_delete, lh_TYPE_retrieve,
-lh_TYPE_doall, lh_TYPE_doall_arg, lh_TYPE_error,
+lh_TYPE_doall, lh_TYPE_doall_arg, lh_TYPE_num_items, lh_TYPE_get_down_load,
+lh_TYPE_set_down_load, lh_TYPE_error,
 OPENSSL_LH_new, OPENSSL_LH_free,  OPENSSL_LH_flush,
 OPENSSL_LH_insert, OPENSSL_LH_delete, OPENSSL_LH_retrieve,
-OPENSSL_LH_doall, OPENSSL_LH_doall_arg, OPENSSL_LH_error
+OPENSSL_LH_doall, OPENSSL_LH_doall_arg, OPENSSL_LH_num_items,
+OPENSSL_LH_get_down_load, OPENSSL_LH_set_down_load, OPENSSL_LH_error
 - dynamic hash table
 
 =head1 SYNOPSIS
@@ -34,6 +36,10 @@ OPENSSL_LH_doall, OPENSSL_LH_doall_arg, OPENSSL_LH_error
  void lh_TYPE_doall_arg(LHASH_OF(TYPE) *table, OPENSSL_LH_DOALL_FUNCARG func,
                         TYPE *arg);
 
+ unsigned long lh_TYPE_num_items(OPENSSL_LHASH *lh);
+ unsigned long lh_TYPE_get_down_load(OPENSSL_LHASH *lh);
+ void lh_TYPE_set_down_load(OPENSSL_LHASH *lh, unsigned long dl);
+
  int lh_TYPE_error(LHASH_OF(TYPE) *table);
 
  typedef int (*OPENSSL_LH_COMPFUNC)(const void *, const void *);
@@ -52,7 +58,13 @@ OPENSSL_LH_doall, OPENSSL_LH_doall_arg, OPENSSL_LH_error
  void OPENSSL_LH_doall(OPENSSL_LHASH *lh, OPENSSL_LH_DOALL_FUNC func);
  void OPENSSL_LH_doall_arg(OPENSSL_LHASH *lh, OPENSSL_LH_DOALL_FUNCARG func, void *arg);
 
+ unsigned long OPENSSL_LH_num_items(OPENSSL_LHASH *lh);
+ unsigned long OPENSSL_LH_get_down_load(OPENSSL_LHASH *lh);
+ void OPENSSL_LH_set_down_load(OPENSSL_LHASH *lh, unsigned long dl);
+
  int OPENSSL_LH_error(OPENSSL_LHASH *lh);
+
+ #define LH_LOAD_MULT   /* integer constant */
 
 =head1 DESCRIPTION
 
@@ -145,15 +157,6 @@ For example:
  /* Then the hash table itself can be deallocated */
  lh_TYPE_free(hashtable);
 
-When doing this, be careful if you delete entries from the hash table
-in your callbacks: the table may decrease in size, moving the item
-that you are currently on down lower in the hash table - this could
-cause some entries to be skipped during the iteration.  The second
-best solution to this problem is to set hash-E<gt>down_load=0 before
-you start (which will stop the hash table ever decreasing in size).
-The best solution is probably to avoid deleting items from the hash
-table inside a "doall" callback!
-
 B<lh_I<TYPE>_doall_arg>() is the same as B<lh_I<TYPE>_doall>() except that
 I<func> will be called with I<arg> as the second argument and I<func>
 should be of type B<LHASH_DOALL_ARG_FN>(B<I<TYPE>>) (a callback prototype
@@ -175,21 +178,47 @@ that is provided by the caller):
  lh_TYPE_doall_arg(hashtable, LHASH_DOALL_ARG_FN(TYPE_print), BIO,
                    logging_bio);
 
+Note that it is by default B<not> safe to use B<lh_I<TYPE>_delete>() inside a
+callback passed to B<lh_I<TYPE>_doall>() or B<lh_I<TYPE>_doall_arg>(). The
+reason for this is that deleting an item from the hash table may result in the
+hash table being contracted to a smaller size and rehashed.
+B<lh_I<TYPE>_doall>() and B<lh_I<TYPE>_doall_arg>() are unsafe and will exhibit
+undefined behaviour under these conditions, as these functions assume the hash
+table size and bucket pointers do not change during the call.
+
+If it is desired to use B<lh_I<TYPE>_doall>() or B<lh_I<TYPE>_doall_arg>() with
+B<lh_I<TYPE>_delete>(), it is essential that you call
+B<lh_I<TYPE>_set_down_load>() with a I<down_load> argument of 0 first. This
+disables hash table contraction and guarantees that it will be safe to delete
+items from a hash table during a call to B<lh_I<TYPE>_doall>() or
+B<lh_I<TYPE>_doall_arg>().
+
+It is never safe to call B<lh_I<TYPE>_insert>() during a call to
+B<lh_I<TYPE>_doall>() or B<lh_I<TYPE>_doall_arg>().
 
 B<lh_I<TYPE>_error>() can be used to determine if an error occurred in the last
 operation.
+
+B<lh_I<TYPE>_num_items>() returns the number of items in the hash table.
+
+B<lh_I<TYPE>_get_down_load>() and B<lh_I<TYPE>_set_down_load>() get and set the
+factor used to determine when the hash table is contracted. The factor is the
+load factor at or below which hash table contraction will occur, multiplied by
+B<LH_LOAD_MULT>, where the load factor is the number of items divided by the
+number of nodes. Setting this value to 0 disables hash table contraction.
 
 OPENSSL_LH_new() is the same as the B<lh_I<TYPE>_new>() except that it is not
 type specific. So instead of returning an B<LHASH_OF(I<TYPE>)> value it returns
 a B<void *>. In the same way the functions OPENSSL_LH_free(),
 OPENSSL_LH_flush(), OPENSSL_LH_insert(), OPENSSL_LH_delete(),
-OPENSSL_LH_retrieve(), OPENSSL_LH_doall(), OPENSSL_LH_doall_arg(), and
-OPENSSL_LH_error() are equivalent to the similarly named B<lh_I<TYPE>> functions
-except that they return or use a B<void *> where the equivalent B<lh_I<TYPE>>
-function returns or uses a B<I<TYPE> *> or B<LHASH_OF(I<TYPE>) *>. B<lh_I<TYPE>>
-functions are implemented as type checked wrappers around the B<OPENSSL_LH>
-functions. Most applications should not call the B<OPENSSL_LH> functions
-directly.
+OPENSSL_LH_retrieve(), OPENSSL_LH_doall(), OPENSSL_LH_doall_arg(),
+OPENSSL_LH_num_items(), OPENSSL_LH_get_down_load(), OPENSSL_LH_set_down_load()
+and OPENSSL_LH_error() are equivalent to the similarly named B<lh_I<TYPE>>
+functions except that they return or use a B<void *> where the equivalent
+B<lh_I<TYPE>> function returns or uses a B<I<TYPE> *> or B<LHASH_OF(I<TYPE>) *>.
+B<lh_I<TYPE>> functions are implemented as type checked wrappers around the
+B<OPENSSL_LH> functions. Most applications should not call the B<OPENSSL_LH>
+functions directly.
 
 =head1 RETURN VALUES
 

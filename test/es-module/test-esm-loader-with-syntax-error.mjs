@@ -5,7 +5,7 @@ import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
 
-describe('ESM: loader with syntax error', { concurrency: true }, () => {
+describe('ESM: loader with syntax error', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should crash the node process', async () => {
     const { code, stderr } = await spawnPromisified(execPath, [
       '--experimental-loader',

@@ -89,6 +89,8 @@ class BytecodeRegisterOptimizer::RegisterInfo final : public ZoneObject {
   Variable* var_in_reg() const { return var_in_reg_; }
   void set_var_in_reg(Variable* var) { var_in_reg_ = var; }
 
+  RegisterInfo* next() const { return next_; }
+
  private:
   Register register_;
   uint32_t equivalence_id_;
@@ -139,8 +141,12 @@ bool BytecodeRegisterOptimizer::RegisterInfo::IsOnlyMemberOfEquivalenceSet()
 void BytecodeRegisterOptimizer::SetVariableInRegister(Variable* var,
                                                       Register reg) {
   RegisterInfo* info = GetRegisterInfo(reg);
-  PushToRegistersNeedingFlush(info);
-  info->set_var_in_reg(var);
+  RegisterInfo* it = info;
+  do {
+    PushToRegistersNeedingFlush(it);
+    it->set_var_in_reg(var);
+    it = it->next();
+  } while (it != info);
 }
 
 Variable* BytecodeRegisterOptimizer::GetVariableInRegister(Register reg) {
@@ -362,7 +368,7 @@ void BytecodeRegisterOptimizer::Flush() {
         equivalent->set_needs_flush(false);
       }
     } else {
-      // Equivalernce class containing only unallocated registers.
+      // Equivalence class containing only unallocated registers.
       DCHECK_NULL(reg_info->GetAllocatedEquivalent());
       reg_info->MoveToNewEquivalenceSet(NextEquivalenceId(), false);
     }

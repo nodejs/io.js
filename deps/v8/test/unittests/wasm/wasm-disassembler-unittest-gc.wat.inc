@@ -1,6 +1,9 @@
 ;; expected = R"---(;; This is a polyglot C++/WAT file.
 ;; Comment lines are ignored and not expected in the disassembler output.
 (module
+  ;; Empty recgroups are useless but supported.
+  (rec)
+  (rec)
   ;; Structs.
   (type $type0 (struct))
   (type $type1 (struct (field $field0 i32)))
@@ -12,15 +15,16 @@
   (type $type6 (array (field i8)))
   ;; References to other types, mutual recursion.
   (type $type7 (struct (field $field0 (ref $type0))))
-  ;; TODO: rec-groups are supported in the binary format, but they are not
-  ;; printed yet. Once that is implemented in the disassembler, uncomment:
-  ;; (rec
-  (type $type8 (struct (field $field0 (ref $type9))))
-  (type $type9 (struct (field $field0 (ref $type8))))
-  ;; )
+  (rec
+    (type $type8 (struct (field $field0 (ref $type9))))
+    (type $type9 (struct (field $field0 (ref $type8))))
+  )
   ;; Subtyping constraints.
-  ;; TODO: Change to `sub` keyword, once that is standardized.
-  (type $type10 (struct_subtype (field $field0 i32) $type0))
+  (type $type10 (sub $type0 (struct (field $field0 i32))))
+  (type $type12 (sub final $type0 (struct (field $field0 (mut i32)))))
+  ;; Empty recgroups are useless but supported.
+  (rec)
+  (rec)
   ;; Globals using reference types.
   (global $env.imported_global (;0;) (import "env" "imported_global") (ref $type7))
   (global $env.another_global (;1;) (import "env" "another_global") (ref $type8))

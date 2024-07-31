@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
-
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
 (function TestArrayFillImmutable() {
@@ -157,7 +155,8 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   builder.addMemory(10, 10);
 
   let passive = builder.addPassiveDataSegment([0, 1, 2, 3, 4, 5]);
-  let active = builder.addDataSegment(0, [6, 7, 8, 9]);
+  let active = builder.addActiveDataSegment(0, [kExprI32Const, 0],
+                                            [6, 7, 8, 9]);
 
   builder.addFunction(
       "make_array", makeSig([kWasmI32], [wasmRefType(array)]))
@@ -439,4 +438,25 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
   assertThrows(() => builder.instantiate(), WebAssembly.CompileError,
                /array.init_elem can only be used with mutable arrays/);
+})();
+
+(function TestArrayCopyLargeI64Array() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+
+  let array = builder.addArray(kWasmI64, true);
+
+  builder.addFunction(
+      // initial value, length, index to check
+      "main", makeSig([kWasmI64, kWasmI32, kWasmI32], [kWasmI64]))
+    .addBody([kExprLocalGet, 0, kExprLocalGet, 1,
+              kGCPrefix, kExprArrayNew, array,
+              kExprLocalGet, 2, kGCPrefix, kExprArrayGet, array])
+    .exportFunc();
+
+  let instance = builder.instantiate();
+
+  assertEquals(1234n, instance.exports.main(1234n, 1000, 0));
+  assertEquals(-2345n, instance.exports.main(-2345n, 2000, 1000));
+  assertEquals(42n, instance.exports.main(42n, 2000, 1999));
 })();

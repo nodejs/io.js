@@ -67,7 +67,7 @@ public:
      * Constructs a new, empty iterator.
      * @stable ICU 4.4
      */
-    FieldPositionIterator(void);
+    FieldPositionIterator();
 
     /**
      * Copy constructor.  If the copy failed for some reason, the new iterator will

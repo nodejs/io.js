@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,shadowrealm
 'use strict';
 
 // Due to the limitations of floating-point precision, the calculation of desiredSize sometimes gives different answers

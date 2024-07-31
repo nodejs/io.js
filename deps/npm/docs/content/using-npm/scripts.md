@@ -159,8 +159,6 @@ These are run from the scripts of `<pkg-name>`
 * `publish`
 * `postpublish`
 
-`prepare` will not run during `--dry-run`
-
 #### [`npm rebuild`](/commands/npm-rebuild)
 
 * `preinstall`
@@ -296,18 +294,15 @@ For example, if your package.json contains this:
 {
   "scripts" : {
     "install" : "scripts/install.js",
-    "postinstall" : "scripts/install.js",
-    "uninstall" : "scripts/uninstall.js"
+    "postinstall" : "scripts/install.js"
   }
 }
 ```
 
-then `scripts/install.js` will be called for the install
-and post-install stages of the lifecycle, and `scripts/uninstall.js`
-will be called when the package is uninstalled.  Since
-`scripts/install.js` is running for two different phases, it would
-be wise in this case to look at the `npm_lifecycle_event` environment
-variable.
+then `scripts/install.js` will be called for the install and post-install
+stages of the lifecycle.  Since `scripts/install.js` is running for two
+different phases, it would be wise in this case to look at the
+`npm_lifecycle_event` environment variable.
 
 If you want to run a make command, you can do so.  This works just
 fine:
@@ -336,10 +331,8 @@ file.
 ### Best Practices
 
 * Don't exit with a non-zero error code unless you *really* mean it.
-  Except for uninstall scripts, this will cause the npm action to
-  fail, and potentially be rolled back.  If the failure is minor or
-  only will prevent some optional features, then it's better to just
-  print a warning and exit successfully.
+  If the failure is minor or only will prevent some optional features, then
+  it's better to just print a warning and exit successfully.
 * Try not to use scripts to do what npm can do for you.  Read through
   [`package.json`](/configuring-npm/package-json) to see all the things that you can specify and enable
   by simply describing your package appropriately.  In general, this

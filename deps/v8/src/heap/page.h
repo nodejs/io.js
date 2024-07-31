@@ -7,7 +7,7 @@
 
 #include "src/heap/base-space.h"
 #include "src/heap/free-list.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page.h"
 #include "src/heap/spaces.h"
 
 namespace v8 {
@@ -19,73 +19,74 @@ class Heap;
 // A page is a memory chunk of a size 256K. Large object pages may be larger.
 //
 // The only way to get a page pointer is by calling factory methods:
-//   Page* p = Page::FromAddress(addr); or
-//   Page* p = Page::FromAllocationAreaAddress(address);
-class Page : public MemoryChunk {
+//   PageMetadata* p = PageMetadata::FromAddress(addr); or
+//   PageMetadata* p = PageMetadata::FromAllocationAreaAddress(address);
+class PageMetadata : public MutablePageMetadata {
  public:
-  // Page flags copied from from-space to to-space when flipping semispaces.
-  static constexpr MainThreadFlags kCopyOnFlipFlagsMask =
-      MainThreadFlags(MemoryChunk::POINTERS_TO_HERE_ARE_INTERESTING) |
-      MainThreadFlags(MemoryChunk::POINTERS_FROM_HERE_ARE_INTERESTING) |
-      MainThreadFlags(MemoryChunk::INCREMENTAL_MARKING);
-
-  Page(Heap* heap, BaseSpace* space, size_t size, Address area_start,
-       Address area_end, VirtualMemory reservation, Executability executable);
+  PageMetadata(Heap* heap, BaseSpace* space, size_t size, Address area_start,
+               Address area_end, VirtualMemory reservation,
+               Executability executable);
 
   // Returns the page containing a given address. The address ranges
   // from [page_addr .. page_addr + kPageSize]. This only works if the object
   // is in fact in a page.
-  static Page* FromAddress(Address addr) {
+  static PageMetadata* FromAddress(Address addr) {
     DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
-    return reinterpret_cast<Page*>(addr & ~kPageAlignmentMask);
+    return reinterpret_cast<PageMetadata*>(
+        MemoryChunk::FromAddress(addr)->Metadata());
   }
-  static Page* FromHeapObject(Tagged<HeapObject> o) {
+  static PageMetadata* FromHeapObject(Tagged<HeapObject> o) {
     DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
-    return reinterpret_cast<Page*>(o.ptr() & ~kAlignmentMask);
+    return FromAddress(o.ptr());
   }
 
-  static Page* cast(BasicMemoryChunk* chunk) {
-    return cast(MemoryChunk::cast(chunk));
+  static PageMetadata* cast(MemoryChunkMetadata* metadata) {
+    return cast(MutablePageMetadata::cast(metadata));
   }
 
-  static Page* cast(MemoryChunk* chunk) {
-    DCHECK_IMPLIES(chunk, !chunk->IsLargePage());
-    return static_cast<Page*>(chunk);
+  static PageMetadata* cast(MutablePageMetadata* metadata) {
+    DCHECK_IMPLIES(metadata, !metadata->Chunk()->IsLargePage());
+    return static_cast<PageMetadata*>(metadata);
   }
 
   // Returns the page containing the address provided. The address can
   // potentially point righter after the page. To be also safe for tagged values
   // we subtract a hole word. The valid address ranges from
   // [page_addr + area_start_ .. page_addr + kPageSize + kTaggedSize].
-  static Page* FromAllocationAreaAddress(Address address) {
+  static PageMetadata* FromAllocationAreaAddress(Address address) {
     DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
-    return Page::FromAddress(address - kTaggedSize);
+    return PageMetadata::FromAddress(address - kTaggedSize);
   }
 
   // Checks if address1 and address2 are on the same new space page.
   static bool OnSamePage(Address address1, Address address2) {
-    return Page::FromAddress(address1) == Page::FromAddress(address2);
+    return MemoryChunk::FromAddress(address1) ==
+           MemoryChunk::FromAddress(address2);
   }
 
   // Checks whether an address is page aligned.
   static bool IsAlignedToPageSize(Address addr) {
-    return (addr & kPageAlignmentMask) == 0;
+    return MemoryChunk::IsAligned(addr);
   }
 
-  static Page* ConvertNewToOld(Page* old_page);
+  static PageMetadata* ConvertNewToOld(PageMetadata* old_page);
 
   V8_EXPORT_PRIVATE void MarkNeverAllocateForTesting();
   inline void MarkEvacuationCandidate();
   inline void ClearEvacuationCandidate();
 
-  Page* next_page() { return static_cast<Page*>(list_node_.next()); }
-  Page* prev_page() { return static_cast<Page*>(list_node_.prev()); }
-
-  const Page* next_page() const {
-    return static_cast<const Page*>(list_node_.next());
+  PageMetadata* next_page() {
+    return static_cast<PageMetadata*>(list_node_.next());
   }
-  const Page* prev_page() const {
-    return static_cast<const Page*>(list_node_.prev());
+  PageMetadata* prev_page() {
+    return static_cast<PageMetadata*>(list_node_.prev());
+  }
+
+  const PageMetadata* next_page() const {
+    return static_cast<const PageMetadata*>(list_node_.next());
+  }
+  const PageMetadata* prev_page() const {
+    return static_cast<const PageMetadata*>(list_node_.prev());
   }
 
   template <typename Callback>
@@ -137,19 +138,22 @@ class Page : public MemoryChunk {
 };
 
 // Validate our estimates on the header size.
-static_assert(sizeof(BasicMemoryChunk) <= BasicMemoryChunk::kHeaderSize);
-static_assert(sizeof(MemoryChunk) <= MemoryChunk::kHeaderSize);
-static_assert(sizeof(Page) <= MemoryChunk::kHeaderSize);
+static_assert(sizeof(MemoryChunkMetadata) <=
+              MemoryChunkLayout::kBasicMemoryChunkHeaderSize);
+static_assert(sizeof(MutablePageMetadata) <=
+              MemoryChunkLayout::kMemoryChunkHeaderSize);
+static_assert(sizeof(PageMetadata) <=
+              MemoryChunkLayout::kMemoryChunkHeaderSize);
 
 }  // namespace internal
 
 namespace base {
 // Define special hash function for page pointers, to be used with std data
-// structures, e.g. std::unordered_set<Page*, base::hash<Page*>
+// structures, e.g. std::unordered_set<PageMetadata*, base::hash<PageMetadata*>
 template <>
-struct hash<i::Page*> : hash<i::BasicMemoryChunk*> {};
+struct hash<i::PageMetadata*> : hash<i::MemoryChunkMetadata*> {};
 template <>
-struct hash<const i::Page*> : hash<const i::BasicMemoryChunk*> {};
+struct hash<const i::PageMetadata*> : hash<const i::MemoryChunkMetadata*> {};
 }  // namespace base
 
 }  // namespace v8

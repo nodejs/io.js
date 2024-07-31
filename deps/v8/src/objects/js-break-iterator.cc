@@ -95,7 +95,7 @@ MaybeHandle<JSV8BreakIterator> JSV8BreakIterator::New(
   }
 
   // Error handling for break_iterator
-  if (U_FAILURE(status) || break_iterator.get() == nullptr) {
+  if (U_FAILURE(status) || break_iterator == nullptr) {
     THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
                     JSV8BreakIterator);
   }

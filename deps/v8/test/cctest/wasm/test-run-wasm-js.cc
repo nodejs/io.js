@@ -478,7 +478,6 @@ WASM_COMPILED_EXEC_TEST(Run_JSSelectAlign_10) {
 // function (a,b,c){ if(c)return a; return b; }
 
 void RunPickerTest(TestExecutionTier tier, bool indirect) {
-  EXPERIMENTAL_FLAG_SCOPE(return_call);
   Isolate* isolate = CcTest::InitIsolateOnce();
   HandleScope scope(isolate);
   TestSignatures sigs;

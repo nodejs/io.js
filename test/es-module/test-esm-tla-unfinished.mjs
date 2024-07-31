@@ -6,14 +6,26 @@ import { describe, it } from 'node:test';
 
 
 const commonArgs = [
-  '--no-warnings',
   '--input-type=module',
   '--eval',
 ];
 
-describe('ESM: unsettled and rejected promises', { concurrency: true }, () => {
-  it('should exit for an unsettled TLA promise via --eval', async () => {
+describe('ESM: unsettled and rejected promises', { concurrency: !process.env.TEST_PARALLEL }, () => {
+  it('should exit for an unsettled TLA promise via --eval with a warning', async () => {
     const { code, stderr, stdout } = await spawnPromisified(execPath, [
+      ...commonArgs,
+      'await new Promise(() => {})',
+    ]);
+
+    assert.match(stderr, /Warning: Detected unsettled top-level await at.+\[eval1\]:1/);
+    assert.match(stderr, /await new Promise/);
+    assert.strictEqual(stdout, '');
+    assert.strictEqual(code, 13);
+  });
+
+  it('should exit for an unsettled TLA promise via --eval without warning', async () => {
+    const { code, stderr, stdout } = await spawnPromisified(execPath, [
+      '--no-warnings',
       ...commonArgs,
       'await new Promise(() => {})',
     ]);
@@ -59,7 +71,18 @@ describe('ESM: unsettled and rejected promises', { concurrency: true }, () => {
     assert.strictEqual(code, 1);
   });
 
-  it('should exit for an unsettled TLA promise via stdin', async () => {
+  it('should exit for an unsettled TLA promise with warning', async () => {
+    const { code, stderr, stdout } = await spawnPromisified(execPath, [
+      fixtures.path('es-modules/tla/unresolved.mjs'),
+    ]);
+
+    assert.match(stderr, /Warning: Detected unsettled top-level await at.+unresolved\.mjs:1/);
+    assert.match(stderr, /await new Promise/);
+    assert.strictEqual(stdout, '');
+    assert.strictEqual(code, 13);
+  });
+
+  it('should exit for an unsettled TLA promise without warning', async () => {
     const { code, stderr, stdout } = await spawnPromisified(execPath, [
       '--no-warnings',
       fixtures.path('es-modules/tla/unresolved.mjs'),
@@ -115,6 +138,17 @@ describe('ESM: unsettled and rejected promises', { concurrency: true }, () => {
   });
 
   it('should be unaffected by `process.exit()` in worker thread', async () => {
+    const { code, stderr, stdout } = await spawnPromisified(execPath, [
+      fixtures.path('es-modules/tla/unresolved-with-worker-process-exit.mjs'),
+    ]);
+
+    assert.match(stderr, /Warning: Detected unsettled top-level await at.+with-worker-process-exit\.mjs:5/);
+    assert.match(stderr, /await new Promise/);
+    assert.strictEqual(stdout, '');
+    assert.strictEqual(code, 13);
+  });
+
+  it('should be unaffected by `process.exit()` in worker thread without warning', async () => {
     const { code, stderr, stdout } = await spawnPromisified(execPath, [
       '--no-warnings',
       fixtures.path('es-modules/tla/unresolved-with-worker-process-exit.mjs'),

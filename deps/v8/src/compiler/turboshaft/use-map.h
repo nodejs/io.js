@@ -9,6 +9,8 @@
 
 namespace v8::internal::compiler::turboshaft {
 
+typedef bool (*FunctionType)(const Operation& op, Zone* zone);
+
 // UseMap computes uses of all operations of the given turboshaft graph. It
 // provides a mapping from `OpIndex` to its `uses`.
 class UseMap {
@@ -22,16 +24,39 @@ class UseMap {
   };
 
  public:
-  UseMap(const Graph& graph, Zone* zone);
+  UseMap(const Graph& graph, Zone* zone, FunctionType filter);
+
+  UseMap(const Graph& graph, Zone* zone)
+      : UseMap(graph, zone,
+               [](const Operation& op, Zone* zone) { return false; }) {}
 
   base::Vector<const OpIndex> uses(OpIndex index) const;
 
  private:
   void AddUse(const Graph* graph, OpIndex node, OpIndex use);
 
-  FixedSidetable<PerOperationUses> table_;
+  FixedOpIndexSidetable<PerOperationUses> table_;
   ZoneVector<OpIndex> uses_;
   ZoneVector<ZoneVector<OpIndex>> saturated_uses_;
+};
+
+// SimdUseMap computes uses of SIMD operations of the given turboshaft graph and
+// skip other operations.
+class SimdUseMap : public UseMap, public NON_EXPORTED_BASE(ZoneObject) {
+ public:
+  SimdUseMap(const Graph& graph, Zone* zone)
+      : UseMap(graph, zone, [](const Operation& op, Zone* zone) {
+          if (op.outputs_rep().size() == 1 &&
+              op.outputs_rep()[0] == RegisterRepresentation::Simd128()) {
+            return false;
+          }
+
+          ZoneVector<MaybeRegisterRepresentation> storage(zone);
+          for (auto rep : op.inputs_rep(storage)) {
+            if (rep == MaybeRegisterRepresentation::Simd128()) return false;
+          }
+          return true;
+        }) {}
 };
 
 }  // namespace v8::internal::compiler::turboshaft

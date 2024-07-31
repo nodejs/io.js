@@ -51,6 +51,7 @@ MaybeHandle<JSSegments> JSSegments::Create(Isolate* isolate,
   segments->set_granularity(segmenter->granularity());
 
   // 4. Set segments.[[SegmentsString]] to string.
+  segments->set_raw_string(*string);
   segments->set_unicode_string(*unicode_string);
 
   // 5. Return segments.
@@ -85,6 +86,7 @@ MaybeHandle<Object> JSSegments::Containing(Isolate* isolate,
   // endIndex).
   return CreateSegmentDataObject(
       isolate, segments->granularity(), break_iterator,
+      handle(segments->raw_string(), isolate),
       *(segments->unicode_string()->raw()), start_index, end_index);
 }
 
@@ -106,15 +108,16 @@ bool CurrentSegmentIsWordLike(icu::BreakIterator* break_iterator) {
 // ecma402 #sec-createsegmentdataobject
 MaybeHandle<Object> JSSegments::CreateSegmentDataObject(
     Isolate* isolate, JSSegmenter::Granularity granularity,
-    icu::BreakIterator* break_iterator, const icu::UnicodeString& string,
-    int32_t start_index, int32_t end_index) {
+    icu::BreakIterator* break_iterator, Handle<String> input_string,
+    const icu::UnicodeString& unicode_string, int32_t start_index,
+    int32_t end_index) {
   Factory* factory = isolate->factory();
 
   // 1. Let len be the length of string.
   // 2. Assert: startIndex ≥ 0.
   DCHECK_GE(start_index, 0);
   // 3. Assert: endIndex ≤ len.
-  DCHECK_LE(end_index, string.length());
+  DCHECK_LE(end_index, unicode_string.length());
   // 4. Assert: startIndex < endIndex.
   DCHECK_LT(start_index, end_index);
 
@@ -126,7 +129,8 @@ MaybeHandle<Object> JSSegments::CreateSegmentDataObject(
   // endIndex (exclusive).
   Handle<String> segment;
   ASSIGN_RETURN_ON_EXCEPTION(
-      isolate, segment, Intl::ToString(isolate, string, start_index, end_index),
+      isolate, segment,
+      Intl::ToString(isolate, unicode_string, start_index, end_index),
       JSObject);
 
   // 7. Perform ! CreateDataPropertyOrThrow(result, "segment", segment).
@@ -143,9 +147,6 @@ MaybeHandle<Object> JSSegments::CreateSegmentDataObject(
   USE(maybe_create_index);
 
   // 9. Perform ! CreateDataPropertyOrThrow(result, "input", string).
-  Handle<String> input_string;
-  ASSIGN_RETURN_ON_EXCEPTION(isolate, input_string,
-                             Intl::ToString(isolate, string), JSObject);
   Maybe<bool> maybe_create_input = JSReceiver::CreateDataProperty(
       isolate, result, factory->input_string(), input_string, Just(kDontThrow));
   DCHECK(maybe_create_input.FromJust());

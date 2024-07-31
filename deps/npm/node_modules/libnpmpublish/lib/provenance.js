@@ -1,5 +1,5 @@
 const sigstore = require('sigstore')
-const { readFile } = require('fs/promises')
+const { readFile } = require('node:fs/promises')
 const ci = require('ci-info')
 const { env } = process
 
@@ -19,9 +19,11 @@ const generateProvenance = async (subject, opts) => {
   let payload
   if (ci.GITHUB_ACTIONS) {
     /* istanbul ignore next - not covering missing env var case */
-    const [workflowPath, workflowRef] = (env.GITHUB_WORKFLOW_REF || '')
-      .replace(env.GITHUB_REPOSITORY + '/', '')
-      .split('@')
+    const relativeRef = (env.GITHUB_WORKFLOW_REF || '').replace(env.GITHUB_REPOSITORY + '/', '')
+    const delimiterIndex = relativeRef.indexOf('@')
+    const workflowPath = relativeRef.slice(0, delimiterIndex)
+    const workflowRef = relativeRef.slice(delimiterIndex + 1)
+
     payload = {
       _type: INTOTO_STATEMENT_V1_TYPE,
       subject,

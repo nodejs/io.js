@@ -3,9 +3,10 @@
 // found in the LICENSE file.
 
 #include "src/execution/thread-local-top.h"
+
+#include "src/base/sanitizer/msan.h"
 #include "src/execution/isolate.h"
 #include "src/execution/simulator.h"
-#include "src/base/sanitizer/msan.h"
 
 #if V8_ENABLE_WEBASSEMBLY
 #include "src/trap-handler/trap-handler.h"
@@ -17,7 +18,10 @@ namespace internal {
 void ThreadLocalTop::Clear() {
   try_catch_handler_ = nullptr;
   isolate_ = nullptr;
+  c_entry_fp_ = kNullAddress;
+  c_function_ = kNullAddress;
   context_ = Context();
+  topmost_script_having_context_ = Context();
   thread_id_ = ThreadId();
   pending_handler_entrypoint_ = kNullAddress;
   pending_handler_constant_pool_ = kNullAddress;
@@ -25,22 +29,19 @@ void ThreadLocalTop::Clear() {
   pending_handler_sp_ = kNullAddress;
   num_frames_above_pending_handler_ = 0;
   last_api_entry_ = kNullAddress;
-  pending_message_ = Object();
+  pending_message_ = Tagged<Object>();
   rethrowing_message_ = false;
-  external_caught_exception_ = false;
-  c_entry_fp_ = kNullAddress;
   handler_ = kNullAddress;
-  c_function_ = kNullAddress;
   simulator_ = nullptr;
   js_entry_sp_ = kNullAddress;
   external_callback_scope_ = nullptr;
   current_vm_state_ = EXTERNAL;
   current_embedder_state_ = nullptr;
+  top_backup_incumbent_scope_ = nullptr;
   failed_access_check_callback_ = nullptr;
   thread_in_wasm_flag_address_ = kNullAddress;
-  is_on_central_stack_flag_ = true;
-  central_stack_sp_ = kNullAddress;
   central_stack_limit_ = kNullAddress;
+  central_stack_sp_ = kNullAddress;
   secondary_stack_sp_ = kNullAddress;
   secondary_stack_limit_ = kNullAddress;
 }

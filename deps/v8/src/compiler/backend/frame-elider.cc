@@ -57,6 +57,16 @@ void FrameElider::MarkDeConstruction() {
       // Special case: The start block needs a frame.
       if (block->predecessors().empty()) {
         block->mark_must_construct_frame();
+        if (block->SuccessorCount() == 0) {
+          // We only have a single block, so the block also needs to be marked
+          // to deconstruct the frame.
+          const Instruction* last =
+              InstructionAt(block->last_instruction_index());
+          // The only cases when we need to deconstruct are ret and jump.
+          if (last->IsRet() || last->IsJump()) {
+            block->mark_must_deconstruct_frame();
+          }
+        }
       }
       // Find "frame -> no frame" transitions, inserting frame
       // deconstructions.

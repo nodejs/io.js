@@ -1,4 +1,15 @@
 [tool.ruff]
+exclude = [
+  "deps",
+  "tools/cpplint.py",
+  "tools/gyp",
+  "tools/inspector_protocol",
+  "tools/eslint/node_modules",
+]
+line-length = 172
+target-version = "py37"
+
+[tool.ruff.lint]
 select = [
   "C90",    # McCabe cyclomatic complexity
   "E",      # pycodestyle
@@ -17,11 +28,6 @@ select = [
   "W",      # pycodestyle
   "YTT",    # flake8-2020
 ]
-exclude = [
-  "deps",
-  "tools/inspector_protocol",
-  "tools/node_modules",
-]
 ignore = [
   "E401",
   "E402",
@@ -30,19 +36,17 @@ ignore = [
   "RUF005",
   "RUF100",
 ]
-line-length = 172
-target-version = "py37"
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 100
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "tools/checkimports.py" = ["W605"]
 "tools/gyp/pylib/gyp/xcodeproj_file.py" = ["PLE0101"]
 "tools/icu/shrink-icu-src.py" = ["W605"]
 "tools/mkssldef.py" = ["W605"]
 
-[tool.ruff.pylint]
+[tool.ruff.lint.pylint]
 max-args = 12
 max-branches = 110
 max-returns = 12

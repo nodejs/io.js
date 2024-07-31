@@ -1,0 +1,111 @@
+=pod
+
+=head1 NAME
+
+X509_REQ_get_attr_count,
+X509_REQ_get_attr_by_NID, X509_REQ_get_attr_by_OBJ, X509_REQ_get_attr,
+X509_REQ_delete_attr,
+X509_REQ_add1_attr, X509_REQ_add1_attr_by_OBJ, X509_REQ_add1_attr_by_NID,
+X509_REQ_add1_attr_by_txt
+- B<X509_ATTRIBUTE> support for signed certificate requests
+
+=head1 SYNOPSIS
+
+ #include <openssl/x509.h>
+
+ int X509_REQ_get_attr_count(const X509_REQ *req);
+ int X509_REQ_get_attr_by_NID(const X509_REQ *req, int nid, int lastpos);
+ int X509_REQ_get_attr_by_OBJ(const X509_REQ *req, const ASN1_OBJECT *obj,
+                              int lastpos);
+ X509_ATTRIBUTE *X509_REQ_get_attr(const X509_REQ *req, int loc);
+ X509_ATTRIBUTE *X509_REQ_delete_attr(X509_REQ *req, int loc);
+ int X509_REQ_add1_attr(X509_REQ *req, X509_ATTRIBUTE *attr);
+ int X509_REQ_add1_attr_by_OBJ(X509_REQ *req,
+                               const ASN1_OBJECT *obj, int type,
+                               const unsigned char *bytes, int len);
+ int X509_REQ_add1_attr_by_NID(X509_REQ *req,
+                               int nid, int type,
+                               const unsigned char *bytes, int len);
+ int X509_REQ_add1_attr_by_txt(X509_REQ *req,
+                               const char *attrname, int type,
+                               const unsigned char *bytes, int len);
+
+=head1 DESCRIPTION
+
+X509_REQ_get_attr_by_OBJ() finds the location of the first matching object I<obj>
+in the I<req> attribute list. The search starts at the position after I<lastpos>.
+If the returned value is positive then it can be used on the next call to
+X509_REQ_get_attr_by_OBJ() as the value of I<lastpos> in order to iterate through
+the remaining attributes. I<lastpos> can be set to any negative value on the
+first call, in order to start searching from the start of the attribute list.
+
+X509_REQ_get_attr_by_NID() is similar to X509_REQ_get_attr_by_OBJ() except that
+it passes the numerical identifier (NID) I<nid> associated with the object.
+See <openssl/obj_mac.h> for a list of NID_*.
+
+X509_REQ_get_attr() returns the B<X509_ATTRIBUTE> object at index I<loc> in the
+I<req> attribute list. I<loc> should be in the range from 0 to
+X509_REQ_get_attr_count() - 1.
+
+X509_REQ_delete_attr() removes the B<X509_ATTRIBUTE> object at index I<loc> in
+the I<req> objects list of attributes. An error occurs if I<req> is NULL.
+
+X509_REQ_add1_attr() pushes a copy of the passed in B<X509_ATTRIBUTE> I<>attr>
+to the I<req> object's attribute list. An error will occur if either the
+attribute list is NULL or the attribute already exists.
+
+X509_REQ_add1_attr_by_OBJ() creates a new B<X509_ATTRIBUTE> using
+X509_ATTRIBUTE_set1_object() and X509_ATTRIBUTE_set1_data() to assign a new
+I<obj> with type I<type> and data I<bytes> of length I<len> and then pushes it
+to the I<req> object's attribute list. I<req> must be non NULL or an error
+will occur. If I<obj> already exists in the attribute list then an error occurs.
+
+X509_REQ_add1_attr_by_NID() is similar to X509_REQ_add1_attr_by_OBJ() except
+that it passes the numerical identifier (NID) I<nid> associated with the object.
+See <openssl/obj_mac.h> for a list of NID_*.
+
+X509_REQ_add1_attr_by_txt() is similar to X509_REQ_add1_attr_by_OBJ() except
+that it passes a name I<attrname> associated with the object.
+See <openssl/obj_mac.h> for a list of SN_* names.
+
+Refer to L<X509_ATTRIBUTE(3)> for information related to attributes.
+
+=head1 RETURN VALUES
+
+X509_REQ_get_attr_count() returns the number of attributes in the I<req> object
+attribute list or -1 if the attribute list is NULL.
+
+X509_REQ_get_attr_by_OBJ() returns -1 if either the I<req> object's attribute
+list is empty OR I<obj> is not found, otherwise it returns the location of the
+I<obj> in the attribute list.
+
+X509_REQ_get_attr_by_NID() is similar to X509_REQ_get_attr_by_OBJ(), except that
+it returns -2 if the I<nid> is not known by OpenSSL.
+
+X509_REQ_get_attr() returns either an B<X509_ATTRIBUTE> or NULL on error.
+
+X509_REQ_delete_attr() returns either the removed B<X509_ATTRIBUTE> or NULL if
+there is a error.
+
+X509_REQ_add1_attr(), X509_REQ_add1_attr_by_OBJ(), X509_REQ_add1_attr_by_NID()
+and X509_REQ_add1_attr_by_txt() return 1 on success or 0 on error.
+
+=head1 NOTES
+
+Any functions that modify the attributes (add or delete) internally set a flag
+to indicate the ASN.1 encoding has been modified.
+
+=head1 SEE ALSO
+
+L<X509_ATTRIBUTE(3)>
+
+=head1 COPYRIGHT
+
+Copyright 2023-2024 The OpenSSL Project Authors. All Rights Reserved.
+
+Licensed under the Apache License 2.0 (the "License").  You may not use
+this file except in compliance with the License.  You can obtain a copy
+in the file LICENSE in the source distribution or at
+L<https://www.openssl.org/source/license.html>.
+
+=cut

@@ -181,16 +181,28 @@ const {
 }
 
 {
-  // These are silly but they should all work per spec
-  new ReadableStream(1);
-  new ReadableStream('hello');
-  new ReadableStream(false);
+  new ReadableStream({});
   new ReadableStream([]);
-  new ReadableStream(1, 1);
-  new ReadableStream(1, 'hello');
-  new ReadableStream(1, false);
-  new ReadableStream(1, []);
+  new ReadableStream({}, null);
+  new ReadableStream({}, {});
+  new ReadableStream({}, []);
 }
+
+['a', false, 1, null].forEach((source) => {
+  assert.throws(() => {
+    new ReadableStream(source);
+  }, {
+    code: 'ERR_INVALID_ARG_TYPE',
+  });
+});
+
+['a', false, 1].forEach((strategy) => {
+  assert.throws(() => {
+    new ReadableStream({}, strategy);
+  }, {
+    code: 'ERR_INVALID_ARG_TYPE',
+  });
+});
 
 ['a', {}, false].forEach((size) => {
   assert.throws(() => {

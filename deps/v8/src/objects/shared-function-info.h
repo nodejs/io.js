@@ -176,9 +176,13 @@ class UncompiledDataWithPreparseDataAndJob
 };
 
 class InterpreterData
-    : public TorqueGeneratedInterpreterData<InterpreterData, Struct> {
+    : public TorqueGeneratedInterpreterData<InterpreterData,
+                                            ExposedTrustedObject> {
  public:
-  using BodyDescriptor = StructBodyDescriptor;
+  DECL_PROTECTED_POINTER_ACCESSORS(bytecode_array, BytecodeArray)
+  DECL_PROTECTED_POINTER_ACCESSORS(interpreter_trampoline, Code)
+
+  class BodyDescriptor;
 
  private:
   TQ_OBJECT_CONSTRUCTORS(InterpreterData)
@@ -223,7 +227,7 @@ class SharedFunctionInfo
   // Copy the data from another SharedFunctionInfo. Used for copying data into
   // and out of a placeholder SharedFunctionInfo, for off-thread compilation
   // which is not allowed to touch a main-thread-visible SharedFunctionInfo.
-  void CopyFrom(Tagged<SharedFunctionInfo> other);
+  void CopyFrom(Tagged<SharedFunctionInfo> other, IsolateForSandbox isolate);
 
   // Layout description of the optimized code map.
   static const int kEntriesStart = 0;
@@ -315,8 +319,9 @@ class SharedFunctionInfo
   inline void DontAdaptArguments();
   inline bool IsDontAdaptArguments() const;
 
-  // [function data]: This field holds some additional data for function.
-  // Currently it has one of:
+  // Returns the data associated with this SFI.
+  //
+  // Currently it can be one of:
   //  - a FunctionTemplateInfo to make benefit the API [IsApiFunction()].
   //  - a BytecodeArray for the interpreter [HasBytecodeArray()].
   //  - a InterpreterData with the BytecodeArray and a copy of the
@@ -328,8 +333,69 @@ class SharedFunctionInfo
   //  - a UncompiledDataWithPreparseData for lazy compilation
   //    [HasUncompiledDataWithPreparseData()]
   //  - a WasmExportedFunctionData for Wasm [HasWasmExportedFunctionData()]
+  //
+  // If the (expected) type of data is known, prefer to use the specialized
+  // accessors (e.g. bytecode_array(), uncompiled_data(), etc.).
+  //
+  // TODO(chromium:1490564): it might be nice if we could split this into a
+  // "code" and a "data" field. The code field is a trusted pointer to
+  // executable code (bytecode or machine code) to run when invoking the
+  // function. The "data" field on the other hand should only contain metadata
+  // about the function and might be empty. GetCode() would then always return
+  // the Code object based on the code field (and possibly lazily compute that
+  // based on the data field, e.g. the builtin id), and GetData() would always
+  // return the additional data, but never any code. This requires going
+  // through the callers of this method to see if they want the code or the
+  // data of the SFI (or both) and making them call GetCode() instead if that's
+  // what they are interested in. It would also mean that for code flushing,
+  // we'd then only have to load the code field, but then had to check if we're
+  // bytecode, baseline code, or builtin code (which is never flushed).
+  inline Tagged<Object> GetData(IsolateForSandbox isolate) const;
+
+ private:
+  // When the sandbox is enabled, the function's data is split across two
+  // fields, with the "trusted" part containing a trusted pointer and the
+  // regular/untrusted part containing a tagged pointer. In that case, code
+  // accessing the data field will first load the trusted data field. If that
+  // is empty (i.e. kNullIndirectPointerHandle), it will then load the regular
+  // field. With that, the only racy transition would be a tagged -> trusted
+  // transition (one thread may first read the empty trusted pointer, then
+  // another thread transitions to the trusted field, clearing the tagged
+  // field, and then the first thread continues to load the tagged field). As
+  // such, this transition is only allowed on the main thread. From a GC
+  // perspective, both fields always contain a valid value and so can be
+  // processed unconditionally.
+  // Only one of these two fields should be in use at any time and the other
+  // field should be cleared. As such, when setting these fields prefer to use
+  // SetData() which automatically clears the inactive field.
+  // TODO(chromium:1490564): if we decide to do the refactoring described
+  // above, the trusted part would become the code field.
+#ifdef V8_ENABLE_SANDBOX
+  inline Tagged<ExposedTrustedObject> trusted_function_data(
+      IsolateForSandbox isolate, AcquireLoadTag) const;
+  inline void set_trusted_function_data(
+      Tagged<ExposedTrustedObject> value, ReleaseStoreTag,
+      WriteBarrierMode = UPDATE_WRITE_BARRIER);
+
+  // Direct access to the indirect pointer handle referencing the trusted
+  // object.
+  inline IndirectPointerHandle trusted_function_data_handle(
+      AcquireLoadTag) const;
+#endif
   DECL_RELEASE_ACQUIRE_ACCESSORS(function_data, Tagged<Object>)
 
+  enum class DataType { kRegular, kTrusted };
+  inline void SetData(Tagged<Object> value, ReleaseStoreTag,
+                      DataType type = DataType::kRegular,
+                      WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+
+#ifdef V8_ENABLE_SANDBOX
+  inline void clear_function_data(ReleaseStoreTag);
+  inline void clear_trusted_function_data(ReleaseStoreTag);
+  inline bool has_trusted_function_data() const;
+#endif
+
+ public:
   inline bool IsApiFunction() const;
   inline bool is_class_constructor() const;
   DECL_ACCESSORS(api_func_data, Tagged<FunctionTemplateInfo>)
@@ -337,15 +403,27 @@ class SharedFunctionInfo
   template <typename IsolateT>
   inline Tagged<BytecodeArray> GetBytecodeArray(IsolateT* isolate) const;
 
+  // Sets the bytecode for this SFI. This is only allowed when this SFI has not
+  // yet been compiled or if it has been "uncompiled", or in other words when
+  // there is no existing bytecode yet.
   inline void set_bytecode_array(Tagged<BytecodeArray> bytecode);
-  DECL_GETTER(InterpreterTrampoline, Tagged<Code>)
-  DECL_GETTER(HasInterpreterData, bool)
-  DECL_ACCESSORS(interpreter_data, Tagged<InterpreterData>)
+  // Like set_bytecode_array but allows overwriting existing bytecode.
+  inline void overwrite_bytecode_array(Tagged<BytecodeArray> bytecode);
+
+  inline Tagged<Code> InterpreterTrampoline(IsolateForSandbox isolate) const;
+  inline bool HasInterpreterData(IsolateForSandbox isolate) const;
+  inline Tagged<InterpreterData> interpreter_data(
+      IsolateForSandbox isolate) const;
+  inline void set_interpreter_data(
+      Tagged<InterpreterData> interpreter_data,
+      WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
   DECL_GETTER(HasBaselineCode, bool)
   DECL_RELEASE_ACQUIRE_ACCESSORS(baseline_code, Tagged<Code>)
   inline void FlushBaselineCode();
-  DECL_GETTER(GetActiveBytecodeArray, Tagged<BytecodeArray>)
-  inline void SetActiveBytecodeArray(Tagged<BytecodeArray> bytecode);
+  inline Tagged<BytecodeArray> GetActiveBytecodeArray(
+      IsolateForSandbox isolate) const;
+  inline void SetActiveBytecodeArray(Tagged<BytecodeArray> bytecode,
+                                     IsolateForSandbox isolate);
 
 #if V8_ENABLE_WEBASSEMBLY
   inline bool HasAsmWasmData() const;
@@ -370,6 +448,7 @@ class SharedFunctionInfo
   // builtin corresponds to the auto-generated Builtin enum.
   inline bool HasBuiltinId() const;
   DECL_PRIMITIVE_ACCESSORS(builtin_id, Builtin)
+
   inline bool HasUncompiledData() const;
   DECL_ACCESSORS(uncompiled_data, Tagged<UncompiledData>)
   inline bool HasUncompiledDataWithPreparseData() const;
@@ -455,6 +534,9 @@ class SharedFunctionInfo
   DECL_BOOLEAN_ACCESSORS(maglev_compilation_failed)
 
   DECL_BOOLEAN_ACCESSORS(sparkplug_compiled)
+
+  CachedTieringDecision cached_tiering_decision();
+  void set_cached_tiering_decision(CachedTieringDecision decision);
 
   // Is this function a top-level function (scripts, evals).
   DECL_BOOLEAN_ACCESSORS(is_toplevel)
@@ -748,7 +830,13 @@ class SharedFunctionInfo
   TQ_OBJECT_CONSTRUCTORS(SharedFunctionInfo)
 };
 
+#ifdef V8_ENABLE_SANDBOX
+// When the sandbox is enabled, the data field is split into a trusted pointer
+// part and a tagged part.
+static constexpr int kStaticRootsSFISize = 48;
+#else
 static constexpr int kStaticRootsSFISize = 44;
+#endif
 #ifdef V8_STATIC_ROOTS
 static_assert(SharedFunctionInfo::kSize == kStaticRootsSFISize);
 #endif  // V8_STATIC_ROOTS
@@ -757,7 +845,7 @@ static_assert(SharedFunctionInfo::kSize == kStaticRootsSFISize);
 struct SourceCodeOf {
   explicit SourceCodeOf(Tagged<SharedFunctionInfo> v, int max = -1)
       : value(v), max_length(max) {}
-  const SharedFunctionInfo value;
+  const Tagged<SharedFunctionInfo> value;
   int max_length;
 };
 

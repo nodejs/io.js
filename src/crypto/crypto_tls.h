@@ -213,6 +213,7 @@ class TLSWrap : public AsyncWrap,
   static void Renegotiate(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void RequestOCSP(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetALPNProtocols(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void SetKeyCert(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetOCSPResponse(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetServername(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetSession(const v8::FunctionCallbackInfo<v8::Value>& args);

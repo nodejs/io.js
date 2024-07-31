@@ -33,8 +33,7 @@ template class U_I18N_API LocalPointer<CurrencyPluralInfo>;
 #endif
 #endif
 
-namespace number {
-namespace impl {
+namespace number::impl {
 
 // Exported as U_I18N_API because it is a public member field of exported DecimalFormatProperties
 // Using this wrapper is rather unfortunate, but is needed on Windows platforms in order to allow
@@ -166,8 +165,8 @@ struct U_I18N_API DecimalFormatProperties : public UMemory {
     bool _equals(const DecimalFormatProperties& other, bool ignoreForFastFormat) const;
 };
 
-} // namespace impl
-} // namespace number
+} // namespace number::impl
+
 U_NAMESPACE_END
 
 

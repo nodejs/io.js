@@ -119,7 +119,7 @@ V8_INLINE void CheckMemoryIsInaccessible(const void* address, size_t size) {
                 "CheckMemoryIsInaccessible().");
   // Only check if memory is poisoned on 64 bit, since there we make sure that
   // object sizes and alignments are multiple of shadow memory granularity.
-#if defined(V8_TARGET_ARCH_64_BIT)
+#if defined(V8_HOST_ARCH_64_BIT)
   ASAN_CHECK_WHOLE_MEMORY_REGION_IS_POISONED(address, size);
 #endif
   ASAN_UNPOISON_MEMORY_REGION(address, size);

@@ -110,12 +110,14 @@ transitioning builtin CreateObjectWithoutProperties(
         map = UnsafeCast<Map>(objectFunction.prototype_or_initial_map);
         if (prototype != map.prototype) {
           const prototypeInfo = prototype.map.PrototypeInfo() otherwise Runtime;
-          typeswitch (prototypeInfo.object_create_map) {
+          typeswitch (prototypeInfo.derived_maps) {
             case (Undefined): {
               goto Runtime;
             }
-            case (weak_map: Weak<Map>): {
-              map = WeakToStrong(weak_map) otherwise Runtime;
+            case (derived_maps: WeakArrayList): {
+              const theMap = MaybeObjectToStrong(derived_maps.objects[0])
+                  otherwise Runtime;
+              map = UnsafeCast<Map>(theMap);
             }
           }
         }

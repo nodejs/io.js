@@ -21,8 +21,6 @@ class Hole : public HeapObject {
  public:
   inline void set_raw_numeric_value(uint64_t bits);
 
-  inline uint8_t kind() const;
-
   DECL_CAST(Hole)
 
   DECL_VERIFIER(Hole)
@@ -32,11 +30,10 @@ class Hole : public HeapObject {
 
   // Currently, we allow optimized code to treat holes as HeapNumbers to avoid
   // conditional branching. This works by making Hole::kRawNumericValueOffset
-  // the same as HeapNumber::kValueOffset and storing NaN at that offset in
+  // the same as offsetof(HeapNumber, value_) and storing NaN at that offset in
   // Holes. This way, a hole will look like a NaN HeapNumber to optimized code.
   DECL_FIELD_OFFSET_TQ(RawNumericValue, HeapObject::kHeaderSize, "float64")
   static constexpr int kSize = kRawNumericValueOffset + kDoubleSize;
-  static_assert(HeapNumber::kValueOffset == Hole::kRawNumericValueOffset);
 
   using BodyDescriptor = FixedBodyDescriptor<kSize, kSize, kSize>;
 

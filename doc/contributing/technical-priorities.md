@@ -14,7 +14,12 @@ on August 5th 2021.
 They will be updated regularly and will be reviewed by the next-10 team
 and the TSC on a 6-month basis.
 
+Version from the [mini-summit](https://github.com/nodejs/next-10/issues/1)
+on October 1st 2022.
+
 ## Modern HTTP
+
+_Present in: 2021_
 
 Base HTTP support is a key component of modern cloud-native applications
 and built-in support was part of what made Node.js a success in the first
@@ -25,6 +30,8 @@ the new HTTP versions (HTTP3, QUIC) and to support efficient
 implementations of different versions concurrently.
 
 ## Suitable types for end-users
+
+_Present in: 2021_
 
 Using typings with JavaScript can allow a richer experience when using Visual
 Studio Code (or any other IDEs) environments, more complete documentation
@@ -37,6 +44,8 @@ to ensure there are good typings available for the public Node.js APIs.
 
 ## Documentation
 
+_Present in: 2021_
+
 The current documentation is great for experienced developers or people
 who are aware of what they are looking for. On the other hand, for
 beginners this documentation can be quite hard to read and finding the
@@ -47,6 +56,8 @@ path for newcomers.
 
 ## WebAssembly
 
+_Present in: 2021_
+
 The use of WebAssembly has been growing over the last few years.
 To ensure Node.js continues to be part of solutions where a
 subset of the solution needs the performance that WebAssembly can
@@ -54,13 +65,15 @@ deliver, Node.js must provide good support for running
 WebAssembly components along with the JavaScript that makes up the rest
 of the solution. This includes implementations of “host” APIs like WASI.
 
-## ESM
+## ES Modules (ESM)
 
-The CommonJS module system was one of the key components that led to the success
-of Node.js in its first 10 years. ESM is the standard that has been adopted as
-the equivalent in the broader JavaScript ecosystem and Node.js must continue to
-develop and improve its ESM implementation to stay relevant and ensure
-continued growth for the next 10 years.
+_Present in: 2021_
+
+The CommonJS module system was one of the key components that led to the
+success of Node.js in its first 10 years. ESM is the standard that has
+been adopted as the equivalent in the broader JavaScript ecosystem and
+Node.js must continue to develop and improve its ESM implementation
+to stay relevant and ensure continued growth for the next 10 years.
 
 ## Support for features from the latest ECMAScript spec
 
@@ -71,6 +84,8 @@ of choice and to ensure its continued growth for the next 10 years.
 
 ## Observability
 
+_Present in: 2021_
+
 The ability to investigate and resolve problems that occur in applications
 running in production is crucial for organizations. Tools that allow
 people to observe the current and past operation of the application are
@@ -80,23 +95,13 @@ the behavior of Node.js applications as well as ensuring there are well
 supported tools to implement those processes (logging, metrics and tracing).
 This includes support within the Node.js runtime itself (for example
 generating heap dumps, performance metrics, etc.) as well as support for
-applications on top of the runtime. In addition, it is also important to clearly
-document the use cases, problem determination methods and best
+applications on top of the runtime. In addition, it is also important to
+clearly document the use cases, problem determination methods and best
 practices for those tools.
 
-## Permissions/policies/security model
-
-Organizations will only choose technologies that allow them to sufficiently
-manage risk in their production deployments. For Node.js to
-continue its growth in product/enterprise deployments we need to ensure
-that we help them manage that risk. We must have a well-documented
-security model so that consumers understand what threats are/are
-not addressed by the Node.js runtime. We also need to provide
-functions/features which help them limit attack surfaces even if it does
-not result in 100% protection as this will still help organizations
-manage their overall risk level.
-
 ## Better multithreaded support
+
+_Present in: 2021_
 
 Today's servers support multiple threads of concurrent execution.
 Node.js deployments must be able to make full and efficient
@@ -121,3 +126,52 @@ components/approaches for doing this, they need to be better
 documented and evangelized so that this is not seen as a barrier
 for using Node.js in these situations. This is important to support
 the expansion of where/when Node.js is used in building solutions.
+
+## Serverless
+
+Serverless is a cloud computing model where the cloud provider manages the
+underlying infrastructure and automatically allocates resources as
+needed. Developers only need to focus on writing code for specific
+functions, which are executed as individual units of work in response to
+events. Node.js is one of the main technology used by developers in
+this field therefore it is crucial for us to provide a great solution.
+
+## Small footprint
+
+Small software footprints refer to software that has a minimal impact on
+system resources such as memory and processing power. This can be achieved
+through various methods such as optimizing code, reducing the number of
+dependencies, or using lightweight frameworks. Smaller footprints can lead
+to faster startup times, reduced memory usage, and improved overall system
+performance. This is fundamental for Node.js to be a lightweight proposition
+inside the ecosystem as it is used across a wild variety of projects, from
+web application to IoT and serverless.
+
+## Developers-first DX
+
+Developer experience (DX) refers to the overall experience a developer has when
+working with a software development platform, framework, or tool. It encompasses
+all aspects of the developer's interactions with the system, from installation
+and configuration to writing code and debugging. A good DX prioritizes ease
+of use, efficiency, and productivity, and can lead to faster development times,
+higher quality code, and greater developer satisfaction. Factors that can
+impact DX include documentation, community support, testing tools,
+and integration with other systems.
+As TypeScript usage continues to grow and gains more prominence in the
+ecosystem, enhancing its support is essential for delivering an improved
+developer experience for newcomers and experienced users alike.
+
+## Package management
+
+The ability to easily install and manage dependencies and development tools is a
+key part of the user experience, and for that reason Node.js must provide a
+package manager as part of its distribution. Node.js includes `npm` for this
+purpose. This is for historical reasons — when `npm` was added in 2011, it was
+the only JavaScript package manager — and because it is the reference
+implementation for the npm registry, which is the de facto primary source for
+most JavaScript software. In accordance with our [policy][distribution-policy]
+of not including multiple dependencies or tools that serve the same purpose, the
+Node.js project does not include any other package managers; though it may
+include other software to download other package managers.
+
+[distribution-policy]: ./distribution.md

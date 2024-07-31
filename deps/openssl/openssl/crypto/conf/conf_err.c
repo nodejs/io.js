@@ -41,6 +41,8 @@ static const ERR_STRING_DATA CONF_str_reasons[] = {
     "openssl conf references missing section"},
     {ERR_PACK(ERR_LIB_CONF, 0, CONF_R_RECURSIVE_DIRECTORY_INCLUDE),
     "recursive directory include"},
+    {ERR_PACK(ERR_LIB_CONF, 0, CONF_R_RECURSIVE_SECTION_REFERENCE),
+    "recursive section reference"},
     {ERR_PACK(ERR_LIB_CONF, 0, CONF_R_RELATIVE_PATH), "relative path"},
     {ERR_PACK(ERR_LIB_CONF, 0, CONF_R_SSL_COMMAND_SECTION_EMPTY),
     "ssl command section empty"},

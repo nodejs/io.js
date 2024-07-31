@@ -117,7 +117,7 @@ void RedirectActiveFunctions::VisitThread(Isolate* isolate,
         reinterpret_cast<InterpretedFrame*>(frame);
     Tagged<BytecodeArray> bytecode =
         mode_ == Mode::kUseDebugBytecode
-            ? shared_->GetDebugInfo(isolate)->DebugBytecodeArray()
+            ? shared_->GetDebugInfo(isolate)->DebugBytecodeArray(isolate)
             : shared_->GetBytecodeArray(isolate);
     interpreted_frame->PatchBytecodeArray(bytecode);
   }

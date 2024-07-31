@@ -29,11 +29,11 @@ class DeserializeTest : public TestWithPlatform {
       CHECK_NULL(test->isolate_);
       CHECK(test->context_.IsEmpty());
       test->isolate_ = isolate_wrapper_.isolate();
-      test->context_ = context_;
+      test->context_.Reset(test->isolate_, context_);
     }
     ~IsolateAndContextScope() {
       test_->isolate_ = nullptr;
-      test_->context_ = {};
+      test_->context_.Reset();
     }
 
    private:
@@ -59,11 +59,14 @@ class DeserializeTest : public TestWithPlatform {
   }
 
   Isolate* isolate() { return isolate_; }
-  v8::Local<v8::Context> context() { return context_.ToLocalChecked(); }
+  v8::Local<v8::Context> context() {
+    DCHECK(!context_.IsEmpty());
+    return context_.Get(isolate_);
+  }
 
  private:
   Isolate* isolate_ = nullptr;
-  v8::MaybeLocal<v8::Context> context_;
+  v8::Global<v8::Context> context_;
 };
 
 // Check that deserialization works.
@@ -300,48 +303,59 @@ class MergeDeserializedCodeTest : public DeserializeTest {
     return i_function->shared();
   }
 
-  static i::MaybeObject WeakOrSmi(i::Tagged<i::Object> obj) {
-    return IsSmi(obj)
-               ? i::MaybeObject::FromSmi(i::Smi::cast(obj))
-               : i::MaybeObject::MakeWeak(i::MaybeObject::FromObject(obj));
+  static i::Tagged<i::MaybeObject> WeakOrSmi(i::Tagged<i::Object> obj) {
+    return IsSmi(obj) ? i::Smi::cast(obj) : i::MakeWeak(obj);
+  }
+
+  static i::Tagged<i::Object> ExtractSharedFunctionInfoData(
+      i::Tagged<i::SharedFunctionInfo> sfi, i::Isolate* i_isolate) {
+    i::Tagged<i::Object> data = sfi->GetData(i_isolate);
+    // BytecodeArrays live in trusted space and so cannot be referenced through
+    // tagged/compressed pointers from e.g. a FixedArray. Instead, we need to
+    // use their in-sandbox wrapper object for that purpose.
+    if (i::IsBytecodeArray(data)) {
+      data = i::BytecodeArray::cast(data)->wrapper();
+    }
+    return data;
   }
 
   void ValidateStandaloneGraphAndPopulateArray(
       i::Tagged<i::SharedFunctionInfo> toplevel_sfi,
-      i::Tagged<i::WeakFixedArray> array, bool lazy_should_be_compiled = false,
+      i::Tagged<i::WeakFixedArray> array, i::Isolate* i_isolate,
+      bool lazy_should_be_compiled = false,
       bool eager_should_be_compiled = true) {
     i::DisallowGarbageCollection no_gc;
     CHECK(toplevel_sfi->is_compiled());
-    array->Set(kToplevelSfi, WeakOrSmi(toplevel_sfi));
-    array->Set(kToplevelFunctionData,
-               WeakOrSmi(toplevel_sfi->function_data(kAcquireLoad)));
-    array->Set(kToplevelFeedbackMetadata,
+    array->set(kToplevelSfi, WeakOrSmi(toplevel_sfi));
+    array->set(kToplevelFunctionData, WeakOrSmi(ExtractSharedFunctionInfoData(
+                                          toplevel_sfi, i_isolate)));
+    array->set(kToplevelFeedbackMetadata,
                WeakOrSmi(toplevel_sfi->feedback_metadata()));
     i::Tagged<i::Script> script = i::Script::cast(toplevel_sfi->script());
-    array->Set(kScript, WeakOrSmi(script));
+    array->set(kScript, WeakOrSmi(script));
     i::Tagged<i::WeakFixedArray> sfis = script->shared_function_infos();
     CHECK_EQ(sfis->length(), 4);
-    CHECK_EQ(sfis->Get(0), WeakOrSmi(toplevel_sfi));
+    CHECK_EQ(sfis->get(0), WeakOrSmi(toplevel_sfi));
     i::Tagged<i::SharedFunctionInfo> eager =
-        i::SharedFunctionInfo::cast(sfis->Get(1).GetHeapObjectAssumeWeak());
+        i::SharedFunctionInfo::cast(sfis->get(1).GetHeapObjectAssumeWeak());
     CHECK_EQ(eager->is_compiled(), eager_should_be_compiled);
-    array->Set(kEagerSfi, WeakOrSmi(eager));
+    array->set(kEagerSfi, WeakOrSmi(eager));
     if (eager_should_be_compiled) {
-      array->Set(kEagerFunctionData,
-                 WeakOrSmi(eager->function_data(kAcquireLoad)));
-      array->Set(kEagerFeedbackMetadata, WeakOrSmi(eager->feedback_metadata()));
+      array->set(kEagerFunctionData,
+                 WeakOrSmi(ExtractSharedFunctionInfoData(eager, i_isolate)));
+      array->set(kEagerFeedbackMetadata, WeakOrSmi(eager->feedback_metadata()));
       i::Tagged<i::SharedFunctionInfo> iife =
-          i::SharedFunctionInfo::cast(sfis->Get(2).GetHeapObjectAssumeWeak());
+          i::SharedFunctionInfo::cast(sfis->get(2).GetHeapObjectAssumeWeak());
       CHECK(iife->is_compiled());
-      array->Set(kIifeSfi, WeakOrSmi(iife));
-      array->Set(kIifeFunctionData,
-                 WeakOrSmi(iife->function_data(kAcquireLoad)));
-      array->Set(kIifeFeedbackMetadata, WeakOrSmi(iife->feedback_metadata()));
+      array->set(kIifeSfi, WeakOrSmi(iife));
+      array->set(kIifeFunctionData,
+                 WeakOrSmi(ExtractSharedFunctionInfoData(iife, i_isolate)));
+      array->set(kIifeFeedbackMetadata, WeakOrSmi(iife->feedback_metadata()));
     }
     i::Tagged<i::SharedFunctionInfo> lazy =
-        i::SharedFunctionInfo::cast(sfis->Get(3).GetHeapObjectAssumeWeak());
+        i::SharedFunctionInfo::cast(sfis->get(3).GetHeapObjectAssumeWeak());
     CHECK_EQ(lazy->is_compiled(), lazy_should_be_compiled);
-    array->Set(kLazySfi, WeakOrSmi(lazy));
+    array->set(kLazySfi, WeakOrSmi(lazy));
   }
 
   void AgeBytecodeAndGC(ScriptObjectFlag sfis_to_age,
@@ -350,7 +364,7 @@ class MergeDeserializedCodeTest : public DeserializeTest {
     for (int index = 0; index < kScriptObjectsCount; ++index) {
       if ((sfis_to_age & (1 << index)) == (1 << index)) {
         i::Tagged<i::SharedFunctionInfo> sfi = i::SharedFunctionInfo::cast(
-            original_objects->Get(index).GetHeapObjectAssumeWeak());
+            original_objects->get(index).GetHeapObjectAssumeWeak());
         i::SharedFunctionInfo::EnsureOldForTesting(sfi);
       }
     }
@@ -379,7 +393,7 @@ class MergeDeserializedCodeTest : public DeserializeTest {
                      i::Isolate* i_isolate) {
     for (int index = 0; index < kScriptObjectsCount; ++index) {
       if ((to_retain & (1 << index)) == (1 << index)) {
-        i::MaybeObject maybe = original_objects->Get(index);
+        i::Tagged<i::MaybeObject> maybe = original_objects->get(index);
         if (i::Tagged<i::HeapObject> heap_object;
             maybe.GetHeapObjectIfWeak(&heap_object)) {
           retained_original_objects->set(index, heap_object);
@@ -403,9 +417,7 @@ class MergeDeserializedCodeTest : public DeserializeTest {
     std::unique_ptr<v8::ScriptCompiler::CachedData> cached_data;
     IsolateAndContextScope scope(this);
     i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate());
-    i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(
-        i_isolate->heap());
-    ScriptOrigin default_origin(isolate(), NewString(""));
+    ScriptOrigin default_origin(NewString(""));
 
     i::Handle<i::WeakFixedArray> original_objects =
         i_isolate->factory()->NewWeakFixedArray(kScriptObjectsCount);
@@ -424,7 +436,7 @@ class MergeDeserializedCodeTest : public DeserializeTest {
               .ToLocalChecked();
 
       ValidateStandaloneGraphAndPopulateArray(GetSharedFunctionInfo(script),
-                                              *original_objects);
+                                              *original_objects, i_isolate);
 
       RetainObjects(retained_before_background_merge, *original_objects,
                     *retained_original_objects, i_isolate);
@@ -479,7 +491,7 @@ class MergeDeserializedCodeTest : public DeserializeTest {
       CHECK(!original_script->Run(context()).IsEmpty());
       CHECK_EQ(RunGlobalFunc("lazy"), v8::Integer::New(isolate(), 42));
       ValidateStandaloneGraphAndPopulateArray(
-          GetSharedFunctionInfo(original_script), *original_objects,
+          GetSharedFunctionInfo(original_script), *original_objects, i_isolate,
           true /*lazy_should_be_compiled*/);
     }
 
@@ -497,8 +509,8 @@ class MergeDeserializedCodeTest : public DeserializeTest {
 
     CHECK(!source.GetCachedData()->rejected);
     ValidateStandaloneGraphAndPopulateArray(
-        GetSharedFunctionInfo(script), *new_objects, lazy_should_be_compiled,
-        eager_should_be_compiled);
+        GetSharedFunctionInfo(script), *new_objects, i_isolate,
+        lazy_should_be_compiled, eager_should_be_compiled);
 
     // At this point, the original_objects array might still have pointers to
     // some old discarded content, such as UncompiledData from flushed
@@ -508,9 +520,9 @@ class MergeDeserializedCodeTest : public DeserializeTest {
     // All tracked objects from the original Script should have been reused if
     // they're still alive.
     for (int index = 0; index < kScriptObjectsCount; ++index) {
-      if (original_objects->Get(index).IsWeak() &&
-          new_objects->Get(index).IsWeak()) {
-        CHECK_EQ(original_objects->Get(index), new_objects->Get(index));
+      if (original_objects->get(index).IsWeak() &&
+          new_objects->get(index).IsWeak()) {
+        CHECK_EQ(original_objects->get(index), new_objects->get(index));
       }
     }
 
@@ -636,10 +648,8 @@ TEST_F(MergeDeserializedCodeTest, MergeWithNoFollowUpWork) {
   std::unique_ptr<v8::ScriptCompiler::CachedData> cached_data;
   IsolateAndContextScope scope(this);
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate());
-  i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(
-      i_isolate->heap());
 
-  ScriptOrigin default_origin(isolate(), NewString(""));
+  ScriptOrigin default_origin(NewString(""));
 
   constexpr char kSourceCode[] = "function f() {}";
   Local<Script> original_script;
@@ -715,9 +725,8 @@ TEST_F(MergeDeserializedCodeTest, MergeThatCompilesLazyFunction) {
   std::unique_ptr<v8::ScriptCompiler::CachedData> cached_data;
   IsolateAndContextScope scope(this);
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate());
-  i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(
-      i_isolate->heap());
-  ScriptOrigin default_origin(isolate(), NewString(""));
+
+  ScriptOrigin default_origin(NewString(""));
 
   constexpr char kSourceCode[] =
       "var f = function () {var s = f.toString(); f = null; return s;};";
@@ -809,7 +818,7 @@ TEST_F(MergeDeserializedCodeTest, MergeThatStartsButDoesNotFinish) {
   std::vector<std::unique_ptr<v8::ScriptCompiler::CachedData>> cached_data;
   IsolateAndContextScope scope(this);
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate());
-  ScriptOrigin default_origin(isolate(), NewString(""));
+  ScriptOrigin default_origin(NewString(""));
   i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(
       i_isolate->heap());
 

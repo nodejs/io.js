@@ -46,7 +46,7 @@ tmpdir.refresh();
 }
 
 {
-  if (common.isOSX || common.isWindows) {
+  if (common.isMacOS || common.isWindows) {
     const file = tmpdir.resolve('file-to-watch');
     fs.writeFileSync(file, 'test');
     const watcher = fs.watch(file, common.mustNotCall());

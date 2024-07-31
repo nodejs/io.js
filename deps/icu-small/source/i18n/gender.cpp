@@ -19,15 +19,19 @@
 
 #if !UCONFIG_NO_FORMATTING
 
+#include <utility>
+
 #include "unicode/gender.h"
 #include "unicode/ugender.h"
 #include "unicode/ures.h"
 
+#include "charstr.h"
 #include "cmemory.h"
 #include "cstring.h"
 #include "mutex.h"
 #include "uassert.h"
 #include "ucln_in.h"
+#include "ulocimp.h"
 #include "umutex.h"
 #include "uhash.h"
 
@@ -148,12 +152,16 @@ const GenderInfo* GenderInfo::loadInstance(const Locale& locale, UErrorCode& sta
   const char16_t* s = ures_getStringByKey(locRes.getAlias(), curLocaleName, &resLen, &key_status);
   if (s == nullptr) {
     key_status = U_ZERO_ERROR;
-    char parentLocaleName[ULOC_FULLNAME_CAPACITY];
-    uprv_strcpy(parentLocaleName, curLocaleName);
-    while (s == nullptr && uloc_getParent(parentLocaleName, parentLocaleName, ULOC_FULLNAME_CAPACITY, &key_status) > 0) {
+    CharString parentLocaleName(curLocaleName, key_status);
+    while (s == nullptr) {
+      {
+          CharString tmp = ulocimp_getParent(parentLocaleName.data(), status);
+          if (tmp.isEmpty()) break;
+          parentLocaleName = std::move(tmp);
+      }
       key_status = U_ZERO_ERROR;
       resLen = 0;
-      s = ures_getStringByKey(locRes.getAlias(), parentLocaleName, &resLen, &key_status);
+      s = ures_getStringByKey(locRes.getAlias(), parentLocaleName.data(), &resLen, &key_status);
       key_status = U_ZERO_ERROR;
     }
   }

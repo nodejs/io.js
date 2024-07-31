@@ -3,7 +3,7 @@
 ## Code of Conduct
 
 Please read the
-[Code of Conduct](https://github.com/nodejs/admin/blob/master/CODE_OF_CONDUCT.md)
+[Code of Conduct](https://github.com/nodejs/admin/blob/main/CODE_OF_CONDUCT.md)
 which explains the minimum behavior expectations for node-gyp contributors.
 
 <a id="developers-certificate-of-origin"></a>

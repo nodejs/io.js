@@ -22,7 +22,10 @@ async function testBreakpointOnStart(session) {
     { 'method': 'Runtime.runIfWaitingForDebugger' },
   ];
 
-  session.send(commands);
+  await session.send({ method: 'NodeRuntime.enable' });
+  await session.waitForNotification('NodeRuntime.waitingForDebugger');
+  await session.send(commands);
+  await session.send({ method: 'NodeRuntime.disable' });
   await session.waitForBreakOnLine(0, session.scriptURL());
 }
 

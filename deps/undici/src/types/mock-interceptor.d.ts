@@ -71,11 +71,11 @@ declare namespace MockInterceptor {
 
   export interface MockResponseCallbackOptions {
     path: string;
-    origin: string;
     method: string;
-    body?: BodyInit | Dispatcher.DispatchOptions['body'];
-    headers: Headers | Record<string, string>;
-    maxRedirections: number;
+    headers?: Headers | Record<string, string>;
+    origin?: string;
+    body?: BodyInit | Dispatcher.DispatchOptions['body'] | null;
+    maxRedirections?: number;
   }
 
   export type MockResponseDataHandler<TData extends object = object> = (

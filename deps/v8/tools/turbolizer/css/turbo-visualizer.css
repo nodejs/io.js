@@ -83,7 +83,7 @@
 }
 
 ol.linenums {
-  -webkit-padding-start: 8px;
+  padding-inline-start: 8px;
 }
 
 ol.linenums.constants {
@@ -335,9 +335,9 @@ li.nolinenums {
 }
 
 ul.noindent {
-  -webkit-padding-start: 0;
-  -webkit-margin-before: 0;
-  -webkit-margin-after: 0;
+  padding-inline-start: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 input:hover,

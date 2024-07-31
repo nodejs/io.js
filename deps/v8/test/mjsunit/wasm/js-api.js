@@ -266,7 +266,7 @@ let exportingModuleBinary2 = (() => {
   builder.exportMemoryAs('b');
   builder.setTableBounds(1, 1);
   builder.addExportOfKind('c', kExternalTable, 0);
-  var o = builder.addGlobal(kWasmI32, false).exportAs('x');
+  var o = builder.addGlobal(kWasmI32, false, false).exportAs('x');
   return new Int8Array(builder.toBuffer());
 })();
 var arr = moduleExports(new Module(exportingModuleBinary2));
@@ -781,9 +781,8 @@ assertThrows(
 assertThrows(() => WebAssembly.validate(), TypeError);
 assertThrows(() => WebAssembly.validate('hi'), TypeError);
 assertTrue(WebAssembly.validate(emptyModuleBinary));
-// TODO: other ways for validate to return false.
-assertFalse(WebAssembly.validate(moduleBinaryImporting2Memories));
-assertFalse(WebAssembly.validate(moduleBinaryWithMemSectionAndMemImport));
+assertTrue(WebAssembly.validate(moduleBinaryImporting2Memories));
+assertTrue(WebAssembly.validate(moduleBinaryWithMemSectionAndMemImport));
 
 // 'WebAssembly.compile' data property
 let compileDesc = Object.getOwnPropertyDescriptor(WebAssembly, 'compile');

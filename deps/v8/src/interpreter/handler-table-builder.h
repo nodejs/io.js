@@ -27,7 +27,7 @@ class V8_EXPORT_PRIVATE HandlerTableBuilder final {
   // Builds the actual handler table by copying the current values into a heap
   // object. Any further mutations to the builder won't be reflected.
   template <typename IsolateT>
-  Handle<ByteArray> ToHandlerTable(IsolateT* isolate);
+  Handle<TrustedByteArray> ToHandlerTable(IsolateT* isolate);
 
   // Creates a new handler table entry and returns a {hander_id} identifying the
   // entry, so that it can be referenced by below setter functions.

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
-
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 const builder = new WasmModuleBuilder();
@@ -11,9 +9,9 @@ builder.addFunction("testFailNull", makeSig([], [kWasmAnyRef]))
 .exportFunc()
 .addBody([
   kExprRefNull, kAnyRefCode,
-  kGCPrefix, kExprBrOnStruct, 0,
-  kGCPrefix, kExprBrOnCastFailNull, 0, kNullRefCode,
-  kGCPrefix, kExprBrOnStruct, 0,
+  kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kStructRefCode,
+  kGCPrefix, kExprBrOnCastFail, 0b11, 0, kAnyRefCode, kNullRefCode,
+  kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kStructRefCode,
   kExprUnreachable,
 ]);
 
@@ -21,9 +19,9 @@ builder.addFunction("testNull", makeSig([], [kWasmAnyRef]))
 .exportFunc()
 .addBody([
   kExprRefNull, kAnyRefCode,
-  kGCPrefix, kExprBrOnStruct, 0,
-  kGCPrefix, kExprBrOnCastNull, 0, kNullRefCode,
-  kGCPrefix, kExprBrOnStruct, 0,
+  kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kStructRefCode,
+  kGCPrefix, kExprBrOnCast, 0b11, 0, kAnyRefCode, kNullRefCode,
+  kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kStructRefCode,
   kExprUnreachable,
 ]);
 

@@ -5,7 +5,7 @@ import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
 
-describe('ESM: thenable loader hooks', { concurrency: true }, () => {
+describe('ESM: thenable loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should behave as a normal promise resolution', async () => {
     const { code, stderr } = await spawnPromisified(execPath, [
       '--experimental-loader',

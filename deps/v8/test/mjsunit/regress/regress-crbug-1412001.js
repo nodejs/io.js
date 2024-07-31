@@ -1,8 +1,8 @@
 // Copyright 2023 the V8 project authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-//
-// Flags: --harmony-rab-gsab --allow-natives-syntax --turbo-rab-gsab
+
+// Flags: --allow-natives-syntax
 
 const ab = new ArrayBuffer(100, {maxByteLength: 200});
 var dv = new DataView(ab, 0, 8); // "var" is important

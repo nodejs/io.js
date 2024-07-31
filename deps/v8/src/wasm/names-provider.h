@@ -38,8 +38,6 @@ class V8_EXPORT_PRIVATE NamesProvider {
                 base::Vector<const uint8_t> wire_bytes);
   ~NamesProvider();
 
-  // Returns {false} if {devtools_behavior} == false and no name for
-  // {function_index} was present in the name section.
   void PrintFunctionName(StringBuilder& out, uint32_t function_index,
                          FunctionNamesBehavior behavior = kWasmInternal,
                          IndexAsComment index_as_comment = kDontPrintIndex);

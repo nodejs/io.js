@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <vector>
+
 extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv);
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 
@@ -16,41 +18,42 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  if (argc < 2) {
-    fprintf(stderr, "USAGE: %s <input>\n", argv[0]);
-    return 1;
-  }
+  std::vector<uint8_t> input_data;
 
-  FILE* input = fopen(argv[1], "rb");
+  bool after_dash_dash = false;
+  for (int arg_idx = 1; arg_idx < argc; ++arg_idx) {
+    const char* const arg = argv[arg_idx];
+    // Ignore first '--' argument.
+    if (!after_dash_dash && arg[0] == '-' && arg[1] == '-' && arg[2] == '\0') {
+      after_dash_dash = true;
+      continue;
+    }
 
-  if (!input) {
-    fprintf(stderr, "Failed to open '%s'\n", argv[1]);
-    return 1;
-  }
+    FILE* input = fopen(arg, "rb");
+    if (!input) {
+      fprintf(stderr, "Failed to open '%s'\n", arg);
+      return 1;
+    }
 
-  fseek(input, 0, SEEK_END);
-  size_t size = ftell(input);
-  fseek(input, 0, SEEK_SET);
+    fseek(input, 0, SEEK_END);
+    size_t size = ftell(input);
+    fseek(input, 0, SEEK_SET);
 
-  uint8_t* data = reinterpret_cast<uint8_t*>(malloc(size));
-  if (!data) {
+    size_t old_size = input_data.size();
+    input_data.resize(old_size + size);
+
+    size_t bytes_read = fread(input_data.data() + old_size, 1, size, input);
     fclose(input);
-    fprintf(stderr, "Failed to allocate %zu bytes\n", size);
-    return 1;
+
+    if (bytes_read != size) {
+      fprintf(stderr, "Failed to read %zu bytes from %s\n", size, arg);
+      return 1;
+    }
   }
 
-  size_t bytes_read = fread(data, 1, size, input);
-  fclose(input);
+  // Ensure that {input_data.data()} is not {nullptr} to avoid having to handle
+  // this in specific fuzzers.
+  if (input_data.empty()) input_data.reserve(1);
 
-  if (bytes_read != static_cast<size_t>(size)) {
-    free(data);
-    fprintf(stderr, "Failed to read %s\n", argv[1]);
-    return 1;
-  }
-
-  int result = LLVMFuzzerTestOneInput(data, size);
-
-  free(data);
-
-  return result;
+  return LLVMFuzzerTestOneInput(input_data.data(), input_data.size());
 }

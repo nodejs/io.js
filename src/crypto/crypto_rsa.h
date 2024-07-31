@@ -114,10 +114,9 @@ struct RSACipherTraits final {
 
 using RSACipherJob = CipherJob<RSACipherTraits>;
 
-v8::Maybe<bool> ExportJWKRsaKey(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    v8::Local<v8::Object> target);
+v8::Maybe<void> ExportJWKRsaKey(Environment* env,
+                                std::shared_ptr<KeyObjectData> key,
+                                v8::Local<v8::Object> target);
 
 std::shared_ptr<KeyObjectData> ImportJWKRsaKey(
     Environment* env,

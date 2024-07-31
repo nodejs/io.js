@@ -997,6 +997,7 @@ static void *rsa_dupctx(void *vprsactx)
     *dstctx = *srcctx;
     dstctx->rsa = NULL;
     dstctx->md = NULL;
+    dstctx->mgf1_md = NULL;
     dstctx->mdctx = NULL;
     dstctx->tbuf = NULL;
     dstctx->propq = NULL;

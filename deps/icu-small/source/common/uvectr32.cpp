@@ -39,7 +39,7 @@ UVector32::UVector32(int32_t initialCapacity, UErrorCode &status) :
     count(0),
     capacity(0),
     maxCapacity(0),
-    elements(0)
+    elements(nullptr)
 {
     _init(initialCapacity, status);
 }
@@ -58,7 +58,7 @@ void UVector32::_init(int32_t initialCapacity, UErrorCode &status) {
         initialCapacity = uprv_min(DEFAULT_CAPACITY, maxCapacity);
     }
     elements = (int32_t *)uprv_malloc(sizeof(int32_t)*initialCapacity);
-    if (elements == 0) {
+    if (elements == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
     } else {
         capacity = initialCapacity;
@@ -67,7 +67,7 @@ void UVector32::_init(int32_t initialCapacity, UErrorCode &status) {
 
 UVector32::~UVector32() {
     uprv_free(elements);
-    elements = 0;
+    elements = nullptr;
 }
 
 /**

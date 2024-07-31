@@ -111,7 +111,7 @@ bytecodes: [
 ]
 constant pool: [
   SCOPE_INFO_TYPE,
-  FIXED_ARRAY_TYPE,
+  CLASS_BOILERPLATE_TYPE,
   SHARED_FUNCTION_INFO_TYPE,
 ]
 handlers: [

@@ -24,13 +24,11 @@ class Session;
 // should use when communicating with this session.
 class TransportParams final {
  public:
-  enum class Type {
-    CLIENT_HELLO = NGTCP2_TRANSPORT_PARAMS_TYPE_CLIENT_HELLO,
-    ENCRYPTED_EXTENSIONS = NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS,
-  };
-
   static void Initialize(Environment* env, v8::Local<v8::Object> target);
 
+  static constexpr int QUIC_TRANSPORT_PARAMS_V1 = NGTCP2_TRANSPORT_PARAMS_V1;
+  static constexpr int QUIC_TRANSPORT_PARAMS_VERSION =
+      NGTCP2_TRANSPORT_PARAMS_VERSION;
   static constexpr uint64_t DEFAULT_MAX_STREAM_DATA = 256 * 1024;
   static constexpr uint64_t DEFAULT_MAX_DATA = 1 * 1024 * 1024;
   static constexpr uint64_t DEFAULT_MAX_IDLE_TIMEOUT = 10;  // seconds
@@ -48,6 +46,8 @@ class TransportParams final {
   };
 
   struct Options : public MemoryRetainer {
+    int transportParamsVersion = QUIC_TRANSPORT_PARAMS_V1;
+
     // Set only on server Sessions, the preferred address communicates the IP
     // address and port that the server would prefer the client to use when
     // communicating with it. See the QUIC specification for more detail on how
@@ -116,15 +116,17 @@ class TransportParams final {
     SET_MEMORY_INFO_NAME(TransportParams::Options)
     SET_SELF_SIZE(Options)
 
-    static v8::Maybe<const Options> From(Environment* env,
-                                         v8::Local<v8::Value> value);
+    static v8::Maybe<Options> From(Environment* env,
+                                   v8::Local<v8::Value> value);
+
+    std::string ToString() const;
   };
 
-  explicit TransportParams(Type type);
+  explicit TransportParams();
 
   // Creates an instance of TransportParams wrapping the existing const
   // ngtcp2_transport_params pointer.
-  TransportParams(Type type, const ngtcp2_transport_params* ptr);
+  TransportParams(const ngtcp2_transport_params* ptr);
 
   TransportParams(const Config& config, const Options& options);
 
@@ -132,14 +134,13 @@ class TransportParams final {
   // If the parameters cannot be successfully decoded, the error()
   // property will be set with an appropriate QuicError and the bool()
   // operator will return false.
-  TransportParams(Type type, const ngtcp2_vec& buf);
+  TransportParams(const ngtcp2_vec& buf,
+                  int version = QUIC_TRANSPORT_PARAMS_V1);
 
   void GenerateSessionTokens(Session* session);
   void GenerateStatelessResetToken(const Endpoint& endpoint, const CID& cid);
   void GeneratePreferredAddressToken(Session* session);
   void SetPreferredAddress(const SocketAddress& address);
-
-  Type type() const;
 
   operator const ngtcp2_transport_params&() const;
   operator const ngtcp2_transport_params*() const;
@@ -151,10 +152,9 @@ class TransportParams final {
   // Returns an ArrayBuffer containing the encoded transport parameters.
   // If an error occurs during encoding, an empty shared_ptr will be returned
   // and the error() property will be set to an appropriate QuicError.
-  Store Encode(Environment* env);
+  Store Encode(Environment* env, int version = QUIC_TRANSPORT_PARAMS_V1);
 
  private:
-  Type type_;
   ngtcp2_transport_params params_{};
   const ngtcp2_transport_params* ptr_;
   QuicError error_ = QuicError::TRANSPORT_NO_ERROR;

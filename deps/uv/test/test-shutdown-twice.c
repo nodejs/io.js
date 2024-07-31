@@ -37,8 +37,8 @@ static void close_cb(uv_handle_t* handle) {
 }
 
 static void shutdown_cb(uv_shutdown_t* req, int status) {
-  ASSERT(req == &req1);
-  ASSERT(status == 0);
+  ASSERT_PTR_EQ(req, &req1);
+  ASSERT_OK(status);
   shutdown_cb_called++;
   uv_close((uv_handle_t*) req->handle, close_cb);
 }
@@ -46,12 +46,12 @@ static void shutdown_cb(uv_shutdown_t* req, int status) {
 static void connect_cb(uv_connect_t* req, int status) {
   int r;
 
-  ASSERT(status == 0);
+  ASSERT_OK(status);
 
   r = uv_shutdown(&req1, req->handle, shutdown_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_shutdown(&req2, req->handle, shutdown_cb);
-  ASSERT(r != 0);
+  ASSERT(r);
 
 }
 
@@ -63,22 +63,22 @@ TEST_IMPL(shutdown_twice) {
 
   uv_connect_t connect_req;
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
   loop = uv_default_loop();
 
   r = uv_tcp_init(loop, &h);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_tcp_connect(&connect_req,
                      &h,
                      (const struct sockaddr*) &addr,
                      connect_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_run(loop, UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(shutdown_cb_called == 1);
+  ASSERT_EQ(1, shutdown_cb_called);
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

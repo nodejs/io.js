@@ -14,6 +14,7 @@ type Uint16Elements extends ElementsKind;
 type Int16Elements extends ElementsKind;
 type Uint32Elements extends ElementsKind;
 type Int32Elements extends ElementsKind;
+type Float16Elements extends ElementsKind;
 type Float32Elements extends ElementsKind;
 type Float64Elements extends ElementsKind;
 type Uint8ClampedElements extends ElementsKind;
@@ -25,7 +26,6 @@ type RabGsabUint8Elements extends ElementsKind;
 struct TypedArrayElementsInfo {
   // Calculates the number of bytes required for specified number of elements.
   macro CalculateByteLength(length: uintptr): uintptr labels IfInvalid {
-    if (length > kTypedArrayMaxLength) goto IfInvalid;
     const maxArrayLength = kArrayBufferMaxByteLength >>> this.sizeLog2;
     if (length > maxArrayLength) goto IfInvalid;
     const byteLength = length << this.sizeLog2;
@@ -34,10 +34,8 @@ struct TypedArrayElementsInfo {
 
   // Calculates the maximum number of elements supported by a specified number
   // of bytes.
-  macro CalculateLength(byteLength: uintptr): uintptr labels IfInvalid {
-    const length = byteLength >>> this.sizeLog2;
-    if (length > kTypedArrayMaxLength) goto IfInvalid;
-    return length;
+  macro CalculateLength(byteLength: uintptr): uintptr {
+    return byteLength >>> this.sizeLog2;
   }
 
   // Determines if `bytes` (byte offset or length) cannot be evenly divided by
@@ -149,6 +147,8 @@ macro GetTypedArrayAccessor(elementsKindParam: ElementsKind):
   if (IsElementsKindGreaterThan(elementsKind, ElementsKind::UINT32_ELEMENTS)) {
     if (elementsKind == ElementsKind::INT32_ELEMENTS) {
       return GetTypedArrayAccessor<Int32Elements>();
+    } else if (elementsKind == ElementsKind::FLOAT16_ELEMENTS) {
+      return GetTypedArrayAccessor<Float16Elements>();
     } else if (elementsKind == ElementsKind::FLOAT32_ELEMENTS) {
       return GetTypedArrayAccessor<Float32Elements>();
     } else if (elementsKind == ElementsKind::FLOAT64_ELEMENTS) {
@@ -268,6 +268,9 @@ KindForArrayType<Uint32Elements>(): constexpr ElementsKind {
 }
 KindForArrayType<Int32Elements>(): constexpr ElementsKind {
   return ElementsKind::INT32_ELEMENTS;
+}
+KindForArrayType<Float16Elements>(): constexpr ElementsKind {
+  return ElementsKind::FLOAT16_ELEMENTS;
 }
 KindForArrayType<Float32Elements>(): constexpr ElementsKind {
   return ElementsKind::FLOAT32_ELEMENTS;

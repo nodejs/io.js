@@ -66,6 +66,8 @@ public:
     char16_t getDecimalPoint() const { return decimalPoint; }
 
     int64_t getDivisor() const;
+    
+    bool hasModulusSubstitution() const;
 
     void doFormat(int64_t number, UnicodeString& toAppendTo, int32_t pos, int32_t recursionCount, UErrorCode& status) const;
     void doFormat(double  number, UnicodeString& toAppendTo, int32_t pos, int32_t recursionCount, UErrorCode& status) const;
@@ -117,6 +119,9 @@ private:
 
     NFRule(const NFRule &other); // forbid copying of this class
     NFRule &operator=(const NFRule &other); // forbid copying of this class
+    
+    // TODO: temporary hack to allow MultiplierSubstitution to get to formatter's rounding mode
+    friend class MultiplierSubstitution;
 };
 
 U_NAMESPACE_END

@@ -80,6 +80,9 @@
                         }
 
                         testFormat(format, algorithm, data, curve, usages, extractable);
+                        if (vector.name === 'ECDH' && format === 'jwk') {
+                            testEcdhJwkAlg(algorithm, { ...data.jwk, alg: 'any alg works here' }, curve, usages, extractable);
+                        }
                     });
 
                 });
@@ -90,11 +93,13 @@
                     var data = keyData[curve];
                     allValidUsages(vector.privateUsages).forEach(function(usages) {
                         testFormat(format, algorithm, data, curve, usages, extractable);
+                        if (vector.name === 'ECDH' && format === 'jwk') {
+                            testEcdhJwkAlg(algorithm, { ...data.jwk, alg: 'any alg works here' }, curve, usages, extractable);
+                        }
                     });
                     testEmptyUsages(format, algorithm, data, curve, extractable);
                 });
             });
-
         });
     });
 
@@ -149,6 +154,21 @@
                 assert_equals(err.name, "SyntaxError", "Should throw correct error, not " + err.name + ": " + err.message);
             });
         }, "Empty Usages: " + keySize.toString() + " bits " + parameterString(format, false, keyData, algorithm, extractable, usages));
+    }
+
+    // Test ECDH importKey with a JWK format
+    // Should succeed with any "alg" value
+    function testEcdhJwkAlg(algorithm, keyData, keySize, usages, extractable) {
+        const format = "jwk";
+        promise_test(function(test) {
+            return subtle.importKey(format, keyData, algorithm, extractable, usages).
+            then(function(key) {
+                assert_equals(key.constructor, CryptoKey, "Imported a CryptoKey object");
+                assert_goodCryptoKey(key, algorithm, extractable, usages, keyData.d ? 'private' : 'public');
+            }, function(err) {
+                assert_unreached("Threw an unexpected error: " + err.toString());
+            });
+        }, "ECDH any JWK alg: " + keySize.toString() + " bits " + parameterString(format, false, keyData, algorithm, extractable, usages));
     }
 
 

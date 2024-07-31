@@ -77,7 +77,7 @@ void UnitsRouter::init(const MeasureUnit &inputUnit, const Locale &locale, Strin
         prefs.getPreferencesFor(category.toStringPiece(), usage, locale, status);
     for (int32_t i = 0, n = unitPrefs.length(); i < n; ++i) {
         U_ASSERT(unitPrefs[i] != nullptr);
-        const auto preference = unitPrefs[i];
+        const auto* const preference = unitPrefs[i];
 
         MeasureUnitImpl complexTargetUnitImpl =
             MeasureUnitImpl::forIdentifier(preference->unit.data(), status);

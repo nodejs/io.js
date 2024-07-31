@@ -1,6 +1,6 @@
 {
   "name": "proc-log",
-  "version": "3.0.0",
+  "version": "4.2.0",
   "files": [
     "bin/",
     "lib/"
@@ -18,14 +18,14 @@
     "snap": "tap",
     "posttest": "npm run lint",
     "postsnap": "eslint index.js test/*.js --fix",
-    "lint": "eslint \"**/*.js\"",
+    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
     "postlint": "template-oss-check",
     "lintfix": "npm run lint -- --fix",
     "template-oss-apply": "template-oss-apply --force"
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^3.0.1",
-    "@npmcli/template-oss": "4.5.1",
+    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/template-oss": "4.21.3",
     "tap": "^16.0.1"
   },
   "engines": {
@@ -33,7 +33,8 @@
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.5.1"
+    "version": "4.21.3",
+    "publish": true
   },
   "tap": {
     "nyc-arg": [

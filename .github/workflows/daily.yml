@@ -13,21 +13,19 @@ permissions:
 
 jobs:
   build-lto:
-    runs-on: ubuntu-latest
-    # not working on gcc-8 and gcc-9 see https://github.com/nodejs/node/issues/38570
-    container: gcc:11
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608  # v4.1.0
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
         with:
           persist-credentials: false
       - name: Use Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@5e21ff4d9bc1a8cf6de233a3057d20ec6b3fb69d  # v3.8.1
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Environment Information
         run: npx envinfo
       - name: Build lto
         run: |
-          apt-get update && apt-get install ninja-build python-is-python3 -y
+          sudo apt-get update && sudo apt-get install ninja-build -y
           ./configure --enable-lto --ninja
           ninja -C out/Release

@@ -1,0 +1,40 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("nghttp2_gn_build") {
+  config("nghttp2_config") {
+    include_dirs = [ "lib/includes" ]
+    if (!is_component_build) {
+      defines = [ "NGHTTP2_STATICLIB" ]
+    }
+  }
+
+  gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                            [ rebase_path("nghttp2.gyp") ],
+                            "scope",
+                            [ "nghttp2.gyp" ])
+
+  component(target_name) {
+    forward_variables_from(invoker, "*")
+
+    public_configs = [ ":nghttp2_config" ]
+    defines = [
+      "_U_",
+      "HAVE_CONFIG_H"
+    ]
+    if (is_component_build) {
+      defines += [ "BUILDING_NGHTTP2" ]
+    }
+
+    sources = gypi_values.nghttp2_sources
+
+    if (is_clang || !is_win) {
+      cflags_c = [
+        "-Wno-implicit-fallthrough",
+      ]
+    }
+  }
+}

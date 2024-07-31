@@ -8,7 +8,7 @@ if (process.platform === 'linux' || process.platform === 'darwin') {
 } else if (process.platform === 'win32') {
   defaultShell = 'cmd.exe';
 } else {
-  common.skip('This is test exists only on Linux/Win32/OSX');
+  common.skip('This is test exists only on Linux/Win32/macOS');
 }
 
 const { execSync } = require('child_process');

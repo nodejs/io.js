@@ -6,20 +6,20 @@ import { describe, it } from 'node:test';
 
 
 // Expect note to be included in the error output
-const expectedNote = 'To load an ES module, ' +
-'set "type": "module" in the package.json ' +
-'or use the .mjs extension.';
+// Don't match the following sentence because it can change as features are
+// added.
+const expectedNote = 'Warning: To load an ES module';
 
 const mustIncludeMessage = {
-  getMessage: () => (stderr) => `${expectedNote} not found in ${stderr}`,
+  getMessage: (stderr) => `${expectedNote} not found in ${stderr}`,
   includeNote: true,
 };
 const mustNotIncludeMessage = {
-  getMessage: () => (stderr) => `${expectedNote} must not be included in ${stderr}`,
+  getMessage: (stderr) => `${expectedNote} must not be included in ${stderr}`,
   includeNote: false,
 };
 
-describe('ESM: Errors for unexpected exports', { concurrency: true }, () => {
+describe('ESM: Errors for unexpected exports', { concurrency: !process.env.TEST_PARALLEL }, () => {
   for (
     const { errorNeedle, filePath, getMessage, includeNote }
     of [

@@ -586,7 +586,6 @@ void Sampler::Stop() {
 void Sampler::DoSample() {
   base::RecursiveMutexGuard lock_guard(SignalHandler::mutex());
   if (!SignalHandler::Installed()) return;
-  DCHECK(IsActive());
   SetShouldRecordSample();
   pthread_kill(platform_data()->vm_tid(), SIGPROF);
 }

@@ -379,7 +379,7 @@ def _GenerateTargets(data, target_list, target_dicts, toplevel_dir, files, build
         target.is_executable = target_type == "executable"
         target.is_static_library = target_type == "static_library"
         target.is_or_has_linked_ancestor = (
-            target_type == "executable" or target_type == "shared_library"
+            target_type in {"executable", "shared_library"}
         )
 
         build_file = gyp.common.ParseQualifiedTarget(target_name)[0]
@@ -433,14 +433,14 @@ def _GetUnqualifiedToTargetMapping(all_targets, to_find):
     if not to_find:
         return {}, []
     to_find = set(to_find)
-    for target_name in all_targets.keys():
+    for target_name in all_targets:
         extracted = gyp.common.ParseQualifiedTarget(target_name)
         if len(extracted) > 1 and extracted[1] in to_find:
             to_find.remove(extracted[1])
             result[extracted[1]] = all_targets[target_name]
             if not to_find:
                 return result, []
-    return result, [x for x in to_find]
+    return result, list(to_find)
 
 
 def _DoesTargetDependOnMatchingTargets(target):
@@ -451,8 +451,8 @@ def _DoesTargetDependOnMatchingTargets(target):
     if target.match_status == MATCH_STATUS_DOESNT_MATCH:
         return False
     if (
-        target.match_status == MATCH_STATUS_MATCHES
-        or target.match_status == MATCH_STATUS_MATCHES_BY_DEPENDENCY
+        target.match_status in {MATCH_STATUS_MATCHES,
+                                MATCH_STATUS_MATCHES_BY_DEPENDENCY}
     ):
         return True
     for dep in target.deps:
@@ -683,11 +683,9 @@ class TargetCalculator:
         )
         test_target_names_contains_all = "all" in self._test_target_names
         if test_target_names_contains_all:
-            test_targets = [
-                x for x in (set(test_targets_no_all) | set(self._root_targets))
-            ]
+            test_targets = list(set(test_targets_no_all) | set(self._root_targets))
         else:
-            test_targets = [x for x in test_targets_no_all]
+            test_targets = list(test_targets_no_all)
         print("supplied test_targets")
         for target_name in self._test_target_names:
             print("\t", target_name)
@@ -702,9 +700,9 @@ class TargetCalculator:
         if matching_test_targets_contains_all:
             # Remove any of the targets for all that were not explicitly supplied,
             # 'all' is subsequentely added to the matching names below.
-            matching_test_targets = [
-                x for x in (set(matching_test_targets) & set(test_targets_no_all))
-            ]
+            matching_test_targets = list(
+                set(matching_test_targets) & set(test_targets_no_all)
+            )
         print("matched test_targets")
         for target in matching_test_targets:
             print("\t", target.name)
@@ -729,9 +727,7 @@ class TargetCalculator:
             self._supplied_target_names_no_all(), self._unqualified_mapping
         )
         if "all" in self._supplied_target_names():
-            supplied_targets = [
-                x for x in (set(supplied_targets) | set(self._root_targets))
-            ]
+            supplied_targets = list(set(supplied_targets) | set(self._root_targets))
         print("Supplied test_targets & compile_targets")
         for target in supplied_targets:
             print("\t", target.name)

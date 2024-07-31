@@ -16,7 +16,7 @@ function WasmAtomicNotify(memory, offset, index, num) {
       kExprLocalGet, 0,
       kExprLocalGet, 1,
       kAtomicPrefix,
-      kExprAtomicNotify, /* alignment */ 0, offset])
+      kExprAtomicNotify, /* alignment */ 2, offset])
     .exportAs("main");
 
   // Instantiate module, get function exports
@@ -36,7 +36,7 @@ function WasmI32AtomicWait(memory, offset, index, val, timeout) {
       kExprLocalGet, 2,
       kExprI64SConvertF64,
       kAtomicPrefix,
-      kExprI32AtomicWait, /* alignment */ 0, offset])
+      kExprI32AtomicWait, /* alignment */ 2, offset])
       .exportAs("main");
 
   // Instantiate module, get function exports
@@ -68,7 +68,7 @@ function WasmI64AtomicWait(memory, offset, index, val_low,
       kExprLocalGet, 3,
       kExprI64SConvertF64,
       kAtomicPrefix,
-      kExprI64AtomicWait, /* alignment */ 0, offset])
+      kExprI64AtomicWait, /* alignment */ 3, offset])
       .exportAs("main");
 
   // Instantiate module, get function exports

@@ -81,22 +81,6 @@ inline int ByteWidthForStackSlot(MachineRepresentation rep) {
   UNREACHABLE();
 }
 
-class RegisterAllocationData : public ZoneObject {
- public:
-  enum Type {
-    kTopTier,
-    kMidTier,
-  };
-
-  Type type() const { return type_; }
-
- protected:
-  explicit RegisterAllocationData(Type type) : type_(type) {}
-
- private:
-  Type type_;
-};
-
 }  // namespace compiler
 }  // namespace internal
 }  // namespace v8

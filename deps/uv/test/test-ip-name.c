@@ -40,20 +40,20 @@ TEST_IMPL(ip_name) {
     struct sockaddr_in6* addr6 = &test_addr.addr6;
 
     /* test ip4_name */
-    ASSERT_EQ(0, uv_ip4_addr("192.168.0.1", TEST_PORT, addr4));
-    ASSERT_EQ(0, uv_ip4_name(addr4, dst, INET_ADDRSTRLEN));
-    ASSERT_EQ(0, strcmp("192.168.0.1", dst));
+    ASSERT_OK(uv_ip4_addr("192.168.0.1", TEST_PORT, addr4));
+    ASSERT_OK(uv_ip4_name(addr4, dst, INET_ADDRSTRLEN));
+    ASSERT_OK(strcmp("192.168.0.1", dst));
 
-    ASSERT_EQ(0, uv_ip_name(addr, dst, INET_ADDRSTRLEN));
-    ASSERT_EQ(0, strcmp("192.168.0.1", dst));
+    ASSERT_OK(uv_ip_name(addr, dst, INET_ADDRSTRLEN));
+    ASSERT_OK(strcmp("192.168.0.1", dst));
 
     /* test ip6_name */
-    ASSERT_EQ(0, uv_ip6_addr("fe80::2acf:daff:fedd:342a", TEST_PORT, addr6));
-    ASSERT_EQ(0, uv_ip6_name(addr6, dst, INET6_ADDRSTRLEN));
-    ASSERT_EQ(0, strcmp("fe80::2acf:daff:fedd:342a", dst));
+    ASSERT_OK(uv_ip6_addr("fe80::2acf:daff:fedd:342a", TEST_PORT, addr6));
+    ASSERT_OK(uv_ip6_name(addr6, dst, INET6_ADDRSTRLEN));
+    ASSERT_OK(strcmp("fe80::2acf:daff:fedd:342a", dst));
 
-    ASSERT_EQ(0, uv_ip_name(addr, dst, INET6_ADDRSTRLEN));
-    ASSERT_EQ(0, strcmp("fe80::2acf:daff:fedd:342a", dst));
+    ASSERT_OK(uv_ip_name(addr, dst, INET6_ADDRSTRLEN));
+    ASSERT_OK(strcmp("fe80::2acf:daff:fedd:342a", dst));
 
     /* test other sa_family */
     addr->sa_family = AF_UNIX;

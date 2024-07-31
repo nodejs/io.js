@@ -5,6 +5,8 @@ import Dispatcher from "./dispatcher";
 
 export default Pool
 
+type PoolConnectOptions = Omit<Dispatcher.ConnectOptions, "origin">;
+
 declare class Pool extends Dispatcher {
   constructor(url: string | URL, options?: Pool.Options)
   /** `true` after `pool.close()` has been called. */
@@ -13,6 +15,15 @@ declare class Pool extends Dispatcher {
   destroyed: boolean;
   /** Aggregate stats for a Pool. */
   readonly stats: TPoolStats;
+
+  // Override dispatcher APIs.
+  override connect(
+    options: PoolConnectOptions
+  ): Promise<Dispatcher.ConnectData>;
+  override connect(
+    options: PoolConnectOptions,
+    callback: (err: Error | null, data: Dispatcher.ConnectData) => void
+  ): void;
 }
 
 declare namespace Pool {

@@ -29,16 +29,16 @@ static char data;
 
 
 static void work_cb(uv_work_t* req) {
-  ASSERT(req == &work_req);
-  ASSERT(req->data == &data);
+  ASSERT_PTR_EQ(req, &work_req);
+  ASSERT_PTR_EQ(req->data, &data);
   work_cb_count++;
 }
 
 
 static void after_work_cb(uv_work_t* req, int status) {
-  ASSERT(status == 0);
-  ASSERT(req == &work_req);
-  ASSERT(req->data == &data);
+  ASSERT_OK(status);
+  ASSERT_PTR_EQ(req, &work_req);
+  ASSERT_PTR_EQ(req->data, &data);
   after_work_cb_count++;
 }
 
@@ -48,11 +48,11 @@ TEST_IMPL(threadpool_queue_work_simple) {
 
   work_req.data = &data;
   r = uv_queue_work(uv_default_loop(), &work_req, work_cb, after_work_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(work_cb_count == 1);
-  ASSERT(after_work_cb_count == 1);
+  ASSERT_EQ(1, work_cb_count);
+  ASSERT_EQ(1, after_work_cb_count);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -64,12 +64,12 @@ TEST_IMPL(threadpool_queue_work_einval) {
 
   work_req.data = &data;
   r = uv_queue_work(uv_default_loop(), &work_req, NULL, after_work_cb);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(work_cb_count == 0);
-  ASSERT(after_work_cb_count == 0);
+  ASSERT_OK(work_cb_count);
+  ASSERT_OK(after_work_cb_count);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

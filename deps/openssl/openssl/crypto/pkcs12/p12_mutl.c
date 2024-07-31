@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -95,6 +95,11 @@ static int pkcs12_gen_mac(PKCS12 *p12, const char *pass, int passlen,
 
     if (!PKCS7_type_is_data(p12->authsafes)) {
         ERR_raise(ERR_LIB_PKCS12, PKCS12_R_CONTENT_TYPE_NOT_DATA);
+        return 0;
+    }
+
+    if (p12->authsafes->d.data == NULL) {
+        ERR_raise(ERR_LIB_PKCS12, PKCS12_R_DECODE_ERROR);
         return 0;
     }
 

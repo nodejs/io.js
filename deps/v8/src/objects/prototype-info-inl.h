@@ -24,26 +24,106 @@ namespace internal {
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(PrototypeInfo)
 
-DEF_GETTER(PrototypeInfo, object_create_map, MaybeObject) {
-  return TaggedField<MaybeObject, kObjectCreateMapOffset>::load(cage_base,
-                                                                *this);
+DEF_GETTER(PrototypeInfo, derived_maps, Tagged<HeapObject>) {
+  return TaggedField<HeapObject, kDerivedMapsOffset>::load(cage_base, *this);
 }
-RELEASE_ACQUIRE_WEAK_ACCESSORS(PrototypeInfo, object_create_map,
-                               kObjectCreateMapOffset)
+RELEASE_ACQUIRE_ACCESSORS(PrototypeInfo, derived_maps, Tagged<HeapObject>,
+                          kDerivedMapsOffset)
 
-Tagged<Map> PrototypeInfo::ObjectCreateMap() {
-  return Map::cast(object_create_map().GetHeapObjectAssumeWeak());
+Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap() {
+  auto derived = derived_maps();
+  if (IsUndefined(derived)) {
+    return Tagged<MaybeObject>();
+  }
+  // Index 0 is the map for object create
+  Tagged<WeakArrayList> derived_list = Tagged<WeakArrayList>::cast(derived);
+  DCHECK_GT(derived_list->length(), 0);
+  Tagged<MaybeObject> el = derived_list->Get(0);
+  DCHECK(el.IsWeakOrCleared());
+  return el;
+}
+
+Tagged<MaybeObject> PrototypeInfo::ObjectCreateMap(AcquireLoadTag tag) {
+  auto derived = derived_maps(tag);
+  if (IsUndefined(derived)) {
+    return Tagged<MaybeObject>();
+  }
+  // Index 0 is the map for object create
+  Tagged<WeakArrayList> derived_list = Tagged<WeakArrayList>::cast(derived);
+  DCHECK_GT(derived_list->length(), 0);
+  Tagged<MaybeObject> el = derived_list->Get(0);
+  DCHECK(el.IsWeakOrCleared());
+  return el;
 }
 
 // static
 void PrototypeInfo::SetObjectCreateMap(Handle<PrototypeInfo> info,
-                                       Handle<Map> map) {
-  info->set_object_create_map(HeapObjectReference::Weak(*map), kReleaseStore);
+                                       Handle<Map> map, Isolate* isolate) {
+  if (IsUndefined(info->derived_maps())) {
+    Tagged<WeakArrayList> derived = *isolate->factory()->NewWeakArrayList(1);
+    derived->Set(0, MakeWeak(*map));
+    derived->set_length(1);
+    info->set_derived_maps(derived, kReleaseStore);
+  } else {
+    Tagged<WeakArrayList> derived =
+        Tagged<WeakArrayList>::cast(info->derived_maps());
+    DCHECK(derived->Get(0).IsCleared());
+    DCHECK_GT(derived->length(), 0);
+    derived->Set(0, MakeWeak(*map));
+  }
 }
 
-bool PrototypeInfo::HasObjectCreateMap() {
-  MaybeObject cache = object_create_map();
-  return cache->IsWeak();
+Tagged<MaybeObject> PrototypeInfo::GetDerivedMap(Handle<Map> from) {
+  if (IsUndefined(derived_maps())) {
+    return Tagged<MaybeObject>();
+  }
+  auto derived = Tagged<WeakArrayList>::cast(derived_maps());
+  // Index 0 is the map for object create
+  for (int i = 1; i < derived->length(); ++i) {
+    Tagged<MaybeObject> el = derived->Get(i);
+    Tagged<Map> map_obj;
+    if (el.GetHeapObjectIfWeak(&map_obj)) {
+      Tagged<Map> to = Tagged<Map>::cast(map_obj);
+      if (to->GetConstructor() == from->GetConstructor() &&
+          to->instance_type() == from->instance_type()) {
+        return el;
+      }
+    }
+  }
+  return Tagged<MaybeObject>();
+}
+
+// static
+void PrototypeInfo::AddDerivedMap(Handle<PrototypeInfo> info, Handle<Map> to,
+                                  Isolate* isolate) {
+  if (IsUndefined(info->derived_maps())) {
+    // Index 0 is the map for object create
+    Tagged<WeakArrayList> derived = *isolate->factory()->NewWeakArrayList(2);
+    // GetConstructMap assumes a weak pointer.
+    derived->Set(0, ClearedValue(isolate));
+    derived->Set(1, MakeWeak(*to));
+    derived->set_length(2);
+    info->set_derived_maps(derived, kReleaseStore);
+    return;
+  }
+  auto derived =
+      handle(Tagged<WeakArrayList>::cast(info->derived_maps()), isolate);
+  // Index 0 is the map for object create
+  int i = 1;
+  for (; i < derived->length(); ++i) {
+    Tagged<MaybeObject> el = derived->Get(i);
+    if (el.IsCleared()) {
+      derived->Set(i, MakeWeak(*to));
+      return;
+    }
+  }
+
+  auto bigger = WeakArrayList::EnsureSpace(isolate, derived, i + 1);
+  bigger->Set(i, MakeWeak(*to));
+  bigger->set_length(i + 1);
+  if (*bigger != *derived) {
+    info->set_derived_maps(*bigger, kReleaseStore);
+  }
 }
 
 bool PrototypeInfo::IsPrototypeInfoFast(Tagged<Object> object) {
@@ -60,7 +140,7 @@ void PrototypeUsers::MarkSlotEmpty(Tagged<WeakArrayList> array, int index) {
   DCHECK_LT(index, array->length());
   // Chain the empty slots into a linked list (each empty slot contains the
   // index of the next empty slot).
-  array->Set(index, MaybeObject::FromObject(empty_slot_index(array)));
+  array->Set(index, empty_slot_index(array));
   set_empty_slot_index(array, index);
 }
 
@@ -70,7 +150,7 @@ Tagged<Smi> PrototypeUsers::empty_slot_index(Tagged<WeakArrayList> array) {
 
 void PrototypeUsers::set_empty_slot_index(Tagged<WeakArrayList> array,
                                           int index) {
-  array->Set(kEmptySlotIndex, MaybeObject::FromObject(Smi::FromInt(index)));
+  array->Set(kEmptySlotIndex, Smi::FromInt(index));
 }
 
 }  // namespace internal

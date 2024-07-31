@@ -38,7 +38,7 @@ uint8_t *nghttp3_frame_write_hd(uint8_t *p, const nghttp3_frame_hd *hd) {
 }
 
 size_t nghttp3_frame_write_hd_len(const nghttp3_frame_hd *hd) {
-  return nghttp3_put_varint_len(hd->type) + nghttp3_put_varint_len(hd->length);
+  return nghttp3_put_varintlen(hd->type) + nghttp3_put_varintlen(hd->length);
 }
 
 uint8_t *nghttp3_frame_write_settings(uint8_t *p,
@@ -61,14 +61,14 @@ size_t nghttp3_frame_write_settings_len(int64_t *ppayloadlen,
   size_t i;
 
   for (i = 0; i < fr->niv; ++i) {
-    payloadlen += nghttp3_put_varint_len((int64_t)fr->iv[i].id) +
-                  nghttp3_put_varint_len((int64_t)fr->iv[i].value);
+    payloadlen += nghttp3_put_varintlen((int64_t)fr->iv[i].id) +
+                  nghttp3_put_varintlen((int64_t)fr->iv[i].value);
   }
 
   *ppayloadlen = (int64_t)payloadlen;
 
-  return nghttp3_put_varint_len(NGHTTP3_FRAME_SETTINGS) +
-         nghttp3_put_varint_len((int64_t)payloadlen) + payloadlen;
+  return nghttp3_put_varintlen(NGHTTP3_FRAME_SETTINGS) +
+         nghttp3_put_varintlen((int64_t)payloadlen) + payloadlen;
 }
 
 uint8_t *nghttp3_frame_write_goaway(uint8_t *p,
@@ -81,12 +81,12 @@ uint8_t *nghttp3_frame_write_goaway(uint8_t *p,
 
 size_t nghttp3_frame_write_goaway_len(int64_t *ppayloadlen,
                                       const nghttp3_frame_goaway *fr) {
-  size_t payloadlen = nghttp3_put_varint_len(fr->id);
+  size_t payloadlen = nghttp3_put_varintlen(fr->id);
 
   *ppayloadlen = (int64_t)payloadlen;
 
-  return nghttp3_put_varint_len(NGHTTP3_FRAME_GOAWAY) +
-         nghttp3_put_varint_len((int64_t)payloadlen) + payloadlen;
+  return nghttp3_put_varintlen(NGHTTP3_FRAME_GOAWAY) +
+         nghttp3_put_varintlen((int64_t)payloadlen) + payloadlen;
 }
 
 uint8_t *
@@ -94,17 +94,8 @@ nghttp3_frame_write_priority_update(uint8_t *p,
                                     const nghttp3_frame_priority_update *fr) {
   p = nghttp3_frame_write_hd(p, &fr->hd);
   p = nghttp3_put_varint(p, fr->pri_elem_id);
-
-  assert(fr->pri.urgency <= NGHTTP3_URGENCY_LOW);
-
-  *p++ = 'u';
-  *p++ = '=';
-  *p++ = (uint8_t)('0' + fr->pri.urgency);
-
-  if (fr->pri.inc) {
-#define NGHTTP3_PRIORITY_INCREMENTAL ", i"
-    p = nghttp3_cpymem(p, (const uint8_t *)NGHTTP3_PRIORITY_INCREMENTAL,
-                       sizeof(NGHTTP3_PRIORITY_INCREMENTAL) - 1);
+  if (fr->datalen) {
+    p = nghttp3_cpymem(p, fr->data, fr->datalen);
   }
 
   return p;
@@ -112,13 +103,12 @@ nghttp3_frame_write_priority_update(uint8_t *p,
 
 size_t nghttp3_frame_write_priority_update_len(
     int64_t *ppayloadlen, const nghttp3_frame_priority_update *fr) {
-  size_t payloadlen = nghttp3_put_varint_len(fr->pri_elem_id) + sizeof("u=U") -
-                      1 + (fr->pri.inc ? sizeof(", i") - 1 : 0);
+  size_t payloadlen = nghttp3_put_varintlen(fr->pri_elem_id) + fr->datalen;
 
   *ppayloadlen = (int64_t)payloadlen;
 
-  return nghttp3_put_varint_len(fr->hd.type) +
-         nghttp3_put_varint_len((int64_t)payloadlen) + payloadlen;
+  return nghttp3_put_varintlen(fr->hd.type) +
+         nghttp3_put_varintlen((int64_t)payloadlen) + payloadlen;
 }
 
 int nghttp3_nva_copy(nghttp3_nv **pnva, const nghttp3_nv *nva, size_t nvlen,
@@ -164,11 +154,11 @@ int nghttp3_nva_copy(nghttp3_nv **pnva, const nghttp3_nv *nva, size_t nvlen,
     } else {
       if (nva[i].namelen) {
         memcpy(data, nva[i].name, nva[i].namelen);
+        nghttp3_downcase(data, nva[i].namelen);
       }
       p->name = data;
       p->namelen = nva[i].namelen;
       data[p->namelen] = '\0';
-      nghttp3_downcase(p->name, p->namelen);
       data += nva[i].namelen + 1;
     }
 
@@ -201,4 +191,13 @@ void nghttp3_frame_headers_free(nghttp3_frame_headers *fr,
   }
 
   nghttp3_nva_del(fr->nva, mem);
+}
+
+void nghttp3_frame_priority_update_free(nghttp3_frame_priority_update *fr,
+                                        const nghttp3_mem *mem) {
+  if (fr == NULL) {
+    return;
+  }
+
+  nghttp3_mem_free(mem, fr->data);
 }

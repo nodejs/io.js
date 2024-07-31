@@ -40,9 +40,8 @@ VirtualMemory ReserveAddressSpace(v8::PageAllocator* platform_allocator) {
     return memory;
   }
 
-  FATAL(
-      "Fatal process out of memory: Failed to reserve memory for compressed "
-      "zones");
+  base::FatalOOM(base::OOMType::kProcess,
+                 "Failed to reserve memory for compressed zones");
   UNREACHABLE();
 }
 

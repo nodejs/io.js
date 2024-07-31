@@ -46,7 +46,7 @@ module.exports = {
             message: 'Every object must have __proto__: null',
             fix: function(fixer) {
               // Generate the fix suggestion to add __proto__: null
-              const sourceCode = context.getSourceCode();
+              const sourceCode = context.sourceCode;
               const firstProperty = properties[0];
               const firstPropertyToken = sourceCode.getFirstToken(firstProperty);
 

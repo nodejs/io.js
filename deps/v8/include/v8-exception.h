@@ -30,14 +30,21 @@ class ThreadLocalTop;
  */
 class V8_EXPORT Exception {
  public:
-  static Local<Value> RangeError(Local<String> message);
-  static Local<Value> ReferenceError(Local<String> message);
-  static Local<Value> SyntaxError(Local<String> message);
-  static Local<Value> TypeError(Local<String> message);
-  static Local<Value> WasmCompileError(Local<String> message);
-  static Local<Value> WasmLinkError(Local<String> message);
-  static Local<Value> WasmRuntimeError(Local<String> message);
-  static Local<Value> Error(Local<String> message);
+  static Local<Value> RangeError(Local<String> message,
+                                 Local<Value> options = {});
+  static Local<Value> ReferenceError(Local<String> message,
+                                     Local<Value> options = {});
+  static Local<Value> SyntaxError(Local<String> message,
+                                  Local<Value> options = {});
+  static Local<Value> TypeError(Local<String> message,
+                                Local<Value> options = {});
+  static Local<Value> WasmCompileError(Local<String> message,
+                                       Local<Value> options = {});
+  static Local<Value> WasmLinkError(Local<String> message,
+                                    Local<Value> options = {});
+  static Local<Value> WasmRuntimeError(Local<String> message,
+                                       Local<Value> options = {});
+  static Local<Value> Error(Local<String> message, Local<Value> options = {});
 
   /**
    * Creates an error message for the given exception.
@@ -206,7 +213,6 @@ class V8_EXPORT TryCatch {
   bool can_continue_ : 1;
   bool capture_message_ : 1;
   bool rethrow_ : 1;
-  bool has_terminated_ : 1;
 
   friend class internal::Isolate;
   friend class internal::ThreadLocalTop;

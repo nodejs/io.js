@@ -13,6 +13,7 @@
 
 #include "src/codegen/assembler.h"
 #include "src/codegen/code-desc.h"
+#include "src/codegen/compiler.h"
 #include "src/wasm/compilation-environment.h"
 #include "src/wasm/function-body-decoder.h"
 #include "src/wasm/wasm-limits.h"
@@ -126,15 +127,10 @@ static_assert(sizeof(WasmCompilationUnit) <= 2 * kSystemPointerSize);
 
 class V8_EXPORT_PRIVATE JSToWasmWrapperCompilationUnit final {
  public:
-  // A flag to mark whether the compilation unit can skip the compilation
-  // and return the builtin (generic) wrapper, when available.
-  enum AllowGeneric : bool { kAllowGeneric = true, kDontAllowGeneric = false };
-
   JSToWasmWrapperCompilationUnit(Isolate* isolate, const FunctionSig* sig,
                                  uint32_t canonical_sig_index,
                                  const wasm::WasmModule* module, bool is_import,
-                                 const WasmFeatures& enabled_features,
-                                 AllowGeneric allow_generic);
+                                 WasmFeatures enabled_features);
   ~JSToWasmWrapperCompilationUnit();
 
   Isolate* isolate() const { return isolate_; }
@@ -153,24 +149,30 @@ class V8_EXPORT_PRIVATE JSToWasmWrapperCompilationUnit final {
                                              const WasmModule* module,
                                              bool is_import);
 
-  // Run a compilation unit synchronously, but ask for the specific
-  // wrapper.
-  static Handle<Code> CompileSpecificJSToWasmWrapper(
-      Isolate* isolate, const FunctionSig* sig, uint32_t canonical_sig_index,
-      const WasmModule* module);
-
  private:
   // Wrapper compilation is bound to an isolate. Concurrent accesses to the
   // isolate (during the "Execute" phase) must be audited carefully, i.e. we
   // should only access immutable information (like the root table). The isolate
   // is guaranteed to be alive when this unit executes.
-  Isolate* isolate_;
-  bool is_import_;
-  const FunctionSig* sig_;
-  uint32_t canonical_sig_index_;
-  bool use_generic_wrapper_;
-  std::unique_ptr<TurbofanCompilationJob> job_;
+  Isolate* const isolate_;
+  const bool is_import_;
+  const FunctionSig* const sig_;
+  uint32_t const canonical_sig_index_;
+  std::unique_ptr<OptimizedCompilationJob> const job_;
 };
+
+inline bool CanUseGenericJsToWasmWrapper(const WasmModule* module,
+                                         const FunctionSig* sig) {
+#if (V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_IA32 || \
+     V8_TARGET_ARCH_ARM)
+  // We don't use the generic wrapper for asm.js, because it creates invalid
+  // stack traces.
+  return !is_asmjs_module(module) && v8_flags.wasm_generic_wrapper &&
+         IsJSCompatibleSignature(sig);
+#else
+  return false;
+#endif
+}
 
 }  // namespace wasm
 }  // namespace internal

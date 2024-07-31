@@ -82,7 +82,7 @@ my $guess_patterns = [
     [ 'HP-UX:.*',
       sub {
           my $HPUXVER = $RELEASE;
-          $HPUXVER = s/[^.]*.[0B]*//;
+          $HPUXVER =~ s/[^.]*.[0B]*//;
           # HPUX 10 and 11 targets are unified
           return "${MACHINE}-hp-hpux1x" if $HPUXVER =~ m@1[0-9]@;
           return "${MACHINE}-hp-hpux";
@@ -321,6 +321,7 @@ sub determine_compiler_settings {
 
             # If we got a version number, process it
             if ($v) {
+                $v =~ s/[^.]*.0*// if $SYSTEM eq 'HP-UX';
                 $CCVENDOR = $k;
 
                 # The returned version is expected to be one of
@@ -358,8 +359,15 @@ sub determine_compiler_settings {
                 # However, other letters have been seen as well (for example X),
                 # and it's documented that HP (now VSI) reserve the letter W, X,
                 # Y and Z for their own uses.
-                my ($vendor, $version) =
-                    ( $v =~ m/^([A-Z]+) C [VWXYZ]([0-9\.-]+)(:? +\(.*?\))? on / );
+                my ($vendor, $arch, $version, $extra) =
+                    ( $v =~ m/^
+                              ([A-Z]+)                  # Usually VSI
+                              \s+ C
+                              (?:\s+(.*?))?             # Possible build arch
+                              \s+ [VWXYZ]([0-9\.-]+)    # Version
+                              (?:\s+\((.*?)\))?         # Possible extra data
+                              \s+ on
+                             /x );
                 my ($major, $minor, $patch) =
                     ( $version =~ m/^([0-9]+)\.([0-9]+)-0*?(0|[1-9][0-9]*)$/ );
                 $CC = 'CC';

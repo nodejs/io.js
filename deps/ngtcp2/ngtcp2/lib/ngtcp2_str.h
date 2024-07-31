@@ -38,6 +38,13 @@ void *ngtcp2_cpymem(void *dest, const void *src, size_t n);
  * the buffer pointed by |dest|.  It returns dest + n;
  */
 uint8_t *ngtcp2_setmem(uint8_t *dest, uint8_t b, size_t n);
+
+/*
+ * ngtcp2_get_bytes copies |n| bytes from |src| to |dest|, and returns
+ * |src| + |n|.
+ */
+const void *ngtcp2_get_bytes(void *dest, const void *src, size_t n);
+
 /*
  * ngtcp2_encode_hex encodes |data| of length |len| in hex string.  It
  * writes additional NULL bytes at the end of the buffer.  The buffer

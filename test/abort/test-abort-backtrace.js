@@ -10,19 +10,22 @@ if (process.argv[2] === 'child') {
   const stderr = child.stderr.toString();
 
   assert.strictEqual(child.stdout.toString(), '');
-  // Stderr will be empty for systems that don't support backtraces.
-  if (stderr !== '') {
-    const frames = stderr.trimRight().split('\n').map((s) => s.trim());
+  const { nativeStack, jsStack } = common.getPrintedStackTrace(stderr);
 
-    if (!frames.every((frame, index) => frame.startsWith(`${index + 1}:`))) {
-      assert.fail(`Each frame should start with a frame number:\n${stderr}`);
-    }
+  if (!nativeStack.every((frame, index) => frame.startsWith(`${index + 1}:`))) {
+    assert.fail(`Each frame should start with a frame number:\n${stderr}`);
+  }
 
-    if (!common.isWindows) {
-      const { getBinaryPath } = require('../common/shared-lib-util');
-      if (!frames.some((frame) => frame.includes(`[${getBinaryPath()}]`))) {
-        assert.fail(`Some frames should include the binary name:\n${stderr}`);
-      }
+  // For systems that don't support backtraces, the native stack is
+  // going to be empty.
+  if (!common.isWindows && nativeStack.length > 0) {
+    const { getBinaryPath } = require('../common/shared-lib-util');
+    if (!nativeStack.some((frame) => frame.includes(`[${getBinaryPath()}]`))) {
+      assert.fail(`Some native stack frame include the binary name:\n${stderr}`);
     }
+  }
+
+  if (jsStack.length > 0) {
+    assert(jsStack.some((frame) => frame.includes(__filename)));
   }
 }

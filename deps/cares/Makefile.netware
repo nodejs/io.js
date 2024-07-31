@@ -92,7 +92,7 @@ ifeq ($(LIBARCH),LIBC)
 	CFLAGS += -align 4
 else
 	# PRELUDE = $(SDK_CLIB)/imports/clibpre.o
-	# to avoid the __init_* / __deinit_* whoes dont use prelude from NDK
+	# to avoid the __init_* / __deinit_* whose dont use prelude from NDK
 	PRELUDE = "$(MWCW_PATH)/libraries/runtime/prelude.obj"
 	# CFLAGS += -include "$(MWCW_PATH)/headers/nlm_clib_prefix.h"
 	CFLAGS += -align 1
@@ -114,7 +114,7 @@ ifeq ($(LIBARCH),LIBC)
 	PRELUDE = $(SDK_LIBC)/imports/libcpre.gcc.o
 else
 	# PRELUDE = $(SDK_CLIB)/imports/clibpre.gcc.o
-	# to avoid the __init_* / __deinit_* whoes dont use prelude from NDK
+	# to avoid the __init_* / __deinit_* whose dont use prelude from NDK
 	# http://www.gknw.net/development/mk_nlm/gcc_pre.zip
 	PRELUDE = $(NDK_ROOT)/pre/prelude.o
 	CFLAGS += -include $(NDKBASE)/nlmconv/genlm.h
@@ -299,9 +299,8 @@ ifeq ($(LIBARCH),CLIB)
 	@echo $(DL)#define RECVFROM_TYPE_ARG5 struct sockaddr$(DL) >> $@
 	@echo $(DL)#define RECVFROM_TYPE_ARG6 int$(DL) >> $@
 	@echo $(DL)#define RECVFROM_TYPE_RETV int$(DL) >> $@
-	@echo $(DL)#define SEND_QUAL_ARG2$(DL) >> $@
 	@echo $(DL)#define SEND_TYPE_ARG1 int$(DL) >> $@
-	@echo $(DL)#define SEND_TYPE_ARG2 char *$(DL) >> $@
+	@echo $(DL)#define SEND_TYPE_ARG2 const char *$(DL) >> $@
 	@echo $(DL)#define SEND_TYPE_ARG3 int$(DL) >> $@
 	@echo $(DL)#define SEND_TYPE_ARG4 int$(DL) >> $@
 	@echo $(DL)#define SEND_TYPE_RETV int$(DL) >> $@

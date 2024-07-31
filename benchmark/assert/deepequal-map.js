@@ -5,7 +5,7 @@ const { deepEqual, deepStrictEqual, notDeepEqual, notDeepStrictEqual } =
   require('assert');
 
 const bench = common.createBenchmark(main, {
-  n: [5e2],
+  n: [5e3],
   len: [5e2],
   strict: [0, 1],
   method: [

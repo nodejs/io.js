@@ -40,7 +40,7 @@ npm <command>
     * Note: you can also search docs locally with `npm help-search <query>`
 * [**Bug Tracker**](https://github.com/npm/cli/issues) - Search or submit bugs against the CLI
 * [**Roadmap**](https://github.com/orgs/github/projects/4247/views/1?filterQuery=npm) - Track & follow along with our public roadmap
-* [**Feedback**](https://github.com/npm/feedback) - Contribute ideas & discussion around the npm registry, website & CLI
+* [**Community Feedback and Discussions**](https://github.com/orgs/community/discussions/categories/npm) - Contribute ideas & discussion around the npm registry, website & CLI
 * [**RFCs**](https://github.com/npm/rfcs) - Contribute ideas & specifications for the API/design of the npm CLI
 * [**Service Status**](https://status.npmjs.org/) - Monitor the current status & see incident reports for the website & registry
 * [**Project Status**](https://npm.github.io/statusboard/) - See the health of all our maintained OSS projects in one view

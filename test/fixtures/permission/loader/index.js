@@ -1,3 +1,3 @@
 const fs = require('node:fs');
 
-fs.readFile('/etc/passwd', () => {});
+fs.readFileSync('/etc/passwd');

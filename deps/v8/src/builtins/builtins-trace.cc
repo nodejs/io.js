@@ -20,8 +20,6 @@ namespace internal {
 
 namespace {
 
-using v8::tracing::TracedValue;
-
 #define MAX_STACK_LENGTH 100
 
 class MaybeUtf8 {

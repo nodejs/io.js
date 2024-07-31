@@ -9,7 +9,7 @@ if (!common.hasCrypto)
   common.skip('missing crypto');
 if (!common.isLinux)
   common.skip('linux only');
-if (common.isAsan)
+if (common.isASan)
   common.skip('strace does not work well with address sanitizer builds');
 if (spawnSync('strace').error !== undefined) {
   common.skip('missing strace');

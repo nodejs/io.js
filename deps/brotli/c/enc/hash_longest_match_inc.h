@@ -54,10 +54,6 @@ typedef struct HashLongestMatch {
   uint32_t* buckets_;  /* uint32_t[bucket_size * block_size]; */
 } HashLongestMatch;
 
-static BROTLI_INLINE uint16_t* FN(Num)(void* extra) {
-  return (uint16_t*)extra;
-}
-
 static void FN(Initialize)(
     HasherCommon* common, HashLongestMatch* BROTLI_RESTRICT self,
     const BrotliEncoderParams* params) {
@@ -68,8 +64,8 @@ static void FN(Initialize)(
   self->bucket_size_ = (size_t)1 << common->params.bucket_bits;
   self->block_size_ = (size_t)1 << common->params.block_bits;
   self->block_mask_ = (uint32_t)(self->block_size_ - 1);
-  self->num_ = (uint16_t*)common->extra;
-  self->buckets_ = (uint32_t*)(&self->num_[self->bucket_size_]);
+  self->num_ = (uint16_t*)common->extra[0];
+  self->buckets_ = (uint32_t*)common->extra[1];
   self->block_bits_ = common->params.block_bits;
   self->num_last_distances_to_check_ =
       common->params.num_last_distances_to_check;
@@ -92,15 +88,15 @@ static void FN(Prepare)(
   }
 }
 
-static BROTLI_INLINE size_t FN(HashMemAllocInBytes)(
+static BROTLI_INLINE void FN(HashMemAllocInBytes)(
     const BrotliEncoderParams* params, BROTLI_BOOL one_shot,
-    size_t input_size) {
+    size_t input_size, size_t* alloc_size) {
   size_t bucket_size = (size_t)1 << params->hasher.bucket_bits;
   size_t block_size = (size_t)1 << params->hasher.block_bits;
   BROTLI_UNUSED(one_shot);
   BROTLI_UNUSED(input_size);
-  return sizeof(uint16_t) * bucket_size +
-         sizeof(uint32_t) * bucket_size * block_size;
+  alloc_size[0] = sizeof(uint16_t) * bucket_size;
+  alloc_size[1] = sizeof(uint32_t) * bucket_size * block_size;
 }
 
 /* Look at 4 bytes at &data[ix & mask].

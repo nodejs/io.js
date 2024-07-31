@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-access">npm-access</h1>
+<h1 id="----npm-access----1082">
+    <span>npm-access</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Set access level on published packages</span>
 </header>
 
@@ -146,7 +154,7 @@ npm command-line interface
 </section>
 
 <div id="_content"><h3 id="synopsis">Synopsis</h3>
-<pre><code class="language-bash">npm access list packages [&lt;user&gt;|&lt;scope&gt;|&lt;scope:team&gt; [&lt;package&gt;]
+<pre><code class="language-bash">npm access list packages [&lt;user&gt;|&lt;scope&gt;|&lt;scope:team&gt;] [&lt;package&gt;]
 npm access list collaborators [&lt;package&gt; [&lt;user&gt;]]
 npm access get status [&lt;package&gt;]
 npm access set status=public|private [&lt;package&gt;]

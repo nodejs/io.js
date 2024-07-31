@@ -139,10 +139,8 @@ constexpr Register kPtrComprCageBaseRegister = kRootRegister;
 constexpr Register cp = r13;             // JavaScript context pointer.
 
 // s390x calling convention
-constexpr Register arg_reg_1 = r2;
-constexpr Register arg_reg_2 = r3;
-constexpr Register arg_reg_3 = r4;
-constexpr Register arg_reg_4 = r5;
+constexpr Register kCArgRegs[] = {r2, r3, r4, r5, r6};
+static const int kRegisterPassedArguments = arraysize(kCArgRegs);
 
 // Returns the number of padding slots needed for stack pointer alignment.
 constexpr int ArgumentPaddingSlots(int argument_count) {

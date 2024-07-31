@@ -48,13 +48,13 @@ struct thread_ctx {
 
 static void thread_main(void* arg) {
   int nwritten;
-  ASSERT(0 == kill(getpid(), SIGUSR1));
+  ASSERT_OK(kill(getpid(), SIGUSR1));
 
   do
     nwritten = write(pipe_fds[1], test_buf, sizeof(test_buf));
   while (nwritten == -1 && errno == EINTR);
 
-  ASSERT(nwritten == sizeof(test_buf));
+  ASSERT_EQ(nwritten, sizeof(test_buf));
 }
 
 static void sig_func(uv_signal_t* handle, int signum) {
@@ -70,24 +70,24 @@ TEST_IMPL(eintr_handling) {
   iov = uv_buf_init(buf, sizeof(buf));
   loop = uv_default_loop();
 
-  ASSERT(0 == uv_signal_init(loop, &signal));
-  ASSERT(0 == uv_signal_start(&signal, sig_func, SIGUSR1));
+  ASSERT_OK(uv_signal_init(loop, &signal));
+  ASSERT_OK(uv_signal_start(&signal, sig_func, SIGUSR1));
 
-  ASSERT(0 == pipe(pipe_fds));
-  ASSERT(0 == uv_thread_create(&thread, thread_main, &ctx));
+  ASSERT_OK(pipe(pipe_fds));
+  ASSERT_OK(uv_thread_create(&thread, thread_main, &ctx));
 
   nread = uv_fs_read(loop, &read_req, pipe_fds[0], &iov, 1, -1, NULL);
 
-  ASSERT(nread == sizeof(test_buf));
-  ASSERT(0 == strcmp(buf, test_buf));
+  ASSERT_EQ(nread, sizeof(test_buf));
+  ASSERT_OK(strcmp(buf, test_buf));
 
-  ASSERT(0 == uv_run(loop, UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(loop, UV_RUN_DEFAULT));
 
-  ASSERT(0 == close(pipe_fds[0]));
-  ASSERT(0 == close(pipe_fds[1]));
+  ASSERT_OK(close(pipe_fds[0]));
+  ASSERT_OK(close(pipe_fds[1]));
   uv_close((uv_handle_t*) &signal, NULL);
 
-  ASSERT_EQ(0, uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

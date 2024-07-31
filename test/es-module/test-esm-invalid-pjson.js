@@ -1,25 +1,24 @@
 'use strict';
 
-const { checkoutEOL, spawnPromisified } = require('../common');
+const { spawnPromisified } = require('../common');
 const fixtures = require('../common/fixtures.js');
 const assert = require('node:assert');
+const path = require('node:path');
 const { execPath } = require('node:process');
 const { describe, it } = require('node:test');
 
 
-describe('ESM: Package.json', { concurrency: true }, () => {
+describe('ESM: Package.json', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should throw on invalid pson', async () => {
     const entry = fixtures.path('/es-modules/import-invalid-pjson.mjs');
     const invalidJson = fixtures.path('/node_modules/invalid-pjson/package.json');
 
     const { code, signal, stderr } = await spawnPromisified(execPath, [entry]);
 
+    assert.ok(stderr.includes('code: \'ERR_INVALID_PACKAGE_CONFIG\''), stderr);
     assert.ok(
       stderr.includes(
-        `[ERR_INVALID_PACKAGE_CONFIG]: Invalid package config ${invalidJson} ` +
-        `while importing "invalid-pjson" from ${entry}. ` +
-        "Expected ':' after property name in JSON at position " +
-        `${12 + checkoutEOL.length * 2}`
+        `Invalid package config ${path.toNamespacedPath(invalidJson)} while importing "invalid-pjson" from ${entry}.`
       ),
       stderr
     );

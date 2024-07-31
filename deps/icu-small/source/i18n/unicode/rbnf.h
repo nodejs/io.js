@@ -64,18 +64,20 @@ enum URBNFRuleSetTag {
      * @stable ICU 2.2
      */
     URBNF_ORDINAL,
+#ifndef U_HIDE_DEPRECATED_API
     /**
      * Requests predefined ruleset for formatting a value as a duration in hours, minutes, and seconds.
-     * @stable ICU 2.2
+     * @deprecated ICU 74 Use MeasureFormat instead.
      */
     URBNF_DURATION,
+#endif // U_HIDE_DERECATED_API
     /**
      * Requests predefined ruleset for various non-place-value numbering systems.
      * WARNING: The same resource contains rule sets for a variety of different numbering systems.
      * You need to call setDefaultRuleSet() on the formatter to choose the actual numbering system.
      * @stable ICU 2.2
      */
-    URBNF_NUMBERING_SYSTEM,
+    URBNF_NUMBERING_SYSTEM = 3,
 #ifndef U_HIDE_DEPRECATED_API
     /**
      * One more than the highest normal URBNFRuleSetTag value.
@@ -434,7 +436,16 @@ enum URBNFRuleSetTag {
  *   <tr>
  *     <td>&lt;&lt;</td>
  *     <td>in normal rule</td>
- *     <td>Divide the number by the rule's divisor and format the quotient</td>
+ *     <td>Divide the number by the rule's divisor, perform floor() on the quotient,
+ *         and format the resulting value.<br>
+ *         If there is a DecimalFormat pattern between the &lt; characters and the
+ *         rule does NOT also contain a &gt;&gt; substitution, we DON'T perform
+ *         floor() on the quotient-- the quotient is passed through to the DecimalFormat
+ *         intact.  That is, for the value 1,900:<br>
+ *         - "1/1000: &lt;&lt; thousand;" will produce "one thousand"<br>
+ *         - "1/1000: &lt;0&lt; thousand;" will produce "2 thousand" (NOT "1 thousand")<br>
+ *         - "1/1000: &lt;0&lt; seconds &gt;0&gt; milliseconds;" will produce "1 second 900 milliseconds"
+ *     </td>
  *   </tr>
  *   <tr>
  *     <td></td>
@@ -762,7 +773,7 @@ public:
    * @return the number of locales for which we have localized rule set display names.
    * @stable ICU 3.2
    */
-  virtual int32_t getNumberOfRuleSetDisplayNameLocales(void) const;
+  virtual int32_t getNumberOfRuleSetDisplayNameLocales() const;
 
   /**
    * Return the index'th display name locale.
@@ -976,7 +987,7 @@ public:
    * @see #setLenient
    * @stable ICU 2.0
    */
-  virtual inline UBool isLenient(void) const override;
+  virtual inline UBool isLenient() const override;
 
 #endif
 
@@ -1015,7 +1026,7 @@ public:
      * @return A rounding mode
      * @stable ICU 60
      */
-    virtual ERoundingMode getRoundingMode(void) const override;
+    virtual ERoundingMode getRoundingMode() const override;
 
     /**
      * Set the rounding mode.
@@ -1030,14 +1041,14 @@ public:
      *
      * @stable ICU 2.8
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
     /**
      * ICU "poor man's RTTI", returns a UClassID for the actual class.
      *
      * @stable ICU 2.8
      */
-    virtual UClassID getDynamicClassID(void) const override;
+    virtual UClassID getDynamicClassID() const override;
 
     /**
      * Sets the decimal format symbols, which is generally not changed
@@ -1120,7 +1131,7 @@ private:
 #if !UCONFIG_NO_COLLATION
 
 inline UBool
-RuleBasedNumberFormat::isLenient(void) const {
+RuleBasedNumberFormat::isLenient() const {
     return lenient;
 }
 

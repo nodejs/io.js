@@ -74,6 +74,12 @@ class WrapperHelper {
   // emit any possibly needed write barrier.
   static void SetWrappableConnection(v8::Local<v8::Object> api_object, void*,
                                      void*);
+
+  template <typename T>
+  static T* UnwrapAs(v8::Local<v8::Object> api_object) {
+    return reinterpret_cast<T*>(api_object->GetAlignedPointerFromInternalField(
+        kWrappableInstanceEmbedderIndex));
+  }
 };
 
 }  // namespace internal

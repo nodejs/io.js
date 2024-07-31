@@ -2,7 +2,8 @@
 throw aggregateTwoErrors(err, originalError);
 ^
 
-[AggregateError: original] {
+AggregateError: original
+    at Object.<anonymous> (*error_aggregateTwoErrors.js:*:*) {
   code: 'ERR0',
   [errors]: [
     Error: original

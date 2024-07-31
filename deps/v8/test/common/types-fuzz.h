@@ -66,8 +66,9 @@ class Types {
     SignedSmall = Type::SignedSmall();
     UnsignedSmall = Type::UnsignedSmall();
 
-    Handle<i::Map> object_map = CanonicalHandle(
-        isolate->factory()->NewMap(JS_OBJECT_TYPE, JSObject::kHeaderSize));
+    Handle<i::Map> object_map =
+        CanonicalHandle(isolate->factory()->NewContextfulMapForCurrentContext(
+            JS_OBJECT_TYPE, JSObject::kHeaderSize));
     Handle<i::Smi> smi = CanonicalHandle(Smi::FromInt(666));
     Handle<i::HeapNumber> boxed_smi =
         CanonicalHandle(isolate->factory()->NewHeapNumber(666));
@@ -87,10 +88,10 @@ class Types {
         CanonicalHandle(isolate->factory()->NewJSObjectFromMap(object_map));
     Handle<i::JSArray> array =
         CanonicalHandle(isolate->factory()->NewJSArray(20));
-    Handle<i::Oddball> uninitialized =
-        isolate->factory()->uninitialized_value();
+    Handle<i::Hole> uninitialized = isolate->factory()->uninitialized_value();
     Handle<i::Oddball> undefined = isolate->factory()->undefined_value();
     Handle<i::HeapNumber> nan = isolate->factory()->nan_value();
+    Handle<i::Hole> the_hole_value = isolate->factory()->the_hole_value();
 
     SmiConstant = Type::Constant(js_heap_broker(), smi, zone);
     Signed32Constant = Type::Constant(js_heap_broker(), signed32, zone);
@@ -109,9 +110,17 @@ class Types {
     values.push_back(uninitialized);
     values.push_back(undefined);
     values.push_back(nan);
+    values.push_back(the_hole_value);
     values.push_back(float1);
     values.push_back(float2);
     values.push_back(float3);
+    values.push_back(isolate->factory()->empty_string());
+    values.push_back(
+        CanonicalHandle(isolate->factory()->NewStringFromStaticChars(
+            "I'm a little string value, short and stout...")));
+    values.push_back(
+        CanonicalHandle(isolate->factory()->NewStringFromStaticChars(
+            "Ask not for whom the typer types; it types for thee.")));
     for (ValueVector::iterator it = values.begin(); it != values.end(); ++it) {
       types.push_back(Type::Constant(js_heap_broker(), *it, zone));
     }

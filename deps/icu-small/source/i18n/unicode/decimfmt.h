@@ -60,10 +60,8 @@ class UFormattedNumberData;
 }
 }
 
-namespace numparse {
-namespace impl {
+namespace numparse::impl {
 class NumberParserImpl;
-}
 }
 
 /**
@@ -1163,7 +1161,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see DecimalFormatSymbols
      * @stable ICU 2.0
      */
-    virtual const DecimalFormatSymbols* getDecimalFormatSymbols(void) const;
+    virtual const DecimalFormatSymbols* getDecimalFormatSymbols() const;
 
     /**
      * Sets the decimal format symbols, which is generally not changed
@@ -1188,7 +1186,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @return desired CurrencyPluralInfo
      * @stable ICU 4.2
      */
-    virtual const CurrencyPluralInfo* getCurrencyPluralInfo(void) const;
+    virtual const CurrencyPluralInfo* getCurrencyPluralInfo() const;
 
     /**
      * Sets the currency plural format information,
@@ -1315,7 +1313,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * Examples: with 100, 1.23 -> "123", and "123" -> 1.23
      * @stable ICU 2.0
      */
-    int32_t getMultiplier(void) const;
+    int32_t getMultiplier() const;
 
     /**
      * Set the multiplier for use in percent, permill, etc.
@@ -1344,7 +1342,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @return    the current value of the power-of-ten multiplier.
      * @stable ICU 62
      */
-    int32_t getMultiplierScale(void) const;
+    int32_t getMultiplierScale() const;
 
     /**
      * Sets a power of ten by which number should be multiplied before formatting, which
@@ -1376,7 +1374,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see #setRoundingMode
      * @stable ICU 2.0
      */
-    virtual double getRoundingIncrement(void) const;
+    virtual double getRoundingIncrement() const;
 
     /**
      * Set the rounding increment.  In the absence of a rounding increment,
@@ -1399,7 +1397,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see #setRoundingMode
      * @stable ICU 2.0
      */
-    virtual ERoundingMode getRoundingMode(void) const override;
+    virtual ERoundingMode getRoundingMode() const override;
 
     /**
      * Set the rounding mode.
@@ -1422,7 +1420,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see #setPadPosition
      * @stable ICU 2.0
      */
-    virtual int32_t getFormatWidth(void) const;
+    virtual int32_t getFormatWidth() const;
 
     /**
      * Set the width to which the output of format() is padded.
@@ -1485,7 +1483,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see #EPadPosition
      * @stable ICU 2.0
      */
-    virtual EPadPosition getPadPosition(void) const;
+    virtual EPadPosition getPadPosition() const;
 
     /**
      * Set the position at which padding will take place.  This is the location
@@ -1515,7 +1513,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see #setExponentSignAlwaysShown
      * @stable ICU 2.0
      */
-    virtual UBool isScientificNotation(void) const;
+    virtual UBool isScientificNotation() const;
 
     /**
      * Set whether or not scientific notation is used. When scientific notation
@@ -1544,7 +1542,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see #setExponentSignAlwaysShown
      * @stable ICU 2.0
      */
-    virtual int8_t getMinimumExponentDigits(void) const;
+    virtual int8_t getMinimumExponentDigits() const;
 
     /**
      * Set the minimum exponent digits that will be shown.  This has no
@@ -1572,7 +1570,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see #setExponentSignAlwaysShown
      * @stable ICU 2.0
      */
-    virtual UBool isExponentSignAlwaysShown(void) const;
+    virtual UBool isExponentSignAlwaysShown() const;
 
     /**
      * Set whether the exponent sign is always shown.  This has no effect
@@ -1600,7 +1598,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see DecimalFormatSymbols::getGroupingSeparator
      * @stable ICU 2.0
      */
-    int32_t getGroupingSize(void) const;
+    int32_t getGroupingSize() const;
 
     /**
      * Set the grouping size. Grouping size is the number of digits between
@@ -1633,7 +1631,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @see DecimalFormatSymbols::getGroupingSeparator
      * @stable ICU 2.4
      */
-    int32_t getSecondaryGroupingSize(void) const;
+    int32_t getSecondaryGroupingSize() const;
 
     /**
      * Set the secondary grouping size. If set to a value less than 1,
@@ -1700,7 +1698,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * Example: Decimal ON: 12345 -> 12345.; OFF: 12345 -> 12345
      * @stable ICU 2.0
      */
-    UBool isDecimalSeparatorAlwaysShown(void) const;
+    UBool isDecimalSeparatorAlwaysShown() const;
 
     /**
      * Allows you to set the behavior of the decimal separator with integers.
@@ -1718,7 +1716,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @return    true if input must contain a match to decimal mark in pattern
      * @stable ICU 54
      */
-    UBool isDecimalPatternMatchRequired(void) const;
+    UBool isDecimalPatternMatchRequired() const;
 
     /**
      * Allows you to set the parse behavior of the pattern decimal mark.
@@ -2124,7 +2122,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      * @return          The class ID for all objects of this class.
      * @stable ICU 2.0
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
     /**
      * Returns a unique class ID POLYMORPHICALLY.  Pure virtual override.
@@ -2137,7 +2135,7 @@ class U_I18N_API DecimalFormat : public NumberFormat {
      *                  other classes have different class IDs.
      * @stable ICU 2.0
      */
-    UClassID getDynamicClassID(void) const override;
+    UClassID getDynamicClassID() const override;
 
   private:
 

@@ -33,6 +33,7 @@ subSystemLabels:
   /^src\/quic\/*/: c++, quic
   /^src\/node_bob*/: c++, quic
   /^src\/node_sea/: single-executable
+  /^src\/node_sqlite.*/: c++, sqlite
 
   # Properly label changes to V8 inspector integration-related files
   /^src\/inspector_/: c++, inspector, needs-ci
@@ -66,7 +67,7 @@ subSystemLabels:
   /^tools\/build-addons.mjs/: needs-ci
   # All other tool changes should be marked as such
   /^tools\//: tools
-  /^\.eslint|\.editorconfig/: tools
+  /^eslint\.config|\.editorconfig/: tools
   /^typings\//: typings
 
   ## Dependencies
@@ -86,12 +87,12 @@ subSystemLabels:
   # Oddities first
   /^lib\/(?:punycode|\w+\/freelist|sys\.js)/: ''
   /^lib\/constants\.js$/: lib / src
-  /^lib\/internal/debugger$/: debugger
+  /^lib\/internal\/debugger$/: debugger
   /^lib\/internal\/linkedlist\.js$/: timers
   /^lib\/internal\/bootstrap/: lib / src
   /^lib\/internal\/v8_prof_/: tools
   /^lib\/internal\/socket(?:_list|address)\.js$/: net
-  /^lib\/\w+\/streams$/: stream
+  /^lib\/(_stream.*|internal\/streams\/.*|stream\.js|stream\/.*)$/: stream
   /^lib\/.*http2/: http2
   /^lib\/worker_threads.js$/: worker
   /^lib\/test.js$/: test_runner
@@ -186,6 +187,7 @@ allJsSubSystems:
   - readline
   - repl
   - report
+  - sqlite
   - stream
   - string_decoder
   - timers

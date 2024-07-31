@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="removal">removal</h1>
+<h1 id="----removal----1082">
+    <span>removal</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Cleaning the Slate</span>
 </header>
 
@@ -149,9 +157,7 @@ npm command-line interface
 <p>So sad to see you go.</p>
 <pre><code class="language-bash">sudo npm uninstall npm -g
 </code></pre>
-<p>Or, if that fails, get the npm source code, and do:</p>
-<pre><code class="language-bash">sudo make uninstall
-</code></pre>
+<p>Or, if that fails, please proceed to more severe uninstalling methods.</p>
 <h3 id="more-severe-uninstalling">More Severe Uninstalling</h3>
 <p>Usually, the above instructions are sufficient.  That will remove
 npm, but leave behind anything you've installed.</p>

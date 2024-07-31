@@ -118,9 +118,9 @@ void DecodeEntry(base::Vector<const uint8_t> bytes, int* index,
   entry->source_position = DecodeInt<int64_t>(bytes, index);
 }
 
-base::Vector<const uint8_t> VectorFromByteArray(Tagged<ByteArray> byte_array) {
-  return base::Vector<const uint8_t>(byte_array->GetDataStartAddress(),
-                                     byte_array->length());
+base::Vector<const uint8_t> VectorFromByteArray(
+    Tagged<TrustedByteArray> byte_array) {
+  return base::Vector<const uint8_t>(byte_array->begin(), byte_array->length());
 }
 
 #ifdef ENABLE_SLOW_DCHECKS
@@ -172,14 +172,14 @@ V8_INLINE void SourcePositionTableBuilder::AddEntry(
 }
 
 template <typename IsolateT>
-Handle<ByteArray> SourcePositionTableBuilder::ToSourcePositionTable(
+Handle<TrustedByteArray> SourcePositionTableBuilder::ToSourcePositionTable(
     IsolateT* isolate) {
-  if (bytes_.empty()) return isolate->factory()->empty_byte_array();
+  if (bytes_.empty()) return isolate->factory()->empty_trusted_byte_array();
   DCHECK(!Omit());
 
-  Handle<ByteArray> table = isolate->factory()->NewByteArray(
-      static_cast<int>(bytes_.size()), AllocationType::kOld);
-  MemCopy(table->GetDataStartAddress(), bytes_.data(), bytes_.size());
+  Handle<TrustedByteArray> table =
+      isolate->factory()->NewTrustedByteArray(static_cast<int>(bytes_.size()));
+  MemCopy(table->begin(), bytes_.data(), bytes_.size());
 
 #ifdef ENABLE_SLOW_DCHECKS
   // Brute force testing: Record all positions and decode
@@ -195,10 +195,10 @@ Handle<ByteArray> SourcePositionTableBuilder::ToSourcePositionTable(
 }
 
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<ByteArray> SourcePositionTableBuilder::ToSourcePositionTable(
+    Handle<TrustedByteArray> SourcePositionTableBuilder::ToSourcePositionTable(
         Isolate* isolate);
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<ByteArray> SourcePositionTableBuilder::ToSourcePositionTable(
+    Handle<TrustedByteArray> SourcePositionTableBuilder::ToSourcePositionTable(
         LocalIsolate* isolate);
 
 base::OwnedVector<uint8_t>
@@ -230,7 +230,7 @@ void SourcePositionTableIterator::Initialize() {
 }
 
 SourcePositionTableIterator::SourcePositionTableIterator(
-    Tagged<ByteArray> byte_array, IterationFilter iteration_filter,
+    Tagged<TrustedByteArray> byte_array, IterationFilter iteration_filter,
     FunctionEntryFilter function_entry_filter)
     : raw_table_(VectorFromByteArray(byte_array)),
       iteration_filter_(iteration_filter),
@@ -239,7 +239,7 @@ SourcePositionTableIterator::SourcePositionTableIterator(
 }
 
 SourcePositionTableIterator::SourcePositionTableIterator(
-    Handle<ByteArray> byte_array, IterationFilter iteration_filter,
+    Handle<TrustedByteArray> byte_array, IterationFilter iteration_filter,
     FunctionEntryFilter function_entry_filter)
     : table_(byte_array),
       iteration_filter_(iteration_filter),

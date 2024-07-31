@@ -1,12 +1,26 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
 };
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -16,173 +30,147 @@ exports.SocksProxyAgent = void 0;
 const socks_1 = require("socks");
 const agent_base_1 = require("agent-base");
 const debug_1 = __importDefault(require("debug"));
-const dns_1 = __importDefault(require("dns"));
-const tls_1 = __importDefault(require("tls"));
+const dns = __importStar(require("dns"));
+const tls = __importStar(require("tls"));
+const url_1 = require("url");
 const debug = (0, debug_1.default)('socks-proxy-agent');
-function parseSocksProxy(opts) {
-    var _a;
-    let port = 0;
+function parseSocksURL(url) {
     let lookup = false;
     let type = 5;
-    const host = opts.hostname;
-    if (host == null) {
-        throw new TypeError('No "host"');
-    }
-    if (typeof opts.port === 'number') {
-        port = opts.port;
-    }
-    else if (typeof opts.port === 'string') {
-        port = parseInt(opts.port, 10);
-    }
+    const host = url.hostname;
     // From RFC 1928, Section 3: https://tools.ietf.org/html/rfc1928#section-3
     // "The SOCKS service is conventionally located on TCP port 1080"
-    if (port == null) {
-        port = 1080;
-    }
+    const port = parseInt(url.port, 10) || 1080;
     // figure out if we want socks v4 or v5, based on the "protocol" used.
     // Defaults to 5.
-    if (opts.protocol != null) {
-        switch (opts.protocol.replace(':', '')) {
-            case 'socks4':
-                lookup = true;
-            // pass through
-            case 'socks4a':
-                type = 4;
-                break;
-            case 'socks5':
-                lookup = true;
-            // pass through
-            case 'socks': // no version specified, default to 5h
-            case 'socks5h':
-                type = 5;
-                break;
-            default:
-                throw new TypeError(`A "socks" protocol must be specified! Got: ${String(opts.protocol)}`);
-        }
-    }
-    if (typeof opts.type !== 'undefined') {
-        if (opts.type === 4 || opts.type === 5) {
-            type = opts.type;
-        }
-        else {
-            throw new TypeError(`"type" must be 4 or 5, got: ${String(opts.type)}`);
-        }
+    switch (url.protocol.replace(':', '')) {
+        case 'socks4':
+            lookup = true;
+            type = 4;
+            break;
+        // pass through
+        case 'socks4a':
+            type = 4;
+            break;
+        case 'socks5':
+            lookup = true;
+            type = 5;
+            break;
+        // pass through
+        case 'socks': // no version specified, default to 5h
+            type = 5;
+            break;
+        case 'socks5h':
+            type = 5;
+            break;
+        default:
+            throw new TypeError(`A "socks" protocol must be specified! Got: ${String(url.protocol)}`);
     }
     const proxy = {
         host,
         port,
-        type
+        type,
     };
-    let userId = (_a = opts.userId) !== null && _a !== void 0 ? _a : opts.username;
-    let password = opts.password;
-    if (opts.auth != null) {
-        const auth = opts.auth.split(':');
-        userId = auth[0];
-        password = auth[1];
-    }
-    if (userId != null) {
+    if (url.username) {
         Object.defineProperty(proxy, 'userId', {
-            value: userId,
-            enumerable: false
+            value: decodeURIComponent(url.username),
+            enumerable: false,
         });
     }
-    if (password != null) {
+    if (url.password != null) {
         Object.defineProperty(proxy, 'password', {
-            value: password,
-            enumerable: false
+            value: decodeURIComponent(url.password),
+            enumerable: false,
         });
     }
     return { lookup, proxy };
 }
-const normalizeProxyOptions = (input) => {
-    let proxyOptions;
-    if (typeof input === 'string') {
-        proxyOptions = new URL(input);
-    }
-    else {
-        proxyOptions = input;
-    }
-    if (proxyOptions == null) {
-        throw new TypeError('a SOCKS proxy server `host` and `port` must be specified!');
-    }
-    return proxyOptions;
-};
 class SocksProxyAgent extends agent_base_1.Agent {
-    constructor(input, options) {
-        var _a;
-        const proxyOptions = normalizeProxyOptions(input);
-        super(proxyOptions);
-        const parsedProxy = parseSocksProxy(proxyOptions);
-        this.shouldLookup = parsedProxy.lookup;
-        this.proxy = parsedProxy.proxy;
-        this.tlsConnectionOptions = proxyOptions.tls != null ? proxyOptions.tls : {};
-        this.timeout = (_a = options === null || options === void 0 ? void 0 : options.timeout) !== null && _a !== void 0 ? _a : null;
+    constructor(uri, opts) {
+        super(opts);
+        const url = typeof uri === 'string' ? new url_1.URL(uri) : uri;
+        const { proxy, lookup } = parseSocksURL(url);
+        this.shouldLookup = lookup;
+        this.proxy = proxy;
+        this.timeout = opts?.timeout ?? null;
+        this.socketOptions = opts?.socketOptions ?? null;
     }
     /**
      * Initiates a SOCKS connection to the specified SOCKS proxy server,
      * which in turn connects to the specified remote host and port.
-     *
-     * @api protected
      */
-    callback(req, opts) {
-        var _a;
-        return __awaiter(this, void 0, void 0, function* () {
-            const { shouldLookup, proxy, timeout } = this;
-            let { host, port, lookup: lookupCallback } = opts;
-            if (host == null) {
-                throw new Error('No `host` defined!');
-            }
-            if (shouldLookup) {
-                // Client-side DNS resolution for "4" and "5" socks proxy versions.
-                host = yield new Promise((resolve, reject) => {
-                    // Use the request's custom lookup, if one was configured:
-                    const lookupFn = lookupCallback !== null && lookupCallback !== void 0 ? lookupCallback : dns_1.default.lookup;
-                    lookupFn(host, {}, (err, res) => {
-                        if (err) {
-                            reject(err);
-                        }
-                        else {
-                            resolve(res);
-                        }
-                    });
+    async connect(req, opts) {
+        const { shouldLookup, proxy, timeout } = this;
+        if (!opts.host) {
+            throw new Error('No `host` defined!');
+        }
+        let { host } = opts;
+        const { port, lookup: lookupFn = dns.lookup } = opts;
+        if (shouldLookup) {
+            // Client-side DNS resolution for "4" and "5" socks proxy versions.
+            host = await new Promise((resolve, reject) => {
+                // Use the request's custom lookup, if one was configured:
+                lookupFn(host, {}, (err, res) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        resolve(res);
+                    }
                 });
-            }
-            const socksOpts = {
-                proxy,
-                destination: { host, port },
-                command: 'connect',
-                timeout: timeout !== null && timeout !== void 0 ? timeout : undefined
-            };
-            const cleanup = (tlsSocket) => {
-                req.destroy();
-                socket.destroy();
-                if (tlsSocket)
-                    tlsSocket.destroy();
-            };
-            debug('Creating socks proxy connection: %o', socksOpts);
-            const { socket } = yield socks_1.SocksClient.createConnection(socksOpts);
-            debug('Successfully created socks proxy connection');
-            if (timeout !== null) {
-                socket.setTimeout(timeout);
-                socket.on('timeout', () => cleanup());
-            }
-            if (opts.secureEndpoint) {
-                // The proxy is connecting to a TLS server, so upgrade
-                // this socket connection to a TLS connection.
-                debug('Upgrading socket connection to TLS');
-                const servername = (_a = opts.servername) !== null && _a !== void 0 ? _a : opts.host;
-                const tlsSocket = tls_1.default.connect(Object.assign(Object.assign(Object.assign({}, omit(opts, 'host', 'hostname', 'path', 'port')), { socket,
-                    servername }), this.tlsConnectionOptions));
-                tlsSocket.once('error', (error) => {
-                    debug('socket TLS error', error.message);
-                    cleanup(tlsSocket);
-                });
-                return tlsSocket;
-            }
-            return socket;
-        });
+            });
+        }
+        const socksOpts = {
+            proxy,
+            destination: {
+                host,
+                port: typeof port === 'number' ? port : parseInt(port, 10),
+            },
+            command: 'connect',
+            timeout: timeout ?? undefined,
+            // @ts-expect-error the type supplied by socks for socket_options is wider
+            // than necessary since socks will always override the host and port
+            socket_options: this.socketOptions ?? undefined,
+        };
+        const cleanup = (tlsSocket) => {
+            req.destroy();
+            socket.destroy();
+            if (tlsSocket)
+                tlsSocket.destroy();
+        };
+        debug('Creating socks proxy connection: %o', socksOpts);
+        const { socket } = await socks_1.SocksClient.createConnection(socksOpts);
+        debug('Successfully created socks proxy connection');
+        if (timeout !== null) {
+            socket.setTimeout(timeout);
+            socket.on('timeout', () => cleanup());
+        }
+        if (opts.secureEndpoint) {
+            // The proxy is connecting to a TLS server, so upgrade
+            // this socket connection to a TLS connection.
+            debug('Upgrading socket connection to TLS');
+            const servername = opts.servername || opts.host;
+            const tlsSocket = tls.connect({
+                ...omit(opts, 'host', 'path', 'port'),
+                socket,
+                servername,
+            });
+            tlsSocket.once('error', (error) => {
+                debug('Socket TLS error', error.message);
+                cleanup(tlsSocket);
+            });
+            return tlsSocket;
+        }
+        return socket;
     }
 }
+SocksProxyAgent.protocols = [
+    'socks',
+    'socks4',
+    'socks4a',
+    'socks5',
+    'socks5h',
+];
 exports.SocksProxyAgent = SocksProxyAgent;
 function omit(obj, ...keys) {
     const ret = {};

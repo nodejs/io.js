@@ -10,7 +10,7 @@
 
 module.exports = {
   create(context) {
-    const sourceCode = context.getSourceCode();
+    const sourceCode = context.sourceCode;
     const regexpStack = [];
     let regexpBuffer = [];
     let inRegExp = false;

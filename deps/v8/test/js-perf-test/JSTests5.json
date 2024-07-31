@@ -632,10 +632,7 @@
         {
           "name": "WasmInliningLoopArray",
           "main": "run.js",
-          "flags": [
-            "--experimental-wasm-gc",
-            "--experimental-wasm-js-inlining"
-          ],
+          "flags": [],
           "resources": ["wasm-inlining-loop-array.js"],
           "test_flags": ["wasm-inlining-loop-array"],
           "results_regexp": "^%s\\-TurboFan\\(Score\\): (.+)$",

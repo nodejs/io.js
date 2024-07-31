@@ -18,6 +18,7 @@
 #if !UCONFIG_NO_FORMATTING
 
 #include "buddhcal.h"
+#include "gregoimp.h"
 #include "unicode/gregocal.h"
 #include "umutex.h"
 #include <float.h>
@@ -63,17 +64,21 @@ const char *BuddhistCalendar::getType() const
     return "buddhist";
 }
 
-int32_t BuddhistCalendar::handleGetExtendedYear()
+int32_t BuddhistCalendar::handleGetExtendedYear(UErrorCode& status)
 {
+    if (U_FAILURE(status)) {
+        return 0;
+    }
     // EXTENDED_YEAR in BuddhistCalendar is a Gregorian year.
     // The default value of EXTENDED_YEAR is 1970 (Buddhist 2513)
-    int32_t year;
     if (newerField(UCAL_EXTENDED_YEAR, UCAL_YEAR) == UCAL_EXTENDED_YEAR) {
-        year = internalGet(UCAL_EXTENDED_YEAR, kGregorianEpoch);
-    } else {
-        // extended year is a gregorian year, where 1 = 1AD,  0 = 1BC, -1 = 2BC, etc 
-        year = internalGet(UCAL_YEAR, kGregorianEpoch - kBuddhistEraStart)
-                + kBuddhistEraStart;
+        return internalGet(UCAL_EXTENDED_YEAR, kGregorianEpoch);
+    }
+    // extended year is a gregorian year, where 1 = 1AD,  0 = 1BC, -1 = 2BC, etc
+    int32_t year = internalGet(UCAL_YEAR, kGregorianEpoch - kBuddhistEraStart);
+    if (uprv_add32_overflow(year, kBuddhistEraStart, &year)) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return 0;
     }
     return year;
 }
@@ -90,84 +95,11 @@ int32_t BuddhistCalendar::handleGetLimit(UCalendarDateFields field, ELimitType l
 {
     if(field == UCAL_ERA) {
         return BE;
-    } else {
-        return GregorianCalendar::handleGetLimit(field,limitType);
     }
+    return GregorianCalendar::handleGetLimit(field,limitType);
 }
 
-#if 0
-void BuddhistCalendar::timeToFields(UDate theTime, UBool quick, UErrorCode& status)
-{
-    //Calendar::timeToFields(theTime, quick, status);
-
-    int32_t era = internalGet(UCAL_ERA);
-    int32_t year = internalGet(UCAL_YEAR);
-
-    if(era == GregorianCalendar::BC) {
-        year = 1-year;
-        era = BuddhistCalendar::BE;
-    } else if(era == GregorianCalendar::AD) {
-        era = BuddhistCalendar::BE;
-    } else {
-        status = U_INTERNAL_PROGRAM_ERROR;
-    }
-
-    year = year - kBuddhistEraStart;
-
-    internalSet(UCAL_ERA, era);
-    internalSet(UCAL_YEAR, year);
-}
-#endif
-
-/**
- * The system maintains a static default century start date.  This is initialized
- * the first time it is used. Once the system default century date and year
- * are set, they do not change.
- */
-static UDate     gSystemDefaultCenturyStart       = DBL_MIN;
-static int32_t   gSystemDefaultCenturyStartYear   = -1;
-static icu::UInitOnce gBCInitOnce {};
-
-
-UBool BuddhistCalendar::haveDefaultCentury() const
-{
-    return true;
-}
-
-static void U_CALLCONV
-initializeSystemDefaultCentury()
-{
-    // initialize systemDefaultCentury and systemDefaultCenturyYear based
-    // on the current time.  They'll be set to 80 years before
-    // the current time.
-    UErrorCode status = U_ZERO_ERROR;
-    BuddhistCalendar calendar(Locale("@calendar=buddhist"),status);
-    if (U_SUCCESS(status)) {
-        calendar.setTime(Calendar::getNow(), status);
-        calendar.add(UCAL_YEAR, -80, status);
-        UDate    newStart =  calendar.getTime(status);
-        int32_t  newYear  =  calendar.get(UCAL_YEAR, status);
-        gSystemDefaultCenturyStartYear = newYear;
-        gSystemDefaultCenturyStart = newStart;
-    }
-    // We have no recourse upon failure unless we want to propagate the failure
-    // out.
-}
-
-UDate BuddhistCalendar::defaultCenturyStart() const
-{
-    // lazy-evaluate systemDefaultCenturyStart and systemDefaultCenturyStartYear
-    umtx_initOnce(gBCInitOnce, &initializeSystemDefaultCentury);
-    return gSystemDefaultCenturyStart;
-}
-
-int32_t BuddhistCalendar::defaultCenturyStartYear() const
-{
-    // lazy-evaluate systemDefaultCenturyStartYear and systemDefaultCenturyStart 
-    umtx_initOnce(gBCInitOnce, &initializeSystemDefaultCentury);
-    return gSystemDefaultCenturyStartYear;
-}
-
+IMPL_SYSTEM_DEFAULT_CENTURY(BuddhistCalendar, "@calendar=buddhist")
 
 U_NAMESPACE_END
 

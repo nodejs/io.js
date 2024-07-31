@@ -1,4 +1,7 @@
 {
+  "idlharness-shadowrealm.window.js": {
+    "skip": "ShadowRealm support is not enabled"
+  },
   "invoke_with_timing_attributes.worker.js": {
     "skip": "importScripts not supported"
   },

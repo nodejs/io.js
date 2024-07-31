@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-profile">npm-profile</h1>
+<h1 id="----npm-profile----1082">
+    <span>npm-profile</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Change settings on your registry profile</span>
 </header>
 
@@ -160,27 +168,16 @@ support this interface.</p>
 <li><code>npm profile get [&lt;property&gt;]</code>: Display all of the properties of your
 profile, or one or more specific properties.  It looks like:</li>
 </ul>
-<pre><code class="language-bash">+-----------------+---------------------------+
-| name            | example                   |
-+-----------------+---------------------------+
-| email           | me@example.com (verified) |
-+-----------------+---------------------------+
-| two factor auth | auth-and-writes           |
-+-----------------+---------------------------+
-| fullname        | Example User              |
-+-----------------+---------------------------+
-| homepage        |                           |
-+-----------------+---------------------------+
-| freenode        |                           |
-+-----------------+---------------------------+
-| twitter         |                           |
-+-----------------+---------------------------+
-| github          |                           |
-+-----------------+---------------------------+
-| created         | 2015-02-26T01:38:35.892Z  |
-+-----------------+---------------------------+
-| updated         | 2017-10-02T21:29:45.922Z  |
-+-----------------+---------------------------+
+<pre><code>name: example
+email: e@example.com (verified)
+two-factor auth: auth-and-writes
+fullname: Example User
+homepage:
+freenode:
+twitter:
+github:
+created: 2015-02-26T01:38:35.892Z
+updated: 2017-10-02T21:29:45.922Z
 </code></pre>
 <ul>
 <li>

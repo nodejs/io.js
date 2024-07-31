@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turbofan --harmony-rab-gsab
+// Flags: --allow-natives-syntax --turbofan
 
 function test() {
   const ab = new ArrayBuffer(2996, { maxByteLength: 8588995 });

@@ -1,84 +1,57 @@
+const tspawk = require('../../fixtures/tspawk')
+
+const path = require('node:path')
 const t = require('tap')
-const { load: loadMockNpm } = require('../../fixtures/mock-npm')
+
+const {
+  loadNpmWithRegistry: loadMockNpm,
+  workspaceMock,
+} = require('../../fixtures/mock-npm')
+
+// tspawk calls preventUnmatched which assures that no scripts run if we don't mock any
+const spawk = tspawk(t)
+
+const abbrev = {
+  'package.json': '{"name": "abbrev", "version": "1.0.0"}',
+  test: 'test file',
+}
+
+const packageJson = {
+  name: '@npmcli/test-package',
+  version: '1.0.0',
+  dependencies: {
+    abbrev: '^1.0.0',
+  },
+}
 
 t.test('exec commands', async t => {
-  await t.test('with args, dev=true', async t => {
-    const SCRIPTS = []
-    let ARB_ARGS = null
-    let REIFY_CALLED = false
-    let ARB_OBJ = null
-
-    const { npm } = await loadMockNpm(t, {
-      mocks: {
-        '@npmcli/run-script': ({ event }) => {
-          SCRIPTS.push(event)
-        },
-        '@npmcli/arborist': function (args) {
-          ARB_ARGS = args
-          ARB_OBJ = this
-          this.reify = () => {
-            REIFY_CALLED = true
-          }
-        },
-        '{LIB}/utils/reify-finish.js': (_, arb) => {
-          if (arb !== ARB_OBJ) {
-            throw new Error('got wrong object passed to reify-finish')
-          }
-        },
-      },
+  await t.test('with args does not run lifecycle scripts', async t => {
+    const { npm, registry } = await loadMockNpm(t, {
       config: {
-        // This is here because CI calls tests with `--ignore-scripts`, which config
-        // picks up from argv
-        'ignore-scripts': false,
-        'audit-level': 'low',
-        dev: true,
+        audit: false,
+      },
+      prefixDir: {
+        'package.json': JSON.stringify({
+          ...packageJson,
+          scripts: {
+            install: 'echo install',
+          },
+        }),
+        abbrev,
       },
     })
+    const manifest = registry.manifest({ name: 'abbrev' })
+    await registry.package({ manifest })
+    await registry.tarball({
+      manifest: manifest.versions['1.0.0'],
+      tarball: path.join(npm.prefix, 'abbrev'),
+    })
 
-    await npm.exec('install', ['fizzbuzz'])
-
-    t.match(
-      ARB_ARGS,
-      { global: false, path: npm.prefix, auditLevel: null },
-      'Arborist gets correct args and ignores auditLevel'
-    )
-    t.equal(REIFY_CALLED, true, 'called reify')
-    t.strictSame(SCRIPTS, [], 'no scripts when adding dep')
+    await npm.exec('install', ['abbrev'])
   })
 
-  await t.test('without args', async t => {
-    const SCRIPTS = []
-    let ARB_ARGS = null
-    let REIFY_CALLED = false
-    let ARB_OBJ = null
-
-    const { npm } = await loadMockNpm(t, {
-      mocks: {
-        '@npmcli/run-script': ({ event }) => {
-          SCRIPTS.push(event)
-        },
-        '@npmcli/arborist': function (args) {
-          ARB_ARGS = args
-          ARB_OBJ = this
-          this.reify = () => {
-            REIFY_CALLED = true
-          }
-        },
-        '{LIB}/utils/reify-finish.js': (_, arb) => {
-          if (arb !== ARB_OBJ) {
-            throw new Error('got wrong object passed to reify-finish')
-          }
-        },
-      },
-      config: {
-
-      },
-    })
-
-    await npm.exec('install', [])
-    t.match(ARB_ARGS, { global: false, path: npm.prefix })
-    t.equal(REIFY_CALLED, true, 'called reify')
-    t.strictSame(SCRIPTS, [
+  await t.test('without args runs lifecycle scripts', async t => {
+    const lifecycleScripts = [
       'preinstall',
       'install',
       'postinstall',
@@ -86,74 +59,67 @@ t.test('exec commands', async t => {
       'preprepare',
       'prepare',
       'postprepare',
-    ], 'exec scripts when doing local build')
+    ]
+    const scripts = {}
+    for (const script of lifecycleScripts) {
+      spawk.spawn(/.*/, a => {
+        runOrder.push(script)
+        return a.includes(`${script} lifecycle script`)
+      })
+      scripts[script] = `${script} lifecycle script`
+    }
+    const { npm, registry } = await loadMockNpm(t, {
+      config: {
+        audit: false,
+      },
+      prefixDir: {
+        'package.json': JSON.stringify({
+          ...packageJson,
+          scripts,
+        }),
+        abbrev,
+      },
+    })
+    const runOrder = []
+    const manifest = registry.manifest({ name: 'abbrev' })
+    await registry.package({ manifest })
+    await registry.tarball({
+      manifest: manifest.versions['1.0.0'],
+      tarball: path.join(npm.prefix, 'abbrev'),
+    })
+
+    await npm.exec('install')
+    t.strictSame(lifecycleScripts, runOrder, 'all script ran in the correct order')
   })
 
   await t.test('should ignore scripts with --ignore-scripts', async t => {
-    const SCRIPTS = []
-    let REIFY_CALLED = false
-    const { npm } = await loadMockNpm(t, {
-      mocks: {
-        '{LIB}/utils/reify-finish.js': async () => {},
-        '@npmcli/run-script': ({ event }) => {
-          SCRIPTS.push(event)
-        },
-        '@npmcli/arborist': function () {
-          this.reify = () => {
-            REIFY_CALLED = true
-          }
-        },
-      },
+    const { npm, registry } = await loadMockNpm(t, {
       config: {
         'ignore-scripts': true,
+        audit: false,
+      },
+      prefixDir: {
+        'package.json': JSON.stringify({
+          ...packageJson,
+          scripts: {
+            install: 'echo install',
+          },
+        }),
+        abbrev,
       },
     })
-
-    await npm.exec('install', [])
-    t.equal(REIFY_CALLED, true, 'called reify')
-    t.strictSame(SCRIPTS, [], 'no scripts when adding dep')
-  })
-
-  await t.test('should install globally using Arborist', async t => {
-    const SCRIPTS = []
-    let ARB_ARGS = null
-    let REIFY_CALLED
-    const { npm } = await loadMockNpm(t, {
-      mocks: {
-        '@npmcli/run-script': ({ event }) => {
-          SCRIPTS.push(event)
-        },
-        '{LIB}/utils/reify-finish.js': async () => {},
-        '@npmcli/arborist': function (args) {
-          ARB_ARGS = args
-          this.reify = () => {
-            REIFY_CALLED = true
-          }
-        },
-      },
-      config: {
-        global: true,
-      },
+    const manifest = registry.manifest({ name: 'abbrev' })
+    await registry.package({ manifest })
+    await registry.tarball({
+      manifest: manifest.versions['1.0.0'],
+      tarball: path.join(npm.prefix, 'abbrev'),
     })
-    await npm.exec('install', [])
-    t.match(
-      ARB_ARGS,
-      { global: true, path: npm.globalPrefix }
-    )
-    t.equal(REIFY_CALLED, true, 'called reify')
-    t.strictSame(SCRIPTS, [], 'no scripts when installing globally')
-    t.notOk(npm.config.get('audit', 'cli'))
+
+    await npm.exec('install')
   })
 
   await t.test('should not install invalid global package name', async t => {
     const { npm } = await loadMockNpm(t, {
-      mocks: {
-        '@npmcli/run-script': () => {},
-        '{LIB}/utils/reify-finish.js': async () => {},
-        '@npmcli/arborist': function (args) {
-          throw new Error('should not reify')
-        },
-      },
       config: {
         global: true,
       },
@@ -166,61 +132,55 @@ t.test('exec commands', async t => {
   })
 
   await t.test('npm i -g npm engines check success', async t => {
-    const { npm } = await loadMockNpm(t, {
-      mocks: {
-        '{LIB}/utils/reify-finish.js': async () => {},
-        '@npmcli/arborist': function () {
-          this.reify = () => {}
-        },
-        pacote: {
-          manifest: () => {
-            return {
-              version: '100.100.100',
-              engines: {
-                node: '>1',
-              },
-            }
-          },
+    const { npm, registry } = await loadMockNpm(t, {
+      prefixDir: {
+        npm: {
+          'package.json': JSON.stringify({ name: 'npm', version: '1.0.0' }),
+          'index.js': 'console.log("this is npm")',
         },
       },
-      config: {
-        global: true,
-      },
+      config: { global: true },
+    })
+    const manifest = registry.manifest({
+      name: 'npm',
+      packuments: [{ version: '1.0.0', engines: { node: '>1' } }],
+    })
+    await registry.package({ manifest, times: 2 })
+    await registry.tarball({
+      manifest: manifest.versions['1.0.0'],
+      tarball: path.join(npm.localPrefix, 'npm'),
     })
     await npm.exec('install', ['npm'])
     t.ok('No exceptions happen')
   })
 
   await t.test('npm i -g npm engines check failure', async t => {
-    const { npm } = await loadMockNpm(t, {
-      mocks: {
-        pacote: {
-          manifest: () => {
-            return {
-              _id: 'npm@1.2.3',
-              version: '100.100.100',
-              engines: {
-                node: '>1000',
-              },
-            }
-          },
+    const { npm, registry } = await loadMockNpm(t, {
+      prefixDir: {
+        npm: {
+          'package.json': JSON.stringify({ name: 'npm', version: '1.0.0' }),
+          'index.js': 'console.log("this is the npm we are installing")',
         },
       },
-      config: {
-        global: true,
-      },
+      config: { global: true },
     })
+
+    const manifest = registry.manifest({
+      name: 'npm',
+      packuments: [{ version: '1.0.0', engines: { node: '~1' } }],
+    })
+    await registry.package({ manifest })
     await t.rejects(
       npm.exec('install', ['npm']),
       {
         message: 'Unsupported engine',
-        pkgid: 'npm@1.2.3',
+        pkgid: 'npm@1.0.0',
         current: {
           node: process.version,
-          npm: '100.100.100',
+          npm: '1.0.0',
         },
         required: {
-          node: '>1000',
+          node: '~1',
         },
         code: 'EBADENGINE',
       }
@@ -228,71 +188,26 @@ t.test('exec commands', async t => {
   })
 
   await t.test('npm i -g npm engines check failure forced override', async t => {
-    const { npm } = await loadMockNpm(t, {
-      mocks: {
-        '{LIB}/utils/reify-finish.js': async () => {},
-        '@npmcli/arborist': function () {
-          this.reify = () => {}
-        },
-        pacote: {
-          manifest: () => {
-            return {
-              _id: 'npm@1.2.3',
-              version: '100.100.100',
-              engines: {
-                node: '>1000',
-              },
-            }
-          },
+    const { npm, registry } = await loadMockNpm(t, {
+      prefixDir: {
+        npm: {
+          'package.json': JSON.stringify({ name: 'npm', version: '1.0.0' }),
+          'index.js': 'console.log("this is npm")',
         },
       },
-      config: {
-        global: true,
-        force: true,
-      },
+      config: { global: true, force: true },
+    })
+    const manifest = registry.manifest({
+      name: 'npm',
+      packuments: [{ version: '1.0.0', engines: { node: '~1' } }],
+    })
+    await registry.package({ manifest, times: 2 })
+    await registry.tarball({
+      manifest: manifest.versions['1.0.0'],
+      tarball: path.join(npm.localPrefix, 'npm'),
     })
     await npm.exec('install', ['npm'])
-    t.ok('Does not throw')
-  })
-
-  await t.test('npm i -g npm@version engines check failure', async t => {
-    const { npm } = await loadMockNpm(t, {
-      mocks: {
-        '{LIB}/utils/reify-finish.js': async () => {},
-        '@npmcli/arborist': function () {
-          this.reify = () => {}
-        },
-        pacote: {
-          manifest: () => {
-            return {
-              _id: 'npm@1.2.3',
-              version: '100.100.100',
-              engines: {
-                node: '>1000',
-              },
-            }
-          },
-        },
-      },
-      config: {
-        global: true,
-      },
-    })
-    await t.rejects(
-      npm.exec('install', ['npm@100']),
-      {
-        message: 'Unsupported engine',
-        pkgid: 'npm@1.2.3',
-        current: {
-          node: process.version,
-          npm: '100.100.100',
-        },
-        required: {
-          node: '>1000',
-        },
-        code: 'EBADENGINE',
-      }
-    )
+    t.ok('No exceptions happen')
   })
 })
 
@@ -352,80 +267,136 @@ t.test('completion', async t => {
   })
 })
 
-t.test('location detection and audit', async (t) => {
-  await t.test('audit false without package.json', async t => {
-    const { npm } = await loadMockNpm(t, {
-      command: 'install',
-      prefixDir: {
-        // no package.json
-        'readme.txt': 'just a file',
-        'other-dir': { a: 'a' },
+t.test('should install in workspace with unhoisted module', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    prefixDir: workspaceMock(t, {
+      clean: true,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { hoist: true },
+        },
+        'workspace-b': {
+          'abbrev@1.1.1': { hoist: false },
+        },
       },
-    })
-    t.equal(npm.config.get('location'), 'user')
-    t.equal(npm.config.get('audit'), false)
+    }),
   })
+  await registry.setup({
+    'abbrev@1.1.0': path.join(npm.prefix, 'tarballs/abbrev@1.1.0'),
+    'abbrev@1.1.1': path.join(npm.prefix, 'tarballs/abbrev@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageMissing('workspace-b/node_modules/abbrev@1.1.1')
+  await npm.exec('install', [])
+  assert.packageInstalled('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('workspace-b/node_modules/abbrev@1.1.1')
+})
 
-  await t.test('audit true with package.json', async t => {
-    const { npm } = await loadMockNpm(t, {
-      command: 'install',
-      prefixDir: {
-        'package.json': '{ "name": "testpkg", "version": "1.0.0" }',
-        'readme.txt': 'just a file',
+t.test('should install in workspace with hoisted modules', async t => {
+  const prefixDir = workspaceMock(t, {
+    clean: true,
+    workspaces: {
+      'workspace-a': {
+        'abbrev@1.1.0': { hoist: true },
       },
-    })
-    t.equal(npm.config.get('location'), 'user')
-    t.equal(npm.config.get('audit'), true)
+      'workspace-b': {
+        'lodash@1.1.1': { hoist: true },
+      },
+    },
   })
+  const { npm, registry, assert } = await loadMockNpm(t, { prefixDir })
+  await registry.setup({
+    'abbrev@1.1.0': path.join(npm.prefix, 'tarballs/abbrev@1.1.0'),
+    'lodash@1.1.1': path.join(npm.prefix, 'tarballs/lodash@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageMissing('node_modules/lodash@1.1.1')
+  await npm.exec('install', [])
+  assert.packageInstalled('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('node_modules/lodash@1.1.1')
+})
 
-  await t.test('audit true without package.json when set', async t => {
-    const { npm } = await loadMockNpm(t, {
-      command: 'install',
-      prefixDir: {
-        // no package.json
-        'readme.txt': 'just a file',
-        'other-dir': { a: 'a' },
+t.test('should install unhoisted module with --workspace flag', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    config: {
+      workspace: 'workspace-b',
+    },
+    prefixDir: workspaceMock(t, {
+      clean: true,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { hoist: true },
+        },
+        'workspace-b': {
+          'abbrev@1.1.1': { hoist: false },
+        },
       },
-      config: {
-        audit: true,
-      },
-    })
-    t.equal(npm.config.get('location'), 'user')
-    t.equal(npm.config.get('audit'), true)
+    }),
   })
+  await registry.setup({
+    'abbrev@1.1.1': path.join(npm.prefix, 'tarballs/abbrev@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageMissing('workspace-b/node_modules/abbrev@1.1.1')
+  await npm.exec('install', [])
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('workspace-b/node_modules/abbrev@1.1.1')
+})
 
-  await t.test('audit true in root config without package.json', async t => {
-    const { npm } = await loadMockNpm(t, {
-      command: 'install',
-      prefixDir: {
-        // no package.json
-        'readme.txt': 'just a file',
-        'other-dir': { a: 'a' },
+t.test('should install hoisted module with --workspace flag', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    config: {
+      workspace: 'workspace-b',
+    },
+    prefixDir: workspaceMock(t, {
+      clean: true,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { hoist: true },
+        },
+        'workspace-b': {
+          'lodash@1.1.1': { hoist: true },
+        },
       },
-      // change npmRoot to get it to use a builtin rc file
-      otherDirs: { npmrc: 'audit=true' },
-      npm: ({ other }) => ({ npmRoot: other }),
-    })
-    t.equal(npm.config.get('location'), 'user')
-    t.equal(npm.config.get('audit'), true)
+    }),
   })
+  await registry.setup({
+    'lodash@1.1.1': path.join(npm.prefix, 'tarballs/lodash@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageMissing('node_modules/lodash@1.1.1')
+  await npm.exec('install', [])
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('node_modules/lodash@1.1.1')
+})
 
-  await t.test('test for warning when --global & --audit', async t => {
-    const { npm, logs } = await loadMockNpm(t, {
-      command: 'install',
-      prefixDir: {
-        // no package.json
-        'readme.txt': 'just a file',
-        'other-dir': { a: 'a' },
+t.test('should show install keeps dirty --workspace flag', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    config: {
+      workspace: 'workspace-b',
+    },
+    prefixDir: workspaceMock(t, {
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { clean: false, hoist: true },
+        },
+        'workspace-b': {
+          'lodash@1.1.1': { clean: true, hoist: true },
+        },
       },
-      config: {
-        audit: true,
-        global: true,
-      },
-    })
-    t.equal(npm.config.get('location'), 'user')
-    t.equal(npm.config.get('audit'), true)
-    t.equal(logs.warn[0][0], 'config')
-    t.equal(logs.warn[0][1], 'includes both --global and --audit, which is currently unsupported.')
+    }),
   })
+  await registry.setup({
+    'lodash@1.1.1': path.join(npm.prefix, 'tarballs/lodash@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageDirty('node_modules/abbrev@1.1.0')
+  assert.packageMissing('node_modules/lodash@1.1.1')
+  await npm.exec('install', [])
+  assert.packageDirty('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('node_modules/lodash@1.1.1')
 })

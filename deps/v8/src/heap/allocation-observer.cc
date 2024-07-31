@@ -55,7 +55,7 @@ void AllocationCounter::RemoveAllocationObserver(AllocationObserver* observer) {
 
   observers_.erase(it);
 
-  if (observers_.size() == 0) {
+  if (observers_.empty()) {
     current_counter_ = next_counter_ = 0;
   } else {
     size_t step_size = 0;
@@ -134,7 +134,8 @@ void AllocationCounter::InvokeAllocationObservers(Address soon_object,
         std::remove_if(observers_.begin(), observers_.end(),
                        [this](const AllocationObserverCounter& aoc) {
                          return pending_removed_.count(aoc.observer_) != 0;
-                       }));
+                       }),
+        observers_.end());
     pending_removed_.clear();
 
     // Some observers were removed, recalculate step size.
@@ -158,18 +159,13 @@ void AllocationCounter::InvokeAllocationObservers(Address soon_object,
 PauseAllocationObserversScope::PauseAllocationObserversScope(Heap* heap)
     : heap_(heap) {
   DCHECK_EQ(heap->gc_state(), Heap::NOT_IN_GC);
-  for (SpaceIterator it(heap_); it.HasNext();) {
-    it.Next()->PauseAllocationObservers();
-  }
-
+  heap->allocator()->PauseAllocationObservers();
   heap_->pause_allocation_observers_depth_++;
 }
 
 PauseAllocationObserversScope::~PauseAllocationObserversScope() {
   heap_->pause_allocation_observers_depth_--;
-  for (SpaceIterator it(heap_); it.HasNext();) {
-    it.Next()->ResumeAllocationObservers();
-  }
+  heap_->allocator()->ResumeAllocationObservers();
 }
 
 }  // namespace internal

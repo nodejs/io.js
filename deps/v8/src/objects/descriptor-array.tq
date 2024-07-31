@@ -11,7 +11,8 @@ extern class EnumCache extends Struct {
 struct DescriptorEntry {
   key: Name|Undefined;
   details: Smi|Undefined;
-  value: JSAny|Weak<Map>|AccessorInfo|AccessorPair|ClassPositions;
+  value: JSAny|Weak<Map>|AccessorInfo|AccessorPair|ClassPositions|
+      NumberDictionary;
 }
 
 @generateBodyDescriptor

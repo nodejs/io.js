@@ -15,7 +15,7 @@
 #include "src/heap/heap.h"
 #include "src/heap/incremental-marking-job.h"
 #include "src/heap/mark-compact.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page.h"
 #include "src/tasks/cancelable-task.h"
 
 namespace v8 {
@@ -92,10 +92,6 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
     return major_collection_requested_via_stack_guard_;
   }
 
-  bool MinorCollectionRequested() const {
-    return minor_collection_requested_via_stack_guard_;
-  }
-
   bool CanBeStarted() const;
   void Start(GarbageCollector garbage_collector,
              GarbageCollectionReason gc_reason);
@@ -155,22 +151,15 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
     IncrementalMarking* const incremental_marking_;
   };
 
-  class MinorGCObserver final : public AllocationObserver {
-   public:
-    explicit MinorGCObserver(IncrementalMarking* incremental_marking);
-    ~MinorGCObserver() override = default;
-    void Step(int, Address, size_t) final;
-
-   private:
-    IncrementalMarking* const incremental_marking_;
-  };
-
   void StartMarkingMajor();
   void StartMarkingMinor();
 
   void StartBlackAllocation();
   void PauseBlackAllocation();
   void FinishBlackAllocation();
+
+  void StartPointerTableBlackAllocation();
+  void StopPointerTableBlackAllocation();
 
   void MarkRoots();
   // Returns true if the function succeeds in transitioning the object
@@ -193,8 +182,6 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
             StepOrigin step_origin);
 
   size_t OldGenerationSizeOfObjects() const;
-
-  void RequestMinorGCFinalizationIfNeeded();
 
   MarkingState* marking_state() { return marking_state_; }
   MarkingWorklists::Local* local_marking_worklists() const {
@@ -219,13 +206,12 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
   bool completion_task_scheduled_ = false;
   v8::base::TimeTicks completion_task_timeout_;
   bool major_collection_requested_via_stack_guard_ = false;
-  bool minor_collection_requested_via_stack_guard_ = false;
   std::unique_ptr<IncrementalMarkingJob> incremental_marking_job_;
   Observer new_generation_observer_;
   Observer old_generation_observer_;
-  MinorGCObserver minor_gc_observer_;
   base::Mutex background_live_bytes_mutex_;
-  std::unordered_map<MemoryChunk*, intptr_t, base::hash<MemoryChunk*>>
+  std::unordered_map<MutablePageMetadata*, intptr_t,
+                     base::hash<MutablePageMetadata*>>
       background_live_bytes_;
   std::unique_ptr<::heap::base::IncrementalMarkingSchedule> schedule_;
   base::Optional<uint64_t> current_trace_id_;

@@ -391,6 +391,7 @@ struct Norm2AllModes : public UMemory {
     static const Norm2AllModes *getNFCInstance(UErrorCode &errorCode);
     static const Norm2AllModes *getNFKCInstance(UErrorCode &errorCode);
     static const Norm2AllModes *getNFKC_CFInstance(UErrorCode &errorCode);
+    static const Norm2AllModes *getNFKC_SCFInstance(UErrorCode &errorCode);
 
     Normalizer2Impl *impl;
     ComposeNormalizer2 comp;

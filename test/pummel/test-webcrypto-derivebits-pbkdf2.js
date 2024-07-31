@@ -460,6 +460,11 @@ async function testDeriveBitsBadLengths(
         name: 'OperationError',
       }),
     assert.rejects(
+      subtle.deriveBits(algorithm, baseKeys[size]), {
+        message: 'length cannot be null',
+        name: 'OperationError',
+      }),
+    assert.rejects(
       subtle.deriveBits(algorithm, baseKeys[size], 15), {
         message: /length must be a multiple of 8/,
         name: 'OperationError',

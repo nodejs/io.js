@@ -3,7 +3,7 @@ require('../common');
 const assert = require('assert');
 const fs = require('fs');
 
-[Infinity, -Infinity, NaN].forEach((input) => {
+for (const input of [Infinity, -Infinity, NaN]) {
   assert.throws(
     () => {
       fs._toUnixTimestamp(input);
@@ -12,7 +12,7 @@ const fs = require('fs');
       code: 'ERR_INVALID_ARG_TYPE',
       name: 'TypeError'
     });
-});
+}
 
 assert.throws(
   () => {
@@ -24,6 +24,6 @@ assert.throws(
   });
 
 const okInputs = [1, -1, '1', '-1', Date.now()];
-okInputs.forEach((input) => {
+for (const input of okInputs) {
   fs._toUnixTimestamp(input);
-});
+}

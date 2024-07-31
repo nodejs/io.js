@@ -73,15 +73,10 @@ Tagged<Object> ConstructBuffer(Isolate* isolate, Handle<JSFunction> target,
         BackingStore::Allocate(isolate, byte_length, shared, initialized);
     max_byte_length = byte_length;
   } else {
-    // We need to check the max length against both
-    // JSArrayBuffer::kMaxByteLength and JSTypedArray::kMaxLength, since it's
-    // possible to create length-tracking TypedArrays and resize the underlying
-    // buffer. If the max byte length was larger than JSTypedArray::kMaxLength,
-    // that'd result in having a TypedArray with length larger than
-    // JSTypedArray::kMaxLength.
+    static_assert(JSArrayBuffer::kMaxByteLength ==
+                  JSTypedArray::kMaxByteLength);
     if (!TryNumberToSize(*max_length, &max_byte_length) ||
-        max_byte_length > JSArrayBuffer::kMaxByteLength ||
-        max_byte_length > JSTypedArray::kMaxLength) {
+        max_byte_length > JSArrayBuffer::kMaxByteLength) {
       THROW_NEW_ERROR_RETURN_FAILURE(
           isolate,
           NewRangeError(MessageTemplate::kInvalidArrayBufferMaxLength));
@@ -139,18 +134,16 @@ BUILTIN(ArrayBufferConstructor) {
   }
 
   Handle<Object> number_max_length;
-  if (v8_flags.harmony_rab_gsab) {
-    Handle<Object> max_length;
-    Handle<Object> options = args.atOrUndefined(isolate, 2);
-    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-        isolate, max_length,
-        JSObject::ReadFromOptionsBag(
-            options, isolate->factory()->max_byte_length_string(), isolate));
+  Handle<Object> max_length;
+  Handle<Object> options = args.atOrUndefined(isolate, 2);
+  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
+      isolate, max_length,
+      JSObject::ReadFromOptionsBag(
+          options, isolate->factory()->max_byte_length_string(), isolate));
 
-    if (!IsUndefined(*max_length, isolate)) {
-      ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-          isolate, number_max_length, Object::ToInteger(isolate, max_length));
-    }
+  if (!IsUndefined(*max_length, isolate)) {
+    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, number_max_length,
+                                       Object::ToInteger(isolate, max_length));
   }
   return ConstructBuffer(isolate, target, new_target, number_length,
                          number_max_length, InitializedFlag::kZeroInitialized);

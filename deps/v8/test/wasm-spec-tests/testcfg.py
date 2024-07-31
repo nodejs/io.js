@@ -14,7 +14,7 @@ proposal_flags = [
     },
     {
         'name': 'tail-call',
-        'flags': ['--experimental-wasm-return-call']
+        'flags': []
     },
     {
         'name': 'memory64',
@@ -22,25 +22,26 @@ proposal_flags = [
     },
     {
         'name': 'extended-const',
-        'flags': ['--experimental-wasm-extended-const']
+        'flags': []
     },
     {
         'name': 'function-references',
-        # Some of these tests need `global.get` to be a constant instruction,
-        # which is part of the GC proposal. We'll ship both proposals at once
-        # anyway, so we might as well enable both for these tests.
-        'flags': [
-            '--experimental-wasm-typed-funcref', '--experimental-wasm-gc'
-        ]
+        'flags': []
     },
     {
         'name': 'gc',
-        'flags': ['--experimental-wasm-gc', '--wasm-final-types']
+        'flags': []
     },
     {
         'name': 'multi-memory',
         'flags': ['--experimental-wasm-multi-memory']
     },
+    {
+        'name': 'exception-handling',
+        # This flag enables the *new* exception handling proposal. The legacy
+        # proposal is enabled by default.
+        'flags': ['--experimental-wasm-exnref', '--turboshaft-wasm']
+    }
 ]
 
 

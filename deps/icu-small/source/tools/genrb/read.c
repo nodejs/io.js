@@ -53,7 +53,7 @@ static void    seekUntilEndOfComment (UCHARBUF *buf, struct UString *token, UErr
 static UBool   isWhitespace          (UChar32 c);
 static UBool   isNewline             (UChar32 c);
 
-U_CFUNC void resetLineNumber() {
+U_CFUNC void resetLineNumber(void) {
     lineCount = 1;
 }
 

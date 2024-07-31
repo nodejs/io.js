@@ -10,6 +10,8 @@ test-cpu-prof-dir-worker: PASS, FLAKY
 # https://github.com/nodejs/node/issues/44898
 test-watch-mode: PASS, FLAKY
 test-watch-mode-inspect: PASS, FLAKY
+# https://github.com/nodejs/node/issues/47409
+test-http2-large-file: PASS, FLAKY
 
 [$system==win32]
 # https://github.com/nodejs/node/issues/47116
@@ -41,8 +43,19 @@ test-tls-securepair-client: PASS, FLAKY
 
 [$arch==arm]
 # https://github.com/nodejs/node/issues/49933
-test-watch-mode-inspect: PASS, FLAKY
+test-watch-mode-inspect: SKIP
 
 [$arch==s390x]
 # https://github.com/nodejs/node/issues/41286
 test-performance-eventloopdelay: PASS, FLAKY
+
+[$system==linux && $arch==ppc64]
+# https://github.com/nodejs/node/issues/50740
+test-single-executable-application-assets-raw: PASS, FLAKY
+test-single-executable-application-assets: PASS, FLAKY
+test-single-executable-application-disable-experimental-sea-warning: PASS, FLAKY
+test-single-executable-application-empty: PASS, FLAKY
+test-single-executable-application-snapshot-and-code-cache: PASS, FLAKY
+test-single-executable-application-snapshot: PASS, FLAKY
+test-single-executable-application-use-code-cache: PASS, FLAKY
+test-single-executable-application: PASS, FLAKY

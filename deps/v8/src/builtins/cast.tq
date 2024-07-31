@@ -594,6 +594,18 @@ Cast<JSMapWithNoCustomIteration>(
   return %RawDownCast<JSMapWithNoCustomIteration>(a);
 }
 
+Cast<StableOrderedHashSet>(implicit context: Context)(o: HeapObject):
+    StableOrderedHashSet labels CastError {
+  const table = Cast<OrderedHashSet>(o) otherwise CastError;
+  return %RawDownCast<StableOrderedHashSet>(table);
+}
+
+Cast<StableOrderedHashMap>(implicit context: Context)(o: HeapObject):
+    StableOrderedHashMap labels CastError {
+  const table = Cast<OrderedHashMap>(o) otherwise CastError;
+  return %RawDownCast<StableOrderedHashMap>(table);
+}
+
 macro Cast<T: type>(o: String): T labels CastError;
 
 Cast<SeqOneByteString>(o: HeapObject): SeqOneByteString labels CastError {
@@ -841,12 +853,12 @@ macro UnsafeConstCast<T: type>(r: const &T):&T {
 
 UnsafeCast<RegExpMatchInfo>(
     implicit context: Context)(o: Object): RegExpMatchInfo {
-  dcheck(Is<FixedArray>(o));
+  dcheck(Is<RegExpMatchInfo>(o));
   return %RawDownCast<RegExpMatchInfo>(o);
 }
 
 UnsafeCast<ArrayList>(implicit context: Context)(o: Object): ArrayList {
-  dcheck(Is<FixedArray>(o));
+  dcheck(Is<ArrayList>(o));
   return %RawDownCast<ArrayList>(o);
 }
 

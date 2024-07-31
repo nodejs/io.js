@@ -62,7 +62,7 @@ void BytecodeArray::PrintJson(std::ostream& os) {
   if (constant_pool_lenght > 0) {
     os << ", \"constantPool\": [";
     for (int i = 0; i < constant_pool_lenght; i++) {
-      Object object = constant_pool()->get(i);
+      Tagged<Object> object = constant_pool()->get(i);
       if (i > 0) os << ", ";
       os << "\"" << object << "\"";
     }
@@ -146,7 +146,8 @@ void BytecodeArray::Disassemble(Handle<BytecodeArray> handle,
   }
 #endif
 
-  ByteArray source_position_table = handle->SourcePositionTable();
+  Tagged<TrustedByteArray> source_position_table =
+      handle->SourcePositionTable();
   os << "Source Position Table (size = " << source_position_table->length()
      << ")\n";
 #ifdef OBJECT_PRINT

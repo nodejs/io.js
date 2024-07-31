@@ -50,7 +50,7 @@ my ($no_des, $no_dh, $no_dsa, $no_ec, $no_ec2m, $no_rc2, $no_zlib)
 
 $no_rc2 = 1 if disabled("legacy");
 
-plan tests => 18;
+plan tests => 19;
 
 ok(run(test(["pkcs7_test"])), "test pkcs7");
 
@@ -222,13 +222,15 @@ my @smime_pkcs7_tests = (
       \&final_compare
     ],
 
-    [ "enveloped content test streaming S/MIME format, DES, 3 recipients, key only used",
+    [ "enveloped content test streaming S/MIME format, DES, 3 recipients, cert and key files used",
       [ "{cmd1}", @defaultprov, "-encrypt", "-in", $smcont,
         "-stream", "-out", "{output}.cms",
         $smrsa1,
         catfile($smdir, "smrsa2.pem"),
-        catfile($smdir, "smrsa3.pem") ],
-      [ "{cmd2}", @defaultprov, "-decrypt", "-inkey", catfile($smdir, "smrsa3.pem"),
+        catfile($smdir, "smrsa3-cert.pem") ],
+      [ "{cmd2}", @defaultprov, "-decrypt",
+	"-recip", catfile($smdir, "smrsa3-cert.pem"),
+	"-inkey", catfile($smdir, "smrsa3-key.pem"),
         "-in", "{output}.cms", "-out", "{output}.txt" ],
       \&final_compare
     ],
@@ -1019,3 +1021,51 @@ with({ exit_checker => sub { return shift == 3; } },
 		   ])),
 	   "Check for failure when cipher does not have an assigned OID (issue#22225)");
      });
+
+# Test encrypt to three recipients, and decrypt using key-only;
+# i.e. do not follow the recommended practice of providing the
+# recipient cert in the decrypt op.
+#
+# Use RSAES-OAEP for key-transport, not RSAES-PKCS-v1_5.
+#
+# Because the cert is not provided during decrypt, all RSA ciphertexts
+# are decrypted in turn, and when/if there is a valid decryption, it
+# is assumed the correct content-key has been recovered.
+#
+# That process may fail with RSAES-PKCS-v1_5 b/c there is a
+# non-negligible chance that decrypting a random input using
+# RSAES-PKCS-v1_5 can result in a valid plaintext (so two content-keys
+# could be recovered and the wrong one might be used).
+#
+# See https://github.com/openssl/project/issues/380
+subtest "encrypt to three recipients with RSA-OAEP, key only decrypt" => sub {
+    plan tests => 3;
+
+    my $pt = srctop_file("test", "smcont.txt");
+    my $ct = "smtst.cms";
+    my $ptpt = "smtst.txt";
+
+    ok(run(app(['openssl', 'cms',
+		@defaultprov,
+		'-encrypt', '-aes128',
+		'-in', $pt,
+		'-out', $ct,
+		'-stream',
+		'-recip', catfile($smdir, "smrsa1.pem"),
+		'-keyopt', 'rsa_padding_mode:oaep',
+		'-recip', catfile($smdir, "smrsa2.pem"),
+		'-keyopt', 'rsa_padding_mode:oaep',
+		'-recip', catfile($smdir, "smrsa3-cert.pem"),
+		'-keyopt', 'rsa_padding_mode:oaep',
+	       ])),
+       "encrypt to three recipients with RSA-OAEP (avoid openssl/project issue#380)");
+    ok(run(app(['openssl', 'cms',
+		@defaultprov,
+		'-decrypt', '-aes128',
+		'-in', $ct,
+		'-out', $ptpt,
+		'-inkey', catfile($smdir, "smrsa3-key.pem"),
+	       ])),
+       "decrypt with key only");
+    is(compare($pt, $ptpt), 0, "compare original message with decrypted ciphertext");
+};

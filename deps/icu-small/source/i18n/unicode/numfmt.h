@@ -199,23 +199,21 @@ public:
           *  @stable ICU 4.8
           */
         kRoundUnnecessary,
-#ifndef U_HIDE_DRAFT_API
         /**
          * Rounds ties toward the odd number.
-         * @draft ICU 73
+         * @stable ICU 73
          */
         kRoundHalfOdd,
         /**
          * Rounds ties toward +∞.
-         * @draft ICU 73
+         * @stable ICU 73
          */
         kRoundHalfCeiling,
         /**
          * Rounds ties toward -∞.
-         * @draft ICU 73
+         * @stable ICU 73
          */
         kRoundHalfFloor,
-#endif /* U_HIDE_DRAFT_API */
     };
 
     /**
@@ -707,7 +705,7 @@ public:
      *            only.
      * @stable ICU 2.0
      */
-    UBool isParseIntegerOnly(void) const;
+    UBool isParseIntegerOnly() const;
 
     /**
      * Sets whether or not numbers should be parsed as integers only.
@@ -735,7 +733,7 @@ public:
      * @see #setLenient
      * @stable ICU 4.8
      */
-    virtual UBool isLenient(void) const;
+    virtual UBool isLenient() const;
 
     /**
      * Create a default style NumberFormat for the current default locale.
@@ -898,7 +896,7 @@ public:
      * @return a StringEnumeration over the locales available at the time of the call
      * @stable ICU 2.6
      */
-    static StringEnumeration* U_EXPORT2 getAvailableLocales(void);
+    static StringEnumeration* U_EXPORT2 getAvailableLocales();
 #endif /* UCONFIG_NO_SERVICE */
 
     /**
@@ -910,7 +908,7 @@ public:
      * @see setGroupingUsed
      * @stable ICU 2.0
      */
-    UBool isGroupingUsed(void) const;
+    UBool isGroupingUsed() const;
 
     /**
      * Set whether or not grouping will be used in this format.
@@ -928,7 +926,7 @@ public:
      * @see setMaximumIntegerDigits
      * @stable ICU 2.0
      */
-    int32_t getMaximumIntegerDigits(void) const;
+    int32_t getMaximumIntegerDigits() const;
 
     /**
      * Sets the maximum number of digits allowed in the integer portion of a
@@ -952,7 +950,7 @@ public:
      * @see setMinimumIntegerDigits
      * @stable ICU 2.0
      */
-    int32_t getMinimumIntegerDigits(void) const;
+    int32_t getMinimumIntegerDigits() const;
 
     /**
      * Sets the minimum number of digits allowed in the integer portion of a
@@ -974,7 +972,7 @@ public:
      * @see setMaximumFractionDigits
      * @stable ICU 2.0
      */
-    int32_t getMaximumFractionDigits(void) const;
+    int32_t getMaximumFractionDigits() const;
 
     /**
      * Sets the maximum number of digits allowed in the fraction portion of a
@@ -996,7 +994,7 @@ public:
      * @see setMinimumFractionDigits
      * @stable ICU 2.0
      */
-    int32_t getMinimumFractionDigits(void) const;
+    int32_t getMinimumFractionDigits() const;
 
     /**
      * Sets the minimum number of digits allowed in the fraction portion of a
@@ -1062,7 +1060,7 @@ public:
      * @return A rounding mode
      * @stable ICU 60
      */
-    virtual ERoundingMode getRoundingMode(void) const;
+    virtual ERoundingMode getRoundingMode() const;
 
     /**
      * Set the rounding mode. If a subclass does not support rounding, this will do nothing.
@@ -1081,7 +1079,7 @@ public:
      * @return The class ID for all objects of this class.
      * @stable ICU 2.0
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
     /**
      * Returns a unique class ID POLYMORPHICALLY.  Pure virtual override.
@@ -1094,7 +1092,7 @@ public:
      * other classes have different class IDs.
      * @stable ICU 2.0
      */
-    virtual UClassID getDynamicClassID(void) const override = 0;
+    virtual UClassID getDynamicClassID() const override = 0;
 
 protected:
 
@@ -1204,7 +1202,7 @@ public:
      * be listed by getAvailableLocales.
      * @stable ICU 2.6
      */
-    virtual UBool visible(void) const = 0;
+    virtual UBool visible() const = 0;
 
     /**
      * Return the locale names directly supported by this factory.  The number of names
@@ -1255,7 +1253,7 @@ public:
     /**
      * @stable ICU 2.6
      */
-    virtual UBool visible(void) const override;
+    virtual UBool visible() const override;
 
     /**
      * @stable ICU 2.6

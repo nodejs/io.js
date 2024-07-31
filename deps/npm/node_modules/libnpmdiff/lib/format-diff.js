@@ -1,9 +1,23 @@
-const EOL = '\n'
-
-const colorizeDiff = require('@npmcli/disparity-colors')
 const jsDiff = require('diff')
 
 const shouldPrintPatch = require('./should-print-patch.js')
+
+const colors = {
+  // red
+  removed: { open: '\x1B[31m', close: '\x1B[39m' },
+  // green
+  added: { open: '\x1B[32m', close: '\x1B[39m' },
+  // blue
+  header: { open: '\x1B[34m', close: '\x1B[39m' },
+  // cyan
+  section: { open: '\x1B[36m', close: '\x1B[39m' },
+}
+
+const color = (colorStr, colorId) => {
+  const { open, close } = colors[colorId]
+  // avoid highlighting the "\n" (would highlight till the end of the line)
+  return colorStr.replace(/[^\n\r]+/g, open + '$&' + close)
+}
 
 const formatDiff = ({ files, opts = {}, refs, versions }) => {
   let res = ''
@@ -35,7 +49,7 @@ const formatDiff = ({ files, opts = {}, refs, versions }) => {
     }
 
     if (opts.diffNameOnly) {
-      res += `${filename}${EOL}`
+      res += `${filename}\n`
       continue
     }
 
@@ -43,7 +57,7 @@ const formatDiff = ({ files, opts = {}, refs, versions }) => {
     let headerLength = 0
     const header = str => {
       headerLength++
-      patch += `${str}${EOL}`
+      patch += `${str}\n`
     }
 
     // manually build a git diff-compatible header
@@ -85,9 +99,17 @@ const formatDiff = ({ files, opts = {}, refs, versions }) => {
       header(`+++ ${names.b}`)
     }
 
-    res += (opts.color
-      ? colorizeDiff(patch, { headerLength })
-      : patch)
+    if (opts.color) {
+      // this RegExp will include all the `\n` chars into the lines, easier to join
+      const lines = patch.split(/^/m)
+      res += color(lines.slice(0, headerLength).join(''), 'header')
+      res += lines.slice(headerLength).join('')
+        .replace(/^-.*/gm, color('$&', 'removed'))
+        .replace(/^\+.*/gm, color('$&', 'added'))
+        .replace(/^@@.+@@/gm, color('$&', 'section'))
+    } else {
+      res += patch
+    }
   }
 
   return res.trim()

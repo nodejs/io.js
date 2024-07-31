@@ -96,7 +96,7 @@ static icu::UMutex registryMutex;
 /**
  * System transliterator registry; non-null when initialized.
  */
-static icu::TransliteratorRegistry* registry = 0;
+static icu::TransliteratorRegistry* registry = nullptr;
 
 // Macro to check/initialize the registry. ONLY USE WITHIN
 // MUTEX. Avoids function call when registry is initialized.
@@ -140,23 +140,21 @@ Transliterator::Transliterator(const UnicodeString& theID,
  * Destructor.
  */
 Transliterator::~Transliterator() {
-    if (filter) {
-        delete filter;
-    }
+    delete filter;
 }
 
 /**
  * Copy constructor.
  */
 Transliterator::Transliterator(const Transliterator& other) :
-    UObject(other), ID(other.ID), filter(0),
+    UObject(other), ID(other.ID), filter(nullptr),
     maximumContextLength(other.maximumContextLength)
 {
     // NUL-terminate the ID string, which is a non-aliased copy.
     ID.append((char16_t)0);
     ID.truncate(ID.length()-1);
 
-    if (other.filter != 0) {
+    if (other.filter != nullptr) {
         // We own the filter, so we must have our own copy
         filter = other.filter->clone();
     }
@@ -176,7 +174,7 @@ Transliterator& Transliterator::operator=(const Transliterator& other) {
     ID.getTerminatedBuffer();
 
     maximumContextLength = other.maximumContextLength;
-    adoptFilter((other.filter == 0) ? 0 : other.filter->clone());
+    adoptFilter(other.filter == nullptr ? nullptr : other.filter->clone());
     return *this;
 }
 
@@ -322,7 +320,7 @@ void Transliterator::transliterate(Replaceable& text,
 void Transliterator::transliterate(Replaceable& text,
                                    UTransPosition& index,
                                    UErrorCode& status) const {
-    _transliterate(text, index, 0, status);
+    _transliterate(text, index, nullptr, status);
 }
 
 /**
@@ -365,7 +363,7 @@ void Transliterator::_transliterate(Replaceable& text,
     }
 
 //    int32_t originalStart = index.contextStart;
-    if (insertion != 0) {
+    if (insertion != nullptr) {
         text.handleReplaceBetween(index.limit, index.limit, *insertion);
         index.limit += insertion->length();
         index.contextLimit += insertion->length();
@@ -431,7 +429,7 @@ void Transliterator::filteredTransliterate(Replaceable& text,
                                            UBool rollback) const {
     // Short circuit path for transliterators with no filter in
     // non-incremental mode.
-    if (filter == 0 && !rollback) {
+    if (filter == nullptr && !rollback) {
         handleTransliterate(text, index, incremental);
         return;
     }
@@ -915,7 +913,7 @@ Transliterator::createInstance(const UnicodeString& ID,
                                 UErrorCode& status)
 {
     if (U_FAILURE(status)) {
-        return 0;
+        return nullptr;
     }
 
     UnicodeString canonID;
@@ -978,8 +976,8 @@ Transliterator* Transliterator::createBasicInstance(const UnicodeString& id,
                                                     const UnicodeString* canon) {
     UParseError pe;
     UErrorCode ec = U_ZERO_ERROR;
-    TransliteratorAlias* alias = 0;
-    Transliterator* t = 0;
+    TransliteratorAlias* alias = nullptr;
+    Transliterator* t = nullptr;
 
     umtx_lock(&registryMutex);
     if (HAVE_REGISTRY(ec)) {
@@ -990,7 +988,7 @@ Transliterator* Transliterator::createBasicInstance(const UnicodeString& id,
     if (U_FAILURE(ec)) {
         delete t;
         delete alias;
-        return 0;
+        return nullptr;
     }
 
     // We may have not gotten a transliterator:  Because we can't
@@ -1000,7 +998,7 @@ Transliterator* Transliterator::createBasicInstance(const UnicodeString& id,
     // registry mutex.  The alias may, in turn, generate another alias, so
     // we handle aliases in a loop.  The max times through the loop is two.
     // [alan]
-    while (alias != 0) {
+    while (alias != nullptr) {
         U_ASSERT(t==0);
         // Rule-based aliases are handled with TransliteratorAlias::
         // parse(), followed by TransliteratorRegistry::reget().
@@ -1010,7 +1008,7 @@ Transliterator* Transliterator::createBasicInstance(const UnicodeString& id,
             TransliteratorParser parser(ec);
             alias->parse(parser, pe, ec);
             delete alias;
-            alias = 0;
+            alias = nullptr;
 
             // Step 2. reget
             umtx_lock(&registryMutex);
@@ -1023,7 +1021,7 @@ Transliterator* Transliterator::createBasicInstance(const UnicodeString& id,
         } else {
             t = alias->create(pe, ec);
             delete alias;
-            alias = 0;
+            alias = nullptr;
             break;
         }
         if (U_FAILURE(ec)) {
@@ -1062,7 +1060,7 @@ Transliterator::createFromRules(const UnicodeString& ID,
     parser.parse(rules, dir, parseError, status);
 
     if (U_FAILURE(status)) {
-        return 0;
+        return nullptr;
     }
 
     // NOTE: The logic here matches that in TransliteratorRegistry.
@@ -1476,14 +1474,14 @@ char16_t Transliterator::filteredCharAt(const Replaceable& text, int32_t i) cons
  * cannot itself proceed until the registry is initialized.
  */
 UBool Transliterator::initializeRegistry(UErrorCode &status) {
-    if (registry != 0) {
+    if (registry != nullptr) {
         return true;
     }
 
     registry = new TransliteratorRegistry(status);
-    if (registry == 0 || U_FAILURE(status)) {
+    if (registry == nullptr || U_FAILURE(status)) {
         delete registry;
-        registry = 0;
+        registry = nullptr;
         return false; // can't create registry, no recovery
     }
 
@@ -1526,7 +1524,7 @@ UBool Transliterator::initializeRegistry(UErrorCode &status) {
     UErrorCode lstatus = U_ZERO_ERROR;
     UResourceBundle *bundle, *transIDs, *colBund;
     bundle = ures_open(U_ICUDATA_TRANSLIT, nullptr/*open default locale*/, &lstatus);
-    transIDs = ures_getByKey(bundle, RB_RULE_BASED_IDS, 0, &lstatus);
+    transIDs = ures_getByKey(bundle, RB_RULE_BASED_IDS, nullptr, &lstatus);
     const UnicodeString T_PART = UNICODE_STRING_SIMPLE("-t-");
 
     int32_t row, maxRows;
@@ -1539,7 +1537,7 @@ UBool Transliterator::initializeRegistry(UErrorCode &status) {
     if (U_SUCCESS(lstatus)) {
         maxRows = ures_getSize(transIDs);
         for (row = 0; row < maxRows; row++) {
-            colBund = ures_getByIndex(transIDs, row, 0, &lstatus);
+            colBund = ures_getByIndex(transIDs, row, nullptr, &lstatus);
             if (U_SUCCESS(lstatus)) {
                 UnicodeString id(ures_getKey(colBund), -1, US_INV);
                 if(id.indexOf(T_PART) != -1) {

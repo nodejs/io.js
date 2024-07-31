@@ -69,4 +69,10 @@ function expectFsNamespace(result) {
   // If the specifier is an origin-relative URL, it should
   // be treated as a file: URL.
   expectOkNamespace(import(targetURL.pathname));
+
+  // If the referrer is a realm record, there is no way to resolve the
+  // specifier.
+  // TODO(legendecas): https://github.com/tc39/ecma262/pull/3195
+  expectModuleError(Promise.resolve('import("node:fs")').then(eval),
+                    'ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING');
 })();

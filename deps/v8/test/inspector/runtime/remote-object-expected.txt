@@ -2637,36 +2637,24 @@ Running test: testArray
     }
 }
 
-Running test: testArrayLike
-'({length: 5, splice: () => []})', returnByValue: false, generatePreview: false
+Running test: testArgumentsObject
+'(function() { return arguments; })(1, 2, 3)', returnByValue: false, generatePreview: false
 {
     result : {
-        className : Object
-        description : Object(5)
+        className : Arguments
+        description : Arguments(3)
         objectId : <objectId>
         subtype : array
         type : object
     }
 }
-'new (class Foo{constructor() {
-        this.length = 5;
-        this.splice = () => [];
-      }})', returnByValue: false, generatePreview: false
+'(function() { "use strict"; return arguments; })(-1, 0, 1, 2, 3)', returnByValue: false, generatePreview: false
 {
     result : {
-        className : Foo
-        description : Foo(5)
+        className : Arguments
+        description : Arguments(5)
         objectId : <objectId>
         subtype : array
-        type : object
-    }
-}
-'({length: -5, splice: () => []})', returnByValue: false, generatePreview: false
-{
-    result : {
-        className : Object
-        description : Object
-        objectId : <objectId>
         type : object
     }
 }

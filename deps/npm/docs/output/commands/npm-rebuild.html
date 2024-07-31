@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-rebuild">npm-rebuild</h1>
+<h1 id="----npm-rebuild----1082">
+    <span>npm-rebuild</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Rebuild a package</span>
 </header>
 
@@ -151,13 +159,24 @@ npm command-line interface
 alias: rb
 </code></pre>
 <h3 id="description">Description</h3>
-<p>This command runs the <code>npm build</code> command on the matched folders.  This is
-useful when you install a new version of node, and must recompile all your
-C++ addons with the new binary.  It is also useful when installing with
-<code>--ignore-scripts</code> and <code>--no-bin-links</code>, to explicitly choose which
-packages to build and/or link bins.</p>
-<p>If one or more package specs are provided, then only packages with a
-name and version matching one of the specifiers will be rebuilt.</p>
+<p>This command does the following:</p>
+<ol>
+<li>Execute lifecycle scripts (<code>preinstall</code>, <code>install</code>, <code>postinstall</code>, <code>prepare</code>)</li>
+<li>Links bins depending on whether bin links are enabled</li>
+</ol>
+<p>This command is particularly useful in scenarios including but not limited to:</p>
+<ol>
+<li>Installing a new version of <strong>node.js</strong>, where you need to recompile all your C++ add-ons with the updated binary.</li>
+<li>Installing with <code>--ignore-scripts</code> and <code>--no-bin-links</code>, to explicitly choose which packages to build and/or link bins.</li>
+</ol>
+<p>If one or more package specs are provided, then only packages with a name and version matching one of the specifiers will be rebuilt.</p>
+<p>Usually, you should not need to run <code>npm rebuild</code> as it is already done for you as part of npm install (unless you suppressed these steps with <code>--ignore-scripts</code> or <code>--no-bin-links</code>).</p>
+<p>If there is a <code>binding.gyp</code> file in the root of your package, then npm will use a default install hook:</p>
+<pre><code>"scripts": {
+    "install": "node-gyp rebuild"
+}
+</code></pre>
+<p>This default behavior is suppressed if the <code>package.json</code> has its own <code>install</code> or <code>preinstall</code> scripts. It is also suppressed if the package specifies <code>"gypfile": false</code></p>
 <h3 id="configuration">Configuration</h3>
 <h4 id="global"><code>global</code></h4>
 <ul>
@@ -185,7 +204,8 @@ fact that some file systems don't support symlinks, even on ostensibly Unix
 systems.</p>
 <h4 id="foreground-scripts"><code>foreground-scripts</code></h4>
 <ul>
-<li>Default: false</li>
+<li>Default: <code>false</code> unless when using <code>npm pack</code> or <code>npm publish</code> where it
+defaults to <code>true</code></li>
 <li>Type: Boolean</li>
 </ul>
 <p>Run all build scripts (ie, <code>preinstall</code>, <code>install</code>, and <code>postinstall</code>)

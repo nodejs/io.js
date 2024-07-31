@@ -239,7 +239,7 @@ void InitBuffer(CType* buffer, size_t length, MachineType type) {
   // Tagged field loads require values to be properly tagged because of
   // pointer decompression that may be happenning during load.
   Isolate* isolate = CcTest::InitIsolateOnce();
-  Smi* smi_view = reinterpret_cast<Smi*>(&buffer[0]);
+  Tagged<Smi>* smi_view = reinterpret_cast<Tagged<Smi>*>(&buffer[0]);
   if (type.IsTaggedSigned()) {
     for (size_t i = 0; i < length; i++) {
       smi_view[i] = Smi::FromInt(static_cast<int>(i + kBufferSize) ^ 0xABCDEF0);

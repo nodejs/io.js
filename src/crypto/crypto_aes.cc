@@ -134,7 +134,7 @@ WebCryptoCipherStatus AES_Cipher(
   //
   // Refs: https://github.com/openssl/openssl/commit/420cb707b880e4fb649094241371701013eeb15f
   // Refs: https://github.com/nodejs/node/pull/38913#issuecomment-866505244
-  if (in.size() == 0) {
+  if (in.empty()) {
     out_len = 0;
   } else if (!EVP_CipherUpdate(ctx.get(),
                                buf.data<unsigned char>(),
@@ -476,83 +476,38 @@ Maybe<bool> AESCipherTraits::AdditionalConfig(
   params->variant =
       static_cast<AESKeyVariant>(args[offset].As<Uint32>()->Value());
 
+  AESCipherMode cipher_op_mode;
   int cipher_nid;
 
+#define V(name, _, mode, nid)                                                  \
+  case kKeyVariantAES_##name: {                                                \
+    cipher_op_mode = mode;                                                     \
+    cipher_nid = nid;                                                          \
+    break;                                                                     \
+  }
   switch (params->variant) {
-    case kKeyVariantAES_CTR_128:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateCounter(env, args[offset + 2], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_128_ctr;
-      break;
-    case kKeyVariantAES_CTR_192:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateCounter(env, args[offset + 2], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_192_ctr;
-      break;
-    case kKeyVariantAES_CTR_256:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateCounter(env, args[offset + 2], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_256_ctr;
-      break;
-    case kKeyVariantAES_CBC_128:
-      if (!ValidateIV(env, mode, args[offset + 1], params))
-        return Nothing<bool>();
-      cipher_nid = NID_aes_128_cbc;
-      break;
-    case kKeyVariantAES_CBC_192:
-      if (!ValidateIV(env, mode, args[offset + 1], params))
-        return Nothing<bool>();
-      cipher_nid = NID_aes_192_cbc;
-      break;
-    case kKeyVariantAES_CBC_256:
-      if (!ValidateIV(env, mode, args[offset + 1], params))
-        return Nothing<bool>();
-      cipher_nid = NID_aes_256_cbc;
-      break;
-    case kKeyVariantAES_KW_128:
-      UseDefaultIV(params);
-      cipher_nid = NID_id_aes128_wrap;
-      break;
-    case kKeyVariantAES_KW_192:
-      UseDefaultIV(params);
-      cipher_nid = NID_id_aes192_wrap;
-      break;
-    case kKeyVariantAES_KW_256:
-      UseDefaultIV(params);
-      cipher_nid = NID_id_aes256_wrap;
-      break;
-    case kKeyVariantAES_GCM_128:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateAuthTag(env, mode, cipher_mode, args[offset + 2], params) ||
-          !ValidateAdditionalData(env, mode, args[offset + 3], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_128_gcm;
-      break;
-    case kKeyVariantAES_GCM_192:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateAuthTag(env, mode, cipher_mode, args[offset + 2], params) ||
-          !ValidateAdditionalData(env, mode, args[offset + 3], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_192_gcm;
-      break;
-    case kKeyVariantAES_GCM_256:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateAuthTag(env, mode, cipher_mode, args[offset + 2], params) ||
-          !ValidateAdditionalData(env, mode, args[offset + 3], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_256_gcm;
-      break;
+    VARIANTS(V)
     default:
       UNREACHABLE();
+  }
+#undef V
+
+  if (cipher_op_mode != AESCipherMode::KW) {
+    if (!ValidateIV(env, mode, args[offset + 1], params)) {
+      return Nothing<bool>();
+    }
+    if (cipher_op_mode == AESCipherMode::CTR) {
+      if (!ValidateCounter(env, args[offset + 2], params)) {
+        return Nothing<bool>();
+      }
+    } else if (cipher_op_mode == AESCipherMode::GCM) {
+      if (!ValidateAuthTag(env, mode, cipher_mode, args[offset + 2], params) ||
+          !ValidateAdditionalData(env, mode, args[offset + 3], params)) {
+        return Nothing<bool>();
+      }
+    }
+  } else {
+    UseDefaultIV(params);
   }
 
   params->cipher = EVP_get_cipherbynid(cipher_nid);
@@ -577,8 +532,8 @@ WebCryptoCipherStatus AESCipherTraits::DoCipher(
     const AESCipherConfig& params,
     const ByteSource& in,
     ByteSource* out) {
-#define V(name, fn)                                                           \
-  case kKeyVariantAES_ ## name:                                               \
+#define V(name, fn, _, __)                                                     \
+  case kKeyVariantAES_##name:                                                  \
     return fn(env, key_data.get(), cipher_mode, params, in, out);
   switch (params.variant) {
     VARIANTS(V)
@@ -591,7 +546,7 @@ WebCryptoCipherStatus AESCipherTraits::DoCipher(
 void AES::Initialize(Environment* env, Local<Object> target) {
   AESCryptoJob::Initialize(env, target);
 
-#define V(name, _) NODE_DEFINE_CONSTANT(target, kKeyVariantAES_ ## name);
+#define V(name, _, __, ___) NODE_DEFINE_CONSTANT(target, kKeyVariantAES_##name);
   VARIANTS(V)
 #undef V
 }

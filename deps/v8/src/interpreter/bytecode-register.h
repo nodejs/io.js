@@ -56,6 +56,10 @@ class V8_EXPORT_PRIVATE Register final {
   static constexpr Register bytecode_offset();
   constexpr bool is_bytecode_offset() const;
 
+  // Returns the register for the cached feedback vector.
+  static constexpr Register feedback_vector();
+  constexpr bool is_feedback_vector() const;
+
   // Returns the register for the argument count.
   static constexpr Register argument_count();
 
@@ -130,6 +134,9 @@ class V8_EXPORT_PRIVATE Register final {
   static constexpr int kBytecodeOffsetRegisterIndex =
       OffsetFromFPToRegisterIndex(
           InterpreterFrameConstants::kBytecodeOffsetFromFp);
+  static constexpr int kFeedbackVectorRegisterIndex =
+      OffsetFromFPToRegisterIndex(
+          InterpreterFrameConstants::kFeedbackVectorFromFp);
   static constexpr int kCallerPCOffsetRegisterIndex =
       OffsetFromFPToRegisterIndex(InterpreterFrameConstants::kCallerPCOffset);
   static constexpr int kArgumentCountRegisterIndex =
@@ -232,6 +239,14 @@ constexpr Register Register::bytecode_offset() {
 
 constexpr bool Register::is_bytecode_offset() const {
   return index() == kBytecodeOffsetRegisterIndex;
+}
+
+constexpr Register Register::feedback_vector() {
+  return Register(kFeedbackVectorRegisterIndex);
+}
+
+constexpr bool Register::is_feedback_vector() const {
+  return index() == kFeedbackVectorRegisterIndex;
 }
 
 // static

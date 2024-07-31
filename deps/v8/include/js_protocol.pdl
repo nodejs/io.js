@@ -1014,8 +1014,7 @@ domain Runtime
   # Unique script identifier.
   type ScriptId extends string
 
-  # Represents options for serialization. Overrides `generatePreview`, `returnByValue` and
-  # `generateWebDriverValue`.
+  # Represents options for serialization. Overrides `generatePreview` and `returnByValue`.
   type SerializationOptions extends object
     properties
       enum serialization
@@ -1027,8 +1026,7 @@ domain Runtime
         # `returnByValue: true`. Overrides `returnByValue`.
         json
         # Only remote object id is put in the result. Same bahaviour as if no
-        # `serializationOptions`, `generatePreview`, `returnByValue` nor `generateWebDriverValue`
-        # are provided.
+        # `serializationOptions`, `generatePreview` nor `returnByValue` are provided.
         idOnly
 
       # Deep serialization depth. Default is full depth. Respected only in `deep` serialization mode.
@@ -1066,6 +1064,7 @@ domain Runtime
         arraybuffer
         node
         window
+        generator
       optional any value
       optional string objectId
       # Set if value reference met more then once during serialization. In such
@@ -1125,8 +1124,6 @@ domain Runtime
       optional UnserializableValue unserializableValue
       # String representation of the object.
       optional string description
-      # Deprecated. Use `deepSerializedValue` instead. WebDriver BiDi representation of the value.
-      deprecated optional DeepSerializedValue webDriverValue
       # Deep serialized value.
       experimental optional DeepSerializedValue deepSerializedValue
       # Unique object identifier (for non-primitive values).
@@ -1442,13 +1439,8 @@ domain Runtime
       # boundaries).
       # This is mutually exclusive with `executionContextId`.
       experimental optional string uniqueContextId
-      # Deprecated. Use `serializationOptions: {serialization:"deep"}` instead.
-      # Whether the result should contain `webDriverValue`, serialized according to
-      # https://w3c.github.io/webdriver-bidi. This is mutually exclusive with `returnByValue`, but
-      # resulting `objectId` is still provided.
-      deprecated optional boolean generateWebDriverValue
       # Specifies the result serialization. If provided, overrides
-      # `generatePreview`, `returnByValue` and `generateWebDriverValue`.
+      # `generatePreview` and `returnByValue`.
       experimental optional SerializationOptions serializationOptions
 
     returns
@@ -1536,14 +1528,8 @@ domain Runtime
       # boundaries).
       # This is mutually exclusive with `contextId`.
       experimental optional string uniqueContextId
-      # Deprecated. Use `serializationOptions: {serialization:"deep"}` instead.
-      # Whether the result should contain `webDriverValue`, serialized
-      # according to
-      # https://w3c.github.io/webdriver-bidi. This is mutually exclusive with `returnByValue`, but
-      # resulting `objectId` is still provided.
-      deprecated optional boolean generateWebDriverValue
       # Specifies the result serialization. If provided, overrides
-      # `generatePreview`, `returnByValue` and `generateWebDriverValue`.
+      # `generatePreview` and `returnByValue`.
       experimental optional SerializationOptions serializationOptions
     returns
       # Evaluation result.
@@ -1679,7 +1665,7 @@ domain Runtime
   # Binding function takes exactly one argument, this argument should be string,
   # in case of any other input, function throws an exception.
   # Each binding function call produces Runtime.bindingCalled notification.
-  experimental command addBinding
+  command addBinding
     parameters
       string name
       # If specified, the binding would only be exposed to the specified
@@ -1689,17 +1675,17 @@ domain Runtime
       # Deprecated in favor of `executionContextName` due to an unclear use case
       # and bugs in implementation (crbug.com/1169639). `executionContextId` will be
       # removed in the future.
-      deprecated optional ExecutionContextId executionContextId
+      experimental deprecated optional ExecutionContextId executionContextId
       # If specified, the binding is exposed to the executionContext with
       # matching name, even for contexts created after the binding is added.
       # See also `ExecutionContext.name` and `worldName` parameter to
       # `Page.addScriptToEvaluateOnNewDocument`.
       # This parameter is mutually exclusive with `executionContextId`.
-      experimental optional string executionContextName
+      optional string executionContextName
 
   # This method does not remove binding function from global object but
   # unsubscribes current runtime agent from Runtime.bindingCalled notifications.
-  experimental command removeBinding
+  command removeBinding
     parameters
       string name
 

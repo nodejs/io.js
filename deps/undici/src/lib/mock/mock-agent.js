@@ -1,7 +1,7 @@
 'use strict'
 
 const { kClients } = require('../core/symbols')
-const Agent = require('../agent')
+const Agent = require('../dispatcher/agent')
 const {
   kAgent,
   kMockAgentSet,
@@ -17,19 +17,9 @@ const MockClient = require('./mock-client')
 const MockPool = require('./mock-pool')
 const { matchValue, buildMockOptions } = require('./mock-utils')
 const { InvalidArgumentError, UndiciError } = require('../core/errors')
-const Dispatcher = require('../dispatcher')
+const Dispatcher = require('../dispatcher/dispatcher')
 const Pluralizer = require('./pluralizer')
 const PendingInterceptorsFormatter = require('./pending-interceptors-formatter')
-
-class FakeWeakRef {
-  constructor (value) {
-    this.value = value
-  }
-
-  deref () {
-    return this.value
-  }
-}
 
 class MockAgent extends Dispatcher {
   constructor (opts) {
@@ -39,10 +29,10 @@ class MockAgent extends Dispatcher {
     this[kIsMockActive] = true
 
     // Instantiate Agent and encapsulate
-    if ((opts && opts.agent && typeof opts.agent.dispatch !== 'function')) {
+    if ((opts?.agent && typeof opts.agent.dispatch !== 'function')) {
       throw new InvalidArgumentError('Argument opts.agent must implement Agent')
     }
-    const agent = opts && opts.agent ? opts.agent : new Agent(opts)
+    const agent = opts?.agent ? opts.agent : new Agent(opts)
     this[kAgent] = agent
 
     this[kClients] = agent[kClients]
@@ -103,7 +93,7 @@ class MockAgent extends Dispatcher {
   }
 
   [kMockAgentSet] (origin, dispatcher) {
-    this[kClients].set(origin, new FakeWeakRef(dispatcher))
+    this[kClients].set(origin, dispatcher)
   }
 
   [kFactory] (origin) {
@@ -115,9 +105,9 @@ class MockAgent extends Dispatcher {
 
   [kMockAgentGet] (origin) {
     // First check if we can immediately find it
-    const ref = this[kClients].get(origin)
-    if (ref) {
-      return ref.deref()
+    const client = this[kClients].get(origin)
+    if (client) {
+      return client
     }
 
     // If the origin is not a string create a dummy parent pool and return to user
@@ -128,8 +118,7 @@ class MockAgent extends Dispatcher {
     }
 
     // If we match, create a pool and assign the same dispatches
-    for (const [keyMatcher, nonExplicitRef] of Array.from(this[kClients])) {
-      const nonExplicitDispatcher = nonExplicitRef.deref()
+    for (const [keyMatcher, nonExplicitDispatcher] of Array.from(this[kClients])) {
       if (nonExplicitDispatcher && typeof keyMatcher !== 'string' && matchValue(keyMatcher, origin)) {
         const dispatcher = this[kFactory](origin)
         this[kMockAgentSet](origin, dispatcher)
@@ -147,7 +136,7 @@ class MockAgent extends Dispatcher {
     const mockAgentClients = this[kClients]
 
     return Array.from(mockAgentClients.entries())
-      .flatMap(([origin, scope]) => scope.deref()[kDispatches].map(dispatch => ({ ...dispatch, origin })))
+      .flatMap(([origin, scope]) => scope[kDispatches].map(dispatch => ({ ...dispatch, origin })))
       .filter(({ pending }) => pending)
   }
 

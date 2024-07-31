@@ -38,6 +38,10 @@
       "results_regexp": "(\\d+) bytes for context #0$"
     },
     {
+      "name": "DeserializationTimeReadOnly",
+      "results_regexp": "\\[Deserializing read-only space \\(\\d+ bytes\\) took ([\\d.]+) ms\\]"
+    },
+    {
       "name": "DeserializationTimeIsolate",
       "results_regexp": "\\[Deserializing isolate \\(\\d+ bytes\\) took ([\\d.]+) ms\\]"
     },

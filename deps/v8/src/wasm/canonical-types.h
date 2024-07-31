@@ -11,11 +11,10 @@
 
 #include <unordered_map>
 
+#include "src/base/functional.h"
 #include "src/wasm/wasm-module.h"
 
-namespace v8 {
-namespace internal {
-namespace wasm {
+namespace v8::internal::wasm {
 
 // A singleton class, responsible for isorecursive canonicalization of wasm
 // types.
@@ -30,7 +29,11 @@ namespace wasm {
 //   rec. group.
 class TypeCanonicalizer {
  public:
-  TypeCanonicalizer() = default;
+  static constexpr uint32_t kPredefinedArrayI8Index = 0;
+  static constexpr uint32_t kPredefinedArrayI16Index = 1;
+  static constexpr uint32_t kNumberOfPredefinedTypes = 2;
+
+  TypeCanonicalizer();
 
   // Singleton class; no copying or moving allowed.
   TypeCanonicalizer(const TypeCanonicalizer& other) = delete;
@@ -46,6 +49,14 @@ class TypeCanonicalizer {
 
   // Same as above, except it registers the last {size} types in the module.
   V8_EXPORT_PRIVATE void AddRecursiveGroup(WasmModule* module, uint32_t size);
+
+  // Same as above, but for a group of size 1 (using the last type in the
+  // module).
+  V8_EXPORT_PRIVATE void AddRecursiveSingletonGroup(WasmModule* module);
+
+  // Same as above, but receives an explicit start index.
+  V8_EXPORT_PRIVATE void AddRecursiveSingletonGroup(WasmModule* module,
+                                                    uint32_t start_index);
 
   // Adds a module-independent signature as a recursive group, and canonicalizes
   // it if an identical is found. Returns the canonical index of the added
@@ -64,10 +75,12 @@ class TypeCanonicalizer {
                                             const WasmModule* sub_module,
                                             const WasmModule* super_module);
 
+  // Deletes recursive groups. Used only by the Wasm compile fuzzer.
+  V8_EXPORT_PRIVATE void EmptyStorageForTesting();
+
   size_t EstimateCurrentMemoryConsumption() const;
 
  private:
-  using TypeInModule = std::pair<const WasmModule*, uint32_t>;
   struct CanonicalType {
     TypeDefinition type_def;
     bool is_relative_supertype;
@@ -78,24 +91,29 @@ class TypeCanonicalizer {
     }
 
     bool operator!=(const CanonicalType& other) const {
-      return type_def != other.type_def ||
-             is_relative_supertype != other.is_relative_supertype;
+      return !operator==(other);
     }
 
-    // TODO(manoskouk): Improve this.
     size_t hash_value() const {
-      return base::hash_combine(base::hash_value(type_def.kind),
-                                base::hash_value(type_def.supertype),
-                                base::hash_value(type_def.is_final),
-                                base::hash_value(is_relative_supertype));
+      uint32_t metadata = (type_def.supertype << 2) |
+                          (type_def.is_final ? 2 : 0) |
+                          (is_relative_supertype ? 1 : 0);
+      base::Hasher hasher;
+      hasher.Add(metadata);
+      if (type_def.kind == TypeDefinition::kFunction) {
+        hasher.Add(*type_def.function_sig);
+      } else if (type_def.kind == TypeDefinition::kStruct) {
+        hasher.Add(*type_def.struct_type);
+      } else {
+        DCHECK_EQ(TypeDefinition::kArray, type_def.kind);
+        hasher.Add(*type_def.array_type);
+      }
+      return hasher.hash();
     }
   };
   struct CanonicalGroup {
-    struct hash {
-      size_t operator()(const CanonicalGroup& group) const {
-        return group.hash_value();
-      }
-    };
+    CanonicalGroup(Zone* zone, size_t size)
+        : types(zone->AllocateVector<CanonicalType>(size)) {}
 
     bool operator==(const CanonicalGroup& other) const {
       return types == other.types;
@@ -106,17 +124,33 @@ class TypeCanonicalizer {
     }
 
     size_t hash_value() const {
-      size_t result = 0;
-      for (const CanonicalType& type : types) {
-        result = base::hash_combine(result, type.hash_value());
-      }
-      return result;
+      return base::Hasher{}.AddRange(types.begin(), types.end()).hash();
     }
 
-    std::vector<CanonicalType> types;
+    // The storage of this vector is the TypeCanonicalizer's zone_.
+    base::Vector<CanonicalType> types;
   };
 
-  int FindCanonicalGroup(CanonicalGroup&) const;
+  struct CanonicalSingletonGroup {
+    struct hash {
+      size_t operator()(const CanonicalSingletonGroup& group) const {
+        return group.hash_value();
+      }
+    };
+
+    bool operator==(const CanonicalSingletonGroup& other) const {
+      return type == other.type;
+    }
+
+    size_t hash_value() const { return type.hash_value(); }
+
+    CanonicalType type;
+  };
+
+  void AddPredefinedArrayType(uint32_t index, ValueType element_type);
+
+  int FindCanonicalGroup(const CanonicalGroup&) const;
+  int FindCanonicalGroup(const CanonicalSingletonGroup&) const;
 
   // Canonicalize all types present in {type} (including supertype) according to
   // {CanonicalizeValueType}.
@@ -131,19 +165,21 @@ class TypeCanonicalizer {
                                   uint32_t recursive_group_start) const;
 
   std::vector<uint32_t> canonical_supertypes_;
-  // group -> canonical id of first type
-  std::unordered_map<CanonicalGroup, uint32_t, CanonicalGroup::hash>
+  // Maps groups of size >=2 to the canonical id of the first type.
+  std::unordered_map<CanonicalGroup, uint32_t, base::hash<CanonicalGroup>>
       canonical_groups_;
+  // Maps group of size 1 to the canonical id of the type.
+  std::unordered_map<CanonicalSingletonGroup, uint32_t,
+                     base::hash<CanonicalSingletonGroup>>
+      canonical_singleton_groups_;
   AccountingAllocator allocator_;
   Zone zone_{&allocator_, "canonical type zone"};
-  base::Mutex mutex_;
+  mutable base::Mutex mutex_;
 };
 
 // Returns a reference to the TypeCanonicalizer shared by the entire process.
 V8_EXPORT_PRIVATE TypeCanonicalizer* GetTypeCanonicalizer();
 
-}  // namespace wasm
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::wasm
 
 #endif  // V8_WASM_CANONICAL_TYPES_H_

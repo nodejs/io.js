@@ -150,7 +150,7 @@ void DeclarationVisitor::Visit(ExternalBuiltinDeclaration* decl) {
 
 void DeclarationVisitor::Visit(ExternalRuntimeDeclaration* decl) {
   Signature signature = TypeVisitor::MakeSignature(decl);
-  if (signature.parameter_types.types.size() == 0) {
+  if (signature.parameter_types.types.empty()) {
     ReportError(
         "Missing parameters for runtime function, at least the context "
         "parameter is required.");
@@ -264,7 +264,7 @@ void DeclarationVisitor::Visit(SpecializationDeclaration* decl) {
 
   if (matching_generic == nullptr) {
     std::stringstream stream;
-    if (generic_list.size() == 0) {
+    if (generic_list.empty()) {
       stream << "no generic defined with the name " << decl->name;
       ReportError(stream.str());
     }

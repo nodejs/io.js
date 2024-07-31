@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -219,7 +219,7 @@ X509_ATTRIBUTE *X509_REQ_delete_attr(X509_REQ *req, int loc)
 
     if (req == NULL) {
         ERR_raise(ERR_LIB_X509, ERR_R_PASSED_NULL_PARAMETER);
-        return 0;
+        return NULL;
     }
     attr = X509at_delete_attr(req->req_info.attributes, loc);
     if (attr != NULL)

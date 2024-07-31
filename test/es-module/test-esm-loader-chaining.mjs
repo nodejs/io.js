@@ -15,7 +15,7 @@ const commonArgs = [
   commonInput,
 ];
 
-describe('ESM: loader chaining', { concurrency: true }, () => {
+describe('ESM: loader chaining', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should load unadulterated source when there are no loaders', async () => {
     const { code, stderr, stdout } = await spawnPromisified(
       execPath,

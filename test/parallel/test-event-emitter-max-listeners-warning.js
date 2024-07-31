@@ -23,7 +23,7 @@ process.on('warning', common.mustCall((warning) => {
   assert.strictEqual(warning.count, 2);
   assert.strictEqual(warning.type, 'event-type');
   assert.ok(warning.message.includes(
-    '2 event-type listeners added to [FakeInput].'));
+    '2 event-type listeners added to [FakeInput]. MaxListeners is 1.'));
 }));
 
 e.on('event-type', () => {});

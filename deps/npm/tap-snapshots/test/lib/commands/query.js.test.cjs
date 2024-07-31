@@ -99,6 +99,31 @@ exports[`test/lib/commands/query.js TAP linked node > should return linked node 
 ]
 `
 
+exports[`test/lib/commands/query.js TAP missing > should return missing node 1`] = `
+[
+  {
+    "name": "b",
+    "version": "^1.0.0",
+    "_id": "b@^1.0.0",
+    "pkgid": "b@^1.0.0",
+    "path": null,
+    "realpath": null,
+    "resolved": null,
+    "from": [
+      ""
+    ],
+    "to": [],
+    "dev": true,
+    "inBundle": false,
+    "deduped": false,
+    "overridden": false,
+    "queryContext": {
+      "missing": true
+    }
+  }
+]
+`
+
 exports[`test/lib/commands/query.js TAP package-lock-only with package lock > should return valid response with only lock info 1`] = `
 [
   {

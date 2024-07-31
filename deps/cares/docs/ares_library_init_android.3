@@ -1,18 +1,5 @@
 .\"
 .\" Copyright (C) 2017 by John Schember
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_LIBRARY_INIT_ANDROID 3 "13 Sept 2017"
@@ -53,7 +40,7 @@ Deinitialization will take place though \fIares_library_cleanup(3)\fP.
 The \fBares_library_init_jvm\fP function allows the caller to register the JVM
 with c-ares.  It's meant to be called during JNI_OnLoad because you're
 guaranteed to have the JVM in that function. The JVM is required in order to
-use the Connectivty Manager registered using
+use the Connectivity Manager registered using
 \fIares_library_init_android(3)\fP. This must be call before
 \fIares_library_init_android(3)\fP.
 
@@ -117,7 +104,7 @@ Calling the registered function from Java:
   }
 .fi
 Initializing the Connectivity Manager in JNI directly using an Android
-Context. It is assumed the JVM has aleady been registered through
+Context. It is assumed the JVM has already been registered through
 \fIJNI_OnLoad\fP.
 .nf
   void initialize(jobject android_context)
@@ -135,10 +122,6 @@ Context. It is assumed the JVM has aleady been registered through
 .SH AVAILABILITY
 This function was first introduced in c-ares version 1.15.0.
 .SH SEE ALSO
-.BR ares_library_init(3),
-.BR ares_library_cleanup(3),
-.SH AUTHOR
-John Schember
-.PP
-Copyright (C) 2017 by John Schember
+.BR ares_library_init (3),
+.BR ares_library_cleanup (3),
 

@@ -54,7 +54,7 @@ Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
   // Check the template weakmap to see if the template object already exists.
   Handle<Script> script(Script::cast(shared_info->script(isolate)), isolate);
   int32_t hash =
-      EphemeronHashTable::ShapeT::Hash(ReadOnlyRoots(isolate), script);
+      EphemeronHashTable::TodoShape::Hash(ReadOnlyRoots(isolate), script);
   MaybeHandle<ArrayList> maybe_cached_templates;
 
   if (!IsUndefined(native_context->template_weakmap(), isolate)) {
@@ -75,9 +75,9 @@ Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
       // Linear search over the cached template array list for a template
       // object matching the given function_literal_id + slot_id.
       // TODO(leszeks): Consider keeping this list sorted for faster lookup.
-      for (int i = 0; i < cached_templates->Length(); i++) {
+      for (int i = 0; i < cached_templates->length(); i++) {
         Tagged<JSArray> template_object =
-            JSArray::cast(cached_templates->Get(i));
+            JSArray::cast(cached_templates->get(i));
         if (CachedTemplateMatches(isolate, *native_context, template_object,
                                   function_literal_id, slot_id, no_gc)) {
           return handle(template_object, isolate);
@@ -124,7 +124,7 @@ Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
   DCHECK_EQ(EphemeronHashTable::cast(native_context->template_weakmap())
                 ->Lookup(isolate, script, hash),
             *cached_templates);
-  DCHECK_EQ(cached_templates->Get(cached_templates->Length() - 1),
+  DCHECK_EQ(cached_templates->get(cached_templates->length() - 1),
             *template_object);
 
   return template_object;

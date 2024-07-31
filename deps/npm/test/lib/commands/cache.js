@@ -3,8 +3,8 @@ const { load: loadMockNpm } = require('../../fixtures/mock-npm.js')
 const MockRegistry = require('@npmcli/mock-registry')
 
 const cacache = require('cacache')
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs')
+const path = require('node:path')
 
 const pkg = 'test-package'
 
@@ -71,7 +71,11 @@ t.test('cache add single pkg', async t => {
     registry: npm.config.get('registry'),
   })
   const manifest = registry.manifest({ name: pkg })
-  await registry.package({ manifest, tarballs: { '1.0.0': path.join(npm.prefix, 'package') } })
+  await registry.package({
+    manifest,
+    times: 2,
+    tarballs: { '1.0.0': path.join(npm.prefix, 'package') },
+  })
   await npm.exec('cache', ['add', pkg])
   t.equal(joinedOutput(), '')
   // eslint-disable-next-line max-len
@@ -99,9 +103,13 @@ t.test('cache add multiple pkgs', async t => {
   })
   const manifest = registry.manifest({ name: pkg })
   const manifest2 = registry.manifest({ name: pkg2 })
-  await registry.package({ manifest, tarballs: { '1.0.0': path.join(npm.prefix, 'package') } })
   await registry.package({
-    manifest: manifest2, tarballs: { '1.0.0': path.join(npm.prefix, 'package') },
+    manifest,
+    times: 2,
+    tarballs: { '1.0.0': path.join(npm.prefix, 'package') },
+  })
+  await registry.package({
+    manifest: manifest2, times: 2, tarballs: { '1.0.0': path.join(npm.prefix, 'package') },
   })
   await npm.exec('cache', ['add', pkg, pkg2])
   t.equal(joinedOutput(), '')

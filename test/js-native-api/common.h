@@ -2,6 +2,7 @@
 #define JS_NATIVE_API_COMMON_H_
 
 #include <js_native_api.h>
+#include <stdlib.h>  // abort()
 
 // Empty value so that macros here are able to return NULL or void
 #define NODE_API_RETVAL_NOTHING  // Intentionally blank #define
@@ -22,6 +23,19 @@
     }                                                                    \
   } while (0)
 
+// The basic version of GET_AND_THROW_LAST_ERROR. We cannot access any
+// exceptions and we cannot fail by way of JS exception, so we abort.
+#define FATALLY_FAIL_WITH_LAST_ERROR(env)                                      \
+  do {                                                                         \
+    const napi_extended_error_info* error_info;                                \
+    napi_get_last_error_info((env), &error_info);                              \
+    const char* err_message = error_info->error_message;                       \
+    const char* error_message =                                                \
+        err_message != NULL ? err_message : "empty error message";             \
+    fprintf(stderr, "%s\n", error_message);                                    \
+    abort();                                                                   \
+  } while (0)
+
 #define NODE_API_ASSERT_BASE(env, assertion, message, ret_val)           \
   do {                                                                   \
     if (!(assertion)) {                                                  \
@@ -31,6 +45,15 @@
           "assertion (" #assertion ") failed: " message);                \
       return ret_val;                                                    \
     }                                                                    \
+  } while (0)
+
+#define NODE_API_BASIC_ASSERT_BASE(assertion, message, ret_val)                \
+  do {                                                                         \
+    if (!(assertion)) {                                                        \
+      fprintf(stderr, "assertion (" #assertion ") failed: " message);          \
+      abort();                                                                 \
+      return ret_val;                                                          \
+    }                                                                          \
   } while (0)
 
 // Returns NULL on failed assertion.
@@ -43,12 +66,23 @@
 #define NODE_API_ASSERT_RETURN_VOID(env, assertion, message)             \
   NODE_API_ASSERT_BASE(env, assertion, message, NODE_API_RETVAL_NOTHING)
 
+#define NODE_API_BASIC_ASSERT_RETURN_VOID(assertion, message)                  \
+  NODE_API_BASIC_ASSERT_BASE(assertion, message, NODE_API_RETVAL_NOTHING)
+
 #define NODE_API_CALL_BASE(env, the_call, ret_val)                       \
   do {                                                                   \
     if ((the_call) != napi_ok) {                                         \
       GET_AND_THROW_LAST_ERROR((env));                                   \
       return ret_val;                                                    \
     }                                                                    \
+  } while (0)
+
+#define NODE_API_BASIC_CALL_BASE(env, the_call, ret_val)                       \
+  do {                                                                         \
+    if ((the_call) != napi_ok) {                                               \
+      FATALLY_FAIL_WITH_LAST_ERROR((env));                                     \
+      return ret_val;                                                          \
+    }                                                                          \
   } while (0)
 
 // Returns NULL if the_call doesn't return napi_ok.
@@ -58,6 +92,9 @@
 // Returns empty if the_call doesn't return napi_ok.
 #define NODE_API_CALL_RETURN_VOID(env, the_call)                         \
   NODE_API_CALL_BASE(env, the_call, NODE_API_RETVAL_NOTHING)
+
+#define NODE_API_BASIC_CALL_RETURN_VOID(env, the_call)                         \
+  NODE_API_BASIC_CALL_BASE(env, the_call, NODE_API_RETVAL_NOTHING)
 
 #define NODE_API_CHECK_STATUS(the_call)                                   \
   do {                                                                         \

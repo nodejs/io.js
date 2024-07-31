@@ -1,0 +1,43 @@
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <title>WebStorage Test: sessionStorage event - url</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body>
+    <h1>event_session_url</h1>
+    <div id="log"></div>
+    <script>
+        async_test(function(t) {
+            sessionStorage.clear();
+            t.add_cleanup(function() { sessionStorage.clear() });
+
+            self.fail = t.step_func(function(msg) {
+                assert_unreached(msg);
+                t.done();
+            });
+
+            function onStorageEvent(event) {
+                var url = window.location.href;
+
+                var pos = url.lastIndexOf("/");
+                if (pos != -1) {
+                    url = url.substr(0, pos + 1);
+                    url = url + "resources/session_set_item_iframe.html";
+                }
+
+                assert_equals(event.url, url);
+                t.done();
+            }
+
+            window.addEventListener('storage', t.step_func(onStorageEvent), false);
+
+            var el = document.createElement("iframe");
+            el.setAttribute('id', 'ifrm');
+            el.setAttribute('src', 'resources/session_set_item_iframe.html');
+            document.body.appendChild(el);
+        }, "url property test of session event - Session event is fired due to an invocation of the setItem() method.");
+    </script>
+ </body>
+</html>

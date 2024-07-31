@@ -32,10 +32,10 @@ if (process.argv[2] === 'child') {
     fs.readFile(file, common.mustCall((err, data) => {
       const traces = JSON.parse(data.toString()).traceEvents
         .filter((trace) => trace.cat !== '__metadata');
-      traces.forEach((trace) => {
+      for (const trace of traces) {
         assert.strictEqual(trace.pid, proc.pid);
         assert(names.includes(trace.name));
-      });
+      }
     }));
   }));
 }

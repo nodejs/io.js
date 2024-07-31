@@ -320,8 +320,8 @@ function parseSignature(text, sig) {
 
     const eq = sigParam.indexOf('=');
     if (eq !== -1) {
-      defaultValue = sigParam.substr(eq + 1);
-      sigParam = sigParam.substr(0, eq);
+      defaultValue = sigParam.substring(eq + 1);
+      sigParam = sigParam.substring(0, eq);
     }
 
     // At this point, the name should match. If it doesn't find one that does.

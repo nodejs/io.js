@@ -158,6 +158,7 @@ class InjectedScript final {
     void ignoreExceptionsAndMuteConsole();
     void pretendUserGesture();
     void allowCodeGenerationFromStrings();
+    void setTryCatchVerbose();
     v8::Local<v8::Context> context() const { return m_context; }
     InjectedScript* injectedScript() const { return m_injectedScript; }
     const v8::TryCatch& tryCatch() const { return m_tryCatch; }
@@ -188,8 +189,7 @@ class InjectedScript final {
     int m_sessionId;
   };
 
-  class ContextScope : public Scope,
-                       public V8InspectorSession::CommandLineAPIScope {
+  class ContextScope : public Scope {
    public:
     ContextScope(V8InspectorSessionImpl*, int executionContextId);
     ~ContextScope() override;

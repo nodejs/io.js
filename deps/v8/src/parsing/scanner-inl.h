@@ -16,73 +16,77 @@ namespace internal {
 // ----------------------------------------------------------------------------
 // Keyword Matcher
 
-#define KEYWORDS(KEYWORD_GROUP, KEYWORD)                    \
-  KEYWORD_GROUP('a')                                        \
-  KEYWORD("async", Token::ASYNC)                            \
-  KEYWORD("await", Token::AWAIT)                            \
-  KEYWORD_GROUP('b')                                        \
-  KEYWORD("break", Token::BREAK)                            \
-  KEYWORD_GROUP('c')                                        \
-  KEYWORD("case", Token::CASE)                              \
-  KEYWORD("catch", Token::CATCH)                            \
-  KEYWORD("class", Token::CLASS)                            \
-  KEYWORD("const", Token::CONST)                            \
-  KEYWORD("continue", Token::CONTINUE)                      \
-  KEYWORD_GROUP('d')                                        \
-  KEYWORD("debugger", Token::DEBUGGER)                      \
-  KEYWORD("default", Token::DEFAULT)                        \
-  KEYWORD("delete", Token::DELETE)                          \
-  KEYWORD("do", Token::DO)                                  \
-  KEYWORD_GROUP('e')                                        \
-  KEYWORD("else", Token::ELSE)                              \
-  KEYWORD("enum", Token::ENUM)                              \
-  KEYWORD("export", Token::EXPORT)                          \
-  KEYWORD("extends", Token::EXTENDS)                        \
-  KEYWORD_GROUP('f')                                        \
-  KEYWORD("false", Token::FALSE_LITERAL)                    \
-  KEYWORD("finally", Token::FINALLY)                        \
-  KEYWORD("for", Token::FOR)                                \
-  KEYWORD("function", Token::FUNCTION)                      \
-  KEYWORD_GROUP('g')                                        \
-  KEYWORD("get", Token::GET)                                \
-  KEYWORD_GROUP('i')                                        \
-  KEYWORD("if", Token::IF)                                  \
-  KEYWORD("implements", Token::FUTURE_STRICT_RESERVED_WORD) \
-  KEYWORD("import", Token::IMPORT)                          \
-  KEYWORD("in", Token::IN)                                  \
-  KEYWORD("instanceof", Token::INSTANCEOF)                  \
-  KEYWORD("interface", Token::FUTURE_STRICT_RESERVED_WORD)  \
-  KEYWORD_GROUP('l')                                        \
-  KEYWORD("let", Token::LET)                                \
-  KEYWORD_GROUP('n')                                        \
-  KEYWORD("new", Token::NEW)                                \
-  KEYWORD("null", Token::NULL_LITERAL)                      \
-  KEYWORD_GROUP('p')                                        \
-  KEYWORD("package", Token::FUTURE_STRICT_RESERVED_WORD)    \
-  KEYWORD("private", Token::FUTURE_STRICT_RESERVED_WORD)    \
-  KEYWORD("protected", Token::FUTURE_STRICT_RESERVED_WORD)  \
-  KEYWORD("public", Token::FUTURE_STRICT_RESERVED_WORD)     \
-  KEYWORD_GROUP('r')                                        \
-  KEYWORD("return", Token::RETURN)                          \
-  KEYWORD_GROUP('s')                                        \
-  KEYWORD("set", Token::SET)                                \
-  KEYWORD("static", Token::STATIC)                          \
-  KEYWORD("super", Token::SUPER)                            \
-  KEYWORD("switch", Token::SWITCH)                          \
-  KEYWORD_GROUP('t')                                        \
-  KEYWORD("this", Token::THIS)                              \
-  KEYWORD("throw", Token::THROW)                            \
-  KEYWORD("true", Token::TRUE_LITERAL)                      \
-  KEYWORD("try", Token::TRY)                                \
-  KEYWORD("typeof", Token::TYPEOF)                          \
-  KEYWORD_GROUP('v')                                        \
-  KEYWORD("var", Token::VAR)                                \
-  KEYWORD("void", Token::VOID)                              \
-  KEYWORD_GROUP('w')                                        \
-  KEYWORD("while", Token::WHILE)                            \
-  KEYWORD("with", Token::WITH)                              \
-  KEYWORD_GROUP('y')                                        \
-  KEYWORD("yield", Token::YIELD)
+#define KEYWORDS(KEYWORD_GROUP, KEYWORD)                  \
+  KEYWORD_GROUP('a')                                      \
+  KEYWORD("async", Token::kAsync)                         \
+  KEYWORD("await", Token::kAwait)                         \
+  KEYWORD_GROUP('b')                                      \
+  KEYWORD("break", Token::kBreak)                         \
+  KEYWORD_GROUP('c')                                      \
+  KEYWORD("case", Token::kCase)                           \
+  KEYWORD("catch", Token::kCatch)                         \
+  KEYWORD("class", Token::kClass)                         \
+  KEYWORD("const", Token::kConst)                         \
+  KEYWORD("continue", Token::kContinue)                   \
+  KEYWORD_GROUP('d')                                      \
+  KEYWORD("debugger", Token::kDebugger)                   \
+  KEYWORD("default", Token::kDefault)                     \
+  KEYWORD("delete", Token::kDelete)                       \
+  KEYWORD("do", Token::kDo)                               \
+  KEYWORD_GROUP('e')                                      \
+  KEYWORD("else", Token::kElse)                           \
+  KEYWORD("enum", Token::kEnum)                           \
+  KEYWORD("export", Token::kExport)                       \
+  KEYWORD("extends", Token::kExtends)                     \
+  KEYWORD_GROUP('f')                                      \
+  KEYWORD("false", Token::kFalseLiteral)                  \
+  KEYWORD("finally", Token::kFinally)                     \
+  KEYWORD("for", Token::kFor)                             \
+  KEYWORD("function", Token::kFunction)                   \
+  KEYWORD_GROUP('g')                                      \
+  KEYWORD("get", Token::kGet)                             \
+  KEYWORD_GROUP('i')                                      \
+  KEYWORD("if", Token::kIf)                               \
+  KEYWORD("implements", Token::kFutureStrictReservedWord) \
+  KEYWORD("import", Token::kImport)                       \
+  KEYWORD("in", Token::kIn)                               \
+  KEYWORD("instanceof", Token::kInstanceOf)               \
+  KEYWORD("interface", Token::kFutureStrictReservedWord)  \
+  KEYWORD_GROUP('l')                                      \
+  KEYWORD("let", Token::kLet)                             \
+  KEYWORD_GROUP('n')                                      \
+  KEYWORD("new", Token::kNew)                             \
+  KEYWORD("null", Token::kNullLiteral)                    \
+  KEYWORD_GROUP('o')                                      \
+  KEYWORD("of", Token::kOf)                               \
+  KEYWORD_GROUP('p')                                      \
+  KEYWORD("package", Token::kFutureStrictReservedWord)    \
+  KEYWORD("private", Token::kFutureStrictReservedWord)    \
+  KEYWORD("protected", Token::kFutureStrictReservedWord)  \
+  KEYWORD("public", Token::kFutureStrictReservedWord)     \
+  KEYWORD_GROUP('r')                                      \
+  KEYWORD("return", Token::kReturn)                       \
+  KEYWORD_GROUP('s')                                      \
+  KEYWORD("set", Token::kSet)                             \
+  KEYWORD("static", Token::kStatic)                       \
+  KEYWORD("super", Token::kSuper)                         \
+  KEYWORD("switch", Token::kSwitch)                       \
+  KEYWORD_GROUP('t')                                      \
+  KEYWORD("this", Token::kThis)                           \
+  KEYWORD("throw", Token::kThrow)                         \
+  KEYWORD("true", Token::kTrueLiteral)                    \
+  KEYWORD("try", Token::kTry)                             \
+  KEYWORD("typeof", Token::kTypeOf)                       \
+  KEYWORD_GROUP('u')                                      \
+  KEYWORD("using", Token::kUsing)                         \
+  KEYWORD_GROUP('v')                                      \
+  KEYWORD("var", Token::kVar)                             \
+  KEYWORD("void", Token::kVoid)                           \
+  KEYWORD_GROUP('w')                                      \
+  KEYWORD("while", Token::kWhile)                         \
+  KEYWORD("with", Token::kWith)                           \
+  KEYWORD_GROUP('y')                                      \
+  KEYWORD("yield", Token::kYield)
 
 constexpr bool IsKeywordStart(char c) {
 #define KEYWORD_GROUP_CHECK(ch) c == ch ||
@@ -127,46 +131,46 @@ static_assert(sizeof(Token::Value) == 1);
 constexpr Token::Value GetOneCharToken(char c) {
   // clang-format off
   return
-      c == '(' ? Token::LPAREN :
-      c == ')' ? Token::RPAREN :
-      c == '{' ? Token::LBRACE :
-      c == '}' ? Token::RBRACE :
-      c == '[' ? Token::LBRACK :
-      c == ']' ? Token::RBRACK :
-      c == '?' ? Token::CONDITIONAL :
-      c == ':' ? Token::COLON :
-      c == ';' ? Token::SEMICOLON :
-      c == ',' ? Token::COMMA :
-      c == '.' ? Token::PERIOD :
-      c == '|' ? Token::BIT_OR :
-      c == '&' ? Token::BIT_AND :
-      c == '^' ? Token::BIT_XOR :
-      c == '~' ? Token::BIT_NOT :
-      c == '!' ? Token::NOT :
-      c == '<' ? Token::LT :
-      c == '>' ? Token::GT :
-      c == '%' ? Token::MOD :
-      c == '=' ? Token::ASSIGN :
-      c == '+' ? Token::ADD :
-      c == '-' ? Token::SUB :
-      c == '*' ? Token::MUL :
-      c == '/' ? Token::DIV :
-      c == '#' ? Token::PRIVATE_NAME :
-      c == '"' ? Token::STRING :
-      c == '\'' ? Token::STRING :
-      c == '`' ? Token::TEMPLATE_SPAN :
-      c == '\\' ? Token::IDENTIFIER :
+      c == '(' ? Token::kLeftParen :
+      c == ')' ? Token::kRightParen :
+      c == '{' ? Token::kLeftBrace :
+      c == '}' ? Token::kRightBrace :
+      c == '[' ? Token::kLeftBracket :
+      c == ']' ? Token::kRightBracket :
+      c == '?' ? Token::kConditional :
+      c == ':' ? Token::kColon :
+      c == ';' ? Token::kSemicolon :
+      c == ',' ? Token::kComma :
+      c == '.' ? Token::kPeriod :
+      c == '|' ? Token::kBitOr :
+      c == '&' ? Token::kBitAnd :
+      c == '^' ? Token::kBitXor :
+      c == '~' ? Token::kBitNot :
+      c == '!' ? Token::kNot :
+      c == '<' ? Token::kLessThan :
+      c == '>' ? Token::kGreaterThan :
+      c == '%' ? Token::kMod :
+      c == '=' ? Token::kAssign :
+      c == '+' ? Token::kAdd :
+      c == '-' ? Token::kSub :
+      c == '*' ? Token::kMul :
+      c == '/' ? Token::kDiv :
+      c == '#' ? Token::kPrivateName :
+      c == '"' ? Token::kString :
+      c == '\'' ? Token::kString :
+      c == '`' ? Token::kTemplateSpan :
+      c == '\\' ? Token::kIdentifier :
       // Whitespace or line terminator
-      c == ' ' ? Token::WHITESPACE :
-      c == '\t' ? Token::WHITESPACE :
-      c == '\v' ? Token::WHITESPACE :
-      c == '\f' ? Token::WHITESPACE :
-      c == '\r' ? Token::WHITESPACE :
-      c == '\n' ? Token::WHITESPACE :
+      c == ' ' ? Token::kWhitespace :
+      c == '\t' ? Token::kWhitespace :
+      c == '\v' ? Token::kWhitespace :
+      c == '\f' ? Token::kWhitespace :
+      c == '\r' ? Token::kWhitespace :
+      c == '\n' ? Token::kWhitespace :
       // IsDecimalDigit must be tested before IsAsciiIdentifier
-      IsDecimalDigit(c) ? Token::NUMBER :
-      IsAsciiIdentifier(c) ? Token::IDENTIFIER :
-      Token::ILLEGAL;
+      IsDecimalDigit(c) ? Token::kNumber :
+      IsAsciiIdentifier(c) ? Token::kIdentifier :
+      Token::kIllegal;
   // clang-format on
 }
 
@@ -294,7 +298,7 @@ V8_INLINE Token::Value Scanner::ScanIdentifierOrKeywordInner() {
       });
 
       if (V8_LIKELY(!IdentifierNeedsSlowPath(scan_flags))) {
-        if (!CanBeKeyword(scan_flags)) return Token::IDENTIFIER;
+        if (!CanBeKeyword(scan_flags)) return Token::kIdentifier;
         // Could be a keyword or identifier.
         base::Vector<const uint8_t> chars =
             next().literal_chars.one_byte_literal();
@@ -308,7 +312,7 @@ V8_INLINE Token::Value Scanner::ScanIdentifierOrKeywordInner() {
       base::uc32 c = ScanIdentifierUnicodeEscape();
       DCHECK(!IsIdentifierStart(Invalid()));
       if (c == '\\' || !IsIdentifierStart(c)) {
-        return Token::ILLEGAL;
+        return Token::kIllegal;
       }
       AddLiteralChar(c);
       can_be_keyword = CharCanBeKeyword(c);
@@ -319,7 +323,7 @@ V8_INLINE Token::Value Scanner::ScanIdentifierOrKeywordInner() {
 }
 
 V8_INLINE Token::Value Scanner::SkipWhiteSpace() {
-  if (!IsWhiteSpaceOrLineTerminator(c0_)) return Token::ILLEGAL;
+  if (!IsWhiteSpaceOrLineTerminator(c0_)) return Token::kIllegal;
 
   if (!next().after_line_terminator && unibrow::IsLineTerminator(c0_)) {
     next().after_line_terminator = true;
@@ -339,7 +343,7 @@ V8_INLINE Token::Value Scanner::SkipWhiteSpace() {
     return true;
   });
 
-  return Token::WHITESPACE;
+  return Token::kWhitespace;
 }
 
 V8_INLINE Token::Value Scanner::ScanSingleToken() {
@@ -351,80 +355,81 @@ V8_INLINE Token::Value Scanner::ScanSingleToken() {
       token = one_char_tokens[c0_];
 
       switch (token) {
-        case Token::LPAREN:
-        case Token::RPAREN:
-        case Token::LBRACE:
-        case Token::RBRACE:
-        case Token::LBRACK:
-        case Token::RBRACK:
-        case Token::COLON:
-        case Token::SEMICOLON:
-        case Token::COMMA:
-        case Token::BIT_NOT:
-        case Token::ILLEGAL:
+        case Token::kLeftParen:
+        case Token::kRightParen:
+        case Token::kLeftBrace:
+        case Token::kRightBrace:
+        case Token::kLeftBracket:
+        case Token::kRightBracket:
+        case Token::kColon:
+        case Token::kSemicolon:
+        case Token::kComma:
+        case Token::kBitNot:
+        case Token::kIllegal:
           // One character tokens.
           return Select(token);
 
-        case Token::CONDITIONAL:
+        case Token::kConditional:
           // ? ?. ?? ??=
           Advance();
           if (c0_ == '.') {
             Advance();
-            if (!IsDecimalDigit(c0_)) return Token::QUESTION_PERIOD;
+            if (!IsDecimalDigit(c0_)) return Token::kQuestionPeriod;
             PushBack('.');
           } else if (c0_ == '?') {
-            return Select('=', Token::ASSIGN_NULLISH, Token::NULLISH);
+            return Select('=', Token::kAssignNullish, Token::kNullish);
           }
-          return Token::CONDITIONAL;
+          return Token::kConditional;
 
-        case Token::STRING:
+        case Token::kString:
           return ScanString();
 
-        case Token::LT:
+        case Token::kLessThan:
           // < <= << <<= <!--
           Advance();
-          if (c0_ == '=') return Select(Token::LTE);
-          if (c0_ == '<') return Select('=', Token::ASSIGN_SHL, Token::SHL);
+          if (c0_ == '=') return Select(Token::kLessThanEq);
+          if (c0_ == '<') return Select('=', Token::kAssignShl, Token::kShl);
           if (c0_ == '!') {
             token = ScanHtmlComment();
             continue;
           }
-          return Token::LT;
+          return Token::kLessThan;
 
-        case Token::GT:
+        case Token::kGreaterThan:
           // > >= >> >>= >>> >>>=
           Advance();
-          if (c0_ == '=') return Select(Token::GTE);
+          if (c0_ == '=') return Select(Token::kGreaterThanEq);
           if (c0_ == '>') {
             // >> >>= >>> >>>=
             Advance();
-            if (c0_ == '=') return Select(Token::ASSIGN_SAR);
-            if (c0_ == '>') return Select('=', Token::ASSIGN_SHR, Token::SHR);
-            return Token::SAR;
+            if (c0_ == '=') return Select(Token::kAssignSar);
+            if (c0_ == '>') return Select('=', Token::kAssignShr, Token::kShr);
+            return Token::kSar;
           }
-          return Token::GT;
+          return Token::kGreaterThan;
 
-        case Token::ASSIGN:
+        case Token::kAssign:
           // = == === =>
           Advance();
-          if (c0_ == '=') return Select('=', Token::EQ_STRICT, Token::EQ);
-          if (c0_ == '>') return Select(Token::ARROW);
-          return Token::ASSIGN;
+          if (c0_ == '=') return Select('=', Token::kEqStrict, Token::kEq);
+          if (c0_ == '>') return Select(Token::kArrow);
+          return Token::kAssign;
 
-        case Token::NOT:
+        case Token::kNot:
           // ! != !==
           Advance();
-          if (c0_ == '=') return Select('=', Token::NE_STRICT, Token::NE);
-          return Token::NOT;
+          if (c0_ == '=')
+            return Select('=', Token::kNotEqStrict, Token::kNotEq);
+          return Token::kNot;
 
-        case Token::ADD:
+        case Token::kAdd:
           // + ++ +=
           Advance();
-          if (c0_ == '+') return Select(Token::INC);
-          if (c0_ == '=') return Select(Token::ASSIGN_ADD);
-          return Token::ADD;
+          if (c0_ == '+') return Select(Token::kInc);
+          if (c0_ == '=') return Select(Token::kAssignAdd);
+          return Token::kAdd;
 
-        case Token::SUB:
+        case Token::kSub:
           // - -- --> -=
           Advance();
           if (c0_ == '-') {
@@ -435,23 +440,23 @@ V8_INLINE Token::Value Scanner::ScanSingleToken() {
               token = SkipSingleHTMLComment();
               continue;
             }
-            return Token::DEC;
+            return Token::kDec;
           }
-          if (c0_ == '=') return Select(Token::ASSIGN_SUB);
-          return Token::SUB;
+          if (c0_ == '=') return Select(Token::kAssignSub);
+          return Token::kSub;
 
-        case Token::MUL:
+        case Token::kMul:
           // * *=
           Advance();
-          if (c0_ == '*') return Select('=', Token::ASSIGN_EXP, Token::EXP);
-          if (c0_ == '=') return Select(Token::ASSIGN_MUL);
-          return Token::MUL;
+          if (c0_ == '*') return Select('=', Token::kAssignExp, Token::kExp);
+          if (c0_ == '=') return Select(Token::kAssignMul);
+          return Token::kMul;
 
-        case Token::MOD:
+        case Token::kMod:
           // % %=
-          return Select('=', Token::ASSIGN_MOD, Token::MOD);
+          return Select('=', Token::kAssignMod, Token::kMod);
 
-        case Token::DIV:
+        case Token::kDiv:
           // /  // /* /=
           Advance();
           if (c0_ == '/') {
@@ -459,7 +464,7 @@ V8_INLINE Token::Value Scanner::ScanSingleToken() {
             if (c == '#' || c == '@') {
               Advance();
               Advance();
-              token = SkipMagicComment();
+              token = SkipMagicComment(c);
               continue;
             }
             token = SkipSingleLineComment();
@@ -469,28 +474,28 @@ V8_INLINE Token::Value Scanner::ScanSingleToken() {
             token = SkipMultiLineComment();
             continue;
           }
-          if (c0_ == '=') return Select(Token::ASSIGN_DIV);
-          return Token::DIV;
+          if (c0_ == '=') return Select(Token::kAssignDiv);
+          return Token::kDiv;
 
-        case Token::BIT_AND:
+        case Token::kBitAnd:
           // & && &= &&=
           Advance();
-          if (c0_ == '&') return Select('=', Token::ASSIGN_AND, Token::AND);
-          if (c0_ == '=') return Select(Token::ASSIGN_BIT_AND);
-          return Token::BIT_AND;
+          if (c0_ == '&') return Select('=', Token::kAssignAnd, Token::kAnd);
+          if (c0_ == '=') return Select(Token::kAssignBitAnd);
+          return Token::kBitAnd;
 
-        case Token::BIT_OR:
+        case Token::kBitOr:
           // | || |= ||=
           Advance();
-          if (c0_ == '|') return Select('=', Token::ASSIGN_OR, Token::OR);
-          if (c0_ == '=') return Select(Token::ASSIGN_BIT_OR);
-          return Token::BIT_OR;
+          if (c0_ == '|') return Select('=', Token::kAssignOr, Token::kOr);
+          if (c0_ == '=') return Select(Token::kAssignBitOr);
+          return Token::kBitOr;
 
-        case Token::BIT_XOR:
+        case Token::kBitXor:
           // ^ ^=
-          return Select('=', Token::ASSIGN_BIT_XOR, Token::BIT_XOR);
+          return Select('=', Token::kAssignBitXor, Token::kBitXor);
 
-        case Token::PERIOD:
+        case Token::kPeriod:
           // . Number
           Advance();
           if (IsDecimalDigit(c0_)) return ScanNumber(true);
@@ -498,30 +503,30 @@ V8_INLINE Token::Value Scanner::ScanSingleToken() {
             if (Peek() == '.') {
               Advance();
               Advance();
-              return Token::ELLIPSIS;
+              return Token::kEllipsis;
             }
           }
-          return Token::PERIOD;
+          return Token::kPeriod;
 
-        case Token::TEMPLATE_SPAN:
+        case Token::kTemplateSpan:
           Advance();
           return ScanTemplateSpan();
 
-        case Token::PRIVATE_NAME:
+        case Token::kPrivateName:
           if (source_pos() == 0 && Peek() == '!') {
             token = SkipSingleLineComment();
             continue;
           }
           return ScanPrivateName();
 
-        case Token::WHITESPACE:
+        case Token::kWhitespace:
           token = SkipWhiteSpace();
           continue;
 
-        case Token::NUMBER:
+        case Token::kNumber:
           return ScanNumber(false);
 
-        case Token::IDENTIFIER:
+        case Token::kIdentifier:
           return ScanIdentifierOrKeyword();
 
         default:
@@ -534,12 +539,12 @@ V8_INLINE Token::Value Scanner::ScanSingleToken() {
       return ScanIdentifierOrKeyword();
     }
     if (c0_ == kEndOfInput) {
-      return source_->has_parser_error() ? Token::ILLEGAL : Token::EOS;
+      return source_->has_parser_error() ? Token::kIllegal : Token::kEos;
     }
     token = SkipWhiteSpace();
 
     // Continue scanning for tokens as long as we're just skipping whitespace.
-  } while (token == Token::WHITESPACE);
+  } while (token == Token::kWhitespace);
 
   return token;
 }
@@ -548,7 +553,7 @@ void Scanner::Scan(TokenDesc* next_desc) {
   DCHECK_EQ(next_desc, &next());
 
   next_desc->token = ScanSingleToken();
-  DCHECK_IMPLIES(has_parser_error(), next_desc->token == Token::ILLEGAL);
+  DCHECK_IMPLIES(has_parser_error(), next_desc->token == Token::kIllegal);
   next_desc->location.end_pos = source_pos();
 
 #ifdef DEBUG

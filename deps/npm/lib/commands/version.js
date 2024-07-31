@@ -1,10 +1,7 @@
-const libnpmversion = require('libnpmversion')
-const { resolve } = require('path')
-const { promisify } = require('util')
-const readFile = promisify(require('fs').readFile)
-
-const updateWorkspaces = require('../workspaces/update-workspaces.js')
-const BaseCommand = require('../base-command.js')
+const { resolve } = require('node:path')
+const { readFile } = require('node:fs/promises')
+const { output } = require('proc-log')
+const BaseCommand = require('../base-cmd.js')
 
 class Version extends BaseCommand {
   static description = 'Bump a package version'
@@ -73,29 +70,43 @@ class Version extends BaseCommand {
   }
 
   async change (args) {
+    const libnpmversion = require('libnpmversion')
     const prefix = this.npm.config.get('tag-version-prefix')
     const version = await libnpmversion(args[0], {
       ...this.npm.flatOptions,
       path: this.npm.prefix,
     })
-    return this.npm.output(`${prefix}${version}`)
+    return output.standard(`${prefix}${version}`)
   }
 
   async changeWorkspaces (args) {
+    const updateWorkspaces = require('../utils/update-workspaces.js')
+    const libnpmversion = require('libnpmversion')
     const prefix = this.npm.config.get('tag-version-prefix')
+    const {
+      config,
+      flatOptions,
+      localPrefix,
+    } = this.npm
     await this.setWorkspaces()
     const updatedWorkspaces = []
     for (const [name, path] of this.workspaces) {
-      this.npm.output(name)
+      output.standard(name)
       const version = await libnpmversion(args[0], {
-        ...this.npm.flatOptions,
+        ...flatOptions,
         'git-tag-version': false,
         path,
       })
       updatedWorkspaces.push(name)
-      this.npm.output(`${prefix}${version}`)
+      output.standard(`${prefix}${version}`)
     }
-    return this.update(updatedWorkspaces)
+    return updateWorkspaces({
+      config,
+      flatOptions,
+      localPrefix,
+      npm: this.npm,
+      workspaces: updatedWorkspaces,
+    })
   }
 
   async list (results = {}) {
@@ -115,9 +126,9 @@ class Version extends BaseCommand {
     }
 
     if (this.npm.config.get('json')) {
-      this.npm.output(JSON.stringify(results, null, 2))
+      output.buffer(results)
     } else {
-      this.npm.output(results)
+      output.standard(results)
     }
   }
 
@@ -134,22 +145,6 @@ class Version extends BaseCommand {
       }
     }
     return this.list(results)
-  }
-
-  async update (workspaces) {
-    const {
-      config,
-      flatOptions,
-      localPrefix,
-    } = this.npm
-
-    await updateWorkspaces({
-      config,
-      flatOptions,
-      localPrefix,
-      npm: this.npm,
-      workspaces,
-    })
   }
 }
 

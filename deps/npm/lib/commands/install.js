@@ -1,15 +1,12 @@
-/* eslint-disable camelcase */
-const fs = require('fs')
-const util = require('util')
-const readdir = util.promisify(fs.readdir)
-const reifyFinish = require('../utils/reify-finish.js')
-const log = require('../utils/log-shim.js')
-const { resolve, join } = require('path')
+const { readdir } = require('node:fs/promises')
+const { resolve, join } = require('node:path')
+const { log } = require('proc-log')
 const runScript = require('@npmcli/run-script')
 const pacote = require('pacote')
 const checks = require('npm-install-checks')
-
+const reifyFinish = require('../utils/reify-finish.js')
 const ArboristWorkspaceCmd = require('../arborist-cmd.js')
+
 class Install extends ArboristWorkspaceCmd {
   static description = 'Install a package'
   static name = 'install'
@@ -37,6 +34,7 @@ class Install extends ArboristWorkspaceCmd {
     'dry-run',
     'cpu',
     'os',
+    'libc',
     ...super.params,
   ]
 
@@ -167,7 +165,6 @@ class Install extends ArboristWorkspaceCmd {
           args: [],
           scriptShell,
           stdio: 'inherit',
-          banner: !this.npm.silent,
           event,
         })
       }
@@ -175,4 +172,5 @@ class Install extends ArboristWorkspaceCmd {
     await reifyFinish(this.npm, arb)
   }
 }
+
 module.exports = Install

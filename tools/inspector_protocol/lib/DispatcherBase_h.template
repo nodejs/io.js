@@ -25,6 +25,9 @@ public:
         kFallThrough = 2,
     };
 
+    // For historical reasons, these error codes correspond to commonly used
+    // XMLRPC codes (e.g. see METHOD_NOT_FOUND in
+    // https://github.com/python/cpython/blob/master/Lib/xmlrpc/client.py).
     enum ErrorCode {
         kParseError = -32700,
         kInvalidRequest = -32600,

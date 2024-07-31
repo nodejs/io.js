@@ -323,7 +323,7 @@ utrans_enum_unext(UEnumeration *uenum,
                   int32_t* resultLength,
                   UErrorCode *pErrorCode) {
     if(pErrorCode==nullptr || U_FAILURE(*pErrorCode)) {
-        return 0;
+        return nullptr;
     }
 
     UTransEnumeration *ute=(UTransEnumeration *)uenum;
@@ -405,7 +405,7 @@ utrans_trans(const UTransliterator* trans,
 
     utrans_ENTRY(status);
 
-    if (trans == 0 || rep == 0 || repFunc == 0 || limit == 0) {
+    if (trans == nullptr || rep == nullptr || repFunc == nullptr || limit == nullptr) {
         *status = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }
@@ -424,7 +424,7 @@ utrans_transIncremental(const UTransliterator* trans,
 
     utrans_ENTRY(status);
 
-    if (trans == 0 || rep == 0 || repFunc == 0 || pos == 0) {
+    if (trans == nullptr || rep == nullptr || repFunc == nullptr || pos == nullptr) {
         *status = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }
@@ -445,7 +445,7 @@ utrans_transUChars(const UTransliterator* trans,
 
     utrans_ENTRY(status);
 
-    if (trans == 0 || text == 0 || limit == 0) {
+    if (trans == nullptr || text == nullptr || limit == nullptr) {
         *status = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }
@@ -475,7 +475,7 @@ utrans_transIncrementalUChars(const UTransliterator* trans,
 
     utrans_ENTRY(status);
 
-    if (trans == 0 || text == 0 || pos == 0) {
+    if (trans == nullptr || text == nullptr || pos == nullptr) {
         *status = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }

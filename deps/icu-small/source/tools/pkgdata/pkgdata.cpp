@@ -60,11 +60,9 @@ U_CDECL_BEGIN
 U_CDECL_END
 
 #if U_HAVE_POPEN
-
-using icu::LocalPointerBase;
-
+U_NAMESPACE_BEGIN
 U_DEFINE_LOCAL_OPEN_POINTER(LocalPipeFilePointer, FILE, pclose);
-
+U_NAMESPACE_END
 #endif
 
 using icu::LocalMemory;
@@ -135,7 +133,7 @@ static struct {
     const char *name, *alt_name;
     const char *desc;
 } modes[] = {
-        { "files", 0,           "Uses raw data files (no effect). Installation copies all files to the target location." },
+        { "files", nullptr,     "Uses raw data files (no effect). Installation copies all files to the target location." },
 #if U_PLATFORM_HAS_WIN32_API
         { "dll",    "library",  "Generates one common data file and one shared library, <package>.dll"},
         { "common", "archive",  "Generates just the common file, <package>.dat"},
@@ -372,7 +370,7 @@ main(int argc, char* argv[]) {
     uprv_memset(&o, 0, sizeof(o));
 
     o.mode      = options[MODE].value;
-    o.version   = options[REVISION].doesOccur ? options[REVISION].value : 0;
+    o.version   = options[REVISION].doesOccur ? options[REVISION].value : nullptr;
 
     o.shortName = options[NAME].value;
     {
@@ -2184,7 +2182,7 @@ static void loadLists(UPKGOptions *o, UErrorCode *status)
 static UBool getPkgDataPath(const char *cmd, UBool verbose, char *buf, size_t items) {
     icu::CharString cmdBuf;
     UErrorCode status = U_ZERO_ERROR;
-    LocalPipeFilePointer p;
+    icu::LocalPipeFilePointer p;
     size_t n;
 
     cmdBuf.append(cmd, status);

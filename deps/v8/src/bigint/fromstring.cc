@@ -242,9 +242,9 @@ void ProcessorImpl::FromStringBasePowerOfTwo(
   const int num_parts = accumulator->ResultLength();
   DCHECK(num_parts >= 1);
   DCHECK(Z.len() >= num_parts);
-  Digits parts(accumulator->heap_parts_.size() > 0
-                   ? accumulator->heap_parts_.data()
-                   : accumulator->stack_parts_,
+  Digits parts(accumulator->heap_parts_.empty()
+                   ? accumulator->stack_parts_
+                   : accumulator->heap_parts_.data(),
                num_parts);
   uint8_t radix = accumulator->radix_;
   DCHECK(radix == 2 || radix == 4 || radix == 8 || radix == 16 || radix == 32);

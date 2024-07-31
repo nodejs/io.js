@@ -186,6 +186,7 @@ bool Runtime::MayAllocate(FunctionId id) {
   switch (id) {
     case Runtime::kCompleteInobjectSlackTracking:
     case Runtime::kCompleteInobjectSlackTrackingForMap:
+    case Runtime::kGlobalPrint:
       return false;
     default:
       return true;
@@ -206,12 +207,21 @@ bool Runtime::IsAllowListedForFuzzing(FunctionId id) {
     case Runtime::kGetUndetectable:
     case Runtime::kNeverOptimizeFunction:
     case Runtime::kOptimizeFunctionOnNextCall:
+    case Runtime::kOptimizeMaglevOnNextCall:
     case Runtime::kOptimizeOsr:
     case Runtime::kPrepareFunctionForOptimization:
     case Runtime::kPretenureAllocationSite:
     case Runtime::kSetAllocationTimeout:
+    case Runtime::kSetForceSlowPath:
     case Runtime::kSimulateNewspaceFull:
     case Runtime::kWaitForBackgroundOptimization:
+    case Runtime::kSetBatterySaverMode:
+    case Runtime::kNotifyIsolateForeground:
+    case Runtime::kNotifyIsolateBackground:
+    case Runtime::kIsEfficiencyModeEnabled:
+#if V8_ENABLE_WEBASSEMBLY && !defined(OFFICIAL_BUILD)
+    case Runtime::kWasmGenerateRandomModule:
+#endif  // V8_ENABLE_WEBASSEMBLY
       return true;
     // Runtime functions only permitted for non-differential fuzzers.
     // This list may contain functions performing extra checks or returning
@@ -223,24 +233,14 @@ bool Runtime::IsAllowListedForFuzzing(FunctionId id) {
     case Runtime::kVerifyType:
       return !v8_flags.allow_natives_for_differential_fuzzing &&
              !v8_flags.concurrent_recompilation;
+    case Runtime::kLeakHole:
+      return v8_flags.hole_fuzzing;
     case Runtime::kBaselineOsr:
     case Runtime::kCompileBaseline:
-      return ENABLE_SPARKPLUG;
-    default:
-      return false;
-  }
-}
-
-bool Runtime::SwitchToTheCentralStackForTarget(FunctionId id) {
-  // Runtime functions called from Wasm directly or
-  // from Wasm runtime stubs should execute on the central stack.
-  switch (id) {
-#if V8_ENABLE_WEBASSEMBLY
-#define WASM_CASE(Name, ...) case Runtime::k##Name:
-    FOR_EACH_INTRINSIC_WASM(WASM_CASE, WASM_CASE)
-#undef WASM_CASE
-    return true;
-#endif  // V8_ENABLE_WEBASSEMBLY
+#ifdef V8_ENABLE_SPARKPLUG
+      return true;
+#endif
+      // Fallthrough.
     default:
       return false;
   }

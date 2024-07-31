@@ -112,7 +112,7 @@ Node* PropertyAccessBuilder::BuildCheckValue(Node* receiver, Effect* effect,
                                              Handle<HeapObject> value) {
   HeapObjectMatcher m(receiver);
   if (m.Is(value)) return receiver;
-  Node* expected = jsgraph()->HeapConstant(value);
+  Node* expected = jsgraph()->HeapConstantNoHole(value);
   Node* check =
       graph()->NewNode(simplified()->ReferenceEqual(), receiver, expected);
   *effect =
@@ -125,7 +125,7 @@ Node* PropertyAccessBuilder::ResolveHolder(
     PropertyAccessInfo const& access_info, Node* lookup_start_object) {
   OptionalJSObjectRef holder = access_info.holder();
   if (holder.has_value()) {
-    return jsgraph()->Constant(holder.value(), broker());
+    return jsgraph()->ConstantNoHole(holder.value(), broker());
   }
   return lookup_start_object;
 }
@@ -176,7 +176,7 @@ base::Optional<Node*> PropertyAccessBuilder::FoldLoadDictPrototypeConstant(
         map, access_info.name(), value.value(), PropertyKind::kData);
   }
 
-  return jsgraph()->Constant(value.value(), broker());
+  return jsgraph()->ConstantNoHole(value.value(), broker());
 }
 
 Node* PropertyAccessBuilder::TryFoldLoadConstantDataField(
@@ -208,14 +208,21 @@ Node* PropertyAccessBuilder::TryFoldLoadConstantDataField(
     holder = m.Ref(broker()).AsJSObject();
   }
 
-  OptionalObjectRef value = holder->GetOwnFastDataProperty(
+  if (access_info.field_representation().IsDouble()) {
+    base::Optional<Float64> value = holder->GetOwnFastConstantDoubleProperty(
+        broker(), access_info.field_index(), dependencies());
+    return value.has_value() ? jsgraph()->ConstantNoHole(value->get_scalar())
+                             : nullptr;
+  }
+  OptionalObjectRef value = holder->GetOwnFastConstantDataProperty(
       broker(), access_info.field_representation(), access_info.field_index(),
       dependencies());
-  return value.has_value() ? jsgraph()->Constant(*value, broker()) : nullptr;
+  return value.has_value() ? jsgraph()->ConstantNoHole(*value, broker())
+                           : nullptr;
 }
 
 Node* PropertyAccessBuilder::BuildLoadDataField(NameRef name, Node* holder,
-                                                FieldAccess& field_access,
+                                                FieldAccess&& field_access,
                                                 bool is_inobject, Node** effect,
                                                 Node** control) {
   Node* storage = holder;
@@ -268,8 +275,9 @@ Node* PropertyAccessBuilder::BuildLoadDataField(NameRef name, Node* holder,
       storage = *effect = graph()->NewNode(
           simplified()->LoadField(storage_access), storage, *effect, *control);
     }
-    field_access.offset = HeapNumber::kValueOffset;
-    field_access.name = MaybeHandle<Name>();
+    FieldAccess value_field_access = AccessBuilder::ForHeapNumberValue();
+    value_field_access.const_field_info = field_access.const_field_info;
+    field_access = value_field_access;
   }
   Node* value = *effect = graph()->NewNode(
       simplified()->LoadField(field_access), storage, *effect, *control);
@@ -312,7 +320,7 @@ Node* PropertyAccessBuilder::BuildLoadDataField(
       }
     }
   }
-  return BuildLoadDataField(name, storage, field_access,
+  return BuildLoadDataField(name, storage, std::move(field_access),
                             access_info.field_index().is_inobject(), effect,
                             control);
 }

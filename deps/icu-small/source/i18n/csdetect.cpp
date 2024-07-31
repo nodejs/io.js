@@ -443,20 +443,20 @@ UEnumeration * CharsetDetector::getAllDetectableCharsets(UErrorCode &status)
     setRecognizers(status);
 
     if(U_FAILURE(status)) {
-        return 0;
+        return nullptr;
     }
 
     UEnumeration *en = NEW_ARRAY(UEnumeration, 1);
     if (en == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
-        return 0;
+        return nullptr;
     }
     memcpy(en, &gCSDetEnumeration, sizeof(UEnumeration));
     en->context = (void*)NEW_ARRAY(Context, 1);
     if (en->context == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         DELETE_ARRAY(en);
-        return 0;
+        return nullptr;
     }
     uprv_memset(en->context, 0, sizeof(Context));
     ((Context*)en->context)->all = true;
@@ -466,20 +466,20 @@ UEnumeration * CharsetDetector::getAllDetectableCharsets(UErrorCode &status)
 UEnumeration * CharsetDetector::getDetectableCharsets(UErrorCode &status) const
 {
     if(U_FAILURE(status)) {
-        return 0;
+        return nullptr;
     }
 
     UEnumeration *en = NEW_ARRAY(UEnumeration, 1);
     if (en == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
-        return 0;
+        return nullptr;
     }
     memcpy(en, &gCSDetEnumeration, sizeof(UEnumeration));
     en->context = (void*)NEW_ARRAY(Context, 1);
     if (en->context == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         DELETE_ARRAY(en);
-        return 0;
+        return nullptr;
     }
     uprv_memset(en->context, 0, sizeof(Context));
     ((Context*)en->context)->all = false;

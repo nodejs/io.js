@@ -1,4 +1,4 @@
-.TH "NPM-VIEW" "1" "October 2023" "" ""
+.TH "NPM-VIEW" "1" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBnpm-view\fR - View registry info
 .SS "Synopsis"
@@ -29,6 +29,14 @@ Field names can be specified after the package descriptor. For example, to show 
 .RS 2
 .nf
 npm view ronn@0.3.5 dependencies
+.fi
+.RE
+.P
+By default, \fBnpm view\fR shows data about the current project context (by looking for a \fBpackage.json\fR). To show field data for the current project use a file path (i.e. \fB.\fR):
+.P
+.RS 2
+.nf
+npm view . dependencies
 .fi
 .RE
 .P

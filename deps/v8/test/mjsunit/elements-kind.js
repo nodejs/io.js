@@ -27,6 +27,7 @@
 
 // Flags: --allow-natives-syntax --expose-gc
 // Flags: --deopt-every-n-times=0
+// Flags: --js-float16array
 
 var elements_kind = {
   fast_smi_only             :  'fast smi only elements',
@@ -39,6 +40,7 @@ var elements_kind = {
   fixed_uint16              :  'fixed uint16 elements',
   fixed_int32               :  'fixed int32 elements',
   fixed_uint32              :  'fixed uint32 elements',
+  fixed_float16             :  'fixed float16 elements',
   fixed_float32             :  'fixed float32 elements',
   fixed_float64             :  'fixed float64 elements',
   fixed_uint8_clamped       :  'fixed uint8_clamped elements'
@@ -67,6 +69,9 @@ function getKind(obj) {
   }
   if (%HasFixedUint32Elements(obj)) {
     return elements_kind.fixed_uint32;
+  }
+  if (%HasFixedFloat16Elements(obj)) {
+    return elements_kind.fixed_float16;
   }
   if (%HasFixedFloat32Elements(obj)) {
     return elements_kind.fixed_float32;
@@ -128,6 +133,7 @@ function test_wrapper() {
   assertKind(elements_kind.fixed_uint16,  new Uint16Array(42));
   assertKind(elements_kind.fixed_int32,   new Int32Array(0xF));
   assertKind(elements_kind.fixed_uint32,  new Uint32Array(23));
+  assertKind(elements_kind.fixed_float16, new Float16Array(7));
   assertKind(elements_kind.fixed_float32, new Float32Array(7));
   assertKind(elements_kind.fixed_float64, new Float64Array(0));
   assertKind(elements_kind.fixed_uint8_clamped, new Uint8ClampedArray(512));
@@ -139,6 +145,7 @@ function test_wrapper() {
   assertKind(elements_kind.fixed_uint16,  new Uint16Array(ab));
   assertKind(elements_kind.fixed_int32,   new Int32Array(ab));
   assertKind(elements_kind.fixed_uint32,  new Uint32Array(ab));
+  assertKind(elements_kind.fixed_float16, new Float16Array(ab));
   assertKind(elements_kind.fixed_float32, new Float32Array(ab));
   assertKind(elements_kind.fixed_float64, new Float64Array(ab));
   assertKind(elements_kind.fixed_uint8_clamped, new Uint8ClampedArray(ab));

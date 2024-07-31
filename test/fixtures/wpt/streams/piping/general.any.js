@@ -1,5 +1,4 @@
-// META: global=window,worker
-// META: script=../resources/test-utils.js
+// META: global=window,worker,shadowrealm
 // META: script=../resources/recording-streams.js
 'use strict';
 
@@ -39,7 +38,8 @@ promise_test(t => {
   const fakeRS = Object.create(ReadableStream.prototype);
   const ws = new WritableStream();
 
-  return methodRejects(t, ReadableStream.prototype, 'pipeTo', fakeRS, [ws]);
+  return promise_rejects_js(t, TypeError, ReadableStream.prototype.pipeTo.apply(fakeRS, [ws]),
+    'pipeTo should reject with a TypeError');
 
 }, 'pipeTo must check the brand of its ReadableStream this value');
 
@@ -48,7 +48,8 @@ promise_test(t => {
   const rs = new ReadableStream();
   const fakeWS = Object.create(WritableStream.prototype);
 
-  return methodRejects(t, ReadableStream.prototype, 'pipeTo', rs, [fakeWS]);
+  return promise_rejects_js(t, TypeError, ReadableStream.prototype.pipeTo.apply(rs, [fakeWS]),
+    'pipeTo should reject with a TypeError');
 
 }, 'pipeTo must check the brand of its WritableStream argument');
 

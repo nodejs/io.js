@@ -73,6 +73,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kIA32Float64ExtractHighWord32:
     case kIA32Float64InsertLowWord32:
     case kIA32Float64InsertHighWord32:
+    case kIA32Float64FromWord32Pair:
     case kIA32Float64LoadLowWord32:
     case kIA32Float64SilenceNaN:
     case kFloat32Add:

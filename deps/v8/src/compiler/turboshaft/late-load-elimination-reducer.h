@@ -5,11 +5,20 @@
 #ifndef V8_COMPILER_TURBOSHAFT_LATE_LOAD_ELIMINATION_REDUCER_H_
 #define V8_COMPILER_TURBOSHAFT_LATE_LOAD_ELIMINATION_REDUCER_H_
 
+#include "src/base/doubly-threaded-list.h"
+#include "src/compiler/turboshaft/analyzer-iterator.h"
 #include "src/compiler/turboshaft/assembler.h"
-#include "src/compiler/turboshaft/doubly-threaded-list.h"
 #include "src/compiler/turboshaft/graph.h"
-#include "src/compiler/turboshaft/snapshot-table.h"
+#include "src/compiler/turboshaft/index.h"
+#include "src/compiler/turboshaft/loop-finder.h"
+#include "src/compiler/turboshaft/operations.h"
+#include "src/compiler/turboshaft/opmasks.h"
+#include "src/compiler/turboshaft/phase.h"
+#include "src/compiler/turboshaft/representations.h"
+#include "src/compiler/turboshaft/sidetable.h"
+#include "src/compiler/turboshaft/snapshot-table-opindex.h"
 #include "src/compiler/turboshaft/utils.h"
+#include "src/zone/zone-containers.h"
 #include "src/zone/zone.h"
 
 namespace v8::internal::compiler::turboshaft {
@@ -82,10 +91,10 @@ namespace v8::internal::compiler::turboshaft {
 //     not: 2 objects with different maps cannot alias.
 //
 //   - When a loop contains a Store or a Call, it could invalidate previously
-//     eliminated loads in the begining of the loop. Thus, once we reach the end
-//     of a loop, we recompute the header's snapshot using {header, backedge} as
-//     predecessors, and if anything is invalidated by the backedge, we revisit
-//     the loop.
+//     eliminated loads in the beginning of the loop. Thus, once we reach the
+//     end of a loop, we recompute the header's snapshot using {header,
+//     backedge} as predecessors, and if anything is invalidated by the
+//     backedge, we revisit the loop.
 //
 // How we "keep track" of objects:
 //
@@ -93,9 +102,9 @@ namespace v8::internal::compiler::turboshaft {
 //     1. Load the value for a {base, index, offset}.
 //     2. Store that {base, index, offset} = value
 //     3. Invalidate everything at a given offset + everything at an index (for
-//       when storing to a base that could alias with other things).
+//        when storing to a base that could alias with other things).
 //     4. Invalidate everything in a base (for when said base is passed to a
-//       function, or when their is an indexed store in this base).
+//        function, or when there is an indexed store in this base).
 //     5. Invalidate everything (for an indexed store into an arbitrary base)
 //
 // To have 1. in constant time, we maintain a global hashmap (`all_keys`) from
@@ -106,7 +115,7 @@ namespace v8::internal::compiler::turboshaft {
 // To have 4. efficiently, we have a similar map from bases to lists of every
 // MemoryAddress at this base (`base_keys_`).
 // For 5., we can use either `offset_keys_` or `base_keys_`. In practice, we use
-// the later because it allows us to efficiently skip bases that are known to
+// the latter because it allows us to efficiently skip bases that are known to
 // have no aliases.
 
 // MapMask and related functions are an attempt to avoid having to store sets of
@@ -165,63 +174,9 @@ inline bool CouldHaveSameMap(MapMaskAndOr a, MapMaskAndOr b) {
   return ((a.and_ & b.or_) == a.and_) || ((b.and_ & a.or_) == b.and_);
 }
 
-// A Wrapper around a SnapshotTable, which takes care of mapping OpIndex to Key.
-// It uses a ZoneUnorderedMap to store this mapping, and is thus more
-// appropriate for cases where not many OpIndex have a corresponding key.
-template <class Value, class KeyData = NoKeyData>
-class SparseOpIndexSnapshotTable : public SnapshotTable<Value, KeyData> {
- public:
-  using Base = SnapshotTable<Value, KeyData>;
-  using Key = typename SnapshotTable<Value, KeyData>::Key;
-
-  SparseOpIndexSnapshotTable(const Graph& graph, Zone* zone)
-      : Base(zone), indices_to_keys_(zone) {}
-
-  using Base::Get;
-  Value Get(OpIndex idx) const {
-    auto it = indices_to_keys_.find(idx);
-    if (it == indices_to_keys_.end()) return Value{};
-    return Base::Get(it->second);
-  }
-
-  using Base::Set;
-  bool Set(OpIndex idx, Value new_value) {
-    Key key = GetOrCreateKey(idx);
-    return Base::Set(key, new_value);
-  }
-
-  void NewKey(OpIndex idx, KeyData data, Value initial_value = Value{}) {
-    DCHECK(!indices_to_keys_[idx].has_value());
-    indices_to_keys_[idx] = Base::NewKey(data, initial_value);
-  }
-  void NewKey(OpIndex idx, Value initial_value = Value{}) {
-    NewKey(idx, KeyData{}, initial_value);
-  }
-
-  bool HasKeyFor(OpIndex idx) const {
-    return indices_to_keys_.find(idx) != indices_to_keys_.end();
-  }
-
-  base::Optional<Key> TryGetKeyFor(OpIndex idx) const {
-    auto it = indices_to_keys_.find(idx);
-    if (it != indices_to_keys_.end()) return it->second;
-    return base::nullopt;
-  }
-
- private:
-  Key GetOrCreateKey(OpIndex idx) {
-    auto it = indices_to_keys_.find(idx);
-    if (it != indices_to_keys_.end()) return it->second;
-    Key key = Base::NewKey();
-    indices_to_keys_.insert({idx, key});
-    return key;
-  }
-  ZoneUnorderedMap<OpIndex, Key> indices_to_keys_;
-};
-
 struct MemoryAddress {
   OpIndex base;
-  OpIndex index;
+  OptionalOpIndex index;
   int32_t offset;
   uint8_t element_size_log2;
   uint8_t size;
@@ -230,6 +185,12 @@ struct MemoryAddress {
     return base == other.base && index == other.index &&
            offset == other.offset &&
            element_size_log2 == other.element_size_log2 && size == other.size;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const MemoryAddress& mem) {
+    return H::combine(std::move(h), mem.base, mem.index, mem.offset,
+                      mem.element_size_log2, mem.size);
   }
 };
 
@@ -266,18 +227,81 @@ struct BaseListTraits {
 struct BaseData {
   using Key = SnapshotTable<OpIndex, KeyData>::Key;
   // List of every value at this base that has an offset rather than an index.
-  DoublyThreadedList<Key, BaseListTraits> with_offsets;
+  v8::base::DoublyThreadedList<Key, BaseListTraits> with_offsets;
   // List of every value at this base that has a valid index.
-  DoublyThreadedList<Key, BaseListTraits> with_indices;
+  v8::base::DoublyThreadedList<Key, BaseListTraits> with_indices;
 };
+
+class LoadEliminationReplacement {
+ public:
+  enum class Kind {
+    kNone,             // We don't replace the operation
+    kLoadElimination,  // We load eliminate a load operation
+    // The following replacements are used for the special case optimization:
+    // TruncateWord64ToWord32(
+    //     BitcastTaggedToWordPtrForTagAndSmiBits(Load(x, Tagged)))
+    // =>
+    // Load(x, Int32)
+    //
+    kTaggedLoadToInt32Load,     // Turn a tagged load into a direct int32 load.
+    kTaggedBitcastElimination,  // Remove this (now unused) bitcast.
+    kInt32TruncationElimination,  // Replace truncation by the updated load.
+  };
+
+  LoadEliminationReplacement() : kind_(Kind::kNone), replacement_() {}
+
+  static LoadEliminationReplacement None() {
+    return LoadEliminationReplacement{};
+  }
+  static LoadEliminationReplacement LoadElimination(OpIndex replacement) {
+    DCHECK(replacement.valid());
+    return LoadEliminationReplacement{Kind::kLoadElimination, replacement};
+  }
+  static LoadEliminationReplacement TaggedLoadToInt32Load() {
+    return LoadEliminationReplacement{Kind::kTaggedLoadToInt32Load, {}};
+  }
+  static LoadEliminationReplacement TaggedBitcastElimination() {
+    return LoadEliminationReplacement{Kind::kTaggedBitcastElimination, {}};
+  }
+  static LoadEliminationReplacement Int32TruncationElimination(
+      OpIndex replacement) {
+    return LoadEliminationReplacement{Kind::kInt32TruncationElimination,
+                                      replacement};
+  }
+
+  bool IsNone() const { return kind_ == Kind::kNone; }
+  bool IsLoadElimination() const { return kind_ == Kind::kLoadElimination; }
+  bool IsTaggedLoadToInt32Load() const {
+    return kind_ == Kind::kTaggedLoadToInt32Load;
+  }
+  bool IsTaggedBitcastElimination() const {
+    return kind_ == Kind::kTaggedBitcastElimination;
+  }
+  bool IsInt32TruncationElimination() const {
+    return kind_ == Kind::kInt32TruncationElimination;
+  }
+  OpIndex replacement() const { return replacement_; }
+
+ private:
+  LoadEliminationReplacement(Kind kind, OpIndex replacement)
+      : kind_(kind), replacement_(replacement) {}
+
+  Kind kind_;
+  OpIndex replacement_;
+};
+
+V8_EXPORT_PRIVATE bool IsInt32TruncatedLoadPattern(
+    const Graph& graph, OpIndex change_idx, const ChangeOp& change,
+    OpIndex* bitcast_idx = nullptr, OpIndex* load_idx = nullptr);
 
 class MemoryContentTable
     : public ChangeTrackingSnapshotTable<MemoryContentTable, OpIndex, KeyData> {
  public:
+  using Replacement = LoadEliminationReplacement;
   explicit MemoryContentTable(
       Zone* zone, SparseOpIndexSnapshotTable<bool>& non_aliasing_objects,
       SparseOpIndexSnapshotTable<MapMaskAndOr>& object_maps,
-      FixedSidetable<OpIndex>& replacements)
+      FixedOpIndexSidetable<Replacement>& replacements)
       : ChangeTrackingSnapshotTable(zone),
         non_aliasing_objects_(non_aliasing_objects),
         object_maps_(object_maps),
@@ -303,13 +327,12 @@ class MemoryContentTable
     }
   }
 
-  // Invalidate all previous known memory that could alias with {store}. Returns
-  // the number of invalidated keys.
+  // Invalidate all previous known memory that could alias with {store}.
   void Invalidate(const StoreOp& store) {
     Invalidate(store.base(), store.index(), store.offset);
   }
 
-  void Invalidate(OpIndex base, OpIndex index, int32_t offset) {
+  void Invalidate(OpIndex base, OptionalOpIndex index, int32_t offset) {
     base = ResolveBase(base);
 
     if (non_aliasing_objects_.Get(base)) {
@@ -368,7 +391,7 @@ class MemoryContentTable
   // Invalidates all Keys that are not known as non-aliasing.
   void InvalidateMaybeAliasing() {
     // We find current active keys through {base_keys_} so that we can bail out
-    // for whole buckets non-aliasing buckets (if we had gone through
+    // for whole buckets non-aliasing bases (if we had gone through
     // {offset_keys_} instead, then for each key we would've had to check
     // whether it was non-aliasing or not).
     for (auto& base_keys : base_keys_) {
@@ -394,7 +417,7 @@ class MemoryContentTable
 
   OpIndex Find(const LoadOp& load) {
     OpIndex base = ResolveBase(load.base());
-    OpIndex index = load.index();
+    OptionalOpIndex index = load.index();
     int32_t offset = load.offset;
     uint8_t element_size_log2 = index.valid() ? load.element_size_log2 : 0;
     uint8_t size = load.loaded_rep.SizeInBytes();
@@ -407,7 +430,7 @@ class MemoryContentTable
 
   void Insert(const StoreOp& store) {
     OpIndex base = ResolveBase(store.base());
-    OpIndex index = store.index();
+    OptionalOpIndex index = store.index();
     int32_t offset = store.offset;
     uint8_t element_size_log2 = index.valid() ? store.element_size_log2 : 0;
     OpIndex value = store.value();
@@ -422,7 +445,7 @@ class MemoryContentTable
 
   void Insert(const LoadOp& load, OpIndex load_idx) {
     OpIndex base = ResolveBase(load.base());
-    OpIndex index = load.index();
+    OptionalOpIndex index = load.index();
     int32_t offset = load.offset;
     uint8_t element_size_log2 = index.valid() ? load.element_size_log2 : 0;
     uint8_t size = load.loaded_rep.SizeInBytes();
@@ -455,7 +478,15 @@ class MemoryContentTable
 #endif
 
  private:
-  void Insert(OpIndex base, OpIndex index, int32_t offset,
+  // To avoid pathological execution times, we cap the maximum number of
+  // keys we track. This is safe, because *not* tracking objects (even
+  // though we could) only makes us miss out on possible optimizations.
+  // TODO(dmercadier/jkummerow): Find a more elegant solution to keep
+  // execution time in check. One example of a test case can be found in
+  // crbug.com/v8/14370.
+  static constexpr size_t kMaxKeys = 10000;
+
+  void Insert(OpIndex base, OptionalOpIndex index, int32_t offset,
               uint8_t element_size_log2, uint8_t size, OpIndex value) {
     DCHECK_EQ(base, ResolveBase(base));
 
@@ -466,18 +497,26 @@ class MemoryContentTable
       return;
     }
 
+    if (all_keys_.size() > kMaxKeys) return;
+
     // Creating a new key.
     Key key = NewKey({mem});
     all_keys_.insert({mem, key});
     Set(key, value);
   }
 
-  void InsertImmutable(OpIndex base, OpIndex index, int32_t offset,
+  void InsertImmutable(OpIndex base, OptionalOpIndex index, int32_t offset,
                        uint8_t element_size_log2, uint8_t size, OpIndex value) {
     DCHECK_EQ(base, ResolveBase(base));
 
     MemoryAddress mem{base, index, offset, element_size_log2, size};
-    DCHECK_EQ(all_keys_.find(mem), all_keys_.end());
+    auto existing_key = all_keys_.find(mem);
+    if (existing_key != all_keys_.end()) {
+      SetNoNotify(existing_key->second, value);
+      return;
+    }
+
+    if (all_keys_.size() > kMaxKeys) return;
 
     // Creating a new key.
     Key key = NewKey({mem});
@@ -514,8 +553,8 @@ class MemoryContentTable
   }
 
   OpIndex ResolveBase(OpIndex base) {
-    while (replacements_[base] != OpIndex::Invalid()) {
-      base = replacements_[base];
+    while (replacements_[base].IsLoadElimination()) {
+      base = replacements_[base].replacement();
     }
     return base;
   }
@@ -526,32 +565,32 @@ class MemoryContentTable
     auto base_keys = base_keys_.find(base);
     if (base_keys != base_keys_.end()) {
       if (key.data().mem.index.valid()) {
-        base_keys->second.with_indices.Add(key);
+        base_keys->second.with_indices.PushFront(key);
       } else {
-        base_keys->second.with_offsets.Add(key);
+        base_keys->second.with_offsets.PushFront(key);
       }
     } else {
       BaseData data;
       if (key.data().mem.index.valid()) {
-        data.with_indices.Add(key);
+        data.with_indices.PushFront(key);
       } else {
-        data.with_offsets.Add(key);
+        data.with_offsets.PushFront(key);
       }
       base_keys_.insert({base, std::move(data)});
     }
 
     if (key.data().mem.index.valid()) {
-      // Inserting in {index_keys_}
-      index_keys_.Add(key);
+      // Inserting in {index_keys_}.
+      index_keys_.PushFront(key);
     } else {
       // Inserting in {offset_keys_}.
       int offset = key.data().mem.offset;
       auto offset_keys = offset_keys_.find(offset);
       if (offset_keys != offset_keys_.end()) {
-        offset_keys->second.Add(key);
+        offset_keys->second.PushFront(key);
       } else {
-        DoublyThreadedList<Key, OffsetListTraits> list;
-        list.Add(key);
+        v8::base::DoublyThreadedList<Key, OffsetListTraits> list;
+        list.PushFront(key);
         offset_keys_.insert({offset, std::move(list)});
       }
     }
@@ -559,30 +598,28 @@ class MemoryContentTable
 
   void RemoveKeyFromBaseOffsetMaps(Key key) {
     // Removing from {base_keys_}.
-    DoublyThreadedList<Key, BaseListTraits>::Remove(key);
-    DoublyThreadedList<Key, OffsetListTraits>::Remove(key);
+    v8::base::DoublyThreadedList<Key, BaseListTraits>::Remove(key);
+    v8::base::DoublyThreadedList<Key, OffsetListTraits>::Remove(key);
   }
 
   SparseOpIndexSnapshotTable<bool>& non_aliasing_objects_;
   SparseOpIndexSnapshotTable<MapMaskAndOr>& object_maps_;
-  FixedSidetable<OpIndex>& replacements_;
-
-  // TODO(dmercadier): consider using a faster datastructure than
-  // ZoneUnorderedMap for {all_keys_}, {base_keys_} and {offset_keys_}.
+  FixedOpIndexSidetable<Replacement>& replacements_;
 
   // A map containing all of the keys, for fast lookup of a specific
   // MemoryAddress.
-  ZoneUnorderedMap<MemoryAddress, Key> all_keys_;
+  ZoneAbslFlatHashMap<MemoryAddress, Key> all_keys_;
   // Map from base OpIndex to keys associated with this base.
-  ZoneUnorderedMap<OpIndex, BaseData> base_keys_;
+  ZoneAbslFlatHashMap<OpIndex, BaseData> base_keys_;
   // Map from offsets to keys associated with this offset.
-  ZoneUnorderedMap<int, DoublyThreadedList<Key, OffsetListTraits>> offset_keys_;
+  ZoneAbslFlatHashMap<int, v8::base::DoublyThreadedList<Key, OffsetListTraits>>
+      offset_keys_;
 
   // List of all of the keys that have a valid index.
-  DoublyThreadedList<Key, OffsetListTraits> index_keys_;
+  v8::base::DoublyThreadedList<Key, OffsetListTraits> index_keys_;
 };
 
-class LateLoadEliminationAnalyzer {
+class V8_EXPORT_PRIVATE LateLoadEliminationAnalyzer {
  public:
   using AliasTable = SparseOpIndexSnapshotTable<bool>;
   using AliasKey = AliasTable::Key;
@@ -595,79 +632,34 @@ class LateLoadEliminationAnalyzer {
   using MemoryKey = MemoryContentTable::Key;
   using MemorySnapshot = MemoryContentTable::Snapshot;
 
+  using Replacement = LoadEliminationReplacement;
+
+  enum class RawBaseAssumption {
+    kNoInnerPointer,
+    kMaybeInnerPointer,
+  };
+
   LateLoadEliminationAnalyzer(Graph& graph, Zone* phase_zone,
-                              JSHeapBroker* broker)
+                              JSHeapBroker* broker,
+                              RawBaseAssumption raw_base_assumption)
       : graph_(graph),
+        phase_zone_(phase_zone),
         broker_(broker),
-        replacements_(graph.op_id_count(), phase_zone),
-        non_aliasing_objects_(graph, phase_zone),
-        object_maps_(graph, phase_zone),
+        raw_base_assumption_(raw_base_assumption),
+        replacements_(graph.op_id_count(), phase_zone, &graph),
+        non_aliasing_objects_(phase_zone),
+        object_maps_(phase_zone),
         memory_(phase_zone, non_aliasing_objects_, object_maps_, replacements_),
         block_to_snapshot_mapping_(graph.block_count(), phase_zone),
         predecessor_alias_snapshots_(phase_zone),
         predecessor_maps_snapshots_(phase_zone),
         predecessor_memory_snapshots_(phase_zone) {}
 
-  void Run() {
-    bool compute_start_snapshot = true;
-    for (uint32_t block_index = 0; block_index < graph_.block_count();
-         block_index++) {
-      const Block& block = graph_.Get(BlockIndex{block_index});
+  void Run();
 
-      ProcessBlock(block, compute_start_snapshot);
-      compute_start_snapshot = true;
-
-      // Consider re-processing for loops.
-      if (const GotoOp* last = block.LastOperation(graph_).TryCast<GotoOp>()) {
-        if (last->destination->IsLoop() &&
-            last->destination->LastPredecessor() == &block) {
-          const Block* loop_header = last->destination;
-          // {block} is the backedge of a loop. We recompute the loop header's
-          // initial snapshots, and if they differ from its original snapshot,
-          // then we revisit the loop.
-          if (BeginBlock<true>(loop_header)) {
-            // We set the snapshot of the loop's 1st predecessor to the newly
-            // computed snapshot. It's not quite correct, but this predecessor
-            // is guaranteed to end with a Goto, and we are now visiting the
-            // loop, which means that we don't really care about this
-            // predecessor anymore.
-            // The reason for saving this snapshot is to prevent inifinite
-            // looping, since the next time we reach this point, the backedge
-            // snapshot could still invalidate things from the forward edge
-            // snapshot. By restricting the forward edge snapshot, we prevent
-            // this.
-            const Block* loop_1st_pred =
-                loop_header->LastPredecessor()->NeighboringPredecessor();
-            FinishBlock(loop_1st_pred);
-            // And we start a new fresh snapshot from this predecessor.
-            auto pred_snapshots =
-                block_to_snapshot_mapping_[loop_1st_pred->index()];
-            non_aliasing_objects_.StartNewSnapshot(
-                pred_snapshots->alias_snapshot);
-            object_maps_.StartNewSnapshot(pred_snapshots->maps_snapshot);
-            memory_.StartNewSnapshot(pred_snapshots->memory_snapshot);
-
-            block_index = loop_header->index().id() - 1;
-            compute_start_snapshot = false;
-          } else {
-            SealAndDiscard();
-          }
-        }
-      }
-    }
-  }
-
-  OpIndex Replacement(OpIndex index) {
-    DCHECK(graph_.Get(index).Is<LoadOp>());
-    return replacements_[index];
-  }
+  Replacement GetReplacement(OpIndex index) { return replacements_[index]; }
 
  private:
-  // During the 1st visit of a loop, we set its status to kFirstVisit. If it
-  // needs revisiting, we set it to kNeedsRevisit. During the 2nd visit, we set
-  // it to kSecondVisit. We never move status from kSecondVisit to kNeedsRevisit
-  // (= we only visit loops at most twice) or from kNeedsRevisit to kFirstVisit.
-  enum LoopStatus { kFirstVisit, kNeedsRevisit, kSecondVisit };
   void ProcessBlock(const Block& block, bool compute_start_snapshot);
   void ProcessLoad(OpIndex op_idx, const LoadOp& op);
   void ProcessStore(OpIndex op_idx, const StoreOp& op);
@@ -675,6 +667,7 @@ class LateLoadEliminationAnalyzer {
   void ProcessCall(OpIndex op_idx, const CallOp& op);
   void ProcessPhi(OpIndex op_idx, const PhiOp& op);
   void ProcessAssumeMap(OpIndex op_idx, const AssumeMapOp& op);
+  void ProcessChange(OpIndex op_idx, const ChangeOp& change);
 
   // BeginBlock initializes the various SnapshotTables for {block}, and returns
   // true if {block} is a loop that should be revisited.
@@ -687,13 +680,27 @@ class LateLoadEliminationAnalyzer {
   // modifications. If the snapshots are unchanged, we discard them and don't
   // revisit the loop.
   void SealAndDiscard();
+  void StoreLoopSnapshotInForwardPredecessor(const Block& loop_header);
+
+  // Returns true if the loop's backedge already has snapshot data (meaning that
+  // it was already visited).
+  bool BackedgeHasSnapshot(const Block& loop_header) const;
 
   void InvalidateIfAlias(OpIndex op_idx);
 
   Graph& graph_;
+  Zone* phase_zone_;
   JSHeapBroker* broker_;
+  RawBaseAssumption raw_base_assumption_;
 
-  FixedSidetable<OpIndex> replacements_;
+#if V8_ENABLE_WEBASSEMBLY
+  bool is_wasm_ = PipelineData::Get().is_wasm();
+#endif
+
+  FixedOpIndexSidetable<Replacement> replacements_;
+  // We map: Load-index -> Change-index -> Bitcast-index
+  std::map<OpIndex, base::SmallMap<std::map<OpIndex, OpIndex>, 4>>
+      int32_truncated_loads_;
 
   // TODO(dmercadier): {non_aliasing_objects_} tends to be weak for
   // backing-stores, because they are often stored into an object right after
@@ -712,8 +719,7 @@ class LateLoadEliminationAnalyzer {
     MapSnapshot maps_snapshot;
     MemorySnapshot memory_snapshot;
   };
-  FixedSidetable<base::Optional<Snapshot>, BlockIndex>
-      block_to_snapshot_mapping_;
+  FixedBlockSidetable<base::Optional<Snapshot>> block_to_snapshot_mapping_;
 
   // {predecessor_alias_napshots_}, {predecessor_maps_snapshots_} and
   // {predecessor_memory_snapshots_} are used as temporary vectors when starting
@@ -724,32 +730,75 @@ class LateLoadEliminationAnalyzer {
 };
 
 template <class Next>
-class LateLoadEliminationReducer : public Next {
+class V8_EXPORT_PRIVATE LateLoadEliminationReducer : public Next {
  public:
-  TURBOSHAFT_REDUCER_BOILERPLATE()
+  TURBOSHAFT_REDUCER_BOILERPLATE(LateLoadElimination)
+  using Replacement = LoadEliminationReplacement;
 
   void Analyze() {
-    if (v8_flags.turboshaft_load_elimination) {
+    if (is_wasm_ || v8_flags.turboshaft_load_elimination) {
       DCHECK(AllowHandleDereference::IsAllowed());
       analyzer_.Run();
-      Next::Analyze();
     }
+    Next::Analyze();
   }
 
   OpIndex REDUCE_INPUT_GRAPH(Load)(OpIndex ig_index, const LoadOp& load) {
-    if (v8_flags.turboshaft_load_elimination) {
-      OpIndex ig_replacement_index = analyzer_.Replacement(ig_index);
-      if (ig_replacement_index.valid()) {
-        OpIndex replacement = Asm().MapToNewGraph(ig_replacement_index);
-        DCHECK(Asm()
-                   .output_graph()
-                   .Get(replacement)
-                   .outputs_rep()[0]
-                   .AllowImplicitRepresentationChangeTo(load.outputs_rep()[0]));
-        return replacement;
+    if (is_wasm_ || v8_flags.turboshaft_load_elimination) {
+      Replacement replacement = analyzer_.GetReplacement(ig_index);
+      if (replacement.IsLoadElimination()) {
+        OpIndex replacement_ig_index = replacement.replacement();
+        OpIndex replacement_idx = Asm().MapToNewGraph(replacement_ig_index);
+        // The replacement might itself be a load that int32-truncated.
+        if (analyzer_.GetReplacement(replacement_ig_index)
+                .IsTaggedLoadToInt32Load()) {
+          DCHECK_EQ(Asm().output_graph().Get(replacement_idx).outputs_rep()[0],
+                    RegisterRepresentation::Word32());
+        } else {
+          DCHECK(
+              Asm()
+                  .output_graph()
+                  .Get(replacement_idx)
+                  .outputs_rep()[0]
+                  .AllowImplicitRepresentationChangeTo(load.outputs_rep()[0]));
+        }
+        return replacement_idx;
+      } else if (replacement.IsTaggedLoadToInt32Load()) {
+        auto loaded_rep = load.loaded_rep;
+        auto result_rep = load.result_rep;
+        DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+        loaded_rep = MemoryRepresentation::Int32();
+        result_rep = RegisterRepresentation::Word32();
+        return Asm().Load(Asm().MapToNewGraph(load.base()),
+                          Asm().MapToNewGraph(load.index()), load.kind,
+                          loaded_rep, result_rep, load.offset,
+                          load.element_size_log2);
       }
     }
     return Next::ReduceInputGraphLoad(ig_index, load);
+  }
+
+  OpIndex REDUCE_INPUT_GRAPH(Change)(OpIndex ig_index, const ChangeOp& change) {
+    if (is_wasm_ || v8_flags.turboshaft_load_elimination) {
+      Replacement replacement = analyzer_.GetReplacement(ig_index);
+      if (replacement.IsInt32TruncationElimination()) {
+        DCHECK(
+            IsInt32TruncatedLoadPattern(Asm().input_graph(), ig_index, change));
+        return Asm().MapToNewGraph(replacement.replacement());
+      }
+    }
+    return Next::ReduceInputGraphChange(ig_index, change);
+  }
+
+  OpIndex REDUCE_INPUT_GRAPH(TaggedBitcast)(OpIndex ig_index,
+                                            const TaggedBitcastOp& bitcast) {
+    if (is_wasm_ || v8_flags.turboshaft_load_elimination) {
+      Replacement replacement = analyzer_.GetReplacement(ig_index);
+      if (replacement.IsTaggedBitcastElimination()) {
+        return OpIndex::Invalid();
+      }
+    }
+    return Next::ReduceInputGraphTaggedBitcast(ig_index, bitcast);
   }
 
   OpIndex REDUCE(AssumeMap)(OpIndex, ZoneRefSet<Map>) {
@@ -761,9 +810,15 @@ class LateLoadEliminationReducer : public Next {
   }
 
  private:
-  LateLoadEliminationAnalyzer analyzer_{Asm().modifiable_input_graph(),
-                                        Asm().phase_zone(),
-                                        PipelineData::Get().broker()};
+  const bool is_wasm_ = PipelineData::Get().is_wasm();
+  using RawBaseAssumption = LateLoadEliminationAnalyzer::RawBaseAssumption;
+  RawBaseAssumption raw_base_assumption_ =
+      PipelineData::Get().pipeline_kind() == TurboshaftPipelineKind::kCSA
+          ? RawBaseAssumption::kMaybeInnerPointer
+          : RawBaseAssumption::kNoInnerPointer;
+  LateLoadEliminationAnalyzer analyzer_{
+      Asm().modifiable_input_graph(), Asm().phase_zone(),
+      PipelineData::Get().broker(), raw_base_assumption_};
 };
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"

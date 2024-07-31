@@ -50,13 +50,13 @@
 #define NGHTTP3_STREAM_MIN_WRITELEN 800
 
 /* nghttp3_stream_type is unidirectional stream type. */
-typedef enum nghttp3_stream_type {
-  NGHTTP3_STREAM_TYPE_CONTROL = 0x00,
-  NGHTTP3_STREAM_TYPE_PUSH = 0x01,
-  NGHTTP3_STREAM_TYPE_QPACK_ENCODER = 0x02,
-  NGHTTP3_STREAM_TYPE_QPACK_DECODER = 0x03,
-  NGHTTP3_STREAM_TYPE_UNKNOWN = UINT64_MAX,
-} nghttp3_stream_type;
+typedef uint64_t nghttp3_stream_type;
+
+#define NGHTTP3_STREAM_TYPE_CONTROL 0x00
+#define NGHTTP3_STREAM_TYPE_PUSH 0x01
+#define NGHTTP3_STREAM_TYPE_QPACK_ENCODER 0x02
+#define NGHTTP3_STREAM_TYPE_QPACK_DECODER 0x03
+#define NGHTTP3_STREAM_TYPE_UNKNOWN UINT64_MAX
 
 typedef enum nghttp3_ctrl_stream_state {
   NGHTTP3_CTRL_STREAM_STATE_FRAME_TYPE,
@@ -195,9 +195,8 @@ typedef struct nghttp3_http_state {
   /* recv_content_length is the number of body bytes received so
      far. */
   int64_t recv_content_length;
+  nghttp3_pri pri;
   uint32_t flags;
-  /* pri is a stream priority produced by nghttp3_pri_to_uint8. */
-  uint8_t pri;
 } nghttp3_http_state;
 
 struct nghttp3_stream {
@@ -257,7 +256,7 @@ struct nghttp3_stream {
   };
 };
 
-nghttp3_objalloc_def(stream, nghttp3_stream, oplent);
+nghttp3_objalloc_decl(stream, nghttp3_stream, oplent);
 
 typedef struct nghttp3_frame_entry {
   nghttp3_frame fr;
@@ -272,7 +271,7 @@ typedef struct nghttp3_frame_entry {
 } nghttp3_frame_entry;
 
 int nghttp3_stream_new(nghttp3_stream **pstream, int64_t stream_id,
-                       uint64_t seq, const nghttp3_stream_callbacks *callbacks,
+                       const nghttp3_stream_callbacks *callbacks,
                        nghttp3_objalloc *out_chunk_objalloc,
                        nghttp3_objalloc *stream_objalloc,
                        const nghttp3_mem *mem);
@@ -293,12 +292,10 @@ int nghttp3_stream_fill_outq(nghttp3_stream *stream);
 
 int nghttp3_stream_write_stream_type(nghttp3_stream *stream);
 
-nghttp3_ssize nghttp3_stream_writev(nghttp3_stream *stream, int *pfin,
-                                    nghttp3_vec *vec, size_t veccnt);
+size_t nghttp3_stream_writev(nghttp3_stream *stream, int *pfin,
+                             nghttp3_vec *vec, size_t veccnt);
 
 int nghttp3_stream_write_qpack_decoder_stream(nghttp3_stream *stream);
-
-int nghttp3_stream_outq_is_full(nghttp3_stream *stream);
 
 int nghttp3_stream_outq_add(nghttp3_stream *stream,
                             const nghttp3_typed_buf *tbuf);
@@ -331,7 +328,7 @@ nghttp3_buf *nghttp3_stream_get_chunk(nghttp3_stream *stream);
 
 int nghttp3_stream_is_blocked(nghttp3_stream *stream);
 
-int nghttp3_stream_add_outq_offset(nghttp3_stream *stream, size_t n);
+void nghttp3_stream_add_outq_offset(nghttp3_stream *stream, size_t n);
 
 /*
  * nghttp3_stream_outq_write_done returns nonzero if all contents in

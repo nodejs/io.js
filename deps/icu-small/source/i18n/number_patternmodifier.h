@@ -33,8 +33,7 @@ template class U_I18N_API LocalPointer<number::impl::AdoptingModifierStore>;
 #endif
 #endif
 
-namespace number {
-namespace impl {
+namespace number::impl {
 
 // Forward declaration
 class MutablePatternModifier;
@@ -191,7 +190,7 @@ class U_I18N_API MutablePatternModifier
 
     void getParameters(Parameters& output) const override;
 
-    bool semanticallyEquivalent(const Modifier& other) const override;
+    bool strictEquals(const Modifier& other) const override;
 
     /**
      * Returns the string that substitutes a given symbol type in a pattern.
@@ -255,9 +254,8 @@ class U_I18N_API MutablePatternModifier
     void prepareAffix(bool isPrefix);
 };
 
+} // namespace number::impl
 
-}  // namespace impl
-}  // namespace number
 U_NAMESPACE_END
 
 #endif //__NUMBER_PATTERNMODIFIER_H__

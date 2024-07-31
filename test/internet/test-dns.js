@@ -722,7 +722,7 @@ console.log(`looking up ${addresses.INET4_HOST}..`);
 const cares = internalBinding('cares_wrap');
 const req = new cares.GetAddrInfoReqWrap();
 cares.getaddrinfo(req, addresses.INET4_HOST, 4,
-  /* hints */ 0, /* verbatim */ true);
+  /* hints */ 0, /* order */ cares.DNS_ORDER_VERBATIM);
 
 req.oncomplete = function(err, domains) {
   assert.strictEqual(err, 0);

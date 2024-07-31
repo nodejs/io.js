@@ -6,6 +6,7 @@
 
 @abstract
 @reserveBitsInInstanceType(7)
+@cppObjectLayoutDefinition
 extern class String extends Name {
   macro StringInstanceType(): StringInstanceType {
     return %RawDownCast<StringInstanceType>(
@@ -62,8 +63,8 @@ bitfield struct StringInstanceType extends uint16 {
   is_shared: bool: 1 bit;
 }
 
-@generateBodyDescriptor
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class ConsString extends String {
   // Corresponds to String::IsFlat() in the C++ runtime.
   macro IsFlat(): bool {
@@ -80,6 +81,7 @@ extern class ConsString extends String {
 
 @abstract
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class ExternalString extends String {
   resource: ExternalPointer;
   // WARNING: This field is missing for uncached external strings.
@@ -101,6 +103,7 @@ extern macro ExternalTwoByteStringGetChars(ExternalTwoByteString):
     RawPtr<char16>;
 
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class ExternalOneByteString extends ExternalString {
   macro GetChars(): RawPtr<char8> {
     if (this.StringInstanceType().is_uncached) {
@@ -112,6 +115,7 @@ extern class ExternalOneByteString extends ExternalString {
 }
 
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class ExternalTwoByteString extends ExternalString {
   macro GetChars(): RawPtr<char16> {
     if (this.StringInstanceType().is_uncached) {
@@ -123,31 +127,35 @@ extern class ExternalTwoByteString extends ExternalString {
 }
 
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class InternalizedString extends String {}
 
 @abstract
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class SeqString extends String {}
-@generateBodyDescriptor
+
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class SeqOneByteString extends SeqString {
   const chars[length]: char8;
 }
-@generateBodyDescriptor
+
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class SeqTwoByteString extends SeqString {
   const chars[length]: char16;
 }
 
-@generateBodyDescriptor
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class SlicedString extends String {
   parent: String;
   offset: Smi;
 }
 
-@generateBodyDescriptor
 @doNotGenerateCast
+@cppObjectLayoutDefinition
 extern class ThinString extends String {
   actual: String;
 }

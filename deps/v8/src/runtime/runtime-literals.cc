@@ -119,8 +119,7 @@ MaybeHandle<JSObject> JSObjectWalkVisitor<ContextObject>::StructureWalk(
               isolate, value, VisitElementOrProperty(copy, value), JSObject);
           if (copying) copy->FastPropertyAtPut(index, *value);
         } else if (copying && details.representation().IsDouble()) {
-          uint64_t double_value =
-              HeapNumber::cast(raw)->value_as_bits(kRelaxedLoad);
+          uint64_t double_value = HeapNumber::cast(raw)->value_as_bits();
           auto value = isolate->factory()->NewHeapNumberFromBits(double_value);
           copy->FastPropertyAtPut(index, *value);
         }
@@ -179,7 +178,7 @@ MaybeHandle<JSObject> JSObjectWalkVisitor<ContextObject>::StructureWalk(
 #endif
       } else {
         for (int i = 0; i < elements->length(); i++) {
-          Tagged<Object> raw = elements->get(isolate, i);
+          Tagged<Object> raw = elements->get(i);
           if (!IsJSObject(raw, isolate)) continue;
           Handle<JSObject> value(JSObject::cast(raw), isolate);
           ASSIGN_RETURN_ON_EXCEPTION(
@@ -398,13 +397,11 @@ Handle<JSObject> CreateObjectLiteral(
   if (!use_fast_elements) JSObject::NormalizeElements(boilerplate);
 
   // Add the constant properties to the boilerplate.
-  int length = object_boilerplate_description->size();
+  int length = object_boilerplate_description->boilerplate_properties_count();
   // TODO(verwaest): Support tracking representations in the boilerplate.
   for (int index = 0; index < length; index++) {
-    Handle<Object> key(object_boilerplate_description->name(isolate, index),
-                       isolate);
-    Handle<Object> value(object_boilerplate_description->value(isolate, index),
-                         isolate);
+    Handle<Object> key(object_boilerplate_description->name(index), isolate);
+    Handle<Object> value(object_boilerplate_description->value(index), isolate);
 
     if (IsHeapObject(*value)) {
       if (IsArrayBoilerplateDescription(HeapObject::cast(*value), isolate)) {
@@ -482,7 +479,7 @@ Handle<JSObject> CreateArrayLiteral(
           isolate->factory()->CopyFixedArray(fixed_array_values);
       copied_elements_values = fixed_array_values_copy;
       for (int i = 0; i < fixed_array_values->length(); i++) {
-        Tagged<Object> value = fixed_array_values_copy->get(isolate, i);
+        Tagged<Object> value = fixed_array_values_copy->get(i);
         Tagged<HeapObject> value_heap_object;
         if (value.GetHeapObject(isolate, &value_heap_object)) {
           if (IsArrayBoilerplateDescription(value_heap_object, isolate)) {
@@ -534,7 +531,7 @@ MaybeHandle<JSObject> CreateLiteral(Isolate* isolate,
   Handle<FeedbackVector> vector = Handle<FeedbackVector>::cast(maybe_vector);
   FeedbackSlot literals_slot(FeedbackVector::ToSlot(literals_index));
   CHECK(literals_slot.ToInt() < vector->length());
-  Handle<Object> literal_site(vector->Get(literals_slot)->cast<Object>(),
+  Handle<Object> literal_site(Tagged<Object>::cast(vector->Get(literals_slot)),
                               isolate);
   Handle<AllocationSite> site;
   Handle<JSObject> boilerplate;
@@ -622,7 +619,7 @@ RUNTIME_FUNCTION(Runtime_CreateRegExpLiteral) {
 
   Handle<FeedbackVector> vector = Handle<FeedbackVector>::cast(maybe_vector);
   FeedbackSlot literal_slot(FeedbackVector::ToSlot(index));
-  Handle<Object> literal_site(vector->Get(literal_slot)->cast<Object>(),
+  Handle<Object> literal_site(Tagged<Object>::cast(vector->Get(literal_slot)),
                               isolate);
 
   // This function must not be called when a boilerplate already exists (if it
@@ -651,7 +648,7 @@ RUNTIME_FUNCTION(Runtime_CreateRegExpLiteral) {
 
   vector->SynchronizedSet(literal_slot, *boilerplate);
   DCHECK(HasBoilerplate(
-      handle(vector->Get(literal_slot)->cast<Object>(), isolate)));
+      handle(Tagged<Object>::cast(vector->Get(literal_slot)), isolate)));
 
   return *regexp_instance;
 }

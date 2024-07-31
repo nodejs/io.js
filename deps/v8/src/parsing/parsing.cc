@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "src/ast/ast.h"
-#include "src/base/v8-fallthrough.h"
 #include "src/execution/vm-state-inl.h"
 #include "src/handles/maybe-handles.h"
 #include "src/objects/objects-inl.h"

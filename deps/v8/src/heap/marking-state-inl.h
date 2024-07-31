@@ -7,7 +7,7 @@
 
 #include "src/heap/marking-inl.h"
 #include "src/heap/marking-state.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page.h"
 
 namespace v8 {
 namespace internal {
@@ -34,8 +34,19 @@ template <typename ConcreteState, AccessMode access_mode>
 bool MarkingStateBase<ConcreteState, access_mode>::TryMarkAndAccountLiveBytes(
     Tagged<HeapObject> obj) {
   if (TryMark(obj)) {
-    MemoryChunk::FromHeapObject(obj)->IncrementLiveBytesAtomically(
+    MutablePageMetadata::FromHeapObject(obj)->IncrementLiveBytesAtomically(
         ALIGN_TO_ALLOCATION_ALIGNMENT(obj->Size(cage_base())));
+    return true;
+  }
+  return false;
+}
+
+template <typename ConcreteState, AccessMode access_mode>
+bool MarkingStateBase<ConcreteState, access_mode>::TryMarkAndAccountLiveBytes(
+    Tagged<HeapObject> obj, int object_size) {
+  if (TryMark(obj)) {
+    MutablePageMetadata::FromHeapObject(obj)->IncrementLiveBytesAtomically(
+        object_size);
     return true;
   }
   return false;

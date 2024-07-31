@@ -1,0 +1,34 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>WebStorage Test: sessionStorage - second page</title>
+</head>
+<body>
+<script>
+
+var storage = window.sessionStorage;
+
+var assertions = [];
+
+assertions.push({
+    actual: storage.getItem("FOO"),
+    expected: null,
+    message: "storage.getItem('FOO')"
+});
+
+storage.setItem("FOO", "BAR-NEWWINDOW");
+
+assertions.push({
+    actual: storage.getItem("FOO"),
+    expected: "BAR-NEWWINDOW",
+    message: "value for FOO after changing"
+});
+
+let channel = new BroadcastChannel('storage_session_window_noopener');
+channel.postMessage(assertions, '*');
+
+window.close();
+
+</script>
+</body>
+</html>

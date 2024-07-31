@@ -4,7 +4,7 @@ const common = require('../common');
 const fs = require('fs');
 
 const bench = common.createBenchmark(main, {
-  n: [1e6],
+  n: [1e4],
   statSyncType: ['fstatSync', 'lstatSync', 'statSync'],
 });
 

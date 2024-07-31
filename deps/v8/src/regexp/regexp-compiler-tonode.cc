@@ -1023,9 +1023,8 @@ namespace {
 //         \B to (?<=\w)(?=\w)|(?<=\W)(?=\W)
 RegExpNode* BoundaryAssertionAsLookaround(RegExpCompiler* compiler,
                                           RegExpNode* on_success,
-                                          RegExpAssertion::Type type,
-                                          RegExpFlags flags) {
-  CHECK(NeedsUnicodeCaseEquivalents(flags));
+                                          RegExpAssertion::Type type) {
+  CHECK(NeedsUnicodeCaseEquivalents(compiler->flags()));
   Zone* zone = compiler->zone();
   ZoneList<CharacterRange>* word_range =
       zone->New<ZoneList<CharacterRange>>(2, zone);
@@ -1069,14 +1068,13 @@ RegExpNode* RegExpAssertion::ToNode(RegExpCompiler* compiler,
       return AssertionNode::AtStart(on_success);
     case Type::BOUNDARY:
       return NeedsUnicodeCaseEquivalents(compiler->flags())
-                 ? BoundaryAssertionAsLookaround(
-                       compiler, on_success, Type::BOUNDARY, compiler->flags())
+                 ? BoundaryAssertionAsLookaround(compiler, on_success,
+                                                 Type::BOUNDARY)
                  : AssertionNode::AtBoundary(on_success);
     case Type::NON_BOUNDARY:
       return NeedsUnicodeCaseEquivalents(compiler->flags())
                  ? BoundaryAssertionAsLookaround(compiler, on_success,
-                                                 Type::NON_BOUNDARY,
-                                                 compiler->flags())
+                                                 Type::NON_BOUNDARY)
                  : AssertionNode::AtNonBoundary(on_success);
     case Type::END_OF_INPUT:
       return AssertionNode::AtEnd(on_success);
@@ -1119,10 +1117,17 @@ RegExpNode* RegExpAssertion::ToNode(RegExpCompiler* compiler,
 
 RegExpNode* RegExpBackReference::ToNode(RegExpCompiler* compiler,
                                         RegExpNode* on_success) {
-  return compiler->zone()->New<BackReferenceNode>(
-      RegExpCapture::StartRegister(index()),
-      RegExpCapture::EndRegister(index()), flags_, compiler->read_backward(),
-      on_success);
+  RegExpNode* backref_node = on_success;
+  // Only one of the captures in the list can actually match. Since
+  // back-references to unmatched captures are treated as empty, we can simply
+  // create back-references to all possible captures.
+  for (auto capture : *captures()) {
+    backref_node = compiler->zone()->New<BackReferenceNode>(
+        RegExpCapture::StartRegister(capture->index()),
+        RegExpCapture::EndRegister(capture->index()), compiler->read_backward(),
+        backref_node);
+  }
+  return backref_node;
 }
 
 RegExpNode* RegExpEmpty::ToNode(RegExpCompiler* compiler,
@@ -1130,9 +1135,40 @@ RegExpNode* RegExpEmpty::ToNode(RegExpCompiler* compiler,
   return on_success;
 }
 
+namespace {
+
+class V8_NODISCARD ModifiersScope {
+ public:
+  ModifiersScope(RegExpCompiler* compiler, RegExpFlags flags)
+      : compiler_(compiler), previous_flags_(compiler->flags()) {
+    compiler->set_flags(flags);
+  }
+  ~ModifiersScope() { compiler_->set_flags(previous_flags_); }
+
+ private:
+  RegExpCompiler* compiler_;
+  const RegExpFlags previous_flags_;
+};
+
+}  // namespace
+
 RegExpNode* RegExpGroup::ToNode(RegExpCompiler* compiler,
                                 RegExpNode* on_success) {
-  return body_->ToNode(compiler, on_success);
+  // If no flags are modified, simply convert and return the body.
+  if (flags() == compiler->flags()) {
+    return body_->ToNode(compiler, on_success);
+  }
+  // Reset flags for successor node.
+  const RegExpFlags old_flags = compiler->flags();
+  on_success = ActionNode::ModifyFlags(old_flags, on_success);
+
+  // Convert body using modifier.
+  ModifiersScope modifiers_scope(compiler, flags());
+  RegExpNode* body = body_->ToNode(compiler, on_success);
+
+  // Wrap body into modifier node.
+  RegExpNode* modified_body = ActionNode::ModifyFlags(flags(), body);
+  return modified_body;
 }
 
 RegExpLookaround::Builder::Builder(bool is_positive, RegExpNode* on_success,

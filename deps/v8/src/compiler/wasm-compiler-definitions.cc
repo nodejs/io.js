@@ -21,7 +21,11 @@ base::Vector<const char> GetDebugName(Zone* zone,
       wire_bytes->GetModuleBytes();
   if (module_bytes.has_value() &&
       (v8_flags.trace_turbo || v8_flags.trace_turbo_scheduled ||
-       v8_flags.trace_turbo_graph || v8_flags.print_wasm_code)) {
+       v8_flags.trace_turbo_graph || v8_flags.print_wasm_code
+#ifdef V8_ENABLE_WASM_SIMD256_REVEC
+       || v8_flags.trace_wasm_revectorize
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+       )) {
     wasm::WireBytesRef name = module->lazily_generated_names.LookupFunctionName(
         module_bytes.value(), index);
     if (!name.is_empty()) {
@@ -87,6 +91,7 @@ CallDescriptor* GetWasmCallDescriptor(Zone* zone, const wasm::FunctionSig* fsig,
                                     : CallDescriptor::kNoFlags;
   return zone->New<CallDescriptor>(       // --
       descriptor_kind,                    // kind
+      kWasmEntrypointTag,                 // tag
       target_type,                        // target MachineType
       target_loc,                         // target location
       location_sig,                       // location_sig

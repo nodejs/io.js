@@ -4,14 +4,14 @@
 #include <unistd.h>
 
 int main() {
-  const char* target = "./input.txt";
+  const char* target = "./input-in-subdir.txt";
   const char* linkpath = "/sandbox/subdir/test_link";
   char readlink_result[128];
   size_t result_size = sizeof(readlink_result);
 
   assert(0 == symlink(target, linkpath));
   assert(readlink(linkpath, readlink_result, result_size) ==
-         strlen(target) + 1);
+         strlen(target));
   assert(0 == strcmp(readlink_result, target));
 
   FILE* file = fopen(linkpath, "r");

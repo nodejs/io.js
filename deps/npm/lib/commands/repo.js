@@ -1,6 +1,6 @@
-const { URL } = require('url')
-
+const { URL } = require('node:url')
 const PackageUrlCmd = require('../package-url-cmd.js')
+
 class Repo extends PackageUrlCmd {
   static description = 'Open package repository page in the browser'
   static name = 'repo'
@@ -30,6 +30,7 @@ class Repo extends PackageUrlCmd {
     return url
   }
 }
+
 module.exports = Repo
 
 const unknownHostedUrl = url => {

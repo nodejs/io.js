@@ -345,7 +345,9 @@ let asyncTest = Promise.resolve();
 {
   const target = new EventTarget();
   const event = new Event('foo');
+  strictEqual(event.cancelBubble, false);
   event.stopImmediatePropagation();
+  strictEqual(event.cancelBubble, true);
   target.addEventListener('foo', common.mustNotCall());
   target.dispatchEvent(event);
 }
@@ -737,4 +739,11 @@ let asyncTest = Promise.resolve();
   et.addEventListener('foo', common.mustNotCall(), { signal });
   controller.abort();
   et.dispatchEvent(new Event('foo'));
+}
+
+{
+  const event = new Event('foo');
+  strictEqual(event.cancelBubble, false);
+  event.cancelBubble = true;
+  strictEqual(event.cancelBubble, true);
 }

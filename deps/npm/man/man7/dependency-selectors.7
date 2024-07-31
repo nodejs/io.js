@@ -1,4 +1,4 @@
-.TH "QUERYING" "7" "October 2023" "" ""
+.TH "QUERYING" "7" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBQuerying\fR - Dependency Selector Syntax & Querying
 .SS "Description"
@@ -15,7 +15,7 @@ Unlocks the ability to answer complex, multi-faceted questions about dependencie
 Consolidates redundant logic of similar query commands in \fBnpm\fR (ex. \fBnpm fund\fR, \fBnpm ls\fR, \fBnpm outdated\fR, \fBnpm audit\fR ...)
 .RE 0
 
-.SS "Dependency Selector Syntax \fBv1.0.0\fR"
+.SS "Dependency Selector Syntax"
 .SS "Overview:"
 .RS 0
 .IP \(bu 4
@@ -102,6 +102,8 @@ the term "dependencies" is in reference to any \fBNode\fR found in a \fBtree\fR 
 \fB:type(<type>)\fR \fBbased on currently recognized types\fR \fI\(lahttps://github.com/npm/npm-package-arg#result-object\(ra\fR
 .IP \(bu 4
 \fB:outdated(<type>)\fR when a dependency is outdated
+.IP \(bu 4
+\fB:vuln(<selector>)\fR when a dependency has a known vulnerability
 .RE 0
 
 .SS "\fB:semver(<spec>, \[lB]selector\[rB], \[lB]function\[rB])\fR"
@@ -136,9 +138,9 @@ The \fB:outdated\fR pseudo selector retrieves data from the registry and returns
 .IP \(bu 4
 \fBany\fR (default) a version exists that is greater than the current one
 .IP \(bu 4
-\fBin-range\fR a version exists that is greater than the current one, and satisfies at least one if its dependents
+\fBin-range\fR a version exists that is greater than the current one, and satisfies at least one if its parent's dependencies
 .IP \(bu 4
-\fBout-of-range\fR a version exists that is greater than the current one, does not satisfy at least one of its dependents
+\fBout-of-range\fR a version exists that is greater than the current one, does not satisfy at least one of its parent's dependencies
 .IP \(bu 4
 \fBmajor\fR a version exists that is a semver major greater than the current one
 .IP \(bu 4
@@ -164,7 +166,27 @@ Some examples:
 .IP \(bu 4
 \fB:root > :outdated(major)\fR returns every direct dependency that has a new semver major release
 .IP \(bu 4
-\fB.prod:outdated(in-range)\fR returns production dependencies that have a new release that satisfies at least one of its edges in
+\fB.prod:outdated(in-range)\fR returns production dependencies that have a new release that satisfies at least one of its parent's dependencies
+.RE 0
+
+.SS "\fB:vuln\fR"
+.P
+The \fB:vuln\fR pseudo selector retrieves data from the registry and returns information about which if your dependencies has a known vulnerability. Only dependencies whose current version matches a vulnerability will be returned. For example if you have \fBsemver@7.6.0\fR in your tree, a vulnerability for \fBsemver\fR which affects versions \fB<=6.3.1\fR will not match.
+.P
+You can also filter results by certain attributes in advisories. Currently that includes \fBseverity\fR and \fBcwe\fR. Note that severity filtering is done per severity, it does not include severities "higher" or "lower" than the one specified.
+.P
+In addition to the filtering performed by the pseudo selector, info about each relevant advisory will be added to the \fBqueryContext\fR attribute of each node under the \fBadvisories\fR attribute.
+.P
+Some examples:
+.RS 0
+.IP \(bu 4
+\fB:root > .prod:vuln\fR returns direct production dependencies with any known vulnerability
+.IP \(bu 4
+\fB:vuln(\[lB]severity=high\[rB])\fR returns only dependencies with a vulnerability with a \fBhigh\fR severity.
+.IP \(bu 4
+\fB:vuln(\[lB]severity=high\[rB],\[lB]severity=moderate\[rB])\fR returns only dependencies with a vulnerability with a \fBhigh\fR or \fBmoderate\fR severity.
+.IP \(bu 4
+\fB:vuln(\[lB]cwe=1333\[rB])\fR returns only dependencies with a vulnerability that includes CWE-1333 (ReDoS)
 .RE 0
 
 .SS "\fBAttribute Selectors\fR \fI\(lahttps://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors\(ra\fR"
@@ -174,7 +196,7 @@ The attribute selector evaluates the key/value pairs in \fBpackage.json\fR if th
 .IP \(bu 4
 \fB\[lB]\[rB]\fR attribute selector (ie. existence of attribute)
 .IP \(bu 4
-\fB\[lB]attribute=value\[rB]\fR attribute value is equivalant...
+\fB\[lB]attribute=value\[rB]\fR attribute value is equivalent...
 .IP \(bu 4
 \fB\[lB]attribute~=value\[rB]\fR attribute value contains word...
 .IP \(bu 4

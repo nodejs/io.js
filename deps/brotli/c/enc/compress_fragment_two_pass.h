@@ -13,15 +13,33 @@
 #ifndef BROTLI_ENC_COMPRESS_FRAGMENT_TWO_PASS_H_
 #define BROTLI_ENC_COMPRESS_FRAGMENT_TWO_PASS_H_
 
-#include "../common/platform.h"
 #include <brotli/types.h>
-#include "./memory.h"
+
+#include "../common/constants.h"
+#include "../common/platform.h"
+#include "entropy_encode.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
 
+/* TODO(eustas): turn to macro. */
 static const size_t kCompressFragmentTwoPassBlockSize = 1 << 17;
+
+typedef struct BrotliTwoPassArena {
+  uint32_t lit_histo[256];
+  uint8_t lit_depth[256];
+  uint16_t lit_bits[256];
+
+  uint32_t cmd_histo[128];
+  uint8_t cmd_depth[128];
+  uint16_t cmd_bits[128];
+
+  /* BuildAndStoreCommandPrefixCode */
+  HuffmanTree tmp_tree[2 * BROTLI_NUM_LITERAL_SYMBOLS + 1];
+  uint8_t tmp_depth[BROTLI_NUM_COMMAND_SYMBOLS];
+  uint16_t tmp_bits[64];
+} BrotliTwoPassArena;
 
 /* Compresses "input" string to the "*storage" buffer as one or more complete
    meta-blocks, and updates the "*storage_ix" bit position.
@@ -36,7 +54,7 @@ static const size_t kCompressFragmentTwoPassBlockSize = 1 << 17;
    REQUIRES: "table_size" is a power of two
    OUTPUT: maximal copy distance <= |input_size|
    OUTPUT: maximal copy distance <= BROTLI_MAX_BACKWARD_LIMIT(18) */
-BROTLI_INTERNAL void BrotliCompressFragmentTwoPass(MemoryManager* m,
+BROTLI_INTERNAL void BrotliCompressFragmentTwoPass(BrotliTwoPassArena* s,
                                                    const uint8_t* input,
                                                    size_t input_size,
                                                    BROTLI_BOOL is_last,

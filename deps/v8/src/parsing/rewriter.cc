@@ -62,7 +62,7 @@ class Processor final : public AstVisitor<Processor> {
   Expression* SetResult(Expression* value) {
     result_assigned_ = true;
     VariableProxy* result_proxy = factory()->NewVariableProxy(result_);
-    return factory()->NewAssignment(Token::ASSIGN, result_proxy, value,
+    return factory()->NewAssignment(Token::kAssign, result_proxy, value,
                                     kNoSourcePosition);
   }
 
@@ -264,9 +264,9 @@ void Processor::VisitTryFinallyStatement(TryFinallyStatement* node) {
       Expression* backup_proxy = factory()->NewVariableProxy(backup);
       Expression* result_proxy = factory()->NewVariableProxy(result_);
       Expression* save = factory()->NewAssignment(
-          Token::ASSIGN, backup_proxy, result_proxy, kNoSourcePosition);
+          Token::kAssign, backup_proxy, result_proxy, kNoSourcePosition);
       Expression* restore = factory()->NewAssignment(
-          Token::ASSIGN, result_proxy, backup_proxy, kNoSourcePosition);
+          Token::kAssign, result_proxy, backup_proxy, kNoSourcePosition);
       node->finally_block()->statements()->InsertAt(
           0, factory()->NewExpressionStatement(save, kNoSourcePosition),
           zone());

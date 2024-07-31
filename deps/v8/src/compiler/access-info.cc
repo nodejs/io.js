@@ -472,7 +472,7 @@ PropertyAccessInfo AccessInfoFactory::ComputeDataFieldAccessInfo(
     if (IsClass(*descriptors_field_type)) {
       // Remember the field map, and try to infer a useful type.
       OptionalMapRef maybe_field_map =
-          TryMakeRef(broker(), (*descriptors_field_type)->AsClass());
+          TryMakeRef(broker(), FieldType::AsClass(*descriptors_field_type));
       if (!maybe_field_map.has_value()) return Invalid();
       field_type = Type::For(maybe_field_map.value(), broker());
       field_map = maybe_field_map;
@@ -526,6 +526,14 @@ PropertyAccessInfo AccessorAccessInfoHelper(
         Cell::cast(module_namespace->module()->exports()->Lookup(
             isolate, name.object(),
             Smi::ToInt(Object::GetHash(*name.object())))));
+    if (IsAnyStore(access_mode)) {
+      // ES#sec-module-namespace-exotic-objects-set-p-v-receiver
+      // ES#sec-module-namespace-exotic-objects-defineownproperty-p-desc
+      //
+      // Storing to a module namespace object is always an error or a no-op in
+      // JS.
+      return PropertyAccessInfo::Invalid(zone);
+    }
     if (IsTheHole(cell->value(kRelaxedLoad), isolate)) {
       // This module has not been fully initialized yet.
       return PropertyAccessInfo::Invalid(zone);
@@ -566,8 +574,8 @@ PropertyAccessInfo AccessorAccessInfoHelper(
       return PropertyAccessInfo::Invalid(zone);
     }
     if (DEBUG_BOOL && holder.has_value()) {
-      base::Optional<NativeContext> holder_creation_context =
-          holder->object()->GetCreationContextRaw();
+      base::Optional<Tagged<NativeContext>> holder_creation_context =
+          holder->object()->GetCreationContext();
       CHECK(holder_creation_context.has_value());
       CHECK_EQ(*broker->target_native_context().object(),
                holder_creation_context.value());
@@ -592,7 +600,7 @@ PropertyAccessInfo AccessorAccessInfoHelper(
     }
   }
   if (access_mode == AccessMode::kLoad) {
-    base::Optional<Name> cached_property_name =
+    base::Optional<Tagged<Name>> cached_property_name =
         FunctionTemplateInfo::TryGetCachedPropertyName(isolate, *accessor);
     if (cached_property_name.has_value()) {
       OptionalNameRef cached_property_name_ref =
@@ -834,14 +842,10 @@ PropertyAccessInfo AccessInfoFactory::ComputePropertyAccessInfo(
     // Don't search on the prototype chain for special indices in case of
     // integer indexed exotic objects (see ES6 section 9.4.5).
     if (IsJSTypedArrayMap(*map.object()) && name.IsString()) {
-      // TODO(jgruber,v8:12790): Extend this to other strings in read-only
-      // space. When doing so, make sure there are no unexpected regressions on
-      // jetstream2.
-      if (!broker()->IsMainThread() &&
-          *name.object() != ReadOnlyRoots(isolate()).length_string()) {
-        return Invalid();
-      }
-      if (IsSpecialIndex(String::cast(*name.object()))) return Invalid();
+      StringRef name_str = name.AsString();
+      SharedStringAccessGuardIfNeeded access_guard(
+          *name_str.object(), broker()->local_isolate_or_isolate());
+      if (IsSpecialIndex(*name_str.object(), access_guard)) return Invalid();
     }
 
     // Don't search on the prototype when storing in literals, or performing a
@@ -1149,7 +1153,7 @@ PropertyAccessInfo AccessInfoFactory::LookupTransition(
               *descriptors_field_type_ref));
       // Remember the field map, and try to infer a useful type.
       OptionalMapRef maybe_field_map =
-          TryMakeRef(broker(), (*descriptors_field_type)->AsClass());
+          TryMakeRef(broker(), FieldType::AsClass(*descriptors_field_type));
       if (!maybe_field_map.has_value()) return Invalid();
       field_type = Type::For(maybe_field_map.value(), broker());
       field_map = maybe_field_map;

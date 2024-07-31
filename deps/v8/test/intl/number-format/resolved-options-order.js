@@ -13,8 +13,8 @@ assertEquals(
     "useGrouping," +
     "notation," +
     "signDisplay," +
-    "roundingMode," +
     "roundingIncrement," +
+    "roundingMode," +
     "roundingPriority," +
     "trailingZeroDisplay",
     Object.keys((new Intl.NumberFormat("en")).resolvedOptions()).join(","));

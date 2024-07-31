@@ -122,7 +122,7 @@ const UnicodeFunctor *RBBISymbolTable::lookupMatcher(UChar32 ch) const
     RBBISymbolTable *This = (RBBISymbolTable *)this;   // cast off const
     if (ch == 0xffff) {
         retVal = fCachedSetLookup;
-        This->fCachedSetLookup = 0;
+        This->fCachedSetLookup = nullptr;
     }
     return retVal;
 }

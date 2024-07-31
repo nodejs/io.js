@@ -42,6 +42,18 @@ class IteratorBuiltinsAssembler : public CodeStubAssembler {
     return IteratorStep(context, iterator, if_done, fast_iterator_result_map);
   }
 
+  // https://tc39.es/ecma262/#sec-iteratorcomplete
+  void IteratorComplete(
+      TNode<Context> context, const TNode<HeapObject> iterator, Label* if_done,
+      base::Optional<TNode<Map>> fast_iterator_result_map = base::nullopt);
+  void IteratorComplete(TNode<Context> context,
+                        const TNode<HeapObject> iterator,
+                        base::Optional<TNode<Map>> fast_iterator_result_map,
+                        Label* if_done) {
+    return IteratorComplete(context, iterator, if_done,
+                            fast_iterator_result_map);
+  }
+
   // https://tc39.github.io/ecma262/#sec-iteratorvalue
   // Return the `value` field from an iterator.
   // `fast_iterator_result_map` refers to the map for the JSIteratorResult

@@ -1,0 +1,465 @@
+Checks that exceptions in framework code have correct stopping behavior.
+
+Running test: testCase
+> Running scenario throwUncaughtError, breaking on caught exceptions:
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario throwUncaughtError, breaking on uncaught exceptions:
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario throwCaughtError, breaking on caught exceptions:
+console: Caught at Error
+    at throwCaughtError (framework.js:16:11)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario throwCaughtError, breaking on uncaught exceptions:
+console: Caught at Error
+    at throwCaughtError (framework.js:16:11)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario catchErrorInFramework, breaking on caught exceptions:
+console: Caught at Error
+    at throwUncaughtError (framework.js:11:9)
+    at wrapErrorHandler (framework.js:42:5)
+    at catchErrorInFramework (framework.js:23:3)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario catchErrorInFramework, breaking on uncaught exceptions:
+console: Caught at Error
+    at throwUncaughtError (framework.js:11:9)
+    at wrapErrorHandler (framework.js:42:5)
+    at catchErrorInFramework (framework.js:23:3)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario frameworkFinallyMethod, breaking on caught exceptions:
+console: finally in framework code
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:36:32)
+delay (framework.js:36:9)
+uncaughtAsync (framework.js:31:8)
+frameworkFinallyMethod (framework.js:26:9)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+Exception revoked for reason: Handler added to rejected promise
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario frameworkFinallyMethod, breaking on uncaught exceptions:
+console: finally in framework code
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:36:32)
+delay (framework.js:36:9)
+uncaughtAsync (framework.js:31:8)
+frameworkFinallyMethod (framework.js:26:9)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+Exception revoked for reason: Handler added to rejected promise
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario catchErrorInUserCode, breaking on caught exceptions:
+Paused
+throwUncaughtError (framework.js:10:2)
+catchErrorInUserCode (user.js:70:4)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+console: Caught at Error
+    at throwUncaughtError (framework.js:11:9)
+    at catchErrorInUserCode (user.js:71:5)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario catchErrorInUserCode, breaking on uncaught exceptions:
+console: Caught at Error
+    at throwUncaughtError (framework.js:11:9)
+    at catchErrorInUserCode (user.js:71:5)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario passErrorThroughUserCode, breaking on caught exceptions:
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+passErrorThroughUserCode (user.js:77:2)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario passErrorThroughUserCode, breaking on uncaught exceptions:
+Paused
+throwUncaughtError (framework.js:10:2)
+passErrorThroughUserCode (user.js:77:2)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+passErrorThroughUserCode (user.js:77:2)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario notAffectingUserCode, breaking on caught exceptions:
+console: Caught at Error
+    at throwUncaughtError (framework.js:11:9)
+    at wrapErrorHandler (framework.js:42:5)
+    at catchErrorInFramework (framework.js:23:3)
+    at notAffectingUserCode (user.js:82:3)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario notAffectingUserCode, breaking on uncaught exceptions:
+console: Caught at Error
+    at throwUncaughtError (framework.js:11:9)
+    at wrapErrorHandler (framework.js:42:5)
+    at catchErrorInFramework (framework.js:23:3)
+    at notAffectingUserCode (user.js:82:3)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario uncaughtWithAsyncUserCode, breaking on caught exceptions:
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario uncaughtWithAsyncUserCode, breaking on uncaught exceptions:
+Paused
+throwUncaughtError (framework.js:10:2)
+uncaughtAsync (framework.js:32:2)
+-- await --
+uncaughtWithAsyncUserCode (user.js:85:8)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario uncaughtWithAsyncUserCodeAndDelay, breaking on caught exceptions:
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario uncaughtWithAsyncUserCodeAndDelay, breaking on uncaught exceptions:
+Paused
+throwUncaughtError (framework.js:10:2)
+uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- await --
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario uncaughtWithAsyncUserCodeMissingAwait, breaking on caught exceptions:
+Paused
+throwUncaughtError (framework.js:10:2)
+uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- await --
+uncaughtWithAsyncUserCodeMissingAwait (user.js:94:9)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario uncaughtWithAsyncUserCodeMissingAwait, breaking on uncaught exceptions:
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario catchPassingThroughUserCode, breaking on caught exceptions:
+Paused
+throwUncaughtError (framework.js:10:2)
+passErrorThroughUserCode (user.js:77:2)
+wrapErrorHandler (framework.js:41:4)
+catchPassingThroughUserCode (user.js:98:2)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+console: Caught at Error
+    at throwUncaughtError (framework.js:11:9)
+    at passErrorThroughUserCode (user.js:78:3)
+    at wrapErrorHandler (framework.js:42:5)
+    at catchPassingThroughUserCode (user.js:99:3)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario catchPassingThroughUserCode, breaking on uncaught exceptions:
+console: Caught at Error
+    at throwUncaughtError (framework.js:11:9)
+    at passErrorThroughUserCode (user.js:78:3)
+    at wrapErrorHandler (framework.js:42:5)
+    at catchPassingThroughUserCode (user.js:99:3)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario userException, breaking on caught exceptions:
+Uncaught exception: Uncaught Error
+-- <empty> --
+userException (user.js:102:8)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario userException, breaking on uncaught exceptions:
+Paused
+userException (user.js:102:2)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Uncaught exception: Uncaught Error
+-- <empty> --
+userException (user.js:102:8)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario catchUserException, breaking on caught exceptions:
+Paused
+userException (user.js:102:2)
+wrapErrorHandler (framework.js:41:4)
+catchUserException (user.js:106:2)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+console: Caught at Error
+    at userException (user.js:103:9)
+    at wrapErrorHandler (framework.js:42:5)
+    at catchUserException (user.js:107:3)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario catchUserException, breaking on uncaught exceptions:
+console: Caught at Error
+    at userException (user.js:103:9)
+    at wrapErrorHandler (framework.js:42:5)
+    at catchUserException (user.js:107:3)
+    at runWithResolution (framework.js:54:13)
+console: finished without error
+
+Running test: testCase
+> Running scenario nowhereToStop, breaking on caught exceptions:
+console: finished without error
+Uncaught exception: Uncaught SyntaxError: Unexpected token 'p', "ping" is not valid JSON
+-- <empty> --
+-- setTimeout --
+nowhereToStop (user.js:110:2)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario nowhereToStop, breaking on uncaught exceptions:
+console: finished without error
+Uncaught exception: Uncaught SyntaxError: Unexpected token 'p', "ping" is not valid JSON
+-- <empty> --
+-- setTimeout --
+nowhereToStop (user.js:110:2)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario userFinallyMethod, breaking on caught exceptions:
+console: finally in user code
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:36:32)
+delay (framework.js:36:9)
+uncaughtAsync (framework.js:31:8)
+userFinallyMethod (user.js:114:9)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+Exception revoked for reason: Handler added to rejected promise
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+Running test: testCase
+> Running scenario userFinallyMethod, breaking on uncaught exceptions:
+Paused
+throwUncaughtError (framework.js:10:2)
+uncaughtAsync (framework.js:32:2)
+-- await --
+userFinallyMethod (user.js:114:9)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+
+console: finally in user code
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:36:32)
+delay (framework.js:36:9)
+uncaughtAsync (framework.js:31:8)
+userFinallyMethod (user.js:114:9)
+runWithResolution (framework.js:53:12)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)
+Exception revoked for reason: Handler added to rejected promise
+Uncaught exception: Uncaught Error
+-- <empty> --
+throwUncaughtError (framework.js:10:8)
+uncaughtAsync (framework.js:32:2)
+-- setTimeout --
+(anonymous) (framework.js:62:31)
+testWrapper (framework.js:62:8)
+(anonymous) (test_framework.js:0:0)

@@ -43,7 +43,10 @@ MaybeHandle<Object> Runtime::GetObjectProperty(
   if (result.is_null()) {
     return result;
   }
-  if (is_found) *is_found = it.IsFound();
+  if (is_found) {
+    *is_found = it.state() != LookupIterator::TYPED_ARRAY_INDEX_NOT_FOUND &&
+                it.state() != LookupIterator::NOT_FOUND;
+  }
 
   return result;
 }
@@ -71,184 +74,10 @@ MaybeHandle<Object> Runtime::HasProperty(Isolate* isolate,
   return ReadOnlyRoots(isolate).boolean_value_handle(maybe.FromJust());
 }
 
-namespace {
-
-// This function sets the sentinel value in a deleted field. Thes sentinel has
-// to look like a proper standalone object because the slack tracking may
-// complete at any time. For this reason we use the filler map word.
-// If V8_MAP_PACKING is enabled, then the filler map word is a packed filler
-// map. Otherwise, the filler map word is the same as the filler map.
-inline void ClearField(Isolate* isolate, JSObject object, FieldIndex index) {
-  if (index.is_inobject()) {
-    MapWord filler_map_word =
-        ReadOnlyRoots(isolate).one_pointer_filler_map_word();
-#ifndef V8_MAP_PACKING
-    DCHECK_EQ(filler_map_word.ToMap(),
-              ReadOnlyRoots(isolate).one_pointer_filler_map());
-#endif
-    int offset = index.offset();
-    TaggedField<MapWord>::Release_Store(object, offset, filler_map_word);
-  } else {
-    object->property_array()->set(
-        index.outobject_array_index(),
-        ReadOnlyRoots(isolate).one_pointer_filler_map());
-  }
-}
-
-void GeneralizeAllTransitionsToFieldAsMutable(Isolate* isolate, Handle<Map> map,
-                                              Handle<Name> name) {
-  InternalIndex descriptor(map->NumberOfOwnDescriptors());
-
-  Handle<Map> target_maps[kPropertyAttributesCombinationsCount];
-  int target_maps_count = 0;
-
-  // Collect all outgoing field transitions.
-  {
-    DisallowGarbageCollection no_gc;
-    TransitionsAccessor transitions(isolate, *map);
-    transitions.ForEachTransitionTo(
-        *name,
-        [&](Map target) {
-          DCHECK_EQ(descriptor, target->LastAdded());
-          DCHECK_EQ(*name, target->GetLastDescriptorName(isolate));
-          PropertyDetails details = target->GetLastDescriptorDetails(isolate);
-          // Currently, we track constness only for fields.
-          if (details.kind() == PropertyKind::kData &&
-              details.constness() == PropertyConstness::kConst) {
-            target_maps[target_maps_count++] = handle(target, isolate);
-          }
-          DCHECK_IMPLIES(details.kind() == PropertyKind::kAccessor,
-                         details.constness() == PropertyConstness::kConst);
-        },
-        &no_gc);
-    CHECK_LE(target_maps_count, kPropertyAttributesCombinationsCount);
-  }
-
-  for (int i = 0; i < target_maps_count; i++) {
-    Handle<Map> target = target_maps[i];
-    PropertyDetails details =
-        target->instance_descriptors(isolate)->GetDetails(descriptor);
-    Handle<FieldType> field_type(
-        target->instance_descriptors(isolate)->GetFieldType(descriptor),
-        isolate);
-    MapUpdater::GeneralizeField(isolate, target, descriptor,
-                                PropertyConstness::kMutable,
-                                details.representation(), field_type);
-    DCHECK_EQ(PropertyConstness::kMutable, target->instance_descriptors(isolate)
-                                               ->GetDetails(descriptor)
-                                               .constness());
-  }
-}
-
-bool DeleteObjectPropertyFast(Isolate* isolate, Handle<JSReceiver> receiver,
-                              Handle<Object> raw_key) {
-  // This implements a special case for fast property deletion: when the
-  // last property in an object is deleted, then instead of normalizing
-  // the properties, we can undo the last map transition, with a few
-  // prerequisites:
-  // (1) The receiver must be a regular object and the key a unique name.
-  Handle<Map> receiver_map(receiver->map(), isolate);
-  if (IsSpecialReceiverMap(*receiver_map)) return false;
-  DCHECK(IsJSObjectMap(*receiver_map));
-
-  if (!IsUniqueName(*raw_key)) return false;
-  Handle<Name> key = Handle<Name>::cast(raw_key);
-  // (2) The property to be deleted must be the last property.
-  int nof = receiver_map->NumberOfOwnDescriptors();
-  if (nof == 0) return false;
-  InternalIndex descriptor(nof - 1);
-  Handle<DescriptorArray> descriptors(
-      receiver_map->instance_descriptors(isolate), isolate);
-  if (descriptors->GetKey(descriptor) != *key) return false;
-  // (3) The property to be deleted must be deletable.
-  PropertyDetails details = descriptors->GetDetails(descriptor);
-  if (!details.IsConfigurable()) return false;
-  // (4) The map must have a back pointer.
-  Handle<Object> backpointer(receiver_map->GetBackPointer(), isolate);
-  if (!IsMap(*backpointer)) return false;
-  Handle<Map> parent_map = Handle<Map>::cast(backpointer);
-  // (5) The last transition must have been caused by adding a property
-  // (and not any kind of special transition).
-  if (parent_map->NumberOfOwnDescriptors() != nof - 1) return false;
-
-  // Preconditions successful. No more bailouts after this point.
-
-  // Zap the property to avoid keeping objects alive. Zapping is not necessary
-  // for properties stored in the descriptor array.
-  if (details.location() == PropertyLocation::kField) {
-    DisallowGarbageCollection no_gc;
-
-    // Invalidate slots manually later in case we delete an in-object tagged
-    // property. In this case we might later store an untagged value in the
-    // recorded slot.
-    isolate->heap()->NotifyObjectLayoutChange(*receiver, no_gc,
-                                              InvalidateRecordedSlots::kNo);
-    FieldIndex index =
-        FieldIndex::ForPropertyIndex(*receiver_map, details.field_index());
-    // Special case deleting the last out-of object property.
-    if (!index.is_inobject() && index.outobject_array_index() == 0) {
-      DCHECK(!parent_map->HasOutOfObjectProperties());
-      // Clear out the properties backing store.
-      receiver->SetProperties(ReadOnlyRoots(isolate).empty_fixed_array());
-    } else {
-      ClearField(isolate, JSObject::cast(*receiver), index);
-      if (index.is_inobject()) {
-        // We need to clear the recorded slot in this case because in-object
-        // slack tracking might not be finished. This ensures that we don't
-        // have recorded slots in free space.
-        isolate->heap()->ClearRecordedSlot(*receiver,
-                                           receiver->RawField(index.offset()));
-      }
-    }
-  }
-  // If the {receiver_map} was marked stable before, then there could be
-  // optimized code that depends on the assumption that no object that
-  // reached this {receiver_map} transitions away from it without triggering
-  // the "deoptimize dependent code" mechanism.
-  receiver_map->NotifyLeafMapLayoutChange(isolate);
-  // Finally, perform the map rollback.
-  receiver->set_map(*parent_map, kReleaseStore);
-#if VERIFY_HEAP
-  if (v8_flags.verify_heap) {
-    receiver->HeapObjectVerify(isolate);
-    receiver->property_array()->PropertyArrayVerify(isolate);
-  }
-#endif
-
-  // If the {descriptor} was "const" so far, we need to update the
-  // {receiver_map} here, otherwise we could get the constants wrong, i.e.
-  //
-  //   o.x = 1;
-  //   [change o.x's attributes or reconfigure property kind]
-  //   delete o.x;
-  //   o.x = 2;
-  //
-  // could trick V8 into thinking that `o.x` is still 1 even after the second
-  // assignment.
-
-  // Step 1: Migrate object to an up-to-date shape.
-  if (parent_map->is_deprecated()) {
-    JSObject::MigrateInstance(isolate, Handle<JSObject>::cast(receiver));
-    parent_map = handle(receiver->map(), isolate);
-  }
-
-  // Step 2: Mark outgoing transitions from the up-to-date version of the
-  // parent_map to same property name of any kind or attributes as mutable.
-  // Also migrate object to the up-to-date map to make the object shapes
-  // converge sooner.
-  GeneralizeAllTransitionsToFieldAsMutable(isolate, parent_map, key);
-
-  return true;
-}
-
-}  // namespace
-
 Maybe<bool> Runtime::DeleteObjectProperty(Isolate* isolate,
                                           Handle<JSReceiver> receiver,
                                           Handle<Object> key,
                                           LanguageMode language_mode) {
-  if (DeleteObjectPropertyFast(isolate, receiver, key)) return Just(true);
-
   bool success = false;
   PropertyKey lookup_key(isolate, key, &success);
   if (!success) return Nothing<bool>();
@@ -361,11 +190,11 @@ RUNTIME_FUNCTION(Runtime_ObjectHasOwnProperty) {
       LookupIterator it(isolate, js_obj, key, js_obj, c);
       Maybe<bool> maybe = JSReceiver::HasProperty(&it);
       if (maybe.IsNothing()) return ReadOnlyRoots(isolate).exception();
-      DCHECK(!isolate->has_pending_exception());
+      DCHECK(!isolate->has_exception());
       if (maybe.FromJust()) return ReadOnlyRoots(isolate).true_value();
     }
 
-    Map map = js_obj->map();
+    Tagged<Map> map = js_obj->map();
     if (!IsJSGlobalProxyMap(map) &&
         (key.is_element() && key.index() <= JSObject::kMaxElementIndex
              ? !map->has_indexed_interceptor()
@@ -377,7 +206,7 @@ RUNTIME_FUNCTION(Runtime_ObjectHasOwnProperty) {
     LookupIterator it(isolate, js_obj, key, js_obj, LookupIterator::OWN);
     Maybe<bool> maybe = JSReceiver::HasProperty(&it);
     if (maybe.IsNothing()) return ReadOnlyRoots(isolate).exception();
-    DCHECK(!isolate->has_pending_exception());
+    DCHECK(!isolate->has_exception());
     return isolate->heap()->ToBoolean(maybe.FromJust());
 
   } else if (IsJSProxy(*object)) {
@@ -806,13 +635,14 @@ RUNTIME_FUNCTION(Runtime_GetProperty) {
       DisallowGarbageCollection no_gc;
       if (IsJSGlobalObject(*lookup_start_object)) {
         // Attempt dictionary lookup.
-        GlobalDictionary dictionary = JSGlobalObject::cast(*lookup_start_object)
-                                          ->global_dictionary(kAcquireLoad);
+        Tagged<GlobalDictionary> dictionary =
+            JSGlobalObject::cast(*lookup_start_object)
+                ->global_dictionary(kAcquireLoad);
         InternalIndex entry = dictionary->FindEntry(isolate, key);
         if (entry.is_found()) {
-          PropertyCell cell = dictionary->CellAt(entry);
+          Tagged<PropertyCell> cell = dictionary->CellAt(entry);
           if (cell->property_details().kind() == PropertyKind::kData) {
-            Object value = cell->value();
+            Tagged<Object> value = cell->value();
             if (!IsPropertyCellHole(value, isolate)) return value;
             // If value is the hole (meaning, absent) do the general lookup.
           }
@@ -820,7 +650,7 @@ RUNTIME_FUNCTION(Runtime_GetProperty) {
       } else if (!lookup_start_object->HasFastProperties()) {
         // Attempt dictionary lookup.
         if (V8_ENABLE_SWISS_NAME_DICTIONARY_BOOL) {
-          SwissNameDictionary dictionary =
+          Tagged<SwissNameDictionary> dictionary =
               lookup_start_object->property_dictionary_swiss();
           InternalIndex entry = dictionary->FindEntry(isolate, *key);
           if (entry.is_found() &&
@@ -828,7 +658,7 @@ RUNTIME_FUNCTION(Runtime_GetProperty) {
             return dictionary->ValueAt(entry);
           }
         } else {
-          NameDictionary dictionary =
+          Tagged<NameDictionary> dictionary =
               lookup_start_object->property_dictionary();
           InternalIndex entry = dictionary->FindEntry(isolate, key);
           if ((entry.is_found()) &&
@@ -915,8 +745,8 @@ RUNTIME_FUNCTION(Runtime_SetNamedProperty) {
 namespace {
 
 // ES6 section 12.5.4.
-Object DeleteProperty(Isolate* isolate, Handle<Object> object,
-                      Handle<Object> key, LanguageMode language_mode) {
+Tagged<Object> DeleteProperty(Isolate* isolate, Handle<Object> object,
+                              Handle<Object> key, LanguageMode language_mode) {
   Handle<JSReceiver> receiver;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, receiver,
                                      Object::ToObject(isolate, object));
@@ -1165,7 +995,7 @@ RUNTIME_FUNCTION(Runtime_DefineKeyedOwnPropertyInLiteral) {
       &it, value, PropertyAttributes::NONE, Just(kDontThrow));
   // Cannot fail since this should only be called when
   // creating an object literal.
-  RETURN_FAILURE_IF_SCHEDULED_EXCEPTION(isolate);
+  RETURN_FAILURE_IF_EXCEPTION(isolate);
   DCHECK(result.IsJust());
   USE(result);
 
@@ -1186,7 +1016,7 @@ RUNTIME_FUNCTION(Runtime_HasFastPackedElements) {
 RUNTIME_FUNCTION(Runtime_IsJSReceiver) {
   SealHandleScope shs(isolate);
   DCHECK_EQ(1, args.length());
-  Object obj = args[0];
+  Tagged<Object> obj = args[0];
   return isolate->heap()->ToBoolean(IsJSReceiver(obj));
 }
 
@@ -1596,7 +1426,7 @@ Maybe<bool> FindPrivateMembersFromReceiver(Isolate* isolate,
       CollectPrivateMembersFromReceiver(isolate, receiver, desc, &results),
       Nothing<bool>());
 
-  if (results.size() == 0) {
+  if (results.empty()) {
     THROW_NEW_ERROR_RETURN_VALUE(isolate, NewError(not_found_message, desc),
                                  Nothing<bool>());
   } else if (results.size() > 1) {
@@ -1770,7 +1600,7 @@ RUNTIME_FUNCTION(Runtime_SwissTableFindEntry) {
   HandleScope scope(isolate);
   DisallowGarbageCollection no_gc;
   auto table = SwissNameDictionary::cast(args[0]);
-  Name key = Name::cast(args[1]);
+  Tagged<Name> key = Name::cast(args[1]);
   InternalIndex index = table->FindEntry(isolate, key);
   return Smi::FromInt(index.is_found()
                           ? index.as_int()
@@ -1784,7 +1614,7 @@ RUNTIME_FUNCTION(Runtime_SwissTableUpdate) {
   DisallowGarbageCollection no_gc;
   auto table = SwissNameDictionary::cast(args[0]);
   InternalIndex index(args.smi_value_at(1));
-  Object value = args[2];
+  Tagged<Object> value = args[2];
   table->ValueAtPut(index, value);
 
   PropertyDetails details(Smi::cast(args[3]));

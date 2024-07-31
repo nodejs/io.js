@@ -95,11 +95,11 @@ static void pinger_read_cb(uv_udp_t* udp,
   pinger = (pinger_t*)udp->data;
 
   /* No data here means something went wrong */
-  ASSERT(nread > 0);
+  ASSERT_GT(nread, 0);
 
   /* Now we count the pings */
   for (i = 0; i < nread; i++) {
-    ASSERT(buf->base[i] == PING[pinger->state]);
+    ASSERT_EQ(buf->base[i], PING[pinger->state]);
     pinger->state = (pinger->state + 1) % (sizeof(PING) - 1);
     if (pinger->state == 0) {
       pinger->pongs++;
@@ -119,15 +119,15 @@ static void udp_pinger_new(void) {
   pinger_t* pinger = malloc(sizeof(*pinger));
   int r;
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &pinger->server_addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &pinger->server_addr));
   pinger->state = 0;
   pinger->pongs = 0;
 
   /* Try to do NUM_PINGS ping-pongs (connection-less). */
   r = uv_udp_init(loop, &pinger->udp);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_udp_bind(&pinger->udp, (const struct sockaddr*) &pinger->server_addr, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   pinger->udp.data = pinger;
 
@@ -148,7 +148,7 @@ static int ping_udp(unsigned pingers) {
     udp_pinger_new();
   }
   uv_run(loop, UV_RUN_DEFAULT);
-  ASSERT(completed_pingers >= 1);
+  ASSERT_GE(completed_pingers, 1);
 
   fprintf(stderr, "ping_pongs: %d pingers, ~ %lu roundtrips/s\n",
           completed_pingers, completed_pings / (TIME/1000));

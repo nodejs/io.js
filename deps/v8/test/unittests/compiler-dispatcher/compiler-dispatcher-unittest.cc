@@ -211,26 +211,23 @@ class MockPlatform : public v8::Platform {
     return std::make_shared<MockForegroundTaskRunner>(this);
   }
 
-  void CallOnWorkerThread(std::unique_ptr<Task> task) override {
+  void PostTaskOnWorkerThreadImpl(TaskPriority priority,
+                                  std::unique_ptr<Task> task,
+                                  const SourceLocation& location) override {
     UNREACHABLE();
   }
 
-  void CallDelayedOnWorkerThread(std::unique_ptr<Task> task,
-                                 double delay_in_seconds) override {
+  void PostDelayedTaskOnWorkerThreadImpl(
+      TaskPriority priority, std::unique_ptr<Task> task,
+      double delay_in_seconds, const SourceLocation& location) override {
     UNREACHABLE();
   }
 
   bool IdleTasksEnabled(v8::Isolate* isolate) override { return true; }
 
-  std::unique_ptr<JobHandle> PostJob(
-      TaskPriority priority, std::unique_ptr<JobTask> job_task) override {
-    auto handle = deferred_post_job_.CreateJob(priority, std::move(job_task));
-    deferred_post_job_.NotifyConcurrencyIncrease();
-    return handle;
-  }
-
-  std::unique_ptr<JobHandle> CreateJob(
-      TaskPriority priority, std::unique_ptr<JobTask> job_task) override {
+  std::unique_ptr<JobHandle> CreateJobImpl(
+      TaskPriority priority, std::unique_ptr<JobTask> job_task,
+      const SourceLocation& location) override {
     return deferred_post_job_.CreateJob(priority, std::move(job_task));
   }
 
@@ -550,7 +547,7 @@ TEST_F(LazyCompileDispatcherTest, IdleTaskException) {
 
   ASSERT_FALSE(dispatcher.IsEnqueued(shared));
   ASSERT_FALSE(shared->is_compiled());
-  ASSERT_FALSE(i_isolate()->has_pending_exception());
+  ASSERT_FALSE(i_isolate()->has_exception());
   dispatcher.AbortAll();
 }
 
@@ -639,9 +636,9 @@ TEST_F(LazyCompileDispatcherTest, FinishNowException) {
 
   ASSERT_FALSE(dispatcher.IsEnqueued(shared));
   ASSERT_FALSE(shared->is_compiled());
-  ASSERT_TRUE(i_isolate()->has_pending_exception());
+  ASSERT_TRUE(i_isolate()->has_exception());
 
-  i_isolate()->clear_pending_exception();
+  i_isolate()->clear_exception();
   ASSERT_FALSE(platform.IdleTaskPending());
   dispatcher.AbortAll();
 }

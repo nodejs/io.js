@@ -72,7 +72,7 @@ const check_unref = setInterval(() => {
     setInterval(() => timeout.unref(), SHORT_TIME);
 }
 
-// Should not assert on args.Holder()->InternalFieldCount() > 0.
+// Should not assert on args.This()->InternalFieldCount() > 0.
 // See https://github.com/nodejs/node-v0.x-archive/issues/4261.
 {
   const t = setInterval(() => {}, 1);

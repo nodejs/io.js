@@ -155,10 +155,14 @@ void CheckDebuggerUnloaded() {
   CHECK_EQ(CcTest::i_isolate()->debug()->debug_infos_.Size(), 0);
 
   // Collect garbage to ensure weak handles are cleared.
-  i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(
-      CcTest::heap());
-  heap::InvokeMajorGC(CcTest::heap());
-  heap::InvokeMajorGC(CcTest::heap());
+  {
+    // We need to invoke GC without stack, otherwise some objects may not be
+    // reclaimed because of conservative stack scanning.
+    i::DisableConservativeStackScanningScopeForTesting no_stack_scanning(
+        CcTest::heap());
+    heap::InvokeMajorGC(CcTest::heap());
+    heap::InvokeMajorGC(CcTest::heap());
+  }
 
   // Iterate the heap and check that there are no debugger related objects left.
   HeapObjectIterator iterator(CcTest::heap());
@@ -2955,15 +2959,14 @@ TEST(PauseInScript) {
   const char* src = "(function (evt) {})";
   const char* script_name = "StepInHandlerTest";
 
-  v8::ScriptOrigin origin(env->GetIsolate(),
-                          v8_str(env->GetIsolate(), script_name));
+  v8::ScriptOrigin origin(v8_str(env->GetIsolate(), script_name));
   v8::Local<v8::Script> script =
       v8::Script::Compile(context, v8_str(env->GetIsolate(), src), &origin)
           .ToLocalChecked();
 
   // Set breakpoint in the script.
   i::Handle<i::Script> i_script(
-      i::Script::cast(v8::Utils::OpenHandle(*script)->shared()->script()),
+      i::Script::cast(v8::Utils::OpenDirectHandle(*script)->shared()->script()),
       isolate);
   i::Handle<i::String> condition = isolate->factory()->empty_string();
   int position = 0;
@@ -3334,7 +3337,7 @@ TEST(DebugScriptLineEndsAreAscending) {
                                                "  debugger;\n"
                                                "}\n");
 
-  v8::ScriptOrigin origin1 = v8::ScriptOrigin(isolate, v8_str(isolate, "name"));
+  v8::ScriptOrigin origin1 = v8::ScriptOrigin(v8_str(isolate, "name"));
   v8::Local<v8::Script> script =
       v8::Script::Compile(env.local(), script_source, &origin1)
           .ToLocalChecked();
@@ -3365,8 +3368,8 @@ TEST(DebugScriptLineEndsAreAscending) {
   }
 }
 
-static v8::Local<v8::Context> expected_context;
-static v8::Local<v8::Value> expected_context_data;
+static v8::Global<v8::Context> expected_context_global;
+static v8::Global<v8::Value> expected_context_data_global;
 
 class ContextCheckEventListener : public v8::debug::DebugDelegate {
  public:
@@ -3396,8 +3399,9 @@ class ContextCheckEventListener : public v8::debug::DebugDelegate {
  private:
   void CheckContext() {
     v8::Local<v8::Context> context = CcTest::isolate()->GetCurrentContext();
-    CHECK(context == expected_context);
-    CHECK(context->GetEmbedderData(0)->StrictEquals(expected_context_data));
+    CHECK_EQ(context, expected_context_global.Get(CcTest::isolate()));
+    CHECK(context->GetEmbedderData(0)->StrictEquals(
+        expected_context_data_global.Get(CcTest::isolate())));
     event_listener_hit_count++;
   }
 };
@@ -3441,8 +3445,8 @@ TEST(ContextData) {
   // Enter and run function in the first context.
   {
     v8::Context::Scope context_scope(context_1);
-    expected_context = context_1;
-    expected_context_data = data_1;
+    expected_context_global.Reset(isolate, context_1);
+    expected_context_data_global.Reset(isolate, data_1);
     v8::Local<v8::Function> f = CompileFunction(isolate, source, "f");
     f->Call(context_1, context_1->Global(), 0, nullptr).ToLocalChecked();
   }
@@ -3450,8 +3454,8 @@ TEST(ContextData) {
   // Enter and run function in the second context.
   {
     v8::Context::Scope context_scope(context_2);
-    expected_context = context_2;
-    expected_context_data = data_2;
+    expected_context_global.Reset(isolate, context_2);
+    expected_context_data_global.Reset(isolate, data_2);
     v8::Local<v8::Function> f = CompileFunction(isolate, source, "f");
     f->Call(context_2, context_2->Global(), 0, nullptr).ToLocalChecked();
   }
@@ -3461,6 +3465,9 @@ TEST(ContextData) {
 
   v8::debug::SetDebugDelegate(isolate, nullptr);
   CheckDebuggerUnloaded();
+
+  expected_context_global.Reset();
+  expected_context_data_global.Reset();
 }
 
 // Test which creates a context and sets embedder data on it. Checks that this
@@ -3468,21 +3475,22 @@ TEST(ContextData) {
 // break event in an eval statement the expected context is the one returned by
 // Message.GetEventContext.
 TEST(EvalContextData) {
-  v8::HandleScope scope(CcTest::isolate());
+  v8::Isolate* isolate = CcTest::isolate();
+  v8::HandleScope scope(isolate);
 
   v8::Local<v8::Context> context_1;
   v8::Local<v8::ObjectTemplate> global_template =
       v8::Local<v8::ObjectTemplate>();
-  context_1 = v8::Context::New(CcTest::isolate(), nullptr, global_template);
+  context_1 = v8::Context::New(isolate, nullptr, global_template);
 
   ContextCheckEventListener delegate;
-  v8::debug::SetDebugDelegate(CcTest::isolate(), &delegate);
+  v8::debug::SetDebugDelegate(isolate, &delegate);
 
   // Contexts initially do not have embedder data fields.
   CHECK_EQ(0, context_1->GetNumberOfEmbedderDataFields());
 
   // Set and check a data value.
-  v8::Local<v8::String> data_1 = v8_str(CcTest::isolate(), "1");
+  v8::Local<v8::String> data_1 = v8_str(isolate, "1");
   context_1->SetEmbedderData(0, data_1);
   CHECK(context_1->GetEmbedderData(0)->StrictEquals(data_1));
 
@@ -3492,17 +3500,20 @@ TEST(EvalContextData) {
   // Enter and run function in the context.
   {
     v8::Context::Scope context_scope(context_1);
-    expected_context = context_1;
-    expected_context_data = data_1;
-    v8::Local<v8::Function> f = CompileFunction(CcTest::isolate(), source, "f");
+    expected_context_global.Reset(isolate, context_1);
+    expected_context_data_global.Reset(isolate, data_1);
+    v8::Local<v8::Function> f = CompileFunction(isolate, source, "f");
     f->Call(context_1, context_1->Global(), 0, nullptr).ToLocalChecked();
   }
 
-  v8::debug::SetDebugDelegate(CcTest::isolate(), nullptr);
+  v8::debug::SetDebugDelegate(isolate, nullptr);
 
   // One time compile event and one time break event.
   CHECK_GT(event_listener_hit_count, 2);
   CheckDebuggerUnloaded();
+
+  expected_context_global.Reset();
+  expected_context_data_global.Reset();
 }
 
 // Debug event listener which counts script compiled events.
@@ -4185,7 +4196,9 @@ class ArchiveRestoreThread : public v8::base::Thread,
   }
 
   void MaybeSpawnChildThread() {
-    if (spawn_count_ > 1) {
+    if (spawn_count_ <= 1) return;
+    {
+      isolate_->Exit();
       v8::Unlocker unlocker(isolate_);
 
       // Spawn a thread that spawns a thread that spawns a thread (and so
@@ -4211,6 +4224,7 @@ class ArchiveRestoreThread : public v8::base::Thread,
       reinterpret_cast<i::Isolate*>(isolate_)->heap()->SetStackStart(
           v8::base::Stack::GetStackStart());
     }
+    isolate_->Enter();
   }
 
   int GetBreakCount() { return break_count_; }
@@ -4225,12 +4239,70 @@ class ArchiveRestoreThread : public v8::base::Thread,
 TEST(DebugArchiveRestore) {
   v8::Isolate* isolate = CcTest::isolate();
 
+  // This test uses the multi-threaded model and v8::Locker, so the main
+  // thread must exit the isolate before the test starts.
+  isolate->Exit();
+
   ArchiveRestoreThread thread(isolate, 4);
   // Instead of calling thread.Start() and thread.Join() here, we call
   // thread.Run() directly, to make sure we exercise archive/restore
   // logic on the *current* thread as well as other threads.
   thread.Run();
   CHECK_EQ(thread.GetBreakCount(), 5);
+
+  // The isolate must be entered again, before teardown.
+  isolate->Enter();
+}
+
+namespace {
+class ThreadJustUsingV8Locker : public v8::base::Thread {
+ public:
+  explicit ThreadJustUsingV8Locker(v8::Isolate* isolate)
+      : Thread(Options("thread using v8::Locker")), isolate_(isolate) {}
+
+  void Run() override {
+    v8::Locker locker(isolate_);
+    v8::Isolate::Scope isolate_scope(isolate_);
+    v8::HandleScope scope(isolate_);
+    // This thread does nothing useful.
+  }
+
+ private:
+  v8::Isolate* isolate_;
+};
+}  // anonymous namespace
+
+UNINITIALIZED_TEST(Bug1511649UnlockerRestoreDebug) {
+  v8::Isolate::CreateParams create_params;
+  create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
+  v8::Isolate* isolate = v8::Isolate::New(create_params);
+
+  {
+    v8::Locker locker(isolate);
+    v8::Isolate::Scope isolate_scope(isolate);
+    v8::HandleScope scope(isolate);
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
+    v8::Context::Scope context_scope(context);
+
+    v8::Local<v8::Function> test =
+        CompileFunction(isolate, "function test() {}", "test");
+    i::Handle<i::BreakPoint> bp = SetBreakPoint(test, 0);
+
+    {
+      isolate->Exit();
+      v8::Unlocker unlocker(isolate);
+
+      ThreadJustUsingV8Locker thread(isolate);
+      CHECK(thread.Start());
+      thread.Join();
+    }
+    isolate->Enter();
+
+    i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+    i::Debug* debug = i_isolate->debug();
+    debug->ClearBreakPoint(bp);
+  }
+  isolate->Dispose();
 }
 
 class DebugEventExpectNoException : public v8::debug::DebugDelegate {
@@ -4617,7 +4689,7 @@ TEST(DebugEvaluateNoSideEffect) {
     failed = !isolate->debug()->PerformSideEffectCheck(
         fun, v8::Utils::OpenHandle(*env->Global()));
     isolate->debug()->StopSideEffectCheckMode();
-    if (failed) isolate->clear_pending_exception();
+    if (failed) isolate->clear_exception();
   }
   DisableDebugger(env->GetIsolate());
 }
@@ -4761,7 +4833,8 @@ TEST(SourceInfo) {
   v8::Local<v8::Script> v8_script =
       v8::Script::Compile(env.local(), v8_str(source)).ToLocalChecked();
   i::Handle<i::Script> i_script(
-      i::Script::cast(v8::Utils::OpenHandle(*v8_script)->shared()->script()),
+      i::Script::cast(
+          v8::Utils::OpenDirectHandle(*v8_script)->shared()->script()),
       CcTest::i_isolate());
   v8::Local<v8::debug::Script> script =
       v8::ToApiHandle<v8::debug::Script>(i_script);
@@ -4952,8 +5025,8 @@ TEST(GetPrivateFields) {
       env->Global()
           ->Get(context, v8_str(env->GetIsolate(), "x"))
           .ToLocalChecked());
-  std::vector<v8::Local<v8::Value>> names;
-  std::vector<v8::Local<v8::Value>> values;
+  v8::LocalVector<v8::Value> names(v8_isolate);
+  v8::LocalVector<v8::Value> values(v8_isolate);
   int filter = static_cast<int>(v8::debug::PrivateMemberFilter::kPrivateFields);
   CHECK(v8::debug::GetPrivateMembers(context, object, filter, &names, &values));
 
@@ -5059,8 +5132,8 @@ TEST(GetPrivateMethodsAndAccessors) {
       env->Global()
           ->Get(context, v8_str(env->GetIsolate(), "x"))
           .ToLocalChecked());
-  std::vector<v8::Local<v8::Value>> names;
-  std::vector<v8::Local<v8::Value>> values;
+  v8::LocalVector<v8::Value> names(v8_isolate);
+  v8::LocalVector<v8::Value> values(v8_isolate);
 
   int accessor_filter =
       static_cast<int>(v8::debug::PrivateMemberFilter::kPrivateAccessors);
@@ -5229,8 +5302,8 @@ TEST(GetPrivateStaticMethodsAndAccessors) {
       env->Global()
           ->Get(context, v8_str(env->GetIsolate(), "X"))
           .ToLocalChecked());
-  std::vector<v8::Local<v8::Value>> names;
-  std::vector<v8::Local<v8::Value>> values;
+  v8::LocalVector<v8::Value> names(v8_isolate);
+  v8::LocalVector<v8::Value> values(v8_isolate);
 
   int accessor_filter =
       static_cast<int>(v8::debug::PrivateMemberFilter::kPrivateAccessors);
@@ -5302,8 +5375,8 @@ TEST(GetPrivateStaticAndInstanceMethodsAndAccessors) {
       env->Global()
           ->Get(context, v8_str(env->GetIsolate(), "X"))
           .ToLocalChecked());
-  std::vector<v8::Local<v8::Value>> names;
-  std::vector<v8::Local<v8::Value>> values;
+  v8::LocalVector<v8::Value> names(v8_isolate);
+  v8::LocalVector<v8::Value> values(v8_isolate);
   int accessor_filter =
       static_cast<int>(v8::debug::PrivateMemberFilter::kPrivateAccessors);
   int method_filter =
@@ -5669,7 +5742,8 @@ TEST(TerminateOnResumeAtUnhandledRejection) {
 }
 
 namespace {
-void RejectPromiseThroughCpp(const v8::FunctionCallbackInfo<v8::Value>& info) {
+void RejectPromiseThroughCppInternal(
+    const v8::FunctionCallbackInfo<v8::Value>& info, bool silent) {
   CHECK(i::ValidateCallbackInfo(info));
   auto data = reinterpret_cast<std::pair<v8::Isolate*, LocalContext*>*>(
       info.Data().As<v8::External>()->Value());
@@ -5682,11 +5756,23 @@ void RejectPromiseThroughCpp(const v8::FunctionCallbackInfo<v8::Value>& info) {
   v8::Local<v8::Promise> promise = resolver->GetPromise();
   CHECK_EQ(promise->State(), v8::Promise::PromiseState::kPending);
 
+  if (silent) {
+    promise->MarkAsSilent();
+  }
+
   resolver->Reject(data->second->local(), value1).ToChecked();
   CHECK_EQ(promise->State(), v8::Promise::PromiseState::kRejected);
-  // CHECK_EQ(*v8::Utils::OpenHandle(*promise->Result()),
-  //         i::ReadOnlyRoots(CcTest::i_isolate()).exception());
 }
+
+void RejectPromiseThroughCpp(const v8::FunctionCallbackInfo<v8::Value>& info) {
+  RejectPromiseThroughCppInternal(info, false);
+}
+
+void SilentRejectPromiseThroughCpp(
+    const v8::FunctionCallbackInfo<v8::Value>& info) {
+  RejectPromiseThroughCppInternal(info, true);
+}
+
 }  // namespace
 
 TEST(TerminateOnResumeAtUnhandledRejectionCppImpl) {
@@ -5711,6 +5797,36 @@ TEST(TerminateOnResumeAtUnhandledRejectionCppImpl) {
     CompileRun("RejectPromiseThroughCpp(); while (true) {}");
     CHECK_EQ(delegate.break_count(), 0);
     CHECK_EQ(delegate.exception_thrown_count(), 1);
+  }
+  ExpectInt32("1 + 1", 2);
+  v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
+  CheckDebuggerUnloaded();
+}
+
+TEST(NoTerminateOnResumeAtSilentUnhandledRejectionCppImpl) {
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(env->GetIsolate());
+  ChangeBreakOnException(isolate, true, true);
+  SetTerminateOnResumeDelegate delegate;
+  auto data = std::make_pair(isolate, &env);
+  v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
+  {
+    // We want to reject in a way that would trigger a breakpoint if it were
+    // not silenced (as in TerminateOnResumeAtUnhandledRejectionCppImpl), but
+    // that would also requre that there is at least one JavaScript frame
+    // on the stack.
+    v8::Local<v8::Function> func =
+        v8::Function::New(env.local(), SilentRejectPromiseThroughCpp,
+                          v8::External::New(isolate, &data))
+            .ToLocalChecked();
+    CHECK(env->Global()
+              ->Set(env.local(), v8_str("RejectPromiseThroughCpp"), func)
+              .FromJust());
+
+    CompileRun("RejectPromiseThroughCpp(); debugger;");
+    CHECK_EQ(delegate.break_count(), 1);
+    CHECK_EQ(delegate.exception_thrown_count(), 0);
   }
   ExpectInt32("1 + 1", 2);
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);

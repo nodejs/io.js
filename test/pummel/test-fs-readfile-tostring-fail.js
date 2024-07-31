@@ -9,13 +9,15 @@ const assert = require('assert');
 const fs = require('fs');
 const cp = require('child_process');
 const kStringMaxLength = require('buffer').constants.MAX_STRING_LENGTH;
+const size = Math.floor(kStringMaxLength / 200);
+
 if (common.isAIX && (Number(cp.execSync('ulimit -f')) * 512) < kStringMaxLength)
   common.skip('intensive toString tests due to file size confinements');
 
 const tmpdir = require('../common/tmpdir');
 tmpdir.refresh();
 
-if (!tmpdir.hasEnoughSpace(kStringMaxLength)) {
+if (!tmpdir.hasEnoughSpace(kStringMaxLength + size)) {
   common.skip(`Not enough space in ${tmpdir.path}`);
 }
 
@@ -26,7 +28,6 @@ const stream = fs.createWriteStream(file, {
 
 stream.on('error', (err) => { throw err; });
 
-const size = kStringMaxLength / 200;
 const a = Buffer.alloc(size, 'a');
 let expectedSize = 0;
 

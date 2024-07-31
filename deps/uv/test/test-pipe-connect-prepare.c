@@ -48,7 +48,7 @@ static void close_cb(uv_handle_t* handle) {
 
 
 static void connect_cb(uv_connect_t* connect_req, int status) {
-  ASSERT(status == UV_ENOENT);
+  ASSERT_EQ(status, UV_ENOENT);
   connect_cb_called++;
   uv_close((uv_handle_t*)&prepare_handle, close_cb);
   uv_close((uv_handle_t*)&pipe_handle, close_cb);
@@ -56,7 +56,7 @@ static void connect_cb(uv_connect_t* connect_req, int status) {
 
 
 static void prepare_cb(uv_prepare_t* handle) {
-  ASSERT(handle == &prepare_handle);
+  ASSERT_PTR_EQ(handle, &prepare_handle);
   uv_pipe_connect(&conn_req, &pipe_handle, BAD_PIPENAME, connect_cb);
 }
 
@@ -65,18 +65,18 @@ TEST_IMPL(pipe_connect_on_prepare) {
   int r;
 
   r = uv_pipe_init(uv_default_loop(), &pipe_handle, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_prepare_init(uv_default_loop(), &prepare_handle);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_prepare_start(&prepare_handle, prepare_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(close_cb_called == 2);
-  ASSERT(connect_cb_called == 1);
+  ASSERT_EQ(2, close_cb_called);
+  ASSERT_EQ(1, connect_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

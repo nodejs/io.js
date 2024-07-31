@@ -1,0 +1,38 @@
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <title>WebStorage Test: localStorage event - key</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body>
+    <h1>event_local_key</h1>
+    <div id="log"></div>
+    <script>
+        async_test(function(t) {
+            localStorage.clear();
+            t.add_cleanup(function() { localStorage.clear() });
+
+            self.fail = t.step_func(function(msg) {
+                assert_unreached(msg);
+                t.done();
+            });
+
+            var expected = ['name', null]
+            function onStorageEvent(event) {
+                assert_equals(event.key, expected.shift());
+                if (!expected.length) {
+                    t.done();
+                }
+            }
+
+            window.addEventListener('storage', t.step_func(onStorageEvent), false);
+
+            var el = document.createElement("iframe");
+            el.setAttribute('id', 'ifrm');
+            el.setAttribute('src', 'resources/local_set_item_clear_iframe.html');
+            document.body.appendChild(el);
+        }, "key property test of local event - Local event is fired due to an invocation of the setItem(), clear() methods.");
+    </script>
+ </body>
+</html>

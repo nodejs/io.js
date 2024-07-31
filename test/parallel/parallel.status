@@ -5,29 +5,29 @@ prefix parallel
 # sample-test                        : PASS,FLAKY
 
 [true] # This section applies to all platforms
+# https://github.com/nodejs/node/issues/52273
+test-net-write-fully-async-hex-string: PASS, FLAKY
+# https://github.com/nodejs/node/issues/52273
+test-shadow-realm-gc: SKIP
+test-shadow-realm-gc-module: SKIP
+# https://github.com/nodejs/node/issues/52274
+test-worker-arraybuffer-zerofill: PASS, FLAKY
+
+# https://github.com/nodejs/node/issues/51862
+test-fs-read-stream-concurrent-reads: PASS, FLAKY
+
+# https://github.com/nodejs/node/issues/52630
+test-error-serdes: PASS, FLAKY
+
+# https://github.com/nodejs/node/issues/54006
+test-sqlite: PASS, FLAKY
 
 [$system==win32]
-# https://github.com/nodejs/node/issues/41206
-test-crypto-keygen: PASS,FLAKY
-# https://github.com/nodejs/node/issues/41201
-test-fs-rmdir-recursive: PASS, FLAKY
-# https://github.com/nodejs/node/issues/49985
-test-runner-watch-mode: PASS, FLAKY
-# https://github.com/nodejs/node/issues/50295
-test-cli-node-options: PASS, FLAKY
-
-# Windows on x86
-[$system==win32 && $arch==ia32]
-test-worker-nearheaplimit-deadlock: PASS, FLAKY
 
 # Windows on ARM
 [$system==win32 && $arch==arm64]
 
 [$system==linux]
-# https://github.com/nodejs/node/issues/39368
-test-domain-error-types: PASS,FLAKY
-# https://github.com/nodejs/node/issues/47420
-test-file-write-stream4: PASS,FLAKY
 # https://github.com/nodejs/node/issues/43465
 test-http-server-request-timeouts-mixed: PASS, FLAKY
 
@@ -39,8 +39,6 @@ test-runner-watch-mode: PASS,FLAKY
 # https://github.com/nodejs/node/issues/42741
 test-http-server-headers-timeout-keepalive: PASS,FLAKY
 test-http-server-request-timeout-keepalive: PASS,FLAKY
-# https://github.com/nodejs/node/issues/43465
-test-http-server-request-timeouts-mixed: PASS,FLAKY
 # https://github.com/nodejs/node/issues/50243
 test-inspector-async-stack-traces-set-interval: PASS, FLAKY
 
@@ -48,6 +46,8 @@ test-inspector-async-stack-traces-set-interval: PASS, FLAKY
 # https://github.com/nodejs/node/pull/31178
 test-crypto-dh-stateless: SKIP
 test-crypto-keygen: SKIP
+# https://github.com/nodejs/node/issues/52963
+test-pipe-file-to-http: PASS, FLAKY
 
 [$system==solaris] # Also applies to SmartOS
 # https://github.com/nodejs/node/issues/43457
@@ -67,10 +67,6 @@ test-domain-with-abort-on-uncaught-exception: PASS, FLAKY
 test-tick-processor-arguments: SKIP
 
 [$system==freebsd]
-# https://github.com/nodejs/node/issues/31727
-test-fs-stat-bigint: PASS,FLAKY
-# https://github.com/nodejs/node/issues/31280
-test-worker-message-port-message-before-close: PASS,FLAKY
 
 [$system==ibmi]
 # https://github.com/nodejs/node/pull/30819
@@ -110,6 +106,6 @@ test-http-pipeline-flood: SKIP
 # https://github.com/nodejs/node/issues/39655
 test-cluster-primary-error: PASS, FLAKY
 
-[$arch==s390x]
-# https://github.com/nodejs/node/issues/50222
-test-inspector-async-hook-setup-at-inspect-brk: PASS, FLAKY
+[$arch==loong64]
+# https://github.com/nodejs/node/issues/51662
+test-http-correct-hostname: SKIP

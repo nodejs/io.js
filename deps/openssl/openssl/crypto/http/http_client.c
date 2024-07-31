@@ -487,13 +487,17 @@ static int parse_http_line1(char *line, int *found_keep_alive)
 
 static int check_set_resp_len(OSSL_HTTP_REQ_CTX *rctx, size_t len)
 {
-    if (rctx->max_resp_len != 0 && len > rctx->max_resp_len)
+    if (rctx->max_resp_len != 0 && len > rctx->max_resp_len) {
         ERR_raise_data(ERR_LIB_HTTP, HTTP_R_MAX_RESP_LEN_EXCEEDED,
                        "length=%zu, max=%zu", len, rctx->max_resp_len);
-    if (rctx->resp_len != 0 && rctx->resp_len != len)
+        return 0;
+    }
+    if (rctx->resp_len != 0 && rctx->resp_len != len) {
         ERR_raise_data(ERR_LIB_HTTP, HTTP_R_INCONSISTENT_CONTENT_LENGTH,
                        "ASN.1 length=%zu, Content-Length=%zu",
                        len, rctx->resp_len);
+        return 0;
+    }
     rctx->resp_len = len;
     return 1;
 }

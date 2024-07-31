@@ -9,7 +9,7 @@
 namespace v8 {
 namespace internal {
 
-bool ImportAssertionsKeyComparer::operator()(const AstRawString* lhs,
+bool ImportAttributesKeyComparer::operator()(const AstRawString* lhs,
                                              const AstRawString* rhs) const {
   return AstRawString::Compare(lhs, rhs) < 0;
 }

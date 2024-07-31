@@ -20,13 +20,12 @@ static BROTLI_INLINE size_t FN(HashTypeLength)(void) { return 8; }
 static BROTLI_INLINE size_t FN(StoreLookahead)(void) { return 8; }
 
 /* HashBytes is the function that chooses the bucket to place the address in. */
-static BROTLI_INLINE uint32_t FN(HashBytes)(const uint8_t* BROTLI_RESTRICT data,
-                                            const uint64_t mask,
-                                            const int shift) {
-  const uint64_t h = (BROTLI_UNALIGNED_LOAD64LE(data) & mask) * kHashMul64Long;
+static BROTLI_INLINE size_t FN(HashBytes)(const uint8_t* BROTLI_RESTRICT data,
+                                          uint64_t hash_mul) {
+  const uint64_t h = BROTLI_UNALIGNED_LOAD64LE(data) * hash_mul;
   /* The higher bits contain more mixture from the multiplication,
      so we take our results from there. */
-  return (uint32_t)(h >> shift);
+  return (size_t)(h >> (64 - 15));
 }
 
 typedef struct HashLongestMatch {
@@ -35,10 +34,8 @@ typedef struct HashLongestMatch {
   /* Only block_size_ newest backward references are kept,
      and the older are forgotten. */
   size_t block_size_;
-  /* Left-shift for computing hash bucket index from hash value. */
-  int hash_shift_;
-  /* Mask for selecting the next 4-8 bytes of input */
-  uint64_t hash_mask_;
+  /* Hash multiplier tuned to match length. */
+  uint64_t hash_mul_;
   /* Mask for accessing entries in a block (in a ring-buffer manner). */
   uint32_t block_mask_;
 
@@ -63,16 +60,16 @@ static void FN(Initialize)(
   self->common_ = common;
 
   BROTLI_UNUSED(params);
-  self->hash_shift_ = 64 - common->params.bucket_bits;
-  self->hash_mask_ = (~((uint64_t)0U)) >> (64 - 8 * common->params.hash_len);
+  self->hash_mul_ = kHashMul64 << (64 - 5 * 8);
+  BROTLI_DCHECK(common->params.bucket_bits == 15);
   self->bucket_size_ = (size_t)1 << common->params.bucket_bits;
   self->block_bits_ = common->params.block_bits;
   self->block_size_ = (size_t)1 << common->params.block_bits;
   self->block_mask_ = (uint32_t)(self->block_size_ - 1);
   self->num_last_distances_to_check_ =
       common->params.num_last_distances_to_check;
-  self->num_ = (uint16_t*)common->extra;
-  self->buckets_ = (uint32_t*)&self->num_[self->bucket_size_];
+  self->num_ = (uint16_t*)common->extra[0];
+  self->buckets_ = (uint32_t*)common->extra[1];
 }
 
 static void FN(Prepare)(
@@ -84,8 +81,7 @@ static void FN(Prepare)(
   if (one_shot && input_size <= partial_prepare_threshold) {
     size_t i;
     for (i = 0; i < input_size; ++i) {
-      const uint32_t key = FN(HashBytes)(&data[i], self->hash_mask_,
-                                         self->hash_shift_);
+      const size_t key = FN(HashBytes)(&data[i], self->hash_mul_);
       num[key] = 0;
     }
   } else {
@@ -93,15 +89,15 @@ static void FN(Prepare)(
   }
 }
 
-static BROTLI_INLINE size_t FN(HashMemAllocInBytes)(
+static BROTLI_INLINE void FN(HashMemAllocInBytes)(
     const BrotliEncoderParams* params, BROTLI_BOOL one_shot,
-    size_t input_size) {
+    size_t input_size, size_t* alloc_size) {
   size_t bucket_size = (size_t)1 << params->hasher.bucket_bits;
   size_t block_size = (size_t)1 << params->hasher.block_bits;
   BROTLI_UNUSED(one_shot);
   BROTLI_UNUSED(input_size);
-  return sizeof(uint16_t) * bucket_size +
-         sizeof(uint32_t) * bucket_size * block_size;
+  alloc_size[0] = sizeof(uint16_t) * bucket_size;
+  alloc_size[1] = sizeof(uint32_t) * bucket_size * block_size;
 }
 
 /* Look at 4 bytes at &data[ix & mask].
@@ -111,8 +107,7 @@ static BROTLI_INLINE void FN(Store)(
     const size_t mask, const size_t ix) {
   uint16_t* BROTLI_RESTRICT num = self->num_;
   uint32_t* BROTLI_RESTRICT buckets = self->buckets_;
-  const uint32_t key = FN(HashBytes)(&data[ix & mask], self->hash_mask_,
-                                     self->hash_shift_);
+  const size_t key = FN(HashBytes)(&data[ix & mask], self->hash_mul_);
   const size_t minor_ix = num[key] & self->block_mask_;
   const size_t offset = minor_ix + (key << self->block_bits_);
   ++num[key];
@@ -217,14 +212,17 @@ static BROTLI_INLINE void FN(FindLongestMatch)(
     }
   }
   {
-    const uint32_t key = FN(HashBytes)(
-        &data[cur_ix_masked], self->hash_mask_, self->hash_shift_);
+    const size_t key = FN(HashBytes)(&data[cur_ix_masked], self->hash_mul_);
     uint32_t* BROTLI_RESTRICT bucket = &buckets[key << self->block_bits_];
     const size_t down =
         (num[key] > self->block_size_) ?
         (num[key] - self->block_size_) : 0u;
-    for (i = num[key]; i > down;) {
+    const uint32_t first4 = BrotliUnalignedRead32(data + cur_ix_masked);
+    const size_t max_length_m4 = max_length - 4;
+    i = num[key];
+    for (; i > down;) {
       size_t prev_ix = bucket[--i & self->block_mask_];
+      uint32_t current4;
       const size_t backward = cur_ix - prev_ix;
       if (BROTLI_PREDICT_FALSE(backward > max_backward)) {
         break;
@@ -235,22 +233,19 @@ static BROTLI_INLINE void FN(FindLongestMatch)(
           data[cur_ix_masked + best_len] != data[prev_ix + best_len]) {
         continue;
       }
+      current4 = BrotliUnalignedRead32(data + prev_ix);
+      if (first4 != current4) continue;
       {
-        const size_t len = FindMatchLengthWithLimit(&data[prev_ix],
-                                                    &data[cur_ix_masked],
-                                                    max_length);
-        if (len >= 4) {
-          /* Comparing for >= 3 does not change the semantics, but just saves
-             for a few unnecessary binary logarithms in backward reference
-             score, since we are not interested in such short matches. */
-          score_t score = BackwardReferenceScore(len, backward);
-          if (best_score < score) {
-            best_score = score;
-            best_len = len;
-            out->len = best_len;
-            out->distance = backward;
-            out->score = best_score;
-          }
+        const size_t len = FindMatchLengthWithLimit(&data[prev_ix + 4],
+                                                    &data[cur_ix_masked + 4],
+                                                    max_length_m4) + 4;
+        const score_t score = BackwardReferenceScore(len, backward);
+        if (best_score < score) {
+          best_score = score;
+          best_len = len;
+          out->len = best_len;
+          out->distance = backward;
+          out->score = best_score;
         }
       }
     }

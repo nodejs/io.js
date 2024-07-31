@@ -1,7 +1,7 @@
 'use strict'
 
-const { promisify } = require('util')
-const Client = require('../client')
+const { promisify } = require('node:util')
+const Client = require('../dispatcher/client')
 const { buildMockDispatch } = require('./mock-utils')
 const {
   kDispatches,

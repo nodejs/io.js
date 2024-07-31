@@ -35,8 +35,8 @@ MaybeHandle<Object> CreateDynamicFunction(Isolate* isolate,
     // TODO(verwaest): We would like to throw using the calling context instead
     // of the entered context but we don't currently have access to that.
     HandleScopeImplementer* impl = isolate->handle_scope_implementer();
-    SaveAndSwitchContext save(
-        isolate, impl->LastEnteredOrMicrotaskContext()->native_context());
+    SaveAndSwitchContext save(isolate,
+                              impl->LastEnteredContext()->native_context());
     THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kNoAccess), Object);
   }
 
@@ -184,7 +184,13 @@ BUILTIN(AsyncGeneratorFunctionConstructor) {
 
 namespace {
 
-Tagged<Object> DoFunctionBind(Isolate* isolate, BuiltinArguments args) {
+enum class ProtoSource {
+  kNormalFunction,
+  kUseTargetPrototype,
+};
+
+Tagged<Object> DoFunctionBind(Isolate* isolate, BuiltinArguments args,
+                              ProtoSource proto_source) {
   HandleScope scope(isolate);
   DCHECK_LE(1, args.length());
   if (!IsCallable(*args.receiver())) {
@@ -202,16 +208,31 @@ Tagged<Object> DoFunctionBind(Isolate* isolate, BuiltinArguments args) {
       argv[i - 2] = args.at(i);
     }
   }
+
+  Handle<HeapObject> proto;
+  if (proto_source == ProtoSource::kUseTargetPrototype) {
+    // Determine the prototype of the {target_function}.
+    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
+        isolate, proto, JSReceiver::GetPrototype(isolate, target));
+  } else if (proto_source == ProtoSource::kNormalFunction) {
+    Handle<NativeContext> native_context(
+        isolate->global_object()->native_context(), isolate);
+    auto function_proto = native_context->function_function()->prototype();
+    proto = handle(HeapObject::cast(function_proto), isolate);
+  } else {
+    UNREACHABLE();
+  }
+
   Handle<JSBoundFunction> function;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, function,
-      isolate->factory()->NewJSBoundFunction(target, this_arg, argv));
+      isolate->factory()->NewJSBoundFunction(target, this_arg, argv, proto));
   Maybe<bool> result =
       JSFunctionOrBoundFunctionOrWrappedFunction::CopyNameAndLength(
           isolate, function, target, isolate->factory()->bound__string(),
           argv.length());
   if (result.IsNothing()) {
-    DCHECK(isolate->has_pending_exception());
+    DCHECK(isolate->has_exception());
     return ReadOnlyRoots(isolate).exception();
   }
   return *function;
@@ -220,7 +241,15 @@ Tagged<Object> DoFunctionBind(Isolate* isolate, BuiltinArguments args) {
 }  // namespace
 
 // ES6 section 19.2.3.2 Function.prototype.bind ( thisArg, ...args )
-BUILTIN(FunctionPrototypeBind) { return DoFunctionBind(isolate, args); }
+BUILTIN(FunctionPrototypeBind) {
+  return DoFunctionBind(isolate, args, ProtoSource::kUseTargetPrototype);
+}
+
+#if V8_ENABLE_WEBASSEMBLY
+BUILTIN(WebAssemblyFunctionPrototypeBind) {
+  return DoFunctionBind(isolate, args, ProtoSource::kNormalFunction);
+}
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 // ES6 section 19.2.3.5 Function.prototype.toString ( )
 BUILTIN(FunctionPrototypeToString) {

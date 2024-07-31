@@ -49,7 +49,7 @@ static size_t bytes_read;
 static void write_cb(uv_write_t* req, int status) {
   struct write_info* write_info =
       container_of(req, struct write_info, write_req);
-  ASSERT(status == 0);
+  ASSERT_OK(status);
   bytes_written += BUFFERS_PER_WRITE * BUFFER_SIZE;
   free(write_info);
 }
@@ -75,7 +75,7 @@ static void do_write(uv_stream_t* handle) {
 
   r = uv_write(
       &write_info->write_req, handle, bufs, BUFFERS_PER_WRITE, write_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 }
 
 static void alloc_cb(uv_handle_t* handle,
@@ -94,18 +94,18 @@ static void read_cb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   ssize_t i;
   int r;
 
-  ASSERT(nread >= 0);
+  ASSERT_GE(nread, 0);
   bytes_read += nread;
 
   for (i = 0; i < nread; i++)
-    ASSERT(buf->base[i] == BUFFER_CONTENT);
+    ASSERT_EQ(buf->base[i], BUFFER_CONTENT);
   free(buf->base);
 
   if (bytes_read >= XFER_SIZE) {
     r = uv_read_stop(handle);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
     r = uv_shutdown(&shutdown_req, handle, shutdown_cb);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
   }
 }
 
@@ -121,13 +121,13 @@ static void do_writes_and_reads(uv_stream_t* handle) {
   }
 
   r = uv_read_start(handle, alloc_cb, read_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_run(handle->loop, UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(bytes_written == XFER_SIZE);
-  ASSERT(bytes_read == XFER_SIZE);
+  ASSERT_EQ(bytes_written, XFER_SIZE);
+  ASSERT_EQ(bytes_read, XFER_SIZE);
 }
 
 TEST_IMPL(ipc_heavy_traffic_deadlock_bug) {
@@ -146,9 +146,9 @@ int ipc_helper_heavy_traffic_deadlock_bug(void) {
   int r;
 
   r = uv_pipe_init(uv_default_loop(), &pipe, 1);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_pipe_open(&pipe, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   notify_parent_process();
   do_writes_and_reads((uv_stream_t*) &pipe);

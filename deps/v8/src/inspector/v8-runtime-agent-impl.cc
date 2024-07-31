@@ -126,13 +126,13 @@ void innerCallFunctionOn(
     std::unique_ptr<V8RuntimeAgentImpl::CallFunctionOnCallback> callback) {
   V8InspectorImpl* inspector = session->inspector();
 
-  std::unique_ptr<v8::Local<v8::Value>[]> argv = nullptr;
+  std::unique_ptr<v8::Global<v8::Value>[]> argv = nullptr;
   int argc = 0;
   if (optionalArguments.has_value()) {
     protocol::Array<protocol::Runtime::CallArgument>& arguments =
         optionalArguments.value();
     argc = static_cast<int>(arguments.size());
-    argv.reset(new v8::Local<v8::Value>[argc]);
+    argv.reset(new v8::Global<v8::Value>[argc]);
     for (int i = 0; i < argc; ++i) {
       v8::Local<v8::Value> argumentValue;
       Response response = scope.injectedScript()->resolveCallArgument(
@@ -141,7 +141,7 @@ void innerCallFunctionOn(
         callback->sendFailure(response);
         return;
       }
-      argv[i] = argumentValue;
+      argv[i] = v8::Global<v8::Value>(inspector->isolate(), argumentValue);
     }
   }
 
@@ -202,7 +202,7 @@ void innerCallFunctionOn(
 
   if (!awaitPromise || scope.tryCatch().HasCaught()) {
     wrapEvaluateResultAsync(scope.injectedScript(), maybeResultValue,
-                            scope.tryCatch(), objectGroup, *wrapOptions.get(),
+                            scope.tryCatch(), objectGroup, *wrapOptions,
                             throwOnSideEffect, callback.get());
     return;
   }
@@ -245,8 +245,8 @@ Response ensureContext(V8InspectorImpl* inspector, int contextGroupId,
 Response parseAdditionalSerializationParameters(
     protocol::DictionaryValue* additionalParameters, v8::Isolate* isolate,
     v8::Local<v8::Object>* result) {
-  std::vector<v8::Local<v8::Name>> keys;
-  std::vector<v8::Local<v8::Value>> values;
+  v8::LocalVector<v8::Name> keys(isolate);
+  v8::LocalVector<v8::Value> values(isolate);
 
   if (additionalParameters != nullptr) {
     for (size_t i = 0; i < additionalParameters->size(); ++i) {
@@ -278,7 +278,6 @@ Response parseAdditionalSerializationParameters(
 
 Response getWrapOptions(
     Maybe<bool> returnByValue, Maybe<bool> generatePreview,
-    Maybe<bool> generateWebDriverValue,
     Maybe<protocol::Runtime::SerializationOptions> maybeSerializationOptions,
     v8::Isolate* isolate, std::unique_ptr<WrapOptions>* result) {
   if (maybeSerializationOptions.has_value()) {
@@ -314,10 +313,6 @@ Response getWrapOptions(
         serializationModeStr.utf8());
   }
 
-  if (generateWebDriverValue.value_or(false)) {
-    *result = std::make_unique<WrapOptions>(WrapOptions{WrapMode::kWebDriver});
-    return Response::Success();
-  }
   if (returnByValue.value_or(false)) {
     *result = std::make_unique<WrapOptions>(WrapOptions{WrapMode::kJson});
     return Response::Success();
@@ -331,12 +326,10 @@ Response getWrapOptions(
 }
 
 Response getWrapOptions(Maybe<bool> returnByValue, Maybe<bool> generatePreview,
-                        Maybe<bool> generateWebDriverValue,
                         v8::Isolate* isolate,
                         std::unique_ptr<WrapOptions>* result) {
   return getWrapOptions(
       std::move(returnByValue), std::move(generatePreview),
-      std::move(generateWebDriverValue),
       Maybe<protocol::Runtime::
                 SerializationOptions>() /* empty serialization options */,
       isolate, result);
@@ -365,7 +358,6 @@ void V8RuntimeAgentImpl::evaluate(
     Maybe<bool> maybeAwaitPromise, Maybe<bool> throwOnSideEffect,
     Maybe<double> timeout, Maybe<bool> disableBreaks, Maybe<bool> maybeReplMode,
     Maybe<bool> allowUnsafeEvalBlockedByCSP, Maybe<String16> uniqueContextId,
-    Maybe<bool> generateWebDriverValue,
     Maybe<protocol::Runtime::SerializationOptions> serializationOptions,
     std::unique_ptr<EvaluateCallback> callback) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
@@ -433,8 +425,7 @@ void V8RuntimeAgentImpl::evaluate(
   std::unique_ptr<WrapOptions> wrapOptions;
   response = getWrapOptions(
       std::move(returnByValue), std::move(generatePreview),
-      std::move(generateWebDriverValue), std::move(serializationOptions),
-      m_inspector->isolate(), &wrapOptions);
+      std::move(serializationOptions), m_inspector->isolate(), &wrapOptions);
   if (!response.IsSuccess()) {
     callback->sendFailure(response);
     return;
@@ -445,8 +436,8 @@ void V8RuntimeAgentImpl::evaluate(
   if (!await || scope.tryCatch().HasCaught()) {
     wrapEvaluateResultAsync(scope.injectedScript(), maybeResultValue,
                             scope.tryCatch(), objectGroup.value_or(""),
-                            *wrapOptions.get(),
-                            throwOnSideEffect.value_or(false), callback.get());
+                            *wrapOptions, throwOnSideEffect.value_or(false),
+                            callback.get());
     return;
   }
   scope.injectedScript()->addPromiseCallback(
@@ -472,9 +463,9 @@ void V8RuntimeAgentImpl::awaitPromise(
   }
 
   std::unique_ptr<WrapOptions> wrapOptions;
-  response = getWrapOptions(
-      std::move(returnByValue), std::move(generatePreview),
-      false /* generateWebDriverValue */, m_inspector->isolate(), &wrapOptions);
+  response =
+      getWrapOptions(std::move(returnByValue), std::move(generatePreview),
+                     m_inspector->isolate(), &wrapOptions);
   if (!response.IsSuccess()) {
     callback->sendFailure(response);
     return;
@@ -494,7 +485,6 @@ void V8RuntimeAgentImpl::callFunctionOn(
     Maybe<bool> userGesture, Maybe<bool> awaitPromise,
     Maybe<int> executionContextId, Maybe<String16> objectGroup,
     Maybe<bool> throwOnSideEffect, Maybe<String16> uniqueContextId,
-    Maybe<bool> generateWebDriverValue,
     Maybe<protocol::Runtime::SerializationOptions> serializationOptions,
     std::unique_ptr<CallFunctionOnCallback> callback) {
   int justCount = (objectId.has_value() ? 1 : 0) +
@@ -524,8 +514,7 @@ void V8RuntimeAgentImpl::callFunctionOn(
     std::unique_ptr<WrapOptions> wrapOptions;
     response = getWrapOptions(
         std::move(returnByValue), std::move(generatePreview),
-        std::move(generateWebDriverValue), std::move(serializationOptions),
-        m_inspector->isolate(), &wrapOptions);
+        std::move(serializationOptions), m_inspector->isolate(), &wrapOptions);
     if (!response.IsSuccess()) {
       callback->sendFailure(response);
       return;
@@ -556,8 +545,7 @@ void V8RuntimeAgentImpl::callFunctionOn(
     std::unique_ptr<WrapOptions> wrapOptions;
     response = getWrapOptions(
         std::move(returnByValue), std::move(generatePreview),
-        std::move(generateWebDriverValue), std::move(serializationOptions),
-        m_inspector->isolate(), &wrapOptions);
+        std::move(serializationOptions), m_inspector->isolate(), &wrapOptions);
     if (!response.IsSuccess()) {
       callback->sendFailure(response);
       return;
@@ -598,15 +586,15 @@ Response V8RuntimeAgentImpl::getProperties(
   v8::Local<v8::Object> object = scope.object().As<v8::Object>();
 
   std::unique_ptr<WrapOptions> wrapOptions;
-  response = getWrapOptions(
-      false /* returnByValue */, std::move(generatePreview),
-      false /* generateWebDriverValue */, m_inspector->isolate(), &wrapOptions);
+  response =
+      getWrapOptions(false /* returnByValue */, std::move(generatePreview),
+                     m_inspector->isolate(), &wrapOptions);
   if (!response.IsSuccess()) return response;
 
   response = scope.injectedScript()->getProperties(
       object, scope.objectGroupName(), ownProperties.value_or(false),
       accessorPropertiesOnly.value_or(false),
-      nonIndexedPropertiesOnly.value_or(false), *wrapOptions.get(), result,
+      nonIndexedPropertiesOnly.value_or(false), *wrapOptions, result,
       exceptionDetails);
   if (!response.IsSuccess()) return response;
   if (exceptionDetails->isJust()) return Response::Success();
@@ -784,9 +772,9 @@ void V8RuntimeAgentImpl::runScript(
   }
 
   std::unique_ptr<WrapOptions> wrapOptions;
-  response = getWrapOptions(
-      std::move(returnByValue), std::move(generatePreview),
-      false /* generateWebDriverValue */, m_inspector->isolate(), &wrapOptions);
+  response =
+      getWrapOptions(std::move(returnByValue), std::move(generatePreview),
+                     m_inspector->isolate(), &wrapOptions);
   if (!response.IsSuccess()) {
     callback->sendFailure(response);
     return;
@@ -795,7 +783,7 @@ void V8RuntimeAgentImpl::runScript(
   if (!awaitPromise.value_or(false) || scope.tryCatch().HasCaught()) {
     wrapEvaluateResultAsync(scope.injectedScript(), maybeResultValue,
                             scope.tryCatch(), objectGroup.value_or(""),
-                            *wrapOptions.get(), false /* throwOnSideEffect */,
+                            *wrapOptions, false /* throwOnSideEffect */,
                             callback.get());
     return;
   }

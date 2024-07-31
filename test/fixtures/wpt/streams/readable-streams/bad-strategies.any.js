@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,shadowrealm
 'use strict';
 
 test(() => {
@@ -149,7 +149,9 @@ promise_test(() => {
       }
     );
 
-    promises.push(rs.getReader().closed.catch(e => {
+    promises.push(rs.getReader().closed.then(() => {
+      assert_unreached('closed didn\'t throw');
+    }, e => {
       assert_equals(e, theError, 'closed should reject with the error for ' + size);
     }));
   }
@@ -157,3 +159,40 @@ promise_test(() => {
   return Promise.all(promises);
 
 }, 'Readable stream: invalid strategy.size return value');
+
+promise_test(() => {
+
+  const promises = [];
+  for (const size of [NaN, -Infinity, Infinity, -1]) {
+    let theError;
+    const rs = new ReadableStream(
+      {
+        pull(c) {
+          try {
+            c.enqueue('hi');
+            assert_unreached('enqueue didn\'t throw');
+          } catch (error) {
+            assert_equals(error.name, 'RangeError', 'enqueue should throw a RangeError for ' + size);
+            theError = error;
+          }
+        }
+      },
+      {
+        size() {
+          return size;
+        },
+        highWaterMark: 5
+      }
+    );
+
+    promises.push(rs.getReader().closed.then(() => {
+      assert_unreached('closed didn\'t throw');
+    }, e => {
+      assert_equals(e, theError, 'closed should reject with the error for ' + size);
+    }));
+  }
+
+  return Promise.all(promises);
+
+}, 'Readable stream: invalid strategy.size return value when pulling');
+

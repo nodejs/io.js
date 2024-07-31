@@ -7,9 +7,9 @@
 namespace data_view {
 
 const kBuiltinNameByteLength: constexpr string =
-    'DataView.prototype.byteLength';
+    'get DataView.prototype.byteLength';
 const kBuiltinNameByteOffset: constexpr string =
-    'DataView.prototype.byteOffset';
+    'get DataView.prototype.byteOffset';
 
 macro MakeDataViewGetterNameString(kind: constexpr ElementsKind): String {
   if constexpr (kind == ElementsKind::UINT8_ELEMENTS) {
@@ -24,6 +24,8 @@ macro MakeDataViewGetterNameString(kind: constexpr ElementsKind): String {
     return 'DataView.prototype.getUint32';
   } else if constexpr (kind == ElementsKind::INT32_ELEMENTS) {
     return 'DataView.prototype.getInt32';
+  } else if constexpr (kind == ElementsKind::FLOAT16_ELEMENTS) {
+    return 'DataView.prototype.getFloat16';
   } else if constexpr (kind == ElementsKind::FLOAT32_ELEMENTS) {
     return 'DataView.prototype.getFloat32';
   } else if constexpr (kind == ElementsKind::FLOAT64_ELEMENTS) {
@@ -50,6 +52,8 @@ macro MakeDataViewSetterNameString(kind: constexpr ElementsKind): String {
     return 'DataView.prototype.setUint32';
   } else if constexpr (kind == ElementsKind::INT32_ELEMENTS) {
     return 'DataView.prototype.setInt32';
+  } else if constexpr (kind == ElementsKind::FLOAT16_ELEMENTS) {
+    return 'DataView.prototype.setFloat16';
   } else if constexpr (kind == ElementsKind::FLOAT32_ELEMENTS) {
     return 'DataView.prototype.setFloat32';
   } else if constexpr (kind == ElementsKind::FLOAT64_ELEMENTS) {
@@ -77,7 +81,7 @@ macro ValidateDataView(context: Context, o: JSAny, method: String):
       return UnsafeCast<JSRabGsabDataView>(o);
     }
     case (_x: JSAny): {
-      ThrowTypeError(MessageTemplate::kIncompatibleMethodReceiver, method);
+      ThrowTypeError(MessageTemplate::kIncompatibleMethodReceiver, method, o);
     }
   }
 }
@@ -96,7 +100,7 @@ javascript builtin DataViewPrototypeGetByteLength(
     js-implicit context: NativeContext, receiver: JSAny)(
     ...arguments): Number {
   const dataView: JSDataViewOrRabGsabDataView =
-      ValidateDataView(context, receiver, 'get DataView.prototype.byte_length');
+      ValidateDataView(context, receiver, 'get DataView.prototype.byteLength');
   if (IsVariableLengthJSArrayBufferView(dataView)) {
     try {
       const byteLength = LoadVariableLengthJSArrayBufferViewByteLength(
@@ -120,7 +124,7 @@ javascript builtin DataViewPrototypeGetByteOffset(
     js-implicit context: NativeContext, receiver: JSAny)(
     ...arguments): Number {
   const dataView: JSDataViewOrRabGsabDataView =
-      ValidateDataView(context, receiver, 'get DataView.prototype.byte_offset');
+      ValidateDataView(context, receiver, 'get DataView.prototype.byteOffset');
   try {
     typed_array::IsJSArrayBufferViewDetachedOrOutOfBounds(dataView)
         otherwise DetachedOrOutOfBounds, NotDetachedNorOutOfBounds;
@@ -204,6 +208,23 @@ macro LoadDataView32(
   } else {
     unreachable;
   }
+}
+macro LoadDataViewFloat16(
+    buffer: JSArrayBuffer, offset: uintptr,
+    requestedLittleEndian: bool): Number {
+  const dataPointer: RawPtr = buffer.backing_store_ptr;
+  const b0: uint32 = LoadUint8(dataPointer, offset);
+  const b1: uint32 = LoadUint8(dataPointer, offset + 1);
+  let result: uint32;
+
+  if (requestedLittleEndian) {
+    result = (b1 << 8) | b0;
+  } else {
+    result = (b0 << 8) | b1;
+  }
+
+  const floatRes: float64 = Convert<float64>(BitcastUint32ToFloat16(result));
+  return Convert<Number>(floatRes);
 }
 
 macro LoadDataViewFloat64(
@@ -449,6 +470,8 @@ transitioning macro DataViewGet(
       return LoadDataView32(buffer, bufferIndex, littleEndian, kind);
     } else if constexpr (kind == ElementsKind::INT32_ELEMENTS) {
       return LoadDataView32(buffer, bufferIndex, littleEndian, kind);
+    } else if constexpr (kind == ElementsKind::FLOAT16_ELEMENTS) {
+      return LoadDataViewFloat16(buffer, bufferIndex, littleEndian);
     } else if constexpr (kind == ElementsKind::FLOAT32_ELEMENTS) {
       return LoadDataView32(buffer, bufferIndex, littleEndian, kind);
     } else if constexpr (kind == ElementsKind::FLOAT64_ELEMENTS) {
@@ -509,6 +532,15 @@ transitioning javascript builtin DataViewPrototypeGetInt32(
   const isLittleEndian: JSAny = arguments[1];
   return DataViewGet(
       context, receiver, offset, isLittleEndian, ElementsKind::INT32_ELEMENTS);
+}
+
+transitioning javascript builtin DataViewPrototypeGetFloat16(
+    js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
+  const offset: JSAny = arguments[0];
+  const isLittleEndian: JSAny = arguments[1];
+  return DataViewGet(
+      context, receiver, offset, isLittleEndian,
+      ElementsKind::FLOAT16_ELEMENTS);
 }
 
 transitioning javascript builtin DataViewPrototypeGetFloat32(
@@ -777,6 +809,11 @@ transitioning macro DataViewSet(
         StoreDataView16(
             buffer, bufferIndex, TruncateFloat64ToWord32(doubleValue),
             littleEndian);
+      } else if constexpr (kind == ElementsKind::FLOAT16_ELEMENTS) {
+        const floatValue: float16 = TruncateFloat64ToFloat16(doubleValue);
+        StoreDataView16(
+            buffer, bufferIndex, BitcastFloat16ToUint32(floatValue),
+            littleEndian);
       } else if constexpr (
           kind == ElementsKind::UINT32_ELEMENTS ||
           kind == ElementsKind::INT32_ELEMENTS) {
@@ -855,6 +892,16 @@ transitioning javascript builtin DataViewPrototypeSetInt32(
   return DataViewSet(
       context, receiver, offset, value, isLittleEndian,
       ElementsKind::INT32_ELEMENTS);
+}
+
+transitioning javascript builtin DataViewPrototypeSetFloat16(
+    js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
+  const offset: JSAny = arguments[0];
+  const value: JSAny = arguments[1];
+  const isLittleEndian: JSAny = arguments[2];
+  return DataViewSet(
+      context, receiver, offset, value, isLittleEndian,
+      ElementsKind::FLOAT16_ELEMENTS);
 }
 
 transitioning javascript builtin DataViewPrototypeSetFloat32(

@@ -60,14 +60,14 @@ static void read_cb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
 
 
 static void connect_cb(uv_connect_t* req, int status) {
-  ASSERT(req->handle == (uv_stream_t*) &client_handle);
-  ASSERT(0 == status);
+  ASSERT_PTR_EQ(req->handle, (uv_stream_t*) &client_handle);
+  ASSERT_OK(status);
 }
 
 
 static void write_cb(uv_write_t* req, int status) {
-  ASSERT(req->handle == (uv_stream_t*) &peer_handle);
-  ASSERT(0 == status);
+  ASSERT_PTR_EQ(req->handle, (uv_stream_t*) &peer_handle);
+  ASSERT_OK(status);
 }
 
 
@@ -76,11 +76,11 @@ static void connection_cb(uv_stream_t* handle, int status) {
 
   buf = uv_buf_init("PING", 4);
 
-  ASSERT(0 == status);
-  ASSERT(0 == uv_accept(handle, (uv_stream_t*) &peer_handle));
-  ASSERT(0 == uv_read_start((uv_stream_t*) &peer_handle, alloc_cb, read_cb));
-  ASSERT(0 == uv_write(&write_req, (uv_stream_t*) &peer_handle,
-                       &buf, 1, write_cb));
+  ASSERT_OK(status);
+  ASSERT_OK(uv_accept(handle, (uv_stream_t*) &peer_handle));
+  ASSERT_OK(uv_read_start((uv_stream_t*) &peer_handle, alloc_cb, read_cb));
+  ASSERT_OK(uv_write(&write_req, (uv_stream_t*) &peer_handle,
+                     &buf, 1, write_cb));
 }
 
 
@@ -88,29 +88,29 @@ TEST_IMPL(tcp_unexpected_read) {
   struct sockaddr_in addr;
   uv_loop_t* loop;
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
   loop = uv_default_loop();
 
-  ASSERT(0 == uv_timer_init(loop, &timer_handle));
-  ASSERT(0 == uv_timer_start(&timer_handle, timer_cb, 1000, 0));
-  ASSERT(0 == uv_check_init(loop, &check_handle));
-  ASSERT(0 == uv_check_start(&check_handle, check_cb));
-  ASSERT(0 == uv_tcp_init(loop, &server_handle));
-  ASSERT(0 == uv_tcp_init(loop, &client_handle));
-  ASSERT(0 == uv_tcp_init(loop, &peer_handle));
-  ASSERT(0 == uv_tcp_bind(&server_handle, (const struct sockaddr*) &addr, 0));
-  ASSERT(0 == uv_listen((uv_stream_t*) &server_handle, 1, connection_cb));
-  ASSERT(0 == uv_tcp_connect(&connect_req,
-                             &client_handle,
-                             (const struct sockaddr*) &addr,
-                             connect_cb));
-  ASSERT(0 == uv_run(loop, UV_RUN_DEFAULT));
+  ASSERT_OK(uv_timer_init(loop, &timer_handle));
+  ASSERT_OK(uv_timer_start(&timer_handle, timer_cb, 1000, 0));
+  ASSERT_OK(uv_check_init(loop, &check_handle));
+  ASSERT_OK(uv_check_start(&check_handle, check_cb));
+  ASSERT_OK(uv_tcp_init(loop, &server_handle));
+  ASSERT_OK(uv_tcp_init(loop, &client_handle));
+  ASSERT_OK(uv_tcp_init(loop, &peer_handle));
+  ASSERT_OK(uv_tcp_bind(&server_handle, (const struct sockaddr*) &addr, 0));
+  ASSERT_OK(uv_listen((uv_stream_t*) &server_handle, 1, connection_cb));
+  ASSERT_OK(uv_tcp_connect(&connect_req,
+                           &client_handle,
+                           (const struct sockaddr*) &addr,
+                           connect_cb));
+  ASSERT_OK(uv_run(loop, UV_RUN_DEFAULT));
 
   /* This is somewhat inexact but the idea is that the event loop should not
    * start busy looping when the server sends a message and the client isn't
    * reading.
    */
-  ASSERT(ticks <= 20);
+  ASSERT_LE(ticks, 20);
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

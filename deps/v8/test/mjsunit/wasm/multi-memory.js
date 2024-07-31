@@ -219,8 +219,8 @@ function assertMemoryEquals(expected, memory) {
   addLoadAndStoreFunctions(builder, mem1_idx);
   const mem0_offset = 11;
   const mem1_offset = 23;
-  builder.addDataSegment(mem1_offset, [7, 7], false, 1);
-  builder.addDataSegment(mem0_offset, [9, 9], false, 0);
+  builder.addActiveDataSegment(1, [kExprI32Const, mem1_offset], [7, 7]);
+  builder.addActiveDataSegment(0, [kExprI32Const, mem0_offset], [9, 9]);
   builder.exportMemoryAs('mem0', 0);
   builder.exportMemoryAs('mem1', 1);
 
@@ -242,8 +242,11 @@ function assertMemoryEquals(expected, memory) {
       var builder = new WasmModuleBuilder();
       const mem0_idx = builder.addMemory(mem0_size, mem0_size);
       const mem1_idx = builder.addMemory(mem1_size, mem1_size);
-      builder.addDataSegment(mem0_offset * kPageSize, [0], false, mem0_idx);
-      builder.addDataSegment(mem1_offset * kPageSize, [0], false, mem1_idx);
+      builder.addActiveDataSegment(
+          mem0_idx, wasmI32Const(mem0_offset * kPageSize), [0]);
+      builder.addActiveDataSegment(
+          mem1_idx, wasmI32Const(mem1_offset * kPageSize), [0]);
+
       if (mem0_offset < mem0_size && mem1_offset < mem1_size) {
         builder.instantiate();  // should not throw.
         continue;
@@ -497,8 +500,10 @@ function assertMemoryEquals(expected, memory) {
   }
 
   for (let run = 0; run < 10; ++run) {
-    let inputs = new Array(4).fill(0).map(
-        i => Math.floor(Math.random() * kPageSize));
+    // Return a random index in [0, kPageSize - 3) such that we can read four
+    // bytes from there.
+    let get_random_offset = () => Math.floor(Math.random() * (kPageSize - 3));
+    let inputs = new Array(4).fill(0).map(get_random_offset);
     for (let [func_idx, mem_indexes] of mem_indexes_list.entries()) {
       let expected = 0;
       for (let i = 0; i < 4; ++i) {

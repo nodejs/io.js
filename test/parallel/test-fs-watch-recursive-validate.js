@@ -23,7 +23,7 @@ tmpdir.refresh();
 (async () => {
   // Handle non-boolean values for options.recursive
 
-  if (!common.isWindows && !common.isOSX) {
+  if (!common.isWindows && !common.isMacOS) {
     assert.throws(() => {
       const testsubdir = fs.mkdtempSync(testDir + path.sep);
       fs.watch(testsubdir, { recursive: '1' });

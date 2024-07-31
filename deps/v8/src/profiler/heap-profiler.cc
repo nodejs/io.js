@@ -4,6 +4,8 @@
 
 #include "src/profiler/heap-profiler.h"
 
+#include <fstream>
+
 #include "include/v8-profiler.h"
 #include "src/api/api-inl.h"
 #include "src/base/optional.h"
@@ -92,8 +94,9 @@ HeapSnapshot* HeapProfiler::TakeSnapshot(
   // should scan the same part of the stack.
   heap()->stack().SetMarkerIfNeededAndCallback([this, &options, &result]() {
     base::Optional<CppClassNamesAsHeapObjectNameScope> use_cpp_class_name;
-    if (result->expose_internals() && heap()->cpp_heap())
+    if (result->expose_internals() && heap()->cpp_heap()) {
       use_cpp_class_name.emplace(heap()->cpp_heap());
+    }
 
     HeapSnapshotGenerator generator(result, options.control,
                                     options.global_object_name_resolver, heap(),
@@ -116,12 +119,55 @@ HeapSnapshot* HeapProfiler::TakeSnapshot(
   return result;
 }
 
+class FileOutputStream : public v8::OutputStream {
+ public:
+  explicit FileOutputStream(const char* filename) : os_(filename) {}
+  ~FileOutputStream() override { os_.close(); }
+
+  WriteResult WriteAsciiChunk(char* data, int size) override {
+    os_.write(data, size);
+    return kContinue;
+  }
+
+  void EndOfStream() override { os_.close(); }
+
+ private:
+  std::ofstream os_;
+};
+
+// Precondition: only call this if you have just completed a full GC cycle.
+void HeapProfiler::WriteSnapshotToDiskAfterGC() {
+  // We need to set a stack marker for the stack walk performed by the
+  // snapshot generator to work.
+  heap()->stack().SetMarkerIfNeededAndCallback([this]() {
+    int64_t time = V8::GetCurrentPlatform()->CurrentClockTimeMilliseconds();
+    std::string filename = "v8-heap-" + std::to_string(time) + ".heapsnapshot";
+    v8::HeapProfiler::HeapSnapshotOptions options;
+    std::unique_ptr<HeapSnapshot> result(
+        new HeapSnapshot(this, options.snapshot_mode, options.numerics_mode));
+    HeapSnapshotGenerator generator(result.get(), options.control,
+                                    options.global_object_name_resolver, heap(),
+                                    options.stack_state);
+    if (!generator.GenerateSnapshotAfterGC()) return;
+    FileOutputStream stream(filename.c_str());
+    HeapSnapshotJSONSerializer serializer(result.get());
+    serializer.Serialize(&stream);
+    PrintF("Wrote heap snapshot to %s.\n", filename.c_str());
+  });
+}
+
+void HeapProfiler::TakeSnapshotToFile(
+    const v8::HeapProfiler::HeapSnapshotOptions options, std::string filename) {
+  HeapSnapshot* snapshot = TakeSnapshot(options);
+  FileOutputStream stream(filename.c_str());
+  HeapSnapshotJSONSerializer serializer(snapshot);
+  serializer.Serialize(&stream);
+}
+
 bool HeapProfiler::StartSamplingHeapProfiler(
     uint64_t sample_interval, int stack_depth,
     v8::HeapProfiler::SamplingFlags flags) {
-  if (sampling_heap_profiler_.get()) {
-    return false;
-  }
+  if (sampling_heap_profiler_) return false;
   sampling_heap_profiler_.reset(new SamplingHeapProfiler(
       heap(), names_.get(), sample_interval, stack_depth, flags));
   return true;
@@ -133,7 +179,7 @@ void HeapProfiler::StopSamplingHeapProfiler() {
 }
 
 v8::AllocationProfile* HeapProfiler::GetAllocationProfile() {
-  if (sampling_heap_profiler_.get()) {
+  if (sampling_heap_profiler_) {
     return sampling_heap_profiler_->GetAllocationProfile();
   } else {
     return nullptr;
@@ -247,7 +293,7 @@ Heap* HeapProfiler::heap() const { return ids_->heap(); }
 Isolate* HeapProfiler::isolate() const { return heap()->isolate(); }
 
 void HeapProfiler::QueryObjects(Handle<Context> context,
-                                debug::QueryObjectPredicate* predicate,
+                                v8::QueryObjectPredicate* predicate,
                                 std::vector<v8::Global<v8::Object>>* objects) {
   // We need a stack marker here to allow deterministic passes over the stack.
   // The garbage collection and the two object heap iterators should scan the

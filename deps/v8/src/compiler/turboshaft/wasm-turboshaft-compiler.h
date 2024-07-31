@@ -9,6 +9,9 @@
 #ifndef V8_COMPILER_TURBOSHAFT_WASM_TURBOSHAFT_COMPILER_H_
 #define V8_COMPILER_TURBOSHAFT_WASM_TURBOSHAFT_COMPILER_H_
 
+#include "src/codegen/compiler.h"
+#include "src/codegen/optimized-compilation-info.h"
+
 namespace v8::internal::wasm {
 struct CompilationEnv;
 struct WasmCompilationResult;
@@ -24,7 +27,23 @@ wasm::WasmCompilationResult ExecuteTurboshaftWasmCompilation(
     wasm::CompilationEnv* env, WasmCompilationData& data,
     wasm::WasmFeatures* detected);
 
-}
+class TurboshaftCompilationJob : public OptimizedCompilationJob {
+ public:
+  TurboshaftCompilationJob(OptimizedCompilationInfo* compilation_info,
+                           State initial_state)
+      : OptimizedCompilationJob("Turboshaft", initial_state),
+        compilation_info_(compilation_info) {}
+
+  OptimizedCompilationInfo* compilation_info() const {
+    return compilation_info_;
+  }
+
+ private:
+  OptimizedCompilationInfo* const compilation_info_;
+};
+
+}  // namespace turboshaft
+
 }  // namespace v8::internal::compiler
 
 #endif  // V8_COMPILER_TURBOSHAFT_WASM_TURBOSHAFT_COMPILER_H_

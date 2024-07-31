@@ -20,7 +20,7 @@ const commonEvals = {
   staticImport: (module) => `import ${JSON.stringify(`data:text/javascript,${encodeURIComponent(module)}`)};`,
 };
 
-describe('ESM: programmatically register loaders', { concurrency: true }, () => {
+describe('ESM: programmatically register loaders', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('works with only a dummy CLI argument', async () => {
     const parentURL = fixtures.fileURL('es-module-loaders', 'loader-resolve-passthru.mjs');
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
@@ -49,7 +49,7 @@ describe('ESM: programmatically register loaders', { concurrency: true }, () => 
     assert.strictEqual(lines[5], '');
   });
 
-  describe('registering via --import', { concurrency: true }, () => {
+  describe('registering via --import', { concurrency: !process.env.TEST_PARALLEL }, () => {
     for (const moduleType of ['mjs', 'cjs']) {
       it(`should programmatically register a loader from a ${moduleType.toUpperCase()} file`, async () => {
         const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [

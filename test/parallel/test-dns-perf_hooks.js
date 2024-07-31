@@ -42,6 +42,7 @@ process.on('exit', () => {
         assert.strictEqual(typeof entry.detail.family, 'number');
         assert.strictEqual(typeof entry.detail.hints, 'number');
         assert.strictEqual(typeof entry.detail.verbatim, 'boolean');
+        assert.strictEqual(typeof entry.detail.order, 'string');
         assert.strictEqual(Array.isArray(entry.detail.addresses), true);
         break;
       case 'lookupService':

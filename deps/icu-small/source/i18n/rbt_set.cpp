@@ -197,7 +197,7 @@ TransliterationRuleSet::TransliterationRuleSet(const TransliterationRuleSet& oth
             ruleVector->adoptElement(tempTranslitRule.orphan(), status);
         }
     }
-    if (other.rules != 0 && U_SUCCESS(status)) {
+    if (other.rules != nullptr && U_SUCCESS(status)) {
         UParseError p;
         freeze(p, status);
     }
@@ -253,7 +253,7 @@ void TransliterationRuleSet::addRule(TransliterationRule* adoptedRule,
     }
 
     uprv_free(rules);
-    rules = 0;
+    rules = nullptr;
 }
 
 /**
@@ -297,7 +297,7 @@ void TransliterationRuleSet::freeze(UParseError& parseError,UErrorCode& status) 
      */
     int16_t* indexValue = (int16_t*) uprv_malloc( sizeof(int16_t) * (n > 0 ? n : 1) );
     /* test for nullptr */
-    if (indexValue == 0) {
+    if (indexValue == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         return;
     }
@@ -341,7 +341,7 @@ void TransliterationRuleSet::freeze(UParseError& parseError,UErrorCode& status) 
     }
     rules = (TransliterationRule **)uprv_malloc(v.size() * sizeof(TransliterationRule *));
     /* test for nullptr */
-    if (rules == 0) {
+    if (rules == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         return;
     }

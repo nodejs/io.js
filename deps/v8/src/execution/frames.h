@@ -16,6 +16,7 @@
 #include "src/objects/objects.h"
 
 #if V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/stacks.h"
 #include "src/wasm/wasm-code-manager.h"
 #endif  // V8_ENABLE_WEBASSEMBLY
 
@@ -290,6 +291,15 @@ class StackFrame {
   inline Address unauthenticated_pc() const;
   static inline Address unauthenticated_pc(Address* pc_address);
 
+  // Conditionally calls either pc() or unauthenticated_pc() based on whether
+  // this is fast C call stack frame.
+  inline Address maybe_unauthenticated_pc() const;
+  static inline Address maybe_unauthenticated_pc(Address* pc_address);
+
+  // If the stack pointer is missing, this is a fast C call frame. For such
+  // frames we cannot compute a stack pointer because of the missing ExitFrame.
+  bool InFastCCall() const { return sp() == kNullAddress; }
+
   Address constant_pool() const { return *constant_pool_address(); }
   void set_constant_pool(Address constant_pool) {
     *constant_pool_address() = constant_pool;
@@ -322,8 +332,7 @@ class StackFrame {
   V8_EXPORT_PRIVATE Tagged<GcSafeCode> GcSafeLookupCode() const;
 
   virtual void Iterate(RootVisitor* v) const = 0;
-  void IteratePc(RootVisitor* v, Address* pc_address,
-                 Address* constant_pool_address,
+  void IteratePc(RootVisitor* v, Address* constant_pool_address,
                  Tagged<GcSafeCode> holder) const;
 
   // Sets a callback function for return-address rewriting profilers
@@ -453,6 +462,7 @@ class V8_EXPORT_PRIVATE FrameSummary {
     int SourceStatementPosition() const { return SourcePosition(); }
     Handle<Script> script() const;
     Handle<WasmInstanceObject> wasm_instance() const { return wasm_instance_; }
+    Handle<WasmTrustedInstanceData> wasm_trusted_instance_data() const;
     Handle<Context> native_context() const;
     bool at_to_number_conversion() const { return at_to_number_conversion_; }
     Handle<StackFrameInfo> CreateStackFrameInfo() const;
@@ -474,6 +484,7 @@ class V8_EXPORT_PRIVATE FrameSummary {
                             int function_index, int op_wire_bytes_offset);
 
     Handle<WasmInstanceObject> wasm_instance() const { return wasm_instance_; }
+    Handle<WasmTrustedInstanceData> wasm_trusted_instance_data() const;
     Handle<Object> receiver() const;
     uint32_t function_index() const;
     int code_offset() const { return op_wire_bytes_offset_; }
@@ -700,7 +711,8 @@ class JavaScriptFrame : public CommonFrameWithJSLinkage {
              int index) const override;
 
   // Return a list with {SharedFunctionInfo} objects of this frame.
-  virtual void GetFunctions(std::vector<SharedFunctionInfo>* functions) const;
+  virtual void GetFunctions(
+      std::vector<Tagged<SharedFunctionInfo>>* functions) const;
 
   void GetFunctions(std::vector<Handle<SharedFunctionInfo>>* functions) const;
 
@@ -714,14 +726,16 @@ class JavaScriptFrame : public CommonFrameWithJSLinkage {
     return static_cast<JavaScriptFrame*>(frame);
   }
 
-  static void PrintFunctionAndOffset(Tagged<JSFunction> function,
+  static void PrintFunctionAndOffset(Isolate* isolate,
+                                     Tagged<JSFunction> function,
                                      Tagged<AbstractCode> code, int code_offset,
                                      FILE* file, bool print_line_number);
 
   static void PrintTop(Isolate* isolate, FILE* file, bool print_args,
                        bool print_line_number);
 
-  static void CollectFunctionAndOffsetForICStats(Tagged<JSFunction> function,
+  static void CollectFunctionAndOffsetForICStats(Isolate* isolate,
+                                                 Tagged<JSFunction> function,
                                                  Tagged<AbstractCode> code,
                                                  int code_offset);
 
@@ -942,7 +956,8 @@ class OptimizedFrame : public JavaScriptFrame {
   // Return a list with {SharedFunctionInfo} objects of this frame.
   // The functions are ordered bottom-to-top (i.e. functions.last()
   // is the top-most activation)
-  void GetFunctions(std::vector<SharedFunctionInfo>* functions) const override;
+  void GetFunctions(
+      std::vector<Tagged<SharedFunctionInfo>>* functions) const override;
 
   void Summarize(std::vector<FrameSummary>* frames) const override;
 
@@ -981,6 +996,8 @@ class UnoptimizedFrame : public JavaScriptFrame {
 
   // Access to the interpreter register file for this frame.
   Tagged<Object> ReadInterpreterRegister(int register_index) const;
+
+  inline void SetFeedbackVector(Tagged<FeedbackVector> feedback_vector);
 
   // Build a list with summaries for this frame including all inlined frames.
   void Summarize(std::vector<FrameSummary>* frames) const override;
@@ -1138,7 +1155,9 @@ class WasmFrame : public TypedFrame {
 
   // Accessors.
   virtual V8_EXPORT_PRIVATE Tagged<WasmInstanceObject> wasm_instance() const;
+  virtual Tagged<WasmTrustedInstanceData> trusted_instance_data() const;
   V8_EXPORT_PRIVATE wasm::NativeModule* native_module() const;
+
   wasm::WasmCode* wasm_code() const;
   int function_index() const;
   Tagged<Script> script() const;
@@ -1205,6 +1224,7 @@ class WasmToJsFrame : public WasmFrame {
 
   int position() const override { return 0; }
   Tagged<WasmInstanceObject> wasm_instance() const override;
+  Tagged<WasmTrustedInstanceData> trusted_instance_data() const override;
 
  protected:
   inline explicit WasmToJsFrame(StackFrameIteratorBase* iterator);
@@ -1594,6 +1614,16 @@ class StackFrameIteratorForProfiler : public StackFrameIteratorBase {
   void AdvanceOneFrame();
 
   bool IsValidStackAddress(Address addr) const {
+#if V8_ENABLE_WEBASSEMBLY
+    wasm::StackMemory* head = wasm_stacks_;
+    if (head != nullptr) {
+      if (head->Contains(addr)) return true;
+      for (wasm::StackMemory* current = head->next(); current != head;
+           current = current->next()) {
+        if (current->Contains(addr)) return true;
+      }
+    }
+#endif
     return low_bound_ <= addr && addr <= high_bound_;
   }
   bool IsValidFrame(StackFrame* frame) const;
@@ -1615,6 +1645,9 @@ class StackFrameIteratorForProfiler : public StackFrameIteratorBase {
   StackFrame::Type top_frame_type_;
   ExternalCallbackScope* external_callback_scope_;
   Address top_link_register_;
+#if V8_ENABLE_WEBASSEMBLY
+  wasm::StackMemory* wasm_stacks_ = nullptr;
+#endif
 };
 
 // We cannot export 'StackFrameIteratorForProfiler' for cctests since the

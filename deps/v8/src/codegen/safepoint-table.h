@@ -118,6 +118,9 @@ class SafepointTable {
   SafepointEntry FindEntry(Address pc) const;
   static SafepointEntry FindEntry(Isolate* isolate, Tagged<GcSafeCode> code,
                                   Address pc);
+  // Tries to find the entry for the given pc. If the entry does not exist, it
+  // returns an uninitialized entry.
+  SafepointEntry TryFindEntry(Address pc) const;
 
   void Print(std::ostream&) const;
 
@@ -223,8 +226,10 @@ class SafepointTableBuilder : public SafepointTableBuilderBase {
     SafepointTableBuilder* const table_;
   };
 
-  // Define a new safepoint for the current position in the body.
-  Safepoint DefineSafepoint(Assembler* assembler);
+  // Define a new safepoint for the current position in the body. The
+  // `pc_offset` parameter allows to define a different offset than the current
+  // pc_offset.
+  Safepoint DefineSafepoint(Assembler* assembler, int pc_offset = 0);
 
   // Emit the safepoint table after the body. The number of bits per
   // entry must be enough to hold all the pointer indexes.

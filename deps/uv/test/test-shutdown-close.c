@@ -37,7 +37,7 @@ static int close_cb_called = 0;
 
 
 static void shutdown_cb(uv_shutdown_t* req, int status) {
-  ASSERT(req == &shutdown_req);
+  ASSERT_PTR_EQ(req, &shutdown_req);
   ASSERT(status == 0 || status == UV_ECANCELED);
   shutdown_cb_called++;
 }
@@ -51,14 +51,14 @@ static void close_cb(uv_handle_t* handle) {
 static void connect_cb(uv_connect_t* req, int status) {
   int r;
 
-  ASSERT(req == &connect_req);
-  ASSERT(status == 0);
+  ASSERT_PTR_EQ(req, &connect_req);
+  ASSERT_OK(status);
 
   r = uv_shutdown(&shutdown_req, req->handle, shutdown_cb);
-  ASSERT(r == 0);
-  ASSERT(0 == uv_is_closing((uv_handle_t*) req->handle));
+  ASSERT_OK(r);
+  ASSERT_OK(uv_is_closing((uv_handle_t*) req->handle));
   uv_close((uv_handle_t*) req->handle, close_cb);
-  ASSERT(1 == uv_is_closing((uv_handle_t*) req->handle));
+  ASSERT_EQ(1, uv_is_closing((uv_handle_t*) req->handle));
 
   connect_cb_called++;
 }
@@ -69,20 +69,20 @@ TEST_IMPL(shutdown_close_tcp) {
   uv_tcp_t h;
   int r;
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
   r = uv_tcp_init(uv_default_loop(), &h);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_tcp_connect(&connect_req,
                      &h,
                      (const struct sockaddr*) &addr,
                      connect_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(connect_cb_called == 1);
-  ASSERT(shutdown_cb_called == 1);
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(1, connect_cb_called);
+  ASSERT_EQ(1, shutdown_cb_called);
+  ASSERT_EQ(1, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -94,14 +94,14 @@ TEST_IMPL(shutdown_close_pipe) {
   int r;
 
   r = uv_pipe_init(uv_default_loop(), &h, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   uv_pipe_connect(&connect_req, &h, TEST_PIPENAME, connect_cb);
   r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
-  ASSERT(connect_cb_called == 1);
-  ASSERT(shutdown_cb_called == 1);
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(1, connect_cb_called);
+  ASSERT_EQ(1, shutdown_cb_called);
+  ASSERT_EQ(1, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

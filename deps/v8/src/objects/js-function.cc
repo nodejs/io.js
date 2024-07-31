@@ -9,6 +9,7 @@
 #include "src/codegen/compiler.h"
 #include "src/common/globals.h"
 #include "src/diagnostics/code-tracer.h"
+#include "src/execution/frames-inl.h"
 #include "src/execution/isolate.h"
 #include "src/execution/tiering-manager.h"
 #include "src/heap/heap-inl.h"
@@ -23,18 +24,18 @@
 namespace v8 {
 namespace internal {
 
-CodeKinds JSFunction::GetAttachedCodeKinds() const {
-  const CodeKind kind = code()->kind();
+CodeKinds JSFunction::GetAttachedCodeKinds(IsolateForSandbox isolate) const {
+  const CodeKind kind = code(isolate)->kind();
   if (!CodeKindIsJSFunction(kind)) return {};
   if (CodeKindIsOptimizedJSFunction(kind) &&
-      code()->marked_for_deoptimization()) {
+      code(isolate)->marked_for_deoptimization()) {
     return {};
   }
   return CodeKindToCodeKindFlag(kind);
 }
 
-CodeKinds JSFunction::GetAvailableCodeKinds() const {
-  CodeKinds result = GetAttachedCodeKinds();
+CodeKinds JSFunction::GetAvailableCodeKinds(IsolateForSandbox isolate) const {
+  CodeKinds result = GetAttachedCodeKinds(isolate);
 
   if ((result & CodeKindFlag::INTERPRETED_FUNCTION) == 0) {
     // The SharedFunctionInfo could have attached bytecode.
@@ -52,8 +53,10 @@ CodeKinds JSFunction::GetAvailableCodeKinds() const {
 
   // Check the optimized code cache.
   if (has_feedback_vector() && feedback_vector()->has_optimized_code() &&
-      !feedback_vector()->optimized_code()->marked_for_deoptimization()) {
-    Tagged<Code> code = feedback_vector()->optimized_code();
+      !feedback_vector()
+           ->optimized_code(isolate)
+           ->marked_for_deoptimization()) {
+    Tagged<Code> code = feedback_vector()->optimized_code(isolate);
     DCHECK(CodeKindIsOptimizedJSFunction(code->kind()));
     result |= CodeKindToCodeKindFlag(code->kind());
   }
@@ -62,39 +65,42 @@ CodeKinds JSFunction::GetAvailableCodeKinds() const {
   return result;
 }
 
-bool JSFunction::HasAttachedOptimizedCode() const {
-  CodeKinds result = GetAttachedCodeKinds();
+bool JSFunction::HasAttachedOptimizedCode(IsolateForSandbox isolate) const {
+  CodeKinds result = GetAttachedCodeKinds(isolate);
   return (result & kOptimizedJSFunctionCodeKindsMask) != 0;
 }
 
-bool JSFunction::HasAvailableHigherTierCodeThan(CodeKind kind) const {
-  return HasAvailableHigherTierCodeThanWithFilter(kind,
+bool JSFunction::HasAvailableHigherTierCodeThan(IsolateForSandbox isolate,
+                                                CodeKind kind) const {
+  return HasAvailableHigherTierCodeThanWithFilter(isolate, kind,
                                                   kJSFunctionCodeKindsMask);
 }
 
 bool JSFunction::HasAvailableHigherTierCodeThanWithFilter(
-    CodeKind kind, CodeKinds filter_mask) const {
+    IsolateForSandbox isolate, CodeKind kind, CodeKinds filter_mask) const {
   const int kind_as_int_flag = static_cast<int>(CodeKindToCodeKindFlag(kind));
   DCHECK(base::bits::IsPowerOfTwo(kind_as_int_flag));
   // Smear right - any higher present bit means we have a higher tier available.
   const int mask = kind_as_int_flag | (kind_as_int_flag - 1);
   const CodeKinds masked_available_kinds =
-      GetAvailableCodeKinds() & filter_mask;
+      GetAvailableCodeKinds(isolate) & filter_mask;
   return (masked_available_kinds & static_cast<CodeKinds>(~mask)) != 0;
 }
 
-bool JSFunction::HasAvailableOptimizedCode() const {
-  CodeKinds result = GetAvailableCodeKinds();
+bool JSFunction::HasAvailableOptimizedCode(IsolateForSandbox isolate) const {
+  CodeKinds result = GetAvailableCodeKinds(isolate);
   return (result & kOptimizedJSFunctionCodeKindsMask) != 0;
 }
 
-bool JSFunction::HasAttachedCodeKind(CodeKind kind) const {
-  CodeKinds result = GetAttachedCodeKinds();
+bool JSFunction::HasAttachedCodeKind(IsolateForSandbox isolate,
+                                     CodeKind kind) const {
+  CodeKinds result = GetAttachedCodeKinds(isolate);
   return (result & CodeKindToCodeKindFlag(kind)) != 0;
 }
 
-bool JSFunction::HasAvailableCodeKind(CodeKind kind) const {
-  CodeKinds result = GetAvailableCodeKinds();
+bool JSFunction::HasAvailableCodeKind(IsolateForSandbox isolate,
+                                      CodeKind kind) const {
+  CodeKinds result = GetAvailableCodeKinds(isolate);
   return (result & CodeKindToCodeKindFlag(kind)) != 0;
 }
 
@@ -117,19 +123,20 @@ V8_WARN_UNUSED_RESULT bool HighestTierOf(CodeKinds kinds,
 
 }  // namespace
 
-base::Optional<CodeKind> JSFunction::GetActiveTier() const {
+base::Optional<CodeKind> JSFunction::GetActiveTier(
+    IsolateForSandbox isolate) const {
 #if V8_ENABLE_WEBASSEMBLY
   // Asm/Wasm functions are currently not supported. For simplicity, this
   // includes invalid asm.js functions whose code hasn't yet been updated to
   // CompileLazy but is still the InstantiateAsmJs builtin.
   if (shared()->HasAsmWasmData() ||
-      code()->builtin_id() == Builtin::kInstantiateAsmJs) {
+      code(isolate)->builtin_id() == Builtin::kInstantiateAsmJs) {
     return {};
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   CodeKind highest_tier;
-  if (!HighestTierOf(GetAvailableCodeKinds(), &highest_tier)) return {};
+  if (!HighestTierOf(GetAvailableCodeKinds(isolate), &highest_tier)) return {};
 
 #ifdef DEBUG
   CHECK(highest_tier == CodeKind::TURBOFAN ||
@@ -138,10 +145,10 @@ base::Optional<CodeKind> JSFunction::GetActiveTier() const {
         highest_tier == CodeKind::INTERPRETED_FUNCTION);
 
   if (highest_tier == CodeKind::INTERPRETED_FUNCTION) {
-    CHECK(code()->is_interpreter_trampoline_builtin() ||
-          (CodeKindIsOptimizedJSFunction(code()->kind()) &&
-           code()->marked_for_deoptimization()) ||
-          (code()->builtin_id() == Builtin::kCompileLazy &&
+    CHECK(code(isolate)->is_interpreter_trampoline_builtin() ||
+          (CodeKindIsOptimizedJSFunction(code(isolate)->kind()) &&
+           code(isolate)->marked_for_deoptimization()) ||
+          (code(isolate)->builtin_id() == Builtin::kCompileLazy &&
            shared()->HasBytecodeArray() && !shared()->HasBaselineCode()));
   }
 #endif  // DEBUG
@@ -149,23 +156,23 @@ base::Optional<CodeKind> JSFunction::GetActiveTier() const {
   return highest_tier;
 }
 
-bool JSFunction::ActiveTierIsIgnition() const {
-  return GetActiveTier() == CodeKind::INTERPRETED_FUNCTION;
+bool JSFunction::ActiveTierIsIgnition(IsolateForSandbox isolate) const {
+  return GetActiveTier(isolate) == CodeKind::INTERPRETED_FUNCTION;
 }
 
-bool JSFunction::ActiveTierIsBaseline() const {
-  return GetActiveTier() == CodeKind::BASELINE;
+bool JSFunction::ActiveTierIsBaseline(IsolateForSandbox isolate) const {
+  return GetActiveTier(isolate) == CodeKind::BASELINE;
 }
 
-bool JSFunction::ActiveTierIsMaglev() const {
-  return GetActiveTier() == CodeKind::MAGLEV;
+bool JSFunction::ActiveTierIsMaglev(IsolateForSandbox isolate) const {
+  return GetActiveTier(isolate) == CodeKind::MAGLEV;
 }
 
-bool JSFunction::ActiveTierIsTurbofan() const {
-  return GetActiveTier() == CodeKind::TURBOFAN;
+bool JSFunction::ActiveTierIsTurbofan(IsolateForSandbox isolate) const {
+  return GetActiveTier(isolate) == CodeKind::TURBOFAN;
 }
 
-bool JSFunction::CanDiscardCompiled() const {
+bool JSFunction::CanDiscardCompiled(IsolateForSandbox isolate) const {
   // Essentially, what we are asking here is, has this function been compiled
   // from JS code? We can currently tell only indirectly, by looking at
   // available code kinds. If any JS code kind exists, we can discard.
@@ -175,8 +182,8 @@ bool JSFunction::CanDiscardCompiled() const {
   //
   // Note that when the function has not yet been compiled we also return
   // false; that's fine, since nothing must be discarded in that case.
-  if (CodeKindIsOptimizedJSFunction(code()->kind())) return true;
-  CodeKinds result = GetAvailableCodeKinds();
+  if (CodeKindIsOptimizedJSFunction(code(isolate)->kind())) return true;
+  CodeKinds result = GetAvailableCodeKinds(isolate);
   return (result & kJSFunctionCodeKindsMask) != 0;
 }
 
@@ -203,9 +210,9 @@ void JSFunction::MarkForOptimization(Isolate* isolate, CodeKind target_kind,
   }
 
   DCHECK(CodeKindIsOptimizedJSFunction(target_kind));
-  DCHECK(!is_compiled() || ActiveTierIsIgnition() || ActiveTierIsBaseline() ||
-         ActiveTierIsMaglev());
-  DCHECK(!ActiveTierIsTurbofan());
+  DCHECK(!is_compiled(isolate) || ActiveTierIsIgnition(isolate) ||
+         ActiveTierIsBaseline(isolate) || ActiveTierIsMaglev(isolate));
+  DCHECK(!ActiveTierIsTurbofan(isolate));
   DCHECK(shared()->HasBytecodeArray());
   DCHECK(shared()->allows_lazy_compilation() ||
          !shared()->optimization_disabled());
@@ -227,7 +234,7 @@ void JSFunction::MarkForOptimization(Isolate* isolate, CodeKind target_kind,
     }
   }
 
-  set_tiering_state(TieringStateFor(target_kind, mode));
+  set_tiering_state(isolate, TieringStateFor(target_kind, mode));
 }
 
 void JSFunction::SetInterruptBudget(
@@ -475,17 +482,15 @@ MaybeHandle<Object> JSWrappedFunction::Create(
 
   // 8. If result is an Abrupt Completion, throw a TypeError exception.
   if (is_abrupt.IsNothing()) {
-    DCHECK(isolate->has_pending_exception());
-    Handle<Object> pending_exception =
-        Handle<Object>(isolate->pending_exception(), isolate);
-    isolate->clear_pending_exception();
+    DCHECK(isolate->has_exception());
+    Handle<Object> exception = Handle<Object>(isolate->exception(), isolate);
+    isolate->clear_exception();
 
     // The TypeError thrown is created with creation Realm's TypeError
     // constructor instead of the executing Realm's.
     Handle<JSFunction> type_error_function =
         Handle<JSFunction>(creation_context->type_error_function(), isolate);
-    Handle<String> string =
-        Object::NoSideEffectsToString(isolate, pending_exception);
+    Handle<String> string = Object::NoSideEffectsToString(isolate, exception);
     THROW_NEW_ERROR_RETURN_VALUE(
         isolate,
         NewError(type_error_function, MessageTemplate::kCannotWrap, string),
@@ -559,7 +564,7 @@ void JSFunction::EnsureClosureFeedbackCellArray(
 void JSFunction::EnsureFeedbackVector(Isolate* isolate,
                                       Handle<JSFunction> function,
                                       IsCompiledScope* compiled_scope) {
-  DCHECK(compiled_scope->is_compiled());
+  CHECK(compiled_scope->is_compiled());
   DCHECK(function->shared()->HasFeedbackMetadata());
   if (function->has_feedback_vector()) return;
 #if V8_ENABLE_WEBASSEMBLY
@@ -573,7 +578,7 @@ void JSFunction::EnsureFeedbackVector(Isolate* isolate,
 void JSFunction::CreateAndAttachFeedbackVector(
     Isolate* isolate, Handle<JSFunction> function,
     IsCompiledScope* compiled_scope) {
-  DCHECK(compiled_scope->is_compiled());
+  CHECK(compiled_scope->is_compiled());
   DCHECK(function->shared()->HasFeedbackMetadata());
   DCHECK(!function->has_feedback_vector());
 #if V8_ENABLE_WEBASSEMBLY
@@ -642,10 +647,11 @@ void JSFunction::InitializeFeedbackCell(
     EnsureClosureFeedbackCellArray(function,
                                    reset_budget_for_feedback_allocation);
   }
+#ifdef V8_ENABLE_SPARKPLUG
   // TODO(jgruber): Unduplicate these conditions from tiering-manager.cc.
   if (function->shared()->sparkplug_compiled() &&
       CanCompileWithBaseline(isolate, function->shared()) &&
-      function->ActiveTierIsIgnition()) {
+      function->ActiveTierIsIgnition(isolate)) {
     if (v8_flags.baseline_batch_compilation) {
       isolate->baseline_batch_compiler()->EnqueueFunction(function);
     } else {
@@ -653,6 +659,22 @@ void JSFunction::InitializeFeedbackCell(
           function->shared()->is_compiled_scope(isolate));
       Compiler::CompileBaseline(isolate, function, Compiler::CLEAR_EXCEPTION,
                                 &is_compiled_scope);
+    }
+  }
+#endif  // V8_ENABLE_SPARKPLUG
+
+  if (v8_flags.profile_guided_optimization &&
+      v8_flags.profile_guided_optimization_for_empty_feedback_vector &&
+      function->has_feedback_vector() &&
+      function->feedback_vector()->length() == 0) {
+    if (function->shared()->cached_tiering_decision() ==
+        CachedTieringDecision::kEarlyMaglev) {
+      function->MarkForOptimization(isolate, CodeKind::MAGLEV,
+                                    ConcurrencyMode::kConcurrent);
+    } else if (function->shared()->cached_tiering_decision() ==
+               CachedTieringDecision::kEarlyTurbofan) {
+      function->MarkForOptimization(isolate, CodeKind::TURBOFAN,
+                                    ConcurrencyMode::kConcurrent);
     }
   }
 }
@@ -805,9 +827,10 @@ void JSFunction::EnsureHasInitialMap(Handle<JSFunction> function) {
   CalculateInstanceSizeHelper(instance_type, false, 0, expected_nof_properties,
                               &instance_size, &inobject_properties);
 
-  Handle<Map> map = isolate->factory()->NewMap(instance_type, instance_size,
-                                               TERMINAL_FAST_ELEMENTS_KIND,
-                                               inobject_properties);
+  Handle<NativeContext> creation_context(function->native_context(), isolate);
+  Handle<Map> map = isolate->factory()->NewContextfulMap(
+      creation_context, instance_type, instance_size,
+      TERMINAL_FAST_ELEMENTS_KIND, inobject_properties);
 
   // Fetch or allocate prototype.
   Handle<HeapObject> prototype;
@@ -942,6 +965,7 @@ bool CanSubclassHaveInobjectProperties(InstanceType instance_type) {
     case MAP_TYPE:
     case ODDBALL_TYPE:
     case PROPERTY_CELL_TYPE:
+    case CONST_TRACKING_LET_CELL_TYPE:
     case SHARED_FUNCTION_INFO_TYPE:
     case SYMBOL_TYPE:
     case ALLOCATION_SITE_TYPE:
@@ -955,8 +979,9 @@ bool CanSubclassHaveInobjectProperties(InstanceType instance_type) {
 #undef MAKE_STRUCT_CASE
       // We must not end up here for these instance types at all.
       UNREACHABLE();
-    // Fall through.
+
     default:
+      if (InstanceTypeChecker::IsJSApiObject(instance_type)) return true;
       return false;
   }
 }
@@ -1070,27 +1095,22 @@ MaybeHandle<Map> JSFunction::GetDerivedMap(Isolate* isolate,
   // constructor that points to the .prototype. This relies on
   // constructor.prototype being FROZEN for those constructors.
   if (!IsJSReceiver(*prototype)) {
-    Handle<Context> context;
-    ASSIGN_RETURN_ON_EXCEPTION(isolate, context,
+    Handle<NativeContext> native_context;
+    ASSIGN_RETURN_ON_EXCEPTION(isolate, native_context,
                                JSReceiver::GetFunctionRealm(new_target), Map);
-    DCHECK(IsNativeContext(*context));
     Handle<Object> maybe_index = JSReceiver::GetDataProperty(
         isolate, constructor,
         isolate->factory()->native_context_index_symbol());
     int index = IsSmi(*maybe_index) ? Smi::ToInt(*maybe_index)
                                     : Context::OBJECT_FUNCTION_INDEX;
-    Handle<JSFunction> realm_constructor(JSFunction::cast(context->get(index)),
-                                         isolate);
+    Handle<JSFunction> realm_constructor(
+        JSFunction::cast(native_context->get(index)), isolate);
     prototype = handle(realm_constructor->prototype(), isolate);
   }
-  CHECK(IsJSReceiver(*prototype));
   DCHECK_EQ(constructor_initial_map->constructor_or_back_pointer(),
             *constructor);
-
-  Handle<Map> map = Map::TransitionToDerivedMap(
-      isolate, constructor_initial_map, Handle<HeapObject>::cast(prototype));
-  DCHECK_EQ(map->constructor_or_back_pointer(), *constructor);
-  return map;
+  return Map::GetDerivedMap(isolate, constructor_initial_map,
+                            Handle<JSReceiver>::cast(prototype));
 }
 
 namespace {
@@ -1192,7 +1212,7 @@ void JSFunction::PrintName(FILE* out) {
 
 namespace {
 
-bool UseFastFunctionNameLookup(Isolate* isolate, Map map) {
+bool UseFastFunctionNameLookup(Isolate* isolate, Tagged<Map> map) {
   DCHECK(IsJSFunctionMap(map));
   if (map->NumberOfOwnDescriptors() <
       JSFunction::kMinDescriptorsForFastBindAndWrap) {
@@ -1288,7 +1308,7 @@ Handle<String> JSFunction::ToString(Handle<JSFunction> function) {
     Handle<Object> maybe_class_positions = JSReceiver::GetDataProperty(
         isolate, function, isolate->factory()->class_positions_symbol());
     if (IsClassPositions(*maybe_class_positions)) {
-      ClassPositions class_positions =
+      Tagged<ClassPositions> class_positions =
           ClassPositions::cast(*maybe_class_positions);
       int start_position = class_positions->start();
       int end_position = class_positions->end();
@@ -1409,10 +1429,10 @@ void JSFunction::CalculateInstanceSizeHelper(InstanceType instance_type,
 }
 
 void JSFunction::ClearAllTypeFeedbackInfoForTesting() {
-  ResetIfCodeFlushed();
+  Isolate* isolate = GetIsolate();
+  ResetIfCodeFlushed(isolate);
   if (has_feedback_vector()) {
-    FeedbackVector vector = feedback_vector();
-    Isolate* isolate = GetIsolate();
+    Tagged<FeedbackVector> vector = feedback_vector();
     if (vector->ClearAllSlotsForTesting(isolate)) {
       IC::OnFeedbackChanged(isolate, vector, FeedbackSlot::Invalid(),
                             "ClearAllTypeFeedbackInfoForTesting");

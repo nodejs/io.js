@@ -5,6 +5,7 @@
 #include "node.h"
 #include "node_errors.h"
 #include "node_external_reference.h"
+#include "node_file.h"
 
 #include "v8.h"
 
@@ -49,10 +50,10 @@ static void Has(const FunctionCallbackInfo<Value>& args) {
       return;
     }
     return args.GetReturnValue().Set(
-        env->permission()->is_granted(scope, *utf8_arg));
+        env->permission()->is_granted(env, scope, *utf8_arg));
   }
 
-  return args.GetReturnValue().Set(env->permission()->is_granted(scope));
+  return args.GetReturnValue().Set(env->permission()->is_granted(env, scope));
 }
 
 }  // namespace
@@ -81,6 +82,7 @@ Permission::Permission() : enabled_(false) {
       std::make_shared<WorkerPermission>();
   std::shared_ptr<PermissionBase> inspector =
       std::make_shared<InspectorPermission>();
+  std::shared_ptr<PermissionBase> wasi = std::make_shared<WASIPermission>();
 #define V(Name, _, __)                                                         \
   nodes_.insert(std::make_pair(PermissionScope::k##Name, fs));
   FILESYSTEM_PERMISSIONS(V)
@@ -97,18 +99,22 @@ Permission::Permission() : enabled_(false) {
   nodes_.insert(std::make_pair(PermissionScope::k##Name, inspector));
   INSPECTOR_PERMISSIONS(V)
 #undef V
+#define V(Name, _, __)                                                         \
+  nodes_.insert(std::make_pair(PermissionScope::k##Name, wasi));
+  WASI_PERMISSIONS(V)
+#undef V
 }
 
-void Permission::ThrowAccessDenied(Environment* env,
-                                   PermissionScope perm,
-                                   const std::string_view& res) {
+Local<Value> CreateAccessDeniedError(Environment* env,
+                                     PermissionScope perm,
+                                     const std::string_view& res) {
   Local<Value> err = ERR_ACCESS_DENIED(env->isolate());
   CHECK(err->IsObject());
   if (err.As<Object>()
           ->Set(env->context(),
                 env->permission_string(),
                 v8::String::NewFromUtf8(env->isolate(),
-                                        PermissionToString(perm),
+                                        Permission::PermissionToString(perm),
                                         v8::NewStringType::kNormal)
                     .ToLocalChecked())
           .IsNothing() ||
@@ -120,8 +126,25 @@ void Permission::ThrowAccessDenied(Environment* env,
                                         v8::NewStringType::kNormal)
                     .ToLocalChecked())
           .IsNothing())
-    return;
+    return Local<Value>();
+  return err;
+}
+
+void Permission::ThrowAccessDenied(Environment* env,
+                                   PermissionScope perm,
+                                   const std::string_view& res) {
+  Local<Value> err = CreateAccessDeniedError(env, perm, res);
+  if (err.IsEmpty()) return;
   env->isolate()->ThrowException(err);
+}
+
+void Permission::AsyncThrowAccessDenied(Environment* env,
+                                        fs::FSReqBase* req_wrap,
+                                        PermissionScope perm,
+                                        const std::string_view& res) {
+  Local<Value> err = CreateAccessDeniedError(env, perm, res);
+  if (err.IsEmpty()) return;
+  return req_wrap->Reject(err);
 }
 
 void Permission::EnablePermissions() {
@@ -130,11 +153,12 @@ void Permission::EnablePermissions() {
   }
 }
 
-void Permission::Apply(const std::vector<std::string>& allow,
+void Permission::Apply(Environment* env,
+                       const std::vector<std::string>& allow,
                        PermissionScope scope) {
   auto permission = nodes_.find(scope);
   if (permission != nodes_.end()) {
-    permission->second->Apply(allow, scope);
+    permission->second->Apply(env, allow, scope);
   }
 }
 

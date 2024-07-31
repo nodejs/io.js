@@ -11,6 +11,7 @@
 #include <cstdint>
 
 #include "src/numbers/integer-literal.h"
+#include "src/utils/utils.h"
 
 namespace v8 {
 namespace internal {
@@ -46,6 +47,8 @@ inline int31_t ConstexprIntegerLiteralToInt31(const IntegerLiteral& i) {
 inline intptr_t ConstexprIntegerLiteralToIntptr(const IntegerLiteral& i) {
   return i.To<intptr_t>();
 }
+
+inline void Print(const char* str) { PrintF("%s", str); }
 
 }  // namespace CodeStubAssembler
 }  // namespace TorqueRuntimeMacroShims

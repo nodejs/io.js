@@ -449,3 +449,10 @@ function TestInsufficientArguments() {
 }
 
 TestInsufficientArguments();
+
+(function TestErrorMessages() {
+  assertThrows(
+      () => { DataView.prototype.getInt32.call('xyz', 0); },
+      TypeError,
+      'Method DataView.prototype.getInt32 called on incompatible receiver xyz');
+})();

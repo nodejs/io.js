@@ -52,7 +52,7 @@ Tagged<Object> JSMapIterator::CurrentValue() {
   DCHECK_GE(index, 0);
   InternalIndex entry(index);
   Tagged<Object> value = table->ValueAt(entry);
-  DCHECK(!IsTheHole(value));
+  DCHECK(!IsHashTableHole(value));
   return value;
 }
 

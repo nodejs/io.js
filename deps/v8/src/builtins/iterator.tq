@@ -18,35 +18,42 @@ struct IteratorRecord {
 extern macro IteratorBuiltinsAssembler::FastIterableToList(
     implicit context: Context)(JSAny): JSArray labels Slow;
 
-extern macro IteratorBuiltinsAssembler::GetIteratorMethod(
+extern transitioning macro IteratorBuiltinsAssembler::GetIteratorMethod(
     implicit context: Context)(JSAny): JSAny;
-extern macro IteratorBuiltinsAssembler::GetIterator(
+extern transitioning macro IteratorBuiltinsAssembler::GetIterator(
     implicit context: Context)(JSAny): IteratorRecord;
-extern macro IteratorBuiltinsAssembler::GetIterator(
+extern transitioning macro IteratorBuiltinsAssembler::GetIterator(
     implicit context: Context)(JSAny, JSAny): IteratorRecord;
 
-extern macro IteratorBuiltinsAssembler::IteratorStep(
+extern transitioning macro IteratorBuiltinsAssembler::IteratorStep(
     implicit context: Context)(IteratorRecord): JSReceiver
     labels Done;
-extern macro IteratorBuiltinsAssembler::IteratorStep(
+extern transitioning macro IteratorBuiltinsAssembler::IteratorStep(
     implicit context: Context)(IteratorRecord, Map): JSReceiver
     labels Done;
+extern transitioning macro IteratorBuiltinsAssembler::IteratorComplete(
+    implicit context: Context)(JSReceiver): void labels Done;
+extern transitioning macro IteratorBuiltinsAssembler::IteratorComplete(
+    implicit context: Context)(JSReceiver, Map): void labels Done;
 
-extern macro IteratorBuiltinsAssembler::IteratorValue(
+extern transitioning macro IteratorBuiltinsAssembler::IteratorValue(
     implicit context: Context)(JSReceiver): JSAny;
-extern macro IteratorBuiltinsAssembler::IteratorValue(
+extern transitioning macro IteratorBuiltinsAssembler::IteratorValue(
     implicit context: Context)(JSReceiver, Map): JSAny;
 
-extern macro IteratorBuiltinsAssembler::IterableToList(
+extern transitioning macro IteratorBuiltinsAssembler::IterableToList(
     implicit context: Context)(JSAny, JSAny): JSArray;
 
-extern macro IteratorBuiltinsAssembler::StringListFromIterable(
+extern transitioning macro IteratorBuiltinsAssembler::StringListFromIterable(
     implicit context: Context)(JSAny): JSArray;
 
-extern builtin IterableToListWithSymbolLookup(
+extern transitioning builtin IterableToListWithSymbolLookup(
     implicit context: Context)(JSAny): JSArray;
-extern builtin IterableToFixedArrayWithSymbolLookupSlow(
+extern transitioning builtin IterableToFixedArrayWithSymbolLookupSlow(
     implicit context: Context)(JSAny): FixedArray;
+
+extern transitioning runtime ObjectHasOwnProperty(Context, JSAny, JSAny):
+    Boolean;
 
 transitioning builtin GetIteratorWithFeedback(
     context: Context, receiver: JSAny, loadSlot: TaggedIndex,
@@ -89,12 +96,24 @@ transitioning builtin GetIteratorBaseline(
       context, receiver, iteratorMethod, callSlotSmi, feedback);
 }
 
-extern macro CreateAsyncFromSyncIterator(Context, JSAny): JSAny;
+extern transitioning macro CreateAsyncFromSyncIterator(Context, JSAny): JSAny;
 
 transitioning builtin CreateAsyncFromSyncIteratorBaseline(syncIterator: JSAny):
     JSAny {
   const context: Context = LoadContextFromBaseline();
   return CreateAsyncFromSyncIterator(context, syncIterator);
+}
+
+@export
+transitioning macro GetIteratorRecordAfterCreateAsyncFromSyncIterator(
+    context: Context, asyncIterator: IteratorRecord): IteratorRecord {
+  const iterator = CreateAsyncFromSyncIterator(context, asyncIterator.object);
+
+  const nextMethod = GetProperty(iterator, kNextString);
+  return IteratorRecord{
+    object: UnsafeCast<JSReceiver>(iterator),
+    next: nextMethod
+  };
 }
 
 macro GetLazyReceiver(receiver: JSAny): JSAny {
@@ -183,5 +202,83 @@ transitioning javascript builtin IteratorConstructor(
   //    "%Iterator.prototype%").
   const map = GetDerivedMap(target, UnsafeCast<JSReceiver>(newTarget));
   return AllocateFastOrSlowJSObjectFromMap(map);
+}
+
+// https://tc39.es/proposal-iterator-helpers/#sec-SetterThatIgnoresPrototypeProperties
+transitioning macro SetterThatIgnoresPrototypeProperties(
+    implicit context: Context)(receiver: JSAny, home: JSObject, key: JSAny,
+    value: JSAny, methodName: constexpr string): JSAny {
+  // 1. If this is not an Object, then
+  //    a. Throw a TypeError exception.
+  const o = Cast<JSReceiver>(receiver)
+      otherwise ThrowTypeError(MessageTemplate::kCalledOnNonObject, methodName);
+
+  // 2. If this is home, then
+  //   a. NOTE: Throwing here emulates assignment to a non-writable data
+  //   property on the home object in strict mode code. b. Throw a TypeError
+  //   exception.
+  if (o == home) {
+    ThrowTypeError(
+        MessageTemplate::kStrictReadOnlyProperty, key, objectStringConstant(),
+        home);
+  }
+
+  // 3. Let desc be ? this.[[GetOwnProperty]](p).
+  const hasOwn = ObjectHasOwnProperty(context, o, key);
+
+  // 4. If desc is undefined, then
+  if (hasOwn == False) {
+    // a. Perform ? CreateDataPropertyOrThrow(this, p, v).
+    CreateDataProperty(o, key, value);
+  } else {
+    // 5. Else,
+    //   a. Perform ? Set(this, p, v, true).
+    SetProperty(o, key, value);
+  }
+  // 6. Return unused.
+  return Undefined;
+}
+
+// https://tc39.es/proposal-iterator-helpers/#sec-get-iteratorprototype-@@tostringtag
+transitioning javascript builtin IteratorPrototypeGetToStringTag(
+    js-implicit context: NativeContext)(): JSAny {
+  // 1. Return "Iterator".
+  return IteratorStringConstant();
+}
+
+// https://tc39.es/proposal-iterator-helpers/#sec-set-iteratorprototype-@@tostringtag
+transitioning javascript builtin IteratorPrototypeSetToStringTag(
+    js-implicit context: NativeContext, receiver: JSAny)(value: JSAny): JSAny {
+  // 1. Perform ? SetterThatIgnoresPrototypeProperties(this value,
+  // %Iterator.prototype%, %Symbol.toStringTag%, v).
+  const methodName: constexpr string =
+      'set Iterator.prototype[Symbol.toStringTag]';
+  SetterThatIgnoresPrototypeProperties(
+      receiver, GetIteratorPrototype(), ToStringTagSymbolConstant(), value,
+      methodName);
+
+  // 2. Return undefined.
+  return Undefined;
+}
+
+// https://tc39.es/proposal-iterator-helpers/#sec-get-iteratorprototype-constructor
+transitioning javascript builtin IteratorPrototypeGetConstructor(
+    js-implicit context: NativeContext)(): JSAny {
+  // 1. Return %Iterator%.
+  return GetIteratorFunction();
+}
+
+// https://tc39.es/proposal-iterator-helpers/#sec-set-iteratorprototype-constructor
+transitioning javascript builtin IteratorPrototypeSetConstructor(
+    js-implicit context: NativeContext, receiver: JSAny)(value: JSAny): JSAny {
+  // 1. Perform ? SetterThatIgnoresPrototypeProperties(this value,
+  // %Iterator.prototype%, "constructor", v).
+  const methodName: constexpr string = 'set Iterator.prototype.constructor';
+  SetterThatIgnoresPrototypeProperties(
+      receiver, GetIteratorPrototype(), ConstructorStringConstant(), value,
+      methodName);
+
+  // 2. Return undefined.
+  return Undefined;
 }
 }  // namespace iterator

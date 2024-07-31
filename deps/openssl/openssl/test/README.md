@@ -42,7 +42,7 @@ the make variable TESTS to specify them, like this:
 
     $ make TESTS='test_rsa test_dsa' test            # Unix
     $ mms/macro="TESTS=test_rsa test_dsa" test       ! OpenVMS
-    $ nmake TESTS='test_rsa test_dsa' test           # Windows
+    $ nmake TESTS="test_rsa test_dsa" test           # Windows
 
 And of course, you can combine (Unix examples shown):
 

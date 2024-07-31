@@ -31,24 +31,14 @@
 
 #include <ngtcp2/ngtcp2.h>
 
+#include "ngtcp2_pktns_id.h"
+#include "ngtcp2_window_filter.h"
+
 #define NGTCP2_LOSS_REDUCTION_FACTOR_BITS 1
 #define NGTCP2_PERSISTENT_CONGESTION_THRESHOLD 3
 
 typedef struct ngtcp2_log ngtcp2_log;
-
-/**
- * @struct
- *
- * :type:`ngtcp2_cc_base` is the base structure of custom congestion
- * control algorithm.  It must be the first field of custom congestion
- * controller.
- */
-typedef struct ngtcp2_cc_base {
-  /**
-   * :member:`log` is ngtcp2 library internal logger.
-   */
-  ngtcp2_log *log;
-} ngtcp2_cc_base;
+typedef struct ngtcp2_conn_stat ngtcp2_conn_stat;
 
 /**
  * @struct
@@ -117,10 +107,10 @@ typedef struct ngtcp2_cc_ack {
    */
   uint64_t pkt_delivered;
   /**
-   * :member:`largest_acked_sent_ts` is the time when the largest
-   * acknowledged packet was sent.
+   * :member:`largest_pkt_sent_ts` is the time when the largest
+   * acknowledged packet was sent.  It is UINT64_MAX if it is unknown.
    */
-  ngtcp2_tstamp largest_acked_sent_ts;
+  ngtcp2_tstamp largest_pkt_sent_ts;
   /**
    * :member:`rtt` is the RTT sample.  It is UINT64_MAX if no RTT
    * sample is available.
@@ -242,15 +232,14 @@ typedef void (*ngtcp2_cc_event)(ngtcp2_cc *cc, ngtcp2_conn_stat *cstat,
 /**
  * @struct
  *
- * :type:`ngtcp2_cc` is congestion control algorithm interface to
- * allow custom implementation.
+ * :type:`ngtcp2_cc` is congestion control algorithm interface shared
+ * by implementations.  All callback functions are optional.
  */
 typedef struct ngtcp2_cc {
   /**
-   * :member:`ccb` is a pointer to :type:`ngtcp2_cc_base` which
-   * usually contains a state.
+   * :member:`log` is ngtcp2 library internal logger.
    */
-  ngtcp2_cc_base *ccb;
+  ngtcp2_log *log;
   /**
    * :member:`on_pkt_acked` is a callback function which is called
    * when a packet is acknowledged.
@@ -313,22 +302,16 @@ ngtcp2_cc_pkt *ngtcp2_cc_pkt_init(ngtcp2_cc_pkt *pkt, int64_t pkt_num,
                                   ngtcp2_tstamp sent_ts, uint64_t lost,
                                   uint64_t tx_in_flight, int is_app_limited);
 
-/* ngtcp2_reno_cc is the RENO congestion controller. */
-typedef struct ngtcp2_reno_cc {
-  ngtcp2_cc_base ccb;
-  uint64_t max_delivery_rate_sec;
+/* ngtcp2_cc_reno is the RENO congestion controller. */
+typedef struct ngtcp2_cc_reno {
+  ngtcp2_cc cc;
+  ngtcp2_window_filter delivery_rate_sec_filter;
+  uint64_t ack_count;
   uint64_t target_cwnd;
   uint64_t pending_add;
-} ngtcp2_reno_cc;
+} ngtcp2_cc_reno;
 
-int ngtcp2_cc_reno_cc_init(ngtcp2_cc *cc, ngtcp2_log *log,
-                           const ngtcp2_mem *mem);
-
-void ngtcp2_cc_reno_cc_free(ngtcp2_cc *cc, const ngtcp2_mem *mem);
-
-void ngtcp2_reno_cc_init(ngtcp2_reno_cc *cc, ngtcp2_log *log);
-
-void ngtcp2_reno_cc_free(ngtcp2_reno_cc *cc);
+void ngtcp2_cc_reno_init(ngtcp2_cc_reno *reno, ngtcp2_log *log);
 
 void ngtcp2_cc_reno_cc_on_pkt_acked(ngtcp2_cc *cc, ngtcp2_conn_stat *cstat,
                                     const ngtcp2_cc_pkt *pkt, ngtcp2_tstamp ts);
@@ -347,10 +330,11 @@ void ngtcp2_cc_reno_cc_on_ack_recv(ngtcp2_cc *cc, ngtcp2_conn_stat *cstat,
 void ngtcp2_cc_reno_cc_reset(ngtcp2_cc *cc, ngtcp2_conn_stat *cstat,
                              ngtcp2_tstamp ts);
 
-/* ngtcp2_cubic_cc is CUBIC congestion controller. */
-typedef struct ngtcp2_cubic_cc {
-  ngtcp2_cc_base ccb;
-  uint64_t max_delivery_rate_sec;
+/* ngtcp2_cc_cubic is CUBIC congestion controller. */
+typedef struct ngtcp2_cc_cubic {
+  ngtcp2_cc cc;
+  ngtcp2_window_filter delivery_rate_sec_filter;
+  uint64_t ack_count;
   uint64_t target_cwnd;
   uint64_t w_last_max;
   uint64_t w_tcp;
@@ -376,16 +360,9 @@ typedef struct ngtcp2_cubic_cc {
   int64_t window_end;
   uint64_t pending_add;
   uint64_t pending_w_add;
-} ngtcp2_cubic_cc;
+} ngtcp2_cc_cubic;
 
-int ngtcp2_cc_cubic_cc_init(ngtcp2_cc *cc, ngtcp2_log *log,
-                            const ngtcp2_mem *mem);
-
-void ngtcp2_cc_cubic_cc_free(ngtcp2_cc *cc, const ngtcp2_mem *mem);
-
-void ngtcp2_cubic_cc_init(ngtcp2_cubic_cc *cc, ngtcp2_log *log);
-
-void ngtcp2_cubic_cc_free(ngtcp2_cubic_cc *cc);
+void ngtcp2_cc_cubic_init(ngtcp2_cc_cubic *cc, ngtcp2_log *log);
 
 void ngtcp2_cc_cubic_cc_on_pkt_acked(ngtcp2_cc *cc, ngtcp2_conn_stat *cstat,
                                      const ngtcp2_cc_pkt *pkt,
@@ -417,5 +394,7 @@ void ngtcp2_cc_cubic_cc_reset(ngtcp2_cc *cc, ngtcp2_conn_stat *cstat,
 
 void ngtcp2_cc_cubic_cc_event(ngtcp2_cc *cc, ngtcp2_conn_stat *cstat,
                               ngtcp2_cc_event_type event, ngtcp2_tstamp ts);
+
+uint64_t ngtcp2_cbrt(uint64_t n);
 
 #endif /* NGTCP2_CC_H */

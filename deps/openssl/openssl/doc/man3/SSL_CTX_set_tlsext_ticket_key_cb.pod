@@ -42,8 +42,8 @@ ticket construction state according to RFC5077 Section 4 such that per session
 state is unnecessary and a small set of cryptographic variables needs to be
 maintained by the callback function implementation.
 
-In order to reuse a session, a TLS client must send the a session ticket
-extension to the server. The client can only send exactly one session ticket.
+In order to reuse a session, a TLS client must send the session ticket
+extension to the server. The client must send exactly one session ticket.
 The server, through the callback function, either agrees to reuse the session
 ticket information or it starts a full TLS handshake to create a new session
 ticket.

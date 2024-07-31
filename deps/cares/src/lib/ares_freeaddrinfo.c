@@ -25,46 +25,43 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
+#include "ares_private.h"
 
 #ifdef HAVE_NETDB_H
 #  include <netdb.h>
 #endif
 
-#include "ares.h"
-#include "ares_private.h"
-
 void ares__freeaddrinfo_cnames(struct ares_addrinfo_cname *head)
 {
   struct ares_addrinfo_cname *current;
-  while (head)
-    {
-      current = head;
-      head = head->next;
-      ares_free(current->alias);
-      ares_free(current->name);
-      ares_free(current);
-    }
+  while (head) {
+    current = head;
+    head    = head->next;
+    ares_free(current->alias);
+    ares_free(current->name);
+    ares_free(current);
+  }
 }
 
 void ares__freeaddrinfo_nodes(struct ares_addrinfo_node *head)
 {
   struct ares_addrinfo_node *current;
-  while (head)
-    {
-      current = head;
-      head = head->ai_next;
-      ares_free(current->ai_addr);
-      ares_free(current);
-    }
+  while (head) {
+    current = head;
+    head    = head->ai_next;
+    ares_free(current->ai_addr);
+    ares_free(current);
+  }
 }
 
 void ares_freeaddrinfo(struct ares_addrinfo *ai)
 {
-  if (ai == NULL)
+  if (ai == NULL) {
     return;
+  }
   ares__freeaddrinfo_cnames(ai->cnames);
   ares__freeaddrinfo_nodes(ai->nodes);
+
   ares_free(ai->name);
   ares_free(ai);
 }

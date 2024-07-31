@@ -27,10 +27,10 @@ bool SourceTextModuleDescriptor::ModuleRequestComparer::operator()(
     return specifier_comparison < 0;
   }
 
-  auto lhsIt = lhs->import_assertions()->cbegin();
-  auto rhsIt = rhs->import_assertions()->cbegin();
-  for (; lhsIt != lhs->import_assertions()->cend() &&
-         rhsIt != rhs->import_assertions()->cend();
+  auto lhsIt = lhs->import_attributes()->cbegin();
+  auto rhsIt = rhs->import_attributes()->cbegin();
+  for (; lhsIt != lhs->import_attributes()->cend() &&
+         rhsIt != rhs->import_attributes()->cend();
        ++lhsIt, ++rhsIt) {
     if (int assertion_key_comparison =
             AstRawString::Compare(lhsIt->first, rhsIt->first)) {
@@ -43,9 +43,9 @@ bool SourceTextModuleDescriptor::ModuleRequestComparer::operator()(
     }
   }
 
-  if (lhs->import_assertions()->size() != rhs->import_assertions()->size()) {
-    return (lhs->import_assertions()->size() <
-            rhs->import_assertions()->size());
+  if (lhs->import_attributes()->size() != rhs->import_attributes()->size()) {
+    return (lhs->import_attributes()->size() <
+            rhs->import_attributes()->size());
   }
 
   return false;
@@ -54,32 +54,32 @@ bool SourceTextModuleDescriptor::ModuleRequestComparer::operator()(
 void SourceTextModuleDescriptor::AddImport(
     const AstRawString* import_name, const AstRawString* local_name,
     const AstRawString* module_request,
-    const ImportAssertions* import_assertions, const Scanner::Location loc,
+    const ImportAttributes* import_attributes, const Scanner::Location loc,
     const Scanner::Location specifier_loc, Zone* zone) {
   Entry* entry = zone->New<Entry>(loc);
   entry->local_name = local_name;
   entry->import_name = import_name;
   entry->module_request =
-      AddModuleRequest(module_request, import_assertions, specifier_loc, zone);
+      AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
   AddRegularImport(entry);
 }
 
 void SourceTextModuleDescriptor::AddStarImport(
     const AstRawString* local_name, const AstRawString* module_request,
-    const ImportAssertions* import_assertions, const Scanner::Location loc,
+    const ImportAttributes* import_attributes, const Scanner::Location loc,
     const Scanner::Location specifier_loc, Zone* zone) {
   Entry* entry = zone->New<Entry>(loc);
   entry->local_name = local_name;
   entry->module_request =
-      AddModuleRequest(module_request, import_assertions, specifier_loc, zone);
+      AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
   AddNamespaceImport(entry, zone);
 }
 
 void SourceTextModuleDescriptor::AddEmptyImport(
     const AstRawString* module_request,
-    const ImportAssertions* import_assertions,
+    const ImportAttributes* import_attributes,
     const Scanner::Location specifier_loc, Zone* zone) {
-  AddModuleRequest(module_request, import_assertions, specifier_loc, zone);
+  AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
 }
 
 void SourceTextModuleDescriptor::AddExport(const AstRawString* local_name,
@@ -94,7 +94,7 @@ void SourceTextModuleDescriptor::AddExport(const AstRawString* local_name,
 void SourceTextModuleDescriptor::AddExport(
     const AstRawString* import_name, const AstRawString* export_name,
     const AstRawString* module_request,
-    const ImportAssertions* import_assertions, const Scanner::Location loc,
+    const ImportAttributes* import_attributes, const Scanner::Location loc,
     const Scanner::Location specifier_loc, Zone* zone) {
   DCHECK_NOT_NULL(import_name);
   DCHECK_NOT_NULL(export_name);
@@ -102,17 +102,17 @@ void SourceTextModuleDescriptor::AddExport(
   entry->export_name = export_name;
   entry->import_name = import_name;
   entry->module_request =
-      AddModuleRequest(module_request, import_assertions, specifier_loc, zone);
+      AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
   AddSpecialExport(entry, zone);
 }
 
 void SourceTextModuleDescriptor::AddStarExport(
     const AstRawString* module_request,
-    const ImportAssertions* import_assertions, const Scanner::Location loc,
+    const ImportAttributes* import_attributes, const Scanner::Location loc,
     const Scanner::Location specifier_loc, Zone* zone) {
   Entry* entry = zone->New<Entry>(loc);
   entry->module_request =
-      AddModuleRequest(module_request, import_assertions, specifier_loc, zone);
+      AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
   AddSpecialExport(entry, zone);
 }
 
@@ -128,28 +128,28 @@ Handle<PrimitiveHeapObject> ToStringOrUndefined(IsolateT* isolate,
 template <typename IsolateT>
 Handle<ModuleRequest> SourceTextModuleDescriptor::AstModuleRequest::Serialize(
     IsolateT* isolate) const {
-  // The import assertions will be stored in this array in the form:
+  // The import attributes will be stored in this array in the form:
   // [key1, value1, location1, key2, value2, location2, ...]
-  Handle<FixedArray> import_assertions_array =
+  Handle<FixedArray> import_attributes_array =
       isolate->factory()->NewFixedArray(
-          static_cast<int>(import_assertions()->size() *
-                           ModuleRequest::kAssertionEntrySize),
+          static_cast<int>(import_attributes()->size() *
+                           ModuleRequest::kAttributeEntrySize),
           AllocationType::kOld);
   {
     DisallowGarbageCollection no_gc;
-    Tagged<FixedArray> raw_import_assertions = *import_assertions_array;
+    Tagged<FixedArray> raw_import_attributes = *import_attributes_array;
     int i = 0;
-    for (auto iter = import_assertions()->cbegin();
-         iter != import_assertions()->cend();
-         ++iter, i += ModuleRequest::kAssertionEntrySize) {
-      raw_import_assertions->set(i, *iter->first->string());
-      raw_import_assertions->set(i + 1, *iter->second.first->string());
-      raw_import_assertions->set(i + 2,
+    for (auto iter = import_attributes()->cbegin();
+         iter != import_attributes()->cend();
+         ++iter, i += ModuleRequest::kAttributeEntrySize) {
+      raw_import_attributes->set(i, *iter->first->string());
+      raw_import_attributes->set(i + 1, *iter->second.first->string());
+      raw_import_attributes->set(i + 2,
                                  Smi::FromInt(iter->second.second.beg_pos));
     }
   }
   return v8::internal::ModuleRequest::New(isolate, specifier()->string(),
-                                          import_assertions_array, position());
+                                          import_attributes_array, position());
 }
 template Handle<ModuleRequest>
 SourceTextModuleDescriptor::AstModuleRequest::Serialize(Isolate* isolate) const;

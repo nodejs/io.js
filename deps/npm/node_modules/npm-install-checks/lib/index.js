@@ -36,7 +36,9 @@ const checkPlatform = (target, force = false, environment = {}) => {
   let libcFamily = null
   if (target.libc) {
     // libc checks only work in linux, any value is a failure if we aren't
-    if (platform !== 'linux') {
+    if (environment.libc) {
+      libcOk = checkList(environment.libc, target.libc)
+    } else if (platform !== 'linux') {
       libcOk = false
     } else {
       const report = process.report.getReport()

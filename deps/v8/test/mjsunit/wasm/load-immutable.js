@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --no-liftoff
+// Flags: --no-liftoff
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -127,7 +127,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
       // TF should be able to eliminate the second type check, and return the
       // constant 1.
       kExprLocalGet, 0,
-      kGCPrefix, kExprRefTestDeprecated, sig])
+      kGCPrefix, kExprRefTest, sig])
     .exportFunc();
 
   var instance = builder.instantiate({m : { f: function () {} }});

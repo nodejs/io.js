@@ -106,69 +106,65 @@ BUILTIN(SharedStructTypeConstructor) {
   DCHECK(v8_flags.shared_string_table);
 
   HandleScope scope(isolate);
-  static const char method_name[] = "SharedStructType";
   auto* factory = isolate->factory();
 
-  Handle<JSReceiver> property_names_arg;
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, property_names_arg,
-      Object::ToObject(isolate, args.atOrUndefined(isolate, 1), method_name));
+  Handle<Map> instance_map;
 
-  // Treat property_names_arg as arraylike.
-  Handle<Object> raw_length_number;
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, raw_length_number,
-      Object::GetLengthFromArrayLike(isolate, property_names_arg));
-  double num_properties_double = Object::Number(*raw_length_number);
-  if (num_properties_double < 0 || num_properties_double > kMaxJSStructFields) {
-    THROW_NEW_ERROR_RETURN_FAILURE(
-        isolate, NewRangeError(MessageTemplate::kStructFieldCountOutOfRange));
-  }
-  int num_properties = static_cast<int>(num_properties_double);
+  {
+    // Step 1: Collect the struct's property names and create the instance map.
 
-  Handle<DescriptorArray> maybe_descriptors;
-  Handle<NumberDictionary> elements_template;
-  int num_fields = 0;
-  if (num_properties != 0) {
+    Handle<JSReceiver> property_names_arg;
+    if (!IsJSReceiver(*args.atOrUndefined(isolate, 1))) {
+      THROW_NEW_ERROR_RETURN_FAILURE(
+          isolate,
+          NewTypeError(MessageTemplate::kArgumentIsNonObject,
+                       factory->NewStringFromAsciiChecked("property names")));
+    }
+    property_names_arg = args.at<JSReceiver>(1);
+
+    // Treat property_names_arg as arraylike.
+    Handle<Object> raw_length_number;
+    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
+        isolate, raw_length_number,
+        Object::GetLengthFromArrayLike(isolate, property_names_arg));
+    double num_properties_double = Object::Number(*raw_length_number);
+    if (num_properties_double < 0 ||
+        num_properties_double > kMaxJSStructFields) {
+      THROW_NEW_ERROR_RETURN_FAILURE(
+          isolate, NewRangeError(MessageTemplate::kStructFieldCountOutOfRange));
+    }
+    int num_properties = static_cast<int>(num_properties_double);
+
     std::vector<Handle<Name>> field_names;
     std::set<uint32_t> element_names;
-    MAYBE_RETURN(
-        CollectFieldsAndElements(isolate, property_names_arg, num_properties,
-                                 field_names, element_names),
-        ReadOnlyRoots(isolate).exception());
-
-    if (!field_names.empty()) {
-      maybe_descriptors = factory->NewDescriptorArray(
-          static_cast<int>(field_names.size()), 0, AllocationType::kSharedOld);
-      for (const Handle<Name>& field_name : field_names) {
-        // Shared structs' fields need to be aligned, so make it all tagged.
-        PropertyDetails details(
-            PropertyKind::kData, SEALED, PropertyLocation::kField,
-            PropertyConstness::kMutable, Representation::Tagged(), num_fields);
-        maybe_descriptors->Set(InternalIndex(num_fields), *field_name,
-                               MaybeObject::FromObject(FieldType::Any()),
-                               details);
-        num_fields++;
-      }
-      maybe_descriptors->Sort();
+    if (num_properties != 0) {
+      MAYBE_RETURN(
+          CollectFieldsAndElements(isolate, property_names_arg, num_properties,
+                                   field_names, element_names),
+          ReadOnlyRoots(isolate).exception());
     }
 
-    if (!element_names.empty()) {
-      int nof_elements = static_cast<int>(element_names.size());
-      elements_template = NumberDictionary::New(isolate, nof_elements,
-                                                AllocationType::kSharedOld);
-      for (uint32_t index : element_names) {
-        PropertyDetails details(PropertyKind::kData, SEALED,
-                                PropertyConstness::kMutable, 0);
-        NumberDictionary::UncheckedAdd<Isolate, AllocationType::kSharedOld>(
-            isolate, elements_template, index,
-            ReadOnlyRoots(isolate).undefined_value_handle(), details);
+    if (IsUndefined(*args.atOrUndefined(isolate, 2), isolate)) {
+      // Create a new instance map if this type isn't registered.
+      instance_map = JSSharedStruct::CreateInstanceMap(
+          isolate, field_names, element_names, MaybeHandle<String>());
+    } else {
+      // Otherwise, get the canonical map.
+      if (!IsString(*args.atOrUndefined(isolate, 2))) {
+        THROW_NEW_ERROR_RETURN_FAILURE(
+            isolate, NewTypeError(MessageTemplate::kArgumentIsNonString,
+                                  factory->NewStringFromAsciiChecked(
+                                      "type registry key")));
       }
-      elements_template->SetInitialNumberOfElements(nof_elements);
-      DCHECK(elements_template->InAnySharedSpace());
+      ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
+          isolate, instance_map,
+          isolate->shared_struct_type_registry()->Register(
+              isolate, args.at<String>(2), field_names, element_names));
     }
   }
 
+  // Step 2: Creat the JSFunction constructor. This is always created anew,
+  // regardless of whether the type is registered.
   Handle<SharedFunctionInfo> info =
       isolate->factory()->NewSharedFunctionInfoForBuiltin(
           isolate->factory()->empty_string(), Builtin::kSharedStructConstructor,
@@ -180,63 +176,24 @@ BUILTIN(SharedStructTypeConstructor) {
       Factory::JSFunctionBuilder{isolate, info, isolate->native_context()}
           .set_map(isolate->strict_function_with_readonly_prototype_map())
           .Build();
-
-  int instance_size;
-  int in_object_properties;
-  JSFunction::CalculateInstanceSizeHelper(JS_SHARED_STRUCT_TYPE, false, 0,
-                                          num_fields, &instance_size,
-                                          &in_object_properties);
-  Handle<Map> instance_map =
-      factory->NewMap(JS_SHARED_STRUCT_TYPE, instance_size, DICTIONARY_ELEMENTS,
-                      in_object_properties, AllocationType::kSharedMap);
-  if (num_fields == 0) {
-    AlwaysSharedSpaceJSObject::PrepareMapNoEnumerableProperties(*instance_map);
-  } else {
-    AlwaysSharedSpaceJSObject::PrepareMapWithEnumerableProperties(
-        isolate, instance_map, maybe_descriptors, num_fields);
-  }
-
-  // Structs have fixed layout ahead of time, so there's no slack.
-  int out_of_object_properties = num_fields - in_object_properties;
-  if (out_of_object_properties != 0) {
-    instance_map->SetOutOfObjectUnusedPropertyFields(0);
-  }
   constructor->set_prototype_or_initial_map(*instance_map, kReleaseStore);
-
-  int num_elements = num_properties - num_fields;
-  if (num_elements != 0) {
-    DCHECK(elements_template->InAnySharedSpace());
-    // Abuse the class fields private symbol to store the elements template on
-    // shared struct constructors.
-    // TODO(v8:12547): Find a better place to store this.
-    JSObject::AddProperty(isolate, constructor, factory->class_fields_symbol(),
-                          elements_template, NONE);
-  }
 
   JSObject::AddProperty(
       isolate, constructor, factory->has_instance_symbol(),
       handle(isolate->native_context()->shared_space_js_object_has_instance(),
              isolate),
-      static_cast<PropertyAttributes>(DONT_ENUM | DONT_DELETE | READ_ONLY));
+      ALL_ATTRIBUTES_MASK);
 
   return *constructor;
 }
 
 BUILTIN(SharedStructConstructor) {
   HandleScope scope(isolate);
-  Handle<Object> elements_template;
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, elements_template,
-      JSReceiver::GetProperty(isolate, args.target(),
-                              isolate->factory()->class_fields_symbol()));
-  return *isolate->factory()->NewJSSharedStruct(args.target(),
-                                                elements_template);
-}
-
-BUILTIN(SharedArrayIsSharedArray) {
-  HandleScope scope(isolate);
-  return isolate->heap()->ToBoolean(
-      IsJSSharedArray(*args.atOrUndefined(isolate, 1)));
+  Handle<JSFunction> constructor(args.target());
+  Handle<Map> instance_map(constructor->initial_map(), isolate);
+  return *isolate->factory()->NewJSSharedStruct(
+      args.target(),
+      JSSharedStruct::GetElementsTemplate(isolate, *instance_map));
 }
 
 BUILTIN(SharedStructTypeIsSharedStruct) {

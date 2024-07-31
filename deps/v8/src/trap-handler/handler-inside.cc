@@ -34,7 +34,7 @@ namespace trap_handler {
 
 // This function contains the platform independent portions of fault
 // classification.
-bool TryFindLandingPad(uintptr_t fault_addr, uintptr_t* landing_pad) {
+bool IsFaultAddressCovered(uintptr_t fault_addr) {
   // TODO(eholk): broad code range check
 
   // Taking locks in the trap handler is risky because a fault in the trap
@@ -62,8 +62,6 @@ bool TryFindLandingPad(uintptr_t fault_addr, uintptr_t* landing_pad) {
       for (unsigned j = 0; j < data->num_protected_instructions; ++j) {
         if (data->instructions[j].instr_offset == offset) {
           // Hurray again, we found the actual instruction.
-          *landing_pad = data->instructions[j].landing_offset + base;
-
           gRecoveredTrapCount.store(
               gRecoveredTrapCount.load(std::memory_order_relaxed) + 1,
               std::memory_order_relaxed);

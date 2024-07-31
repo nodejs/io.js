@@ -1,4 +1,4 @@
-const { URL } = require('url')
+const { URL } = require('node:url')
 
 /**
  * Maps a URL to an identifier.

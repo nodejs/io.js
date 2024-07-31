@@ -56,7 +56,7 @@ const char* tokens[] = {
 };
 
 #define ASSERT_STRCMP(x, y) \
-  ASSERT((x != NULL && y != NULL && strcmp(x, y) == 0) || (x == y && x == NULL))
+  ASSERT_NE((x != NULL && y != NULL && strcmp(x, y) == 0) || (x == y && x == NULL), 0)
 
 TEST_IMPL(strtok) {
   struct strtok_test_case tests[] = {
@@ -74,13 +74,13 @@ TEST_IMPL(strtok) {
   char current_test[2048];
 
   for (i = 0, j = 0; i < tests_len; i += 1) {
-    ASSERT(j < tokens_len);
+    ASSERT_LT(j, tokens_len);
     snprintf(current_test, sizeof(current_test), "%s", tests[i].str);
     tok_r = uv__strtok(current_test, tests[i].sep, &itr);
     ASSERT_STRCMP(tok_r, tokens[j]);
     j++;
     while (tok_r) {
-      ASSERT(j < tokens_len);
+      ASSERT_LT(j, tokens_len);
       tok_r = uv__strtok(NULL, tests[i].sep, &itr);
       ASSERT_STRCMP(tok_r, tokens[j]);
       j++;

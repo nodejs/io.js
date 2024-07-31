@@ -50,4 +50,9 @@
     *(PD) = (T);                                                               \
   } while (0)
 
+/*
+ * ngtcp2_arraylen returns the number of elements in array |A|.
+ */
+#define ngtcp2_arraylen(A) (sizeof(A) / sizeof(A[0]))
+
 #endif /* NGTCP2_MACRO_H */

@@ -1,6 +1,6 @@
 'use strict'
 
-const URL = require('url').URL
+const URL = require('node:url').URL
 const Arborist = require('@npmcli/arborist')
 
 // supports object funding and string shorthand, or an array of these
@@ -133,7 +133,7 @@ function readTree (tree, opts) {
     })
 
     return directDepsWithFunding.reduce(
-      (res, { node, fundingItem }, i) => {
+      (res, { node, fundingItem }) => {
         if (!fundingItem ||
           fundingItem.length === 0 ||
           !node) {

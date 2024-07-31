@@ -155,3 +155,64 @@
   assertTrue(firstSet.isDisjointFrom(setLike));
   assertEquals(0, firstSet.size);
 })();
+
+(function TestIsDisjointFromAfterRewritingKeys() {
+  const firstSet = new Set();
+  firstSet.add(42);
+  firstSet.add(43);
+
+  const otherSet = new Set();
+  otherSet.add(42);
+  otherSet.add(46);
+  otherSet.add(47);
+
+  otherSet.keys =
+      () => {
+        firstSet.clear();
+        return otherSet[Symbol.iterator]();
+      }
+
+  assertEquals(firstSet.isDisjointFrom(otherSet), false);
+})();
+
+(function TestIsDisjointFromAfterRewritingKeys() {
+  const firstSet = new Set();
+  firstSet.add(42);
+  firstSet.add(43);
+
+  const setLike = {
+    arr: [42, 46, 47],
+    size: 3,
+    keys() {
+      return this.arr[Symbol.iterator]();
+    },
+    has(key) {
+      return this.arr.indexOf(key) != -1;
+    }
+  };
+
+  setLike.keys =
+      () => {
+        firstSet.clear();
+        return setLike.arr[Symbol.iterator]();
+      }
+
+  assertEquals(firstSet.isDisjointFrom(setLike), false);
+})();
+
+(function TestEvilBiggerOther() {
+  const firstSet = new Set([1,2,3,4]);
+  const secondSet = new Set([43]);
+
+  const evil = {
+    has(v) { return secondSet.has(v); },
+    keys() {
+      firstSet.clear();
+      firstSet.add(43);
+      return secondSet.keys();
+    },
+    get size() { return secondSet.size; }
+  };
+
+  assertFalse(firstSet.isDisjointFrom(evil));
+})();

@@ -62,5 +62,5 @@ const httpsServer = https.createServer({
     port: this.address().port,
     rejectUnauthorized: false,
     highWaterMark: undefined,
-  }, loadCallback(16 * 1024)).on('error', common.mustNotCall()).end();
+  }, loadCallback(process.platform === 'win32' ? 16 * 1024 : 64 * 1024)).on('error', common.mustNotCall()).end();
 }));

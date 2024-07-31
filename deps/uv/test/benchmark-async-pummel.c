@@ -71,21 +71,21 @@ static int test_async_pummel(int nthreads) {
   tids = calloc(nthreads, sizeof(tids[0]));
   ASSERT_NOT_NULL(tids);
 
-  ASSERT(0 == uv_async_init(uv_default_loop(), &handle, async_cb));
+  ASSERT_OK(uv_async_init(uv_default_loop(), &handle, async_cb));
   ACCESS_ONCE(const char*, handle.data) = running;
 
   for (i = 0; i < nthreads; i++)
-    ASSERT(0 == uv_thread_create(tids + i, pummel, &handle));
+    ASSERT_OK(uv_thread_create(tids + i, pummel, &handle));
 
   time = uv_hrtime();
 
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
 
   time = uv_hrtime() - time;
   done = 1;
 
   for (i = 0; i < nthreads; i++)
-    ASSERT(0 == uv_thread_join(tids + i));
+    ASSERT_OK(uv_thread_join(tids + i));
 
   printf("async_pummel_%d: %s callbacks in %.2f seconds (%s/sec)\n",
          nthreads,

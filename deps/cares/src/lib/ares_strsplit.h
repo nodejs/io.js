@@ -26,16 +26,14 @@
 #ifndef HEADER_CARES_STRSPLIT_H
 #define HEADER_CARES_STRSPLIT_H
 
-#include "ares_setup.h"
-
 /* Split a string on delms skipping empty or duplicate elements.
  *
  * param in String to split.
- * param delms String of characters to treat as a delimitor.
- *             Each character in the string is a delimitor so
- *             there can be multiple delimitors to split on.
+ * param delms String of characters to treat as a delimiter.
+ *             Each character in the string is a delimiter so
+ *             there can be multiple delimiters to split on.
  *             E.g. ", " will split on all comma's and spaces.
- *             Duplicate entries are removed.
+ *             Duplicate (case-insensitive) entries are removed.
  * param num_elm Return parameter of the number of elements
  *               in the result array.
  *
@@ -45,8 +43,9 @@
 char **ares__strsplit(const char *in, const char *delms, size_t *num_elm);
 
 /* Frees the result returned from ares__strsplit(). */
-void ares__strsplit_free(char **elms, size_t num_elm);
+void   ares__strsplit_free(char **elms, size_t num_elm);
 
+/* Duplicate the array */
+char **ares__strsplit_duplicate(char **elms, size_t num_elm);
 
 #endif /* HEADER_CARES_STRSPLIT_H */
-

@@ -150,53 +150,24 @@ int nghttp3_http_on_data_chunk(nghttp3_stream *stream, size_t n);
 void nghttp3_http_record_request_method(nghttp3_stream *stream,
                                         const nghttp3_nv *nva, size_t nvlen);
 
-/*
- * RFC 8941 Structured Field Values.
+/**
+ * @function
+ *
+ * `nghttp3_http_parse_priority` parses priority HTTP header field
+ * stored in the buffer pointed by |value| of length |len|.  If it
+ * successfully processed header field value, it stores the result
+ * into |*dest|.  This function just overwrites what it sees in the
+ * header field value and does not initialize any field in |*dest|.
+ *
+ * This function returns 0 if it succeeds, or one of the following
+ * negative error codes:
+ *
+ * :macro:`NGHTTP3_ERR_INVALID_ARGUMENT`
+ *     The function could not parse the provided value.
  */
-typedef enum nghttp3_sf_value_type {
-  NGHTTP3_SF_VALUE_TYPE_BOOLEAN,
-  NGHTTP3_SF_VALUE_TYPE_INTEGER,
-  NGHTTP3_SF_VALUE_TYPE_DECIMAL,
-  NGHTTP3_SF_VALUE_TYPE_STRING,
-  NGHTTP3_SF_VALUE_TYPE_TOKEN,
-  NGHTTP3_SF_VALUE_TYPE_BYTESEQ,
-  NGHTTP3_SF_VALUE_TYPE_INNER_LIST,
-} nghttp3_sf_value_type;
+int nghttp3_http_parse_priority(nghttp3_pri *dest, const uint8_t *value,
+                                size_t len);
 
-/*
- * nghttp3_sf_value stores Structured Field Values item.  For Inner
- * List, only type is set to NGHTTP3_SF_VALUE_TYPE_INNER_LIST.
- */
-typedef struct nghttp3_sf_value {
-  uint8_t type;
-  union {
-    int b;
-    int64_t i;
-    double d;
-    struct {
-      const uint8_t *base;
-      size_t len;
-    } s;
-  };
-} nghttp3_sf_value;
-
-/*
- * nghttp3_sf_parse_item parses the input sequence [|begin|, |end|)
- * and stores the parsed an Item in |dest|.  It returns the number of
- * bytes consumed if it succeeds, or -1.  This function is declared
- * here for unit tests.
- */
-nghttp3_ssize nghttp3_sf_parse_item(nghttp3_sf_value *dest,
-                                    const uint8_t *begin, const uint8_t *end);
-
-/*
- * nghttp3_sf_parse_inner_list parses the input sequence [|begin|, |end|)
- * and stores the parsed an Inner List in |dest|.  It returns the number of
- * bytes consumed if it succeeds, or -1.  This function is declared
- * here for unit tests.
- */
-nghttp3_ssize nghttp3_sf_parse_inner_list(nghttp3_sf_value *dest,
-                                          const uint8_t *begin,
-                                          const uint8_t *end);
+int nghttp3_pri_eq(const nghttp3_pri *a, const nghttp3_pri *b);
 
 #endif /* NGHTTP3_HTTP_H */

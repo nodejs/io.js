@@ -155,6 +155,7 @@ true !== false
 		<testcase name="+sync throw fail" time="*" classname="test" failure="thrown from subtest sync throw fail">
 			<failure type="testCodeFailure" message="thrown from subtest sync throw fail">
 Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fail
+    *
     * {
   code: 'ERR_TEST_FAILURE',
   failureType: 'testCodeFailure',
@@ -338,6 +339,7 @@ Error [ERR_TEST_FAILURE]: thrown from callback async throw
 		<testcase name="sync throw fails at first" time="*" classname="test" failure="thrown from subtest sync throw fails at first">
 			<failure type="testCodeFailure" message="thrown from subtest sync throw fails at first">
 Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fails at first
+    *
     * {
   code: 'ERR_TEST_FAILURE',
   failureType: 'testCodeFailure',
@@ -362,8 +364,6 @@ Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fails at second
   code: 'ERR_TEST_FAILURE',
   failureType: 'testCodeFailure',
   cause: Error: thrown from subtest sync throw fails at second
-      *
-      *
       *
       *
       *
@@ -420,20 +420,42 @@ Error [ERR_TEST_FAILURE]: bar
 }
 		</failure>
 	</testcase>
-	<testcase name="assertion errors display actual and expected properly" time="*" classname="test" failure="Expected values to be loosely deep-equal:{  bar: 1,  foo: 1}should loosely deep-equal&lt;ref *1> {  bar: 2,  c: [Circular *1]}">
-		<failure type="testCodeFailure" message="Expected values to be loosely deep-equal:{  bar: 1,  foo: 1}should loosely deep-equal&lt;ref *1> {  bar: 2,  c: [Circular *1]}">
+	<testcase name="assertion errors display actual and expected properly" time="*" classname="test" failure="Expected values to be loosely deep-equal:{  bar: 1,  baz: {    date: 1970-01-01T00:00:00.000Z,    null: null,    number: 1,    string: 'Hello',    undefined: undefined  },  boo: [    1  ],  foo: 1}should loosely deep-equal{  baz: {    date: 1970-01-01T00:00:00.000Z,    null: null,    number: 1,    string: 'Hello',    undefined: undefined  },  boo: [    1  ],  circular: &lt;ref *1> {    bar: 2,    c: [Circular *1]  }}">
+		<failure type="testCodeFailure" message="Expected values to be loosely deep-equal:{  bar: 1,  baz: {    date: 1970-01-01T00:00:00.000Z,    null: null,    number: 1,    string: 'Hello',    undefined: undefined  },  boo: [    1  ],  foo: 1}should loosely deep-equal{  baz: {    date: 1970-01-01T00:00:00.000Z,    null: null,    number: 1,    string: 'Hello',    undefined: undefined  },  boo: [    1  ],  circular: &lt;ref *1> {    bar: 2,    c: [Circular *1]  }}">
 [Error [ERR_TEST_FAILURE]: Expected values to be loosely deep-equal:
 
 {
   bar: 1,
+  baz: {
+    date: 1970-01-01T00:00:00.000Z,
+    null: null,
+    number: 1,
+    string: 'Hello',
+    undefined: undefined
+  },
+  boo: [
+    1
+  ],
   foo: 1
 }
 
 should loosely deep-equal
 
-&lt;ref *1> {
-  bar: 2,
-  c: [Circular *1]
+{
+  baz: {
+    date: 1970-01-01T00:00:00.000Z,
+    null: null,
+    number: 1,
+    string: 'Hello',
+    undefined: undefined
+  },
+  boo: [
+    1
+  ],
+  circular: &lt;ref *1> {
+    bar: 2,
+    c: [Circular *1]
+  }
 }] {
   code: 'ERR_TEST_FAILURE',
   failureType: 'testCodeFailure',
@@ -441,14 +463,36 @@ should loosely deep-equal
   
   {
     bar: 1,
+    baz: {
+      date: 1970-01-01T00:00:00.000Z,
+      null: null,
+      number: 1,
+      string: 'Hello',
+      undefined: undefined
+    },
+    boo: [
+      1
+    ],
     foo: 1
   }
   
   should loosely deep-equal
   
-  &lt;ref *1> {
-    bar: 2,
-    c: [Circular *1]
+  {
+    baz: {
+      date: 1970-01-01T00:00:00.000Z,
+      null: null,
+      number: 1,
+      string: 'Hello',
+      undefined: undefined
+    },
+    boo: [
+      1
+    ],
+    circular: &lt;ref *1> {
+      bar: 2,
+      c: [Circular *1]
+    }
   }
       * {
     generatedMessage: true,
@@ -470,13 +514,13 @@ Error [ERR_TEST_FAILURE]: test could not be started because its parent finished
 }
 		</failure>
 	</testcase>
-	<!-- Warning: Test "unhandled rejection - passes but warns" generated asynchronous activity after the test ended. This activity created the error "Error: rejected from unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event. -->
-	<!-- Warning: Test "async unhandled rejection - passes but warns" generated asynchronous activity after the test ended. This activity created the error "Error: rejected from async unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event. -->
-	<!-- Warning: A resource generated asynchronous activity after the test ended. This activity created the error "Error: uncaught from outside of a test" which triggered an uncaughtException event, caught by the test runner. -->
-	<!-- Warning: Test "immediate throw - passes but warns" generated asynchronous activity after the test ended. This activity created the error "Error: thrown from immediate throw fail" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
-	<!-- Warning: Test "immediate reject - passes but warns" generated asynchronous activity after the test ended. This activity created the error "Error: rejected from immediate reject fail" and would have caused the test to fail, but instead triggered an unhandledRejection event. -->
-	<!-- Warning: Test "callback called twice in different ticks" generated asynchronous activity after the test ended. This activity created the error "Error [ERR_TEST_FAILURE]: callback invoked multiple times" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
-	<!-- Warning: Test "callback async throw after done" generated asynchronous activity after the test ended. This activity created the error "Error: thrown from callback async throw after done" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
+	<!-- Error: Test "unhandled rejection - passes but warns" at test/fixtures/test-runner/output/output.js:72:1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event. -->
+	<!-- Error: Test "async unhandled rejection - passes but warns" at test/fixtures/test-runner/output/output.js:76:1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from async unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event. -->
+	<!-- Error: A resource generated asynchronous activity after the test ended. This activity created the error "Error: uncaught from outside of a test" which triggered an uncaughtException event, caught by the test runner. -->
+	<!-- Error: Test "immediate throw - passes but warns" at test/fixtures/test-runner/output/output.js:80:1 generated asynchronous activity after the test ended. This activity created the error "Error: thrown from immediate throw fail" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
+	<!-- Error: Test "immediate reject - passes but warns" at test/fixtures/test-runner/output/output.js:86:1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from immediate reject fail" and would have caused the test to fail, but instead triggered an unhandledRejection event. -->
+	<!-- Error: Test "callback called twice in different ticks" at test/fixtures/test-runner/output/output.js:251:1 generated asynchronous activity after the test ended. This activity created the error "Error [ERR_TEST_FAILURE]: callback invoked multiple times" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
+	<!-- Error: Test "callback async throw after done" at test/fixtures/test-runner/output/output.js:269:1 generated asynchronous activity after the test ended. This activity created the error "Error: thrown from callback async throw after done" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
 	<!-- tests 76 -->
 	<!-- suites 0 -->
 	<!-- pass 35 -->

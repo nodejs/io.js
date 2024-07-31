@@ -66,14 +66,16 @@ Address TraceExtension::GetFP(const v8::FunctionCallbackInfo<v8::Value>& info) {
   CHECK_EQ(2, info.Length());  // Ignore second argument on 32-bit platform.
   CHECK(i::ValidateCallbackInfo(info));
 #if defined(V8_HOST_ARCH_32_BIT)
-  Address fp = *reinterpret_cast<Address*>(*info[0]);
+  Address fp = internal::ValueHelper::ValueAsAddress(*info[0]);
 #elif defined(V8_HOST_ARCH_64_BIT)
   uint64_t kSmiValueMask =
       (static_cast<uintptr_t>(1) << (kSmiValueSize - 1)) - 1;
   uint64_t low_bits =
-      Smi(*reinterpret_cast<Address*>(*info[0])).value() & kSmiValueMask;
+      Tagged<Smi>(internal::ValueHelper::ValueAsAddress(*info[0])).value() &
+      kSmiValueMask;
   uint64_t high_bits =
-      Smi(*reinterpret_cast<Address*>(*info[1])).value() & kSmiValueMask;
+      Tagged<Smi>(internal::ValueHelper::ValueAsAddress(*info[1])).value() &
+      kSmiValueMask;
   Address fp =
       static_cast<Address>((high_bits << (kSmiValueSize - 1)) | low_bits);
 #else

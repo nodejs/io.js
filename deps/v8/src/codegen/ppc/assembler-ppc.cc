@@ -1502,8 +1502,8 @@ void Assembler::bitwise_add32(Register dst, Register src, int32_t value) {
   }
 }
 
-void Assembler::patch_wasm_cpi_return_address(Register dst, int pc_offset,
-                                              int return_address_offset) {
+void Assembler::patch_pc_address(Register dst, int pc_offset,
+                                 int return_address_offset) {
   DCHECK(is_int16(return_address_offset));
   Assembler patching_assembler(
       AssemblerOptions{},

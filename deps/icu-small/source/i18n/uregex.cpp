@@ -1204,11 +1204,11 @@ uregex_replaceAllUText(URegularExpression    *regexp2,
                        UErrorCode            *status)  {
     RegularExpression *regexp = (RegularExpression*)regexp2;
     if (validateRE(regexp, true, status) == false) {
-        return 0;
+        return nullptr;
     }
     if (replacementText == nullptr) {
         *status = U_ILLEGAL_ARGUMENT_ERROR;
-        return 0;
+        return nullptr;
     }
 
     dest = regexp->fMatcher->replaceAll(replacementText, dest, *status);
@@ -1265,11 +1265,11 @@ uregex_replaceFirstUText(URegularExpression  *regexp2,
                          UErrorCode            *status)  {
     RegularExpression *regexp = (RegularExpression*)regexp2;
     if (validateRE(regexp, true, status) == false) {
-        return 0;
+        return nullptr;
     }
     if (replacementText == nullptr) {
         *status = U_ILLEGAL_ARGUMENT_ERROR;
-        return 0;
+        return nullptr;
     }
 
     dest = regexp->fMatcher->replaceFirst(replacementText, dest, *status);

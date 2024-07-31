@@ -6,6 +6,15 @@ const { addresses } = require('../common/internet');
 const assert = require('assert');
 const { connect } = require('net');
 
+//
+// When testing this is MacOS, remember that the last connection will have no timeout at Node.js
+// level but only at operating system one.
+//
+// The default for MacOS is 75 seconds. It can be changed by doing:
+//
+// sudo sysctl net.inet.tcp.keepinit=VALUE_IN_MS
+//
+
 // Test that when all errors are returned when no connections succeeded and that the close event is emitted
 {
   const connection = connect({

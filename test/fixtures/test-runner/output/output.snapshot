@@ -552,8 +552,6 @@ not ok 51 - custom inspect symbol that throws fail
         *
         *
         *
-        *
-        *
       ...
     1..2
 not ok 52 - subtest sync throw fails
@@ -643,23 +641,60 @@ not ok 61 - assertion errors display actual and expected properly
     
     {
       bar: 1,
+      baz: {
+        date: 1970-01-01T00:00:00.000Z,
+        null: null,
+        number: 1,
+        string: 'Hello',
+        undefined: undefined
+      },
+      boo: [
+        1
+      ],
       foo: 1
     }
     
     should loosely deep-equal
     
-    <ref *1> {
-      bar: 2,
-      c: [Circular *1]
+    {
+      baz: {
+        date: 1970-01-01T00:00:00.000Z,
+        null: null,
+        number: 1,
+        string: 'Hello',
+        undefined: undefined
+      },
+      boo: [
+        1
+      ],
+      circular: <ref *1> {
+        bar: 2,
+        c: [Circular *1]
+      }
     }
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   expected:
-    bar: 2
-    c: <Circular>
+    boo:
+      0: 1
+    baz:
+      date: 1970-01-01T00:00:00.000Z
+      null: ~
+      number: 1
+      string: 'Hello'
+    circular:
+      bar: 2
+      c: <Circular>
   actual:
     foo: 1
     bar: 1
+    boo:
+      0: 1
+    baz:
+      date: 1970-01-01T00:00:00.000Z
+      null: ~
+      number: 1
+      string: 'Hello'
   operator: 'deepEqual'
   stack: |-
     *
@@ -676,13 +711,13 @@ not ok 62 - invalid subtest fail
     *
   ...
 1..62
-# Warning: Test "unhandled rejection - passes but warns" generated asynchronous activity after the test ended. This activity created the error "Error: rejected from unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
-# Warning: Test "async unhandled rejection - passes but warns" generated asynchronous activity after the test ended. This activity created the error "Error: rejected from async unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
-# Warning: A resource generated asynchronous activity after the test ended. This activity created the error "Error: uncaught from outside of a test" which triggered an uncaughtException event, caught by the test runner.
-# Warning: Test "immediate throw - passes but warns" generated asynchronous activity after the test ended. This activity created the error "Error: thrown from immediate throw fail" and would have caused the test to fail, but instead triggered an uncaughtException event.
-# Warning: Test "immediate reject - passes but warns" generated asynchronous activity after the test ended. This activity created the error "Error: rejected from immediate reject fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
-# Warning: Test "callback called twice in different ticks" generated asynchronous activity after the test ended. This activity created the error "Error [ERR_TEST_FAILURE]: callback invoked multiple times" and would have caused the test to fail, but instead triggered an uncaughtException event.
-# Warning: Test "callback async throw after done" generated asynchronous activity after the test ended. This activity created the error "Error: thrown from callback async throw after done" and would have caused the test to fail, but instead triggered an uncaughtException event.
+# Error: Test "unhandled rejection - passes but warns" at test/fixtures/test-runner/output/output.js:(LINE):1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+# Error: Test "async unhandled rejection - passes but warns" at test/fixtures/test-runner/output/output.js:(LINE):1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from async unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+# Error: A resource generated asynchronous activity after the test ended. This activity created the error "Error: uncaught from outside of a test" which triggered an uncaughtException event, caught by the test runner.
+# Error: Test "immediate throw - passes but warns" at test/fixtures/test-runner/output/output.js:(LINE):1 generated asynchronous activity after the test ended. This activity created the error "Error: thrown from immediate throw fail" and would have caused the test to fail, but instead triggered an uncaughtException event.
+# Error: Test "immediate reject - passes but warns" at test/fixtures/test-runner/output/output.js:(LINE):1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from immediate reject fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+# Error: Test "callback called twice in different ticks" at test/fixtures/test-runner/output/output.js:(LINE):1 generated asynchronous activity after the test ended. This activity created the error "Error [ERR_TEST_FAILURE]: callback invoked multiple times" and would have caused the test to fail, but instead triggered an uncaughtException event.
+# Error: Test "callback async throw after done" at test/fixtures/test-runner/output/output.js:(LINE):1 generated asynchronous activity after the test ended. This activity created the error "Error: thrown from callback async throw after done" and would have caused the test to fail, but instead triggered an uncaughtException event.
 # tests 76
 # suites 0
 # pass 35

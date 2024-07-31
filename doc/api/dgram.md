@@ -741,7 +741,7 @@ added: v8.6.0
 * `multicastInterface` {string}
 
 _All references to scope in this section are referring to
-[IPv6 Zone Indices][], which are defined by [RFC 4007][]. In string form, an IP
+[IPv6 Zone Indexes][], which are defined by [RFC 4007][]. In string form, an IP
 with a scope index is written as `'IP%scope'` where scope is an interface name
 or interface number._
 
@@ -988,7 +988,7 @@ interfaces" address on a random port (it does the right thing for both `udp4`
 and `udp6` sockets). The bound address and port can be retrieved using
 [`socket.address().address`][] and [`socket.address().port`][].
 
-[IPv6 Zone Indices]: https://en.wikipedia.org/wiki/IPv6_address#Scoped_literal_IPv6_addresses
+[IPv6 Zone Indexes]: https://en.wikipedia.org/wiki/IPv6_address#Scoped_literal_IPv6_addresses
 [RFC 4007]: https://tools.ietf.org/html/rfc4007
 [`'close'`]: #event-close
 [`ERR_SOCKET_BAD_PORT`]: errors.md#err_socket_bad_port

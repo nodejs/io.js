@@ -49,7 +49,7 @@ int InitPrototypeChecksImpl(Isolate* isolate, Handle<ICHandler> handler,
     // corresponds.
     if (fill_handler) {
       Handle<Context> native_context = isolate->native_context();
-      handler->set_data2(HeapObjectReference::Weak(*native_context));
+      handler->set_data2(MakeWeak(*native_context));
     } else {
       // Enable access checks on the lookup start object.
       *smi_handler = SetBitFieldValue<
@@ -168,22 +168,24 @@ Handle<Object> LoadHandler::LoadFullChain(Isolate* isolate,
 }
 
 // static
-KeyedAccessLoadMode LoadHandler::GetKeyedAccessLoadMode(MaybeObject handler) {
+KeyedAccessLoadMode LoadHandler::GetKeyedAccessLoadMode(
+    Tagged<MaybeObject> handler) {
   DisallowGarbageCollection no_gc;
   if (IsSmi(handler)) {
     int const raw_handler = handler.ToSmi().value();
     Kind const kind = KindBits::decode(raw_handler);
-    if ((kind == Kind::kElement || kind == Kind::kIndexedString) &&
-        AllowOutOfBoundsBits::decode(raw_handler)) {
-      return LOAD_IGNORE_OUT_OF_BOUNDS;
+    if (kind == Kind::kElement || kind == Kind::kIndexedString) {
+      bool handle_oob = AllowOutOfBoundsBits::decode(raw_handler);
+      bool handle_holes = AllowHandlingHole::decode(raw_handler);
+      return CreateKeyedAccessLoadMode(handle_oob, handle_holes);
     }
   }
-  return STANDARD_LOAD;
+  return KeyedAccessLoadMode::kInBounds;
 }
 
 // static
 KeyedAccessStoreMode StoreHandler::GetKeyedAccessStoreMode(
-    MaybeObject handler) {
+    Tagged<MaybeObject> handler) {
   DisallowGarbageCollection no_gc;
   if (IsSmi(handler)) {
     int const raw_handler = handler.ToSmi().value();
@@ -191,15 +193,15 @@ KeyedAccessStoreMode StoreHandler::GetKeyedAccessStoreMode(
     // All the handlers except the Slow Handler that use the
     // KeyedAccessStoreMode, compute it using KeyedAccessStoreModeForBuiltin
     // method. Hence if any other Handler get to this path, just return
-    // STANDARD_STORE.
+    // KeyedAccessStoreMode::kInBounds.
     if (kind != Kind::kSlow) {
-      return STANDARD_STORE;
+      return KeyedAccessStoreMode::kInBounds;
     }
     KeyedAccessStoreMode store_mode =
         KeyedAccessStoreModeBits::decode(raw_handler);
     return store_mode;
   }
-  return STANDARD_STORE;
+  return KeyedAccessStoreMode::kInBounds;
 }
 
 // static
@@ -215,7 +217,7 @@ Handle<Object> StoreHandler::StoreElementTransition(
   Handle<StoreHandler> handler = isolate->factory()->NewStoreHandler(1);
   handler->set_smi_handler(*code);
   handler->set_validity_cell(*validity_cell);
-  handler->set_data1(HeapObjectReference::Weak(*transition));
+  handler->set_data1(MakeWeak(*transition));
   return handler;
 }
 
@@ -245,7 +247,7 @@ MaybeObjectHandle StoreHandler::StoreOwnTransition(Isolate* isolate,
   if (is_dictionary_map) {
     DCHECK(!IsJSGlobalObjectMap(*transition_map));
     int config = KindBits::encode(Kind::kNormal);
-    return MaybeObjectHandle(Smi::FromInt(config), isolate);
+    return MaybeObjectHandle(Tagged<Object>(Smi::FromInt(config)), isolate);
 
   } else {
     return MaybeObjectHandle::Weak(transition_map);
@@ -371,8 +373,8 @@ void PrintSmiLoadHandler(int raw_handler, std::ostream& os) {
            << LoadHandler::AllowOutOfBoundsBits::decode(raw_handler)
            << ", is JSArray = "
            << LoadHandler::IsJsArrayBits::decode(raw_handler)
-           << ", convert hole = "
-           << LoadHandler::ConvertHoleBits::decode(raw_handler)
+           << ", alow reading holes = "
+           << LoadHandler::AllowHandlingHole::decode(raw_handler)
            << ", elements kind = "
            << ElementsKindToString(
                   LoadHandler::ElementsKindBits::decode(raw_handler));
@@ -441,20 +443,6 @@ void PrintSmiLoadHandler(int raw_handler, std::ostream& os) {
   }
 }
 
-const char* KeyedAccessStoreModeToString(KeyedAccessStoreMode mode) {
-  switch (mode) {
-    case STANDARD_STORE:
-      return "STANDARD_STORE";
-    case STORE_AND_GROW_HANDLE_COW:
-      return "STORE_AND_GROW_HANDLE_COW";
-    case STORE_IGNORE_OUT_OF_BOUNDS:
-      return "STORE_IGNORE_OUT_OF_BOUNDS";
-    case STORE_HANDLE_COW:
-      return "STORE_HANDLE_COW";
-  }
-  UNREACHABLE();
-}
-
 void PrintSmiStoreHandler(int raw_handler, std::ostream& os) {
   StoreHandler::Kind kind = StoreHandler::KindBits::decode(raw_handler);
   os << "kind = ";
@@ -502,8 +490,7 @@ void PrintSmiStoreHandler(int raw_handler, std::ostream& os) {
     case StoreHandler::Kind::kSlow: {
       KeyedAccessStoreMode keyed_access_store_mode =
           StoreHandler::KeyedAccessStoreModeBits::decode(raw_handler);
-      os << "kSlow, keyed access store mode = "
-         << KeyedAccessStoreModeToString(keyed_access_store_mode);
+      os << "kSlow, keyed access store mode = " << keyed_access_store_mode;
       break;
     }
     case StoreHandler::Kind::kProxy:
@@ -533,7 +520,7 @@ void LoadHandler::PrintHandler(Tagged<Object> handler, std::ostream& os) {
   } else if (IsSymbol(handler)) {
     os << "LoadHandler(Symbol)(" << Brief(Symbol::cast(handler)) << ")";
   } else if (IsLoadHandler(handler)) {
-    LoadHandler load_handler = LoadHandler::cast(handler);
+    Tagged<LoadHandler> load_handler = LoadHandler::cast(handler);
     int raw_handler = Smi::cast(load_handler->smi_handler()).value();
     os << "LoadHandler(do access check on lookup start object = "
        << DoAccessCheckOnLookupStartObjectBits::decode(raw_handler)
@@ -569,9 +556,9 @@ void StoreHandler::PrintHandler(Tagged<Object> handler, std::ostream& os) {
     os << ")" << std::endl;
   } else if (IsStoreHandler(handler)) {
     os << "StoreHandler(";
-    StoreHandler store_handler = StoreHandler::cast(handler);
+    Tagged<StoreHandler> store_handler = StoreHandler::cast(handler);
     if (IsCode(store_handler->smi_handler())) {
-      Code code = Code::cast(store_handler->smi_handler());
+      Tagged<Code> code = Code::cast(store_handler->smi_handler());
       os << "builtin = ";
       ShortPrint(code, os);
     } else {
@@ -600,6 +587,11 @@ void StoreHandler::PrintHandler(Tagged<Object> handler, std::ostream& os) {
   } else if (IsMap(handler)) {
     os << "StoreHandler(field transition to " << Brief(handler) << ")"
        << std::endl;
+  } else if (IsCode(handler)) {
+    Tagged<Code> code = Code::cast(handler);
+    os << "StoreHandler(builtin = ";
+    ShortPrint(code, os);
+    os << ")" << std::endl;
   } else {
     os << "StoreHandler(<unexpected>)(" << Brief(handler) << ")" << std::endl;
   }

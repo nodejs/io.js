@@ -33,7 +33,7 @@ on your `authtype`.
 
 * create / destroy:
   Create a new team, or destroy an existing one. Note: You cannot remove the
-  `developers` team, <a href="https://docs.npmjs.com/about-developers-team" target="_blank">learn more.</a>
+  `developers` team, [learn more.](https://docs.npmjs.com/about-developers-team)
 
   Here's how to create a new team `newteam` under the `org` org:
 

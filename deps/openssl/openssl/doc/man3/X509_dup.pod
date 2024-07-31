@@ -356,6 +356,15 @@ algorithms from providers. This created object can then be used when loading
 binary data using B<d2i_I<TYPE>>().
 
 B<I<TYPE>_dup>() copies an existing object, leaving it untouched.
+Note, however, that the internal representation of the object
+may contain (besides the ASN.1 structure) further data, which is not copied.
+For instance, an B<X509> object usually is augmented by cached information
+on X.509v3 extensions, etc., and losing it can lead to wrong validation results.
+To avoid such situations, better use B<I<TYPE>_up_ref>() if available.
+For the case of B<X509> objects, an alternative to using L<X509_up_ref(3)>
+may be to still call B<I<TYPE>_dup>(), e.g., I<copied_cert = X509_dup(cert)>,
+followed by I<X509_check_purpose(copied_cert, -1, 0)>,
+which re-builds the cached data.
 
 B<I<TYPE>_free>() releases the object and all pointers and sub-objects
 within it.
@@ -373,6 +382,10 @@ the object or NULL on failure.
 
 B<I<TYPE>_print_ctx>() returns 1 on success or zero on failure.
 
+=head1 SEE ALSO
+
+L<X509_up_ref(3)>
+
 =head1 HISTORY
 
 The functions X509_REQ_new_ex(), X509_CRL_new_ex(), PKCS7_new_ex() and
@@ -383,7 +396,7 @@ deprecated in 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

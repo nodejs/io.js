@@ -121,6 +121,28 @@ TEST(SpanFromTest, FromConstCharAndLiteral) {
   EXPECT_EQ(3u, SpanFrom("foo").size());
 }
 
+TEST(SpanComparisons, ByteWiseLexicographicalOrder) {
+  // Compare the empty span.
+  EXPECT_FALSE(SpanLessThan(span<uint8_t>(), span<uint8_t>()));
+  EXPECT_TRUE(SpanEquals(span<uint8_t>(), span<uint8_t>()));
+
+  // Compare message with itself.
+  std::string msg = "Hello, world";
+  EXPECT_FALSE(SpanLessThan(SpanFrom(msg), SpanFrom(msg)));
+  EXPECT_TRUE(SpanEquals(SpanFrom(msg), SpanFrom(msg)));
+
+  // Compare message and copy.
+  EXPECT_FALSE(SpanLessThan(SpanFrom(msg), SpanFrom(std::string(msg))));
+  EXPECT_TRUE(SpanEquals(SpanFrom(msg), SpanFrom(std::string(msg))));
+
+  // Compare two messages. |lesser_msg| < |msg| because of the first
+  // byte ('A' < 'H').
+  std::string lesser_msg = "A lesser message.";
+  EXPECT_TRUE(SpanLessThan(SpanFrom(lesser_msg), SpanFrom(msg)));
+  EXPECT_FALSE(SpanLessThan(SpanFrom(msg), SpanFrom(lesser_msg)));
+  EXPECT_FALSE(SpanEquals(SpanFrom(msg), SpanFrom(lesser_msg)));
+}
+
 // =============================================================================
 // Status and Error codes
 // =============================================================================
@@ -1325,6 +1347,25 @@ void WriteUTF8AsUTF16(StreamingParserHandler* writer, const std::string& utf8) {
   writer->HandleString16(SpanFrom(UTF8ToUTF16(SpanFrom(utf8))));
 }
 
+TEST(JsonEncoder, OverlongEncodings) {
+  std::string out;
+  Status status;
+  std::unique_ptr<StreamingParserHandler> writer =
+      NewJSONEncoder(&GetTestPlatform(), &out, &status);
+
+  // We encode 0x7f, which is the DEL ascii character, as a 4 byte UTF8
+  // sequence. This is called an overlong encoding, because only 1 byte
+  // is needed to represent 0x7f as UTF8.
+  std::vector<uint8_t> chars = {
+      0xf0,  // Starts 4 byte utf8 sequence
+      0x80,  // continuation byte
+      0x81,  // continuation byte w/ payload bit 7 set to 1.
+      0xbf,  // continuation byte w/ payload bits 0-6 set to 11111.
+  };
+  writer->HandleString8(SpanFrom(chars));
+  EXPECT_EQ("\"\"", out);  // Empty string means that 0x7f was rejected (good).
+}
+
 TEST(JsonStdStringWriterTest, HelloWorld) {
   std::string out;
   Status status;
@@ -1561,6 +1602,13 @@ TEST_F(JsonParserTest, UsAsciiDelCornerCase) {
       "string16: a\x7f\n"
       "map end\n",
       log_.str());
+
+  // We've seen an implementation of UTF16ToUTF8 which would replace the DEL
+  // character with ' ', so this simple roundtrip tests the routines in
+  // encoding_test_helper.h, to make test failures of the above easier to
+  // diagnose.
+  std::vector<uint16_t> utf16 = UTF8ToUTF16(SpanFrom(json));
+  EXPECT_EQ(json, UTF16ToUTF8(SpanFrom(utf16)));
 }
 
 TEST_F(JsonParserTest, Whitespace) {

@@ -11,8 +11,8 @@
 #include "src/base/vector.h"
 #include "src/compiler/common-operator.h"
 #include "src/compiler/turboshaft/assembler.h"
+#include "src/compiler/turboshaft/copying-phase.h"
 #include "src/compiler/turboshaft/operations.h"
-#include "src/compiler/turboshaft/optimization-phase.h"
 #include "src/compiler/turboshaft/representations.h"
 #include "src/compiler/turboshaft/sidetable.h"
 #include "src/compiler/turboshaft/snapshot-table.h"
@@ -79,7 +79,7 @@ class TypeInferenceReducer
   using table_t = SnapshotTable<Type>;
 
  public:
-  TURBOSHAFT_REDUCER_BOILERPLATE()
+  TURBOSHAFT_REDUCER_BOILERPLATE(TypeInference)
 
   using Adapter = UniformReducerAdapter<TypeInferenceReducer, Next>;
   using Args = TypeInferenceReducerArgs;
@@ -190,8 +190,7 @@ class TypeInferenceReducer
     // Collect the snapshots of all predecessors.
     {
       predecessors_.clear();
-      for (const Block* pred = new_block->LastPredecessor(); pred != nullptr;
-           pred = pred->NeighboringPredecessor()) {
+      for (const Block* pred : new_block->PredecessorsIterable()) {
         base::Optional<table_t::Snapshot> pred_snapshot =
             block_to_snapshot_mapping_[pred->index()];
         DCHECK(pred_snapshot.has_value());
@@ -221,7 +220,7 @@ class TypeInferenceReducer
     // types.
     if (args_.output_graph_typing ==
         Args::OutputGraphTyping::kRefineFromInputGraph) {
-      if (new_block->HasExactlyNPredecessors(1)) {
+      if (new_block->PredecessorCount() == 1) {
         Block* predecessor = new_block->LastPredecessor();
         const Operation& terminator =
             predecessor->LastOperation(Asm().output_graph());
@@ -405,7 +404,7 @@ class TypeInferenceReducer
   }
 
   void RemoveLast(OpIndex index_of_last_operation) {
-    if (auto key_opt = op_to_key_mapping_[index_of_last_operation]) {
+    if (op_to_key_mapping_[index_of_last_operation]) {
       op_to_key_mapping_[index_of_last_operation] = base::nullopt;
       TURBOSHAFT_TRACE_TYPING_OK(
           "REM  %3d:%-40s %-40s\n", index_of_last_operation.id(),
@@ -444,11 +443,24 @@ class TypeInferenceReducer
     return Type::Invalid();
   }
 
+  Type GetTupleType(const TupleOp& tuple) {
+    base::SmallVector<Type, 4> tuple_types;
+    for (OpIndex input : tuple.inputs()) {
+      tuple_types.push_back(GetType(input));
+    }
+    return TupleType::Tuple(base::VectorOf(tuple_types), Asm().graph_zone());
+  }
+
   Type GetType(OpIndex index) {
     Type type = GetTypeOrInvalid(index);
     if (type.IsInvalid()) {
       const Operation& op = Asm().output_graph().Get(index);
-      return Typer::TypeForRepresentation(op.outputs_rep(), Asm().graph_zone());
+      if (op.Is<TupleOp>()) {
+        return GetTupleType(op.Cast<TupleOp>());
+      } else {
+        return Typer::TypeForRepresentation(op.outputs_rep(),
+                                            Asm().graph_zone());
+      }
     }
     return type;
   }
@@ -535,13 +547,14 @@ class TypeInferenceReducer
   }
 
   TypeInferenceReducerArgs args_{TypeInferenceReducerArgs::Get()};
-  GrowingSidetable<Type> input_graph_types_{Asm().graph_zone()};
-  GrowingSidetable<Type>& output_graph_types_{
+  GrowingOpIndexSidetable<Type> input_graph_types_{Asm().graph_zone(),
+                                                   &Asm().input_graph()};
+  GrowingOpIndexSidetable<Type>& output_graph_types_{
       Asm().output_graph().operation_types()};
   table_t table_{Asm().phase_zone()};
   const Block* current_block_ = nullptr;
-  GrowingSidetable<base::Optional<table_t::Key>> op_to_key_mapping_{
-      Asm().phase_zone()};
+  GrowingOpIndexSidetable<base::Optional<table_t::Key>> op_to_key_mapping_{
+      Asm().phase_zone(), &Asm().output_graph()};
   GrowingBlockSidetable<base::Optional<table_t::Snapshot>>
       block_to_snapshot_mapping_{Asm().input_graph().block_count(),
                                  base::nullopt, Asm().phase_zone()};

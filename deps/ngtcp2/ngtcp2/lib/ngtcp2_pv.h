@@ -76,10 +76,6 @@ void ngtcp2_pv_entry_init(ngtcp2_pv_entry *pvent, const uint8_t *data,
    fallback DCID.  If path validation succeeds, fallback DCID is
    retired if it does not equal to the current DCID. */
 #define NGTCP2_PV_FLAG_FALLBACK_ON_FAILURE 0x04u
-/* NGTCP2_PV_FLAG_MTU_PROBE indicates that a validation must probe
-   least MTU that QUIC requires, which is 1200 bytes.  If it fails, a
-   path is not viable. */
-#define NGTCP2_PV_FLAG_MTU_PROBE 0x08u
 /* NGTCP2_PV_FLAG_PREFERRED_ADDR indicates that client is migrating to
    server's preferred address.  This flag is only used by client. */
 #define NGTCP2_PV_FLAG_PREFERRED_ADDR 0x10u

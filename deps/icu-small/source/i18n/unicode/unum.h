@@ -1107,7 +1107,6 @@ typedef enum UNumberFormatAttribute {
 
 } UNumberFormatAttribute;
 
-#ifndef U_HIDE_DRAFT_API
 /**
 * Returns true if the formatter supports the specified attribute and false if not.
 * @param fmt The formatter to query.
@@ -1120,12 +1119,11 @@ typedef enum UNumberFormatAttribute {
 * @see unum_setDoubleAttribute
 * @see unum_getTextAttribute
 * @see unum_setTextAttribute
-* @draft ICU 72
+* @stable ICU 72
 */
 U_CAPI bool U_EXPORT2
 unum_hasAttribute(const UNumberFormat*          fmt,
           UNumberFormatAttribute  attr);
-#endif // U_HIDE_DRAFT_API
 
 /**
 * Get a numeric attribute associated with a UNumberFormat.

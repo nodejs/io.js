@@ -28,7 +28,7 @@ builder.addFunction(undefined, sig)
   kExprIf, kWasmVoid,  // if @49
     kExprI32Const, 0x00,  // i32.const
     kExprI32Const, 0x00,  // i32.const
-    kAtomicPrefix, kExprI32AtomicSub, 0x01, 0x04,  // i32.atomic.sub
+    kAtomicPrefix, kExprI32AtomicSub, 0x02, 0x04,  // i32.atomic.sub
     kExprDrop,
   kExprEnd,
   kExprUnreachable,

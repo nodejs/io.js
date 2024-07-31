@@ -71,7 +71,7 @@ t.test('npm help-search long output with color', async t => {
 
   const chalk = await import('chalk').then(v => v.default)
 
-  const highlightedText = chalk.bgBlack.red('help-search')
+  const highlightedText = chalk.blue('help-search')
   t.equal(
     output.split('\n').some(line => line.includes(highlightedText)),
     true,

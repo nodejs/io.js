@@ -1,0 +1,1 @@
+Don't crash when pausing while entering a nested with scope

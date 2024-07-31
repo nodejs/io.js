@@ -717,6 +717,8 @@ Handle<HeapObject> RegExpMacroAssemblerLOONG64::GetCode(Handle<String> source) {
 
       ExternalReference stack_limit =
           ExternalReference::address_of_jslimit(masm_->isolate());
+      Operand extra_space_for_variables(num_registers_ * kSystemPointerSize);
+
       __ li(a0, Operand(stack_limit));
       __ Ld_d(a0, MemOperand(a0, 0));
       __ Sub_d(a0, sp, a0);
@@ -724,15 +726,14 @@ Handle<HeapObject> RegExpMacroAssemblerLOONG64::GetCode(Handle<String> source) {
       __ Branch(&stack_limit_hit, le, a0, Operand(zero_reg));
       // Check if there is room for the variable number of registers above
       // the stack limit.
-      __ Branch(&stack_ok, hs, a0,
-                Operand(num_registers_ * kSystemPointerSize));
+      __ Branch(&stack_ok, hs, a0, extra_space_for_variables);
       // Exit with OutOfMemory exception. There is not enough space on the stack
       // for our working registers.
       __ li(a0, Operand(EXCEPTION));
       __ jmp(&return_v0);
 
       __ bind(&stack_limit_hit);
-      CallCheckStackGuardState(a0);
+      CallCheckStackGuardState(a0, extra_space_for_variables);
       // If returned value is non-zero, we exit with the returned value as
       // result.
       __ Branch(&return_v0, ne, a0, Operand(zero_reg));
@@ -983,6 +984,7 @@ Handle<HeapObject> RegExpMacroAssemblerLOONG64::GetCode(Handle<String> source) {
   Handle<Code> code =
       Factory::CodeBuilder(isolate(), code_desc, CodeKind::REGEXP)
           .set_self_reference(masm_->CodeObject())
+          .set_empty_source_position_table()
           .Build();
   LOG(masm_->isolate(),
       RegExpCodeCreateEvent(Handle<AbstractCode>::cast(code), source));
@@ -1131,7 +1133,8 @@ void RegExpMacroAssemblerLOONG64::ClearRegisters(int reg_from, int reg_to) {
 
 // Private methods:
 
-void RegExpMacroAssemblerLOONG64::CallCheckStackGuardState(Register scratch) {
+void RegExpMacroAssemblerLOONG64::CallCheckStackGuardState(
+    Register scratch, Operand extra_space) {
   DCHECK(!isolate()->IsGeneratingEmbeddedBuiltins());
   DCHECK(!masm_->options().isolate_independent_code);
 
@@ -1144,6 +1147,9 @@ void RegExpMacroAssemblerLOONG64::CallCheckStackGuardState(Register scratch) {
   __ And(sp, sp, Operand(-stack_alignment));
   __ St_d(scratch, MemOperand(sp, 0));
 
+  // Extra space for variables.
+  __ li(a3, extra_space);
+  // RegExp code frame pointer.
   __ mov(a2, frame_pointer());
   // InstructionStream of self.
   __ li(a1, Operand(masm_->CodeObject()), CONSTANT_SIZE);
@@ -1151,16 +1157,6 @@ void RegExpMacroAssemblerLOONG64::CallCheckStackGuardState(Register scratch) {
   // We need to make room for the return address on the stack.
   DCHECK(IsAligned(stack_alignment, kSystemPointerSize));
   __ Sub_d(sp, sp, Operand(stack_alignment));
-
-  // The stack pointer now points to cell where the return address will be
-  // written. Arguments are in registers, meaning we treat the return address as
-  // argument 5. Since DirectCEntry will handle allocating space for the C
-  // argument slots, we don't need to care about that here. This is how the
-  // stack will look (sp meaning the value of sp at this moment):
-  // [sp + 3] - empty slot if needed for alignment.
-  // [sp + 2] - saved sp.
-  // [sp + 1] - second word reserved for return value.
-  // [sp + 0] - first word reserved for return value.
 
   // a0 will point to the return address, placed by DirectCEntry.
   __ mov(a0, sp);
@@ -1175,17 +1171,6 @@ void RegExpMacroAssemblerLOONG64::CallCheckStackGuardState(Register scratch) {
   __ li(kScratchReg, Operand(entry, RelocInfo::OFF_HEAP_TARGET));
   __ Call(kScratchReg);
 
-  // DirectCEntry allocated space for the C argument slots so we have to
-  // drop them with the return address from the stack with loading saved sp.
-  // At this point stack must look:
-  // [sp + 7] - empty slot if needed for alignment.
-  // [sp + 6] - saved sp.
-  // [sp + 5] - second word reserved for return value.
-  // [sp + 4] - first word reserved for return value.
-  // [sp + 3] - C argument slot.
-  // [sp + 2] - C argument slot.
-  // [sp + 1] - C argument slot.
-  // [sp + 0] - C argument slot.
   __ Ld_d(sp, MemOperand(sp, stack_alignment));
 
   __ li(code_pointer(), Operand(masm_->CodeObject()));
@@ -1203,8 +1188,10 @@ static T* frame_entry_address(Address re_frame, int frame_offset) {
 }
 
 int64_t RegExpMacroAssemblerLOONG64::CheckStackGuardState(
-    Address* return_address, Address raw_code, Address re_frame) {
-  InstructionStream re_code = InstructionStream::cast(Object(raw_code));
+    Address* return_address, Address raw_code, Address re_frame,
+    uintptr_t extra_space) {
+  Tagged<InstructionStream> re_code =
+      InstructionStream::cast(Tagged<Object>(raw_code));
   return NativeRegExpMacroAssembler::CheckStackGuardState(
       frame_entry<Isolate*>(re_frame, kIsolateOffset),
       static_cast<int>(frame_entry<int64_t>(re_frame, kStartIndexOffset)),
@@ -1213,7 +1200,8 @@ int64_t RegExpMacroAssemblerLOONG64::CheckStackGuardState(
       return_address, re_code,
       frame_entry_address<Address>(re_frame, kInputStringOffset),
       frame_entry_address<const uint8_t*>(re_frame, kInputStartOffset),
-      frame_entry_address<const uint8_t*>(re_frame, kInputEndOffset));
+      frame_entry_address<const uint8_t*>(re_frame, kInputEndOffset),
+      extra_space);
 }
 
 MemOperand RegExpMacroAssemblerLOONG64::register_location(int register_index) {
@@ -1298,8 +1286,7 @@ void RegExpMacroAssemblerLOONG64::CallCFunctionFromIrregexpCode(
   //    fail.
   //
   // See also: crbug.com/v8/12670#c17.
-  __ CallCFunction(function, num_arguments,
-                   MacroAssembler::SetIsolateDataSlots::kNo);
+  __ CallCFunction(function, num_arguments, SetIsolateDataSlots::kNo);
 }
 
 void RegExpMacroAssemblerLOONG64::CheckPreemption() {

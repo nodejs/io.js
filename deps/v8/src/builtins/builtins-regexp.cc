@@ -81,7 +81,7 @@ DEFINE_CAPTURE_GETTER(9)
 
 BUILTIN(RegExpInputGetter) {
   HandleScope scope(isolate);
-  Handle<Object> obj(isolate->regexp_last_match_info()->LastInput(), isolate);
+  Handle<Object> obj(isolate->regexp_last_match_info()->last_input(), isolate);
   return IsUndefined(*obj, isolate) ? ReadOnlyRoots(isolate).empty_string()
                                     : Tagged<String>::cast(*obj);
 }
@@ -92,7 +92,7 @@ BUILTIN(RegExpInputSetter) {
   Handle<String> str;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, str,
                                      Object::ToString(isolate, value));
-  isolate->regexp_last_match_info()->SetLastInput(*str);
+  isolate->regexp_last_match_info()->set_last_input(*str);
   return ReadOnlyRoots(isolate).undefined_value();
 }
 
@@ -109,7 +109,7 @@ BUILTIN(RegExpLastMatchGetter) {
 BUILTIN(RegExpLastParenGetter) {
   HandleScope scope(isolate);
   Handle<RegExpMatchInfo> match_info = isolate->regexp_last_match_info();
-  const int length = match_info->NumberOfCaptureRegisters();
+  const int length = match_info->number_of_capture_registers();
   if (length <= 2) {
     return ReadOnlyRoots(isolate).empty_string();  // No captures.
   }
@@ -126,16 +126,16 @@ BUILTIN(RegExpLastParenGetter) {
 BUILTIN(RegExpLeftContextGetter) {
   HandleScope scope(isolate);
   Handle<RegExpMatchInfo> match_info = isolate->regexp_last_match_info();
-  const int start_index = match_info->Capture(0);
-  Handle<String> last_subject(match_info->LastSubject(), isolate);
+  const int start_index = match_info->capture(0);
+  Handle<String> last_subject(match_info->last_subject(), isolate);
   return *isolate->factory()->NewSubString(last_subject, 0, start_index);
 }
 
 BUILTIN(RegExpRightContextGetter) {
   HandleScope scope(isolate);
   Handle<RegExpMatchInfo> match_info = isolate->regexp_last_match_info();
-  const int start_index = match_info->Capture(1);
-  Handle<String> last_subject(match_info->LastSubject(), isolate);
+  const int start_index = match_info->capture(1);
+  Handle<String> last_subject(match_info->last_subject(), isolate);
   const int len = last_subject->length();
   return *isolate->factory()->NewSubString(last_subject, start_index, len);
 }

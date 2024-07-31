@@ -279,6 +279,8 @@ static int uv__signal_loop_once_init(uv_loop_t* loop) {
 
 
 int uv__signal_loop_fork(uv_loop_t* loop) {
+  struct uv__queue* q;
+
   if (loop->signal_pipefd[0] == -1)
     return 0;
   uv__io_stop(loop, &loop->signal_io_watcher, POLLIN);
@@ -286,6 +288,19 @@ int uv__signal_loop_fork(uv_loop_t* loop) {
   uv__close(loop->signal_pipefd[1]);
   loop->signal_pipefd[0] = -1;
   loop->signal_pipefd[1] = -1;
+
+  uv__queue_foreach(q, &loop->handle_queue) {
+    uv_handle_t* handle = uv__queue_data(q, uv_handle_t, handle_queue);
+    uv_signal_t* sh;
+
+    if (handle->type != UV_SIGNAL)
+      continue;
+
+    sh = (uv_signal_t*) handle;
+    sh->caught_signals = 0;
+    sh->dispatched_signals = 0;
+  }
+
   return uv__signal_loop_once_init(loop);
 }
 

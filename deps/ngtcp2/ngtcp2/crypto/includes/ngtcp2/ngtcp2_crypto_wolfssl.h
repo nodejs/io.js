@@ -39,23 +39,23 @@ extern "C" {
  * @function
  *
  * `ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level` translates
- * |wolfssl_level| to :type:`ngtcp2_crypto_level`.  This function is only
- * available for wolfSSL backend.
+ * |wolfssl_level| to :type:`ngtcp2_encryption_level`.  This function
+ * is only available for wolfSSL backend.
  */
-NGTCP2_EXTERN ngtcp2_crypto_level
+NGTCP2_EXTERN ngtcp2_encryption_level
 ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(
     WOLFSSL_ENCRYPTION_LEVEL wolfssl_level);
 
 /**
  * @function
  *
- * `ngtcp2_crypto_wolfssl_from_ngtcp2_crypto_level` translates
- * |crypto_level| to WOLFSSL_ENCRYPTION_LEVEL.  This function is only
- * available for wolfSSL backend.
+ * `ngtcp2_crypto_wolfssl_from_ngtcp2_encryption_level` translates
+ * |encryption_level| to WOLFSSL_ENCRYPTION_LEVEL.  This function is
+ * only available for wolfSSL backend.
  */
 NGTCP2_EXTERN WOLFSSL_ENCRYPTION_LEVEL
-ngtcp2_crypto_wolfssl_from_ngtcp2_crypto_level(
-    ngtcp2_crypto_level crypto_level);
+ngtcp2_crypto_wolfssl_from_ngtcp2_encryption_level(
+    ngtcp2_encryption_level encryption_level);
 
 /**
  * @function

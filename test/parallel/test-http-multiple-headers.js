@@ -1,6 +1,5 @@
 'use strict';
 
-// TODO@PI: Run all tests
 const common = require('../common');
 const assert = require('assert');
 const { createServer, request } = require('http');

@@ -300,9 +300,8 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
   const AstRawString* ParseExportSpecifierName();
   ZonePtrList<const NamedImport>* ParseNamedImports(int pos);
 
-  ImportAssertions* ParseImportAssertClause();
+  ImportAttributes* ParseImportWithOrAssertClause();
   Statement* BuildInitializationBlock(DeclarationParsingResult* parsing_result);
-  Expression* RewriteReturn(Expression* return_value, int pos);
   Statement* RewriteSwitchStatement(SwitchStatement* switch_statement,
                                     Scope* scope);
   Block* RewriteCatchPattern(CatchInfo* catch_info);
@@ -677,6 +676,14 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
   bool ShortcutNumericLiteralBinaryExpression(Expression** x, Expression* y,
                                               Token::Value op, int pos);
 
+  bool CollapseConditionalChain(Expression** x, Expression* cond,
+                                Expression* then_expression,
+                                Expression* else_expression, int pos,
+                                const SourceRange& then_range);
+
+  void AppendConditionalChainElse(Expression** x,
+                                  const SourceRange& else_range);
+
   // Returns true if we have a binary operation between a binary/n-ary
   // expression (with the same operation) and a value, which can be collapsed
   // into a single n-ary expression. In that case, *x will be changed to an
@@ -798,8 +805,8 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
     return factory()->NewThisExpression(pos);
   }
 
-  Expression* NewSuperPropertyReference(Scope* home_object_scope, int pos);
-  Expression* NewSuperCallReference(int pos);
+  Expression* NewSuperPropertyReference(int pos);
+  SuperCallReference* NewSuperCallReference(int pos);
   Expression* NewTargetExpression(int pos);
   Expression* ImportMetaExpression(int pos);
 
@@ -960,6 +967,33 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
     if (source_range_map_ == nullptr) return;
     source_range_map_->Insert(node,
                               zone()->New<CaseClauseSourceRanges>(body_range));
+  }
+
+  V8_INLINE void AppendConditionalChainSourceRange(ConditionalChain* node,
+                                                   const SourceRange& range) {
+    if (source_range_map_ == nullptr) return;
+    ConditionalChainSourceRanges* ranges =
+        static_cast<ConditionalChainSourceRanges*>(
+            source_range_map_->Find(node));
+    if (ranges == nullptr) {
+      source_range_map_->Insert(
+          node, zone()->New<ConditionalChainSourceRanges>(zone()));
+    }
+    ranges = static_cast<ConditionalChainSourceRanges*>(
+        source_range_map_->Find(node));
+    if (ranges == nullptr) return;
+    ranges->AddThenRanges(range);
+    DCHECK_EQ(node->conditional_chain_length(), ranges->RangeCount());
+  }
+
+  V8_INLINE void AppendConditionalChainElseSourceRange(
+      ConditionalChain* node, const SourceRange& range) {
+    if (source_range_map_ == nullptr) return;
+    ConditionalChainSourceRanges* ranges =
+        static_cast<ConditionalChainSourceRanges*>(
+            source_range_map_->Find(node));
+    if (ranges == nullptr) return;
+    ranges->AddElseRange(range);
   }
 
   V8_INLINE void RecordConditionalSourceRange(Expression* node,

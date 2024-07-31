@@ -30,10 +30,10 @@ static BROTLI_INLINE size_t FN(StoreLookahead)(void) {
 typedef struct HashComposite {
   HASHER_A ha;
   HASHER_B hb;
+  HasherCommon ha_common;
   HasherCommon hb_common;
 
   /* Shortcuts. */
-  void* extra;
   HasherCommon* common;
 
   BROTLI_BOOL fresh;
@@ -43,12 +43,12 @@ typedef struct HashComposite {
 static void FN(Initialize)(HasherCommon* common,
     HashComposite* BROTLI_RESTRICT self, const BrotliEncoderParams* params) {
   self->common = common;
-  self->extra = common->extra;
 
+  self->ha_common = *self->common;
   self->hb_common = *self->common;
   self->fresh = BROTLI_TRUE;
   self->params = params;
-  /* TODO: Initialize of the hashers is defered to Prepare (and params
+  /* TODO(lode): Initialize of the hashers is deferred to Prepare (and params
      remembered here) because we don't get the one_shot and input_size params
      here that are needed to know the memory size of them. Instead provide
      those params to all hashers FN(Initialize) */
@@ -59,21 +59,36 @@ static void FN(Prepare)(
     size_t input_size, const uint8_t* BROTLI_RESTRICT data) {
   if (self->fresh) {
     self->fresh = BROTLI_FALSE;
-    self->hb_common.extra = (uint8_t*)self->extra +
-        FN_A(HashMemAllocInBytes)(self->params, one_shot, input_size);
+    self->ha_common.extra[0] = self->common->extra[0];
+    self->ha_common.extra[1] = self->common->extra[1];
+    self->ha_common.extra[2] = NULL;
+    self->ha_common.extra[3] = NULL;
+    self->hb_common.extra[0] = self->common->extra[2];
+    self->hb_common.extra[1] = self->common->extra[3];
+    self->hb_common.extra[2] = NULL;
+    self->hb_common.extra[3] = NULL;
 
-    FN_A(Initialize)(self->common, &self->ha, self->params);
+    FN_A(Initialize)(&self->ha_common, &self->ha, self->params);
     FN_B(Initialize)(&self->hb_common, &self->hb, self->params);
   }
   FN_A(Prepare)(&self->ha, one_shot, input_size, data);
   FN_B(Prepare)(&self->hb, one_shot, input_size, data);
 }
 
-static BROTLI_INLINE size_t FN(HashMemAllocInBytes)(
+static BROTLI_INLINE void FN(HashMemAllocInBytes)(
     const BrotliEncoderParams* params, BROTLI_BOOL one_shot,
-    size_t input_size) {
-  return FN_A(HashMemAllocInBytes)(params, one_shot, input_size) +
-      FN_B(HashMemAllocInBytes)(params, one_shot, input_size);
+    size_t input_size, size_t* alloc_size) {
+  size_t alloc_size_a[4] = {0};
+  size_t alloc_size_b[4] = {0};
+  FN_A(HashMemAllocInBytes)(params, one_shot, input_size, alloc_size_a);
+  FN_B(HashMemAllocInBytes)(params, one_shot, input_size, alloc_size_b);
+  /* Should never happen. */
+  if (alloc_size_a[2] != 0 || alloc_size_a[3] != 0) exit(EXIT_FAILURE);
+  if (alloc_size_b[2] != 0 || alloc_size_b[3] != 0) exit(EXIT_FAILURE);
+  alloc_size[0] = alloc_size_a[0];
+  alloc_size[1] = alloc_size_a[1];
+  alloc_size[2] = alloc_size_b[0];
+  alloc_size[3] = alloc_size_b[1];
 }
 
 static BROTLI_INLINE void FN(Store)(HashComposite* BROTLI_RESTRICT self,

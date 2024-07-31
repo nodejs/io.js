@@ -734,14 +734,20 @@ int BN_GF2m_mod_inv(BIGNUM *r, const BIGNUM *a, const BIGNUM *p, BN_CTX *ctx)
 {
     BIGNUM *b = NULL;
     int ret = 0;
+    int numbits;
 
     BN_CTX_start(ctx);
     if ((b = BN_CTX_get(ctx)) == NULL)
         goto err;
 
+    /* Fail on a non-sensical input p value */
+    numbits = BN_num_bits(p);
+    if (numbits <= 1)
+        goto err;
+
     /* generate blinding value */
     do {
-        if (!BN_priv_rand_ex(b, BN_num_bits(p) - 1,
+        if (!BN_priv_rand_ex(b, numbits - 1,
                              BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ANY, 0, ctx))
             goto err;
     } while (BN_is_zero(b));

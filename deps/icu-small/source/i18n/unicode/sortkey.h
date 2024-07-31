@@ -162,7 +162,7 @@ public:
     * @return Returns true if the key is in an invalid, false otherwise.
     * @stable ICU 2.0
     */
-    UBool                   isBogus(void) const;
+    UBool isBogus() const;
 
     /**
     * Returns a pointer to the collation key values. The storage is owned
@@ -231,7 +231,7 @@ public:
     * @see UnicodeString#hashCode
     * @stable ICU 2.0
     */
-    int32_t                 hashCode(void) const;
+    int32_t hashCode() const;
 
     /**
      * ICU "poor man's RTTI", returns a UClassID for the actual class.
@@ -272,12 +272,12 @@ private:
     * Set the CollationKey to a "bogus" or invalid state
     * @return this CollationKey
     */
-    CollationKey&           setToBogus(void);
+    CollationKey& setToBogus();
     /**
     * Resets this CollationKey to an empty state
     * @return this CollationKey
     */
-    CollationKey&           reset(void);
+    CollationKey& reset();
 
     /**
     * Allow private access to RuleBasedCollator

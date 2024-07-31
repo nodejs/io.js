@@ -6,6 +6,7 @@
 #define V8_SNAPSHOT_CODE_SERIALIZER_H_
 
 #include "src/base/macros.h"
+#include "src/codegen/script-details.h"
 #include "src/snapshot/serializer.h"
 #include "src/snapshot/snapshot-data.h"
 
@@ -49,22 +50,9 @@ class V8_EXPORT_PRIVATE AlignedCachedData {
   int length_;
 };
 
-enum class SerializedCodeSanityCheckResult {
-  // Don't change order/existing values of this enum since it keys into the
-  // `code_cache_reject_reason` histogram. Append-only!
-  kSuccess = 0,
-  kMagicNumberMismatch = 1,
-  kVersionMismatch = 2,
-  kSourceMismatch = 3,
-  kFlagsMismatch = 5,
-  kChecksumMismatch = 6,
-  kInvalidHeader = 7,
-  kLengthMismatch = 8,
-  kReadOnlySnapshotChecksumMismatch = 9,
+typedef v8::ScriptCompiler::CachedData::CompatibilityCheckResult
+    SerializedCodeSanityCheckResult;
 
-  // This should always point at the last real enum value.
-  kLast = kReadOnlySnapshotChecksumMismatch
-};
 // If this fails, update the static_assert AND the code_cache_reject_reason
 // histogram definition.
 static_assert(static_cast<int>(SerializedCodeSanityCheckResult::kLast) == 9);
@@ -94,7 +82,7 @@ class CodeSerializer : public Serializer {
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<SharedFunctionInfo> Deserialize(
       Isolate* isolate, AlignedCachedData* cached_data, Handle<String> source,
-      ScriptOriginOptions origin_options,
+      const ScriptDetails& script_details,
       MaybeHandle<Script> maybe_cached_script = {});
 
   V8_WARN_UNUSED_RESULT static OffThreadDeserializeData
@@ -105,7 +93,7 @@ class CodeSerializer : public Serializer {
   FinishOffThreadDeserialize(
       Isolate* isolate, OffThreadDeserializeData&& data,
       AlignedCachedData* cached_data, Handle<String> source,
-      ScriptOriginOptions origin_options,
+      const ScriptDetails& script_details,
       BackgroundMergeTask* background_merge_task = nullptr);
 
   uint32_t source_hash() const { return source_hash_; }

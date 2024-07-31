@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 
+#include "src/base/abort-mode.h"
 #include "src/base/base-export.h"
 #include "src/base/build_config.h"
 #include "src/base/compiler-specific.h"
@@ -80,6 +81,18 @@ V8_BASE_EXPORT void SetPrintStackTrace(void (*print_stack_trace_)());
 // Override the default function that handles DCHECKs.
 V8_BASE_EXPORT void SetDcheckFunction(void (*dcheck_Function)(const char*, int,
                                                               const char*));
+
+enum class OOMType {
+  // We ran out of memory in the JavaScript heap.
+  kJavaScript,
+  // The process ran out of memory.
+  kProcess,
+};
+
+// A simpler version of V8::FatalProcessOutOfMemory that is available in
+// src/base. Will simply terminate the process with an OOM message that is
+// recognizes as such by fuzzers and other tooling.
+[[noreturn]] V8_BASE_EXPORT void FatalOOM(OOMType type, const char* msg);
 
 // In official builds, assume all check failures can be debugged given just the
 // stack trace.
@@ -433,6 +446,37 @@ DEFINE_CHECK_OP_IMPL(GT, > )
 #define DCHECK_NULL(val)       ((void) 0)
 #define DCHECK_NOT_NULL(val)   ((void) 0)
 #define DCHECK_IMPLIES(v1, v2) ((void) 0)
+#endif
+
+// When the sandbox is enabled, a SBXCHECK behaves exactly like a CHECK, but
+// indicates that the check is required for the sandbox, i.e. prevents a
+// sandbox bypass. When the sandbox is off, it becomes a DCHECK.
+//
+// As an example, consider a scenario where an in-sandbox object stores an
+// index into an out-of-sandbox array (or a similar data structure). While
+// under normal circumstances it can be guaranteed that the index will always
+// be in bounds, with the sandbox attacker model, we have to assume that the
+// in-sandbox object can be corrupted by an attacker and so the access can go
+// out-of-bounds. In that case, a SBXCHECK can be used to both prevent memory
+// corruption outside of the sandbox and document that there is a
+// security-critical invariant that may be violated when an attacker can
+// corrupt memory inside the sandbox, but otherwise holds true.
+#ifdef V8_ENABLE_SANDBOX
+#define SBXCHECK(condition) CHECK(condition)
+#define SBXCHECK_EQ(lhs, rhs) CHECK_EQ(lhs, rhs)
+#define SBXCHECK_NE(lhs, rhs) CHECK_NE(lhs, rhs)
+#define SBXCHECK_GT(lhs, rhs) CHECK_GT(lhs, rhs)
+#define SBXCHECK_GE(lhs, rhs) CHECK_GE(lhs, rhs)
+#define SBXCHECK_LT(lhs, rhs) CHECK_LT(lhs, rhs)
+#define SBXCHECK_LE(lhs, rhs) CHECK_LE(lhs, rhs)
+#else
+#define SBXCHECK(condition) DCHECK(condition)
+#define SBXCHECK_EQ(lhs, rhs) DCHECK_EQ(lhs, rhs)
+#define SBXCHECK_NE(lhs, rhs) DCHECK_NE(lhs, rhs)
+#define SBXCHECK_GT(lhs, rhs) DCHECK_GT(lhs, rhs)
+#define SBXCHECK_GE(lhs, rhs) DCHECK_GE(lhs, rhs)
+#define SBXCHECK_LT(lhs, rhs) DCHECK_LT(lhs, rhs)
+#define SBXCHECK_LE(lhs, rhs) DCHECK_LE(lhs, rhs)
 #endif
 
 #endif  // V8_BASE_LOGGING_H_

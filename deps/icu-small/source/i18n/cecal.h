@@ -98,19 +98,13 @@ protected:
      * Return JD of start of given month/extended year
      * @internal
      */
-    virtual int32_t handleComputeMonthStart(int32_t eyear, int32_t month, UBool useMonth) const override;
+    virtual int64_t handleComputeMonthStart(int32_t eyear, int32_t month, UBool useMonth, UErrorCode& status) const override;
 
     /**
      * Calculate the limit for a specified type of limit and field
      * @internal
      */
     virtual int32_t handleGetLimit(UCalendarDateFields field, ELimitType limitType) const override;
-
-    /**
-     * Returns true because Coptic/Ethiopic Calendar does have a default century
-     * @internal
-     */
-    virtual UBool haveDefaultCentury() const override;
 
 protected:
     /**
@@ -120,19 +114,6 @@ protected:
      * @internal
      */
     virtual int32_t getJDEpochOffset() const = 0;
-
-    /**
-     * Convert an Coptic/Ethiopic year, month, and day to a Julian day.
-     *
-     * @param year the extended year
-     * @param month the month
-     * @param day the day
-     * @param jdEpochOffset the epoch offset from Julian epoch
-     * @return Julian day
-     * @internal
-     */
-    static int32_t ceToJD(int32_t year, int32_t month, int32_t date,
-        int32_t jdEpochOffset);
 
     /**
      * Convert a Julian day to an Coptic/Ethiopic year, month and day

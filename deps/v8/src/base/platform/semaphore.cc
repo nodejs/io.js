@@ -170,7 +170,7 @@ void Semaphore::Signal() { native_handle_.Put(); }
 void Semaphore::Wait() { native_handle_.Take(); }
 
 bool Semaphore::WaitFor(const TimeDelta& rel_time) {
-  SbTime microseconds = rel_time.InMicroseconds();
+  int64_t microseconds = rel_time.InMicroseconds();
   return native_handle_.TakeWait(microseconds);
 }
 

@@ -3365,6 +3365,10 @@ void ssl3_free(SSL *s)
     OPENSSL_free(s->s3.alpn_selected);
     OPENSSL_free(s->s3.alpn_proposed);
 
+#ifndef OPENSSL_NO_PSK
+    OPENSSL_free(s->s3.tmp.psk);
+#endif
+
 #ifndef OPENSSL_NO_SRP
     ssl_srp_ctx_free_intern(s);
 #endif

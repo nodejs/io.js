@@ -28,12 +28,12 @@ TEST_IMPL(gettimeofday) {
 
   tv.tv_sec = 0;
   r = uv_gettimeofday(&tv);
-  ASSERT(r == 0);
-  ASSERT(tv.tv_sec != 0);
+  ASSERT_OK(r);
+  ASSERT_NE(0, tv.tv_sec);
 
   /* Test invalid input. */
   r = uv_gettimeofday(NULL);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   return 0;
 }

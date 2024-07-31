@@ -38,10 +38,10 @@ const SOCKS_INCOMING_PACKET_SIZES = {
     Socks5InitialHandshakeResponse: 2,
     Socks5UserPassAuthenticationResponse: 2,
     // Command response + incoming connection (bind)
-    Socks5ResponseHeader: 5,
-    Socks5ResponseIPv4: 10,
-    Socks5ResponseIPv6: 22,
-    Socks5ResponseHostname: (hostNameLength) => hostNameLength + 7,
+    Socks5ResponseHeader: 5, // We need at least 5 to read the hostname length, then we wait for the address+port information.
+    Socks5ResponseIPv4: 10, // 4 header + 4 ip + 2 port
+    Socks5ResponseIPv6: 22, // 4 header + 16 ip + 2 port
+    Socks5ResponseHostname: (hostNameLength) => hostNameLength + 7, // 4 header + 1 host length + host + 2 port
     // Command response + incoming connection (bind)
     Socks4Response: 8, // 2 header + 2 port + 4 ip
 };
@@ -51,23 +51,20 @@ var SocksCommand;
     SocksCommand[SocksCommand["connect"] = 1] = "connect";
     SocksCommand[SocksCommand["bind"] = 2] = "bind";
     SocksCommand[SocksCommand["associate"] = 3] = "associate";
-})(SocksCommand || (SocksCommand = {}));
-exports.SocksCommand = SocksCommand;
+})(SocksCommand || (exports.SocksCommand = SocksCommand = {}));
 var Socks4Response;
 (function (Socks4Response) {
     Socks4Response[Socks4Response["Granted"] = 90] = "Granted";
     Socks4Response[Socks4Response["Failed"] = 91] = "Failed";
     Socks4Response[Socks4Response["Rejected"] = 92] = "Rejected";
     Socks4Response[Socks4Response["RejectedIdent"] = 93] = "RejectedIdent";
-})(Socks4Response || (Socks4Response = {}));
-exports.Socks4Response = Socks4Response;
+})(Socks4Response || (exports.Socks4Response = Socks4Response = {}));
 var Socks5Auth;
 (function (Socks5Auth) {
     Socks5Auth[Socks5Auth["NoAuth"] = 0] = "NoAuth";
     Socks5Auth[Socks5Auth["GSSApi"] = 1] = "GSSApi";
     Socks5Auth[Socks5Auth["UserPass"] = 2] = "UserPass";
-})(Socks5Auth || (Socks5Auth = {}));
-exports.Socks5Auth = Socks5Auth;
+})(Socks5Auth || (exports.Socks5Auth = Socks5Auth = {}));
 const SOCKS5_CUSTOM_AUTH_START = 0x80;
 exports.SOCKS5_CUSTOM_AUTH_START = SOCKS5_CUSTOM_AUTH_START;
 const SOCKS5_CUSTOM_AUTH_END = 0xfe;
@@ -85,15 +82,13 @@ var Socks5Response;
     Socks5Response[Socks5Response["TTLExpired"] = 6] = "TTLExpired";
     Socks5Response[Socks5Response["CommandNotSupported"] = 7] = "CommandNotSupported";
     Socks5Response[Socks5Response["AddressNotSupported"] = 8] = "AddressNotSupported";
-})(Socks5Response || (Socks5Response = {}));
-exports.Socks5Response = Socks5Response;
+})(Socks5Response || (exports.Socks5Response = Socks5Response = {}));
 var Socks5HostType;
 (function (Socks5HostType) {
     Socks5HostType[Socks5HostType["IPv4"] = 1] = "IPv4";
     Socks5HostType[Socks5HostType["Hostname"] = 3] = "Hostname";
     Socks5HostType[Socks5HostType["IPv6"] = 4] = "IPv6";
-})(Socks5HostType || (Socks5HostType = {}));
-exports.Socks5HostType = Socks5HostType;
+})(Socks5HostType || (exports.Socks5HostType = Socks5HostType = {}));
 var SocksClientState;
 (function (SocksClientState) {
     SocksClientState[SocksClientState["Created"] = 0] = "Created";
@@ -109,6 +104,5 @@ var SocksClientState;
     SocksClientState[SocksClientState["Established"] = 10] = "Established";
     SocksClientState[SocksClientState["Disconnected"] = 11] = "Disconnected";
     SocksClientState[SocksClientState["Error"] = 99] = "Error";
-})(SocksClientState || (SocksClientState = {}));
-exports.SocksClientState = SocksClientState;
+})(SocksClientState || (exports.SocksClientState = SocksClientState = {}));
 //# sourceMappingURL=constants.js.map

@@ -76,7 +76,7 @@ class RedirectActiveFunctions : public ThreadVisitor {
   void VisitThread(Isolate* isolate, ThreadLocalTop* top) override;
 
  private:
-  SharedFunctionInfo shared_;
+  Tagged<SharedFunctionInfo> shared_;
   Mode mode_;
   DISALLOW_GARBAGE_COLLECTION(no_gc_)
 };

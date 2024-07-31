@@ -1,0 +1,472 @@
+#
+# Copyright 2019 The Abseil Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    flags_path_util
+  HDRS
+    "internal/path_util.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::strings
+  PUBLIC
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    flags_program_name
+  SRCS
+    "internal/program_name.cc"
+  HDRS
+    "internal/program_name.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::flags_path_util
+    absl::strings
+    absl::synchronization
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    flags_config
+  SRCS
+    "usage_config.cc"
+  HDRS
+    "config.h"
+    "usage_config.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::flags_path_util
+    absl::flags_program_name
+    absl::core_headers
+    absl::strings
+    absl::synchronization
+)
+
+absl_cc_library(
+  NAME
+    flags_marshalling
+  SRCS
+    "marshalling.cc"
+  HDRS
+    "marshalling.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::log_severity
+    absl::int128
+    absl::optional
+    absl::strings
+    absl::str_format
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    flags_commandlineflag_internal
+  SRCS
+    "internal/commandlineflag.cc"
+  HDRS
+    "internal/commandlineflag.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::dynamic_annotations
+    absl::fast_type_id
+)
+
+absl_cc_library(
+  NAME
+    flags_commandlineflag
+  SRCS
+    "commandlineflag.cc"
+  HDRS
+    "commandlineflag.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::fast_type_id
+    absl::flags_commandlineflag_internal
+    absl::optional
+    absl::strings
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    flags_private_handle_accessor
+  SRCS
+    "internal/private_handle_accessor.cc"
+  HDRS
+    "internal/private_handle_accessor.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::flags_commandlineflag
+    absl::flags_commandlineflag_internal
+    absl::strings
+)
+
+absl_cc_library(
+  NAME
+    flags_reflection
+  SRCS
+    "reflection.cc"
+  HDRS
+    "reflection.h"
+    "internal/registry.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::flags_commandlineflag
+    absl::flags_private_handle_accessor
+    absl::flags_config
+    absl::strings
+    absl::synchronization
+    absl::flat_hash_map
+    absl::no_destructor
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    flags_internal
+  SRCS
+    "internal/flag.cc"
+  HDRS
+    "internal/flag.h"
+    "internal/sequence_lock.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::flags_commandlineflag
+    absl::flags_commandlineflag_internal
+    absl::flags_config
+    absl::flags_marshalling
+    absl::synchronization
+    absl::meta
+    absl::utility
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    flags
+  HDRS
+    "declare.h"
+    "flag.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::flags_commandlineflag
+    absl::flags_config
+    absl::flags_internal
+    absl::flags_reflection
+    absl::core_headers
+    absl::strings
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    flags_usage_internal
+  SRCS
+    "internal/usage.cc"
+  HDRS
+    "internal/usage.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::flags_config
+    absl::flags
+    absl::flags_commandlineflag
+    absl::flags_internal
+    absl::flags_path_util
+    absl::flags_private_handle_accessor
+    absl::flags_program_name
+    absl::flags_reflection
+    absl::strings
+    absl::synchronization
+)
+
+absl_cc_library(
+  NAME
+    flags_usage
+  SRCS
+    "usage.cc"
+  HDRS
+    "usage.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::flags_usage_internal
+    absl::raw_logging_internal
+    absl::strings
+    absl::synchronization
+)
+
+absl_cc_library(
+  NAME
+    flags_parse
+  SRCS
+    "parse.cc"
+  HDRS
+    "internal/parse.h"
+    "parse.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::algorithm_container
+    absl::config
+    absl::core_headers
+    absl::flags_config
+    absl::flags
+    absl::flags_commandlineflag
+    absl::flags_commandlineflag_internal
+    absl::flags_internal
+    absl::flags_private_handle_accessor
+    absl::flags_program_name
+    absl::flags_reflection
+    absl::flags_usage
+    absl::strings
+    absl::synchronization
+)
+
+############################################################################
+# Unit tests in alphabetical order.
+
+absl_cc_test(
+  NAME
+    flags_commandlineflag_test
+  SRCS
+    "commandlineflag_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags
+    absl::flags_commandlineflag
+    absl::flags_config
+    absl::flags_private_handle_accessor
+    absl::flags_reflection
+    absl::memory
+    absl::strings
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    flags_config_test
+  SRCS
+    "config_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags_config
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    flags_flag_test
+  SRCS
+    "flag_test.cc"
+    "flag_test_defs.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::core_headers
+    absl::flags
+    absl::flags_config
+    absl::flags_internal
+    absl::flags_marshalling
+    absl::flags_reflection
+    absl::int128
+    absl::optional
+    absl::raw_logging_internal
+    absl::strings
+    absl::time
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    flags_marshalling_test
+  SRCS
+    "marshalling_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags_marshalling
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    flags_parse_test
+  SRCS
+    "parse_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags
+    absl::flags_config
+    absl::flags_parse
+    absl::flags_reflection
+    absl::flags_usage_internal
+    absl::log
+    absl::scoped_set_env
+    absl::span
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    flags_path_util_test
+  SRCS
+    "internal/path_util_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags_path_util
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    flags_program_name_test
+  SRCS
+    "internal/program_name_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags_program_name
+    absl::strings
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    flags_reflection_test
+  SRCS
+    "reflection_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags
+    absl::flags_config
+    absl::flags_reflection
+    absl::flags_usage
+    absl::memory
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    flags_sequence_lock_test
+  SRCS
+    "internal/sequence_lock_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::flags_internal
+    absl::time
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    flags_usage_config_test
+  SRCS
+    "usage_config_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags_config
+    absl::flags_path_util
+    absl::flags_program_name
+    absl::strings
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    flags_usage_test
+  SRCS
+    "internal/usage_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::flags_config
+    absl::flags
+    absl::flags_path_util
+    absl::flags_program_name
+    absl::flags_parse
+    absl::flags_reflection
+    absl::flags_usage
+    absl::strings
+    GTest::gmock
+)

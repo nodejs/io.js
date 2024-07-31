@@ -27,7 +27,7 @@ if (isMainThread) {
   const passed = new BufferingWritable();
 
   const w = new Worker(__filename, { stdin: true, stdout: true });
-  const source = fs.createReadStream(process.execPath);
+  const source = fs.createReadStream(process.execPath, { end: 1_000_000 });
   source.pipe(w.stdin);
   source.pipe(original);
   w.stdout.pipe(passed);

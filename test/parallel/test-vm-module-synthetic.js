@@ -66,12 +66,12 @@ const assert = require('assert');
     });
   }
 
-  {
+  for (const value of [null, {}, SyntheticModule.prototype]) {
     assert.throws(() => {
-      SyntheticModule.prototype.setExport.call({}, 'foo');
+      SyntheticModule.prototype.setExport.call(value, 'foo');
     }, {
-      code: 'ERR_VM_MODULE_NOT_MODULE',
-      message: /Provided module is not an instance of Module/
+      code: 'ERR_INVALID_ARG_TYPE',
+      message: /The "this" argument must be an instance of SyntheticModule/
     });
   }
 

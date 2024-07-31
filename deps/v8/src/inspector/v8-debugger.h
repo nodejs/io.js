@@ -31,7 +31,7 @@ class V8RuntimeAgentImpl;
 class V8StackTraceImpl;
 struct V8StackTraceId;
 
-enum class WrapMode { kJson, kIdOnly, kPreview, kWebDriver, kDeep };
+enum class WrapMode { kJson, kIdOnly, kPreview, kDeep };
 
 struct WrapSerializationOptions {
   int maxDepth = v8::internal::kMaxInt;

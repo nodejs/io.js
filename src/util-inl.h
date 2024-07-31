@@ -27,42 +27,9 @@
 #include <cmath>
 #include <cstring>
 #include <locale>
+#include <regex>  // NOLINT(build/c++11)
+#include "node_revert.h"
 #include "util.h"
-
-// These are defined by <sys/byteorder.h> or <netinet/in.h> on some systems.
-// To avoid warnings, undefine them before redefining them.
-#ifdef BSWAP_2
-# undef BSWAP_2
-#endif
-#ifdef BSWAP_4
-# undef BSWAP_4
-#endif
-#ifdef BSWAP_8
-# undef BSWAP_8
-#endif
-
-#if defined(_MSC_VER)
-#include <intrin.h>
-#define BSWAP_2(x) _byteswap_ushort(x)
-#define BSWAP_4(x) _byteswap_ulong(x)
-#define BSWAP_8(x) _byteswap_uint64(x)
-#else
-#define BSWAP_2(x) ((x) << 8) | ((x) >> 8)
-#define BSWAP_4(x)                                                            \
-  (((x) & 0xFF) << 24) |                                                      \
-  (((x) & 0xFF00) << 8) |                                                     \
-  (((x) >> 8) & 0xFF00) |                                                     \
-  (((x) >> 24) & 0xFF)
-#define BSWAP_8(x)                                                            \
-  (((x) & 0xFF00000000000000ull) >> 56) |                                     \
-  (((x) & 0x00FF000000000000ull) >> 40) |                                     \
-  (((x) & 0x0000FF0000000000ull) >> 24) |                                     \
-  (((x) & 0x000000FF00000000ull) >> 8) |                                      \
-  (((x) & 0x00000000FF000000ull) << 8) |                                      \
-  (((x) & 0x0000000000FF0000ull) << 24) |                                     \
-  (((x) & 0x000000000000FF00ull) << 40) |                                     \
-  (((x) & 0x00000000000000FFull) << 56)
-#endif
 
 #define CHAR_TEST(bits, name, expr)                                           \
   template <typename T>                                                       \
@@ -213,75 +180,6 @@ inline v8::Local<v8::String> OneByteString(v8::Isolate* isolate,
       .ToLocalChecked();
 }
 
-void SwapBytes16(char* data, size_t nbytes) {
-  CHECK_EQ(nbytes % 2, 0);
-
-#if defined(_MSC_VER)
-  if (AlignUp(data, sizeof(uint16_t)) == data) {
-    // MSVC has no strict aliasing, and is able to highly optimize this case.
-    uint16_t* data16 = reinterpret_cast<uint16_t*>(data);
-    size_t len16 = nbytes / sizeof(*data16);
-    for (size_t i = 0; i < len16; i++) {
-      data16[i] = BSWAP_2(data16[i]);
-    }
-    return;
-  }
-#endif
-
-  uint16_t temp;
-  for (size_t i = 0; i < nbytes; i += sizeof(temp)) {
-    memcpy(&temp, &data[i], sizeof(temp));
-    temp = BSWAP_2(temp);
-    memcpy(&data[i], &temp, sizeof(temp));
-  }
-}
-
-void SwapBytes32(char* data, size_t nbytes) {
-  CHECK_EQ(nbytes % 4, 0);
-
-#if defined(_MSC_VER)
-  // MSVC has no strict aliasing, and is able to highly optimize this case.
-  if (AlignUp(data, sizeof(uint32_t)) == data) {
-    uint32_t* data32 = reinterpret_cast<uint32_t*>(data);
-    size_t len32 = nbytes / sizeof(*data32);
-    for (size_t i = 0; i < len32; i++) {
-      data32[i] = BSWAP_4(data32[i]);
-    }
-    return;
-  }
-#endif
-
-  uint32_t temp;
-  for (size_t i = 0; i < nbytes; i += sizeof(temp)) {
-    memcpy(&temp, &data[i], sizeof(temp));
-    temp = BSWAP_4(temp);
-    memcpy(&data[i], &temp, sizeof(temp));
-  }
-}
-
-void SwapBytes64(char* data, size_t nbytes) {
-  CHECK_EQ(nbytes % 8, 0);
-
-#if defined(_MSC_VER)
-  if (AlignUp(data, sizeof(uint64_t)) == data) {
-    // MSVC has no strict aliasing, and is able to highly optimize this case.
-    uint64_t* data64 = reinterpret_cast<uint64_t*>(data);
-    size_t len64 = nbytes / sizeof(*data64);
-    for (size_t i = 0; i < len64; i++) {
-      data64[i] = BSWAP_8(data64[i]);
-    }
-    return;
-  }
-#endif
-
-  uint64_t temp;
-  for (size_t i = 0; i < nbytes; i += sizeof(temp)) {
-    memcpy(&temp, &data[i], sizeof(temp));
-    temp = BSWAP_8(temp);
-    memcpy(&data[i], &temp, sizeof(temp));
-  }
-}
-
 char ToLower(char c) {
   return std::tolower(c, std::locale::classic());
 }
@@ -400,6 +298,29 @@ inline char* UncheckedCalloc(size_t n) { return UncheckedCalloc<char>(n); }
 // This is a helper in the .cc file so including util-inl.h doesn't include more
 // headers than we really need to.
 void ThrowErrStringTooLong(v8::Isolate* isolate);
+
+struct ArrayIterationData {
+  std::vector<v8::Global<v8::Value>>* out;
+  v8::Isolate* isolate = nullptr;
+};
+
+inline v8::Array::CallbackResult PushItemToVector(uint32_t index,
+                                                  v8::Local<v8::Value> element,
+                                                  void* data) {
+  auto vec = static_cast<ArrayIterationData*>(data)->out;
+  auto isolate = static_cast<ArrayIterationData*>(data)->isolate;
+  vec->push_back(v8::Global<v8::Value>(isolate, element));
+  return v8::Array::CallbackResult::kContinue;
+}
+
+v8::Maybe<void> FromV8Array(v8::Local<v8::Context> context,
+                            v8::Local<v8::Array> js_array,
+                            std::vector<v8::Global<v8::Value>>* out) {
+  uint32_t count = js_array->Length();
+  out->reserve(count);
+  ArrayIterationData data{out, context->GetIsolate()};
+  return js_array->Iterate(context, PushItemToVector, &data);
+}
 
 v8::MaybeLocal<v8::Value> ToV8Value(v8::Local<v8::Context> context,
                                     std::string_view str,
@@ -580,7 +501,7 @@ void ArrayBufferViewContents<T, S>::ReadValue(v8::Local<v8::Value> buf) {
   }
 }
 
-// ECMA262 20.1.2.5
+// ECMA-262, 15th edition, 21.1.2.5. Number.isSafeInteger
 inline bool IsSafeJsInt(v8::Local<v8::Value> v) {
   if (!v->IsNumber()) return false;
   double v_d = v.As<v8::Number>()->Value();
@@ -614,6 +535,30 @@ constexpr FastStringKey::FastStringKey(std::string_view name)
 
 constexpr std::string_view FastStringKey::as_string_view() const {
   return name_;
+}
+
+// Inline so the compiler can fully optimize it away on Unix platforms.
+bool IsWindowsBatchFile(const char* filename) {
+#ifdef _WIN32
+  static constexpr bool kIsWindows = true;
+#else
+  static constexpr bool kIsWindows = false;
+#endif  // _WIN32
+  if (kIsWindows) {
+    std::string file_with_extension = filename;
+    // Regex to match the last extension part after the last dot, ignoring
+    // trailing spaces and dots
+    std::regex extension_regex(R"(\.([a-zA-Z0-9]+)\s*[\.\s]*$)");
+    std::smatch match;
+    std::string extension;
+
+    if (std::regex_search(file_with_extension, match, extension_regex)) {
+      extension = ToLower(match[1].str());
+    }
+
+    return !extension.empty() && (extension == "cmd" || extension == "bat");
+  }
+  return false;
 }
 
 }  // namespace node

@@ -12,19 +12,18 @@
    Adapted from the CompressFragment() function in
    https://github.com/google/snappy/blob/master/snappy.cc */
 
-#include "./compress_fragment.h"
+#include "compress_fragment.h"
 
 #include <string.h>  /* memcmp, memcpy, memset */
 
-#include "../common/constants.h"
-#include "../common/platform.h"
 #include <brotli/types.h>
-#include "./brotli_bit_stream.h"
-#include "./entropy_encode.h"
-#include "./fast_log.h"
-#include "./find_match_length.h"
-#include "./memory.h"
-#include "./write_bits.h"
+
+#include "../common/platform.h"
+#include "brotli_bit_stream.h"
+#include "entropy_encode.h"
+#include "fast_log.h"
+#include "find_match_length.h"
+#include "write_bits.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -69,16 +68,18 @@ static BROTLI_INLINE BROTLI_BOOL IsMatch(const uint8_t* p1, const uint8_t* p2) {
    and thus have to assign a non-zero depth for each literal.
    Returns estimated compression ratio millibytes/char for encoding given input
    with generated code. */
-static size_t BuildAndStoreLiteralPrefixCode(MemoryManager* m,
+static size_t BuildAndStoreLiteralPrefixCode(BrotliOnePassArena* s,
                                              const uint8_t* input,
                                              const size_t input_size,
                                              uint8_t depths[256],
                                              uint16_t bits[256],
                                              size_t* storage_ix,
                                              uint8_t* storage) {
-  uint32_t histogram[256] = { 0 };
+  uint32_t* BROTLI_RESTRICT const histogram = s->histogram;
   size_t histogram_total;
   size_t i;
+  memset(histogram, 0, sizeof(s->histogram));
+
   if (input_size < (1 << 15)) {
     for (i = 0; i < input_size; ++i) {
       ++histogram[input[i]];
@@ -108,10 +109,9 @@ static size_t BuildAndStoreLiteralPrefixCode(MemoryManager* m,
       histogram_total += adjust;
     }
   }
-  BrotliBuildAndStoreHuffmanTreeFast(m, histogram, histogram_total,
+  BrotliBuildAndStoreHuffmanTreeFast(s->tree, histogram, histogram_total,
                                      /* max_bits = */ 8,
                                      depths, bits, storage_ix, storage);
-  if (BROTLI_IS_OOM(m)) return 0;
   {
     size_t literal_ratio = 0;
     for (i = 0; i < 256; ++i) {
@@ -124,53 +124,56 @@ static size_t BuildAndStoreLiteralPrefixCode(MemoryManager* m,
 
 /* Builds a command and distance prefix code (each 64 symbols) into "depth" and
    "bits" based on "histogram" and stores it into the bit stream. */
-static void BuildAndStoreCommandPrefixCode(const uint32_t histogram[128],
-    uint8_t depth[128], uint16_t bits[128], size_t* storage_ix,
-    uint8_t* storage) {
-  /* Tree size for building a tree over 64 symbols is 2 * 64 + 1. */
-  HuffmanTree tree[129];
-  uint8_t cmd_depth[BROTLI_NUM_COMMAND_SYMBOLS] = { 0 };
-  uint16_t cmd_bits[64];
+static void BuildAndStoreCommandPrefixCode(BrotliOnePassArena* s,
+    size_t* storage_ix, uint8_t* storage) {
+  const uint32_t* const histogram = s->cmd_histo;
+  uint8_t* const depth = s->cmd_depth;
+  uint16_t* const bits = s->cmd_bits;
+  uint8_t* BROTLI_RESTRICT const tmp_depth = s->tmp_depth;
+  uint16_t* BROTLI_RESTRICT const tmp_bits = s->tmp_bits;
+  /* TODO(eustas): do only once on initialization. */
+  memset(tmp_depth, 0, BROTLI_NUM_COMMAND_SYMBOLS);
 
-  BrotliCreateHuffmanTree(histogram, 64, 15, tree, depth);
-  BrotliCreateHuffmanTree(&histogram[64], 64, 14, tree, &depth[64]);
+  BrotliCreateHuffmanTree(histogram, 64, 15, s->tree, depth);
+  BrotliCreateHuffmanTree(&histogram[64], 64, 14, s->tree, &depth[64]);
   /* We have to jump through a few hoops here in order to compute
      the command bits because the symbols are in a different order than in
      the full alphabet. This looks complicated, but having the symbols
      in this order in the command bits saves a few branches in the Emit*
      functions. */
-  memcpy(cmd_depth, depth, 24);
-  memcpy(cmd_depth + 24, depth + 40, 8);
-  memcpy(cmd_depth + 32, depth + 24, 8);
-  memcpy(cmd_depth + 40, depth + 48, 8);
-  memcpy(cmd_depth + 48, depth + 32, 8);
-  memcpy(cmd_depth + 56, depth + 56, 8);
-  BrotliConvertBitDepthsToSymbols(cmd_depth, 64, cmd_bits);
-  memcpy(bits, cmd_bits, 48);
-  memcpy(bits + 24, cmd_bits + 32, 16);
-  memcpy(bits + 32, cmd_bits + 48, 16);
-  memcpy(bits + 40, cmd_bits + 24, 16);
-  memcpy(bits + 48, cmd_bits + 40, 16);
-  memcpy(bits + 56, cmd_bits + 56, 16);
+  memcpy(tmp_depth, depth, 24);
+  memcpy(tmp_depth + 24, depth + 40, 8);
+  memcpy(tmp_depth + 32, depth + 24, 8);
+  memcpy(tmp_depth + 40, depth + 48, 8);
+  memcpy(tmp_depth + 48, depth + 32, 8);
+  memcpy(tmp_depth + 56, depth + 56, 8);
+  BrotliConvertBitDepthsToSymbols(tmp_depth, 64, tmp_bits);
+  memcpy(bits, tmp_bits, 48);
+  memcpy(bits + 24, tmp_bits + 32, 16);
+  memcpy(bits + 32, tmp_bits + 48, 16);
+  memcpy(bits + 40, tmp_bits + 24, 16);
+  memcpy(bits + 48, tmp_bits + 40, 16);
+  memcpy(bits + 56, tmp_bits + 56, 16);
   BrotliConvertBitDepthsToSymbols(&depth[64], 64, &bits[64]);
   {
     /* Create the bit length array for the full command alphabet. */
     size_t i;
-    memset(cmd_depth, 0, 64);  /* only 64 first values were used */
-    memcpy(cmd_depth, depth, 8);
-    memcpy(cmd_depth + 64, depth + 8, 8);
-    memcpy(cmd_depth + 128, depth + 16, 8);
-    memcpy(cmd_depth + 192, depth + 24, 8);
-    memcpy(cmd_depth + 384, depth + 32, 8);
+    memset(tmp_depth, 0, 64);  /* only 64 first values were used */
+    memcpy(tmp_depth, depth, 8);
+    memcpy(tmp_depth + 64, depth + 8, 8);
+    memcpy(tmp_depth + 128, depth + 16, 8);
+    memcpy(tmp_depth + 192, depth + 24, 8);
+    memcpy(tmp_depth + 384, depth + 32, 8);
     for (i = 0; i < 8; ++i) {
-      cmd_depth[128 + 8 * i] = depth[40 + i];
-      cmd_depth[256 + 8 * i] = depth[48 + i];
-      cmd_depth[448 + 8 * i] = depth[56 + i];
+      tmp_depth[128 + 8 * i] = depth[40 + i];
+      tmp_depth[256 + 8 * i] = depth[48 + i];
+      tmp_depth[448 + 8 * i] = depth[56 + i];
     }
+    /* TODO(eustas): could/should full-length machinery be avoided? */
     BrotliStoreHuffmanTree(
-        cmd_depth, BROTLI_NUM_COMMAND_SYMBOLS, tree, storage_ix, storage);
+        tmp_depth, BROTLI_NUM_COMMAND_SYMBOLS, s->tree, storage_ix, storage);
   }
-  BrotliStoreHuffmanTree(&depth[64], 64, tree, storage_ix, storage);
+  BrotliStoreHuffmanTree(&depth[64], 64, s->tree, storage_ix, storage);
 }
 
 /* REQUIRES: insertlen < 6210 */
@@ -369,11 +372,12 @@ static void RewindBitPosition(const size_t new_storage_ix,
   *storage_ix = new_storage_ix;
 }
 
-static BROTLI_BOOL ShouldMergeBlock(
+static BROTLI_BOOL ShouldMergeBlock(BrotliOnePassArena* s,
     const uint8_t* data, size_t len, const uint8_t* depths) {
-  size_t histo[256] = { 0 };
+  uint32_t* BROTLI_RESTRICT const histo = s->histogram;
   static const size_t kSampleRate = 43;
   size_t i;
+  memset(histo, 0, sizeof(s->histogram));
   for (i = 0; i < len; i += kSampleRate) {
     ++histo[data[i]];
   }
@@ -423,11 +427,14 @@ static uint32_t kCmdHistoSeed[128] = {
 };
 
 static BROTLI_INLINE void BrotliCompressFragmentFastImpl(
-    MemoryManager* m, const uint8_t* input, size_t input_size,
-    BROTLI_BOOL is_last, int* table, size_t table_bits, uint8_t cmd_depth[128],
-    uint16_t cmd_bits[128], size_t* cmd_code_numbits, uint8_t* cmd_code,
+    BrotliOnePassArena* s, const uint8_t* input, size_t input_size,
+    BROTLI_BOOL is_last, int* table, size_t table_bits,
     size_t* storage_ix, uint8_t* storage) {
-  uint32_t cmd_histo[128];
+  uint8_t* BROTLI_RESTRICT const cmd_depth = s->cmd_depth;
+  uint16_t* BROTLI_RESTRICT const cmd_bits = s->cmd_bits;
+  uint32_t* BROTLI_RESTRICT const cmd_histo = s->cmd_histo;
+  uint8_t* BROTLI_RESTRICT const lit_depth = s->lit_depth;
+  uint16_t* BROTLI_RESTRICT const lit_bits = s->lit_bits;
   const uint8_t* ip_end;
 
   /* "next_emit" is a pointer to the first byte that is not covered by a
@@ -451,9 +458,6 @@ static BROTLI_INLINE void BrotliCompressFragmentFastImpl(
      we can update it later if we decide to extend this meta-block. */
   size_t mlen_storage_ix = *storage_ix + 3;
 
-  uint8_t lit_depth[256];
-  uint16_t lit_bits[256];
-
   size_t literal_ratio;
 
   const uint8_t* ip;
@@ -466,25 +470,24 @@ static BROTLI_INLINE void BrotliCompressFragmentFastImpl(
   BrotliWriteBits(13, 0, storage_ix, storage);
 
   literal_ratio = BuildAndStoreLiteralPrefixCode(
-      m, input, block_size, lit_depth, lit_bits, storage_ix, storage);
-  if (BROTLI_IS_OOM(m)) return;
+      s, input, block_size, s->lit_depth, s->lit_bits, storage_ix, storage);
 
   {
     /* Store the pre-compressed command and distance prefix codes. */
     size_t i;
-    for (i = 0; i + 7 < *cmd_code_numbits; i += 8) {
-      BrotliWriteBits(8, cmd_code[i >> 3], storage_ix, storage);
+    for (i = 0; i + 7 < s->cmd_code_numbits; i += 8) {
+      BrotliWriteBits(8, s->cmd_code[i >> 3], storage_ix, storage);
     }
   }
-  BrotliWriteBits(*cmd_code_numbits & 7, cmd_code[*cmd_code_numbits >> 3],
-                  storage_ix, storage);
+  BrotliWriteBits(s->cmd_code_numbits & 7,
+                  s->cmd_code[s->cmd_code_numbits >> 3], storage_ix, storage);
 
  emit_commands:
   /* Initialize the command and distance histograms. We will gather
      statistics of command and distance codes during the processing
      of this block and use it to update the command and distance
      prefix codes for the next block. */
-  memcpy(cmd_histo, kCmdHistoSeed, sizeof(kCmdHistoSeed));
+  memcpy(s->cmd_histo, kCmdHistoSeed, sizeof(kCmdHistoSeed));
 
   /* "ip" is the input pointer. */
   ip = input;
@@ -565,6 +568,8 @@ trawl:
         int distance = (int)(base - candidate);  /* > 0 */
         size_t insert = (size_t)(base - next_emit);
         ip += matched;
+        BROTLI_LOG(("[CompressFragment] pos = %d insert = %lu copy = %d\n",
+                    (int)(next_emit - base_ip), (unsigned long)insert, 2));
         BROTLI_DCHECK(0 == memcmp(base, candidate, matched));
         if (BROTLI_PREDICT_TRUE(insert < 6210)) {
           EmitInsertLen(insert, cmd_depth, cmd_bits, cmd_histo,
@@ -593,6 +598,12 @@ trawl:
         }
         EmitCopyLenLastDistance(matched, cmd_depth, cmd_bits, cmd_histo,
                                 storage_ix, storage);
+        BROTLI_LOG(("[CompressFragment] pos = %d distance = %d\n"
+                    "[CompressFragment] pos = %d insert = %d copy = %d\n"
+                    "[CompressFragment] pos = %d distance = %d\n",
+                    (int)(base - base_ip), (int)distance,
+                    (int)(base - base_ip) + 2, 0, (int)matched - 2,
+                    (int)(base - base_ip) + 2, (int)distance));
 
         next_emit = ip;
         if (BROTLI_PREDICT_FALSE(ip >= ip_limit)) {
@@ -630,6 +641,10 @@ trawl:
                     storage_ix, storage);
         EmitDistance((size_t)last_distance, cmd_depth, cmd_bits,
                      cmd_histo, storage_ix, storage);
+        BROTLI_LOG(("[CompressFragment] pos = %d insert = %d copy = %d\n"
+                    "[CompressFragment] pos = %d distance = %d\n",
+                    (int)(base - base_ip), 0, (int)matched,
+                    (int)(base - base_ip), (int)last_distance));
 
         next_emit = ip;
         if (BROTLI_PREDICT_FALSE(ip >= ip_limit)) {
@@ -667,7 +682,7 @@ trawl:
      last insert-only command. */
   if (input_size > 0 &&
       total_block_size + block_size <= (1 << 20) &&
-      ShouldMergeBlock(input, block_size, lit_depth)) {
+      ShouldMergeBlock(s, input, block_size, lit_depth)) {
     BROTLI_DCHECK(total_block_size > (1 << 16));
     /* Update the size of the current meta-block and continue emitting commands.
        We can do this because the current size and the new size both have 5
@@ -680,6 +695,8 @@ trawl:
   /* Emit the remaining bytes as literals. */
   if (next_emit < ip_end) {
     const size_t insert = (size_t)(ip_end - next_emit);
+    BROTLI_LOG(("[CompressFragment] pos = %d insert = %lu copy = %d\n",
+                (int)(next_emit - base_ip), (unsigned long)insert, 2));
     if (BROTLI_PREDICT_TRUE(insert < 6210)) {
       EmitInsertLen(insert, cmd_depth, cmd_bits, cmd_histo,
                     storage_ix, storage);
@@ -711,20 +728,17 @@ next_block:
     /* No block splits, no contexts. */
     BrotliWriteBits(13, 0, storage_ix, storage);
     literal_ratio = BuildAndStoreLiteralPrefixCode(
-        m, input, block_size, lit_depth, lit_bits, storage_ix, storage);
-    if (BROTLI_IS_OOM(m)) return;
-    BuildAndStoreCommandPrefixCode(cmd_histo, cmd_depth, cmd_bits,
-                                   storage_ix, storage);
+        s, input, block_size, lit_depth, lit_bits, storage_ix, storage);
+    BuildAndStoreCommandPrefixCode(s, storage_ix, storage);
     goto emit_commands;
   }
 
   if (!is_last) {
     /* If this is not the last block, update the command and distance prefix
        codes for the next block and store the compressed forms. */
-    cmd_code[0] = 0;
-    *cmd_code_numbits = 0;
-    BuildAndStoreCommandPrefixCode(cmd_histo, cmd_depth, cmd_bits,
-                                   cmd_code_numbits, cmd_code);
+    s->cmd_code[0] = 0;
+    s->cmd_code_numbits = 0;
+    BuildAndStoreCommandPrefixCode(s, &s->cmd_code_numbits, s->cmd_code);
   }
 }
 
@@ -732,20 +746,17 @@ next_block:
 
 #define BAKE_METHOD_PARAM_(B) \
 static BROTLI_NOINLINE void BrotliCompressFragmentFastImpl ## B(             \
-    MemoryManager* m, const uint8_t* input, size_t input_size,               \
-    BROTLI_BOOL is_last, int* table, uint8_t cmd_depth[128],                 \
-    uint16_t cmd_bits[128], size_t* cmd_code_numbits, uint8_t* cmd_code,     \
-    size_t* storage_ix, uint8_t* storage) {                                  \
-  BrotliCompressFragmentFastImpl(m, input, input_size, is_last, table, B,    \
-      cmd_depth, cmd_bits, cmd_code_numbits, cmd_code, storage_ix, storage); \
+    BrotliOnePassArena* s, const uint8_t* input, size_t input_size,          \
+    BROTLI_BOOL is_last, int* table, size_t* storage_ix, uint8_t* storage) { \
+  BrotliCompressFragmentFastImpl(s, input, input_size, is_last, table, B,    \
+      storage_ix, storage);                                                  \
 }
 FOR_TABLE_BITS_(BAKE_METHOD_PARAM_)
 #undef BAKE_METHOD_PARAM_
 
 void BrotliCompressFragmentFast(
-    MemoryManager* m, const uint8_t* input, size_t input_size,
-    BROTLI_BOOL is_last, int* table, size_t table_size, uint8_t cmd_depth[128],
-    uint16_t cmd_bits[128], size_t* cmd_code_numbits, uint8_t* cmd_code,
+    BrotliOnePassArena* s, const uint8_t* input, size_t input_size,
+    BROTLI_BOOL is_last, int* table, size_t table_size,
     size_t* storage_ix, uint8_t* storage) {
   const size_t initial_storage_ix = *storage_ix;
   const size_t table_bits = Log2FloorNonZero(table_size);
@@ -762,8 +773,7 @@ void BrotliCompressFragmentFast(
 #define CASE_(B)                                                     \
     case B:                                                          \
       BrotliCompressFragmentFastImpl ## B(                           \
-          m, input, input_size, is_last, table, cmd_depth, cmd_bits, \
-          cmd_code_numbits, cmd_code, storage_ix, storage);          \
+          s, input, input_size, is_last, table, storage_ix, storage);\
       break;
     FOR_TABLE_BITS_(CASE_)
 #undef CASE_

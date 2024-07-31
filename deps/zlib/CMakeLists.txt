@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 2.4.4...3.15.0)
 set(CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS ON)
 
 project(zlib C)
 
-set(VERSION "1.2.13.1")
+set(VERSION "1.3.0.1")
 
 set(INSTALL_BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
 set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Installation directory for libraries")
@@ -25,32 +25,74 @@ option(ENABLE_SIMD_OPTIMIZATIONS "Enable all SIMD optimizations" OFF)
 option(ENABLE_SIMD_AVX512 "Enable SIMD AXV512 optimizations" OFF)
 option(USE_ZLIB_RABIN_KARP_HASH "Enable bitstream compatibility with canonical zlib" OFF)
 option(BUILD_UNITTESTS "Enable standalone unit tests build" OFF)
+option(BUILD_MINIZIP_BIN "Enable building minzip_bin tool" OFF)
+option(BUILD_ZPIPE "Enable building zpipe tool" OFF)
+option(BUILD_MINIGZIP "Enable building minigzip tool" OFF)
 
 if (USE_ZLIB_RABIN_KARP_HASH)
    add_definitions(-DUSE_ZLIB_RABIN_KARP_ROLLING_HASH)
 endif()
 
-# TODO(cavalcantii): add support for other OSes (e.g. Android, fuchsia, osx)
-# and architectures (e.g. Arm).
+# TODO(cavalcantii): add support for other OSes (e.g. Android, Fuchsia, etc)
+# and architectures (e.g. RISCV).
 if (ENABLE_SIMD_OPTIMIZATIONS)
-   add_definitions(-DINFLATE_CHUNK_SIMD_SSE2)
-   add_definitions(-DADLER32_SIMD_SSSE3)
-   add_definitions(-DINFLATE_CHUNK_READ_64LE)
-   add_definitions(-DCRC32_SIMD_SSE42_PCLMUL)
-   if (ENABLE_SIMD_AVX512)
-    add_definitions(-DCRC32_SIMD_AVX512_PCLMUL)
-    add_compile_options(-mvpclmulqdq -msse2 -mavx512f -mpclmul)
-   else()
-    add_compile_options(-msse4.2 -mpclmul)
-   endif()
-   add_definitions(-DDEFLATE_SLIDE_HASH_SSE2)
-   # Required by CPU features detection code.
-   add_definitions(-DX86_NOT_WINDOWS)
-   # Apparently some environments (e.g. CentOS) require to explicitly link
-   # with pthread and that is required by the CPU features detection code.
-   find_package (Threads REQUIRED)
-   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
-   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+  # Apparently some environments (e.g. CentOS) require to explicitly link
+  # with pthread and that is required by the CPU features detection code.
+  find_package (Threads REQUIRED)
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
+  if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    add_definitions(-DINFLATE_CHUNK_SIMD_SSE2)
+    add_definitions(-DADLER32_SIMD_SSSE3)
+    add_definitions(-DINFLATE_CHUNK_READ_64LE)
+    add_definitions(-DCRC32_SIMD_SSE42_PCLMUL)
+    if (ENABLE_SIMD_AVX512)
+      add_definitions(-DCRC32_SIMD_AVX512_PCLMUL)
+      add_compile_options(-mvpclmulqdq -msse2 -mavx512f -mpclmul)
+    else()
+      add_compile_options(-msse4.2 -mpclmul)
+    endif()
+    add_definitions(-DDEFLATE_SLIDE_HASH_SSE2)
+    # Required by CPU features detection code.
+    add_definitions(-DX86_NOT_WINDOWS)
+  endif()
+
+  if ((CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64") OR
+      (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"))
+    add_definitions(-DINFLATE_CHUNK_SIMD_NEON)
+    add_definitions(-DADLER32_SIMD_NEON)
+    add_definitions(-DINFLATE_CHUNK_READ_64LE)
+    add_definitions(-DCRC32_ARMV8_CRC32)
+    add_definitions(-DDEFLATE_SLIDE_HASH_NEON)
+    # Required by CPU features detection code.
+    if (APPLE)
+      add_definitions(-DARMV8_OS_MACOS)
+    endif()
+
+    if (UNIX AND NOT APPLE)
+      add_definitions(-DARMV8_OS_LINUX)
+    endif()
+
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8-a+crc+crypto")
+  endif()
+
+  if (CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
+    add_definitions(-DRISCV_RVV)
+    add_definitions(-DDEFLATE_SLIDE_HASH_RVV)
+    add_definitions(-DADLER32_SIMD_RVV)
+
+    # TODO(cavalcantii): add remaining flags as we port optimizations to RVV.
+    # chunk_copy is required for READ64 and unconditional decode of literals.
+    add_definitions(-DINFLATE_CHUNK_GENERIC)
+    add_definitions(-DINFLATE_CHUNK_READ_64LE)
+
+    # Tested with clang-17, unaligned loads are required by read64 & chunk_copy.
+    # TODO(cavalcantii): replace internal clang flags for -munaligned-access
+    # when we have a newer compiler available.
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --target=riscv64-unknown-linux-gnu -march=rv64gcv -Xclang -target-feature -Xclang +unaligned-scalar-mem")
+  endif()
+
 endif()
 
 #
@@ -157,20 +199,33 @@ set(ZLIB_SRCS
 # Update list of source files if optimizations were enabled
 #============================================================================
 if (ENABLE_SIMD_OPTIMIZATIONS)
-  list(REMOVE_ITEM ZLIB_SRCS inflate.c)
+  if (CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
+    message("RISCVV: Add optimizations.")
+    list(REMOVE_ITEM ZLIB_SRCS inflate.c)
+    list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/adler32_simd.h)
+    list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/chunkcopy.h)
+    list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/cpu_features.h)
 
-  list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/adler32_simd.h)
-  list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/chunkcopy.h)
-  list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/inffast_chunk.h)
-  list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/cpu_features.h)
-  list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/crc32_simd.h)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/adler32_simd.c)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/inffast_chunk.c)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/inflate.c)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/cpu_features.c)
+  else()
+    list(REMOVE_ITEM ZLIB_SRCS inflate.c)
 
-  list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/adler32_simd.c)
-  list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/inffast_chunk.c)
-  list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/inflate.c)
-  list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/cpu_features.c)
-  list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/crc32_simd.c)
-  list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/crc_folding.c)
+    list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/adler32_simd.h)
+    list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/chunkcopy.h)
+    list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/inffast_chunk.h)
+    list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/cpu_features.h)
+    list(APPEND ZLIB_PRIVATE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/crc32_simd.h)
+
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/adler32_simd.c)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/inffast_chunk.c)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/optimizations/inflate.c)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/cpu_features.c)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/crc32_simd.c)
+    list(APPEND ZLIB_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/crc_folding.c)
+  endif()
 endif()
 
 # parse the full version number from zlib.h and include in ZLIB_FULL_VERSION
@@ -298,10 +353,28 @@ if (BUILD_UNITTESTS)
 endif()
 
 #============================================================================
-# Minigzip tool
+# Minizip tool
 #============================================================================
-add_executable(minizip_bin contrib/minizip/minizip.c contrib/minizip/ioapi.c
-contrib/minizip/ioapi.h contrib/minizip/unzip.c
-contrib/minizip/unzip.h contrib/minizip/zip.c contrib/minizip/zip.h
-)
-target_link_libraries(minizip_bin zlib)
+# TODO(cavalcantii): get it working on Windows.
+if (BUILD_MINIZIP_BIN)
+  add_executable(minizip_bin contrib/minizip/minizip.c contrib/minizip/ioapi.c
+    contrib/minizip/ioapi.h contrib/minizip/unzip.c
+    contrib/minizip/unzip.h contrib/minizip/zip.c contrib/minizip/zip.h
+    )
+  target_link_libraries(minizip_bin zlib)
+endif()
+
+#============================================================================
+# zpipe tool
+#============================================================================
+if (BUILD_ZPIPE)
+  add_executable(zpipe examples/zpipe.c)
+  target_link_libraries(zpipe zlib)
+endif()
+#============================================================================
+# MiniGzip tool
+#============================================================================
+if (BUILD_MINIGZIP)
+  add_executable(minigzip_bin test/minigzip.c)
+  target_link_libraries(minigzip_bin zlib)
+endif()

@@ -17,6 +17,9 @@ promotecmd=dist-promote
 signcmd=dist-sign
 customsshkey="" # let ssh and scp use default key
 signversion=""
+cloudflare_bucket="dist-prod"
+cloudflare_endpoint=https://07be8d2fbc940503ca1be344714cb0d1.r2.cloudflarestorage.com # Node.js Cloudflare account
+cloudflare_profile="worker"
 
 while getopts ":i:s:" option; do
     case "${option}" in
@@ -102,6 +105,7 @@ sign() {
     exit 1
   fi
 
+  # /home/dist/${site}/release
   # shellcheck disable=SC2086,SC2029
   shapath=$(ssh ${customsshkey} "${webuser}@${webhost}" $signcmd nodejs $1)
 
@@ -134,7 +138,7 @@ sign() {
   echo ""
 
   while true; do
-    printf "Upload files? [y/n] "
+    printf "Upload files to %s and Cloudflare R2? [y/n] " "$webhost"
     yorn=""
     read -r yorn
 
@@ -143,10 +147,26 @@ sign() {
     fi
 
     if [ "X${yorn}" = "Xy" ]; then
+      # Copy SHASUMS256.txt and its signatures to the web host:
       # shellcheck disable=SC2086
       scp ${customsshkey} "${tmpdir}/${shafile}" "${tmpdir}/${shafile}.asc" "${tmpdir}/${shafile}.sig" "${webuser}@${webhost}:${shadir}/"
       # shellcheck disable=SC2086,SC2029
       ssh ${customsshkey} "${webuser}@${webhost}" chmod 644 "${shadir}/${shafile}.asc" "${shadir}/${shafile}.sig"
+
+      # Copy the signatures to Cloudflare R2:
+      # Note: the binaries and SHASUMS256.txt should already be in the bucket
+      # since the promotion script should take care of uploading them.
+
+      # Remove /home/dist/ part
+      r2dir=$(echo "$shadir" | cut -c 12-)
+
+      # Copy SHASUMS256.txt.asc
+      # shellcheck disable=SC2086,SC2029
+      ssh ${customsshkey} "${webuser}@${webhost}" aws s3 cp "${shadir}/${shafile}.asc" "s3://${cloudflare_bucket}/${r2dir}/${shafile}.asc" --endpoint="${cloudflare_endpoint}" --profile=${cloudflare_profile}
+
+      # Copy SHASUMS256.txt.sig
+      # shellcheck disable=SC2086,SC2029
+      ssh ${customsshkey} "${webuser}@${webhost}" aws s3 cp "${shadir}/${shafile}.sig" "s3://${cloudflare_bucket}/${r2dir}/${shafile}.sig" --endpoint="${cloudflare_endpoint}" --profile=${cloudflare_profile}
       break
     fi
   done

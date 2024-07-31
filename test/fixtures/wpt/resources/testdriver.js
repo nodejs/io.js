@@ -221,6 +221,40 @@
         },
 
         /**
+         * Get Computed Label for an element.
+         *
+         * This matches the behaviour of the
+         * `Get Computed Label
+         * <https://w3c.github.io/webdriver/#dfn-get-computed-label>`_
+         * WebDriver command.
+         *
+         * @param {Element} element
+         * @returns {Promise} fulfilled after the computed label is returned, or
+         *                    rejected in the cases the WebDriver command errors
+         */
+        get_computed_label: async function(element) {
+            let label = await window.test_driver_internal.get_computed_label(element);
+            return label;
+        },
+
+        /**
+         * Get Computed Role for an element.
+         *
+         * This matches the behaviour of the
+         * `Get Computed Label
+         * <https://w3c.github.io/webdriver/#dfn-get-computed-role>`_
+         * WebDriver command.
+         *
+         * @param {Element} element
+         * @returns {Promise} fulfilled after the computed role is returned, or
+         *                    rejected in the cases the WebDriver command errors
+         */
+        get_computed_role: async function(element) {
+            let role = await window.test_driver_internal.get_computed_role(element);
+            return role;
+        },
+
+        /**
          * Send keys to an element.
          *
          * If ``element`` isn't inside the
@@ -228,7 +262,9 @@
          * occurs.
          *
          * If ``element`` is from a different browsing context, the
-         * command will be run in that context.
+         * command will be run in that context. The test must not depend
+         * on the ``window.name`` property being unset on the target
+         * window.
          *
          * To send special keys, send the respective key's codepoint,
          * as defined by `WebDriver
@@ -260,12 +296,6 @@
                 element.scrollIntoView({behavior: "instant",
                                         block: "end",
                                         inline: "nearest"});
-            }
-
-            var pointerInteractablePaintTree = getPointerInteractablePaintTree(element);
-            if (pointerInteractablePaintTree.length === 0 ||
-                !element.contains(pointerInteractablePaintTree[0])) {
-                return Promise.reject(new Error("element send_keys intercepted error"));
             }
 
             return window.test_driver_internal.send_keys(element, keys);
@@ -300,9 +330,9 @@
          *                                to run the call, or null for the current
          *                                browsing context.
          *
-         * @returns {Promise} fulfilled with the previous {@link
-         *                    https://www.w3.org/TR/webdriver/#dfn-windowrect-object|WindowRect}
-         *                      value, after the window is minimized.
+         * @returns {Promise} fulfilled with the previous `WindowRect
+         *                    <https://www.w3.org/TR/webdriver/#dfn-windowrect-object>`_
+         *                    value, after the window is minimized.
          */
         minimize_window: function(context=null) {
             return window.test_driver_internal.minimize_window(context);
@@ -315,8 +345,8 @@
          * <https://www.w3.org/TR/webdriver/#set-window-rect>`_
          * WebDriver command
          *
-         * @param {Object} rect - A {@link
-         *                           https://www.w3.org/TR/webdriver/#dfn-windowrect-object|WindowRect}
+         * @param {Object} rect - A `WindowRect
+         *                        <https://www.w3.org/TR/webdriver/#dfn-windowrect-object>`_
          * @param {WindowProxy} context - Browsing context in which
          *                                to run the call, or null for the current
          *                                browsing context.
@@ -389,8 +419,9 @@
         /**
          * Sets the state of a permission
          *
-         * This function simulates a user setting a permission into a
-         * particular state.
+         * This function causes permission requests and queries for the status
+         * of a certain permission type (e.g. "push", or "background-fetch") to
+         * always return ``state``.
          *
          * Matches the `Set Permission
          * <https://w3c.github.io/permissions/#set-permission-command>`_
@@ -402,8 +433,10 @@
          *
          * @param {PermissionDescriptor} descriptor - a `PermissionDescriptor
          *                              <https://w3c.github.io/permissions/#dom-permissiondescriptor>`_
-         *                              dictionary.
-         * @param {String} state - the state of the permission
+         *                              or derived object.
+         * @param {PermissionState} state - a `PermissionState
+         *                          <https://w3c.github.io/permissions/#dom-permissionstate>`_
+         *                          value.
          * @param {WindowProxy} context - Browsing context in which
          *                                to run the call, or null for the current
          *                                browsing context.
@@ -646,6 +679,296 @@
         set_spc_transaction_mode: function(mode, context=null) {
           return window.test_driver_internal.set_spc_transaction_mode(mode, context);
         },
+
+        /**
+         * Cancels the Federated Credential Management dialog
+         *
+         * Matches the `Cancel dialog
+         * <https://fedidcg.github.io/FedCM/#webdriver-canceldialog>`_
+         * WebDriver command.
+         *
+         * @param {WindowProxy} context - Browsing context in which
+         *                                to run the call, or null for the current
+         *                                browsing context.
+         *
+         * @returns {Promise} Fulfilled after the dialog is canceled, or rejected
+         *                    in case the WebDriver command errors
+         */
+        cancel_fedcm_dialog: function(context=null) {
+            return window.test_driver_internal.cancel_fedcm_dialog(context);
+        },
+
+        /**
+         * Clicks a button on the Federated Credential Management dialog
+         *
+         * Matches the `Click dialog button
+         * <https://fedidcg.github.io/FedCM/#webdriver-clickdialogbutton>`_
+         * WebDriver command.
+         *
+         * @param {String} dialog_button - String enum representing the dialog button to click.
+         * @param {WindowProxy} context - Browsing context in which
+         *                                to run the call, or null for the current
+         *                                browsing context.
+         *
+         * @returns {Promise} Fulfilled after the button is clicked,
+         *                    or rejected in case the WebDriver command errors
+         */
+        click_fedcm_dialog_button: function(dialog_button, context=null) {
+          return window.test_driver_internal.click_fedcm_dialog_button(dialog_button, context);
+        },
+
+        /**
+         * Selects an account from the Federated Credential Management dialog
+         *
+         * Matches the `Select account
+         * <https://fedidcg.github.io/FedCM/#webdriver-selectaccount>`_
+         * WebDriver command.
+         *
+         * @param {number} account_index - Index of the account to select.
+         * @param {WindowProxy} context - Browsing context in which
+         *                                to run the call, or null for the current
+         *                                browsing context.
+         *
+         * @returns {Promise} Fulfilled after the account is selected,
+         *                    or rejected in case the WebDriver command errors
+         */
+        select_fedcm_account: function(account_index, context=null) {
+          return window.test_driver_internal.select_fedcm_account(account_index, context);
+        },
+
+        /**
+         * Gets the account list from the Federated Credential Management dialog
+         *
+         * Matches the `Account list
+         * <https://fedidcg.github.io/FedCM/#webdriver-accountlist>`_
+         * WebDriver command.
+         *
+         * @param {WindowProxy} context - Browsing context in which
+         *                                to run the call, or null for the current
+         *                                browsing context.
+         *
+         * @returns {Promise} fulfilled after the account list is returned, or
+         *                    rejected in case the WebDriver command errors
+         */
+        get_fedcm_account_list: function(context=null) {
+          return window.test_driver_internal.get_fedcm_account_list(context);
+        },
+
+        /**
+         * Gets the title of the Federated Credential Management dialog
+         *
+         * Matches the `Get title
+         * <https://fedidcg.github.io/FedCM/#webdriver-gettitle>`_
+         * WebDriver command.
+         *
+         * @param {WindowProxy} context - Browsing context in which
+         *                                to run the call, or null for the current
+         *                                browsing context.
+         *
+         * @returns {Promise} Fulfilled after the title is returned, or rejected
+         *                    in case the WebDriver command errors
+         */
+        get_fedcm_dialog_title: function(context=null) {
+          return window.test_driver_internal.get_fedcm_dialog_title(context);
+        },
+
+        /**
+         * Gets the type of the Federated Credential Management dialog
+         *
+         * Matches the `Get dialog type
+         * <https://fedidcg.github.io/FedCM/#webdriver-getdialogtype>`_
+         * WebDriver command.
+         *
+         * @param {WindowProxy} context - Browsing context in which
+         *                                to run the call, or null for the current
+         *                                browsing context.
+         *
+         * @returns {Promise} Fulfilled after the dialog type is returned, or
+         *                    rejected in case the WebDriver command errors
+         */
+        get_fedcm_dialog_type: function(context=null) {
+          return window.test_driver_internal.get_fedcm_dialog_type(context);
+        },
+
+        /**
+         * Sets whether promise rejection delay is enabled for the Federated Credential Management dialog
+         *
+         * Matches the `Set delay enabled
+         * <https://fedidcg.github.io/FedCM/#webdriver-setdelayenabled>`_
+         * WebDriver command.
+         *
+         * @param {boolean} enabled - Whether to delay FedCM promise rejection.
+         * @param {WindowProxy} context - Browsing context in which
+         *                                to run the call, or null for the current
+         *                                browsing context.
+         *
+         * @returns {Promise} Fulfilled after the delay has been enabled or disabled,
+         *                    or rejected in case the WebDriver command errors
+         */
+        set_fedcm_delay_enabled: function(enabled, context=null) {
+          return window.test_driver_internal.set_fedcm_delay_enabled(enabled, context);
+        },
+
+        /**
+         * Resets the Federated Credential Management dialog's cooldown
+         *
+         * Matches the `Reset cooldown
+         * <https://fedidcg.github.io/FedCM/#webdriver-resetcooldown>`_
+         * WebDriver command.
+         *
+         * @param {WindowProxy} context - Browsing context in which
+         *                                to run the call, or null for the current
+         *                                browsing context.
+         *
+         * @returns {Promise} Fulfilled after the cooldown has been reset,
+         *                    or rejected in case the WebDriver command errors
+         */
+        reset_fedcm_cooldown: function(context=null) {
+          return window.test_driver_internal.reset_fedcm_cooldown(context);
+        },
+
+        /**
+         * Creates a virtual sensor for use with the Generic Sensors APIs.
+         *
+         * Matches the `Create Virtual Sensor
+         * <https://w3c.github.io/sensors/#create-virtual-sensor-command>`_
+         * WebDriver command.
+         *
+         * Once created, a virtual sensor is available to all navigables under
+         * the same top-level traversable (i.e. all frames in the same page,
+         * regardless of origin).
+         *
+         * @param {String} sensor_type - A `virtual sensor type
+         *                               <https://w3c.github.io/sensors/#virtual-sensor-metadata-virtual-sensor-type>`_
+         *                               such as "accelerometer".
+         * @param {Object} [sensor_params={}] - Optional parameters described
+         *                                     in `Create Virtual Sensor
+         *                                     <https://w3c.github.io/sensors/#create-virtual-sensor-command>`_.
+         * @param {WindowProxy} [context=null] - Browsing context in which to
+         *                                       run the call, or null for the
+         *                                       current browsing context.
+         *
+         * @returns {Promise} Fulfilled when virtual sensor is created.
+         *                    Rejected in case the WebDriver command errors out
+         *                    (including if a virtual sensor of the same type
+         *                    already exists).
+         */
+        create_virtual_sensor: function(sensor_type, sensor_params={}, context=null) {
+          return window.test_driver_internal.create_virtual_sensor(sensor_type, sensor_params, context);
+        },
+
+        /**
+         * Causes a virtual sensor to report a new reading to any connected
+         * platform sensor.
+         *
+         * Matches the `Update Virtual Sensor Reading
+         * <https://w3c.github.io/sensors/#update-virtual-sensor-reading-command>`_
+         * WebDriver command.
+         *
+         * Note: The ``Promise`` it returns may fulfill before or after a
+         * "reading" event is fired. When using
+         * :js:func:`EventWatcher.wait_for`, it is necessary to take this into
+         * account:
+         *
+         * Note: New values may also be discarded due to the checks in `update
+         * latest reading
+         * <https://w3c.github.io/sensors/#update-latest-reading>`_.
+         *
+         * @example
+         * // Avoid races between EventWatcher and update_virtual_sensor().
+         * // This assumes you are sure this reading will be processed (see
+         * // the example below otherwise).
+         * const reading = { x: 1, y: 2, z: 3 };
+         * await Promise.all([
+         *   test_driver.update_virtual_sensor('gyroscope', reading),
+         *   watcher.wait_for('reading')
+         * ]);
+         *
+         * @example
+         * // Do not wait forever if you are not sure the reading will be
+         * // processed.
+         * const readingPromise = watcher.wait_for('reading');
+         * const timeoutPromise = new Promise(resolve => {
+         *     t.step_timeout(() => resolve('TIMEOUT', 3000))
+         * });
+         *
+         * const reading = { x: 1, y: 2, z: 3 };
+         * await test_driver.update_virtual_sensor('gyroscope', 'reading');
+         *
+         * const value =
+         *     await Promise.race([timeoutPromise, readingPromise]);
+         * if (value !== 'TIMEOUT') {
+         *   // Do something. The "reading" event was fired.
+         * }
+         *
+         * @param {String} sensor_type - A `virtual sensor type
+         *                               <https://w3c.github.io/sensors/#virtual-sensor-metadata-virtual-sensor-type>`_
+         *                               such as "accelerometer".
+         * @param {Object} reading - An Object describing a reading in a format
+         *                           dependent on ``sensor_type`` (e.g. ``{x:
+         *                           1, y: 2, z: 3}`` or ``{ illuminance: 42
+         *                           }``).
+         * @param {WindowProxy} [context=null] - Browsing context in which to
+         *                                       run the call, or null for the
+         *                                       current browsing context.
+         *
+         * @returns {Promise} Fulfilled after the reading update reaches the
+         *                    virtual sensor. Rejected in case the WebDriver
+         *                    command errors out (including if a virtual sensor
+         *                    of the given type does not exist).
+         */
+        update_virtual_sensor: function(sensor_type, reading, context=null) {
+          return window.test_driver_internal.update_virtual_sensor(sensor_type, reading, context);
+        },
+
+        /**
+         * Triggers the removal of a virtual sensor if it exists.
+         *
+         * Matches the `Delete Virtual Sensor
+         * <https://w3c.github.io/sensors/#delete-virtual-sensor-command>`_
+         * WebDriver command.
+         *
+         * @param {String} sensor_type - A `virtual sensor type
+         *                               <https://w3c.github.io/sensors/#virtual-sensor-metadata-virtual-sensor-type>`_
+         *                               such as "accelerometer".
+         * @param {WindowProxy} [context=null] - Browsing context in which to
+         *                                       run the call, or null for the
+         *                                       current browsing context.
+         *
+         * @returns {Promise} Fulfilled after the virtual sensor has been
+         *                    removed or if a sensor of the given type does not
+         *                    exist. Rejected in case the WebDriver command
+         *                    errors out.
+
+         */
+        remove_virtual_sensor: function(sensor_type, context=null) {
+          return window.test_driver_internal.remove_virtual_sensor(sensor_type, context);
+        },
+
+        /**
+         * Returns information about a virtual sensor.
+         *
+         * Matches the `Get Virtual Sensor Information
+         * <https://w3c.github.io/sensors/#get-virtual-sensor-information-command>`_
+         * WebDriver command.
+         *
+         * @param {String} sensor_type - A `virtual sensor type
+         *                               <https://w3c.github.io/sensors/#virtual-sensor-metadata-virtual-sensor-type>`_
+         *                               such as "accelerometer".
+         * @param {WindowProxy} [context=null] - Browsing context in which to
+         *                                       run the call, or null for the
+         *                                       current browsing context.
+         *
+         * @returns {Promise} Fulfilled with an Object with the properties
+         *                    described in `Get Virtual Sensor Information
+         *                    <https://w3c.github.io/sensors/#get-virtual-sensor-information-command>`_.
+         *                    Rejected in case the WebDriver command errors out
+         *                    (including if a virtual sensor of the given type
+         *                    does not exist).
+         */
+        get_virtual_sensor_information: function(sensor_type, context=null) {
+            return window.test_driver_internal.get_virtual_sensor_information(sensor_type, context);
+        }
     };
 
     window.test_driver_internal = {
@@ -657,9 +980,9 @@
          */
         in_automation: false,
 
-        click: function(element, coords) {
+        async click(element, coords) {
             if (this.in_automation) {
-                return Promise.reject(new Error('Not implemented'));
+                throw new Error("click() is not implemented by testdriver-vendor.js");
             }
 
             return new Promise(function(resolve, reject) {
@@ -667,21 +990,21 @@
             });
         },
 
-        delete_all_cookies: function(context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async delete_all_cookies(context=null) {
+            throw new Error("delete_all_cookies() is not implemented by testdriver-vendor.js");
         },
 
-        get_all_cookies: function(context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async get_all_cookies(context=null) {
+            throw new Error("get_all_cookies() is not implemented by testdriver-vendor.js");
         },
 
-        get_named_cookie: function(name, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async get_named_cookie(name, context=null) {
+            throw new Error("get_named_cookie() is not implemented by testdriver-vendor.js");
         },
 
-        send_keys: function(element, keys) {
+        async send_keys(element, keys) {
             if (this.in_automation) {
-                return Promise.reject(new Error('Not implemented'));
+                throw new Error("send_keys() is not implemented by testdriver-vendor.js");
             }
 
             return new Promise(function(resolve, reject) {
@@ -711,66 +1034,112 @@
             });
         },
 
-        freeze: function(context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async freeze(context=null) {
+            throw new Error("freeze() is not implemented by testdriver-vendor.js");
         },
 
-        minimize_window: function(context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async minimize_window(context=null) {
+            throw new Error("minimize_window() is not implemented by testdriver-vendor.js");
         },
 
-        set_window_rect: function(rect, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async set_window_rect(rect, context=null) {
+            throw new Error("set_window_rect() is not implemented by testdriver-vendor.js");
         },
 
-        action_sequence: function(actions, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async action_sequence(actions, context=null) {
+            throw new Error("action_sequence() is not implemented by testdriver-vendor.js");
         },
 
-        generate_test_report: function(message, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async generate_test_report(message, context=null) {
+            throw new Error("generate_test_report() is not implemented by testdriver-vendor.js");
         },
 
-
-        set_permission: function(permission_params, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async set_permission(permission_params, context=null) {
+            throw new Error("set_permission() is not implemented by testdriver-vendor.js");
         },
 
-        add_virtual_authenticator: function(config, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async add_virtual_authenticator(config, context=null) {
+            throw new Error("add_virtual_authenticator() is not implemented by testdriver-vendor.js");
         },
 
-        remove_virtual_authenticator: function(authenticator_id, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async remove_virtual_authenticator(authenticator_id, context=null) {
+            throw new Error("remove_virtual_authenticator() is not implemented by testdriver-vendor.js");
         },
 
-        add_credential: function(authenticator_id, credential, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async add_credential(authenticator_id, credential, context=null) {
+            throw new Error("add_credential() is not implemented by testdriver-vendor.js");
         },
 
-        get_credentials: function(authenticator_id, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async get_credentials(authenticator_id, context=null) {
+            throw new Error("get_credentials() is not implemented by testdriver-vendor.js");
         },
 
-        remove_credential: function(authenticator_id, credential_id, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async remove_credential(authenticator_id, credential_id, context=null) {
+            throw new Error("remove_credential() is not implemented by testdriver-vendor.js");
         },
 
-        remove_all_credentials: function(authenticator_id, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async remove_all_credentials(authenticator_id, context=null) {
+            throw new Error("remove_all_credentials() is not implemented by testdriver-vendor.js");
         },
 
-        set_user_verified: function(authenticator_id, uv, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async set_user_verified(authenticator_id, uv, context=null) {
+            throw new Error("set_user_verified() is not implemented by testdriver-vendor.js");
         },
 
-        set_storage_access: function(origin, embedding_origin, blocked, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async set_storage_access(origin, embedding_origin, blocked, context=null) {
+            throw new Error("set_storage_access() is not implemented by testdriver-vendor.js");
         },
 
-        set_spc_transaction_mode: function(mode, context=null) {
-            return Promise.reject(new Error("unimplemented"));
+        async set_spc_transaction_mode(mode, context=null) {
+            throw new Error("set_spc_transaction_mode() is not implemented by testdriver-vendor.js");
         },
 
+        async cancel_fedcm_dialog(context=null) {
+            throw new Error("cancel_fedcm_dialog() is not implemented by testdriver-vendor.js");
+        },
+
+        async click_fedcm_dialog_button(dialog_button, context=null) {
+            throw new Error("click_fedcm_dialog_button() is not implemented by testdriver-vendor.js");
+        },
+
+        async select_fedcm_account(account_index, context=null) {
+            throw new Error("select_fedcm_account() is not implemented by testdriver-vendor.js");
+        },
+
+        async get_fedcm_account_list(context=null) {
+            throw new Error("get_fedcm_account_list() is not implemented by testdriver-vendor.js");
+        },
+
+        async get_fedcm_dialog_title(context=null) {
+            throw new Error("get_fedcm_dialog_title() is not implemented by testdriver-vendor.js");
+        },
+
+        async get_fedcm_dialog_type(context=null) {
+            throw new Error("get_fedcm_dialog_type() is not implemented by testdriver-vendor.js");
+        },
+
+        async set_fedcm_delay_enabled(enabled, context=null) {
+            throw new Error("set_fedcm_delay_enabled() is not implemented by testdriver-vendor.js");
+        },
+
+        async reset_fedcm_cooldown(context=null) {
+            throw new Error("reset_fedcm_cooldown() is not implemented by testdriver-vendor.js");
+        },
+
+        async create_virtual_sensor(sensor_type, sensor_params, context=null) {
+            throw new Error("create_virtual_sensor() is not implemented by testdriver-vendor.js");
+        },
+
+        async update_virtual_sensor(sensor_type, reading, context=null) {
+            throw new Error("update_virtual_sensor() is not implemented by testdriver-vendor.js");
+        },
+
+        async remove_virtual_sensor(sensor_type, context=null) {
+            throw new Error("remove_virtual_sensor() is not implemented by testdriver-vendor.js");
+        },
+
+        async get_virtual_sensor_information(sensor_type, context=null) {
+            throw new Error("get_virtual_sensor_information() is not implemented by testdriver-vendor.js");
+        }
     };
 })();

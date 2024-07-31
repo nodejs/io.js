@@ -19,33 +19,30 @@ transitioning javascript builtin SetPrototypeIntersection(
   // 3. Let otherRec be ? GetSetRecord(other).
   let otherRec = GetSetRecord(other, methodName);
 
-  const table = Cast<OrderedHashSet>(o.table) otherwise unreachable;
+  let table = NewStableBackingTableWitness(o);
 
   // 4. Let resultSetData be a new empty List.
   let resultSetData = AllocateOrderedHashSet();
 
   // 5. Let thisSize be the number of elements in O.[[SetData]].
-  const thisSize =
-      LoadOrderedHashTableMetadata(table, kOrderedHashSetNumberOfElementsIndex);
+  const thisSize = table.LoadSize();
 
   try {
     typeswitch (other) {
       case (otherSet: JSSetWithNoCustomIteration): {
         CheckSetRecordHasJSSetMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashSet>(otherSet.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherSet);
 
-        const otherSize = LoadOrderedHashTableMetadata(
-            otherTable, kOrderedHashSetNumberOfElementsIndex);
+        const otherSize = otherTable.LoadSize();
 
         if (thisSize <= otherSize) {
-          resultSetData = FastIntersect<OrderedHashSet>(
+          resultSetData = FastIntersect<StableJSSetBackingTableWitness>(
               table, otherTable, methodName, resultSetData);
           goto Done;
 
         } else {
-          resultSetData = FastIntersect<OrderedHashSet>(
+          resultSetData = FastIntersect<StableJSSetBackingTableWitness>(
               otherTable, table, methodName, resultSetData);
           goto Done;
         }
@@ -53,27 +50,25 @@ transitioning javascript builtin SetPrototypeIntersection(
       case (otherMap: JSMapWithNoCustomIteration): {
         CheckSetRecordHasJSMapMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashMap>(otherMap.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherMap);
 
-        const otherSize = LoadOrderedHashTableMetadata(
-            otherTable, kOrderedHashSetNumberOfElementsIndex);
+        const otherSize = otherTable.LoadSize();
 
         if (thisSize <= otherSize) {
-          resultSetData = FastIntersect<OrderedHashMap>(
+          resultSetData = FastIntersect<StableJSMapBackingTableWitness>(
               table, otherTable, methodName, resultSetData);
           goto Done;
 
         } else {
           // TODO(13556): Change `FastIntersect` macro to be able to handle
           // this case as well.
-          let otherIterator =
-              collections::NewUnmodifiedOrderedHashMapIterator(otherTable);
+          let otherIterator = collections::NewUnmodifiedOrderedHashMapIterator(
+              otherTable.GetTable());
 
           while (true) {
             const nextValue = otherIterator.Next() otherwise Done;
 
-            if (TableHasKey(table, nextValue.key)) {
+            if (table.HasKey(nextValue.key)) {
               resultSetData =
                   AddToSetTable(resultSetData, nextValue.key, methodName);
             }
@@ -88,7 +83,7 @@ transitioning javascript builtin SetPrototypeIntersection(
     // 6. If thisSize ≤ otherRec.[[Size]], then
     if (thisSize <= Convert<int32>(otherRec.size)) {
       // a. Let index be 0.
-      let thisIter = collections::NewOrderedHashSetIterator(table);
+      let thisIter = collections::NewOrderedHashSetIterator(table.GetTable());
 
       // b. Repeat, while index < thisSize,
       while (true) {
@@ -145,7 +140,8 @@ transitioning javascript builtin SetPrototypeIntersection(
         // 4. Let alreadyInResult be SetDataHas(resultSetData, nextValue).
         // 5. Let inThis be SetDataHas(O.[[SetData]], nextValue).
 
-        if (TableHasKey(table, nextValue)) {
+        table.ReloadTable();
+        if (table.HasKey(nextValue)) {
           // 6. If alreadyInResult is false and inThis is true, then
           // a. Append nextValue to resultSetData.
           resultSetData = AddToSetTable(resultSetData, nextValue, methodName);
@@ -167,19 +163,19 @@ transitioning javascript builtin SetPrototypeIntersection(
 // (collectionToIterate), lookup each value of the iterator in a table that
 // needs to be checked (tableToLookup), and adds the value to the result
 // (resultSetData) if it exists in the table.
-macro FastIntersect<T : type extends FixedArray>(
-    implicit context: Context)(collectionToIterate: OrderedHashSet,
-    tableToLookup: T, methodName: String,
-    resultSetData: OrderedHashSet): OrderedHashSet {
+macro FastIntersect<T: type>(
+    implicit context: Context)(
+    collectionToIterate: StableJSSetBackingTableWitness, tableToLookup: T,
+    methodName: String, resultSetData: OrderedHashSet): OrderedHashSet {
   let result = resultSetData;
 
-  let iter =
-      collections::NewUnmodifiedOrderedHashSetIterator(collectionToIterate);
+  let iter = collections::NewUnmodifiedOrderedHashSetIterator(
+      collectionToIterate.GetTable());
   try {
     while (true) {
       const nextValue = iter.Next() otherwise Done;
 
-      if (TableHasKey(tableToLookup, nextValue)) {
+      if (tableToLookup.HasKey(nextValue)) {
         result = AddToSetTable(result, nextValue, methodName);
       }
     }

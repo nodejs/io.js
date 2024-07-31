@@ -89,7 +89,7 @@ const char *getGenderString(UnicodeString uGender, UErrorCode status) {
 }
 
 // Returns the array index that corresponds to the given pluralKeyword.
-static int32_t getIndex(const char* pluralKeyword, UErrorCode& status) {
+int32_t getIndex(const char* pluralKeyword, UErrorCode& status) {
     // pluralKeyword can also be "dnam", "per", or "gender"
     switch (*pluralKeyword) {
     case 'd':
@@ -119,7 +119,7 @@ static int32_t getIndex(const char* pluralKeyword, UErrorCode& status) {
 //
 // The `strings` array must have ARRAY_LENGTH items: one corresponding to each
 // of the plural forms, plus a display name ("dnam") and a "per" form.
-static UnicodeString getWithPlural(
+UnicodeString getWithPlural(
         const UnicodeString* strings,
         StandardPlural::Form plural,
         UErrorCode& status) {

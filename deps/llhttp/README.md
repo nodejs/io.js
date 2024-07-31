@@ -397,7 +397,7 @@ With this flag this check is disabled.
 Make sure you have [Node.js](https://nodejs.org/), npm and npx installed. Then under project directory run:
 
 ```sh
-npm install
+npm ci
 make
 ```
 
@@ -451,7 +451,7 @@ _Note that using the git repo directly (e.g., via a git repo url and tag) will n
 
 1. Ensure that `Clang` and `make` are in your system path.
 2. Using Git Bash, clone the repo to your preferred location.
-3. Cd into the cloned directory and run `npm install`
+3. Cd into the cloned directory and run `npm ci`
 5. Run `make`
 6. Your `repo/build` directory should now have `libllhttp.a` and `libllhttp.so` static and dynamic libraries.
 7. When building your executable, you can link to these libraries. Make sure to set the build folder as an include path when building so you can reference the declarations in `repo/build/llhttp.h`.

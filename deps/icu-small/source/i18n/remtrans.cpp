@@ -44,13 +44,13 @@ void RemoveTransliterator::registerIDs() {
                                             UNICODE_STRING_SIMPLE("Null"), false);
 }
 
-RemoveTransliterator::RemoveTransliterator() : Transliterator(UnicodeString(true, ::CURR_ID, -1), 0) {}
+RemoveTransliterator::RemoveTransliterator() : Transliterator(UnicodeString(true, ::CURR_ID, -1), nullptr) {}
 
 RemoveTransliterator::~RemoveTransliterator() {}
 
 RemoveTransliterator* RemoveTransliterator::clone() const {
     RemoveTransliterator* result = new RemoveTransliterator();
-    if (result != nullptr && getFilter() != 0) {
+    if (result != nullptr && getFilter() != nullptr) {
         result->adoptFilter(getFilter()->clone());
     }
     return result;

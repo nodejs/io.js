@@ -379,7 +379,7 @@ class JSTransferable : public BaseObject {
 };
 
 v8::Local<v8::FunctionTemplate> GetMessagePortConstructorTemplate(
-    Environment* env);
+    IsolateData* isolate_data);
 
 }  // namespace worker
 }  // namespace node

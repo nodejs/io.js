@@ -2,7 +2,7 @@ const relpath = require('./relpath.js')
 const Node = require('./node.js')
 const _loadDeps = Symbol.for('Arborist.Node._loadDeps')
 const _target = Symbol.for('_target')
-const { dirname } = require('path')
+const { dirname } = require('node:path')
 // defined by Node class
 const _delistFromMeta = Symbol.for('_delistFromMeta')
 const _refreshLocation = Symbol.for('_refreshLocation')

@@ -82,14 +82,14 @@ exports[`test/lib/commands/sbom.js TAP sbom --omit dev > must match snapshot 1`]
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-test-npm-sbom-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "spdxElementId": "SPDXRef-Package-foo-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     },
     {
-      "spdxElementId": "SPDXRef-Package-foo-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-dog-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "spdxElementId": "SPDXRef-Package-dog-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -155,9 +155,9 @@ exports[`test/lib/commands/sbom.js TAP sbom --omit optional > must match snapsho
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-test-npm-sbom-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-chai-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "spdxElementId": "SPDXRef-Package-chai-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -223,9 +223,9 @@ exports[`test/lib/commands/sbom.js TAP sbom --omit peer > must match snapshot 1`
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-test-npm-sbom-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-chai-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "spdxElementId": "SPDXRef-Package-chai-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -435,19 +435,19 @@ exports[`test/lib/commands/sbom.js TAP sbom basic sbom - spdx > must match snaps
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-test-npm-sbom-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-test-npm-sbom-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-chai-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
       "spdxElementId": "SPDXRef-Package-foo-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-dog-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-chai-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-dog-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -547,18 +547,18 @@ exports[`test/lib/commands/sbom.js TAP sbom extraneous dep > must match snapshot
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-test-npm-ls-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
       "spdxElementId": "SPDXRef-Package-foo-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-dog-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-ls-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     },
     {
-      "spdxElementId": "SPDXRef-Package-test-npm-ls-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-chai-1.0.0",
+      "spdxElementId": "SPDXRef-Package-dog-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-chai-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-ls-1.0.0",
       "relationshipType": "OPTIONAL_DEPENDENCY_OF"
     }
   ]
@@ -710,39 +710,39 @@ exports[`test/lib/commands/sbom.js TAP sbom loading a tree containing workspaces
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-a-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-d-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
       "spdxElementId": "SPDXRef-Package-a-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-c-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-a-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-d-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-a-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-baz-1.0.0",
-      "relationshipType": "DEV_DEPENDENCY_OF"
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     },
     {
       "spdxElementId": "SPDXRef-Package-d-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-foo-1.1.1",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-c-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-a-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-d-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-a-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-baz-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-a-1.0.0",
+      "relationshipType": "DEV_DEPENDENCY_OF"
     },
     {
       "spdxElementId": "SPDXRef-Package-foo-1.1.1",
-      "relatedSpdxElement": "SPDXRef-Package-bar-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-d-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-bar-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-foo-1.1.1",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -825,14 +825,14 @@ exports[`test/lib/commands/sbom.js TAP sbom loading a tree containing workspaces
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-e-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "spdxElementId": "SPDXRef-Package-e-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     },
     {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-f-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "spdxElementId": "SPDXRef-Package-f-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -1051,59 +1051,59 @@ exports[`test/lib/commands/sbom.js TAP sbom loading a tree containing workspaces
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-a-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-b-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-d-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-e-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-f-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-pacote-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
       "spdxElementId": "SPDXRef-Package-a-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-c-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     },
     {
-      "spdxElementId": "SPDXRef-Package-a-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-d-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-a-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-baz-1.0.0",
-      "relationshipType": "DEV_DEPENDENCY_OF"
+      "spdxElementId": "SPDXRef-Package-b-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     },
     {
       "spdxElementId": "SPDXRef-Package-d-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-foo-1.1.1",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-e-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-f-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-pacote-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-c-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-a-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-d-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-a-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-baz-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-a-1.0.0",
+      "relationshipType": "DEV_DEPENDENCY_OF"
     },
     {
       "spdxElementId": "SPDXRef-Package-foo-1.1.1",
-      "relatedSpdxElement": "SPDXRef-Package-bar-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-d-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-bar-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-foo-1.1.1",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -1169,9 +1169,9 @@ exports[`test/lib/commands/sbom.js TAP sbom loading a tree containing workspaces
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-workspaces-tree-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-pacote-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "spdxElementId": "SPDXRef-Package-pacote-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-workspaces-tree-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -1275,19 +1275,19 @@ exports[`test/lib/commands/sbom.js TAP sbom lock file only > must match snapshot
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-test-npm-ls-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-test-npm-ls-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-chai-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
       "spdxElementId": "SPDXRef-Package-foo-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-dog-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-ls-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-chai-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-ls-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-dog-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }
@@ -1387,19 +1387,19 @@ exports[`test/lib/commands/sbom.js TAP sbom missing (optional) dep > must match 
       "relationshipType": "DESCRIBES"
     },
     {
-      "spdxElementId": "SPDXRef-Package-test-npm-ls-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
-      "spdxElementId": "SPDXRef-Package-test-npm-ls-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-chai-1.0.0",
-      "relationshipType": "DEPENDS_ON"
-    },
-    {
       "spdxElementId": "SPDXRef-Package-foo-1.0.0",
-      "relatedSpdxElement": "SPDXRef-Package-dog-1.0.0",
-      "relationshipType": "DEPENDS_ON"
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-ls-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-chai-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-ls-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-dog-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
     }
   ]
 }

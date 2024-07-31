@@ -20,8 +20,6 @@
 #include "src/inspector/v8-inspector-impl.h"
 #include "src/tracing/trace-event.h"
 
-using v8_crdtp::SpanFrom;
-using v8_crdtp::json::ConvertCBORToJSON;
 using v8_crdtp::json::ConvertJSONToCBOR;
 
 namespace v8_inspector {

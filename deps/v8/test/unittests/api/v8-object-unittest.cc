@@ -30,8 +30,8 @@ TEST_F(ObjectTest, SetAccessorWhenUnconfigurablePropAlreadyDefined) {
   prop_desc.set_configurable(false);
   global->DefineProperty(context(), property_name, prop_desc).ToChecked();
 
-  Maybe<bool> result = global->SetAccessor(context(), property_name,
-                                           accessor_name_getter_callback);
+  Maybe<bool> result = global->SetNativeDataProperty(
+      context(), property_name, accessor_name_getter_callback);
   ASSERT_TRUE(result.IsJust());
   ASSERT_FALSE(result.FromJust());
   ASSERT_FALSE(try_catch.HasCaught());

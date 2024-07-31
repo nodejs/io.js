@@ -1,9 +1,6 @@
-'use strict'
-
-const { EOL } = require('os')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
-const BaseCommand = require('../base-command.js')
-const log = require('../utils/log-shim.js')
+const BaseCommand = require('../base-cmd.js')
+const { log, output } = require('proc-log')
 const { cyclonedxOutput } = require('../utils/sbom-cyclonedx.js')
 const { spdxOutput } = require('../utils/sbom-spdx.js')
 
@@ -25,10 +22,6 @@ class SBOM extends BaseCommand {
     'workspaces',
   ]
 
-  get #parsedResponse () {
-    return JSON.stringify(this.#response, null, 2)
-  }
-
   async exec () {
     const sbomFormat = this.npm.config.get('sbom-format')
     const packageLockOnly = this.npm.config.get('package-lock-only')
@@ -38,56 +31,43 @@ class SBOM extends BaseCommand {
       throw this.usageError(`Must specify --sbom-format flag with one of: ${SBOM_FORMATS.join(', ')}.`)
     }
 
-    const Arborist = require('@npmcli/arborist')
-
     const opts = {
       ...this.npm.flatOptions,
       path: this.npm.prefix,
       forceActual: true,
     }
+    const Arborist = require('@npmcli/arborist')
     const arb = new Arborist(opts)
 
-    let tree
-    if (packageLockOnly) {
-      try {
-        tree = await arb.loadVirtual(opts)
-      } catch (err) {
-        /* eslint-disable-next-line max-len */
-        throw this.usageError('A package lock or shrinkwrap file is required in package-lock-only mode')
-      }
-    } else {
-      tree = await arb.loadActual(opts)
-    }
+    const tree = packageLockOnly ? await arb.loadVirtual(opts).catch(() => {
+      /* eslint-disable-next-line max-len */
+      throw this.usageError('A package lock or shrinkwrap file is required in package-lock-only mode')
+    }) : await arb.loadActual(opts)
 
     // Collect the list of selected workspaces in the project
-    let wsNodes
-    if (this.workspaceNames && this.workspaceNames.length) {
-      wsNodes = arb.workspaceNodes(tree, this.workspaceNames)
-    }
+    const wsNodes = this.workspaceNames?.length
+      ? arb.workspaceNodes(tree, this.workspaceNames)
+      : null
 
     // Build the selector and query the tree for the list of nodes
     const selector = this.#buildSelector({ wsNodes })
     log.info('sbom', `Using dependency selector: ${selector}`)
     const items = await tree.querySelectorAll(selector)
 
-    const errors = new Set()
-    for (const node of items) {
-      detectErrors(node).forEach(error => errors.add(error))
-    }
-
-    if (errors.size > 0) {
-      throw Object.assign(
-        new Error([...errors].join(EOL)),
-        { code: 'ESBOMPROBLEMS' }
-      )
+    const errors = items.flatMap(node => detectErrors(node))
+    if (errors.length) {
+      throw Object.assign(new Error([...new Set(errors)].join('\n')), {
+        code: 'ESBOMPROBLEMS',
+      })
     }
 
     // Populate the response with the list of unique nodes (sorted by location)
-    this.#buildResponse(
-      items
-        .sort((a, b) => localeCompare(a.location, b.location))
-    )
-    this.npm.output(this.#parsedResponse)
+    this.#buildResponse(items.sort((a, b) => localeCompare(a.location, b.location)))
+
+    // TODO(BREAKING_CHANGE): all sbom output is in json mode but setting it before
+    // any of the errors will cause those to be thrown in json mode.
+    this.npm.config.set('json', true)
+    output.buffer(this.#response)
   }
 
   async execWorkspaces (args) {
@@ -125,10 +105,9 @@ class SBOM extends BaseCommand {
     const packageType = this.npm.config.get('sbom-type')
     const packageLockOnly = this.npm.config.get('package-lock-only')
 
-    this.#response =
-        sbomFormat === 'cyclonedx'
-          ? cyclonedxOutput({ npm: this.npm, nodes: items, packageType, packageLockOnly })
-          : spdxOutput({ npm: this.npm, nodes: items, packageType })
+    this.#response = sbomFormat === 'cyclonedx'
+      ? cyclonedxOutput({ npm: this.npm, nodes: items, packageType, packageLockOnly })
+      : spdxOutput({ npm: this.npm, nodes: items, packageType })
   }
 }
 

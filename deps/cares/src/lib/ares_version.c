@@ -24,13 +24,13 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#include "ares_setup.h"
-#include "ares.h"
+#include "ares_private.h"
 
 const char *ares_version(int *version)
 {
-  if(version)
+  if (version) {
     *version = ARES_VERSION;
+  }
 
   return ARES_VERSION_STR;
 }

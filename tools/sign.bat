@@ -1,15 +1,12 @@
 @echo off
 
-set timeservers=(http://timestamp.globalsign.com/scripts/timestamp.dll http://timestamp.comodoca.com/authenticode http://timestamp.verisign.com/scripts/timestamp.dll http://tsa.starfieldtech.com)
-
-for %%s in %timeservers% do (
-    signtool sign /a /d "Node.js" /du "https://nodejs.org" /fd SHA256 /t %%s %1
-    if not ERRORLEVEL 1 (
-        echo Successfully signed %1 using timeserver %%s
-        exit /b 0
-    )
-    echo Signing %1 failed using %%s
+@REM From December 2023, new certificates use DigiCert cloud HSM service for EV signing.
+@REM They provide a client side app smctl.exe for managing certificates and signing process.
+@REM Release CI machines are configured to have it in the PATH so this can be used safely.
+smctl sign -k key_nodejs -i %1
+if not ERRORLEVEL 1 (
+    echo Successfully signed %1 using smctl
+    exit /b 0
 )
-
-echo Could not sign %1 using any available timeserver
+echo Could not sign %1 using smctl
 exit /b 1

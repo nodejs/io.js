@@ -44,6 +44,8 @@ class V8_EXPORT_PRIVATE CagedHeap final {
   static void InitializeIfNeeded(PageAllocator& platform_allocator,
                                  size_t desired_heap_size);
 
+  static void CommitAgeTable(PageAllocator& platform_allocator);
+
   static CagedHeap& Instance();
 
   CagedHeap(const CagedHeap&) = delete;

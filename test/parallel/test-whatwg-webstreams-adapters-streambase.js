@@ -65,3 +65,12 @@ const {
   const readable = newReadableStreamFromStreamBase(stream);
   readable.cancel().then(common.mustCall());
 }
+
+{
+  const stream = new JSStream();
+  stream.onread = common.mustCall();
+  assert.throws(() => newReadableStreamFromStreamBase(stream), {
+    code: 'ERR_INVALID_STATE'
+  });
+  stream.emitEOF();
+}

@@ -49,10 +49,10 @@ class JSONTurboshaftGraphWriter {
 };
 
 void PrintTurboshaftCustomDataPerOperation(
-    OptimizedCompilationInfo* info, const char* data_name, const Graph& graph,
+    std::ofstream& stream, const char* data_name, const Graph& graph,
     std::function<bool(std::ostream&, const Graph&, OpIndex)> printer);
 void PrintTurboshaftCustomDataPerBlock(
-    OptimizedCompilationInfo* info, const char* data_name, const Graph& graph,
+    std::ofstream& stream, const char* data_name, const Graph& graph,
     std::function<bool(std::ostream&, const Graph&, BlockIndex)> printer);
 
 }  // namespace v8::internal::compiler::turboshaft

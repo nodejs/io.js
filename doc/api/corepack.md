@@ -15,8 +15,16 @@ added:
 _[Corepack][Corepack repository]_ is an experimental tool to help with
 managing versions of your package managers. It exposes binary proxies for
 each [supported package manager][] that, when called, will identify whatever
-package manager is configured for the current project, transparently install
-it if needed, and finally run it without requiring explicit user interactions.
+package manager is configured for the current project, download it if needed,
+and finally run it.
+
+Despite Corepack being distributed with default installs of Node.js, the package
+managers managed by Corepack are not part of the Node.js distribution and:
+
+* Upon first use, Corepack downloads the latest version from the network.
+* Any required updates (related to security vulnerabilities or otherwise) are
+  out of scope of the Node.js project. If necessary end users must figure out
+  how to update on their own.
 
 This feature simplifies two core workflows:
 
@@ -136,7 +144,7 @@ install. To avoid this problem, consider one of the following options:
 [`corepack pack`]: https://github.com/nodejs/corepack#corepack-pack---all--nameversion
 [`corepack use`]: https://github.com/nodejs/corepack#corepack-use-nameversion
 [`package.json`]: packages.md#nodejs-packagejson-field-definitions
-[pnpm]: https://pnpm.js.org
+[pnpm]: https://pnpm.io
 [supported binaries]: #supported-package-managers
 [supported package manager]: #supported-package-managers
 [various flags]: https://github.com/nodejs/corepack#utility-commands

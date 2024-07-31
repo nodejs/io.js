@@ -54,9 +54,6 @@ class V8InspectorSessionImpl : public V8InspectorSession,
   int contextGroupId() const { return m_contextGroupId; }
   int sessionId() const { return m_sessionId; }
 
-  std::unique_ptr<V8InspectorSession::CommandLineAPIScope>
-  initializeCommandLineAPIScope(int executionContextId) override;
-
   Response findInjectedScript(int contextId, InjectedScript*&);
   Response findInjectedScript(RemoteObjectIdBase*, InjectedScript*&);
   void reset();
@@ -103,6 +100,8 @@ class V8InspectorSessionImpl : public V8InspectorSession,
   static const unsigned kInspectedObjectBufferSize = 5;
 
   void triggerPreciseCoverageDeltaUpdate(StringView occasion) override;
+  EvaluateResult evaluate(v8::Local<v8::Context> context, StringView expression,
+                          bool includeCommandLineAPI = false) override;
   void stop() override;
 
   V8Inspector::ClientTrustLevel clientTrustLevel() {

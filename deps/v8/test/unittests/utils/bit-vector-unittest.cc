@@ -20,13 +20,13 @@ TEST_F(BitVectorTest, SmallBitVector) {
   v.Add(1);
   EXPECT_TRUE(v.Contains(1));
   v.Remove(0);
-  EXPECT_TRUE(!v.Contains(0));
+  EXPECT_FALSE(v.Contains(0));
   v.Add(0);
   v.Add(1);
   BitVector w(15, zone());
   w.Add(1);
   v.Intersect(w);
-  EXPECT_TRUE(!v.Contains(0));
+  EXPECT_FALSE(v.Contains(0));
   EXPECT_TRUE(v.Contains(1));
 }
 
@@ -50,7 +50,8 @@ TEST_F(BitVectorTest, SmallBitVectorIterator) {
   EXPECT_NE(iter, end);
   EXPECT_EQ(33, *iter);
   ++iter;
-  EXPECT_TRUE(!(iter != end));
+  EXPECT_TRUE(iter == end);
+  EXPECT_FALSE(iter != end);
 }
 
 TEST_F(BitVectorTest, Union) {
@@ -95,11 +96,11 @@ TEST_F(BitVectorTest, Intersect) {
   BitVector w(35, zone());
   w.Add(33);
   v.Intersect(w);
-  EXPECT_TRUE(!v.Contains(32));
+  EXPECT_FALSE(v.Contains(32));
   EXPECT_TRUE(v.Contains(33));
   BitVector r(35, zone());
   r.CopyFrom(v);
-  EXPECT_TRUE(!r.Contains(32));
+  EXPECT_FALSE(r.Contains(32));
   EXPECT_TRUE(r.Contains(33));
 }
 
@@ -109,21 +110,21 @@ TEST_F(BitVectorTest, Resize) {
   v.Add(33);
   EXPECT_TRUE(v.Contains(32));
   EXPECT_TRUE(v.Contains(33));
-  EXPECT_TRUE(!v.Contains(22));
-  EXPECT_TRUE(!v.Contains(34));
+  EXPECT_FALSE(v.Contains(22));
+  EXPECT_FALSE(v.Contains(34));
   v.Resize(50, zone());
   EXPECT_TRUE(v.Contains(32));
   EXPECT_TRUE(v.Contains(33));
-  EXPECT_TRUE(!v.Contains(22));
-  EXPECT_TRUE(!v.Contains(34));
-  EXPECT_TRUE(!v.Contains(43));
+  EXPECT_FALSE(v.Contains(22));
+  EXPECT_FALSE(v.Contains(34));
+  EXPECT_FALSE(v.Contains(43));
   v.Resize(300, zone());
   EXPECT_TRUE(v.Contains(32));
   EXPECT_TRUE(v.Contains(33));
-  EXPECT_TRUE(!v.Contains(22));
-  EXPECT_TRUE(!v.Contains(34));
-  EXPECT_TRUE(!v.Contains(43));
-  EXPECT_TRUE(!v.Contains(243));
+  EXPECT_FALSE(v.Contains(22));
+  EXPECT_FALSE(v.Contains(34));
+  EXPECT_FALSE(v.Contains(43));
+  EXPECT_FALSE(v.Contains(243));
 }
 
 TEST_F(BitVectorTest, BigBitVectorIterator) {
@@ -159,6 +160,108 @@ TEST_F(BitVectorTest, BigBitVectorIterator) {
   EXPECT_EQ(500, *iter);
   ++iter;
   EXPECT_EQ(iter, end);
+}
+
+TEST_F(BitVectorTest, MoveConstructorInline) {
+  BitVector v(30, zone());
+  v.Add(12);
+  v.Add(29);
+  EXPECT_TRUE(v.Contains(12));
+  EXPECT_TRUE(v.Contains(29));
+  EXPECT_FALSE(v.Contains(22));
+  EXPECT_FALSE(v.Contains(28));
+  BitVector a(std::move(v));
+  EXPECT_TRUE(a.Contains(12));
+  EXPECT_TRUE(a.Contains(29));
+  EXPECT_FALSE(a.Contains(22));
+  EXPECT_FALSE(a.Contains(28));
+  // Check the data from `v` was properly moved out and doesn't affect `a`.
+  // As moving out doesn't provide a clear state of the moved out object,
+  // explicitly set it to a well-known state.
+  v = BitVector(31, zone());
+  v.Add(22);
+  v.Add(28);
+  EXPECT_TRUE(a.Contains(12));
+  EXPECT_TRUE(a.Contains(29));
+  EXPECT_FALSE(a.Contains(22));
+  EXPECT_FALSE(a.Contains(28));
+}
+
+TEST_F(BitVectorTest, MoveAssignInline) {
+  BitVector v(30, zone());
+  v.Add(12);
+  v.Add(29);
+  EXPECT_TRUE(v.Contains(12));
+  EXPECT_TRUE(v.Contains(29));
+  EXPECT_FALSE(v.Contains(22));
+  EXPECT_FALSE(v.Contains(28));
+  BitVector a;
+  a = std::move(v);
+  EXPECT_TRUE(a.Contains(12));
+  EXPECT_TRUE(a.Contains(29));
+  EXPECT_FALSE(a.Contains(22));
+  EXPECT_FALSE(a.Contains(28));
+  // Check the data from `v` was properly moved out and doesn't affect `a`.
+  // As moving out doesn't provide a clear state of the moved out object,
+  // explicitly set it to a well-known state.
+  v = BitVector(31, zone());
+  v.Add(22);
+  v.Add(28);
+  EXPECT_TRUE(a.Contains(12));
+  EXPECT_TRUE(a.Contains(29));
+  EXPECT_FALSE(a.Contains(22));
+  EXPECT_FALSE(a.Contains(28));
+}
+
+TEST_F(BitVectorTest, MoveConstructorLarge) {
+  BitVector v(200, zone());
+  v.Add(31);
+  v.Add(133);
+  EXPECT_TRUE(v.Contains(31));
+  EXPECT_TRUE(v.Contains(133));
+  EXPECT_FALSE(v.Contains(22));
+  EXPECT_FALSE(v.Contains(134));
+  BitVector a(std::move(v));
+  EXPECT_TRUE(a.Contains(31));
+  EXPECT_TRUE(a.Contains(133));
+  EXPECT_FALSE(a.Contains(22));
+  EXPECT_FALSE(a.Contains(134));
+  // Check the data from `v` was properly moved out and doesn't affect `a`.
+  // As moving out doesn't provide a clear state of the moved out object,
+  // explicitly set it to a well-known state.
+  v = BitVector(205, zone());
+  v.Add(22);
+  v.Add(134);
+  EXPECT_TRUE(a.Contains(31));
+  EXPECT_TRUE(a.Contains(133));
+  EXPECT_FALSE(a.Contains(22));
+  EXPECT_FALSE(a.Contains(134));
+}
+
+TEST_F(BitVectorTest, MoveAssignLarge) {
+  BitVector v(200, zone());
+  v.Add(31);
+  v.Add(133);
+  EXPECT_TRUE(v.Contains(31));
+  EXPECT_TRUE(v.Contains(133));
+  EXPECT_FALSE(v.Contains(22));
+  EXPECT_FALSE(v.Contains(134));
+  BitVector a;
+  a = std::move(v);
+  EXPECT_TRUE(a.Contains(31));
+  EXPECT_TRUE(a.Contains(133));
+  EXPECT_FALSE(a.Contains(22));
+  EXPECT_FALSE(a.Contains(134));
+  // Check the data from `v` was properly moved out and doesn't affect `a`.
+  // As moving out doesn't provide a clear state of the moved out object,
+  // explicitly set it to a well-known state.
+  v = BitVector(205, zone());
+  v.Add(22);
+  v.Add(134);
+  EXPECT_TRUE(a.Contains(31));
+  EXPECT_TRUE(a.Contains(133));
+  EXPECT_FALSE(a.Contains(22));
+  EXPECT_FALSE(a.Contains(134));
 }
 
 }  // namespace internal

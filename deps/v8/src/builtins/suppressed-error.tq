@@ -1,0 +1,46 @@
+// Copyright 2023 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+namespace error {
+
+// https://arai-a.github.io/ecma262-compare/?pr=3000&id=sec-suppressederror
+transitioning javascript builtin SuppressedErrorConstructor(
+    js-implicit context: NativeContext, target: JSFunction, newTarget: JSAny)(
+    ...arguments): JSAny {
+  const error: JSAny = arguments[0];
+  const suppressed: JSAny = arguments[1];
+  const message: JSAny = arguments[2];
+
+  // 1. If NewTarget is undefined, let newTarget be the active function object;
+  // else let newTarget be NewTarget.
+  // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget,
+  // "%SuppressedError.prototype%", « [[ErrorData]] »).
+  const map = GetDerivedMap(target, UnsafeCast<JSReceiver>(newTarget));
+  const obj: JSObject = AllocateFastOrSlowJSObjectFromMap(map);
+
+  // 3. If message is not undefined, then
+  //    a. Let messageString be ? ToString(message).
+  //    b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message",
+  //    messageString).
+  if (message != Undefined) {
+    SetOwnPropertyIgnoreAttributes(
+        obj, MessageStringConstant(), message,
+        SmiConstant(PropertyAttributes::DONT_ENUM));
+  }
+  // 4. Perform CreateNonEnumerableDataPropertyOrThrow(O, "error", error).
+  SetOwnPropertyIgnoreAttributes(
+      obj, ErrorStringConstant(), error,
+      SmiConstant(PropertyAttributes::DONT_ENUM));
+
+  // 5. Perform CreateNonEnumerableDataPropertyOrThrow(O, "suppressed",
+  // suppressed).
+  SetOwnPropertyIgnoreAttributes(
+      obj, SuppressedStringConstant(), suppressed,
+      SmiConstant(PropertyAttributes::DONT_ENUM));
+
+  // 6. Return O.
+  return obj;
+}
+
+}

@@ -56,7 +56,7 @@ std::unique_ptr<Utf16CharacterStream> SourceCharacterStreamForShared(
     Isolate* isolate, Handle<SharedFunctionInfo> shared) {
   // Create a character stream to simulate the parser having done so for the
   // top-level ParseProgram.
-  Script script = Script::cast(shared->script());
+  Tagged<Script> script = Script::cast(shared->script());
   Handle<String> source(String::cast(script->source()), isolate);
   std::unique_ptr<Utf16CharacterStream> stream(
       ScannerStream::For(isolate, source));

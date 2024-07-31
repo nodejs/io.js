@@ -180,7 +180,7 @@ FeedbackSource FeedbackSourceWithOneCompareSlot(JSTypedLoweringTest* R) {
 }  // namespace
 
 TEST_F(JSTypedLoweringTest, JSStrictEqualWithTheHole) {
-  Node* const the_hole = HeapConstant(factory()->the_hole_value());
+  Node* const the_hole = HeapConstantHole(factory()->the_hole_value());
   Node* const feedback = UndefinedConstant();
   Node* const context = UndefinedConstant();
   Node* const effect = graph()->start();

@@ -356,6 +356,11 @@ Response V8DeepSerializer::serializeV8Value(
         "type", protocol::Runtime::DeepSerializedValue::TypeEnum::Function);
     return Response::Success();
   }
+  if (value->IsGeneratorObject()) {
+    result.setString(
+        "type", protocol::Runtime::DeepSerializedValue::TypeEnum::Generator);
+    return Response::Success();
+  }
 
   // Serialize as an Object.
   return SerializeObject(value.As<v8::Object>(), context, maxDepth,

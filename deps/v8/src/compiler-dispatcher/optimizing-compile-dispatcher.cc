@@ -198,7 +198,8 @@ void OptimizingCompileDispatcher::InstallOptimizedFunctions() {
 
     // If another racing task has already finished compiling and installing the
     // requested code kind on the function, throw out the current job.
-    if (!info->is_osr() && function->HasAvailableCodeKind(info->code_kind())) {
+    if (!info->is_osr() &&
+        function->HasAvailableCodeKind(isolate_, info->code_kind())) {
       if (v8_flags.trace_concurrent_recompilation) {
         PrintF("  ** Aborting compilation for ");
         ShortPrint(*function);
@@ -226,6 +227,11 @@ void OptimizingCompileDispatcher::QueueForOptimization(
     DCHECK_LT(input_queue_length_, input_queue_capacity_);
     input_queue_[InputQueueIndex(input_queue_length_)] = job;
     input_queue_length_++;
+  }
+  if (job_handle_->UpdatePriorityEnabled()) {
+    job_handle_->UpdatePriority(isolate_->UseEfficiencyModeForTiering()
+                                    ? kEfficiencyTaskPriority
+                                    : kTaskPriority);
   }
   job_handle_->NotifyConcurrencyIncrease();
 }

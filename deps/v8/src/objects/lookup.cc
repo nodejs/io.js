@@ -32,7 +32,7 @@ PropertyKey::PropertyKey(Isolate* isolate, Handle<Object> key, bool* success) {
   }
   *success = Object::ToName(isolate, key).ToHandle(&name_);
   if (!*success) {
-    DCHECK(isolate->has_pending_exception());
+    DCHECK(isolate->has_exception());
     index_ = LookupIterator::kInvalidIndex;
     return;
   }
@@ -79,6 +79,7 @@ template void LookupIterator::Start<false>();
 void LookupIterator::Next() {
   DCHECK_NE(JSPROXY, state_);
   DCHECK_NE(TRANSITION, state_);
+  DCHECK_NE(NOT_FOUND, state_);
   DisallowGarbageCollection no_gc;
   has_property_ = false;
 
@@ -337,6 +338,22 @@ void LookupIterator::InternalUpdateProtector(Isolate* isolate,
         (IsJSPrimitiveWrapper(*receiver) || IsJSObjectPrototype(*receiver))) {
       Protectors::InvalidateNumberStringNotRegexpLike(isolate);
     }
+  } else if (*name == roots.to_primitive_symbol()) {
+    if (!Protectors::IsStringWrapperToPrimitiveIntact(isolate)) return;
+    if (isolate->IsInAnyContext(*receiver,
+                                Context::INITIAL_STRING_PROTOTYPE_INDEX) ||
+        isolate->IsInAnyContext(*receiver,
+                                Context::INITIAL_OBJECT_PROTOTYPE_INDEX) ||
+        IsStringWrapper(*receiver)) {
+      Protectors::InvalidateStringWrapperToPrimitive(isolate);
+    }
+  } else if (*name == roots.valueOf_string()) {
+    if (!Protectors::IsStringWrapperToPrimitiveIntact(isolate)) return;
+    if (isolate->IsInAnyContext(*receiver,
+                                Context::INITIAL_STRING_PROTOTYPE_INDEX) ||
+        IsStringWrapper(*receiver)) {
+      Protectors::InvalidateStringWrapperToPrimitive(isolate);
+    }
   }
 }
 
@@ -348,7 +365,7 @@ void LookupIterator::PrepareForDataProperty(Handle<Object> value) {
   Handle<JSReceiver> holder = GetHolder<JSReceiver>();
   // We are not interested in tracking constness of a JSProxy's direct
   // properties.
-  DCHECK_IMPLIES(IsJSProxy(*holder, isolate_), name()->IsPrivate(isolate_));
+  DCHECK_IMPLIES(IsJSProxy(*holder, isolate_), name()->IsPrivate());
   if (IsJSProxy(*holder, isolate_)) return;
 
   if (IsElement(*holder)) {
@@ -476,7 +493,7 @@ void LookupIterator::ReconfigureDataProperty(Handle<Object> value,
 
   // Property details can never change for private properties.
   if (IsJSProxy(*holder, isolate_)) {
-    DCHECK(name()->IsPrivate(isolate_));
+    DCHECK(name()->IsPrivate());
     return;
   }
 
@@ -572,20 +589,20 @@ void LookupIterator::ReconfigureDataProperty(Handle<Object> value,
 void LookupIterator::PrepareTransitionToDataProperty(
     Handle<JSReceiver> receiver, Handle<Object> value,
     PropertyAttributes attributes, StoreOrigin store_origin) {
-  DCHECK_IMPLIES(IsJSProxy(*receiver, isolate_), name()->IsPrivate(isolate_));
+  DCHECK_IMPLIES(IsJSProxy(*receiver, isolate_), name()->IsPrivate());
   DCHECK_IMPLIES(!receiver.is_identical_to(GetStoreTarget<JSReceiver>()),
                  name()->IsPrivateName());
   DCHECK(!IsAlwaysSharedSpaceJSObject(*receiver));
   if (state_ == TRANSITION) return;
 
-  if (!IsElement() && name()->IsPrivate(isolate_)) {
+  if (!IsElement() && name()->IsPrivate()) {
     attributes = static_cast<PropertyAttributes>(attributes | DONT_ENUM);
   }
 
   DCHECK(state_ != LookupIterator::ACCESSOR ||
          (IsAccessorInfo(*GetAccessors(), isolate_) &&
           AccessorInfo::cast(*GetAccessors())->is_special_data_property()));
-  DCHECK_NE(INTEGER_INDEXED_EXOTIC, state_);
+  DCHECK_NE(TYPED_ARRAY_INDEX_NOT_FOUND, state_);
   DCHECK(state_ == NOT_FOUND || !HolderIsReceiverOrHiddenPrototype());
 
   Handle<Map> map(receiver->map(isolate_), isolate_);
@@ -724,7 +741,7 @@ void LookupIterator::Delete() {
     ElementsAccessor* accessor = object->GetElementsAccessor(isolate_);
     accessor->Delete(object, number_);
   } else {
-    DCHECK(!name()->IsPrivateName(isolate_));
+    DCHECK(!name()->IsPrivateName());
     bool is_prototype_map = holder->map(isolate_)->is_prototype_map();
     RCS_SCOPE(isolate_,
               is_prototype_map
@@ -755,7 +772,7 @@ void LookupIterator::TransitionToAccessorProperty(
   // handled via a trap. Adding properties to primitive values is not
   // observable.
   Handle<JSObject> receiver = GetStoreTarget<JSObject>();
-  if (!IsElement() && name()->IsPrivate(isolate_)) {
+  if (!IsElement() && name()->IsPrivate()) {
     attributes = static_cast<PropertyAttributes>(attributes | DONT_ENUM);
   }
 
@@ -942,7 +959,7 @@ bool LookupIterator::CanStayConst(Tagged<Object> value) const {
     Tagged<Object> current_value =
         holder->RawFastPropertyAt(isolate_, field_index);
     DCHECK(IsHeapNumber(current_value, isolate_));
-    bits = HeapNumber::cast(current_value)->value_as_bits(kRelaxedLoad);
+    bits = HeapNumber::cast(current_value)->value_as_bits();
     // Use bit representation of double to check for hole double, since
     // manipulating the signaling NaN used for the hole in C++, e.g. with
     // base::bit_cast or value(), will change its value on ia32 (the x87
@@ -1093,7 +1110,7 @@ void LookupIterator::WriteDataValue(Handle<Object> value,
             String::cast(cell->value())->Equals(String::cast(*value))));
 #endif  // DEBUG
   } else {
-    DCHECK_IMPLIES(IsJSProxy(*holder, isolate_), name()->IsPrivate(isolate_));
+    DCHECK_IMPLIES(IsJSProxy(*holder, isolate_), name()->IsPrivate());
     // Check similar to fast mode case above.
     DCHECK_IMPLIES(
         V8_DICT_PROPERTY_CONST_TRACKING_BOOL && !initializing_store &&
@@ -1188,7 +1205,7 @@ bool LookupIterator::SkipInterceptor(Tagged<JSObject> holder) {
     switch (interceptor_state_) {
       case InterceptorState::kUninitialized:
         interceptor_state_ = InterceptorState::kSkipNonMasking;
-        V8_FALLTHROUGH;
+        [[fallthrough]];
       case InterceptorState::kSkipNonMasking:
         return true;
       case InterceptorState::kProcessNonMasking:
@@ -1212,9 +1229,9 @@ Tagged<JSReceiver> LookupIterator::NextHolder(Tagged<Map> map) {
 LookupIterator::State LookupIterator::NotFound(
     Tagged<JSReceiver> const holder) const {
   if (!IsJSTypedArray(holder, isolate_)) return NOT_FOUND;
-  if (IsElement()) return INTEGER_INDEXED_EXOTIC;
+  if (IsElement()) return TYPED_ARRAY_INDEX_NOT_FOUND;
   if (!IsString(*name_, isolate_)) return NOT_FOUND;
-  return IsSpecialIndex(String::cast(*name_)) ? INTEGER_INDEXED_EXOTIC
+  return IsSpecialIndex(String::cast(*name_)) ? TYPED_ARRAY_INDEX_NOT_FOUND
                                               : NOT_FOUND;
 }
 
@@ -1244,23 +1261,22 @@ LookupIterator::State LookupIterator::LookupInSpecialHolder(
   switch (state_) {
     case NOT_FOUND:
       if (IsJSProxyMap(map)) {
-        if (is_element || !name_->IsPrivate(isolate_)) return JSPROXY;
+        if (is_element || !name_->IsPrivate()) return JSPROXY;
       }
 #if V8_ENABLE_WEBASSEMBLY
       if (IsWasmObjectMap(map)) return WASM_OBJECT;
 #endif  // V8_ENABLE_WEBASSEMBLY
       if (map->is_access_check_needed()) {
-        if (is_element || !name_->IsPrivate(isolate_) ||
-            name_->IsPrivateName(isolate_))
+        if (is_element || !name_->IsPrivate() || name_->IsPrivateName())
           return ACCESS_CHECK;
       }
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case ACCESS_CHECK:
       if (check_interceptor() && HasInterceptor<is_element>(map, index_) &&
           !SkipInterceptor<is_element>(JSObject::cast(holder))) {
-        if (is_element || !name_->IsPrivate(isolate_)) return INTERCEPTOR;
+        if (is_element || !name_->IsPrivate()) return INTERCEPTOR;
       }
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case INTERCEPTOR:
       if (IsJSGlobalObjectMap(map) && !is_js_array_element(is_element)) {
         Tagged<GlobalDictionary> dict =
@@ -1285,7 +1301,7 @@ LookupIterator::State LookupIterator::LookupInSpecialHolder(
     case ACCESSOR:
     case DATA:
       return NOT_FOUND;
-    case INTEGER_INDEXED_EXOTIC:
+    case TYPED_ARRAY_INDEX_NOT_FOUND:
     case JSPROXY:
     case WASM_OBJECT:
     case TRANSITION:
@@ -1309,7 +1325,7 @@ LookupIterator::State LookupIterator::LookupInRegularHolder(
     number_ =
         accessor->GetEntryForIndex(isolate_, js_object, backing_store, index_);
     if (number_.is_not_found()) {
-      return IsJSTypedArray(holder, isolate_) ? INTEGER_INDEXED_EXOTIC
+      return IsJSTypedArray(holder, isolate_) ? TYPED_ARRAY_INDEX_NOT_FOUND
                                               : NOT_FOUND;
     }
     property_details_ = accessor->GetDetails(js_object, number_);
@@ -1324,7 +1340,7 @@ LookupIterator::State LookupIterator::LookupInRegularHolder(
     if (number_.is_not_found()) return NotFound(holder);
     property_details_ = descriptors->GetDetails(number_);
   } else {
-    DCHECK_IMPLIES(IsJSProxy(holder, isolate_), name()->IsPrivate(isolate_));
+    DCHECK_IMPLIES(IsJSProxy(holder, isolate_), name()->IsPrivate());
     if constexpr (V8_ENABLE_SWISS_NAME_DICTIONARY_BOOL) {
       Tagged<SwissNameDictionary> dict =
           holder->property_dictionary_swiss(isolate_);
@@ -1349,6 +1365,33 @@ LookupIterator::State LookupIterator::LookupInRegularHolder(
   UNREACHABLE();
 }
 
+// This is a specialization of function LookupInRegularHolder above
+// which is tailored to test whether an object has an internal marker
+// property.
+// static
+bool LookupIterator::HasInternalMarkerProperty(Isolate* isolate,
+                                               Tagged<JSReceiver> const holder,
+                                               Handle<Symbol> const marker) {
+  DisallowGarbageCollection no_gc;
+  Tagged<Map> map = holder->map(isolate);
+  if (map->is_dictionary_map()) {
+    if constexpr (V8_ENABLE_SWISS_NAME_DICTIONARY_BOOL) {
+      Tagged<SwissNameDictionary> dict =
+          holder->property_dictionary_swiss(isolate);
+      InternalIndex entry = dict->FindEntry(isolate, marker);
+      return entry.is_found();
+    } else {
+      Tagged<NameDictionary> dict = holder->property_dictionary(isolate);
+      InternalIndex entry = dict->FindEntry(isolate, marker);
+      return entry.is_found();
+    }
+  } else {
+    Tagged<DescriptorArray> descriptors = map->instance_descriptors(isolate);
+    InternalIndex entry = descriptors->SearchWithCache(isolate, *marker, map);
+    return entry.is_found();
+  }
+}
+
 Handle<InterceptorInfo> LookupIterator::GetInterceptorForFailedAccessCheck()
     const {
   DCHECK_EQ(ACCESS_CHECK, state_);
@@ -1367,7 +1410,7 @@ Handle<InterceptorInfo> LookupIterator::GetInterceptorForFailedAccessCheck()
     Tagged<Object> interceptor = is_js_array_element(IsElement())
                                      ? access_check_info->indexed_interceptor()
                                      : access_check_info->named_interceptor();
-    if (interceptor != Object()) {
+    if (interceptor != Tagged<Object>()) {
       return handle(InterceptorInfo::cast(interceptor), isolate_);
     }
   }
@@ -1398,7 +1441,7 @@ bool LookupIterator::LookupCachedProperty(Handle<AccessorPair> accessor_pair) {
   DCHECK(IsAccessorPair(*GetAccessors(), isolate_));
 
   Tagged<Object> getter = accessor_pair->getter(isolate_);
-  base::Optional<Name> maybe_name =
+  base::Optional<Tagged<Name>> maybe_name =
       FunctionTemplateInfo::TryGetCachedPropertyName(isolate(), getter);
   if (!maybe_name.has_value()) return false;
 
@@ -1445,7 +1488,7 @@ base::Optional<Tagged<Object>> ConcurrentLookupIterator::TryGetOwnCowElement(
   if (index >= static_cast<size_t>(array_length)) return {};
   if (index >= static_cast<size_t>(array_elements->length())) return {};
 
-  Tagged<Object> result = array_elements->get(isolate, static_cast<int>(index));
+  Tagged<Object> result = array_elements->get(static_cast<int>(index));
 
   //  ______________________________________
   // ( Filter out holes irrespective of the )
@@ -1494,8 +1537,7 @@ ConcurrentLookupIterator::TryGetOwnConstantElement(
     if (index >= static_cast<uint32_t>(elements_fixed_array->length())) {
       return kGaveUp;
     }
-    Tagged<Object> result =
-        elements_fixed_array->get(isolate, static_cast<int>(index));
+    Tagged<Object> result = elements_fixed_array->get(static_cast<int>(index));
     if (IsHoleyElementsKindForRead(elements_kind) &&
         result == ReadOnlyRoots(isolate).the_hole_value()) {
       return kNotPresent;
@@ -1537,7 +1579,7 @@ ConcurrentLookupIterator::Result ConcurrentLookupIterator::TryGetOwnChar(
   // The access guard below protects string accesses related to internalized
   // strings.
   // TODO(jgruber): Support other string kinds.
-  Tagged<Map> string_map = string->map(isolate, kAcquireLoad);
+  Tagged<Map> string_map = string->map(kAcquireLoad);
   InstanceType type = string_map->instance_type();
   if (!(InstanceTypeChecker::IsInternalizedString(type) ||
         InstanceTypeChecker::IsThinString(type))) {
@@ -1550,8 +1592,7 @@ ConcurrentLookupIterator::Result ConcurrentLookupIterator::TryGetOwnChar(
   uint16_t charcode;
   {
     SharedStringAccessGuardIfNeeded access_guard(local_isolate);
-    charcode = string->Get(static_cast<int>(index), PtrComprCageBase(isolate),
-                           access_guard);
+    charcode = string->Get(static_cast<int>(index), access_guard);
   }
 
   if (charcode > unibrow::Latin1::kMaxChar) return kGaveUp;
@@ -1589,7 +1630,7 @@ ConcurrentLookupIterator::TryGetPropertyCell(Isolate* isolate,
     Tagged<Object> maybe_accessor_pair = cell->value(kAcquireLoad);
     if (!IsAccessorPair(maybe_accessor_pair)) return {};
 
-    base::Optional<Name> maybe_cached_property_name =
+    base::Optional<Tagged<Name>> maybe_cached_property_name =
         FunctionTemplateInfo::TryGetCachedPropertyName(
             isolate, AccessorPair::cast(maybe_accessor_pair)
                          ->getter(isolate, kAcquireLoad));

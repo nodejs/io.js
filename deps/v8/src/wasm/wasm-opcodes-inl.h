@@ -136,6 +136,23 @@ constexpr bool WasmOpcodes::IsRelaxedSimdOpcode(WasmOpcode opcode) {
   return (opcode & 0xfff00) == 0xfd100;
 }
 
+#if DEBUG
+// static
+constexpr bool WasmOpcodes::IsMemoryAccessOpcode(WasmOpcode opcode) {
+  switch (opcode) {
+#define MEM_OPCODE(name, ...) case WasmOpcode::kExpr##name:
+    FOREACH_LOAD_MEM_OPCODE(MEM_OPCODE)
+    FOREACH_STORE_MEM_OPCODE(MEM_OPCODE)
+    FOREACH_ATOMIC_OPCODE(MEM_OPCODE)
+    FOREACH_SIMD_MEM_OPCODE(MEM_OPCODE)
+    FOREACH_SIMD_MEM_1_OPERAND_OPCODE(MEM_OPCODE)
+    return true;
+    default:
+      return false;
+  }
+}
+#endif  // DEBUG
+
 constexpr uint8_t WasmOpcodes::ExtractPrefix(WasmOpcode opcode) {
   // See comment on {WasmOpcode} for the encoding.
   return (opcode > 0xffff) ? opcode >> 12 : opcode >> 8;

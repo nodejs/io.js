@@ -6,11 +6,12 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 var builder = new WasmModuleBuilder();
 
-builder.addGlobal(kWasmI32).exportAs('g_n');
+builder.addGlobal(kWasmI32, false, false).exportAs('g_n');
 
-builder.addMemory(32, 128).exportMemoryAs('mem')
+builder.addMemory(32, 128);
+builder.exportMemoryAs('mem', 0);
 
-builder.addDataSegment(0, [0x2a, 0x2b, 0x2c, 0x2d])
+builder.addActiveDataSegment(0, [kExprI32Const, 0], [0x2a, 0x2b, 0x2c, 0x2d]);
 
 var func_a_idx =
     builder.addFunction('wasm_A', kSig_v_i).addBody([kExprNop, kExprNop]).index;

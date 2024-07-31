@@ -148,7 +148,7 @@ class HeapObjectHeader {
             std::memory_order memory_order = std::memory_order_seq_cst>
   inline void StoreEncoded(uint16_t bits, uint16_t mask);
 
-#if defined(V8_TARGET_ARCH_64_BIT)
+#if defined(V8_HOST_ARCH_64_BIT)
   // If cage is enabled, to save on space required by sweeper metadata, we store
   // the list of to-be-finalized objects inlined in HeapObjectHeader.
 #if defined(CPPGC_CAGED_HEAP)
@@ -156,7 +156,7 @@ class HeapObjectHeader {
 #else   // !defined(CPPGC_CAGED_HEAP)
   uint32_t padding_ = 0;
 #endif  // !defined(CPPGC_CAGED_HEAP)
-#endif  // defined(V8_TARGET_ARCH_64_BIT)
+#endif  // defined(V8_HOST_ARCH_64_BIT)
   uint16_t encoded_high_;
   uint16_t encoded_low_;
 };
@@ -178,9 +178,9 @@ const HeapObjectHeader& HeapObjectHeader::FromObject(const void* object) {
 }
 
 HeapObjectHeader::HeapObjectHeader(size_t size, GCInfoIndex gc_info_index) {
-#if defined(V8_TARGET_ARCH_64_BIT) && !defined(CPPGC_CAGED_HEAP)
+#if defined(V8_HOST_ARCH_64_BIT) && !defined(CPPGC_CAGED_HEAP)
   USE(padding_);
-#endif  // defined(V8_TARGET_ARCH_64_BIT) && !defined(CPPGC_CAGED_HEAP)
+#endif  // defined(V8_HOST_ARCH_64_BIT) && !defined(CPPGC_CAGED_HEAP)
   DCHECK_LT(gc_info_index, GCInfoTable::kMaxIndex);
   DCHECK_EQ(0u, size & (sizeof(HeapObjectHeader) - 1));
   DCHECK_GE(kMaxSize, size);

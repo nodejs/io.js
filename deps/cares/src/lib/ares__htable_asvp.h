@@ -48,72 +48,82 @@ struct ares__htable_asvp;
 typedef struct ares__htable_asvp ares__htable_asvp_t;
 
 /*! Callback to free value stored in hashtable
- * 
+ *
  *  \param[in] val  user-supplied value
  */
 typedef void (*ares__htable_asvp_val_free_t)(void *val);
 
 /*! Destroy hashtable
- * 
+ *
  *  \param[in] htable  Initialized hashtable
  */
 void ares__htable_asvp_destroy(ares__htable_asvp_t *htable);
 
 /*! Create size_t key, void pointer value hash table
- * 
+ *
  *  \param[in] val_free  Optional. Call back to free user-supplied value.  If
  *                       NULL it is expected the caller will clean up any user
  *                       supplied values.
  */
-ares__htable_asvp_t *ares__htable_asvp_create(
-    ares__htable_asvp_val_free_t val_free);
+ares__htable_asvp_t              *
+  ares__htable_asvp_create(ares__htable_asvp_val_free_t val_free);
+
+/*! Retrieve an array of keys from the hashtable.
+ *
+ *  \param[in]  htable   Initialized hashtable
+ *  \param[out] num      Count of returned keys
+ *  \return Array of keys in the hashtable. Must be free'd with ares_free().
+ */
+ares_socket_t *ares__htable_asvp_keys(const ares__htable_asvp_t *htable,
+                                      size_t                    *num);
+
 
 /*! Insert key/value into hash table
- * 
+ *
  *  \param[in] htable Initialized hash table
  *  \param[in] key    key to associate with value
  *  \param[in] val    value to store (takes ownership). May be NULL.
- *  \return 1 on success, 0 on out of memory or misuse
+ *  \return ARES_TRUE on success, ARES_FALSE on out of memory or misuse
  */
-unsigned int ares__htable_asvp_insert(ares__htable_asvp_t *htable,
-                                      ares_socket_t key, void *val);
+ares_bool_t    ares__htable_asvp_insert(ares__htable_asvp_t *htable,
+                                        ares_socket_t key, void *val);
 
 /*! Retrieve value from hashtable based on key
- * 
+ *
  *  \param[in]  htable  Initialized hash table
  *  \param[in]  key     key to use to search
  *  \param[out] val     Optional.  Pointer to store value.
- *  \return 1 on success, 0 on failure
+ *  \return ARES_TRUE on success, ARES_FALSE on failure
  */
-unsigned int ares__htable_asvp_get(ares__htable_asvp_t *htable,
-                                   ares_socket_t key, void **val);
+ares_bool_t    ares__htable_asvp_get(const ares__htable_asvp_t *htable,
+                                     ares_socket_t key, void **val);
 
 /*! Retrieve value from hashtable directly as return value.  Caveat to this
  *  function over ares__htable_asvp_get() is that if a NULL value is stored
  *  you cannot determine if the key is not found or the value is NULL.
- * 
+ *
  *  \param[in] htable  Initialized hash table
  *  \param[in] key     key to use to search
  *  \return value associated with key in hashtable or NULL
  */
-void *ares__htable_asvp_get_direct(ares__htable_asvp_t *htable,
-                                   ares_socket_t key);
+void          *ares__htable_asvp_get_direct(const ares__htable_asvp_t *htable,
+                                            ares_socket_t              key);
 
 /*! Remove a value from the hashtable by key
- * 
+ *
  *  \param[in] htable  Initialized hash table
  *  \param[in] key     key to use to search
- *  \return 1 if found, 0 if not
+ *  \return ARES_TRUE if found, ARES_FALSE if not found
  */
-unsigned int ares__htable_asvp_remove(ares__htable_asvp_t *htable,
-                                      ares_socket_t key);
+ares_bool_t    ares__htable_asvp_remove(ares__htable_asvp_t *htable,
+                                        ares_socket_t        key);
 
 /*! Retrieve the number of keys stored in the hash table
- * 
+ *
  *  \param[in] htable  Initialized hash table
  *  \return count
  */
-size_t ares__htable_asvp_num_keys(ares__htable_asvp_t *htable);
+size_t         ares__htable_asvp_num_keys(const ares__htable_asvp_t *htable);
 
 /*! @} */
 

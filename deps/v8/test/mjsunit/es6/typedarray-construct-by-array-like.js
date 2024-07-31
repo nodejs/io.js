@@ -176,11 +176,10 @@ tests.push(function TestConstructFromTypedArray(constr) {
 });
 
 tests.push(function TestTypedArrayMaxLength(constr) {
-  var myObject = { 0: 5, 1: 6, length: %TypedArrayMaxLength() + 1 };
+  var maxLength = %ArrayBufferMaxByteLength() / constr.BYTES_PER_ELEMENT;
+  var myObject = { 0: 5, 1: 6, length: maxLength + 1 };
 
-  assertThrows(function() {
-    new constr(myObject);
-  }, RangeError);
+  assertThrows(() => new constr(myObject), RangeError);
 });
 
 tests.push(function TestProxyHoleConverted(constr) {

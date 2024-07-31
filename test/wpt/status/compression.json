@@ -1,0 +1,28 @@
+{
+  "compression-bad-chunks.tentative.any.js": {
+    "skip": "Execution \"hangs\", ArrayBuffer and TypedArray is not accepted and throws, instead of rejects during writer.write"
+  },
+  "decompression-bad-chunks.tentative.any.js": {
+    "skip": "Execution \"hangs\", ArrayBuffer and TypedArray is not accepted and throws, instead of rejects during writer.write"
+  },
+  "decompression-buffersource.tentative.any.js": {
+    "skip": "ArrayBuffer and TypedArray is not accepted and throws, instead of rejects during writer.write"
+  },
+  "compression-with-detach.tentative.window.js": {
+    "requires": ["crypto"]
+  },
+  "decompression-corrupt-input.tentative.any.js": {
+    "fail": {
+      "expected": [
+        "trailing junk for 'deflate' should give an error",
+        "trailing junk for 'gzip' should give an error"
+      ]
+    }
+  },
+  "idlharness-shadowrealm.window.js": {
+    "skip": "ShadowRealm support is not enabled"
+  },
+  "third_party/pako/pako_inflate.min.js": {
+    "skip": "This is not a test file."
+  }
+}

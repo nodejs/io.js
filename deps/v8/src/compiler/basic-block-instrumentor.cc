@@ -179,7 +179,6 @@ void StoreBuiltinCallForNode(Node* n, Builtin builtin, int block_id,
       }
     }
   }
-  return;
 }
 
 }  // namespace

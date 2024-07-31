@@ -1,0 +1,263 @@
+=pod
+
+=head1 NAME
+
+X509_ATTRIBUTE, X509at_get_attr,
+X509at_get_attr_count, X509at_get_attr_by_NID, X509at_get_attr_by_OBJ,
+X509at_delete_attr,
+X509at_add1_attr,
+X509at_add1_attr_by_OBJ, X509at_add1_attr_by_NID, X509at_add1_attr_by_txt,
+X509at_get0_data_by_OBJ,
+X509_ATTRIBUTE_create, X509_ATTRIBUTE_create_by_NID,
+X509_ATTRIBUTE_create_by_OBJ, X509_ATTRIBUTE_create_by_txt,
+X509_ATTRIBUTE_set1_object, X509_ATTRIBUTE_set1_data,
+X509_ATTRIBUTE_count,
+X509_ATTRIBUTE_get0_data, X509_ATTRIBUTE_get0_object, X509_ATTRIBUTE_get0_type
+- X509 attribute functions
+
+=head1 SYNOPSIS
+
+ #include <openssl/x509.h>
+
+ typedef struct x509_attributes_st X509_ATTRIBUTE;
+
+ int X509at_get_attr_count(const STACK_OF(X509_ATTRIBUTE) *x);
+ int X509at_get_attr_by_NID(const STACK_OF(X509_ATTRIBUTE) *x, int nid,
+                            int lastpos);
+ int X509at_get_attr_by_OBJ(const STACK_OF(X509_ATTRIBUTE) *sk,
+                            const ASN1_OBJECT *obj, int lastpos);
+ X509_ATTRIBUTE *X509at_get_attr(const STACK_OF(X509_ATTRIBUTE) *x, int loc);
+ X509_ATTRIBUTE *X509at_delete_attr(STACK_OF(X509_ATTRIBUTE) *x, int loc);
+ STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr(STACK_OF(X509_ATTRIBUTE) **x,
+                                            X509_ATTRIBUTE *attr);
+ STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_OBJ(STACK_OF(X509_ATTRIBUTE)
+                                                   **x, const ASN1_OBJECT *obj,
+                                                   int type,
+                                                   const unsigned char *bytes,
+                                                   int len);
+ STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_NID(STACK_OF(X509_ATTRIBUTE)
+                                                   **x, int nid, int type,
+                                                   const unsigned char *bytes,
+                                                   int len);
+ STACK_OF(X509_ATTRIBUTE) *X509at_add1_attr_by_txt(STACK_OF(X509_ATTRIBUTE)
+                                                   **x, const char *attrname,
+                                                   int type,
+                                                   const unsigned char *bytes,
+                                                   int len);
+ void *X509at_get0_data_by_OBJ(const STACK_OF(X509_ATTRIBUTE) *x,
+                               const ASN1_OBJECT *obj, int lastpos, int type);
+ X509_ATTRIBUTE *X509_ATTRIBUTE_create(int nid, int atrtype, void *value);
+ X509_ATTRIBUTE *X509_ATTRIBUTE_create_by_NID(X509_ATTRIBUTE **attr, int nid,
+                                              int atrtype, const void *data,
+                                              int len);
+ X509_ATTRIBUTE *X509_ATTRIBUTE_create_by_OBJ(X509_ATTRIBUTE **attr,
+                                              const ASN1_OBJECT *obj,
+                                              int atrtype, const void *data,
+                                              int len);
+ X509_ATTRIBUTE *X509_ATTRIBUTE_create_by_txt(X509_ATTRIBUTE **attr,
+                                              const char *atrname, int type,
+                                              const unsigned char *bytes,
+                                              int len);
+ int X509_ATTRIBUTE_set1_object(X509_ATTRIBUTE *attr, const ASN1_OBJECT *obj);
+ int X509_ATTRIBUTE_set1_data(X509_ATTRIBUTE *attr, int attrtype,
+                              const void *data, int len);
+ void *X509_ATTRIBUTE_get0_data(X509_ATTRIBUTE *attr, int idx, int atrtype,
+                                void *data);
+ int X509_ATTRIBUTE_count(const X509_ATTRIBUTE *attr);
+ ASN1_OBJECT *X509_ATTRIBUTE_get0_object(X509_ATTRIBUTE *attr);
+ ASN1_TYPE *X509_ATTRIBUTE_get0_type(X509_ATTRIBUTE *attr, int idx);
+
+=head1 DESCRIPTION
+
+B<X509_ATTRIBUTE> objects are used by many standards including X509, X509_REQ,
+PKCS12, PKCS8, PKCS7 and CMS.
+
+The B<X509_ATTRIBUTE> object is used to represent the ASN.1 Attribute as defined
+in RFC 5280, i.e.
+
+ Attribute ::= SEQUENCE {
+   type             AttributeType,
+   values    SET OF AttributeValue }
+
+ AttributeType ::= OBJECT IDENTIFIER
+ AttributeValue ::= ANY -- DEFINED BY AttributeType
+
+For example CMS defines the signing-time attribute as:
+
+  id-signingTime OBJECT IDENTIFIER ::= { iso(1) member-body(2)
+      us(840) rsadsi(113549) pkcs(1) pkcs9(9) 5 }
+
+  SigningTime ::= Time
+
+  Time ::= CHOICE {
+    utcTime UTCTime,
+    generalizedTime GeneralizedTime }
+
+In OpenSSL B<AttributeType> maps to an B<ASN1_OBJECT> object
+and B<AttributeValue> maps to a list of B<ASN1_TYPE> objects.
+
+The following functions are used for B<X509_ATTRIBUTE> objects.
+
+X509at_get_attr_by_OBJ() finds the location of the first matching object I<obj>
+in a list of attributes I<sk>. The search starts at the position after I<lastpos>.
+If the returned value is positive then it can be used on the next call to
+X509at_get_attr_by_OBJ() as the value of I<lastpos> in order to iterate through
+the remaining attributes. I<lastpos> can be set to any negative value on the
+first call, in order to start searching from the start of the list.
+
+X509at_get_attr_by_NID() is similar to X509at_get_attr_by_OBJ() except that it
+passes the numerical identifier (NID) I<nid> associated with the object.
+See <openssl/obj_mac.h> for a list of NID_*.
+
+X509at_get_attr() returns the B<X509_ATTRIBUTE> object at index I<loc> in the
+list of attributes I<x>. I<loc> should be in the range from 0 to
+X509at_get_attr_count() - 1.
+
+X509at_delete_attr() removes the B<X509_ATTRIBUTE> object at index I<loc> in
+the list of attributes I<x>.
+
+X509at_add1_attr() pushes a copy of the passed in B<X509_ATTRIBUTE> object
+to the list I<x>.
+Both I<x> and I<attr> must be non NULL or an error will occur.
+If I<*x> is NULL then a new list is created, otherwise it uses the
+passed in list. An error will occur if an existing attribute (with the same
+attribute type) already exists in the attribute list.
+
+X509at_add1_attr_by_OBJ() creates a new B<X509_ATTRIBUTE> using
+X509_ATTRIBUTE_set1_object() and X509_ATTRIBUTE_set1_data() to assign a new
+I<obj> with type I<type> and data I<bytes> of length I<len> and then pushes it
+to the attribute list I<x>. Both I<x> and I<attr> must be non NULL or an error
+will occur. If I<*x> is NULL then a new attribute list is created. If I<obj>
+already exists in the attribute list then an error occurs.
+
+X509at_add1_attr_by_NID() is similar to X509at_add1_attr_by_OBJ() except that it
+passes the numerical identifier (NID) I<nid> associated with the object.
+See <openssl/obj_mac.h> for a list of NID_*.
+
+X509at_add1_attr_by_txt() is similar to X509at_add1_attr_by_OBJ() except that it
+passes a name I<attrname> associated with the object.
+See <openssl/obj_mac.h> for a list of SN_* names.
+
+X509_ATTRIBUTE_set1_object() assigns a B<ASN1_OBJECT> I<obj>
+to the attribute I<attr>. If I<attr> contained an existing B<ASN1_OBJECT> then
+it is freed. An error occurs if either I<attr> or I<obj> are NULL, or if
+the passed in I<obj> cannot be duplicated.
+
+X509_ATTRIBUTE_set1_data() pushes a new B<ASN1_TYPE> object onto the I<attr>
+attributes list. The new object is assigned a copy of the data in I<data> of
+size I<len>.
+If I<attrtype> has flag I<MBSTRING_FLAG> set then a table lookup using the
+I<attr> attributes NID is used to set an B<ASN1_STRING> using
+ASN1_STRING_set_by_NID(), and the passed in I<data> must be in the format
+required for that object type or an error will occur.
+If I<len> is not -1 then internally ASN1_STRING_type_new() is
+used with the passed in I<attrtype>.
+If I<attrtype> is 0 the call does nothing except return 1.
+
+X509_ATTRIBUTE_create() creates a new B<X509_ATTRIBUTE> using the I<nid>
+to set the B<ASN1_OBJECT> OID and the I<atrtype> and I<value> to set the
+B<ASN1_TYPE>.
+
+X509_ATTRIBUTE_create_by_OBJ() uses X509_ATTRIBUTE_set1_object() and
+X509_ATTRIBUTE_set1_data() to assign a new I<obj> with type I<atrtype> and
+data I<data> of length I<len>. If the passed in attribute I<attr> OR I<*attr> is
+NULL then a new B<X509_ATTRIBUTE> will be returned, otherwise the passed in
+B<X509_ATTRIBUTE> is used. Note that the ASN1_OBJECT I<obj> is pushed onto the
+attributes existing list of objects, which could be an issue if the attributes
+<ASN1_OBJECT> was different.
+
+X509_ATTRIBUTE_create_by_NID() is similar to X509_ATTRIBUTE_create_by_OBJ()
+except that it passes the numerical identifier (NID) I<nid> associated with the
+object. See <openssl/obj_mac.h> for a list of NID_*.
+
+X509_ATTRIBUTE_create_by_txt() is similar to X509_ATTRIBUTE_create_by_OBJ()
+except that it passes a name I<atrname> associated with the
+object. See <openssl/obj_mac.h> for a list of SN_* names.
+
+X509_ATTRIBUTE_count() returns the number of B<ASN1_TYPE> objects in an
+attribute I<attr>.
+
+X509_ATTRIBUTE_get0_type() returns the B<ASN1_TYPE> object at index I<idx> in
+the attribute list I<attr>. I<idx> should be in the
+range of 0 to X509_ATTRIBUTE_count() - 1 or an error will occur.
+
+X509_ATTRIBUTE_get0_data() returns the data of an B<ASN1_TYPE> object at
+index I<idx> in the attribute I<attr>. I<data> is unused and can be set to NULL.
+An error will occur if the attribute type I<atrtype> does not match the type of
+the B<ASN1_TYPE> object at index I<idx> OR if I<atrtype> is either
+B<V_ASN1_BOOLEAN> or B<V_ASN1_NULL> OR if the I<idx> is not in the
+range 0 to X509_ATTRIBUTE_count() - 1.
+
+X509at_get0_data_by_OBJ() finds the first attribute in an attribute list I<x>
+that matches the I<obj> starting at index I<lastpos> and returns the data
+retrieved from the found attributes first B<ASN1_TYPE> object. An error will
+occur if the attribute type I<type> does not match the type of the B<ASN1_TYPE>
+object OR if I<type> is either B<V_ASN1_BOOLEAN> or B<V_ASN1_NULL> OR the
+attribute is not found.
+If I<lastpos> is less than -1 then an error will occur if there are multiple
+objects in the list I<x> that match I<obj>.
+If I<lastpos> is less than -2 then an error will occur if there is more than
+one B<ASN1_TYPE> object in the found attribute.
+
+=head1 RETURN VALUES
+
+X509at_get_attr_count() returns the number of attributes in the list I<x> or -1
+if I<x> is NULL.
+
+X509at_get_attr_by_OBJ() returns -1 if either the list is empty OR the object
+is not found, otherwise it returns the location of the object in the list.
+
+X509at_get_attr_by_NID() is similar to X509at_get_attr_by_OBJ(), except that
+it returns -2 if the I<nid> is not known by OpenSSL.
+
+X509at_get_attr() returns either an B<X509_ATTRIBUTE> or NULL if there is a error.
+
+X509at_delete_attr() returns either the removed B<X509_ATTRIBUTE> or NULL if
+there is a error.
+
+X509_ATTRIBUTE_count() returns -1 on error, otherwise it returns the number
+of B<ASN1_TYPE> elements.
+
+X509_ATTRIBUTE_get0_type() returns NULL on error, otherwise it returns a
+B<ASN1_TYPE> object.
+
+X509_ATTRIBUTE_get0_data() returns NULL if an error occurs,
+otherwise it returns the data associated with an B<ASN1_TYPE> object.
+
+X509_ATTRIBUTE_set1_object() and X509_ATTRIBUTE_set1_data() returns 1 on
+success, or 0 otherwise.
+
+X509_ATTRIBUTE_create(), X509_ATTRIBUTE_create_by_OBJ(),
+X509_ATTRIBUTE_create_by_NID() and X509_ATTRIBUTE_create_by_txt() return either
+a B<X509_ATTRIBUTE> on success, or NULL if there is a error.
+
+X509at_add1_attr(), X509at_add1_attr_by_OBJ(), X509at_add1_attr_by_NID() and
+X509at_add1_attr_by_txt() return NULL on error, otherwise they return a list
+of B<X509_ATTRIBUTE>.
+
+X509at_get0_data_by_OBJ() returns the data retrieved from the found attributes
+first B<ASN1_TYPE> object, or NULL if an error occurs.
+
+=head1 SEE ALSO
+
+L<ASN1_TYPE_get(3)>,
+L<ASN1_INTEGER_get(3)>,
+L<ASN1_ENUMERATED_get(3)>,
+L<ASN1_STRING_get0_data(3)>,
+L<ASN1_STRING_length(3)>,
+L<ASN1_STRING_type(3)>,
+L<X509_REQ_get_attr(3)>,
+L<EVP_PKEY_get_attr(3)>,
+L<CMS_signed_get_attr(3)>,
+L<PKCS8_pkey_get0_attrs(3)>,
+
+=head1 COPYRIGHT
+
+Copyright 2023-2024 The OpenSSL Project Authors. All Rights Reserved.
+
+Licensed under the Apache License 2.0 (the "License").  You may not use
+this file except in compliance with the License.  You can obtain a copy
+in the file LICENSE in the source distribution or at
+L<https://www.openssl.org/source/license.html>.
+
+=cut

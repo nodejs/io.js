@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -1130,6 +1130,12 @@ static int test_fromdata_ecx(int tst)
                /* This should succeed because there are no parameters to copy */
             || !TEST_true(EVP_PKEY_copy_parameters(copy_pk, pk)))
             goto err;
+        if (!TEST_ptr(ctx2 = EVP_PKEY_CTX_new_from_pkey(NULL, copy_pk, NULL))
+               /* This should fail because copy_pk has no pubkey */
+            || !TEST_int_le(EVP_PKEY_public_check(ctx2), 0))
+            goto err;
+        EVP_PKEY_CTX_free(ctx2);
+        ctx2 = NULL;
         EVP_PKEY_free(copy_pk);
         copy_pk = NULL;
 

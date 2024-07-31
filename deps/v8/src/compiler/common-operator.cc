@@ -4,6 +4,7 @@
 
 #include "src/compiler/common-operator.h"
 
+#include "src/base/functional.h"
 #include "src/base/lazy-instance.h"
 #include "src/compiler/linkage.h"
 #include "src/compiler/node.h"
@@ -41,6 +42,7 @@ std::ostream& operator<<(std::ostream& os, BranchSemantics semantics) {
   UNREACHABLE();
 }
 
+#if V8_ENABLE_WEBASSEMBLY
 std::ostream& operator<<(std::ostream& os, TrapId trap_id) {
   switch (trap_id) {
 #define TRAP_CASE(Name) \
@@ -57,6 +59,7 @@ TrapId TrapIdOf(const Operator* const op) {
          op->opcode() == IrOpcode::kTrapUnless);
   return OpParameter<TrapId>(op);
 }
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 bool operator==(const BranchParameters& lhs, const BranchParameters& rhs) {
   return lhs.semantics() == rhs.semantics() && lhs.hint() == rhs.hint();
@@ -88,6 +91,31 @@ BranchHint BranchHintOf(const Operator* const op) {
     default:
       UNREACHABLE();
   }
+}
+
+bool operator==(const AssertParameters& lhs, const AssertParameters& rhs) {
+  return lhs.semantics() == rhs.semantics() &&
+         strcmp(lhs.condition_string(), rhs.condition_string()) == 0 &&
+         strcmp(lhs.file(), rhs.file()) == 0 && lhs.line() == rhs.line();
+}
+
+size_t hash_value(const AssertParameters& p) {
+  return base::hash_combine(
+      p.semantics(),
+      base::hash_range(
+          p.condition_string(),
+          p.condition_string() + std::strlen(p.condition_string())),
+      base::hash_range(p.file(), p.file() + std::strlen(p.file())), p.line());
+}
+
+std::ostream& operator<<(std::ostream& os, const AssertParameters& p) {
+  return os << p.semantics() << ", " << p.condition_string() << ", " << p.file()
+            << ", " << p.line();
+}
+
+const AssertParameters& AssertParametersOf(const Operator* const op) {
+  DCHECK_EQ(op->opcode(), IrOpcode::kAssert);
+  return OpParameter<AssertParameters>(op);
 }
 
 int ValueInputCountOfReturn(Operator const* const op) {
@@ -812,6 +840,7 @@ struct CommonOperatorGlobalCache final {
   CACHED_DEOPTIMIZE_UNLESS_LIST(CACHED_DEOPTIMIZE_UNLESS)
 #undef CACHED_DEOPTIMIZE_UNLESS
 
+#if V8_ENABLE_WEBASSEMBLY
   template <TrapId trap_id, bool has_frame_state>
   struct TrapIfOperator final : public Operator1<TrapId> {
     TrapIfOperator()
@@ -854,6 +883,8 @@ struct CommonOperatorGlobalCache final {
       kTrapUnless##Trap##OperatorWithoutFrameState;
   CACHED_TRAP_UNLESS_LIST(CACHED_TRAP_UNLESS)
 #undef CACHED_TRAP_UNLESS
+
+#endif  // V8_ENABLE_WEBASSEMBLY
 
   template <MachineRepresentation kRep, int kInputCount>
   struct PhiOperator final : public Operator1<MachineRepresentation> {
@@ -1061,6 +1092,19 @@ const Operator* CommonOperatorBuilder::DeoptimizeUnless(
       parameter);                                       // parameter
 }
 
+const Operator* CommonOperatorBuilder::Assert(BranchSemantics semantics,
+                                              const char* condition_string,
+                                              const char* file, int line) {
+  AssertParameters parameter(semantics, condition_string, file, line);
+  return zone()->New<Operator1<AssertParameters>>(  // --
+      IrOpcode::kAssert,                            // opcode
+      Operator::kFoldable | Operator::kNoThrow,     // properties
+      "Assert",                                     // name
+      1, 1, 1, 0, 1, 0,                             // counts
+      parameter);                                   // parameter
+}
+
+#if V8_ENABLE_WEBASSEMBLY
 const Operator* CommonOperatorBuilder::TrapIf(TrapId trap_id,
                                               bool has_frame_state) {
   switch (trap_id) {
@@ -1106,6 +1150,8 @@ const Operator* CommonOperatorBuilder::TrapUnless(TrapId trap_id,
       1 + has_frame_state, 1, 1, 0, 1, 1,        // counts
       trap_id);                                  // parameter
 }
+
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 const Operator* CommonOperatorBuilder::Switch(size_t control_output_count) {
   return zone()->New<Operator>(               // --

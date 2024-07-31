@@ -1,4 +1,3 @@
-/* eslint-disable quotes */
 'use strict';
 require('../common');
 const { Duplex } = require('stream');

@@ -1,0 +1,37 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("googletest_gn_build") {
+  config("googletest_config") {
+    include_dirs = [ "include" ]
+  }
+
+  gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                            [ rebase_path("googletest.gyp") ],
+                            "scope",
+                            [ "googletest.gyp" ])
+
+  source_set(target_name) {
+    forward_variables_from(invoker, "*")
+    testonly = true
+    include_dirs = [
+      "include",
+      ".",
+    ]
+    defines = [
+      "GTEST_HAS_POSIX_RE=0",
+      "GTEST_LANG_CXX11=1",
+    ]
+    sources = gypi_values.googletest_sources
+  }
+
+  source_set("gtest_main") {
+    testonly = true
+    deps = [ ":googletest" ]
+    sources = [ "src/gtest_main.cc" ]
+    public_configs = [ ":googletest_config" ]
+  }
+}

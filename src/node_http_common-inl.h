@@ -8,6 +8,7 @@
 #include "v8.h"
 
 #include <algorithm>
+#include "nbytes.h"
 
 namespace node {
 
@@ -31,7 +32,7 @@ NgHeaders<T>::NgHeaders(Environment* env, v8::Local<v8::Array> headers) {
                                  count_ * sizeof(nv_t) +
                                  header_string_len);
 
-  char* start = AlignUp(buf_.out(), alignof(nv_t));
+  char* start = nbytes::AlignUp(buf_.out(), alignof(nv_t));
   char* header_contents = start + (count_ * sizeof(nv_t));
   nv_t* const nva = reinterpret_cast<nv_t*>(start);
 

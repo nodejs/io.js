@@ -65,7 +65,7 @@ function getMemoryInit(mem, segment_data) {
   const builder = new WasmModuleBuilder();
   builder.addMemory(1);
   builder.addPassiveDataSegment([1, 2, 3]);
-  builder.addDataSegment(0, [4, 5, 6]);
+  builder.addActiveDataSegment(0, [kExprI32Const, 0], [4, 5, 6]);
   builder.addFunction('init', kSig_v_i)
       .addBody([
         kExprI32Const, 0,  // Dest.
@@ -94,7 +94,7 @@ function getMemoryInit(mem, segment_data) {
   const builder = new WasmModuleBuilder();
   builder.addMemory(1);
   builder.addPassiveDataSegment([1, 2, 3]);
-  builder.addDataSegment(0, [4, 5, 6]);
+  builder.addActiveDataSegment(0, [kExprI32Const, 0], [4, 5, 6]);
   builder.addFunction('drop', kSig_v_v)
       .addBody([
         kNumericPrefix, kExprDataDrop,
@@ -186,8 +186,8 @@ function getMemoryFill(mem) {
   const view = new Uint8Array(memory.buffer);
   const builder = new WasmModuleBuilder();
   builder.addImportedMemory('m', 'memory', 1);
-  builder.addDataSegment(kPageSize - 1, [42, 42]);
-  builder.addDataSegment(0, [111, 111]);
+  builder.addActiveDataSegment(0, wasmI32Const(kPageSize - 1), [42, 42]);
+  builder.addActiveDataSegment(0, [kExprI32Const, 0], [111, 111]);
 
   assertEquals(0, view[kPageSize - 1]);
 
@@ -216,7 +216,7 @@ function getMemoryFill(mem) {
       tableIndex,
       wasmI32Const(0),
       [f.index, f.index]);
-  builder.addDataSegment(0, [42]);
+  builder.addActiveDataSegment(0, [kExprI32Const, 0], [42]);
 
   // Instantiation fails, but still modifies the table. The memory is not
   // modified, since data segments are initialized after element segments.

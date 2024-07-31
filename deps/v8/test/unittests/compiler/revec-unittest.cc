@@ -33,7 +33,9 @@ class RevecTest : public TestWithIsolateAndZone {
         common_(zone()),
         machine_(zone(), MachineRepresentation::kWord64,
                  MachineOperatorBuilder::Flag::kAllOptionalOps),
-        mcgraph_(&graph_, &common_, &machine_) {}
+        mcgraph_(&graph_, &common_, &machine_),
+        source_positions_(
+            mcgraph()->zone()->New<SourcePositionTable>(mcgraph()->graph())) {}
 
   void TestBinOp(const Operator* bin_op,
                  const IrOpcode::Value expected_simd256_op_code);
@@ -49,12 +51,14 @@ class RevecTest : public TestWithIsolateAndZone {
   CommonOperatorBuilder* common() { return &common_; }
   MachineOperatorBuilder* machine() { return &machine_; }
   MachineGraph* mcgraph() { return &mcgraph_; }
+  SourcePositionTable* source_positions() { return source_positions_; }
 
  private:
   Graph graph_;
   CommonOperatorBuilder common_;
   MachineOperatorBuilder machine_;
   MachineGraph mcgraph_;
+  SourcePositionTable* source_positions_;
 };
 
 // Create a graph which perform binary operation on two 256 bit vectors(a, b),
@@ -110,7 +114,7 @@ void RevecTest::TestBinOp(const Operator* bin_op,
   graph()->SetSimd(true);
 
   // Test whether the graph can be revectorized
-  Revectorizer revec(zone(), graph(), mcgraph());
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
   EXPECT_TRUE(revec.TryRevectorize(nullptr));
 
   // Test whether the graph has been revectorized
@@ -190,7 +194,7 @@ BIN_OP_LIST(TEST_BIN_OP)
 // After reordering, no effect dependency will be broken so the graph can be
 // revectorized:
 //   [Load4] -> [Load3] -> [Load2] -> [Load1] -> [Irrelevant Load]
-TEST_F(RevecTest, ReorderLoadChain) {
+TEST_F(RevecTest, ReorderLoadChain1) {
   if (!CpuFeatures::IsSupported(AVX2)) return;
 
   Node* start = graph()->NewNode(common()->Start(5));
@@ -198,7 +202,7 @@ TEST_F(RevecTest, ReorderLoadChain) {
 
   Node* zero = graph()->NewNode(common()->Int32Constant(0));
   Node* sixteen = graph()->NewNode(common()->Int64Constant(16));
-  // offset of memory start field in WASM instance object.
+  // offset of memory start field in Wasm instance object.
   Node* offset = graph()->NewNode(common()->Int64Constant(23));
 
   Node* p0 = graph()->NewNode(common()->Parameter(0), start);
@@ -239,7 +243,67 @@ TEST_F(RevecTest, ReorderLoadChain) {
   graph()->SetSimd(true);
 
   // Test whether the graph can be revectorized
-  Revectorizer revec(zone(), graph(), mcgraph());
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
+  EXPECT_TRUE(revec.TryRevectorize(nullptr));
+}
+
+// Create a graph with load chain that can not be packed due to effect
+// dependency:
+//   [Load4] -> [Load2] -> [Load1] -> [Irrelevant Load] -> [Load3]
+//
+// After reordering, no effect dependency will be broken so the graph can be
+// revectorized:
+//   [Load4] -> [Load3] -> [Load2] -> [Load1] -> [Irrelevant Load]
+TEST_F(RevecTest, ReorderLoadChain2) {
+  if (!CpuFeatures::IsSupported(AVX2)) return;
+
+  Node* start = graph()->NewNode(common()->Start(5));
+  graph()->SetStart(start);
+
+  Node* zero = graph()->NewNode(common()->Int32Constant(0));
+  Node* sixteen = graph()->NewNode(common()->Int64Constant(16));
+  // offset of memory start field in Wasm instance object.
+  Node* offset = graph()->NewNode(common()->Int64Constant(23));
+
+  Node* p0 = graph()->NewNode(common()->Parameter(0), start);
+  Node* p1 = graph()->NewNode(common()->Parameter(1), start);
+  Node* p2 = graph()->NewNode(common()->Parameter(2), start);
+  Node* p3 = graph()->NewNode(common()->Parameter(3), start);
+
+  StoreRepresentation store_rep(MachineRepresentation::kSimd128,
+                                WriteBarrierKind::kNoWriteBarrier);
+  LoadRepresentation load_rep(MachineType::Simd128());
+  Node* load0 = graph()->NewNode(machine()->Load(MachineType::Int64()), p0,
+                                 offset, start, start);
+  Node* mem_buffer1 = graph()->NewNode(machine()->Int64Add(), load0, sixteen);
+  Node* mem_buffer2 = graph()->NewNode(machine()->Int64Add(), load0, sixteen);
+  Node* mem_store = graph()->NewNode(machine()->Int64Add(), load0, sixteen);
+  Node* load3 = graph()->NewNode(machine()->ProtectedLoad(load_rep), load0, p2,
+                                 load0, start);
+  Node* irrelevant_load = graph()->NewNode(machine()->ProtectedLoad(load_rep),
+                                           mem_buffer1, p1, load3, start);
+  Node* load1 = graph()->NewNode(machine()->ProtectedLoad(load_rep), load0, p1,
+                                 irrelevant_load, start);
+  Node* load2 = graph()->NewNode(machine()->ProtectedLoad(load_rep),
+                                 mem_buffer1, p1, load1, start);
+  Node* load4 = graph()->NewNode(machine()->ProtectedLoad(load_rep),
+                                 mem_buffer2, p2, load2, start);
+  Node* add1 = graph()->NewNode(machine()->F32x4Add(), load1, load3);
+  Node* add2 = graph()->NewNode(machine()->F32x4Add(), load2, load4);
+  Node* store1 = graph()->NewNode(machine()->Store(store_rep), load0, p3, add1,
+                                  load4, start);
+  Node* store2 = graph()->NewNode(machine()->Store(store_rep), mem_store, p3,
+                                  add2, store1, start);
+  Node* ret = graph()->NewNode(common()->Return(0), zero, store2, start);
+  Node* end = graph()->NewNode(common()->End(1), ret);
+  graph()->SetEnd(end);
+
+  graph()->RecordSimdStore(store1);
+  graph()->RecordSimdStore(store2);
+  graph()->SetSimd(true);
+
+  // Test whether the graph can be revectorized
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
   EXPECT_TRUE(revec.TryRevectorize(nullptr));
 }
 
@@ -297,7 +361,7 @@ void RevecTest::TestShiftOp(const Operator* shift_op,
   graph()->RecordSimdStore(store1);
   graph()->SetSimd(true);
 
-  Revectorizer revec(zone(), graph(), mcgraph());
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
   bool result = revec.TryRevectorize(nullptr);
 
   if (CpuFeatures::IsSupported(AVX2)) {
@@ -366,7 +430,7 @@ void RevecTest::TestSplatOp(const Operator* splat_op,
   graph()->RecordSimdStore(store1);
   graph()->SetSimd(true);
 
-  Revectorizer revec(zone(), graph(), mcgraph());
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
   bool result = revec.TryRevectorize(nullptr);
 
   EXPECT_TRUE(result);
@@ -453,7 +517,7 @@ TEST_F(RevecTest, ShuffleForSplat) {
   graph()->RecordSimdStore(store1);
   graph()->SetSimd(true);
 
-  Revectorizer revec(zone(), graph(), mcgraph());
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
   EXPECT_TRUE(revec.TryRevectorize(nullptr));
 
   // Test whether the graph has been revectorized
@@ -512,7 +576,7 @@ void RevecTest::TestLoadSplat(
   graph()->RecordSimdStore(store1);
   graph()->SetSimd(true);
 
-  Revectorizer revec(zone(), graph(), mcgraph());
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
   bool result = revec.TryRevectorize(nullptr);
 
   EXPECT_TRUE(result);
@@ -585,7 +649,7 @@ TEST_F(RevecTest, StoreDependencyCheck) {
   graph()->SetSimd(true);
 
   // Test whether the graph can be revectorized
-  Revectorizer revec(zone(), graph(), mcgraph());
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
   EXPECT_FALSE(revec.TryRevectorize(nullptr));
 }
 
@@ -622,7 +686,7 @@ TEST_F(RevecTest, S128Zero) {
   graph()->SetSimd(true);
 
   // Test whether the graph can be revectorized
-  Revectorizer revec(zone(), graph(), mcgraph());
+  Revectorizer revec(zone(), graph(), mcgraph(), source_positions());
   EXPECT_TRUE(revec.TryRevectorize(nullptr));
 }
 

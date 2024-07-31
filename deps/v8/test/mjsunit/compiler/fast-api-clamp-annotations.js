@@ -5,7 +5,6 @@
 // These tests exercise WebIDL annotations support in the fast API.
 
 // Flags: --turbo-fast-api-calls --expose-fast-api --allow-natives-syntax --turbofan
-// Flags: --no-turboshaft
 // --always-turbofan is disabled because we rely on particular feedback for
 // optimizing to the fastest path.
 // Flags: --no-always-turbofan

@@ -21,7 +21,6 @@
 #include "unicode/strenum.h"
 #include "unicode/vtzone.h"
 
-#include "bytesinkutil.h"
 #include "charstr.h"
 #include "cmemory.h"
 #include "cstring.h"
@@ -145,9 +144,7 @@ TimeZoneGenericNameMatchInfo::TimeZoneGenericNameMatchInfo(UVector* matches)
 }
 
 TimeZoneGenericNameMatchInfo::~TimeZoneGenericNameMatchInfo() {
-    if (fMatches != nullptr) {
-        delete fMatches;
-    }
+    delete fMatches;
 }
 
 int32_t
@@ -209,9 +206,7 @@ GNameSearchHandler::GNameSearchHandler(uint32_t types)
 }
 
 GNameSearchHandler::~GNameSearchHandler() {
-    if (fResults != nullptr) {
-        delete fResults;
-    }
+    delete fResults;
 }
 
 UBool
@@ -299,7 +294,7 @@ private:
     TextTrieMap fGNamesTrie;
     UBool fGNamesTrieFullyLoaded;
 
-    char fTargetRegion[ULOC_COUNTRY_CAPACITY];
+    CharString fTargetRegion;
 
     void initialize(const Locale& locale, UErrorCode& status);
     void cleanup();
@@ -339,7 +334,8 @@ TZGNCore::TZGNCore(const Locale& locale, UErrorCode& status)
   fLocaleDisplayNames(nullptr),
   fStringPool(status),
   fGNamesTrie(true, deleteGNameInfo),
-  fGNamesTrieFullyLoaded(false) {
+  fGNamesTrieFullyLoaded(false),
+  fTargetRegion() {
     initialize(locale, status);
 }
 
@@ -409,23 +405,14 @@ TZGNCore::initialize(const Locale& locale, UErrorCode& status) {
     const char* region = fLocale.getCountry();
     int32_t regionLen = static_cast<int32_t>(uprv_strlen(region));
     if (regionLen == 0) {
-        CharString loc;
-        {
-            CharStringByteSink sink(&loc);
-            ulocimp_addLikelySubtags(fLocale.getName(), sink, &status);
-        }
-
-        regionLen = uloc_getCountry(loc.data(), fTargetRegion, sizeof(fTargetRegion), &status);
-        if (U_SUCCESS(status)) {
-            fTargetRegion[regionLen] = 0;
-        } else {
+        CharString loc = ulocimp_addLikelySubtags(fLocale.getName(), status);
+        ulocimp_getSubtags(loc.data(), nullptr, nullptr, &fTargetRegion, nullptr, nullptr, status);
+        if (U_FAILURE(status)) {
             cleanup();
             return;
         }
-    } else if (regionLen < (int32_t)sizeof(fTargetRegion)) {
-        uprv_strcpy(fTargetRegion, region);
     } else {
-        fTargetRegion[0] = 0;
+        fTargetRegion.append(region, regionLen, status);
     }
 
     // preload generic names for the default zone
@@ -439,12 +426,8 @@ TZGNCore::initialize(const Locale& locale, UErrorCode& status) {
 
 void
 TZGNCore::cleanup() {
-    if (fLocaleDisplayNames != nullptr) {
-        delete fLocaleDisplayNames;
-    }
-    if (fTimeZoneNames != nullptr) {
-        delete fTimeZoneNames;
-    }
+    delete fLocaleDisplayNames;
+    delete fTimeZoneNames;
 
     uhash_close(fLocationNamesMap);
     uhash_close(fPartialLocationNamesMap);
@@ -704,7 +687,7 @@ TZGNCore::formatGenericNonLocationName(const TimeZone& tz, UTimeZoneGenericNameT
                 // golden zone at the given date.
                 char16_t idBuf[32];
                 UnicodeString goldenID(idBuf, 0, UPRV_LENGTHOF(idBuf));
-                fTimeZoneNames->getReferenceZoneID(mzID, fTargetRegion, goldenID);
+                fTimeZoneNames->getReferenceZoneID(mzID, fTargetRegion.data(), goldenID);
                 if (!goldenID.isEmpty() && goldenID != tzID) {
                     TimeZone *goldenZone = TimeZone::createTimeZone(goldenID);
                     int32_t raw1, sav1;
@@ -866,7 +849,7 @@ TZGNCore::loadStrings(const UnicodeString& tzCanonicalID) {
         // if this time zone is not the golden zone of the meta zone,
         // partial location name (such as "PT (Los Angeles)") might be
         // available.
-        fTimeZoneNames->getReferenceZoneID(*mzID, fTargetRegion, goldenID);
+        fTimeZoneNames->getReferenceZoneID(*mzID, fTargetRegion.data(), goldenID);
         if (tzCanonicalID != goldenID) {
             for (int32_t i = 0; genNonLocTypes[i] != UTZNM_UNKNOWN; i++) {
                 fTimeZoneNames->getMetaZoneDisplayName(*mzID, genNonLocTypes[i], mzGenName);
@@ -878,9 +861,7 @@ TZGNCore::loadStrings(const UnicodeString& tzCanonicalID) {
             }
         }
     }
-    if (mzIDs != nullptr) {
-        delete mzIDs;
-    }
+    delete mzIDs;
 }
 
 int32_t
@@ -914,7 +895,7 @@ TZGNCore::findBestMatch(const UnicodeString& text, int32_t start, uint32_t types
                 if (!tznamesMatches->getTimeZoneIDAt(i, bestMatchTzID)) {
                     // name for a meta zone
                     if (tznamesMatches->getMetaZoneIDAt(i, mzID)) {
-                        fTimeZoneNames->getReferenceZoneID(mzID, fTargetRegion, bestMatchTzID);
+                        fTimeZoneNames->getReferenceZoneID(mzID, fTargetRegion.data(), bestMatchTzID);
                     }
                 }
                 UTimeZoneNameType nameType = tznamesMatches->getNameTypeAt(i);
@@ -1035,9 +1016,7 @@ TZGNCore::findLocal(const UnicodeString& text, int32_t start, uint32_t types, UE
         return gmatchInfo;
     }
 
-    if (results != nullptr) {
-        delete results;
-    }
+    delete results;
 
     // All names are not yet loaded into the local trie.
     // Load all available names into the trie. This could be very heavy.
@@ -1054,9 +1033,7 @@ TZGNCore::findLocal(const UnicodeString& text, int32_t start, uint32_t types, UE
                     nonConstThis->loadStrings(*tzID);
                 }
             }
-            if (tzIDs != nullptr) {
-                delete tzIDs;
-            }
+            delete tzIDs;
 
             if (U_SUCCESS(status)) {
                 nonConstThis->fGNamesTrieFullyLoaded = true;
@@ -1177,7 +1154,7 @@ static void sweepCache() {
 }
 
 TimeZoneGenericNames::TimeZoneGenericNames()
-: fRef(0) {
+: fRef(nullptr) {
 }
 
 TimeZoneGenericNames::~TimeZoneGenericNames() {
@@ -1251,9 +1228,7 @@ TimeZoneGenericNames::createInstance(const Locale& locale, UErrorCode& status) {
                 }
             }
             if (U_FAILURE(status)) {
-                if (tzgnCore != nullptr) {
-                    delete tzgnCore;
-                }
+                delete tzgnCore;
                 if (newKey != nullptr) {
                     uprv_free(newKey);
                 }

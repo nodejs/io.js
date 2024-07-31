@@ -36,7 +36,7 @@
  *
  * Version number of the ngtcp2 library release.
  */
-#define NGTCP2_VERSION "0.8.1"
+#define NGTCP2_VERSION "1.3.0"
 
 /**
  * @macro
@@ -46,6 +46,6 @@
  * number, 8 bits for minor and 8 bits for patch. Version 1.2.3
  * becomes 0x010203.
  */
-#define NGTCP2_VERSION_NUM 0x000801
+#define NGTCP2_VERSION_NUM 0x010300
 
 #endif /* VERSION_H */

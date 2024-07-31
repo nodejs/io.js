@@ -21,14 +21,14 @@ namespace internal {
 static_assert(api_constants::kLargeObjectSizeThreshold ==
               kLargeObjectSizeThreshold);
 
-#if !(defined(V8_TARGET_ARCH_32_BIT) && defined(V8_CC_GNU))
+#if !(defined(V8_HOST_ARCH_32_BIT) && defined(V8_CC_GNU))
 // GCC on x86 has alignof(std::max_align_t) == 16 (quad word) which is not
 // satisfied by Oilpan.
 static_assert(api_constants::kMaxSupportedAlignment >=
                   alignof(std::max_align_t),
               "Maximum support alignment must at least cover "
               "alignof(std::max_align_t).");
-#endif  // !(defined(V8_TARGET_ARCH_32_BIT) && defined(V8_CC_GNU))
+#endif  // !(defined(V8_HOST_ARCH_32_BIT) && defined(V8_CC_GNU))
 
 // Using CPPGC_FORCE_ALWAYS_INLINE to guide LTO for inlining the allocation
 // fast path.

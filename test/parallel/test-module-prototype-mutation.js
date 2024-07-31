@@ -1,12 +1,21 @@
 'use strict';
 const common = require('../common');
 const fixtures = require('../common/fixtures');
+const { Channel } = require('diagnostics_channel');
 const assert = require('assert');
 
 Object.defineProperty(Object.prototype, 'name', {
   __proto__: null,
   get: common.mustNotCall('get %Object.prototype%.name'),
-  set: common.mustNotCall('set %Object.prototype%.name'),
+  set: function(v) {
+    // A diagnostic_channel is created to track module loading
+    // when using `require` or `import`. This class contains a
+    // `name` property that would cause a false alert for this
+    // test case. See Channel.prototype.name.
+    if (!(this instanceof Channel)) {
+      common.mustNotCall('set %Object.prototype%.name')(v);
+    }
+  },
   enumerable: false,
 });
 Object.defineProperty(Object.prototype, 'main', {

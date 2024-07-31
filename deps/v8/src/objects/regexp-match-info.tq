@@ -2,30 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-@hasSameInstanceTypeAsParent
-@doNotGenerateCast
-extern class RegExpMatchInfo extends FixedArray {
-  macro GetStartOfCapture(
-      implicit context: Context)(captureIndex: constexpr int31): Smi {
-    const index: constexpr int31 = GetStartOfCaptureIndex(captureIndex);
-    return UnsafeCast<Smi>(this.objects[index]);
+@cppObjectDefinition
+extern class RegExpMatchInfo extends HeapObject {
+  macro GetStartOfCapture(i: constexpr int31): Smi {
+    return this.objects[i * 2];
   }
-  macro GetEndOfCapture(
-      implicit context: Context)(captureIndex: constexpr int31): Smi {
-    const index: constexpr int31 = GetStartOfCaptureIndex(captureIndex) + 1;
-    return UnsafeCast<Smi>(this.objects[index]);
+  macro GetEndOfCapture(i: constexpr int31): Smi {
+    return this.objects[i * 2 + 1];
   }
-  macro NumberOfCaptures(implicit context: Context)(): Smi {
-    return UnsafeCast<Smi>(this.objects[kRegExpMatchInfoNumberOfCapturesIndex]);
-  }
-}
 
-const kRegExpMatchInfoFirstCaptureIndex:
-    constexpr int31 generates 'RegExpMatchInfo::kFirstCaptureIndex';
-const kRegExpMatchInfoNumberOfCapturesIndex:
-    constexpr int31 generates 'RegExpMatchInfo::kNumberOfCapturesIndex';
-
-macro GetStartOfCaptureIndex(captureIndex: constexpr int31):
-    constexpr int31 {
-  return kRegExpMatchInfoFirstCaptureIndex + (captureIndex * 2);
+  const length: Smi;
+  number_of_capture_registers: Smi;
+  last_subject: String;
+  last_input: Object;
+  // TODO(jgruber): These could be encoded as raw int32_t values instead.
+  objects[length]: Smi;
 }

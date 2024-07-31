@@ -90,8 +90,7 @@ class ErrorUtils : public AllStatic {
 
   static Handle<JSObject> MakeGenericError(
       Isolate* isolate, Handle<JSFunction> constructor, MessageTemplate index,
-      Handle<Object> arg0, Handle<Object> arg1, Handle<Object> arg2,
-      FrameSkipMode mode);
+      base::Vector<const Handle<Object>> args, FrameSkipMode mode);
 
   // Formats a textual stack trace from the given structured stack trace.
   // Note that this can call arbitrary JS code through Error.prepareStackTrace.
@@ -145,16 +144,12 @@ class MessageFormatter {
  public:
   V8_EXPORT_PRIVATE static const char* TemplateString(MessageTemplate index);
 
-  V8_EXPORT_PRIVATE static MaybeHandle<String> TryFormat(Isolate* isolate,
-                                                         MessageTemplate index,
-                                                         Handle<String> arg0,
-                                                         Handle<String> arg1,
-                                                         Handle<String> arg2);
+  V8_EXPORT_PRIVATE static MaybeHandle<String> TryFormat(
+      Isolate* isolate, MessageTemplate index,
+      base::Vector<const Handle<String>> args);
 
   static Handle<String> Format(Isolate* isolate, MessageTemplate index,
-                               Handle<Object> arg0,
-                               Handle<Object> arg1 = Handle<Object>(),
-                               Handle<Object> arg2 = Handle<Object>());
+                               base::Vector<const Handle<Object>> args);
 };
 
 // A message handler is a convenience interface for accessing the list

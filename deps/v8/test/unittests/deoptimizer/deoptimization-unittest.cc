@@ -153,7 +153,7 @@ TEST_F(DeoptimizationTest, DeoptimizeSimple) {
   InvokeMajorGC();
   CheckJsInt32(1, "count", context());
 
-  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode());
+  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
 
   // Test lazy deoptimization of a simple function. Call the function after the
   // deoptimization while it is still activated further down the stack.
@@ -168,7 +168,7 @@ TEST_F(DeoptimizationTest, DeoptimizeSimple) {
   InvokeMajorGC();
 
   CheckJsInt32(1, "count", context());
-  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode());
+  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
 }
 
 TEST_F(DeoptimizationTest, DeoptimizeSimpleWithArguments) {
@@ -188,7 +188,7 @@ TEST_F(DeoptimizationTest, DeoptimizeSimpleWithArguments) {
   InvokeMajorGC();
 
   CheckJsInt32(1, "count", context());
-  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode());
+  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
 
   // Test lazy deoptimization of a simple function with some arguments. Call the
   // function after the deoptimization while it is still activated further down
@@ -204,7 +204,7 @@ TEST_F(DeoptimizationTest, DeoptimizeSimpleWithArguments) {
   InvokeMajorGC();
 
   CheckJsInt32(1, "count", context());
-  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode());
+  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
 }
 
 TEST_F(DeoptimizationTest, DeoptimizeSimpleNested) {
@@ -226,7 +226,7 @@ TEST_F(DeoptimizationTest, DeoptimizeSimpleNested) {
 
     CheckJsInt32(1, "count", context());
     CheckJsInt32(6, "result", context());
-    CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode());
+    CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
   }
 }
 
@@ -384,14 +384,14 @@ class DeoptimizationDisableConcurrentRecompilationTest
     RunJS(f_source);
     RunJS("f(7, new X());");
     CHECK(!i_isolate()->use_optimizer() ||
-          GetJSFunction("f")->HasAttachedOptimizedCode());
+          GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
 
     // Call f and force deoptimization while processing the binary operation.
     RunJS(
         "deopt = true;"
         "var result = f(7, new X());");
     InvokeMajorGC();
-    CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode());
+    CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
   }
 };
 
@@ -427,7 +427,7 @@ TEST_F(DeoptimizationDisableConcurrentRecompilationTest,
     RunJS(f_source);
     RunJS("f('a+', new X());");
     CHECK(!i_isolate()->use_optimizer() ||
-          GetJSFunction("f")->HasAttachedOptimizedCode());
+          GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
 
     // Call f and force deoptimization while processing the binary operation.
     RunJS(
@@ -436,7 +436,7 @@ TEST_F(DeoptimizationDisableConcurrentRecompilationTest,
   }
   InvokeMajorGC();
 
-  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode());
+  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
   CheckJsInt32(1, "count", context());
   v8::Local<v8::Value> result =
       context()->Global()->Get(context(), NewString("result")).ToLocalChecked();
@@ -531,7 +531,7 @@ TEST_F(DeoptimizationDisableConcurrentRecompilationTest, DeoptimizeCompare) {
     RunJS(f_source);
     RunJS("f('a', new X());");
     CHECK(!i_isolate()->use_optimizer() ||
-          GetJSFunction("f")->HasAttachedOptimizedCode());
+          GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
 
     // Call f and force deoptimization while processing the comparison.
     RunJS(
@@ -540,7 +540,7 @@ TEST_F(DeoptimizationDisableConcurrentRecompilationTest, DeoptimizeCompare) {
   }
   InvokeMajorGC();
 
-  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode());
+  CHECK(!GetJSFunction("f")->HasAttachedOptimizedCode(i_isolate()));
   CheckJsInt32(1, "count", context());
   CheckJsInt32(1, "result", context());
   CHECK(context()
@@ -608,10 +608,10 @@ TEST_F(DeoptimizationDisableConcurrentRecompilationTest,
     RunJS("f2(new X(), 'z');");
     RunJS("g2(new X(), 'z');");
     if (i_isolate()->use_optimizer()) {
-      CHECK(GetJSFunction("f1")->HasAttachedOptimizedCode());
-      CHECK(GetJSFunction("g1")->HasAttachedOptimizedCode());
-      CHECK(GetJSFunction("f2")->HasAttachedOptimizedCode());
-      CHECK(GetJSFunction("g2")->HasAttachedOptimizedCode());
+      CHECK(GetJSFunction("f1")->HasAttachedOptimizedCode(i_isolate()));
+      CHECK(GetJSFunction("g1")->HasAttachedOptimizedCode(i_isolate()));
+      CHECK(GetJSFunction("f2")->HasAttachedOptimizedCode(i_isolate()));
+      CHECK(GetJSFunction("g2")->HasAttachedOptimizedCode(i_isolate()));
     }
 
     // Call functions and force deoptimization while processing the ics.
@@ -624,10 +624,10 @@ TEST_F(DeoptimizationDisableConcurrentRecompilationTest,
   }
   InvokeMajorGC();
 
-  CHECK(!GetJSFunction("f1")->HasAttachedOptimizedCode());
-  CHECK(!GetJSFunction("g1")->HasAttachedOptimizedCode());
-  CHECK(!GetJSFunction("f2")->HasAttachedOptimizedCode());
-  CHECK(!GetJSFunction("g2")->HasAttachedOptimizedCode());
+  CHECK(!GetJSFunction("f1")->HasAttachedOptimizedCode(i_isolate()));
+  CHECK(!GetJSFunction("g1")->HasAttachedOptimizedCode(i_isolate()));
+  CHECK(!GetJSFunction("f2")->HasAttachedOptimizedCode(i_isolate()));
+  CHECK(!GetJSFunction("g2")->HasAttachedOptimizedCode(i_isolate()));
   CheckJsInt32(4, "count", context());
   CheckJsInt32(13, "result", context());
 }
@@ -694,10 +694,10 @@ TEST_F(DeoptimizationDisableConcurrentRecompilationTest,
     RunJS("f2(new X(), 'z');");
     RunJS("g2(new X(), 'z');");
     if (i_isolate()->use_optimizer()) {
-      CHECK(GetJSFunction("f1")->HasAttachedOptimizedCode());
-      CHECK(GetJSFunction("g1")->HasAttachedOptimizedCode());
-      CHECK(GetJSFunction("f2")->HasAttachedOptimizedCode());
-      CHECK(GetJSFunction("g2")->HasAttachedOptimizedCode());
+      CHECK(GetJSFunction("f1")->HasAttachedOptimizedCode(i_isolate()));
+      CHECK(GetJSFunction("g1")->HasAttachedOptimizedCode(i_isolate()));
+      CHECK(GetJSFunction("f2")->HasAttachedOptimizedCode(i_isolate()));
+      CHECK(GetJSFunction("g2")->HasAttachedOptimizedCode(i_isolate()));
     }
 
     // Call functions and force deoptimization while processing the ics.
@@ -707,10 +707,10 @@ TEST_F(DeoptimizationDisableConcurrentRecompilationTest,
   }
   InvokeMajorGC();
 
-  CHECK(!GetJSFunction("f1")->HasAttachedOptimizedCode());
-  CHECK(!GetJSFunction("g1")->HasAttachedOptimizedCode());
-  CHECK(!GetJSFunction("f2")->HasAttachedOptimizedCode());
-  CHECK(!GetJSFunction("g2")->HasAttachedOptimizedCode());
+  CHECK(!GetJSFunction("f1")->HasAttachedOptimizedCode(i_isolate()));
+  CHECK(!GetJSFunction("g1")->HasAttachedOptimizedCode(i_isolate()));
+  CHECK(!GetJSFunction("f2")->HasAttachedOptimizedCode(i_isolate()));
+  CHECK(!GetJSFunction("g2")->HasAttachedOptimizedCode(i_isolate()));
   CheckJsInt32(1, "count", context());
   CheckJsInt32(13, "result", context());
 }

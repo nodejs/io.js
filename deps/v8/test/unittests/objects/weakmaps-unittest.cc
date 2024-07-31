@@ -68,7 +68,8 @@ TEST_F(WeakMapsTest, Weakness) {
   Handle<Object> key;
   {
     HandleScope inner_scope(isolate);
-    Handle<Map> map = factory->NewMap(JS_OBJECT_TYPE, JSObject::kHeaderSize);
+    Handle<Map> map = factory->NewContextfulMapForCurrentContext(
+        JS_OBJECT_TYPE, JSObject::kHeaderSize);
     Handle<JSObject> object = factory->NewJSObjectFromMap(map);
     key = global_handles->Create(*object);
   }
@@ -77,7 +78,8 @@ TEST_F(WeakMapsTest, Weakness) {
   // Put two chained entries into weak map.
   {
     HandleScope inner_scope(isolate);
-    Handle<Map> map = factory->NewMap(JS_OBJECT_TYPE, JSObject::kHeaderSize);
+    Handle<Map> map = factory->NewContextfulMapForCurrentContext(
+        JS_OBJECT_TYPE, JSObject::kHeaderSize);
     Handle<JSObject> object = factory->NewJSObjectFromMap(map);
     Handle<Smi> smi(Smi::FromInt(23), isolate);
     int32_t hash = Object::GetOrCreateHash(*key, isolate).value();
@@ -130,7 +132,8 @@ TEST_F(WeakMapsTest, Shrinking) {
   // Fill up weak map to trigger capacity change.
   {
     HandleScope inner_scope(isolate);
-    Handle<Map> map = factory->NewMap(JS_OBJECT_TYPE, JSObject::kHeaderSize);
+    Handle<Map> map = factory->NewContextfulMapForCurrentContext(
+        JS_OBJECT_TYPE, JSObject::kHeaderSize);
     for (int i = 0; i < 32; i++) {
       Handle<JSObject> object = factory->NewJSObjectFromMap(map);
       Handle<Smi> smi(Smi::FromInt(i), isolate);
@@ -176,7 +179,8 @@ TEST_F(WeakMapsTest, WeakMapPromotionMarkCompact) {
 
   CHECK(!ObjectInYoungGeneration(weakmap->table()));
 
-  Handle<Map> map = factory->NewMap(JS_OBJECT_TYPE, JSObject::kHeaderSize);
+  Handle<Map> map = factory->NewContextfulMapForCurrentContext(
+      JS_OBJECT_TYPE, JSObject::kHeaderSize);
   Handle<JSObject> object = factory->NewJSObjectFromMap(map);
   Handle<Smi> smi(Smi::FromInt(1), isolate);
   int32_t object_hash = Object::GetOrCreateHash(*object, isolate).value();
@@ -209,7 +213,8 @@ TEST_F(WeakMapsTest, WeakMapScavenge) {
   InvokeAtomicMinorGC();
   CHECK(ObjectInYoungGeneration(weakmap->table()));
 
-  Handle<Map> map = factory->NewMap(JS_OBJECT_TYPE, JSObject::kHeaderSize);
+  Handle<Map> map = factory->NewContextfulMapForCurrentContext(
+      JS_OBJECT_TYPE, JSObject::kHeaderSize);
   Handle<JSObject> object = factory->NewJSObjectFromMap(map);
   Handle<Smi> smi(Smi::FromInt(1), isolate);
   int32_t object_hash = Object::GetOrCreateHash(*object, isolate).value();
@@ -250,7 +255,7 @@ TEST_F(WeakMapsTest, Regress2060a) {
   Handle<JSWeakMap> weakmap = isolate->factory()->NewJSWeakMap();
 
   // Start second old-space page so that values land on evacuation candidate.
-  Page* first_page = heap->old_space()->first_page();
+  PageMetadata* first_page = heap->old_space()->first_page();
   SimulateFullSpace(heap->old_space());
 
   // Fill up weak map with values on an evacuation candidate.
@@ -290,7 +295,7 @@ TEST_F(WeakMapsTest, Regress2060b) {
       factory->NewFunctionForTesting(factory->function_string());
 
   // Start second old-space page so that keys land on evacuation candidate.
-  Page* first_page = heap->old_space()->first_page();
+  PageMetadata* first_page = heap->old_space()->first_page();
   SimulateFullSpace(heap->old_space());
 
   // Fill up weak map with keys on an evacuation candidate.

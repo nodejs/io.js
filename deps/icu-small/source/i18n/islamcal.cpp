@@ -55,17 +55,12 @@ static void debug_islamcal_msg(const char *pat, ...)
 // --- The cache --
 // cache of months
 static icu::CalendarCache *gMonthCache = nullptr;
-static icu::CalendarAstronomer *gIslamicCalendarAstro = nullptr;
 
 U_CDECL_BEGIN
 static UBool calendar_islamic_cleanup() {
     if (gMonthCache) {
         delete gMonthCache;
         gMonthCache = nullptr;
-    }
-    if (gIslamicCalendarAstro) {
-        delete gIslamicCalendarAstro;
-        gIslamicCalendarAstro = nullptr;
     }
     return true;
 }
@@ -192,15 +187,6 @@ static const int UMALQURA_MONTHLENGTH[] = {
                             0x06AA,           0x0AD6,           0x055D,           0x029D
 };
 
-int32_t getUmalqura_MonthLength(int32_t y, int32_t m) {
-    int32_t mask = (int32_t) (0x01 << (11 - m));    // set mask for bit corresponding to month
-    if((UMALQURA_MONTHLENGTH[y] & mask) == 0 )
-        return 29;
-    else
-        return 30;
-
-}
-
 //-------------------------------------------------------------------------
 // Constructors...
 //-------------------------------------------------------------------------
@@ -273,6 +259,8 @@ int32_t IslamicCalendar::handleGetLimit(UCalendarDateFields field, ELimitType li
 // Assorted calculation utilities
 //
 
+namespace {
+
 // we could compress this down more if we need to
 static const int8_t umAlQuraYrStartEstimateFix[] = {
      0,  0, -1,  0, -1,  0,  0,  0,  0,  0, // 1300..
@@ -311,16 +299,19 @@ static const int8_t umAlQuraYrStartEstimateFix[] = {
 /**
 * Determine whether a year is a leap year in the Islamic civil calendar
 */
-UBool IslamicCalendar::civilLeapYear(int32_t year)
-{
+inline bool civilLeapYear(int32_t year) {
     return (14 + 11 * year) % 30 < 11;
 }
+
+int32_t trueMonthStart(int32_t month);
+
+} // namespace
 
 /**
 * Return the day # on which the given year starts.  Days are counted
 * from the Hijri epoch, origin 0.
 */
-int32_t IslamicCalendar::yearStart(int32_t year) const{
+int64_t IslamicCalendar::yearStart(int32_t year) const{
     return trueMonthStart(12*(year-1));
 }
 
@@ -331,9 +322,32 @@ int32_t IslamicCalendar::yearStart(int32_t year) const{
 * @param year  The hijri year
 * @param month The hijri month, 0-based (assumed to be in range 0..11)
 */
-int32_t IslamicCalendar::monthStart(int32_t year, int32_t month) const {
-    return trueMonthStart(12*(year-1) + month);
+int64_t IslamicCalendar::monthStart(int32_t year, int32_t month, UErrorCode& status) const {
+    if (U_FAILURE(status)) {
+        return 0;
+    }
+    int32_t temp;
+    if (uprv_add32_overflow(year, -1, &temp) ||
+        uprv_mul32_overflow(temp, 12, &temp) ||
+        uprv_add32_overflow(temp, month, &month)) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return 0;
+    }
+
+    return trueMonthStart(month);
 }
+
+namespace {
+/**
+ * Return the "age" of the moon at the given time; this is the difference
+ * in ecliptic latitude between the moon and the sun.  This method simply
+ * calls CalendarAstronomer.moonAge, converts to degrees,
+ * and adjusts the resultto be in the range [-180, 180].
+ *
+ * @param time  The time at which the moon's age is desired,
+ *             in millis since 1/1/1970.
+ */
+double moonAge(UDate time);
 
 /**
 * Find the day number on which a particular month of the true/lunar
@@ -343,82 +357,46 @@ int32_t IslamicCalendar::monthStart(int32_t year, int32_t month) const {
 *
 * @return The day number on which the given month starts.
 */
-int32_t IslamicCalendar::trueMonthStart(int32_t month) const
-{
+int32_t trueMonthStart(int32_t month) {
+    ucln_i18n_registerCleanup(UCLN_I18N_ISLAMIC_CALENDAR, calendar_islamic_cleanup);
     UErrorCode status = U_ZERO_ERROR;
-    int32_t start = CalendarCache::get(&gMonthCache, month, status);
+    int64_t start = CalendarCache::get(&gMonthCache, month, status);
 
-    if (start==0) {
+    if (U_SUCCESS(status) && start==0) {
         // Make a guess at when the month started, using the average length
         UDate origin = HIJRA_MILLIS 
             + uprv_floor(month * CalendarAstronomer::SYNODIC_MONTH) * kOneDay;
 
         // moonAge will fail due to memory allocation error
-        double age = moonAge(origin, status);
-        if (U_FAILURE(status)) {
-            goto trueMonthStartEnd;
-        }
+        double age = moonAge(origin);
 
         if (age >= 0) {
             // The month has already started
             do {
                 origin -= kOneDay;
-                age = moonAge(origin, status);
-                if (U_FAILURE(status)) {
-                    goto trueMonthStartEnd;
-                }
+                age = moonAge(origin);
             } while (age >= 0);
         }
         else {
             // Preceding month has not ended yet.
             do {
                 origin += kOneDay;
-                age = moonAge(origin, status);
-                if (U_FAILURE(status)) {
-                    goto trueMonthStartEnd;
-                }
+                age = moonAge(origin);
             } while (age < 0);
         }
-        start = (int32_t)(ClockMath::floorDivide(
-            (int64_t)((int64_t)origin - HIJRA_MILLIS), (int64_t)kOneDay) + 1);
+        start = ClockMath::floorDivideInt64(
+            (int64_t)((int64_t)origin - HIJRA_MILLIS), (int64_t)kOneDay) + 1;
         CalendarCache::put(&gMonthCache, month, start, status);
     }
-trueMonthStartEnd :
     if(U_FAILURE(status)) {
         start = 0;
     }
     return start;
 }
 
-/**
-* Return the "age" of the moon at the given time; this is the difference
-* in ecliptic latitude between the moon and the sun.  This method simply
-* calls CalendarAstronomer.moonAge, converts to degrees, 
-* and adjusts the result to be in the range [-180, 180].
-*
-* @param time  The time at which the moon's age is desired,
-*              in millis since 1/1/1970.
-*/
-double IslamicCalendar::moonAge(UDate time, UErrorCode &status)
-{
-    double age = 0;
-
-    static UMutex astroLock;      // pod bay door lock
-    umtx_lock(&astroLock);
-    if(gIslamicCalendarAstro == nullptr) {
-        gIslamicCalendarAstro = new CalendarAstronomer();
-        if (gIslamicCalendarAstro == nullptr) {
-            status = U_MEMORY_ALLOCATION_ERROR;
-            return age;
-        }
-        ucln_i18n_registerCleanup(UCLN_I18N_ISLAMIC_CALENDAR, calendar_islamic_cleanup);
-    }
-    gIslamicCalendarAstro->setTime(time);
-    age = gIslamicCalendarAstro->getMoonAge();
-    umtx_unlock(&astroLock);
-
+double moonAge(UDate time) {
     // Convert to degrees and normalize...
-    age = age * 180 / CalendarAstronomer::PI;
+    double age = CalendarAstronomer(time).getMoonAge() * 180 / CalendarAstronomer::PI;
     if (age > 180) {
         age = age - 360;
     }
@@ -426,6 +404,7 @@ double IslamicCalendar::moonAge(UDate time, UErrorCode &status)
     return age;
 }
 
+}  // namespace
 //----------------------------------------------------------------------
 // Calendar framework
 //----------------------------------------------------------------------
@@ -437,7 +416,8 @@ double IslamicCalendar::moonAge(UDate time, UErrorCode &status)
 * @param year  The hijri month, 0-based
 * @draft ICU 2.4
 */
-int32_t IslamicCalendar::handleGetMonthLength(int32_t extendedYear, int32_t month) const {
+int32_t IslamicCalendar::handleGetMonthLength(int32_t extendedYear, int32_t month,
+                                              UErrorCode& /* status */) const {
     month = 12*(extendedYear-1) + month;
     return trueMonthStart(month+1) - trueMonthStart(month) ;
 }
@@ -463,18 +443,30 @@ int32_t IslamicCalendar::handleGetYearLength(int32_t extendedYear) const {
 /**
 * @draft ICU 2.4
 */
-int32_t IslamicCalendar::handleComputeMonthStart(int32_t eyear, int32_t month, UBool /* useMonth */) const {
+int64_t IslamicCalendar::handleComputeMonthStart(int32_t eyear, int32_t month,
+                                                 UBool /* useMonth */,
+                                                 UErrorCode& status) const {
+    if (U_FAILURE(status)) {
+        return 0;
+    }
     // This may be called by Calendar::handleComputeJulianDay with months out of the range
     // 0..11. Need to handle that here since monthStart requires months in the range 0.11.
     if (month > 11) {
         eyear += (month / 12);
+        if (uprv_add32_overflow(eyear, (month / 12), &eyear)) {
+            status = U_ILLEGAL_ARGUMENT_ERROR;
+            return 0;
+        }
         month %= 12;
     } else if (month < 0) {
         month++;
-        eyear += (month / 12) - 1;
+        if (uprv_add32_overflow(eyear, (month / 12) - 1, &eyear)) {
+            status = U_ILLEGAL_ARGUMENT_ERROR;
+            return 0;
+        }
         month = (month % 12) + 11;
     }
-    return monthStart(eyear, month) + getEpoc() - 1;
+    return monthStart(eyear, month, status) + getEpoc() - 1;
 }
 
 //-------------------------------------------------------------------------
@@ -484,14 +476,11 @@ int32_t IslamicCalendar::handleComputeMonthStart(int32_t eyear, int32_t month, U
 /**
 * @draft ICU 2.4
 */
-int32_t IslamicCalendar::handleGetExtendedYear() {
-    int32_t year;
+int32_t IslamicCalendar::handleGetExtendedYear(UErrorCode& /* status */) {
     if (newerField(UCAL_EXTENDED_YEAR, UCAL_YEAR) == UCAL_EXTENDED_YEAR) {
-        year = internalGet(UCAL_EXTENDED_YEAR, 1); // Default to year 1
-    } else {
-        year = internalGet(UCAL_YEAR, 1); // Default to year 1
+        return internalGet(UCAL_EXTENDED_YEAR, 1); // Default to year 1
     }
-    return year;
+    return internalGet(UCAL_YEAR, 1); // Default to year 1
 }
 
 /**
@@ -519,11 +508,7 @@ void IslamicCalendar::handleComputeFields(int32_t julianDay, UErrorCode &status)
 
     int32_t startDate = (int32_t)uprv_floor(month * CalendarAstronomer::SYNODIC_MONTH);
 
-    double age = moonAge(internalGetTime(), status);
-    if (U_FAILURE(status)) {
-        status = U_MEMORY_ALLOCATION_ERROR;
-        return;
-    }
+    double age = moonAge(internalGetTime());
     if ( days - startDate >= 25 && age > 0) {
         // If we're near the end of the month, assume next month and search backwards
         month++;
@@ -538,10 +523,24 @@ void IslamicCalendar::handleComputeFields(int32_t julianDay, UErrorCode &status)
 
     int32_t year = month >=  0 ? ((month / 12) + 1) : ((month + 1 ) / 12);
     month = ((month % 12) + 12 ) % 12;
-    int32_t dayOfMonth = (days - monthStart(year, month)) + 1;
+    int64_t dayOfMonth = (days - monthStart(year, month, status)) + 1;
+    if (U_FAILURE(status)) {
+        return;
+    }
+    if (dayOfMonth > INT32_MAX || dayOfMonth < INT32_MIN) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return;
+    }
 
     // Now figure out the day of the year.
-    int32_t dayOfYear = (days - monthStart(year, 0)) + 1;
+    int64_t dayOfYear = (days - monthStart(year, 0, status)) + 1;
+    if (U_FAILURE(status)) {
+        return;
+    }
+    if (dayOfYear > INT32_MAX || dayOfYear < INT32_MIN) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return;
+    }
 
     internalSet(UCAL_ERA, 0);
     internalSet(UCAL_YEAR, year);
@@ -582,7 +581,8 @@ int32_t IslamicCalendar::getRelatedYear(UErrorCode &status) const
     return gregoYearFromIslamicStart(year);
 }
 
-static int32_t firstIslamicStartYearFromGrego(int32_t year) {
+void IslamicCalendar::setRelatedYear(int32_t year)
+{
     // ad hoc conversion, improve under #10752
     // rough est for now, ok for grego 1846-2138,
     // otherwise occasionally wrong (for 3% of years)
@@ -596,69 +596,20 @@ static int32_t firstIslamicStartYearFromGrego(int32_t year) {
         offset = -(year - 1976) % 65;
         shift = 2*cycle + ((offset <= 32)? 1: 0);
     }
-    return year - 579 + shift;
+    year = year - 579 + shift;
+    set(UCAL_EXTENDED_YEAR, year);
 }
 
-void IslamicCalendar::setRelatedYear(int32_t year)
-{
-    set(UCAL_EXTENDED_YEAR, firstIslamicStartYearFromGrego(year));
-}
-
-/**
- * The system maintains a static default century start date and Year.  They are
- * initialized the first time they are used.  Once the system default century date 
- * and year are set, they do not change.
- */
-static UDate           gSystemDefaultCenturyStart       = DBL_MIN;
-static int32_t         gSystemDefaultCenturyStartYear   = -1;
-static icu::UInitOnce  gSystemDefaultCenturyInit        {};
-
-
-UBool IslamicCalendar::haveDefaultCentury() const
-{
-    return true;
-}
-
-UDate IslamicCalendar::defaultCenturyStart() const
-{
-    // lazy-evaluate systemDefaultCenturyStart
-    umtx_initOnce(gSystemDefaultCenturyInit, &initializeSystemDefaultCentury);
-    return gSystemDefaultCenturyStart;
-}
-
-int32_t IslamicCalendar::defaultCenturyStartYear() const
-{
-    // lazy-evaluate systemDefaultCenturyStartYear
-    umtx_initOnce(gSystemDefaultCenturyInit, &initializeSystemDefaultCentury);
-    return gSystemDefaultCenturyStartYear;
-}
+IMPL_SYSTEM_DEFAULT_CENTURY(IslamicCalendar, "@calendar=islamic-civil")
 
 bool
 IslamicCalendar::inTemporalLeapYear(UErrorCode &status) const
 {
     int32_t days = getActualMaximum(UCAL_DAY_OF_YEAR, status);
-    if (U_FAILURE(status)) return false;
-    return days == 355;
-}
-
-
-U_CFUNC void U_CALLCONV
-IslamicCalendar::initializeSystemDefaultCentury()
-{
-    // initialize systemDefaultCentury and systemDefaultCenturyYear based
-    // on the current time.  They'll be set to 80 years before
-    // the current time.
-    UErrorCode status = U_ZERO_ERROR;
-    IslamicCalendar calendar(Locale("@calendar=islamic-civil"),status);
-    if (U_SUCCESS(status)) {
-        calendar.setTime(Calendar::getNow(), status);
-        calendar.add(UCAL_YEAR, -80, status);
-
-        gSystemDefaultCenturyStart = calendar.getTime(status);
-        gSystemDefaultCenturyStartYear = calendar.get(UCAL_YEAR, status);
+    if (U_FAILURE(status)) {
+        return false;
     }
-    // We have no recourse upon failure unless we want to propagate the failure
-    // out.
+    return days == 355;
 }
 
 /*****************************************************************************
@@ -685,10 +636,8 @@ IslamicCivilCalendar* IslamicCivilCalendar::clone() const {
 * Return the day # on which the given year starts.  Days are counted
 * from the Hijri epoch, origin 0.
 */
-int32_t IslamicCivilCalendar::yearStart(int32_t year) const{
-    return static_cast<int32_t>(
-        (year-1)*354 + ClockMath::floorDivide((3+11*static_cast<int64_t>(year)),
-                                                 static_cast<int64_t>(30)));
+int64_t IslamicCivilCalendar::yearStart(int32_t year) const{
+    return 354LL * (year-1LL) + ClockMath::floorDivideInt64(3 + 11LL * year, 30LL);
 }
 
 /**
@@ -698,13 +647,12 @@ int32_t IslamicCivilCalendar::yearStart(int32_t year) const{
 * @param year  The hijri year
 * @param month The hijri month, 0-based (assumed to be in range 0..11)
 */
-int32_t IslamicCivilCalendar::monthStart(int32_t year, int32_t month) const {
+int64_t IslamicCivilCalendar::monthStart(int32_t year, int32_t month, UErrorCode& /*status*/) const {
     // This does not handle months out of the range 0..11
-    return static_cast<int32_t>(
-        uprv_ceil(29.5*month) + (year-1)*354 +
-        static_cast<int32_t>(ClockMath::floorDivide(
-             3+11*static_cast<int64_t>(year),
-             static_cast<int64_t>(30))));
+    return static_cast<int64_t>(
+        uprv_ceil(29.5*month) + 354LL*(year-1LL) +
+        ClockMath::floorDivideInt64(
+             11LL*static_cast<int64_t>(year) + 3LL, 30LL));
 }
 
 /**
@@ -714,7 +662,8 @@ int32_t IslamicCivilCalendar::monthStart(int32_t year, int32_t month) const {
 * @param year  The hijri month, 0-based
 * @draft ICU 2.4
 */
-int32_t IslamicCivilCalendar::handleGetMonthLength(int32_t extendedYear, int32_t month) const {
+int32_t IslamicCivilCalendar::handleGetMonthLength(int32_t extendedYear, int32_t month,
+                                                   UErrorCode& /* status */) const {
     int32_t length = 29 + (month+1) % 2;
     if (month == DHU_AL_HIJJAH && civilLeapYear(extendedYear)) {
         length++;
@@ -751,17 +700,30 @@ void IslamicCivilCalendar::handleComputeFields(int32_t julianDay, UErrorCode &st
     int32_t days = julianDay - getEpoc();
 
     // Use the civil calendar approximation, which is just arithmetic
-    int32_t year  = static_cast<int32_t>(
-        ClockMath::floorDivide(30 * static_cast<int64_t>(days) + 10646,
-                               static_cast<int64_t>(10631)));
+    int64_t year  =
+        ClockMath::floorDivideInt64(30LL * days + 10646LL, 10631LL);
     int32_t month = static_cast<int32_t>(
         uprv_ceil((days - 29 - yearStart(year)) / 29.5 ));
     month = month<11?month:11;
 
-    int32_t dayOfMonth = (days - monthStart(year, month)) + 1;
+    int64_t dayOfMonth = (days - monthStart(year, month, status)) + 1;
+    if (U_FAILURE(status)) {
+        return;
+    }
+    if (dayOfMonth > INT32_MAX || dayOfMonth < INT32_MIN) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return;
+    }
 
     // Now figure out the day of the year.
-    int32_t dayOfYear = (days - monthStart(year, 0)) + 1;
+    int64_t dayOfYear = (days - monthStart(year, 0, status)) + 1;
+    if (U_FAILURE(status)) {
+        return;
+    }
+    if (dayOfYear > INT32_MAX || dayOfYear < INT32_MIN) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return;
+    }
 
     internalSet(UCAL_ERA, 0);
     internalSet(UCAL_YEAR, year);
@@ -799,7 +761,7 @@ int32_t IslamicTBLACalendar::getEpoc() const {
  * IslamicUmalquraCalendar
  *****************************************************************************/
 IslamicUmalquraCalendar::IslamicUmalquraCalendar(const Locale& aLocale, UErrorCode& success)
-    : IslamicCalendar(aLocale, success)
+    : IslamicCivilCalendar(aLocale, success)
 {
 }
 
@@ -819,15 +781,13 @@ IslamicUmalquraCalendar* IslamicUmalquraCalendar::clone() const {
 * Return the day # on which the given year starts.  Days are counted
 * from the Hijri epoch, origin 0.
 */
-int32_t IslamicUmalquraCalendar::yearStart(int32_t year) const {
+int64_t IslamicUmalquraCalendar::yearStart(int32_t year) const {
     if (year < UMALQURA_YEAR_START || year > UMALQURA_YEAR_END) {
-        return static_cast<int32_t>(
-            (year-1)*354 + ClockMath::floorDivide((3+11*static_cast<int64_t>(year)),
-                                                  static_cast<int64_t>(30)));
+        return IslamicCivilCalendar::yearStart(year);
     }
     year -= UMALQURA_YEAR_START;
     // rounded least-squares fit of the dates previously calculated from UMALQURA_MONTHLENGTH iteration
-    int32_t yrStartLinearEstimate = static_cast<int32_t>(
+    int64_t yrStartLinearEstimate = static_cast<int64_t>(
         (354.36720 * (double)year) + 460322.05 + 0.5);
     // need a slight correction to some
     return yrStartLinearEstimate + umAlQuraYrStartEstimateFix[year];
@@ -840,10 +800,16 @@ int32_t IslamicUmalquraCalendar::yearStart(int32_t year) const {
 * @param year  The hijri year
 * @param month The hijri month, 0-based (assumed to be in range 0..11)
 */
-int32_t IslamicUmalquraCalendar::monthStart(int32_t year, int32_t month) const {
-    int32_t ms = yearStart(year);
+int64_t IslamicUmalquraCalendar::monthStart(int32_t year, int32_t month, UErrorCode& status) const {
+    if (U_FAILURE(status)) {
+        return 0;
+    }
+    int64_t ms = yearStart(year);
     for(int i=0; i< month; i++){
-        ms+= handleGetMonthLength(year, i);
+        ms+= handleGetMonthLength(year, i, status);
+        if (U_FAILURE(status)) {
+            return 0;
+        }
     }
     return ms;
 }
@@ -854,16 +820,18 @@ int32_t IslamicUmalquraCalendar::monthStart(int32_t year, int32_t month) const {
 * @param year  The hijri year
 * @param year  The hijri month, 0-based
 */
-int32_t IslamicUmalquraCalendar::handleGetMonthLength(int32_t extendedYear, int32_t month) const {
-    int32_t length = 0;
+int32_t IslamicUmalquraCalendar::handleGetMonthLength(int32_t extendedYear, int32_t month,
+                                                      UErrorCode& status) const {
     if (extendedYear<UMALQURA_YEAR_START || extendedYear>UMALQURA_YEAR_END) {
-        length = 29 + (month+1) % 2;
-        if (month == DHU_AL_HIJJAH && civilLeapYear(extendedYear)) {
-            length++;
-        }
-        return length;
+        return IslamicCivilCalendar::handleGetMonthLength(extendedYear, month, status);
     }
-    return getUmalqura_MonthLength(extendedYear - UMALQURA_YEAR_START, month);
+    int32_t length = 29;
+    int32_t mask = (int32_t) (0x01 << (11 - month));    // set mask for bit corresponding to month
+    int32_t index = extendedYear - UMALQURA_YEAR_START;
+    if ((UMALQURA_MONTHLENGTH[index] & mask) != 0) {
+        length++;
+    }
+    return length;
 }
 
 /**
@@ -872,13 +840,15 @@ int32_t IslamicUmalquraCalendar::handleGetMonthLength(int32_t extendedYear, int3
 */
 int32_t IslamicUmalquraCalendar::handleGetYearLength(int32_t extendedYear) const {
     if (extendedYear<UMALQURA_YEAR_START || extendedYear>UMALQURA_YEAR_END) {
-        return 354 + (civilLeapYear(extendedYear) ? 1 : 0);
+        return IslamicCivilCalendar::handleGetYearLength(extendedYear);
     }
-    int len = 0;
+    int length = 0;
+    UErrorCode internalStatus = U_ZERO_ERROR;
     for(int i=0; i<12; i++) {
-        len += handleGetMonthLength(extendedYear, i);
+        length += handleGetMonthLength(extendedYear, i, internalStatus);
     }
-    return len;
+    U_ASSERT(U_SUCCESS(internalStatus));
+    return length;
 }
 
 /**
@@ -899,45 +869,58 @@ int32_t IslamicUmalquraCalendar::handleGetYearLength(int32_t extendedYear) const
 */
 void IslamicUmalquraCalendar::handleComputeFields(int32_t julianDay, UErrorCode &status) {
     if (U_FAILURE(status)) return;
-    int32_t year, month, dayOfMonth, dayOfYear;
+    int64_t year;
+    int32_t month;
     int32_t days = julianDay - getEpoc();
 
-    int32_t umalquraStartdays = yearStart(UMALQURA_YEAR_START) ;
-    if (days < umalquraStartdays) {
-        //Use Civil calculation
-        year  = (int32_t)ClockMath::floorDivide(
-            (30 * (int64_t)days + 10646) , (int64_t)10631.0 );
-        month = (int32_t)uprv_ceil((days - 29 - yearStart(year)) / 29.5 );
-        month = month < 11 ? month : 11;
-    } else {
-        int y =UMALQURA_YEAR_START-1, m =0;
-        long d = 1;
-        while (d > 0) {
-            y++;
-            d = days - yearStart(y) +1;
-            if (d == handleGetYearLength(y)) {
-                m=11;
-                break;
-            }
-            if (d < handleGetYearLength(y)){
-                int monthLen = handleGetMonthLength(y, m);
-                m=0;
-                while(d > monthLen){
-                    d -= monthLen;
-                    m++;
-                    monthLen = handleGetMonthLength(y, m);
-                }
-                break;
-            }
+    static int64_t kUmalquraStart = yearStart(UMALQURA_YEAR_START);
+    if (days < kUmalquraStart) {
+        IslamicCivilCalendar::handleComputeFields(julianDay, status);
+        return;
+    }
+    // Estimate a value y which is closer to but not greater than the year.
+    // It is the inverse function of the logic inside
+    // IslamicUmalquraCalendar::yearStart().
+    year = ((double(days) - (460322.05 + 0.5)) / 354.36720) + UMALQURA_YEAR_START - 1;
+    month = 0;
+    int32_t d = 1;
+    // need a slight correction to some
+    while (d > 0) {
+        d = days - yearStart(++year) + 1;
+        int32_t yearLength = handleGetYearLength(year);
+        if (d == yearLength) {
+            month = 11;
+            break;
         }
-        year = y;
-        month = m;
+        if (d < yearLength){
+            int32_t monthLen = handleGetMonthLength(year, month, status);
+            for (month = 0;
+                 d > monthLen;
+                 monthLen = handleGetMonthLength(year, ++month, status)) {
+                if (U_FAILURE(status)) {
+                    return;
+                }
+                d -= monthLen;
+            }
+            break;
+        }
     }
 
-    dayOfMonth = (days - monthStart(year, month)) + 1;
-
-    // Now figure out the day of the year.
-    dayOfYear = (days - monthStart(year, 0)) + 1;
+    int32_t dayOfMonth = monthStart(year, month, status);
+    int32_t dayOfYear = monthStart(year, 0, status);
+    if (U_FAILURE(status)) {
+        return;
+    }
+    if (uprv_mul32_overflow(dayOfMonth, -1, &dayOfMonth) ||
+        uprv_add32_overflow(dayOfMonth, days, &dayOfMonth) ||
+        uprv_add32_overflow(dayOfMonth, 1, &dayOfMonth) ||
+        // Now figure out the day of the year.
+        uprv_mul32_overflow(dayOfYear, -1, &dayOfYear) ||
+        uprv_add32_overflow(dayOfYear, days, &dayOfYear) ||
+        uprv_add32_overflow(dayOfYear, 1, &dayOfYear)) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return;
+    }
 
     internalSet(UCAL_ERA, 0);
     internalSet(UCAL_YEAR, year);

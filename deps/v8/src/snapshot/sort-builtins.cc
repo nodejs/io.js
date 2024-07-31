@@ -145,7 +145,7 @@ void BuiltinsSorter::SortClusters() {
 
   clusters_.erase(
       std::remove_if(clusters_.begin(), clusters_.end(),
-                     [](const Cluster* x) { return x->targets_.size() == 0; }),
+                     [](const Cluster* x) { return x->targets_.empty(); }),
       clusters_.end());
 }
 
@@ -260,6 +260,7 @@ void BuiltinsSorter::ProcessBuiltinDensityLineInfo(
   std::getline(line_stream, token, ',');
   CHECK(line_stream.eof());
   char* end = nullptr;
+  errno = 0;
   int density = static_cast<int>(strtol(token.c_str(), &end, 0));
   CHECK(errno == 0 && end != token.c_str());
 

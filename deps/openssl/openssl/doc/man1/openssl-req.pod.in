@@ -282,7 +282,7 @@ It is implied by the B<-CA> option.
 This option implies the B<-new> flag if B<-in> is not given.
 
 If an existing request is specified with the B<-in> option, it is converted
-to the a certificate; otherwise a request is created from scratch.
+to a certificate; otherwise a request is created from scratch.
 
 Unless specified using the B<-set_serial> option,
 a large random number will be used for the serial number.

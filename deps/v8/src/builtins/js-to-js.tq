@@ -1,0 +1,150 @@
+// Copyright 2023 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+namespace runtime {
+extern runtime IsWasmExternalFunction(NoContext, JSAny): Boolean;
+}  // namespace runtime
+
+namespace wasm {
+extern builtin CallVarargs(
+    Context,
+    JSAny,      // target
+    int32,      // number of arguments already on the stack
+    int32,      // number of arguments in the FixedArray
+    FixedArray  // arguments list
+    ): JSAny;
+
+macro ConvertToAndFromWasm(context: Context, wasmType: int32, value: JSAny):
+    JSAny {
+  if (wasmType == kWasmI32Type) {
+    typeswitch (value) {
+      case (smiParam: Smi): {
+        return smiParam;
+      }
+      case (heapParam: JSAnyNotSmi): {
+        return Convert<Number>(WasmTaggedNonSmiToInt32(heapParam));
+      }
+    }
+  } else if (wasmType == kWasmI64Type) {
+    if constexpr (Is64()) {
+      const val = TruncateBigIntToI64(context, value);
+      return I64ToBigInt(val);
+    } else {
+      const bigIntVal = ToBigInt(context, value);
+      const pair = BigIntToRawBytes(bigIntVal);
+      return I32PairToBigInt(Signed(pair.low), Signed(pair.high));
+    }
+  } else if (wasmType == kWasmF32Type) {
+    return Convert<Number>(WasmTaggedToFloat32(value));
+  } else if (wasmType == kWasmF64Type) {
+    return Convert<Number>(WasmTaggedToFloat64(value));
+  } else {
+    const wasmKind = wasmType & kValueTypeKindBitsMask;
+    dcheck(wasmKind == ValueKind::kRef || wasmKind == ValueKind::kRefNull);
+    if (value == Null) {
+      // At the moment it is not possible to define non-nullable types for
+      // WebAssembly.Functions.
+      return value;
+    }
+    const heapType = (wasmType >> kValueTypeKindBits) & kValueTypeHeapTypeMask;
+    if (heapType != HeapType::kFunc) {
+      // We only have to check funcrefs.
+      return value;
+    }
+
+    if (runtime::IsWasmExternalFunction(kNoContext, value) != True) {
+      ThrowTypeError(MessageTemplate::kWasmTrapJSTypeError);
+    }
+
+    return value;
+  }
+}
+
+extern runtime WasmThrowJSTypeError(Context): never;
+
+transitioning javascript builtin JSToJSWrapperInvalidSig(
+    js-implicit context: NativeContext)(): JSAny {
+  runtime::WasmThrowJSTypeError(context);
+}
+
+transitioning javascript builtin JSToJSWrapper(
+    js-implicit context: NativeContext, receiver: JSAny, target: JSFunction)(
+    ...arguments): JSAny {
+  const functionData =
+      UnsafeCast<WasmFunctionData>(target.shared_function_info.function_data);
+  const ref = UnsafeCast<WasmApiFunctionRef>(functionData.internal.ref);
+
+  const signaturePod = &ref.sig.bytes;
+  const serializedSig = torque_internal::unsafe::NewConstSlice<int32>(
+      signaturePod.object, signaturePod.offset,
+      signaturePod.length / torque_internal::SizeOf<int32>());
+  const returnCount =
+      Convert<intptr>(*torque_internal::unsafe::NewReference<int32>(
+          serializedSig.object, serializedSig.offset));
+  const paramCount: intptr = serializedSig.length - returnCount - 1;
+  const returnTypes = Subslice(serializedSig, Convert<intptr>(1), returnCount)
+      otherwise unreachable;
+  const paramTypes = Subslice(serializedSig, returnCount + 1, paramCount)
+      otherwise unreachable;
+
+  const numOutParams = paramCount + 1;
+  const outParams = WasmAllocateZeroedFixedArray(numOutParams);
+
+  let nextIndex: intptr = 0;
+  // Set the receiver to `Undefined` as the default. If the receiver would be
+  // different, e.g. the global proxy for sloppy functions, then the CallVarargs
+  // builtin takes care of it automatically
+  outParams.objects[nextIndex++] = Undefined;
+
+  for (let paramIndex: intptr = 0; paramIndex < paramCount; paramIndex++) {
+    const param = arguments[paramIndex];
+    const paramType = *paramTypes.UncheckedAtIndex(paramIndex);
+    outParams.objects[nextIndex++] =
+        ConvertToAndFromWasm(context, paramType, param);
+  }
+
+  dcheck(nextIndex == numOutParams);
+  const calleeResult = CallVarargs(
+      context, ref.callable, 0, Convert<int32>(numOutParams), outParams);
+
+  let result: JSAny;
+  if (returnCount == 0) {
+    result = Undefined;
+  } else if (returnCount == 1) {
+    result = ConvertToAndFromWasm(
+        context, *returnTypes.UncheckedAtIndex(0), calleeResult);
+  } else {
+    const returnValues = IterableToFixedArrayForWasm(
+        context, calleeResult, Convert<Smi>(returnCount));
+
+    const resultArray = WasmAllocateJSArray(Convert<Smi>(returnCount));
+    const resultFixedArray = UnsafeCast<FixedArray>(resultArray.elements);
+
+    for (let returnIndex: intptr = 0; returnIndex < returnCount;
+         returnIndex++) {
+      const retVal = UnsafeCast<JSAny>(returnValues.objects[returnIndex]);
+      const retType = *returnTypes.UncheckedAtIndex(returnIndex);
+      resultFixedArray.objects[returnIndex] =
+          ConvertToAndFromWasm(context, retType, retVal);
+    }
+    result = resultArray;
+  }
+
+  // The normal return sequence of Torque-generated JavaScript builtins does not
+  // consider the case where the caller may push additional "undefined"
+  // parameters on the stack, and therefore does not generate code to pop these
+  // additional parameters. Here we calculate the actual number of parameters on
+  // the stack. This number is the number of actual parameters provided by the
+  // caller, which is `arguments.length`, or the number of declared arguments,
+  // if not enough actual parameters were provided, i.e.
+  // `SharedFunctionInfo::length`.
+  let popCount = arguments.length;
+  const declaredArgCount = paramCount;
+  if (declaredArgCount > popCount) {
+    popCount = declaredArgCount;
+  }
+  // Also pop the receiver.
+  PopAndReturn(popCount + 1, result);
+}
+}

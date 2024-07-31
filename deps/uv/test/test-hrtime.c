@@ -45,7 +45,7 @@ TEST_IMPL(hrtime) {
      * that the difference between the two hrtime values has a reasonable
      * lower bound.
      */
-    ASSERT(diff > (uint64_t) 25 * NANOSEC / MILLISEC);
+    ASSERT_UINT64_GT(diff, (uint64_t) 25 * NANOSEC / MILLISEC);
     --i;
   }
   return 0;
@@ -57,8 +57,8 @@ TEST_IMPL(clock_gettime) {
 
   ASSERT_EQ(UV_EINVAL, uv_clock_gettime(1337, &t));
   ASSERT_EQ(UV_EFAULT, uv_clock_gettime(1337, NULL));
-  ASSERT_EQ(0, uv_clock_gettime(UV_CLOCK_MONOTONIC, &t));
-  ASSERT_EQ(0, uv_clock_gettime(UV_CLOCK_REALTIME, &t));
+  ASSERT_OK(uv_clock_gettime(UV_CLOCK_MONOTONIC, &t));
+  ASSERT_OK(uv_clock_gettime(UV_CLOCK_REALTIME, &t));
   ASSERT_GT(1682500000000ll, t.tv_sec);  /* 2023-04-26T09:06:40.000Z */
 
   return 0;

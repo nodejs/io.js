@@ -131,7 +131,7 @@ utrie2_open(uint32_t initialValue, uint32_t errorValue, UErrorCode *pErrorCode) 
         uprv_free(newTrie);
         uprv_free(data);
         *pErrorCode=U_MEMORY_ALLOCATION_ERROR;
-        return 0;
+        return nullptr;
     }
 
     uprv_memset(trie, 0, sizeof(UTrie2));
@@ -880,8 +880,6 @@ utrie2_setRange32(UTrie2 *trie,
 
         fillBlock(newTrie->data+block, 0, rest, value, newTrie->initialValue, overwrite);
     }
-
-    return;
 }
 
 /* compaction --------------------------------------------------------------- */

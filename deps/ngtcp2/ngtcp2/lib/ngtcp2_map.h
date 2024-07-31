@@ -131,6 +131,8 @@ size_t ngtcp2_map_size(ngtcp2_map *map);
 int ngtcp2_map_each(ngtcp2_map *map, int (*func)(void *data, void *ptr),
                     void *ptr);
 
+#ifndef WIN32
 void ngtcp2_map_print_distance(ngtcp2_map *map);
+#endif /* !WIN32 */
 
 #endif /* NGTCP2_MAP_H */

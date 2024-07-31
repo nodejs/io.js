@@ -9,6 +9,7 @@
 
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/index.h"
+#include "src/compiler/turboshaft/opmasks.h"
 #include "src/zone/zone.h"
 
 // The StructuralOptimizationReducer reducer is suitable for changing the
@@ -80,7 +81,7 @@ namespace v8::internal::compiler::turboshaft {
 template <class Next>
 class StructuralOptimizationReducer : public Next {
  public:
-  using Next::Asm;
+  TURBOSHAFT_REDUCER_BOILERPLATE(StructuralOptimization)
 
   OpIndex ReduceInputGraphBranch(OpIndex input_index, const BranchOp& branch) {
     LABEL_BLOCK(no_change) {
@@ -94,58 +95,131 @@ class StructuralOptimizationReducer : public Next {
     base::SmallVector<SwitchOp::Case, 16> cases;
     base::SmallVector<const Block*, 16> false_blocks;
 
+    Block* current_if_true;
     Block* current_if_false;
     const BranchOp* current_branch = &branch;
-    BranchHint default_hint = BranchHint::kNone;
+    BranchHint current_branch_hint;
+    BranchHint next_hint = BranchHint::kNone;
 
     OpIndex switch_var = OpIndex::Invalid();
+    uint32_t value;
     while (true) {
       // If we encounter a condition that is not equality, we can't turn it
       // into a switch case.
-      const EqualOp* equal = Asm()
-                                 .input_graph()
-                                 .Get(current_branch->condition())
-                                 .template TryCast<EqualOp>();
-      if (!equal || equal->rep != RegisterRepresentation::Word32()) {
-        TRACE(
-            "\t [bailout] Branch with different condition than Word32 "
-            "Equal.\n");
-        break;
+      const Operation& cond =
+          Asm().input_graph().Get(current_branch->condition());
+
+      if (!cond.template Is<ComparisonOp>()) {
+        // 'if(x==0)' may be optimized to 'if(x)', we should take this into
+        // consideration.
+
+        // The "false" destination will be inlined before the switch is emitted,
+        // so it should only contain pure operations.
+        if (!ContainsOnlyPureOps(current_branch->if_true,
+                                 Asm().input_graph())) {
+          TRACE("\t [break] End of only-pure-ops cascade reached.\n");
+          break;
+        }
+
+        OpIndex current_var = current_branch->condition();
+        if (!switch_var.valid()) {
+          switch_var = current_var;
+        } else if (switch_var != current_var) {
+          TRACE("\t [bailout] Not all branches compare the same variable.\n");
+          break;
+        }
+        value = 0;
+        // The true/false of 'if(x)' is reversed from 'if(x==0)'
+        current_if_true = current_branch->if_false;
+        current_if_false = current_branch->if_true;
+        const BranchHint hint = current_branch->hint;
+        current_branch_hint = hint == BranchHint::kNone   ? BranchHint::kNone
+                              : hint == BranchHint::kTrue ? BranchHint::kFalse
+                                                          : BranchHint::kTrue;
+      } else {
+        const ComparisonOp* equal =
+            cond.template TryCast<Opmask::kWord32Equal>();
+        if (!equal) {
+          TRACE(
+              "\t [bailout] Branch with different condition than Word32 "
+              "Equal.\n");
+          break;
+        }
+        // MachineOptimizationReducer should normalize equality to put constants
+        // right.
+        const Operation& right_op = Asm().input_graph().Get(equal->right());
+        if (!right_op.Is<Opmask::kWord32Constant>()) {
+          TRACE(
+              "\t [bailout] No Word32 constant on the right side of Equal.\n");
+          break;
+        }
+
+        // The "false" destination will be inlined before the switch is emitted,
+        // so it should only contain pure operations.
+        if (!ContainsOnlyPureOps(current_branch->if_false,
+                                 Asm().input_graph())) {
+          TRACE("\t [break] End of only-pure-ops cascade reached.\n");
+          break;
+        }
+        const ConstantOp& const_op = right_op.Cast<ConstantOp>();
+        value = const_op.word32();
+
+        // If we encounter equal to a different value, we can't introduce
+        // a switch.
+        OpIndex current_var = equal->left();
+        if (!switch_var.valid()) {
+          switch_var = current_var;
+        } else if (switch_var != current_var) {
+          TRACE("\t [bailout] Not all branches compare the same variable.\n");
+          break;
+        }
+
+        current_if_true = current_branch->if_true;
+        current_if_false = current_branch->if_false;
+        current_branch_hint = current_branch->hint;
       }
 
-      // MachineOptimizationReducer should normalize equality to put constants
-      // right.
-      const Operation& right_op = Asm().input_graph().Get(equal->right());
-      if (!right_op.Is<ConstantOp>()) {
-        TRACE("\t [bailout] No constant on the right side of Equal.\n");
-        break;
-      }
-
-      // We can only turn Word32 constant equals to switch cases.
-      const ConstantOp& const_op = right_op.Cast<ConstantOp>();
-      if (const_op.kind != ConstantOp::Kind::kWord32) {
-        TRACE("\t [bailout] Constant is not of type Word32.\n");
-        break;
-      }
-
-      // If we encounter equal to a different value, we can't introduce
-      // a switch.
-      OpIndex current_var = equal->left();
-      if (!switch_var.valid()) {
-        switch_var = current_var;
-      } else if (switch_var != current_var) {
-        TRACE("\t [bailout] Not all branches compare the same variable.\n");
-        break;
-      }
-
-      Block* current_if_true = current_branch->if_true;
-      current_if_false = current_branch->if_false;
       DCHECK(current_if_true && current_if_false);
 
+      // We can't just use `current_branch->hint` for every case. Consider:
+      //
+      //     if (a) { }
+      //     else if (b) { }
+      //     else if (likely(c)) { }
+      //     else if (d) { }
+      //     else { }
+      //
+      // The fact that `c` is Likely doesn't tell anything about the likelyness
+      // of `a` and `b` compared to `c`, which means that `c` shouldn't have the
+      // Likely hint in the switch. However, since `c` is likely here, it means
+      // that `d` and "default" are both unlikely, even in the switch.
+      //
+      // So, for the 1st case, we use `current_branch->hint`.
+      // Then, when we encounter a Likely hint, we mark all of the subsequent
+      // cases are Unlikely, but don't mark the current one as Likely. This is
+      // done with the `next_hint` variable, which is initially kNone, but
+      // because kFalse when we encounter a Likely branch.
+      // We never set `next_hint` as kTrue as it would only apply to subsequent
+      // cases and not to already-emitted cases. The only case that could thus
+      // have a kTrue annotation is the 1st one.
+      DCHECK_NE(next_hint, BranchHint::kTrue);
+      BranchHint hint = next_hint;
+      if (cases.size() == 0) {
+        // The 1st case gets its original hint.
+        hint = current_branch_hint;
+      } else if (current_branch_hint == BranchHint::kFalse) {
+        // For other cases, if the branch has a kFalse hint, we do use it,
+        // regardless of `next_hint`.
+        hint = BranchHint::kNone;
+      }
+      if (current_branch_hint == BranchHint::kTrue) {
+        // This branch is likely true, which means that all subsequent cases are
+        // unlikely.
+        next_hint = BranchHint::kFalse;
+      }
+
       // The current_if_true block becomes the corresponding switch case block.
-      uint32_t value = const_op.word32();
-      cases.emplace_back(value, current_if_true->MapToNextGraph(),
-                         current_branch->hint);
+      cases.emplace_back(value, Asm().MapToNewGraph(current_if_true), hint);
 
       // All pure ops from the if_false block should be executed before
       // the switch, except the last Branch operation (which we drop).
@@ -160,17 +234,8 @@ class StructuralOptimizationReducer : public Next {
         break;
       }
 
-      default_hint = current_branch->hint;
-
       // Iterate to the next if_false block in the cascade.
       current_branch = &maybe_branch.template Cast<BranchOp>();
-
-      // As long as the else blocks contain only pure ops, we can keep
-      // traversing the if-else cascade.
-      if (!ContainsOnlyPureOps(current_branch->if_false, Asm().input_graph())) {
-        TRACE("\t [break] End of only-pure-ops cascade reached.\n");
-        break;
-      }
     }
 
     // Probably better to keep short if-else cascades as they are.
@@ -186,7 +251,7 @@ class StructuralOptimizationReducer : public Next {
       InlineAllOperationsWithoutLast(block);
     }
 
-    TRACE("[reduce] Successfully emit a Switch with %z cases.", cases.size());
+    TRACE("[reduce] Successfully emit a Switch with %zu cases.", cases.size());
 
     // The last current_if_true block that ends the cascade becomes the default
     // case.
@@ -194,7 +259,7 @@ class StructuralOptimizationReducer : public Next {
     Asm().Switch(
         Asm().MapToNewGraph(switch_var),
         Asm().output_graph().graph_zone()->CloneVector(base::VectorOf(cases)),
-        default_block->MapToNextGraph(), default_hint);
+        Asm().MapToNewGraph(default_block), next_hint);
     return OpIndex::Invalid();
   }
 

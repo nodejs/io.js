@@ -190,6 +190,20 @@ t.test('single node - with license expression', t => {
   t.end()
 })
 
+t.test('single node - with license object', t => {
+  const pkg = {
+    ...rootPkg,
+    license: {
+      type: 'MIT',
+      url: 'http://github.com/kriskowal/q/raw/master/LICENSE',
+    },
+  }
+  const node = { ...root, package: pkg }
+  const res = cyclonedxOutput({ npm, nodes: [node] })
+  t.matchSnapshot(JSON.stringify(res))
+  t.end()
+})
+
 t.test('single node - from git url', t => {
   const node = { ...root, type: 'git', resolved: 'https://github.com/foo/bar#1234' }
   const res = cyclonedxOutput({ npm, nodes: [node] })
@@ -205,13 +219,15 @@ t.test('single node - no package info', t => {
 })
 
 t.test('node - with deps', t => {
-  const node = { ...root,
+  const node = {
+    ...root,
     edgesOut: [
       { to: dep1 },
       { to: dep2 },
       { to: undefined },
       { to: { pkgid: 'foo' } },
-    ] }
+    ],
+  }
   const res = cyclonedxOutput({ npm, nodes: [node, dep1, dep2, dep2Link] })
   t.matchSnapshot(JSON.stringify(res))
   t.end()

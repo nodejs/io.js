@@ -88,8 +88,6 @@ class DangiCalendar : public ChineseCalendar {
 
  private:
 
-  const TimeZone* getDangiCalZoneAstroCalc(UErrorCode &status) const;
-
   // UObject stuff
  public: 
   /**
@@ -120,6 +118,8 @@ class DangiCalendar : public ChineseCalendar {
    */
   const char * getType() const override;
 
+ protected:
+  virtual Setting getSetting(UErrorCode& status) const override;
 
  private:
  

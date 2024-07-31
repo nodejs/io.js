@@ -21,7 +21,8 @@ PropertyCallbackArguments::PropertyCallbackArguments(
   slot_at(T::kThisIndex).store(self);
   slot_at(T::kHolderIndex).store(holder);
   slot_at(T::kDataIndex).store(data);
-  slot_at(T::kIsolateIndex).store(Object(reinterpret_cast<Address>(isolate)));
+  slot_at(T::kIsolateIndex)
+      .store(Tagged<Object>(reinterpret_cast<Address>(isolate)));
   int value = Internals::kInferShouldThrowMode;
   if (should_throw.IsJust()) {
     value = should_throw.FromJust();
@@ -45,7 +46,8 @@ FunctionCallbackArguments::FunctionCallbackArguments(
   slot_at(T::kDataIndex).store(data);
   slot_at(T::kHolderIndex).store(holder);
   slot_at(T::kNewTargetIndex).store(new_target);
-  slot_at(T::kIsolateIndex).store(Object(reinterpret_cast<Address>(isolate)));
+  slot_at(T::kIsolateIndex)
+      .store(Tagged<Object>(reinterpret_cast<Address>(isolate)));
   // Here the hole is set as default value. It's converted to and not
   // directly exposed to js.
   // TODO(cbruni): Remove and/or use custom sentinel value.

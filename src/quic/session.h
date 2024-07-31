@@ -72,12 +72,19 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
     uint64_t qpack_encoder_max_dtable_capacity = 0;
     uint64_t qpack_blocked_streams = 0;
 
+    bool enable_connect_protocol = true;
+    bool enable_datagrams = true;
+
+    operator const nghttp3_settings() const;
+
     SET_NO_MEMORY_INFO()
     SET_MEMORY_INFO_NAME(Application::Options)
     SET_SELF_SIZE(Options)
 
     static v8::Maybe<Application_Options> From(Environment* env,
                                                v8::Local<v8::Value> value);
+
+    std::string ToString() const;
 
     static const Application_Options kDefault;
   };
@@ -99,7 +106,7 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
     // By default a client session will use the preferred address advertised by
     // the the server. This option is only relevant for client sessions.
     PreferredAddress::Policy preferred_address_strategy =
-        PreferredAddress::Policy::USE_PREFERRED_ADDRESS;
+        PreferredAddress::Policy::USE_PREFERRED;
 
     TransportParams::Options transport_params =
         TransportParams::Options::kDefault;
@@ -122,6 +129,8 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
 
     static v8::Maybe<Options> From(Environment* env,
                                    v8::Local<v8::Value> value);
+
+    std::string ToString() const;
   };
 
   // The additional configuration settings used to create a specific session.
@@ -141,10 +150,12 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
     SocketAddress local_address;
     SocketAddress remote_address;
 
-    // The destination CID, identifying the remote peer.
+    // The destination CID, identifying the remote peer. This value is always
+    // provided by the remote peer.
     CID dcid = CID::kInvalid;
 
-    // The source CID, identifying this session.
+    // The source CID, identifying this session. This value is always created
+    // locally.
     CID scid = CID::kInvalid;
 
     // Used only by client sessions to identify the original DCID
@@ -152,10 +163,6 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
     CID ocid = CID::kInvalid;
     CID retry_scid = CID::kInvalid;
     CID preferred_address_cid = CID::kInvalid;
-
-    // If this is a client session, the session_ticket is used to resume
-    // a TLS session using a previously established session ticket.
-    std::optional<SessionTicket> session_ticket = std::nullopt;
 
     ngtcp2_settings settings = {};
     operator ngtcp2_settings*() { return &settings; }
@@ -169,39 +176,52 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
            const SocketAddress& remote_address,
            const CID& dcid,
            const CID& scid,
-           std::optional<SessionTicket> session_ticket = std::nullopt,
            const CID& ocid = CID::kInvalid);
 
     Config(const Endpoint& endpoint,
            const Options& options,
            const SocketAddress& local_address,
            const SocketAddress& remote_address,
-           std::optional<SessionTicket> session_ticket = std::nullopt,
            const CID& ocid = CID::kInvalid);
+
+    void set_token(const uint8_t* token,
+                   size_t len,
+                   ngtcp2_token_type type = NGTCP2_TOKEN_TYPE_UNKNOWN);
+    void set_token(const RetryToken& token);
+    void set_token(const RegularToken& token);
 
     void MemoryInfo(MemoryTracker* tracker) const override;
     SET_MEMORY_INFO_NAME(Session::Config)
     SET_SELF_SIZE(Config)
+
+    std::string ToString() const;
   };
 
   static bool HasInstance(Environment* env, v8::Local<v8::Value> value);
   static v8::Local<v8::FunctionTemplate> GetConstructorTemplate(
       Environment* env);
-  static void Initialize(Environment* env, v8::Local<v8::Object> target);
+  static void InitPerIsolate(IsolateData* isolate_data,
+                             v8::Local<v8::ObjectTemplate> target);
+  static void InitPerContext(Realm* env, v8::Local<v8::Object> target);
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
 
-  static BaseObjectPtr<Session> Create(BaseObjectPtr<Endpoint> endpoint,
-                                       const Config& config);
+  static BaseObjectPtr<Session> Create(
+      Endpoint* endpoint,
+      const Config& config,
+      TLSContext* tls_context,
+      const std::optional<SessionTicket>& ticket);
 
   // Really should be private but MakeDetachedBaseObject needs visibility.
-  Session(BaseObjectPtr<Endpoint> endpoint,
+  Session(Endpoint* endpoint,
           v8::Local<v8::Object> object,
-          const Config& config);
+          const Config& config,
+          TLSContext* tls_context,
+          const std::optional<SessionTicket>& ticket);
   ~Session() override;
 
   uint32_t version() const;
   Endpoint& endpoint() const;
-  TLSContext& tls_context();
+  TLSSession& tls_session();
   Application& application();
   const Config& config() const;
   const Options& options() const;
@@ -214,12 +234,20 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   bool is_destroyed() const;
   bool is_server() const;
 
+  size_t max_packet_size() const;
+
+  void set_priority_supported(bool on = true);
+
   std::string diagnostic_name() const override;
 
   // Use the configured CID::Factory to generate a new CID.
   CID new_cid(size_t len = CID::kMaxLength) const;
 
   void HandleQlog(uint32_t flags, const void* data, size_t len);
+
+  TransportParams GetLocalTransportParams() const;
+  TransportParams GetRemoteTransportParams() const;
+  void UpdatePacketTxTime();
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(Session)
@@ -228,20 +256,15 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   struct State;
   struct Stats;
 
- private:
-  struct Impl;
-  struct MaybeCloseConnectionScope;
+  operator ngtcp2_conn*() const;
 
-  using StreamsMap = std::unordered_map<int64_t, BaseObjectPtr<Stream>>;
-  using QuicConnectionPointer = DeleteFnPtr<ngtcp2_conn, ngtcp2_conn_del>;
-
-  struct PathValidationFlags {
-    bool preferredAddress = false;
-  };
-
-  struct DatagramReceivedFlags {
-    bool early = false;
-  };
+  BaseObjectPtr<Stream> FindStream(int64_t id) const;
+  BaseObjectPtr<Stream> CreateStream(int64_t id);
+  BaseObjectPtr<Stream> OpenStream(Direction direction);
+  void ExtendStreamOffset(int64_t id, size_t amount);
+  void ExtendOffset(size_t amount);
+  void SetLastError(QuicError&& error);
+  uint64_t max_data_left() const;
 
   enum class CloseMethod {
     // Roundtrip through JavaScript, causing all currently opened streams
@@ -261,40 +284,47 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
     // Close() is called.
     GRACEFUL
   };
-
   void Close(CloseMethod method = CloseMethod::DEFAULT);
+
+  struct SendPendingDataScope {
+    Session* session;
+    explicit SendPendingDataScope(Session* session);
+    explicit SendPendingDataScope(const BaseObjectPtr<Session>& session);
+    DISALLOW_COPY_AND_MOVE(SendPendingDataScope)
+    ~SendPendingDataScope();
+  };
+
+ private:
+  struct Impl;
+  struct MaybeCloseConnectionScope;
+
+  using StreamsMap = std::unordered_map<int64_t, BaseObjectPtr<Stream>>;
+  using QuicConnectionPointer = DeleteFnPtr<ngtcp2_conn, ngtcp2_conn_del>;
+
+  struct PathValidationFlags {
+    bool preferredAddress = false;
+  };
+
+  struct DatagramReceivedFlags {
+    bool early = false;
+  };
+
   void Destroy();
 
   bool Receive(Store&& store,
                const SocketAddress& local_address,
                const SocketAddress& remote_address);
 
-  void Send(BaseObjectPtr<Packet> packet);
-  void Send(BaseObjectPtr<Packet> packet, const PathStorage& path);
+  void Send(Packet* packet);
+  void Send(Packet* packet, const PathStorage& path);
   uint64_t SendDatagram(Store&& data);
 
-  BaseObjectPtr<Stream> FindStream(int64_t id) const;
-  BaseObjectPtr<Stream> CreateStream(int64_t id);
-  BaseObjectPtr<Stream> OpenStream(Direction direction);
   void AddStream(const BaseObjectPtr<Stream>& stream);
   void RemoveStream(int64_t id);
   void ResumeStream(int64_t id);
   void ShutdownStream(int64_t id, QuicError error);
   void StreamDataBlocked(int64_t id);
   void ShutdownStreamWrite(int64_t id, QuicError code = QuicError());
-
-  struct SendPendingDataScope {
-    Session* session;
-    explicit SendPendingDataScope(Session* session);
-    explicit SendPendingDataScope(const BaseObjectPtr<Session>& session);
-    SendPendingDataScope(const SendPendingDataScope&) = delete;
-    SendPendingDataScope(SendPendingDataScope&&) = delete;
-    SendPendingDataScope& operator=(const SendPendingDataScope&) = delete;
-    SendPendingDataScope& operator=(SendPendingDataScope&&) = delete;
-    ~SendPendingDataScope();
-  };
-
-  operator ngtcp2_conn*() const;
 
   // Implementation of SessionTicket::AppData::Source
   void CollectSessionTicketAppData(
@@ -322,20 +352,18 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   // Returns false if the Session is currently in a state where it cannot create
   // new streams.
   bool can_create_streams() const;
-  uint64_t max_data_left() const;
   uint64_t max_local_streams_uni() const;
   uint64_t max_local_streams_bidi() const;
-  BaseObjectPtr<LogStream> qlog() const;
-  BaseObjectPtr<LogStream> keylog() const;
 
   bool wants_session_ticket() const;
   void SetStreamOpenAllowed();
 
+  // It's a terrible name but "wrapped" here means that the Session has been
+  // passed out to JavaScript and should be "wrapped" by whatever handler is
+  // defined there to manage it.
   void set_wrapped();
 
   void DoClose(bool silent = false);
-  void ExtendStreamOffset(int64_t id, size_t amount);
-  void ExtendOffset(size_t amount);
   void UpdateDataStats();
   void SendConnectionClose();
   void OnTimeout();
@@ -349,10 +377,16 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   void EmitDatagramStatus(uint64_t id, DatagramStatus status);
   void EmitHandshakeComplete();
   void EmitKeylog(const char* line);
+
+  struct ValidatedPath {
+    std::shared_ptr<SocketAddress> local;
+    std::shared_ptr<SocketAddress> remote;
+  };
+
   void EmitPathValidation(PathValidationResult result,
                           PathValidationFlags flags,
-                          const SocketAddress& local_address,
-                          const SocketAddress& remote_address);
+                          const ValidatedPath& newPath,
+                          const std::optional<ValidatedPath>& oldPath);
   void EmitSessionTicket(Store&& ticket);
   void EmitStream(BaseObjectPtr<Stream> stream);
   void EmitVersionNegotiation(const ngtcp2_pkt_hd& hd,
@@ -367,9 +401,6 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   bool HandshakeCompleted();
   void HandshakeConfirmed();
   void SelectPreferredAddress(PreferredAddress* preferredAddress);
-  TransportParams GetLocalTransportParams() const;
-  TransportParams GetRemoteTransportParams() const;
-  void SetLastError(QuicError&& error);
   void UpdatePath(const PathStorage& path);
 
   QuicConnectionPointer InitConnection();
@@ -379,19 +410,19 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   AliasedStruct<Stats> stats_;
   AliasedStruct<State> state_;
   ngtcp2_mem allocator_;
+  BaseObjectWeakPtr<Endpoint> endpoint_;
   Config config_;
-  QuicConnectionPointer connection_;
-  BaseObjectPtr<Endpoint> endpoint_;
-  TLSContext tls_context_;
-  std::unique_ptr<Application> application_;
   SocketAddress local_address_;
   SocketAddress remote_address_;
+  QuicConnectionPointer connection_;
+  std::unique_ptr<TLSSession> tls_session_;
+  std::unique_ptr<Application> application_;
   StreamsMap streams_;
   TimerWrapHandle timer_;
   size_t send_scope_depth_ = 0;
   size_t connection_close_depth_ = 0;
   QuicError last_error_;
-  BaseObjectPtr<Packet> conn_closebuf_;
+  Packet* conn_closebuf_;
   BaseObjectPtr<LogStream> qlog_stream_;
   BaseObjectPtr<LogStream> keylog_stream_;
 
@@ -403,6 +434,7 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   friend struct SendPendingDataScope;
   friend class Stream;
   friend class TLSContext;
+  friend class TLSSession;
   friend class TransportParams;
 };
 

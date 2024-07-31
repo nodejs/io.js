@@ -33,29 +33,23 @@ struct Value {
 // Internal version of API class v8::debug_helper::PropertyBase.
 class PropertyBase {
  public:
-  PropertyBase(std::string name, std::string type,
-               std::string decompressed_type)
-      : name_(name), type_(type), decompressed_type_(decompressed_type) {}
+  PropertyBase(std::string name, std::string type) : name_(name), type_(type) {}
   void SetFieldsOnPublicView(d::PropertyBase* public_view) {
     public_view->name = name_.c_str();
     public_view->type = type_.c_str();
-    public_view->decompressed_type = decompressed_type_.c_str();
   }
 
  private:
   std::string name_;
   std::string type_;
-  std::string decompressed_type_;
 };
 
 // Internal version of API class v8::debug_helper::StructProperty.
 class StructProperty : public PropertyBase {
  public:
-  StructProperty(std::string name, std::string type,
-                 std::string decompressed_type, size_t offset, uint8_t num_bits,
-                 uint8_t shift_bits)
-      : PropertyBase(std::move(name), std::move(type),
-                     std::move(decompressed_type)),
+  StructProperty(std::string name, std::string type, size_t offset,
+                 uint8_t num_bits, uint8_t shift_bits)
+      : PropertyBase(std::move(name), std::move(type)),
         offset_(offset),
         num_bits_(num_bits),
         shift_bits_(shift_bits) {}
@@ -79,13 +73,11 @@ class StructProperty : public PropertyBase {
 // Internal version of API class v8::debug_helper::ObjectProperty.
 class ObjectProperty : public PropertyBase {
  public:
-  ObjectProperty(std::string name, std::string type,
-                 std::string decompressed_type, uintptr_t address,
+  ObjectProperty(std::string name, std::string type, uintptr_t address,
                  size_t num_values, size_t size,
                  std::vector<std::unique_ptr<StructProperty>> struct_fields,
                  d::PropertyKind kind)
-      : PropertyBase(std::move(name), std::move(type),
-                     std::move(decompressed_type)),
+      : PropertyBase(std::move(name), std::move(type)),
         address_(address),
         num_values_(num_values),
         size_(size),
@@ -243,10 +235,6 @@ uintptr_t EnsureDecompressed(uintptr_t address,
 // Converts the MemoryAccessResult from attempting to read an array's length
 // into the corresponding PropertyKind for the array.
 d::PropertyKind GetArrayKind(d::MemoryAccessResult mem_result);
-
-// List of fully-qualified names for every Object subtype, generated based on
-// Torque class definitions.
-extern const d::ClassList kObjectClassList;
 
 }  // namespace debug_helper_internal
 }  // namespace internal

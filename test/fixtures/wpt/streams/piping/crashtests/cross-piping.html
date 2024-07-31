@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<script type="module">
+  let a = new ReadableStream();
+  let b = self.open()
+  let f = new b.WritableStream();
+  a.pipeThrough(
+    { "readable": a, "writable": f },
+    { "signal": AbortSignal.abort() }
+  )
+  await new Promise(setTimeout);
+  structuredClone(undefined, { "transfer": [f] })
+</script>

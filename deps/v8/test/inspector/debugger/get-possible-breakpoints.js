@@ -133,8 +133,7 @@ function foo6() { Promise.resolve().then(() => 42) }
         .then(message => dumpAllLocations(message, source));
     }
 
-    checkSource('() => 239\n', { lineNumber: 0, columnNumber: 0 })
-      .then(() => checkSource('function foo() { function boo() { return 239 }  }\n', { lineNumber: 0, columnNumber: 0 }))
+    checkSource('function foo() { function boo() { return 239 }  }\n', { lineNumber: 0, columnNumber: 0 })
       .then(() => checkSource('function foo() { function boo() { return 239 }; boo }\n', { lineNumber: 0, columnNumber: 0 }))
       .then(() => checkSource('function foo() { let boo = function() { return 239 }; }\n', { lineNumber: 0, columnNumber: 0 }))
       .then(() => checkSource('var foo = () => { 239 }\n', { lineNumber: 0, columnNumber: 0 }))

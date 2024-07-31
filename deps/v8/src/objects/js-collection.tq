@@ -5,6 +5,8 @@
 @abstract
 extern class JSCollection extends JSObject {
   // The backing hash table.
+  //
+  // Use StableOrderedHasSet or StableOrderedHashMap to read.
   table: Object;
 }
 extern class JSSet extends JSCollection {}
@@ -34,3 +36,8 @@ extern class JSSetValueIterator extends JSSetIterator
 
 transient type JSSetWithNoCustomIteration extends JSSet;
 transient type JSMapWithNoCustomIteration extends JSMap;
+
+// Use these types to read. Used to track user code modifying the underlying
+// table.
+transient type StableOrderedHashSet extends OrderedHashSet;
+transient type StableOrderedHashMap extends OrderedHashMap;

@@ -303,6 +303,9 @@ class InspectorSession {
     console.log('[test]', 'Verify node waits for the frontend to disconnect');
     await this.send({ 'method': 'Debugger.resume' });
     await this.waitForNotification((notification) => {
+      if (notification.method === 'Debugger.paused') {
+        this.send({ 'method': 'Debugger.resume' });
+      }
       return notification.method === 'Runtime.executionContextDestroyed' &&
         notification.params.executionContextId === 1;
     });

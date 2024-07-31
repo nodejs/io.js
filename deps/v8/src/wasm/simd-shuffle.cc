@@ -38,6 +38,50 @@ bool SimdShuffle::TryMatch32x4Rotate(const uint8_t* shuffle,
   return true;
 }
 
+bool SimdShuffle::TryMatch32x4Reverse(const uint8_t* shuffle32x4) {
+  return shuffle32x4[0] == 3 && shuffle32x4[1] == 2 && shuffle32x4[2] == 1 &&
+         shuffle32x4[3] == 0;
+}
+
+bool SimdShuffle::TryMatch32x4OneLaneSwizzle(const uint8_t* shuffle32x4,
+                                             uint8_t* from_lane,
+                                             uint8_t* to_lane) {
+  constexpr uint32_t patterns[12]{
+      0x30200000,  // 0 -> 1
+      0x30000100,  // 0 -> 2
+      0x00020100,  // 0 -> 3
+      0x03020101,  // 1 -> 0
+      0x03010100,  // 1 -> 2
+      0x01020100,  // 1 -> 3
+      0x03020102,  // 2 -> 0
+      0x03020200,  // 2 -> 1
+      0x02020100,  // 2 -> 3
+      0x03020103,  // 3 -> 0
+      0x03020300,  // 3 -> 1
+      0x03030100   // 3 -> 2
+  };
+
+  unsigned pattern_idx = 0;
+  uint32_t shuffle = *reinterpret_cast<const uint32_t*>(shuffle32x4);
+#ifdef V8_TARGET_BIG_ENDIAN
+  shuffle = base::bits::ReverseBytes(shuffle);
+#endif
+  for (unsigned from = 0; from < 4; ++from) {
+    for (unsigned to = 0; to < 4; ++to) {
+      if (from == to) {
+        continue;
+      }
+      if (shuffle == patterns[pattern_idx]) {
+        *from_lane = from;
+        *to_lane = to;
+        return true;
+      }
+      ++pattern_idx;
+    }
+  }
+  return false;
+}
+
 bool SimdShuffle::TryMatch32x4Shuffle(const uint8_t* shuffle,
                                       uint8_t* shuffle32x4) {
   for (int i = 0; i < 4; ++i) {

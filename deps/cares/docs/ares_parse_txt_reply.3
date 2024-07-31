@@ -1,18 +1,5 @@
 .\"
 .\" Copyright 1998 by the Massachusetts Institute of Technology.
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_PARSE_TXT_REPLY 3 "27 October 2009"
@@ -29,10 +16,9 @@ int ares_parse_txt_reply_ext(const unsigned char* \fIabuf\fP, int \fIalen\fP,
                              struct ares_txt_ext **\fItxt_out\fP);
 .fi
 .SH DESCRIPTION
-The
-.BR "ares_parse_txt_reply" " (" "ares_parse_txt_reply_ext" ")"
-function parses the response to a query of type TXT into a
-linked list (one element per sub-string) of
+The \fIares_parse_txt_reply(3)\fP and \fIares_parse_txt_reply_ext(3)\fP
+functions parse the response to a query of type TXT into a linked list (one
+element per sub-string) of
 .IR "struct ares_txt_reply" " (" "struct ares_txt_ext" ")"
 The parameters
 .I abuf
@@ -44,13 +30,11 @@ memory and a pointer to it stored into the variable pointed to by
 It is the caller's responsibility to free the resulting
 .IR txt_out
 structure when it is no longer needed using the function
-.B ares_free_data
-.PP
+\fBares_free_data(3)\fP.
+
 The structure 
 .I ares_txt_reply
 contains the following fields:
-.sp
-.in +4n
 .nf
 struct ares_txt_reply {
   struct ares_txt_reply  *next;
@@ -58,13 +42,10 @@ struct ares_txt_reply {
   unsigned char *txt;
 };
 .fi
-.in
-.PP
+
 The structure
 .I ares_txt_ext
 contains the following fields:
-.sp
-.in +4n
 .nf
 struct ares_txt_ext {
   struct ares_txt_ext  *next;
@@ -73,8 +54,6 @@ struct ares_txt_ext {
   unsigned char record_start;
 };
 .fi
-.in
-.PP
 The
 .I record_start
 field in
@@ -87,7 +66,7 @@ will have at least one item with
 equal to 1, and may have some items with
 .I record_start
 equal to 0 between them.
-.PP
+
 These sequences of
 .I struct ares_txt_ext
 (starting from the item with
@@ -95,7 +74,6 @@ These sequences of
 equal to 1, and ending right before the record start item) may be treated as
 either components of a single TXT record or as a multi-parted TXT record,
 depending on particular use case.
-.PP
 .SH RETURN VALUES
 .BR "ares_parse_txt_reply" " (" "ares_parse_txt_reply_ext" ")"
 can return any of the following values:
@@ -116,7 +94,3 @@ This function was first introduced in c-ares version 1.7.0.
 .SH SEE ALSO
 .BR ares_query (3)
 .BR ares_free_data (3)
-.SH AUTHOR
-Written by Jakub Hrozek <jhrozek@redhat.com>, on behalf of Red Hat, Inc http://www.redhat.com
-.PP
-Amended by Fedor Indutny <fedor@indutny.com>, on behalf of PayPal, Inc https://www.paypal.com

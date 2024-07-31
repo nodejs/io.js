@@ -81,6 +81,8 @@ struct V8_EXPORT_PRIVATE LoopInfo {
   void mark_resumable() { resumable_ = true; }
   bool innermost() const { return innermost_; }
   void mark_not_innermost() { innermost_ = false; }
+  bool trivial() const { return trivial_; }
+  void mark_non_trivial() { trivial_ = false; }
 
   bool Contains(int offset) const {
     return offset >= loop_start_ && offset < loop_end_;
@@ -103,6 +105,7 @@ struct V8_EXPORT_PRIVATE LoopInfo {
   int loop_end_;
   bool resumable_ = false;
   bool innermost_ = true;
+  bool trivial_ = true;
   BytecodeLoopAssignments assignments_;
   ZoneVector<ResumeJumpTarget> resume_jump_targets_;
 };

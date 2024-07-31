@@ -117,7 +117,7 @@ TEST_PAIR(TestWrongWeakTypeInIndexedStructField) {
   // it can't be Weak<JSObject>.
   TaggedField<Object>::store(*descriptors, offset, *o);
   TorqueGeneratedClassVerifiers::DescriptorArrayVerify(*descriptors, i_isolate);
-  MaybeObject weak = MaybeObject::MakeWeak(MaybeObject::FromObject(*o));
+  Tagged<MaybeObject> weak = MakeWeak(*o);
   TaggedField<MaybeObject>::store(*descriptors, offset, weak);
   if (should_fail) {
     TorqueGeneratedClassVerifiers::DescriptorArrayVerify(*descriptors,

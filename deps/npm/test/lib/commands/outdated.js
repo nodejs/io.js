@@ -153,6 +153,8 @@ const fixtures = {
       a: t.fixture('symlink', '../packages/a'),
       b: t.fixture('symlink', '../packages/b'),
       c: t.fixture('symlink', '../packages/c'),
+      d: t.fixture('symlink', '../packages/d'),
+      e: t.fixture('symlink', '../packages/e'),
       cat: {
         'package.json': JSON.stringify({
           name: 'cat',
@@ -222,6 +224,24 @@ const fixtures = {
       c: {
         'package.json': JSON.stringify({
           name: 'c',
+          version: '1.0.0',
+          dependencies: {
+            theta: '^1.0.0',
+          },
+        }),
+      },
+      d: {
+        'package.json': JSON.stringify({
+          name: 'd',
+          version: '1.0.0',
+          dependencies: {
+            theta: '^1.0.0',
+          },
+        }),
+      },
+      e: {
+        'package.json': JSON.stringify({
+          name: 'e',
           version: '1.0.0',
           dependencies: {
             theta: '^1.0.0',
@@ -609,5 +629,36 @@ t.test('aliases', async t => {
   await outdated.exec([])
 
   t.matchSnapshot(joinedOutput(), 'should display aliased outdated dep output')
+  t.equal(process.exitCode, 1)
+})
+
+t.test('aliases with version range', async t => {
+  const testDir = {
+    'package.json': JSON.stringify({
+      name: 'display-aliases',
+      version: '1.0.0',
+      dependencies: {
+        cat: 'npm:dog@^1.0.0',
+      },
+    }),
+    node_modules: {
+      cat: {
+        'package.json': JSON.stringify({
+          name: 'dog',
+          version: '1.0.0',
+        }),
+      },
+    },
+  }
+
+  const { outdated, joinedOutput } = await mockNpm(t, {
+    prefixDir: testDir,
+  })
+  await outdated.exec([])
+
+  t.matchSnapshot(
+    joinedOutput(),
+    'should display aliased outdated dep output with correct wanted values'
+  )
   t.equal(process.exitCode, 1)
 })

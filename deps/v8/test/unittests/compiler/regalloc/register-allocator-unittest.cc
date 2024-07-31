@@ -78,7 +78,7 @@ class RegisterAllocatorTest : public InstructionSequenceTest {
  public:
   void Allocate() {
     WireBlocks();
-    Pipeline::AllocateRegistersForTesting(config(), sequence(), false, true);
+    Pipeline::AllocateRegistersForTesting(config(), sequence(), true);
   }
 };
 

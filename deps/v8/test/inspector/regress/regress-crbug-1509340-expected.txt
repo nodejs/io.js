@@ -1,0 +1,29 @@
+Checks that accessing command line API functions are considered side-effecty (except $*)
+{
+    exceptionDetails : {
+        columnNumber : -1
+        exception : {
+            className : EvalError
+            description : EvalError: Possible side-effect in debug-evaluate
+            objectId : <objectId>
+            subtype : error
+            type : object
+        }
+        exceptionId : <exceptionId>
+        lineNumber : -1
+        scriptId : <scriptId>
+        text : Uncaught
+    }
+    result : {
+        className : EvalError
+        description : EvalError: Possible side-effect in debug-evaluate
+        objectId : <objectId>
+        subtype : error
+        type : object
+    }
+}
+{
+    result : {
+        type : undefined
+    }
+}

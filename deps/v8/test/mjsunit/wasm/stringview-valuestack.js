@@ -12,7 +12,7 @@ let kSig_iw_i = makeSig([kWasmI32], [kWasmI32, kWasmStringRef]);
 (function TestStringViewIterStack() {
   let builder = new WasmModuleBuilder();
 
-  let global = builder.addGlobal(kWasmStringViewIter, true);
+  let global = builder.addGlobal(kWasmStringViewIter, true, false);
 
   builder.addFunction("iterate", kSig_v_w)
     .exportFunc()

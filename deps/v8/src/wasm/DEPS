@@ -13,14 +13,41 @@ specific_include_rules = {
   "c-api\.h": [
     "+third_party/wasm-api/wasm.hh",
   ],
+  "wrappers\.cc": [
+    "+src/compiler/linkage.h",
+    "+src/compiler/turboshaft/index.h",
+    "+src/compiler/turboshaft/wasm-assembler-helpers.h",
+    "+src/compiler/turboshaft/define-assembler-macros.inc",
+    "+src/compiler/turboshaft/assembler.h",
+    "+src/compiler/turboshaft/dataview-lowering-reducer.h",
+    "+src/compiler/turboshaft/select-lowering-reducer.h",
+    "+src/compiler/turboshaft/variable-reducer.h",
+  ],
+  "turboshaft-graph-interface\.h": [
+    "+src/compiler/turboshaft/assembler.h",
+    "+src/compiler/turboshaft/dataview-lowering-reducer.h",
+    "+src/compiler/turboshaft/select-lowering-reducer.h",
+    "+src/compiler/turboshaft/variable-reducer.h",
+  ],
   "turboshaft-graph-interface\.cc": [
     "+src/compiler/turboshaft/assembler.h",
+    "+src/compiler/turboshaft/builtin-call-descriptors.h",
+    "+src/compiler/turboshaft/dataview-lowering-reducer.h",
     "+src/compiler/turboshaft/define-assembler-macros.inc",
     "+src/compiler/turboshaft/graph.h",
+    "+src/compiler/turboshaft/required-optimization-reducer.h",
+    "+src/compiler/turboshaft/select-lowering-reducer.h",
     "+src/compiler/turboshaft/undef-assembler-macros.inc",
+    "+src/compiler/turboshaft/variable-reducer.h",
+    "+src/compiler/turboshaft/wasm-assembler-helpers.h"
   ],
   "wasm-engine\.h": [
     # The WasmEngine may cache common call descriptors.
     "+src/compiler/wasm-call-descriptors.h",
-  ]
+  ],
+  "liftoff-compiler.cc": [
+    "-src/compiler",
+    "+src/compiler/wasm-compiler.h",
+    "+src/compiler/access-builder.h",
+  ],
 }

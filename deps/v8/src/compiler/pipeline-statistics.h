@@ -95,6 +95,7 @@ class TurbofanPipelineStatistics : public PipelineStatisticsBase,
   TurbofanPipelineStatistics(OptimizedCompilationInfo* info,
                              std::shared_ptr<CompilationStatistics> turbo_stats,
                              ZoneStats* zone_stats);
+  ~TurbofanPipelineStatistics();
   TurbofanPipelineStatistics(const TurbofanPipelineStatistics&) = delete;
   TurbofanPipelineStatistics& operator=(const TurbofanPipelineStatistics&) =
       delete;

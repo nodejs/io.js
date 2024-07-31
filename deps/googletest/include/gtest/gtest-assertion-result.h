@@ -129,7 +129,7 @@ namespace testing {
 //
 //   Expected: Foo() is even
 //     Actual: it's 5
-//
+
 class GTEST_API_ AssertionResult {
  public:
   // Copy constructor.

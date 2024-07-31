@@ -160,7 +160,7 @@ class ActualScript : public V8DebuggerScript {
                                         &allLocations)) {
       return false;
     }
-    if (!allLocations.size()) return true;
+    if (allLocations.empty()) return true;
     v8::debug::BreakLocation current = allLocations[0];
     for (size_t i = 1; i < allLocations.size(); ++i) {
       if (allLocations[i].GetLineNumber() == current.GetLineNumber() &&

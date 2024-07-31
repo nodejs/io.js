@@ -35,8 +35,8 @@ class DescriptorLookupCache {
  private:
   DescriptorLookupCache() {
     for (int i = 0; i < kLength; ++i) {
-      keys_[i].source = Map();
-      keys_[i].name = Name();
+      keys_[i].source = Tagged<Map>();
+      keys_[i].name = Tagged<Name>();
       results_[i] = kAbsent;
     }
   }
@@ -45,8 +45,8 @@ class DescriptorLookupCache {
 
   static const int kLength = 64;
   struct Key {
-    Map source;
-    Name name;
+    Tagged<Map> source;
+    Tagged<Name> name;
   };
 
   Key keys_[kLength];

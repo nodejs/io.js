@@ -1,4 +1,3 @@
-class Umask {}
 const parse = val => {
   // this is run via nopt and parse field where everything is
   // converted to a string first, ignoring coverage for now
@@ -33,4 +32,4 @@ const validate = (data, k, val) => {
   }
 }
 
-module.exports = { Umask, parse, validate }
+module.exports = { parse, validate }

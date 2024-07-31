@@ -706,7 +706,7 @@ DateIntervalFormat::create(const Locale& locale,
     } else if ( U_FAILURE(status) ) {
         // safe to delete f, although nothing actually is saved
         delete f;
-        f = 0;
+        f = nullptr;
     }
     return f;
 }
@@ -1477,7 +1477,7 @@ DateIntervalFormat::setIntervalPattern(UCalendarDateFields field,
                 // look for the best match skeleton, for example: "yMMM"
                 const UnicodeString* tmpBest = fInfo->getBestSkeleton(
                                         *extendedBestSkeleton, differenceInfo);
-                if ( tmpBest != 0 && differenceInfo != -1 ) {
+                if (tmpBest != nullptr && differenceInfo != -1) {
                     fInfo->getIntervalPattern(*tmpBest, field, pattern, status);
                     bestSkeleton = tmpBest;
                 }

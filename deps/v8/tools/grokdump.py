@@ -940,6 +940,16 @@ class MinidumpReader(object):
                             reader.FormatIntPtr(word)))
     self.ForEachMemoryRegion(search_inside_region)
 
+  def FindPtr(self, expected_value, start, end):
+    ptr_size = self.MachinePointerSize()
+    for slot in range(start, end, ptr_size):
+      if not self.IsValidAddress(slot):
+        return None
+      value = self.ReadUIntPtr(slot)
+      if value == expected_value:
+        return slot
+    return None
+
   def FindWordList(self, word):
     aligned_res = []
     unaligned_res = []
@@ -2041,6 +2051,9 @@ class InspectionPadawan(object):
        it does not inherit from V8Heap (aka. mixin)."""
     return getattr(self.heap, name)
 
+  def GetPageAddress(self, tagged_address):
+    return tagged_address & ~self.heap.PageAlignmentMask()
+
   def GetPageOffset(self, tagged_address):
     return tagged_address & self.heap.PageAlignmentMask()
 
@@ -2079,7 +2092,7 @@ class InspectionPadawan(object):
     value = self.heap.SmiUntag(address)
     # On 32-bit systems almost everything looks like a Smi.
     if not self.reader.Is64() or value == 0: return None
-    return "Smi(%d)" % value
+    return "Tagged<Smi>(%d)" % value
 
   def SenseObject(self, address, slot=None):
     if self.IsFrameMarker(slot, address):
@@ -2088,6 +2101,17 @@ class InspectionPadawan(object):
       return self.FormatSmi(address)
     if not self.heap.IsTaggedAddress(address): return None
     tagged_address = address
+    if self.heap.IsPointerCompressed():
+      # Interpret the first page as the read-only space in pointer-comrpession.
+      page = self.GetPageAddress(tagged_address)
+      tagged_page = page & 0xFFFFFFFF
+      if tagged_page == 0:
+        offset = self.GetPageOffset(tagged_address)
+        lookup_key = ("read_only_space", offset)
+        known_obj_name = KNOWN_OBJECTS.get(lookup_key)
+        if known_obj_name:
+          return KnownObject(self, known_obj_name)
+
     if self.IsInKnownOldSpace(tagged_address):
       offset = self.GetPageOffset(tagged_address)
       lookup_key = (self.ContainingKnownOldSpaceName(tagged_address), offset)
@@ -2190,7 +2214,8 @@ class InspectionPadawan(object):
     header_size = 10
     # Look for the end marker after the fields and the message buffer.
     end_search = start + (32 * 1024) + (header_size * ptr_size);
-    end_slot = self.FindPtr(end_marker, end_search, end_search + ptr_size * 512)
+    end_slot = self.reader.FindPtr(end_marker, end_search,
+                                   end_search + ptr_size * 512)
     if not end_slot: return start
     print("Stack Message (start=%s):" % self.heap.FormatIntPtr(slot))
     slot += ptr_size
@@ -2206,20 +2231,13 @@ class InspectionPadawan(object):
     self.FormatStackTrace(message, print_message)
     return stack_start
 
-  def FindPtr(self, expected_value, start, end):
-    ptr_size = self.reader.MachinePointerSize()
-    for slot in range(start, end, ptr_size):
-      if not self.reader.IsValidAddress(slot): return None
-      value = self.reader.ReadUIntPtr(slot)
-      if value == expected_value: return slot
-    return None
-
   def TryExtractErrorMessage(self, slot, start, end, print_message):
     ptr_size = self.reader.MachinePointerSize()
     end_marker = ERROR_MESSAGE_MARKER + 1;
     header_size = 1
     end_search = start + 1024 + (header_size * ptr_size);
-    end_slot = self.FindPtr(end_marker, end_search, end_search + ptr_size * 512)
+    end_slot = self.reader.FindPtr(end_marker, end_search,
+                                   end_search + ptr_size * 512)
     if not end_slot: return start
     print("Error Message (start=%s):" % self.heap.FormatIntPtr(slot))
     slot += ptr_size
@@ -2806,7 +2824,7 @@ class InspectionWebFormatter(object):
       straddress = "0x" + self.reader.FormatTagged(maybeaddress)
       struncompressed = "0x" + self.reader.FormatIntPtr(uncompressed)
       style_class = ""
-      if not self.reader.IsValidAddress(maybeaddress):
+      if not self.reader.IsValidAddress(uncompressed):
         style_class = "class=nd"
       return ("<a %s href=s?%s&amp;val=%s>%s</a>" %
               (style_class, self.encfilename, struncompressed, straddress))
@@ -2828,18 +2846,88 @@ class InspectionWebFormatter(object):
     self.output_context(f, InspectionWebFormatter.CONTEXT_SHORT)
     self.output_disasm_pc(f)
 
-    # Output stack
+    # Output stack, trying to also output the stack trace if dumped.
+    stack_top = self.try_output_stack_trace(f)
+
     exception_thread = self.reader.thread_map[self.reader.exception.thread_id]
-    stack_top = self.reader.ExceptionSP()
     stack_bottom = min(exception_thread.stack.start + \
         exception_thread.stack.memory.data_size,
         stack_top + self.MAX_CONTEXT_STACK)
+
     self.output_words(f, stack_top - 16, stack_bottom, stack_top, "Stack",
                       self.heap.MachinePointerSize())
 
     f.write('</div>')
     self.output_footer(f)
     return
+
+  def try_output_stack_trace(self, f, start=None, print_message=True):
+    """
+    Try to print a possible message from PushStackTraceAndDie.
+    Returns the first address where the normal stack starts again.
+    """
+    # Only look at the first 1k words on the stack
+    ptr_size = self.reader.MachinePointerSize()
+    if start is None:
+      start = self.reader.ExceptionSP()
+    if not self.reader.IsValidAddress(start):
+      return start
+    end = start + ptr_size * 1024 * 4
+    for slot in range(start, end, ptr_size):
+      if not self.reader.IsValidAddress(slot + ptr_size):
+        break
+      magic = self.reader.ReadUIntPtr(slot)
+      if magic == STACK_TRACE_MARKER:
+        return self.output_stack_trace(f, slot, start, end, print_message)
+    return start
+
+  def output_stack_trace(self, f, slot, start, end, print_message):
+    ptr_size = self.reader.MachinePointerSize()
+    assert self.reader.ReadUIntPtr(slot) & 0xFFFFFFFF == STACK_TRACE_MARKER
+    end_marker = STACK_TRACE_MARKER + 1
+    header_size = 10
+    # Look for the end marker after the fields and the message buffer.
+    end_search = start + (32 * 1024) + (header_size * ptr_size)
+    end_slot = self.reader.FindPtr(end_marker, end_search,
+                                   end_search + ptr_size * 512)
+    if not end_slot:
+      return start
+    f.write("<h3>PushStackTraceAndDie Stack Message (start=%s):</h3>" %
+            self.format_address(slot))
+    slot += ptr_size
+    for name in ("isolate", "ptr1", "ptr2", "ptr3", "ptr4", "codeObject1",
+                 "codeObject2", "codeObject3", "codeObject4"):
+      value = self.reader.ReadUIntPtr(slot)
+      f.write("<b>%s</b>: %s %s<br>" %
+              (name.rjust(14), self.format_address(value),
+               "" if name == "isolate" else self.format_object(value)))
+      slot += ptr_size
+    f.write("<b>message start</b>: %s<br>" % self.format_address(slot))
+    stack_start = end_slot + ptr_size
+    f.write("<b>stack_start</b>:   %s<br>" % self.format_address(stack_start))
+    (message_start, message) = self.padawan.FindFirstAsciiString(slot)
+    if print_message:
+      f.write("<a href='#eom'>Scroll to end of message...</a><br>")
+      self.output_stack_trace_message(f, message)
+      f.write("<span id=eom></span>")
+    return stack_start
+
+  def output_stack_trace_message(self, f, message):
+    ptr_size = self.reader.MachinePointerSize()
+    # Annotate all addresses in the dumped message
+    prog = re.compile("0x[0-9a-fA-F]+")
+
+    message = html.escape(message)
+    message = message.replace("\n", "<br>")
+
+    addresses = list(set(prog.findall(message)))
+    for i in range(len(addresses)):
+      address_org = addresses[i]
+      address = int(address_org, 16)
+      formatted_address = self.format_address(address, address_org)
+      message = message.replace(address_org, formatted_address)
+
+    f.write(message)
 
   def output_info(self, f):
     self.output_header(f)
@@ -2987,10 +3075,15 @@ class InspectionWebFormatter(object):
 
     expand = ""
     if start_address != low or end_address != high:
-      expand = ("(<a href=\"data.html?%s&amp;val=0x%x#highlight\">"
+      additional_query = ""
+      if self.heap.IsPointerCompressed(
+      ) and size == self.reader.TaggedPointerSize():
+        additional_query = "&amp;type=tagged"
+
+      expand = ("(<a href=\"data.html?%s&amp;val=0x%x%s#highlight\">"
                 " more..."
                 " </a>)" %
-                (self.encfilename, highlight_address))
+                (self.encfilename, highlight_address, additional_query))
 
     f.write("<h3>%s 0x%x - 0x%x, "
             "highlighting <a href=\"#highlight\">0x%x</a> %s</h3>" %
@@ -3018,14 +3111,14 @@ class InspectionWebFormatter(object):
         if size == self.reader.MachinePointerSize():
           maybe_uncompressed_address = maybe_address
         else:
-          maybe_uncompressed_address = (slot & (0xFFFFFF << 32)) | (
-              maybe_address & 0xFFFFFF)
+          maybe_uncompressed_address = (slot & (0xFFFFFFFF << 32)) | (
+              maybe_address & 0xFFFFFFFF)
 
         if size == self.reader.TaggedPointerSize():
           straddress = self.format_onheap_address(size, maybe_address,
                                                   maybe_uncompressed_address)
           if maybe_address:
-            heap_object = self.format_object(maybe_address)
+            heap_object = self.format_object(maybe_uncompressed_address)
         else:
           straddress = self.format_address(maybe_address)
 

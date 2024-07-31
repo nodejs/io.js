@@ -49,21 +49,21 @@ static void incoming_close_cb(uv_handle_t* handle) {
     r = uv_try_write((uv_stream_t*) &client, &buf, 1);
   fprintf(stderr, "uv_try_write error: %d %s\n", r, uv_strerror(r));
   ASSERT(r == UV_EPIPE || r == UV_ECONNABORTED || r == UV_ECONNRESET);
-  ASSERT(client.write_queue_size == 0);
+  ASSERT_OK(client.write_queue_size);
 }
 
 
 static void connect_cb(uv_connect_t* req, int status) {
-  ASSERT(status == 0);
+  ASSERT_OK(status);
   connect_cb_called++;
 }
 
 
 static void connection_cb(uv_stream_t* tcp, int status) {
-  ASSERT(status == 0);
+  ASSERT_OK(status);
 
-  ASSERT(0 == uv_tcp_init(tcp->loop, &incoming));
-  ASSERT(0 == uv_accept(tcp, (uv_stream_t*) &incoming));
+  ASSERT_OK(uv_tcp_init(tcp->loop, &incoming));
+  ASSERT_OK(uv_accept(tcp, (uv_stream_t*) &incoming));
 
   connection_cb_called++;
   uv_close((uv_handle_t*) &incoming, incoming_close_cb);
@@ -74,11 +74,11 @@ static void connection_cb(uv_stream_t* tcp, int status) {
 static void start_server(void) {
   struct sockaddr_in addr;
 
-  ASSERT(0 == uv_ip4_addr("0.0.0.0", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("0.0.0.0", TEST_PORT, &addr));
 
-  ASSERT(0 == uv_tcp_init(uv_default_loop(), &server));
-  ASSERT(0 == uv_tcp_bind(&server, (struct sockaddr*) &addr, 0));
-  ASSERT(0 == uv_listen((uv_stream_t*) &server, 128, connection_cb));
+  ASSERT_OK(uv_tcp_init(uv_default_loop(), &server));
+  ASSERT_OK(uv_tcp_bind(&server, (struct sockaddr*) &addr, 0));
+  ASSERT_OK(uv_listen((uv_stream_t*) &server, 128, connection_cb));
 }
 
 
@@ -88,21 +88,21 @@ TEST_IMPL(tcp_try_write_error) {
 
   start_server();
 
-  ASSERT(0 == uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
 
-  ASSERT(0 == uv_tcp_init(uv_default_loop(), &client));
-  ASSERT(0 == uv_tcp_connect(&connect_req,
-                             &client,
-                             (struct sockaddr*) &addr,
-                             connect_cb));
+  ASSERT_OK(uv_tcp_init(uv_default_loop(), &client));
+  ASSERT_OK(uv_tcp_connect(&connect_req,
+                           &client,
+                           (struct sockaddr*) &addr,
+                           connect_cb));
 
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
   uv_close((uv_handle_t*) &client, close_cb);
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
 
-  ASSERT(connect_cb_called == 1);
-  ASSERT(close_cb_called == 3);
-  ASSERT(connection_cb_called == 1);
+  ASSERT_EQ(1, connect_cb_called);
+  ASSERT_EQ(3, close_cb_called);
+  ASSERT_EQ(1, connection_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

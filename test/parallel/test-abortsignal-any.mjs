@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { once } from 'node:events';
 import assert from 'node:assert';
 
-describe('AbortSignal.any()', { concurrency: true }, () => {
+describe('AbortSignal.any()', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should throw when not receiving an array', () => {
     const expectedError = { code: 'ERR_INVALID_ARG_TYPE' };
     assert.throws(() => AbortSignal.any(), expectedError);

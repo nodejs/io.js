@@ -145,6 +145,9 @@ the key.  If I<key> is NULL, the key must be set via I<params> either
 as part of this call or separately using EVP_MAC_CTX_set_params().
 Providing non-NULL I<params> to this function is equivalent to calling
 EVP_MAC_CTX_set_params() with those I<params> for the same I<ctx> beforehand.
+Note: There are additional requirements for some MAC algorithms during
+re-initalization (i.e. calling EVP_MAC_init() on an EVP_MAC after EVP_MAC_final()
+has been called on the same object).  See the NOTES section below.
 
 EVP_MAC_init() should be called before EVP_MAC_update() and EVP_MAC_final().
 
@@ -342,6 +345,13 @@ not be considered a breaking change to the API.
 The usage of the parameter names "custom", "iv" and "salt" correspond to
 the names used in the standard where the algorithm was defined.
 
+Some MAC algorithms store internal state that cannot be extracted during
+re-initalization.  For example GMAC cannot extract an B<IV> from the
+underlying CIPHER context, and so calling EVP_MAC_init() on an EVP_MAC object
+after EVP_MAC_final() has been called cannot reset its cipher state to what it
+was when the B<IV> was initially generated.  For such instances, an
+B<OSSL_MAC_PARAM_IV> parameter must be passed with each call to EVP_MAC_init().
+
 =head1 RETURN VALUES
 
 EVP_MAC_fetch() returns a pointer to a newly fetched B<EVP_MAC>, or
@@ -481,7 +491,7 @@ These functions were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2018-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2018-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

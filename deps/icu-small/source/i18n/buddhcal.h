@@ -139,10 +139,11 @@ private:
      * use the UCAL_EXTENDED_YEAR field or the UCAL_YEAR and supra-year fields (such
      * as UCAL_ERA) specific to the calendar system, depending on which set of
      * fields is newer.
+     * @param status
      * @return the extended year
      * @internal
      */
-    virtual int32_t handleGetExtendedYear() override;
+    virtual int32_t handleGetExtendedYear(UErrorCode& status) override;
     /**
      * Subclasses may override this method to compute several fields
      * specific to each calendar system.  
@@ -158,24 +159,9 @@ private:
      */
     virtual int32_t handleGetLimit(UCalendarDateFields field, ELimitType limitType) const override;
 
-    /**
-     * Returns true because the Buddhist Calendar does have a default century
-     * @internal
-     */
-    virtual UBool haveDefaultCentury() const override;
+    virtual bool isEra0CountingBackward() const override { return false; }
 
-    /**
-     * Returns the date of the start of the default century
-     * @return start of century - in milliseconds since epoch, 1970
-     * @internal
-     */
-    virtual UDate defaultCenturyStart() const override;
-
-    /**
-     * Returns the year in which the default century begins
-     * @internal
-     */
-    virtual int32_t defaultCenturyStartYear() const override;
+    DECLARE_OVERRIDE_SYSTEM_DEFAULT_CENTURY
 };
 
 U_NAMESPACE_END

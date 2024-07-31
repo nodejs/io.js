@@ -157,6 +157,9 @@ extern class Uint32TypedArrayConstructor extends TypedArrayConstructor
 extern class Int32TypedArrayConstructor extends TypedArrayConstructor
     generates 'TNode<JSFunction>';
 @doNotGenerateCast
+extern class Float16TypedArrayConstructor extends TypedArrayConstructor
+    generates 'TNode<JSFunction>';
+@doNotGenerateCast
 extern class Float32TypedArrayConstructor extends TypedArrayConstructor
     generates 'TNode<JSFunction>';
 @doNotGenerateCast

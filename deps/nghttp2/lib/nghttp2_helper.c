@@ -160,7 +160,7 @@ int nghttp2_adjust_local_window_size(int32_t *local_window_size_ptr,
     int32_t recv_reduction_delta;
     int32_t delta;
     int32_t new_recv_window_size =
-        nghttp2_max(0, *recv_window_size_ptr) - *delta_ptr;
+        nghttp2_max_int32(0, *recv_window_size_ptr) - *delta_ptr;
 
     if (new_recv_window_size >= 0) {
       *recv_window_size_ptr = new_recv_window_size;
@@ -177,7 +177,7 @@ int nghttp2_adjust_local_window_size(int32_t *local_window_size_ptr,
     *local_window_size_ptr += delta;
     /* If there is recv_reduction due to earlier window_size
        reduction, we have to adjust it too. */
-    recv_reduction_delta = nghttp2_min(*recv_reduction_ptr, delta);
+    recv_reduction_delta = nghttp2_min_int32(*recv_reduction_ptr, delta);
     *recv_reduction_ptr -= recv_reduction_delta;
     if (*recv_window_size_ptr < 0) {
       *recv_window_size_ptr += recv_reduction_delta;
@@ -233,7 +233,7 @@ int nghttp2_increase_local_window_size(int32_t *local_window_size_ptr,
   *local_window_size_ptr += delta;
   /* If there is recv_reduction due to earlier window_size
      reduction, we have to adjust it too. */
-  recv_reduction_delta = nghttp2_min(*recv_reduction_ptr, delta);
+  recv_reduction_delta = nghttp2_min_int32(*recv_reduction_ptr, delta);
   *recv_reduction_ptr -= recv_reduction_delta;
 
   *recv_window_size_ptr += recv_reduction_delta;
@@ -336,6 +336,8 @@ const char *nghttp2_strerror(int error_code) {
            "closed";
   case NGHTTP2_ERR_TOO_MANY_SETTINGS:
     return "SETTINGS frame contained more than the maximum allowed entries";
+  case NGHTTP2_ERR_TOO_MANY_CONTINUATIONS:
+    return "Too many CONTINUATION frames following a HEADER frame";
   default:
     return "Unknown error code";
   }

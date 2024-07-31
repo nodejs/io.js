@@ -3,7 +3,7 @@
 
   0x01,                    // section kind: Type
   0x06,                    // section length 6
-  0x01, 0x4f,              // types count 1: rec. group definition
+  0x01, 0x4e,              // types count 1: rec. group definition
   0x01, 0x60,              // recursive group size 1:  kind: func
   0x00,                    // param count 0
   0x00,                    // return count 0

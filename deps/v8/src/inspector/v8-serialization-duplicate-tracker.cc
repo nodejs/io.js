@@ -4,8 +4,9 @@
 
 #include "src/inspector/v8-serialization-duplicate-tracker.h"
 
+#include "include/v8-context.h"
+#include "include/v8-external.h"
 #include "src/base/logging.h"
-#include "v8-external.h"
 
 namespace v8_inspector {
 

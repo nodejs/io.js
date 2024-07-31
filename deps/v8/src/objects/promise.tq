@@ -25,17 +25,19 @@ const kPromiseReactionFulfillHandlerOffset: constexpr int31
     generates 'PromiseReaction::kFulfillHandlerOffset';
 const kPromiseReactionPromiseOrCapabilityOffset: constexpr int31
     generates 'PromiseReaction::kPromiseOrCapabilityOffset';
+// @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
 const kPromiseReactionContinuationPreservedEmbedderDataOffset: constexpr int31
     generates 'PromiseReaction::kContinuationPreservedEmbedderDataOffset';
 
 extern class PromiseReaction extends Struct {
+  @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
+  continuation_preserved_embedder_data: Object|Undefined;
   next: PromiseReaction|Zero;
   reject_handler: Callable|Undefined;
   fulfill_handler: Callable|Undefined;
   // Either a JSPromise (in case of native promises), a PromiseCapability
   // (general case), or undefined (in case of await).
   promise_or_capability: JSPromise|PromiseCapability|Undefined;
-  continuation_preserved_embedder_data: Object|Undefined;
 }
 
 // PromiseReactionJobTask constants
@@ -45,6 +47,7 @@ const kPromiseReactionJobTaskHandlerOffset: constexpr int31
     generates 'PromiseReactionJobTask::kHandlerOffset';
 const kPromiseReactionJobTaskPromiseOrCapabilityOffset: constexpr int31
     generates 'PromiseReactionJobTask::kPromiseOrCapabilityOffset';
+// @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
 const kPromiseReactionJobTaskContinuationPreservedEmbedderDataOffset:
     constexpr int31
     generates 'PromiseReactionJobTask::kContinuationPreservedEmbedderDataOffset'
@@ -58,7 +61,6 @@ extern class PromiseReactionJobTask extends Microtask {
   // Either a JSPromise (in case of native promises), a PromiseCapability
   // (general case), or undefined (in case of await).
   promise_or_capability: JSPromise|PromiseCapability|Undefined;
-  continuation_preserved_embedder_data: Object|Undefined;
 }
 
 extern class PromiseFulfillReactionJobTask extends PromiseReactionJobTask {}

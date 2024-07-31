@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-change-array-by-copy
 
 assertEquals(2, Array.prototype.toSpliced.length);
 assertEquals("toSpliced", Array.prototype.toSpliced.name);

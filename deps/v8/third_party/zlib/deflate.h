@@ -23,6 +23,10 @@
 #  define GZIP
 #endif
 
+/* define LIT_MEM to slightly increase the speed of deflate (order 1% to 2%) at
+   the cost of a larger memory footprint */
+#define LIT_MEM
+
 /* ===========================================================================
  * Internal compression state.
  */
@@ -217,7 +221,12 @@ typedef struct internal_state {
     /* Depth of each subtree used as tie breaker for trees of equal frequency
      */
 
+#ifdef LIT_MEM
+    ushf *d_buf;          /* buffer for distances */
+    uchf *l_buf;          /* buffer for literals/lengths */
+#else
     uchf *sym_buf;        /* buffer for distances and literals/lengths */
+#endif
 
     uInt  lit_bufsize;
     /* Size of match buffer for literals/lengths.  There are 4 reasons for
@@ -239,7 +248,7 @@ typedef struct internal_state {
      *   - I can't count above 4
      */
 
-    uInt sym_next;      /* running index in sym_buf */
+    uInt sym_next;      /* running index in symbol buffer */
     uInt sym_end;       /* symbol table full when sym_next reaches this */
 
     ulg opt_len;        /* bit length of current block with optimal trees */
@@ -323,6 +332,25 @@ void ZLIB_INTERNAL _tr_stored_block(deflate_state *s, charf *buf,
   extern const uch ZLIB_INTERNAL _dist_code[];
 #endif
 
+#ifdef LIT_MEM
+# define _tr_tally_lit(s, c, flush) \
+  { uch cc = (c); \
+    s->d_buf[s->sym_next] = 0; \
+    s->l_buf[s->sym_next++] = cc; \
+    s->dyn_ltree[cc].Freq++; \
+    flush = (s->sym_next == s->sym_end); \
+   }
+# define _tr_tally_dist(s, distance, length, flush) \
+  { uch len = (uch)(length); \
+    ush dist = (ush)(distance); \
+    s->d_buf[s->sym_next] = dist; \
+    s->l_buf[s->sym_next++] = len; \
+    dist--; \
+    s->dyn_ltree[_length_code[len]+LITERALS+1].Freq++; \
+    s->dyn_dtree[d_code(dist)].Freq++; \
+    flush = (s->sym_next == s->sym_end); \
+  }
+#else
 # define _tr_tally_lit(s, c, flush) \
   { uch cc = (c); \
     s->sym_buf[s->sym_next++] = 0; \
@@ -342,6 +370,7 @@ void ZLIB_INTERNAL _tr_stored_block(deflate_state *s, charf *buf,
     s->dyn_dtree[d_code(dist)].Freq++; \
     flush = (s->sym_next == s->sym_end); \
   }
+#endif
 #else
 # define _tr_tally_lit(s, c, flush) flush = _tr_tally(s, 0, c)
 # define _tr_tally_dist(s, distance, length, flush) \

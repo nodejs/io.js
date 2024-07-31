@@ -5,6 +5,8 @@
 #ifndef V8_SANDBOX_EXTERNAL_POINTER_TABLE_H_
 #define V8_SANDBOX_EXTERNAL_POINTER_TABLE_H_
 
+#include <vector>
+
 #include "include/v8config.h"
 #include "src/base/atomicops.h"
 #include "src/base/memory.h"
@@ -72,6 +74,9 @@ struct ExternalPointerTableEntry {
   // Make this entry an evacuation entry containing the address of the handle to
   // the entry being evacuated.
   inline void MakeEvacuationEntry(Address handle_location);
+
+  // Returns true if this entry contains an evacuation entry.
+  inline bool HasEvacuationEntry() const;
 
   // Move the content of this entry into the provided entry while also clearing
   // the marking bit. Used during table compaction. This invalidates the entry.
@@ -256,9 +261,8 @@ static_assert(sizeof(ExternalPointerTableEntry) == 8);
  *    becomes the evacuation area. In this way, it becomes very cheap to test
  *    if an entry or segment should be evacuated: only a single integer
  *    comparison against the threshold is required. It also establishes a
- *    simple compaction invariant that can be verified with a few DCHECKs:
- *    compaction always moves an entry at or above the threshold to a new
- *    position before the threshold.
+ *    simple compaction invariant: compaction always moves an entry at or above
+ *    the threshold to a new position before the threshold.
  *  - During marking, whenever a live entry inside the evacuation area is
  *    found, a new "evacuation entry" is allocated from the freelist (which is
  *    assumed to have enough free slots) and the address of the handle in the
@@ -316,6 +320,17 @@ class V8_EXPORT_PRIVATE ExternalPointerTable
     // This is expected to be called at the start of the GC marking phase.
     void StartCompactingIfNeeded();
 
+    // During table compaction, we may record the addresses of fields
+    // containing external pointer handles (if they are evacuation candidates).
+    // As such, if such a field is invalidated (for example because the host
+    // object is converted to another object type), we need to be notified of
+    // that. Note that we do not need to care about "re-validated" fields here:
+    // if an external pointer field is first converted to different kind of
+    // field, then again converted to a external pointer field, then it will be
+    // re-initialized, at which point it will obtain a new entry in the
+    // external pointer table which cannot be a candidate for evacuation.
+    inline void NotifyExternalPointerFieldInvalidated(Address field_address);
+
    private:
     friend class ExternalPointerTable;
 
@@ -325,6 +340,9 @@ class V8_EXPORT_PRIVATE ExternalPointerTable
     inline void StopCompacting();
     inline void AbortCompacting(uint32_t start_of_evacuation_area);
     inline bool CompactingWasAborted();
+
+    inline bool FieldWasInvalidated(Address field_address) const;
+    inline void ClearInvalidatedFields();
 
     // This value indicates that this space is not currently being compacted. It
     // is set to uint32_t max so that determining whether an entry should be
@@ -353,6 +371,16 @@ class V8_EXPORT_PRIVATE ExternalPointerTable
     //   compaction has been aborted during marking. The original start of the
     //   evacuation area is still contained in the lower bits.
     std::atomic<uint32_t> start_of_evacuation_area_;
+
+    // List of external pointer fields that have been invalidated. See
+    // NotifyExternalPointerFieldInvalidated. Only used when table compaction
+    // is running.
+    // We expect very few (usually none at all) fields to be invalidated during
+    // a GC, so a std::vector is probably better than a std::set or similar.
+    std::vector<Address> invalidated_fields_;
+
+    // Mutex guarding access to the invalidated_fields_ set.
+    base::Mutex invalidated_fields_mutex_;
   };
 
   // Initializes all slots in the RO space from pre-existing artifacts.
@@ -406,31 +434,16 @@ class V8_EXPORT_PRIVATE ExternalPointerTable
   uint32_t SweepAndCompact(Space* space, Counters* counters);
 
  private:
-  inline bool IsValidHandle(ExternalPointerHandle handle) const;
-  inline uint32_t HandleToIndex(ExternalPointerHandle handle) const;
-  inline ExternalPointerHandle IndexToHandle(uint32_t index) const;
+  static inline bool IsValidHandle(ExternalPointerHandle handle);
+  static inline uint32_t HandleToIndex(ExternalPointerHandle handle);
+  static inline ExternalPointerHandle IndexToHandle(uint32_t index);
 
   inline void MaybeCreateEvacuationEntry(Space* space, uint32_t index,
                                          Address handle_location);
 
-  void ResolveEvacuationEntryDuringSweeping(
+  bool TryResolveEvacuationEntryDuringSweeping(
       uint32_t index, ExternalPointerHandle* handle_location,
       uint32_t start_of_evacuation_area);
-
-#ifdef DEBUG
-  // In debug builds during GC marking, this value is ORed into
-  // ExternalPointerHandles whose entries are marked for evacuation. During
-  // sweeping, the Handles for evacuated entries are checked to have this
-  // marker value. This allows detecting re-initialized entries, which are
-  // problematic for compaction. This is only possible for entries marked for
-  // evacuation as the location of the Handle is only known for those.
-  static constexpr uint32_t kVisitedHandleMarker = 0x1;
-  static_assert(kExternalPointerIndexShift >= 1);
-
-  inline bool HandleWasVisitedDuringMarking(ExternalPointerHandle handle) {
-    return (handle & kVisitedHandleMarker) == kVisitedHandleMarker;
-  }
-#endif  // DEBUG
 
   // Outcome of external pointer table compaction to use for the
   // ExternalPointerTableCompactionOutcome histogram.

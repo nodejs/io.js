@@ -70,15 +70,15 @@ const multipleForbidden = [
 ];
 
 const server = http.createServer(function(req, res) {
-  multipleForbidden.forEach(function(header) {
+  for (const header of multipleForbidden) {
     assert.strictEqual(req.headers[header.toLowerCase()], 'foo',
                        `header parsed incorrectly: ${header}`);
-  });
-  multipleAllowed.forEach(function(header) {
+  }
+  for (const header of multipleAllowed) {
     const sep = (header.toLowerCase() === 'cookie' ? '; ' : ', ');
     assert.strictEqual(req.headers[header.toLowerCase()], `foo${sep}bar`,
                        `header parsed incorrectly: ${header}`);
-  });
+  }
 
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('EOF');

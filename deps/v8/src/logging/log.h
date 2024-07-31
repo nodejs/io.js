@@ -168,10 +168,6 @@ class V8FileLogger : public LogEventListener {
   void ScriptEvent(ScriptEventType type, int script_id);
   void ScriptDetails(Tagged<Script> script);
 
-  // ==== Events logged by --log-code. ====
-  V8_EXPORT_PRIVATE void AddLogEventListener(LogEventListener* listener);
-  V8_EXPORT_PRIVATE void RemoveLogEventListener(LogEventListener* listener);
-
   // LogEventListener implementation.
   void CodeCreateEvent(CodeTag tag, Handle<AbstractCode> code,
                        const char* name) override;
@@ -216,9 +212,9 @@ class V8FileLogger : public LogEventListener {
                          const char* kind, const char* reason);
 
   // Emits a code line info record event.
-  void CodeLinePosInfoRecordEvent(Address code_start,
-                                  Tagged<ByteArray> source_position_table,
-                                  JitCodeEvent::CodeType code_type);
+  void CodeLinePosInfoRecordEvent(
+      Address code_start, Tagged<TrustedByteArray> source_position_table,
+      JitCodeEvent::CodeType code_type);
 #if V8_ENABLE_WEBASSEMBLY
   void WasmCodeLinePosInfoRecordEvent(
       Address code_start, base::Vector<const uint8_t> source_position_table);
@@ -304,6 +300,8 @@ class V8FileLogger : public LogEventListener {
 #endif  // V8_OS_WIN && V8_ENABLE_ETW_STACK_WALKING
 
  private:
+  Logger* logger() const;
+
   void UpdateIsLogging(bool value);
 
   // Emits the profiler's first message.
@@ -358,7 +356,7 @@ class V8FileLogger : public LogEventListener {
   friend class Profiler;
 
   std::atomic<bool> is_logging_;
-  std::unique_ptr<LogFile> log_;
+  std::unique_ptr<LogFile> log_file_;
 #if V8_OS_LINUX
   std::unique_ptr<LinuxPerfBasicLogger> perf_basic_logger_;
   std::unique_ptr<LinuxPerfJitLogger> perf_jit_logger_;

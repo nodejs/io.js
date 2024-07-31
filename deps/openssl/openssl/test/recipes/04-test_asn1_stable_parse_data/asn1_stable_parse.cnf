@@ -1,0 +1,16 @@
+openssl_conf = openssl_init
+config_diagnostics = 1
+
+[openssl_init]
+s = mstbl
+
+[mstbl]
+id-tc26 = min
+id-tc27 = ::::::
+id-tc28 = ,,,,,,
+id-tc29 = :,:,:,
+id-tc30 = n1:min
+id-tc31 = n2:max
+id-tc32 = n3:
+id-tc33 = :0
+

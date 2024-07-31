@@ -546,7 +546,6 @@
 
   # Uses Mozilla-specific QName, XML, XMLList and Iterator.
   'js1_5/Regress/regress-407323': [FAIL_OK],
-  'js1_5/Regress/regress-407957': [FAIL_OK],
 
 
   # Relies on JavaScript 1.2 / 1.3 deprecated features.

@@ -5,7 +5,7 @@
 #ifndef V8_EXECUTION_VM_STATE_INL_H_
 #define V8_EXECUTION_VM_STATE_INL_H_
 
-#include "src/execution/isolate.h"
+#include "src/execution/isolate-inl.h"
 #include "src/execution/simulator.h"
 #include "src/execution/vm-state.h"
 #include "src/logging/log.h"
@@ -64,10 +64,21 @@ ExternalCallbackScope::ExternalCallbackScope(Isolate* isolate, Address callback)
   TRACE_EVENT_BEGIN0(TRACE_DISABLED_BY_DEFAULT("v8.runtime"),
                      "V8.ExternalCallback");
 #endif
+  // The external callback might be called via different code paths and on some
+  // of them it's not guaranteed that the topmost_script_having_context value
+  // is still valid (in particular, when the callback call is initiated by
+  // embedder via V8 Api). So, clear it to ensure correctness of
+  // Isolate::GetIncumbentContext().
+  vm_state_.isolate_->clear_topmost_script_having_context();
 }
 
 ExternalCallbackScope::~ExternalCallbackScope() {
   vm_state_.isolate_->set_external_callback_scope(previous_scope_);
+  // JS code might have been executed by the callback and it could have changed
+  // {topmost_script_having_context}, clear it to ensure correctness of
+  // Isolate::GetIncumbentContext() in case it'll be called after returning
+  // from the callback.
+  vm_state_.isolate_->clear_topmost_script_having_context();
 #ifdef V8_RUNTIME_CALL_STATS
   TRACE_EVENT_END0(TRACE_DISABLED_BY_DEFAULT("v8.runtime"),
                    "V8.ExternalCallback");

@@ -1,11 +1,11 @@
 const libnpmaccess = require('libnpmaccess')
 const npa = require('npm-package-arg')
+const { output } = require('proc-log')
 const pkgJson = require('@npmcli/package-json')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
-
-const otplease = require('../utils/otplease.js')
+const { otplease } = require('../utils/auth.js')
 const getIdentity = require('../utils/get-identity.js')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 
 const commands = [
   'get',
@@ -36,7 +36,7 @@ class Access extends BaseCommand {
   ]
 
   static usage = [
-    'list packages [<user>|<scope>|<scope:team> [<package>]',
+    'list packages [<user>|<scope>|<scope:team>] [<package>]',
     'list collaborators [<package> [<user>]]',
     'get status [<package>]',
     'set status=public|private [<package>]',
@@ -197,7 +197,7 @@ class Access extends BaseCommand {
   }
 
   #output (items, limiter) {
-    const output = {}
+    const outputs = {}
     const lookup = {
       __proto__: null,
       read: 'read-only',
@@ -205,14 +205,14 @@ class Access extends BaseCommand {
     }
     for (const item in items) {
       const val = items[item]
-      output[item] = lookup[val] || val
+      outputs[item] = lookup[val] || val
     }
     if (this.npm.config.get('json')) {
-      this.npm.output(JSON.stringify(output, null, 2))
+      output.buffer(outputs)
     } else {
-      for (const item of Object.keys(output).sort(localeCompare)) {
+      for (const item of Object.keys(outputs).sort(localeCompare)) {
         if (!limiter || limiter === item) {
-          this.npm.output(`${item}: ${output[item]}`)
+          output.standard(`${item}: ${outputs[item]}`)
         }
       }
     }

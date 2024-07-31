@@ -12,8 +12,8 @@
 namespace v8 {
 namespace internal {
 
-class BasicMemoryChunk;
-class MemoryChunk;
+class MemoryChunkMetadata;
+class MutablePageMetadata;
 
 template <typename ConcreteState, AccessMode access_mode>
 class MarkingStateBase {
@@ -39,6 +39,9 @@ class MarkingStateBase {
   // Helper method for fully marking an object and accounting its live bytes.
   // Should be used to mark individual objects in one-off cases.
   V8_INLINE bool TryMarkAndAccountLiveBytes(Tagged<HeapObject> obj);
+  // Same, but does not require the object to be initialized.
+  V8_INLINE bool TryMarkAndAccountLiveBytes(Tagged<HeapObject> obj,
+                                            int object_size);
   V8_INLINE bool IsMarked(const Tagged<HeapObject> obj) const;
   V8_INLINE bool IsUnmarked(const Tagged<HeapObject> obj) const;
 

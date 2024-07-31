@@ -10,9 +10,7 @@ Acorn is open source software released under an
 
 You are welcome to
 [report bugs](https://github.com/acornjs/acorn/issues) or create pull
-requests on [github](https://github.com/acornjs/acorn). For questions
-and discussion, please use the
-[Tern discussion forum](https://discuss.ternjs.net).
+requests on [github](https://github.com/acornjs/acorn).
 
 ## Installation
 
@@ -68,7 +66,7 @@ const acorn = require("acorn")
 const walk = require("acorn-walk")
 
 walk.ancestor(acorn.parse("foo('hi')"), {
-  Literal(_, ancestors) {
+  Literal(_node, _state, ancestors) {
     console.log("This literal's ancestors are:", ancestors.map(n => n.type))
   }
 })

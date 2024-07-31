@@ -149,13 +149,8 @@ PluralFormat::PluralFormat(const PluralFormat& other)
 void
 PluralFormat::copyObjects(const PluralFormat& other) {
     UErrorCode status = U_ZERO_ERROR;
-    if (numberFormat != nullptr) {
-        delete numberFormat;
-    }
-    if (pluralRulesWrapper.pluralRules != nullptr) {
-        delete pluralRulesWrapper.pluralRules;
-    }
-
+    delete numberFormat;
+    delete pluralRulesWrapper.pluralRules;
     if (other.numberFormat == nullptr) {
         numberFormat = NumberFormat::createInstance(locale, status);
     } else {

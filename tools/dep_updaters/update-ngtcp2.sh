@@ -63,9 +63,8 @@ autoreconf -i
 
 ./configure --prefix="$PWD/build" --enable-lib-only 
 
-cp -R lib/* "$DEPS_DIR/ngtcp2/ngtcp2/lib/"
-
-cp -R crypto/* "$DEPS_DIR/ngtcp2/ngtcp2/crypto/"
+replace_dir "$DEPS_DIR/ngtcp2/ngtcp2/lib" "lib"
+replace_dir "$DEPS_DIR/ngtcp2/ngtcp2/crypto" "crypto"
 
 # Update the version number on maintaining-dependencies.md
 # and print the new version as the last line of the script as we need

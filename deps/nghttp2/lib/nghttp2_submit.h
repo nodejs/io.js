@@ -31,4 +31,10 @@
 
 #include <nghttp2/nghttp2.h>
 
+typedef struct nghttp2_data_provider_wrap nghttp2_data_provider_wrap;
+
+int nghttp2_submit_data_shared(nghttp2_session *session, uint8_t flags,
+                               int32_t stream_id,
+                               const nghttp2_data_provider_wrap *dpw);
+
 #endif /* NGHTTP2_SUBMIT_H */

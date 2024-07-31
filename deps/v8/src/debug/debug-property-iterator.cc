@@ -95,8 +95,8 @@ Handle<Name> DebugPropertyIterator::raw_name() const {
   if (stage_ == kExoticIndices) {
     return isolate_->factory()->SizeToString(current_key_index_);
   } else {
-    return Handle<Name>::cast(FixedArray::get(
-        *current_keys_, static_cast<int>(current_key_index_), isolate_));
+    return Handle<Name>::cast(handle(
+        current_keys_->get(static_cast<int>(current_key_index_)), isolate_));
   }
 }
 

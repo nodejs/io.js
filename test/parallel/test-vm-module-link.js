@@ -28,6 +28,22 @@ async function simple() {
   delete globalThis.fiveResult;
 }
 
+async function invalidLinkValue() {
+  const invalidValues = [
+    undefined,
+    null,
+    {},
+    SourceTextModule.prototype,
+  ];
+
+  for (const value of invalidValues) {
+    const module = new SourceTextModule('import "foo"');
+    await assert.rejects(module.link(() => value), {
+      code: 'ERR_VM_MODULE_NOT_MODULE',
+    });
+  }
+}
+
 async function depth() {
   const foo = new SourceTextModule('export default 5');
   await foo.link(common.mustNotCall());
@@ -143,6 +159,7 @@ const finished = common.mustCall();
 
 (async function main() {
   await simple();
+  await invalidLinkValue();
   await depth();
   await circular();
   await circular2();

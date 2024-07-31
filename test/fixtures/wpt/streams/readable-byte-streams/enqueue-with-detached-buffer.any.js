@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,shadowrealm
 
 promise_test(async t => {
   const error = new Error('cannot proceed');

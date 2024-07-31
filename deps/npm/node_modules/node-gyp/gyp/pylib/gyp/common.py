@@ -144,20 +144,16 @@ def RelativePath(path, relative_to, follow_path_symlink=True):
     # symlink, this option has no effect.
 
     # Convert to normalized (and therefore absolute paths).
-    if follow_path_symlink:
-        path = os.path.realpath(path)
-    else:
-        path = os.path.abspath(path)
+    path = os.path.realpath(path) if follow_path_symlink else os.path.abspath(path)
     relative_to = os.path.realpath(relative_to)
 
     # On Windows, we can't create a relative path to a different drive, so just
     # use the absolute path.
-    if sys.platform == "win32":
-        if (
-            os.path.splitdrive(path)[0].lower()
-            != os.path.splitdrive(relative_to)[0].lower()
-        ):
-            return path
+    if sys.platform == "win32" and (
+        os.path.splitdrive(path)[0].lower()
+        != os.path.splitdrive(relative_to)[0].lower()
+    ):
+        return path
 
     # Split the paths into components.
     path_split = path.split(os.path.sep)
@@ -277,10 +273,7 @@ def EncodePOSIXShellArgument(argument):
     if not isinstance(argument, str):
         argument = str(argument)
 
-    if _quote.search(argument):
-        quote = '"'
-    else:
-        quote = ""
+    quote = '"' if _quote.search(argument) else ""
 
     encoded = quote + re.sub(_escape, r"\\\1", argument) + quote
 

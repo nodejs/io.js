@@ -1209,9 +1209,11 @@ static int provider_cmp(const OSSL_PROVIDER * const *a,
 static int collect_providers(OSSL_PROVIDER *provider, void *stack)
 {
     STACK_OF(OSSL_PROVIDER) *provider_stack = stack;
-
-    sk_OSSL_PROVIDER_push(provider_stack, provider);
-    return 1;
+    /*
+     * If OK - result is the index of inserted data
+     * Error - result is -1 or 0
+     */
+    return sk_OSSL_PROVIDER_push(provider_stack, provider) > 0 ? 1 : 0;
 }
 
 static void list_provider_info(void)
@@ -1226,11 +1228,19 @@ static void list_provider_info(void)
         BIO_printf(bio_err, "ERROR: Memory allocation\n");
         return;
     }
+
+    if (OSSL_PROVIDER_do_all(NULL, &collect_providers, providers) != 1) {
+        BIO_printf(bio_err, "ERROR: Memory allocation\n");
+        return;
+    }
+
     BIO_printf(bio_out, "Providers:\n");
-    OSSL_PROVIDER_do_all(NULL, &collect_providers, providers);
     sk_OSSL_PROVIDER_sort(providers);
     for (i = 0; i < sk_OSSL_PROVIDER_num(providers); i++) {
         const OSSL_PROVIDER *prov = sk_OSSL_PROVIDER_value(providers, i);
+        const char *provname = OSSL_PROVIDER_get0_name(prov);
+
+        BIO_printf(bio_out, "  %s\n", provname);
 
         /* Query the "known" information parameters, the order matches below */
         params[0] = OSSL_PARAM_construct_utf8_ptr(OSSL_PROV_PARAM_NAME,
@@ -1243,23 +1253,23 @@ static void list_provider_info(void)
         params[4] = OSSL_PARAM_construct_end();
         OSSL_PARAM_set_all_unmodified(params);
         if (!OSSL_PROVIDER_get_params(prov, params)) {
-            BIO_printf(bio_err, "ERROR: Unable to query provider parameters\n");
-            return;
-        }
-
-        /* Print out the provider information, the params order matches above */
-        BIO_printf(bio_out, "  %s\n", OSSL_PROVIDER_get0_name(prov));
-        if (OSSL_PARAM_modified(params))
-            BIO_printf(bio_out, "    name: %s\n", name);
-        if (OSSL_PARAM_modified(params + 1))
-            BIO_printf(bio_out, "    version: %s\n", version);
-        if (OSSL_PARAM_modified(params + 2))
-            BIO_printf(bio_out, "    status: %sactive\n", status ? "" : "in");
-        if (verbose) {
-            if (OSSL_PARAM_modified(params + 3))
-                BIO_printf(bio_out, "    build info: %s\n", buildinfo);
-            print_param_types("gettable provider parameters",
-                              OSSL_PROVIDER_gettable_params(prov), 4);
+            BIO_printf(bio_err,
+                       "WARNING: Unable to query provider parameters for %s\n",
+                       provname);
+        } else {
+            /* Print out the provider information, the params order matches above */
+            if (OSSL_PARAM_modified(params))
+                BIO_printf(bio_out, "    name: %s\n", name);
+            if (OSSL_PARAM_modified(params + 1))
+                BIO_printf(bio_out, "    version: %s\n", version);
+            if (OSSL_PARAM_modified(params + 2))
+                BIO_printf(bio_out, "    status: %sactive\n", status ? "" : "in");
+            if (verbose) {
+                if (OSSL_PARAM_modified(params + 3))
+                    BIO_printf(bio_out, "    build info: %s\n", buildinfo);
+                print_param_types("gettable provider parameters",
+                                  OSSL_PROVIDER_gettable_params(prov), 4);
+            }
         }
     }
     sk_OSSL_PROVIDER_free(providers);

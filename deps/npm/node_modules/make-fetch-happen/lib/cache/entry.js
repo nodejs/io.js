@@ -274,6 +274,8 @@ class CacheEntry {
       const cacheWritePromise = new Promise((resolve, reject) => {
         cacheWriteResolve = resolve
         cacheWriteReject = reject
+      }).catch((err) => {
+        body.emit('error', err)
       })
 
       body = new CachingMinipassPipeline({ events: ['integrity', 'size'] }, new MinipassFlush({

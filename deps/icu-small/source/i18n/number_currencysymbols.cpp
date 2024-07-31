@@ -126,7 +126,7 @@ icu::number::impl::resolveCurrency(const DecimalFormatProperties& properties, co
             return CurrencyUnit(buf, status);
         } else {
             // Default currency (XXX)
-            return CurrencyUnit();
+            return {};
         }
     }
 }

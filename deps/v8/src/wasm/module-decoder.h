@@ -105,8 +105,8 @@ V8_EXPORT_PRIVATE ModuleResult DecodeWasmModule(
     PopulateExplicitRecGroups populate_explicit_rec_groups =
         kDoNotPopulateExplicitRecGroups);
 // Stripped down version for disassembler needs.
-V8_EXPORT_PRIVATE ModuleResult
-DecodeWasmModuleForDisassembler(base::Vector<const uint8_t> wire_bytes);
+V8_EXPORT_PRIVATE ModuleResult DecodeWasmModuleForDisassembler(
+    base::Vector<const uint8_t> wire_bytes, ITracer* tracer);
 
 // Exposed for testing. Decodes a single function signature, allocating it
 // in the given zone.

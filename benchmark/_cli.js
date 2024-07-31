@@ -125,3 +125,24 @@ CLI.prototype.shouldSkip = function(scripts) {
 
   return skip;
 };
+
+/**
+ * Extracts the CPU core setting from the CLI arguments.
+ * @returns {string|null} The CPU core setting if found, otherwise null.
+ */
+CLI.prototype.getCpuCoreSetting = function() {
+  const cpuCoreSetting = this.optional.set.find((s) => s.startsWith('CPUSET='));
+  if (!cpuCoreSetting) return null;
+
+  const value = cpuCoreSetting.split('=')[1];
+  // Validate the CPUSET value to match patterns like "0", "0-2", "0,1,2", "0,2-4,6" or "0,0,1-2"
+  const isValid = /^(\d+(-\d+)?)(,\d+(-\d+)?)*$/.test(value);
+  if (!isValid) {
+    throw new Error(`
+        Invalid CPUSET format: "${value}". Please use a single core number (e.g., "0"), 
+        a range of cores (e.g., "0-3"), or a list of cores/ranges 
+        (e.g., "0,2,4" or "0-2,4").\n\n${this.usage}
+    `);
+  }
+  return value;
+};

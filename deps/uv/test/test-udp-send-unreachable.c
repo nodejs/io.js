@@ -27,7 +27,7 @@
 #include <string.h>
 
 #define CHECK_HANDLE(handle) \
-  ASSERT((uv_udp_t*)(handle) == &client || (uv_udp_t*)(handle) == &client2)
+  ASSERT_NE((uv_udp_t*)(handle) == &client || (uv_udp_t*)(handle) == &client2, 0)
 
 static uv_udp_t client;
 static uv_udp_t client2;
@@ -61,8 +61,8 @@ static void close_cb(uv_handle_t* handle) {
 
 static void send_cb(uv_udp_send_t* req, int status) {
   ASSERT_NOT_NULL(req);
-  ASSERT(status == 0);
-  ASSERT_EQ(status, 0);
+  ASSERT_OK(status);
+  ASSERT_OK(status);
   CHECK_HANDLE(req->handle);
   send_cb_called++;
 }
@@ -115,24 +115,24 @@ TEST_IMPL(udp_send_unreachable) {
   can_recverr = 1;
 #endif
 
-  ASSERT_EQ(0, uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
-  ASSERT_EQ(0, uv_ip4_addr("127.0.0.1", TEST_PORT_2, &addr2));
-  ASSERT_EQ(0, uv_ip4_addr("127.0.0.1", TEST_PORT_3, &addr3));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT_2, &addr2));
+  ASSERT_OK(uv_ip4_addr("127.0.0.1", TEST_PORT_3, &addr3));
 
   r = uv_timer_init( uv_default_loop(), &timer );
-  ASSERT_EQ(r, 0);
+  ASSERT_OK(r);
 
   r = uv_timer_start( &timer, timer_cb, 1000, 0 );
-  ASSERT_EQ(r, 0);
+  ASSERT_OK(r);
 
   r = uv_udp_init(uv_default_loop(), &client);
-  ASSERT_EQ(r, 0);
+  ASSERT_OK(r);
 
   r = uv_udp_bind(&client, (const struct sockaddr*) &addr2, 0);
-  ASSERT_EQ(r, 0);
+  ASSERT_OK(r);
 
   r = uv_udp_recv_start(&client, alloc_cb, recv_cb);
-  ASSERT_EQ(r, 0);
+  ASSERT_OK(r);
 
   /* client sends "PING", then "PANG" */
   buf = uv_buf_init("PING", 4);
@@ -143,7 +143,7 @@ TEST_IMPL(udp_send_unreachable) {
                   1,
                   (const struct sockaddr*) &addr,
                   send_cb);
-  ASSERT_EQ(r, 0);
+  ASSERT_OK(r);
 
   buf = uv_buf_init("PANG", 4);
 
@@ -153,19 +153,19 @@ TEST_IMPL(udp_send_unreachable) {
                   1,
                   (const struct sockaddr*) &addr,
                   send_cb);
-  ASSERT_EQ(r, 0);
+  ASSERT_OK(r);
 
   if (can_recverr) {
     r = uv_udp_init(uv_default_loop(), &client2);
-    ASSERT_EQ(r, 0);
+    ASSERT_OK(r);
 
     r = uv_udp_bind(&client2,
                     (const struct sockaddr*) &addr3,
                     UV_UDP_LINUX_RECVERR);
-    ASSERT_EQ(r, 0);
+    ASSERT_OK(r);
 
     r = uv_udp_recv_start(&client2, alloc_cb, recv_cb);
-    ASSERT_EQ(r, 0);
+    ASSERT_OK(r);
 
     /* client sends "PING", then "PANG" */
     buf = uv_buf_init("PING", 4);
@@ -176,7 +176,7 @@ TEST_IMPL(udp_send_unreachable) {
                     1,
                     (const struct sockaddr*) &addr,
                     send_cb_recverr);
-    ASSERT_EQ(r, 0);
+    ASSERT_OK(r);
 
     buf = uv_buf_init("PANG", 4);
 
@@ -186,14 +186,14 @@ TEST_IMPL(udp_send_unreachable) {
                     1,
                     (const struct sockaddr*) &addr,
                     send_cb_recverr);
-    ASSERT_EQ(r, 0);
+    ASSERT_OK(r);
   }
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
   ASSERT_EQ(send_cb_called, (long)(can_recverr ? 4 : 2));
   ASSERT_EQ(recv_cb_called, alloc_cb_called);
-  ASSERT_EQ(timer_cb_called, 1);
+  ASSERT_EQ(1, timer_cb_called);
   ASSERT_EQ(close_cb_called, (long)(can_recverr ? 3 : 2));
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());

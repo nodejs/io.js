@@ -153,12 +153,14 @@ void VerifyWeakCellChain(Isolate* isolate, Tagged<Object> list_head, int n_args,
     // Verify empty list
     CHECK(IsUndefined(list_head, isolate));
   } else {
-    Tagged<WeakCell> current = WeakCell::cast(Object(va_arg(args, Address)));
+    Tagged<WeakCell> current =
+        WeakCell::cast(Tagged<Object>(va_arg(args, Address)));
     CHECK_EQ(current, list_head);
     CHECK(IsUndefined(current->prev(), isolate));
 
     for (int i = 1; i < n_args; i++) {
-      Tagged<WeakCell> next = WeakCell::cast(Object(va_arg(args, Address)));
+      Tagged<WeakCell> next =
+          WeakCell::cast(Tagged<Object>(va_arg(args, Address)));
       CHECK_EQ(current->next(), next);
       CHECK_EQ(next->prev(), current);
       current = next;
@@ -189,13 +191,15 @@ void VerifyWeakCellKeyChain(Isolate* isolate,
     CHECK(entry.is_not_found());
   } else {
     CHECK(entry.is_found());
-    Tagged<WeakCell> current = WeakCell::cast(Object(va_arg(args, Address)));
+    Tagged<WeakCell> current =
+        WeakCell::cast(Tagged<Object>(va_arg(args, Address)));
     Tagged<Object> list_head = key_map->ValueAt(entry);
     CHECK_EQ(current, list_head);
     CHECK(IsUndefined(current->key_list_prev(), isolate));
 
     for (int i = 1; i < n_args; i++) {
-      Tagged<WeakCell> next = WeakCell::cast(Object(va_arg(args, Address)));
+      Tagged<WeakCell> next =
+          WeakCell::cast(Tagged<Object>(va_arg(args, Address)));
       CHECK_EQ(current->key_list_next(), next);
       CHECK_EQ(next->key_list_prev(), current);
       current = next;

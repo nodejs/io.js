@@ -31,6 +31,42 @@ static char* uvwasi__strchr_slash(const char* s) {
   return NULL;
 }
 
+static uvwasi_errno_t uvwasi__combine_paths(const uvwasi_t* uvwasi,
+                                            const char* path1,
+                                            uvwasi_size_t path1_len,
+                                            const char* path2,
+                                            uvwasi_size_t path2_len,
+                                            char** combined_path,
+                                            uvwasi_size_t* combined_len) {
+  /* This function joins two paths with '/'. */
+  uvwasi_errno_t err;
+  char* combined;
+  int combined_size;
+  int r;
+
+  *combined_path = NULL;
+  *combined_len = 0;
+
+  /* The max combined size is the path1 length + the path2 length
+     + 2 for a terminating NULL and a possible path separator. */
+  combined_size = path1_len + path2_len + 2;
+  combined = uvwasi__malloc(uvwasi, combined_size);
+  if (combined == NULL) return UVWASI_ENOMEM;
+
+  r = snprintf(combined, combined_size, "%s/%s", path1, path2);
+  if (r <= 0) {
+    err = uvwasi__translate_uv_error(uv_translate_sys_error(errno));
+    goto exit;
+  }
+
+  err = UVWASI_ESUCCESS;
+  *combined_path = combined;
+  *combined_len = strlen(combined);
+
+exit:
+  if (err != UVWASI_ESUCCESS) uvwasi__free(uvwasi, combined);
+  return err;
+}
 
 uvwasi_errno_t uvwasi__normalize_path(const char* path,
                                       uvwasi_size_t path_len,
@@ -233,40 +269,36 @@ static uvwasi_errno_t uvwasi__normalize_relative_path(
      normalized. */
   uvwasi_errno_t err;
   char* combined;
-  char* normalized;
-  int combined_size;
-  int fd_path_len;
-  int norm_len;
-  int r;
+  char* normalized = NULL;
+  uvwasi_size_t combined_len;
+  uvwasi_size_t fd_path_len;
+  uvwasi_size_t norm_len;
 
   *normalized_path = NULL;
   *normalized_len = 0;
 
-  /* The max combined size is the path length + the file descriptor's path
-     length + 2 for a terminating NULL and a possible path separator. */
   fd_path_len = strlen(fd->normalized_path);
-  combined_size = path_len + fd_path_len + 2;
-  combined = uvwasi__malloc(uvwasi, combined_size);
-  if (combined == NULL)
-    return UVWASI_ENOMEM;
 
-  normalized = uvwasi__malloc(uvwasi, combined_size);
+  err = uvwasi__combine_paths(uvwasi,
+                              fd->normalized_path,
+                              fd_path_len,
+                              path,
+                              path_len,
+                              &combined,
+                              &combined_len);
+  if (err != UVWASI_ESUCCESS) goto exit;
+
+  normalized = uvwasi__malloc(uvwasi, combined_len + 1);
   if (normalized == NULL) {
     err = UVWASI_ENOMEM;
     goto exit;
   }
 
-  r = snprintf(combined, combined_size, "%s/%s", fd->normalized_path, path);
-  if (r <= 0) {
-    err = uvwasi__translate_uv_error(uv_translate_sys_error(errno));
-    goto exit;
-  }
-
   /* Normalize the input path. */
   err = uvwasi__normalize_path(combined,
-                               combined_size - 1,
+                               combined_len,
                                normalized,
-                               combined_size - 1);
+                               combined_len);
   if (err != UVWASI_ESUCCESS)
     goto exit;
 
@@ -374,9 +406,14 @@ uvwasi_errno_t uvwasi__resolve_path(const uvwasi_t* uvwasi,
   char* host_path;
   char* normalized_path;
   char* link_target;
+  char* normalized_parent;
+  char* resolved_link_target;
   uvwasi_size_t input_len;
   uvwasi_size_t host_path_len;
   uvwasi_size_t normalized_len;
+  uvwasi_size_t link_target_len;
+  uvwasi_size_t normalized_parent_len;
+  uvwasi_size_t resolved_link_target_len;
   int follow_count;
   int r;
 
@@ -385,6 +422,8 @@ uvwasi_errno_t uvwasi__resolve_path(const uvwasi_t* uvwasi,
   link_target = NULL;
   follow_count = 0;
   host_path = NULL;
+  normalized_parent = NULL;
+  resolved_link_target = NULL;
 
 start:
   normalized_path = NULL;
@@ -458,19 +497,47 @@ start:
       goto exit;
     }
 
-    input_len = strlen(req.ptr);
+    link_target_len = strlen(req.ptr);
     uvwasi__free(uvwasi, link_target);
-    link_target = uvwasi__malloc(uvwasi, input_len + 1);
+    link_target = uvwasi__malloc(uvwasi, link_target_len + 1);
     if (link_target == NULL) {
       uv_fs_req_cleanup(&req);
       err = UVWASI_ENOMEM;
       goto exit;
     }
 
-    memcpy(link_target, req.ptr, input_len + 1);
-    input = link_target;
-    uvwasi__free(uvwasi, normalized_path);
+    memcpy(link_target, req.ptr, link_target_len + 1);
     uv_fs_req_cleanup(&req);
+
+    if (1 == uvwasi__is_absolute_path(link_target, link_target_len)) {
+      input = link_target;
+      input_len = link_target_len;
+    } else {
+      uvwasi__free(uvwasi, normalized_parent);
+      uvwasi__free(uvwasi, resolved_link_target);
+
+      err = uvwasi__combine_paths(uvwasi,
+                                  normalized_path,
+                                  normalized_len,
+                                  "..",
+                                  2,
+                                  &normalized_parent,
+                                  &normalized_parent_len);
+      if (err != UVWASI_ESUCCESS) goto exit;
+      err = uvwasi__combine_paths(uvwasi,
+                                  normalized_parent,
+                                  normalized_parent_len,
+                                  link_target,
+                                  link_target_len,
+                                  &resolved_link_target,
+                                  &resolved_link_target_len);
+      if (err != UVWASI_ESUCCESS) goto exit;
+
+      input = resolved_link_target;
+      input_len = resolved_link_target_len;
+    }
+
+    uvwasi__free(uvwasi, normalized_path);
     goto start;
   }
 
@@ -484,5 +551,8 @@ exit:
 
   uvwasi__free(uvwasi, link_target);
   uvwasi__free(uvwasi, normalized_path);
+  uvwasi__free(uvwasi, normalized_parent);
+  uvwasi__free(uvwasi, resolved_link_target);
+
   return err;
 }

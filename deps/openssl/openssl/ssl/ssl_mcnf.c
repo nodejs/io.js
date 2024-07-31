@@ -24,7 +24,7 @@ static int ssl_do_config(SSL *s, SSL_CTX *ctx, const char *name, int system)
 {
     SSL_CONF_CTX *cctx = NULL;
     size_t i, idx, cmd_count;
-    int rv = 0;
+    int err = 1;
     unsigned int flags;
     const SSL_METHOD *meth;
     const SSL_CONF_CMD *cmds;
@@ -66,24 +66,22 @@ static int ssl_do_config(SSL *s, SSL_CTX *ctx, const char *name, int system)
         flags |= SSL_CONF_FLAG_CLIENT;
     SSL_CONF_CTX_set_flags(cctx, flags);
     prev_libctx = OSSL_LIB_CTX_set0_default(libctx);
+    err = 0;
     for (i = 0; i < cmd_count; i++) {
         char *cmdstr, *arg;
+        int rv;
 
         conf_ssl_get_cmd(cmds, i, &cmdstr, &arg);
         rv = SSL_CONF_cmd(cctx, cmdstr, arg);
-        if (rv <= 0) {
-            int errcode = rv == -2 ? SSL_R_UNKNOWN_COMMAND : SSL_R_BAD_VALUE;
-
-            ERR_raise_data(ERR_LIB_SSL, errcode,
-                           "section=%s, cmd=%s, arg=%s", name, cmdstr, arg);
-            goto err;
-        }
+        if (rv <= 0)
+            ++err;
     }
-    rv = SSL_CONF_CTX_finish(cctx);
+    if (!SSL_CONF_CTX_finish(cctx))
+        ++err;
  err:
     OSSL_LIB_CTX_set0_default(prev_libctx);
     SSL_CONF_CTX_free(cctx);
-    return rv <= 0 ? 0 : 1;
+    return err == 0;
 }
 
 int SSL_config(SSL *s, const char *name)

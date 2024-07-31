@@ -88,7 +88,6 @@
         'v8_enable_private_mapping_fork_optimization': 0,
       }],
     ],
-    'is_debug%': 0,
 
     # Variables from BUILD.gn
 
@@ -155,6 +154,7 @@
 
     # Enable pointer compression (sets -dV8_COMPRESS_POINTERS).
     'v8_enable_pointer_compression%': 0,
+    'v8_enable_pointer_compression_shared_cage%': 0,
     'v8_enable_31bit_smis_on_64bit_arch%': 0,
 
     # Sets -dV8_SHORT_BUILTIN_CALLS
@@ -196,6 +196,15 @@
     # Use Perfetto (https://perfetto.dev) as the default TracingController. Not
     # currently implemented.
     'v8_use_perfetto%': 0,
+
+    # Enable map packing & unpacking (sets -dV8_MAP_PACKING).
+    'v8_enable_map_packing%': 0,
+
+    # Scan the call stack conservatively during garbage collection.
+    'v8_enable_conservative_stack_scanning%': 0,
+
+    # Use direct pointers in local handles.
+    'v8_enable_direct_local%': 0,
 
     # Controls the threshold for on-heap/off-heap Typed Arrays.
     'v8_typed_array_max_size_in_heap%': 64,
@@ -260,6 +269,9 @@
     # Allow for JS promise hooks (instead of just C++).
     'v8_enable_javascript_promise_hooks%': 0,
 
+    # Allow for JS promise hooks (instead of just C++).
+    'v8_enable_continuation_preserved_embedder_data%': 1,
+
     # Enable allocation folding globally (sets -dV8_ALLOCATION_FOLDING).
     # When it's disabled, the --turbo-allocation-folding runtime flag will be ignored.
     'v8_enable_allocation_folding%': 1,
@@ -270,7 +282,7 @@
     # Enable global allocation site tracking.
     'v8_allocation_site_tracking%': 1,
 
-    'v8_scriptormodule_legacy_lifetime%': 1,
+    'v8_scriptormodule_legacy_lifetime%': 0,
 
     # Change code emission and runtime features to be CET shadow-stack compliant
     # (incomplete and experimental).
@@ -279,6 +291,10 @@
     # Compile V8 using zlib as dependency.
     # Sets -DV8_USE_ZLIB
     'v8_use_zlib%': 1,
+
+    # Enable Sparkplug
+    # Sets -DV8_ENABLE_SPARKPLUG.
+    'v8_enable_sparkplug%': 1,
 
     # Whether custom embedder snapshots may extend (= allocate new objects in)
     # ReadOnlySpace.
@@ -345,10 +361,13 @@
         'defines': ['ENABLE_VTUNE_JIT_INTERFACE',],
       }],
       ['v8_enable_pointer_compression==1', {
-        'defines': [
-          'V8_COMPRESS_POINTERS',
-          'V8_COMPRESS_POINTERS_IN_ISOLATE_CAGE',
-        ],
+        'defines': ['V8_COMPRESS_POINTERS'],
+      }],
+      ['v8_enable_pointer_compression_shared_cage==1', {
+        'defines': ['V8_COMPRESS_POINTERS_IN_SHARED_CAGE'],
+      }],
+      ['v8_enable_pointer_compression==1 and v8_enable_pointer_compression_shared_cage==0', {
+        'defines': ['V8_COMPRESS_POINTERS_IN_ISOLATE_CAGE'],
       }],
       ['v8_enable_pointer_compression==1 or v8_enable_31bit_smis_on_64bit_arch==1', {
         'defines': ['V8_31BIT_SMIS_ON_64BIT_ARCH',],
@@ -392,13 +411,9 @@
       }],
       ['v8_deprecation_warnings==1', {
         'defines': ['V8_DEPRECATION_WARNINGS',],
-      },{
-        'defines!': ['V8_DEPRECATION_WARNINGS',],
       }],
       ['v8_imminent_deprecation_warnings==1', {
         'defines': ['V8_IMMINENT_DEPRECATION_WARNINGS',],
-      },{
-        'defines!': ['V8_IMMINENT_DEPRECATION_WARNINGS',],
       }],
       ['v8_enable_i18n_support==1', {
         'defines': ['V8_INTL_SUPPORT',],
@@ -436,6 +451,8 @@
       }],
       ['dcheck_always_on!=0', {
         'defines': ['DEBUG',],
+      }, {
+        'defines': ['NDEBUG',],
       }],
       ['v8_enable_verify_csa==1', {
         'defines': ['ENABLE_VERIFY_CSA',],
@@ -443,8 +460,20 @@
       ['v8_use_perfetto==1', {
         'defines': ['V8_USE_PERFETTO',],
       }],
+      ['v8_enable_map_packing==1', {
+        'defines': ['V8_MAP_PACKING',],
+      }],
       ['v8_win64_unwinding_info==1', {
         'defines': ['V8_WIN64_UNWINDING_INFO',],
+      }],
+      ['tsan==1', {
+        'defines': ['V8_IS_TSAN',],
+      }],
+      ['v8_enable_conservative_stack_scanning==1', {
+        'defines': ['V8_ENABLE_CONSERVATIVE_STACK_SCANNING',],
+      }],
+      ['v8_enable_direct_local==1', {
+        'defines': ['V8_ENABLE_DIRECT_LOCAL',],
       }],
       ['v8_enable_regexp_interpreter_threaded_dispatch==1', {
         'defines': ['V8_ENABLE_REGEXP_INTERPRETER_THREADED_DISPATCH',],
@@ -470,6 +499,9 @@
       ['v8_enable_precise_zone_stats==1', {
         'defines': ['V8_ENABLE_PRECISE_ZONE_STATS',],
       }],
+      ['v8_enable_sparkplug==1', {
+        'defines': ['V8_ENABLE_SPARKPLUG',],
+      }],
       ['v8_enable_maglev==1', {
         'defines': ['V8_ENABLE_MAGLEV',],
       }],
@@ -493,6 +525,9 @@
       }],
       ['v8_enable_javascript_promise_hooks==1', {
         'defines': ['V8_ENABLE_JAVASCRIPT_PROMISE_HOOKS',],
+      }],
+      ['v8_enable_continuation_preserved_embedder_data==1', {
+        'defines': ['V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA',],
       }],
       ['v8_enable_allocation_folding==1', {
         'defines': ['V8_ALLOCATION_FOLDING',],

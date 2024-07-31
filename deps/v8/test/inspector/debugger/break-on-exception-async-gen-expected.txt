@@ -32,14 +32,25 @@ Paused for UNCAUGHT exception.
 
 Running test: testYieldThrowsCaught
 Paused for CAUGHT exception.
-Paused for CAUGHT exception.
 
 Running test: testYieldThrowsUncaught
 Paused for UNCAUGHT exception.
+
+Running test: testYieldThrowsCaughtInGenerator
+Paused for CAUGHT exception.
 Paused for UNCAUGHT exception.
 
 Running test: testAwaitThrowsCaught
 Paused for CAUGHT exception.
 
 Running test: testAwaitThrowsUncaught
+Paused for UNCAUGHT exception.
+
+Running test: testYieldThrowMethodCaught
+Paused for CAUGHT exception.
+
+Running test: testYieldThrowMethodUncaught
+Paused for UNCAUGHT exception.
+
+Running test: testYieldThrowMethodCaughtInGenerator
 Paused for UNCAUGHT exception.

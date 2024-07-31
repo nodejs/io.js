@@ -28,12 +28,10 @@ static BROTLI_NOINLINE void EXPORT_FN(CreateBackwardReferences)(
   const size_t random_heuristics_window_size =
       LiteralSpreeLengthForSparseSearch(params);
   size_t apply_random_heuristics = position + random_heuristics_window_size;
-  const size_t gap = 0;
+  const size_t gap = params->dictionary.compound.total_size;
 
   /* Minimum score to accept a backward reference. */
   const score_t kMinScore = BROTLI_SCORE_BASE + 100;
-
-  BROTLI_UNUSED(literal_context_lut);
 
   FN(PrepareDistanceCache)(privat, dist_cache);
 
@@ -43,13 +41,29 @@ static BROTLI_NOINLINE void EXPORT_FN(CreateBackwardReferences)(
     size_t dictionary_start = BROTLI_MIN(size_t,
         position + position_offset, max_backward_limit);
     HasherSearchResult sr;
+    int dict_id = 0;
+    uint8_t p1 = 0;
+    uint8_t p2 = 0;
+    if (params->dictionary.contextual.context_based) {
+      p1 = position >= 1 ?
+          ringbuffer[(size_t)(position - 1) & ringbuffer_mask] : 0;
+      p2 = position >= 2 ?
+          ringbuffer[(size_t)(position - 2) & ringbuffer_mask] : 0;
+      dict_id = params->dictionary.contextual.context_map[
+          BROTLI_CONTEXT(p1, p2, literal_context_lut)];
+    }
     sr.len = 0;
     sr.len_code_delta = 0;
     sr.distance = 0;
     sr.score = kMinScore;
-    FN(FindLongestMatch)(privat, &params->dictionary,
+    FN(FindLongestMatch)(privat, params->dictionary.contextual.dict[dict_id],
         ringbuffer, ringbuffer_mask, dist_cache, position, max_length,
         max_distance, dictionary_start + gap, params->dist.max_distance, &sr);
+    if (ENABLE_COMPOUND_DICTIONARY) {
+      LookupCompoundDictionaryMatch(&params->dictionary.compound, ringbuffer,
+          ringbuffer_mask, dist_cache, position, max_length,
+          dictionary_start, params->dist.max_distance, &sr);
+    }
     if (sr.score > kMinScore) {
       /* Found a match. Let's look for something even better ahead. */
       int delayed_backward_references_in_row = 0;
@@ -65,11 +79,23 @@ static BROTLI_NOINLINE void EXPORT_FN(CreateBackwardReferences)(
         max_distance = BROTLI_MIN(size_t, position + 1, max_backward_limit);
         dictionary_start = BROTLI_MIN(size_t,
             position + 1 + position_offset, max_backward_limit);
+        if (params->dictionary.contextual.context_based) {
+          p2 = p1;
+          p1 = ringbuffer[position & ringbuffer_mask];
+          dict_id = params->dictionary.contextual.context_map[
+              BROTLI_CONTEXT(p1, p2, literal_context_lut)];
+        }
         FN(FindLongestMatch)(privat,
-            &params->dictionary,
+            params->dictionary.contextual.dict[dict_id],
             ringbuffer, ringbuffer_mask, dist_cache, position + 1, max_length,
             max_distance, dictionary_start + gap, params->dist.max_distance,
             &sr2);
+        if (ENABLE_COMPOUND_DICTIONARY) {
+          LookupCompoundDictionaryMatch(
+              &params->dictionary.compound, ringbuffer,
+              ringbuffer_mask, dist_cache, position + 1, max_length,
+              dictionary_start, params->dist.max_distance, &sr2);
+        }
         if (sr2.score >= sr.score + cost_diff_lazy) {
           /* Ok, let's just write one byte for now and start a match from the
              next byte. */

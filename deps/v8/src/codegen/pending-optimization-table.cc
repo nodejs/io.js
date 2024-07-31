@@ -29,9 +29,15 @@ void ManualOptimizationTable::MarkFunctionForManualOptimization(
                        isolate->heap()
                            ->functions_marked_for_manual_optimization()),
                    isolate);
+  // We want to keep the function's BytecodeArray alive as bytecode flushing
+  // may otherwise delete it. However, we can't directly store a reference to
+  // the BytecodeArray inside the hash table as the BytecodeArray lives in
+  // trusted space (outside of the main pointer compression cage) when the
+  // sandbox is enabled. So instead, we reference the BytecodeArray's
+  // in-sandbox wrapper object.
   table = ObjectHashTable::Put(
       table, shared_info,
-      handle(shared_info->GetBytecodeArray(isolate), isolate));
+      handle(shared_info->GetBytecodeArray(isolate)->wrapper(), isolate));
   isolate->heap()->SetFunctionsMarkedForManualOptimization(*table);
 }
 
@@ -44,7 +50,7 @@ void ManualOptimizationTable::CheckMarkedForManualOptimization(
         " should be prepared for optimization with "
         "%%PrepareFunctionForOptimization before  "
         "%%OptimizeFunctionOnNextCall / %%OptimizeMaglevOnNextCall / "
-        "%%OptimizeOSR ");
+        "%%OptimizeOsr ");
     UNREACHABLE();
   }
 }

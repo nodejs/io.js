@@ -42,12 +42,13 @@ load(":bazel/v8-non-pointer-compression.bzl", "v8_binary_non_pointer_compression
 # v8_enable_conservative_stack_scanning
 # v8_enable_direct_handle
 # v8_enable_direct_local
+# v8_enable_local_off_stack_check
 # v8_enable_ignition_dispatch_counting
 # v8_enable_builtins_optimization
 # v8_enable_builtins_profiling
 # v8_enable_builtins_profiling_verbose
 # v8_builtins_profiling_log_file
-# v8_enable_external_code_space
+# v8_enable_builtins_reordering
 # v8_postmortem_support
 # v8_use_siphash
 # v8_no_inline
@@ -147,6 +148,53 @@ v8_flag(name = "v8_enable_verify_heap")
 v8_flag(name = "v8_enable_verify_predictable")
 
 v8_flag(name = "v8_enable_test_features")
+
+v8_flag(
+    name = "v8_enable_maglev",
+    default = True,
+)
+
+# Default setting for v8_enable_maglev
+selects.config_setting_group(
+    name = "maglev_by_default",
+    match_any = [
+        "@v8//bazel/config:v8_target_x64",
+        "@v8//bazel/config:v8_target_arm64",
+    ],
+)
+
+# Maglev enabled option.
+selects.config_setting_group(
+    name = "enable_maglev",
+    match_all = [
+        ":is_v8_enable_maglev",
+        ":maglev_by_default",
+    ],
+)
+
+selects.config_setting_group(
+    name = "enable_maglev_x64",
+    match_all = [
+        ":enable_maglev",
+        "@v8//bazel/config:v8_target_x64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "enable_maglev_arm64",
+    match_all = [
+        ":enable_maglev",
+        "@v8//bazel/config:v8_target_arm64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "enable_maglev_arm",
+    match_all = [
+        ":enable_maglev",
+        "@v8//bazel/config:v8_target_arm",
+    ],
+)
 
 v8_flag(
     name = "v8_enable_turbofan",
@@ -258,6 +306,23 @@ selects.config_setting_group(
     ],
 )
 
+# Enable support for external code range relative to the pointer compression
+# cage.
+v8_flag(
+    name = "v8_enable_external_code_space",
+    default = True,
+)
+
+# Enable support for external code range if enable_pointer_compression_shared_cage and
+# v8_enable_external_code_space.
+selects.config_setting_group(
+    name = "enable_external_code_space",
+    match_all = [
+        ":enable_pointer_compression_shared_cage",
+        ":is_v8_enable_external_code_space",
+    ],
+)
+
 # We use a string flag to create a 3 value-logic.
 # If no explicit value for v8_enable_short_builtin_calls, we set it to 'none'.
 v8_string(
@@ -363,6 +428,7 @@ v8_config(
         "GOOGLE3",
         "V8_ADVANCED_BIGINT_ALGORITHMS",
         "V8_CONCURRENT_MARKING",
+        "V8_ENABLE_SPARKPLUG",
     ] + select({
         "@v8//bazel/config:is_debug": [
             "DEBUG",
@@ -441,6 +507,16 @@ v8_config(
     }) + select({
         ":is_v8_enable_short_builtin_calls": [
             "V8_SHORT_BUILTIN_CALLS",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":enable_external_code_space": [
+            "V8_EXTERNAL_CODE_SPACE",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":enable_maglev": [
+            "V8_ENABLE_MAGLEV",
         ],
         "//conditions:default": [],
     }) + select({
@@ -598,6 +674,7 @@ filegroup(
     name = "v8_flags",
     srcs = [
         "src/flags/flag-definitions.h",
+        "src/flags/flags-impl.h",
         "src/flags/flags.h",
     ] + select({
         "is_v8_enable_webassembly": ["src/wasm/wasm-feature-flags.h"],
@@ -622,6 +699,8 @@ filegroup(
 filegroup(
     name = "v8_libbase_files",
     srcs = [
+        "src/base/abort-mode.cc",
+        "src/base/abort-mode.h",
         "src/base/address-region.h",
         "src/base/atomic-utils.h",
         "src/base/atomicops.h",
@@ -644,6 +723,7 @@ filegroup(
         "src/base/discriminated-union.h",
         "src/base/division-by-constant.cc",
         "src/base/division-by-constant.h",
+        "src/base/doubly-threaded-list.h",
         "src/base/emulated-virtual-address-subspace.cc",
         "src/base/emulated-virtual-address-subspace.h",
         "src/base/enum-set.h",
@@ -723,7 +803,6 @@ filegroup(
         "src/base/timezone-cache.h",
         "src/base/utils/random-number-generator.cc",
         "src/base/utils/random-number-generator.h",
-        "src/base/v8-fallthrough.h",
         "src/base/vector.h",
         "src/base/virtual-address-space.cc",
         "src/base/virtual-address-space.h",
@@ -827,8 +906,10 @@ filegroup(
         "src/builtins/array-findindex.tq",
         "src/builtins/array-findlast.tq",
         "src/builtins/array-findlastindex.tq",
+        "src/builtins/array-flat.tq",
         "src/builtins/array-foreach.tq",
         "src/builtins/array-from.tq",
+        "src/builtins/array-from-async.tq",
         "src/builtins/array-isarray.tq",
         "src/builtins/array-join.tq",
         "src/builtins/array-lastindexof.tq",
@@ -935,6 +1016,7 @@ filegroup(
         "src/builtins/string-substring.tq",
         "src/builtins/string-towellformed.tq",
         "src/builtins/string-trim.tq",
+        "src/builtins/suppressed-error.tq",
         "src/builtins/symbol.tq",
         "src/builtins/torque-internal.tq",
         "src/builtins/typed-array.tq",
@@ -1010,6 +1092,7 @@ filegroup(
         "src/objects/name.tq",
         "src/objects/oddball.tq",
         "src/objects/hole.tq",
+        "src/objects/trusted-object.tq",
         "src/objects/ordered-hash-table.tq",
         "src/objects/primitive-heap-object.tq",
         "src/objects/promise.tq",
@@ -1036,6 +1119,7 @@ filegroup(
         "third_party/v8/builtins/array-sort.tq",
     ] + select({
         ":is_v8_enable_webassembly": [
+            "src/builtins/js-to-js.tq",
             "src/builtins/js-to-wasm.tq",
             "src/builtins/wasm.tq",
             "src/builtins/wasm-strings.tq",
@@ -1192,6 +1276,7 @@ filegroup(
         "src/builtins/accessors.cc",
         "src/builtins/accessors.h",
         "src/builtins/builtins.cc",
+        "src/builtins/builtins-inl.h",
         "src/builtins/builtins.h",
         "src/builtins/builtins-api.cc",
         "src/builtins/builtins-array.cc",
@@ -1231,6 +1316,7 @@ filegroup(
         "src/builtins/builtins-weak-refs.cc",
         "src/builtins/constants-table-builder.cc",
         "src/builtins/constants-table-builder.h",
+        "src/builtins/data-view-ops.h",
         "src/builtins/profile-data-reader.h",
         "src/codegen/aligned-slot-allocator.cc",
         "src/codegen/aligned-slot-allocator.h",
@@ -1454,6 +1540,7 @@ filegroup(
         "src/extensions/trigger-failure-extension.cc",
         "src/extensions/trigger-failure-extension.h",
         "src/flags/flag-definitions.h",
+        "src/flags/flags-impl.h",
         "src/flags/flags.cc",
         "src/flags/flags.h",
         "src/handles/global-handles.cc",
@@ -1473,6 +1560,7 @@ filegroup(
         "src/handles/shared-object-conveyor-handles.h",
         "src/handles/traced-handles.cc",
         "src/handles/traced-handles.h",
+        "src/handles/traced-handles-inl.h",
         "src/heap/allocation-observer.cc",
         "src/heap/allocation-observer.h",
         "src/heap/allocation-result.h",
@@ -1482,19 +1570,18 @@ filegroup(
         "src/heap/base-space.h",
         "src/heap/base/active-system-pages.cc",
         "src/heap/base/active-system-pages.h",
-        "src/heap/basic-memory-chunk.cc",
-        "src/heap/basic-memory-chunk.h",
+        "src/heap/memory-chunk-metadata.cc",
+        "src/heap/memory-chunk-metadata.h",
         "src/heap/code-range.cc",
         "src/heap/code-range.h",
+        "src/heap/trusted-range.cc",
+        "src/heap/trusted-range.h",
         "src/heap/code-stats.cc",
         "src/heap/code-stats.h",
         "src/heap/collection-barrier.cc",
         "src/heap/collection-barrier.h",
         "src/heap/combined-heap.cc",
         "src/heap/combined-heap.h",
-        "src/heap/concurrent-allocator.cc",
-        "src/heap/concurrent-allocator.h",
-        "src/heap/concurrent-allocator-inl.h",
         "src/heap/concurrent-marking.cc",
         "src/heap/concurrent-marking.h",
         "src/heap/cppgc-js/cpp-heap.cc",
@@ -1516,6 +1603,7 @@ filegroup(
         "src/heap/cppgc-js/wrappable-info-inl.h",
         "src/heap/ephemeron-remembered-set.h",
         "src/heap/ephemeron-remembered-set.cc",
+        "src/heap/evacuation-allocator.cc",
         "src/heap/evacuation-allocator.h",
         "src/heap/evacuation-allocator-inl.h",
         "src/heap/evacuation-verifier.cc",
@@ -1572,6 +1660,9 @@ filegroup(
         "src/heap/local-heap.cc",
         "src/heap/local-heap.h",
         "src/heap/local-heap-inl.h",
+        "src/heap/main-allocator.cc",
+        "src/heap/main-allocator.h",
+        "src/heap/main-allocator-inl.h",
         "src/heap/mark-compact.cc",
         "src/heap/mark-compact.h",
         "src/heap/mark-compact-inl.h",
@@ -1597,9 +1688,11 @@ filegroup(
         "src/heap/memory-allocator.h",
         "src/heap/memory-balancer.cc",
         "src/heap/memory-balancer.h",
+        "src/heap/mutable-page.cc",
+        "src/heap/mutable-page.h",
         "src/heap/memory-chunk.cc",
         "src/heap/memory-chunk.h",
-        "src/heap/memory-chunk-inl.h",
+        "src/heap/mutable-page-inl.h",
         "src/heap/memory-chunk-layout.cc",
         "src/heap/memory-chunk-layout.h",
         "src/heap/memory-measurement.cc",
@@ -1944,7 +2037,11 @@ filegroup(
         "src/objects/objects-inl.h",
         "src/objects/oddball.h",
         "src/objects/oddball-inl.h",
+        "src/objects/off-heap-hash-table.h",
+        "src/objects/off-heap-hash-table-inl.h",
         "src/objects/hole.h",
+        "src/objects/trusted-object.h",
+        "src/objects/trusted-object-inl.h",
         "src/objects/hole-inl.h",
         "src/objects/option-utils.cc",
         "src/objects/option-utils.h",
@@ -1970,6 +2067,7 @@ filegroup(
         "src/objects/prototype-info.h",
         "src/objects/prototype-info-inl.h",
         "src/objects/prototype-inl.h",
+        "src/objects/regexp-match-info.cc",
         "src/objects/regexp-match-info.h",
         "src/objects/regexp-match-info-inl.h",
         "src/objects/scope-info.cc",
@@ -2197,10 +2295,17 @@ filegroup(
         "src/sandbox/code-pointer-table.cc",
         "src/sandbox/code-pointer-table.h",
         "src/sandbox/code-pointer-table-inl.h",
+        "src/sandbox/trusted-pointer-table.cc",
+        "src/sandbox/trusted-pointer-table.h",
+        "src/sandbox/trusted-pointer-table-inl.h",
         "src/sandbox/code-pointer.h",
         "src/sandbox/code-pointer-inl.h",
+        "src/sandbox/isolate.h",
+        "src/sandbox/isolate-inl.h",
         "src/sandbox/indirect-pointer.h",
+        "src/sandbox/indirect-pointer-tag.h",
         "src/sandbox/indirect-pointer-inl.h",
+        "src/sandbox/code-entrypoint-tag.h",
         "src/sandbox/external-entity-table.h",
         "src/sandbox/external-entity-table-inl.h",
         "src/sandbox/sandbox.cc",
@@ -2368,7 +2473,7 @@ filegroup(
             "src/execution/ia32/frame-constants-ia32.h",
             "src/regexp/ia32/regexp-macro-assembler-ia32.cc",
             "src/regexp/ia32/regexp-macro-assembler-ia32.h",
-            "src/wasm/baseline/ia32/liftoff-assembler-ia32.h",
+            "src/wasm/baseline/ia32/liftoff-assembler-ia32-inl.h",
         ],
         "@v8//bazel/config:v8_target_x64": [
             "src/baseline/x64/baseline-assembler-x64-inl.h",
@@ -2395,7 +2500,7 @@ filegroup(
             "src/execution/x64/frame-constants-x64.h",
             "src/regexp/x64/regexp-macro-assembler-x64.cc",
             "src/regexp/x64/regexp-macro-assembler-x64.h",
-            "src/wasm/baseline/x64/liftoff-assembler-x64.h",
+            "src/wasm/baseline/x64/liftoff-assembler-x64-inl.h",
         ],
         "@v8//bazel/config:v8_target_arm": [
             "src/baseline/arm/baseline-assembler-arm-inl.h",
@@ -2421,7 +2526,7 @@ filegroup(
             "src/execution/arm/simulator-arm.h",
             "src/regexp/arm/regexp-macro-assembler-arm.cc",
             "src/regexp/arm/regexp-macro-assembler-arm.h",
-            "src/wasm/baseline/arm/liftoff-assembler-arm.h",
+            "src/wasm/baseline/arm/liftoff-assembler-arm-inl.h",
         ],
         "@v8//bazel/config:v8_target_arm64": [
             "src/baseline/arm64/baseline-assembler-arm64-inl.h",
@@ -2459,7 +2564,7 @@ filegroup(
             "src/execution/arm64/simulator-logic-arm64.cc",
             "src/regexp/arm64/regexp-macro-assembler-arm64.cc",
             "src/regexp/arm64/regexp-macro-assembler-arm64.h",
-            "src/wasm/baseline/arm64/liftoff-assembler-arm64.h",
+            "src/wasm/baseline/arm64/liftoff-assembler-arm64-inl.h",
         ],
         "@v8//bazel/config:v8_target_s390x": [
             "src/baseline/s390/baseline-assembler-s390-inl.h",
@@ -2485,32 +2590,51 @@ filegroup(
             "src/execution/s390/simulator-s390.h",
             "src/regexp/s390/regexp-macro-assembler-s390.cc",
             "src/regexp/s390/regexp-macro-assembler-s390.h",
-            "src/wasm/baseline/s390/liftoff-assembler-s390.h",
+            "src/wasm/baseline/s390/liftoff-assembler-s390-inl.h",
         ],
         "@v8//bazel/config:v8_target_riscv64": [
-            "src/baseline/riscv64/baseline-assembler-riscv64-inl.h",
-            "src/baseline/riscv64/baseline-compiler-riscv64-inl.h",
-            "src/codegen/riscv64/assembler-riscv64.cc",
-            "src/codegen/riscv64/assembler-riscv64.h",
-            "src/codegen/riscv64/assembler-riscv64-inl.h",
-            "src/codegen/riscv64/constants-riscv64.cc",
-            "src/codegen/riscv64/constants-riscv64.h",
-            "src/codegen/riscv64/cpu-riscv64.cc",
-            "src/codegen/riscv64/interface-descriptors-riscv64-inl.h",
-            "src/codegen/riscv64/macro-assembler-riscv64.cc",
-            "src/codegen/riscv64/macro-assembler-riscv64.h",
-            "src/codegen/riscv64/register-riscv64.h",
-            "src/codegen/riscv64/reglist-riscv64.h",
-            "src/deoptimizer/riscv64/deoptimizer-riscv64.cc",
-            "src/diagnostics/riscv64/disasm-riscv64.cc",
-            "src/diagnostics/riscv64/unwinder-riscv64.cc",
-            "src/execution/riscv64/frame-constants-riscv64.cc",
-            "src/execution/riscv64/frame-constants-riscv64.h",
-            "src/execution/riscv64/simulator-riscv64.cc",
-            "src/execution/riscv64/simulator-riscv64.h",
-            "src/regexp/riscv64/regexp-macro-assembler-riscv64.cc",
-            "src/regexp/riscv64/regexp-macro-assembler-riscv64.h",
-            "src/wasm/baseline/riscv64/liftoff-assembler-riscv64.h",
+            "src/baseline/riscv/baseline-assembler-riscv-inl.h",
+            "src/baseline/riscv/baseline-compiler-riscv-inl.h",
+            "src/codegen/riscv/assembler-riscv-inl.h",
+            "src/codegen/riscv/assembler-riscv.h",
+            "src/codegen/riscv/base-assembler-riscv.h",
+            "src/codegen/riscv/base-constants-riscv.h",
+            "src/codegen/riscv/base-riscv-i.h",
+            "src/codegen/riscv/constant-riscv-a.h",
+            "src/codegen/riscv/constant-riscv-b.h",
+            "src/codegen/riscv/constant-riscv-c.h",
+            "src/codegen/riscv/constant-riscv-d.h",
+            "src/codegen/riscv/constant-riscv-f.h",
+            "src/codegen/riscv/constant-riscv-m.h",
+            "src/codegen/riscv/constant-riscv-v.h",
+            "src/codegen/riscv/constant-riscv-zicsr.h",
+            "src/codegen/riscv/constant-riscv-zifencei.h",
+            "src/codegen/riscv/constants-riscv.h",
+            "src/codegen/riscv/extension-riscv-a.h",
+            "src/codegen/riscv/extension-riscv-b.h",
+            "src/codegen/riscv/extension-riscv-c.h",
+            "src/codegen/riscv/extension-riscv-d.h",
+            "src/codegen/riscv/extension-riscv-f.h",
+            "src/codegen/riscv/extension-riscv-inl.h",
+            "src/codegen/riscv/extension-riscv-m.h",
+            "src/codegen/riscv/extension-riscv-v.h",
+            "src/codegen/riscv/extension-riscv-zicsr.h",
+            "src/codegen/riscv/extension-riscv-zifencei.h",
+            "src/codegen/riscv/interface-descriptors-riscv-inl.h",
+            "src/codegen/riscv/macro-assembler-riscv.h",
+            "src/codegen/riscv/register-riscv.h",
+            "src/codegen/riscv/reglist-riscv.h",
+            "src/deoptimizer/riscv/deoptimizer-riscv.cc",
+            "src/diagnostics/riscv/disasm-riscv.cc",
+            "src/diagnostics/riscv/unwinder-riscv.cc",
+            "src/execution/riscv/frame-constants-riscv.cc",
+            "src/execution/riscv/frame-constants-riscv.h",
+            "src/execution/riscv/simulator-riscv.cc",
+            "src/execution/riscv/simulator-riscv.h",
+            "src/regexp/riscv/regexp-macro-assembler-riscv.cc",
+            "src/regexp/riscv/regexp-macro-assembler-riscv.h",
+            "src/wasm/baseline/riscv/liftoff-assembler-riscv-inl.h",
+            "src/wasm/baseline/riscv/liftoff-assembler-riscv64-inl.h",
         ],
         "@v8//bazel/config:v8_target_ppc64le": [
             "src/baseline/ppc/baseline-assembler-ppc-inl.h",
@@ -2536,7 +2660,7 @@ filegroup(
             "src/execution/ppc/simulator-ppc.h",
             "src/regexp/ppc/regexp-macro-assembler-ppc.cc",
             "src/regexp/ppc/regexp-macro-assembler-ppc.h",
-            "src/wasm/baseline/ppc/liftoff-assembler-ppc.h",
+            "src/wasm/baseline/ppc/liftoff-assembler-ppc-inl.h",
         ],
     }) + select({
         # Only for x64 builds and for arm64 with x64 host simulator.
@@ -2569,6 +2693,69 @@ filegroup(
         ],
         "//conditions:default": [],
     }) + select({
+        ":enable_maglev": [
+            "src/maglev/maglev-assembler-inl.h",
+            "src/maglev/maglev-assembler.h",
+            "src/maglev/maglev-basic-block.h",
+            "src/maglev/maglev-code-gen-state.h",
+            "src/maglev/maglev-code-generator.h",
+            "src/maglev/maglev-compilation-info.h",
+            "src/maglev/maglev-compilation-unit.h",
+            "src/maglev/maglev-compiler.h",
+            "src/maglev/maglev-concurrent-dispatcher.h",
+            "src/maglev/maglev-graph-builder.h",
+            "src/maglev/maglev-graph-labeller.h",
+            "src/maglev/maglev-graph-printer.h",
+            "src/maglev/maglev-graph-processor.h",
+            "src/maglev/maglev-graph-verifier.h",
+            "src/maglev/maglev-graph.h",
+            "src/maglev/maglev-interpreter-frame-state.h",
+            "src/maglev/maglev-ir-inl.h",
+            "src/maglev/maglev-ir.h",
+            "src/maglev/maglev-phi-representation-selector.h",
+            "src/maglev/maglev-pipeline-statistics.h",
+            "src/maglev/maglev-regalloc-data.h",
+            "src/maglev/maglev-regalloc.h",
+            "src/maglev/maglev-register-frame-array.h",
+            "src/maglev/maglev.h",
+            "src/maglev/maglev-assembler.cc",
+            "src/maglev/maglev-code-generator.cc",
+            "src/maglev/maglev-compilation-info.cc",
+            "src/maglev/maglev-compilation-unit.cc",
+            "src/maglev/maglev-compiler.cc",
+            "src/maglev/maglev-concurrent-dispatcher.cc",
+            "src/maglev/maglev-graph-builder.cc",
+            "src/maglev/maglev-graph-printer.cc",
+            "src/maglev/maglev-interpreter-frame-state.cc",
+            "src/maglev/maglev-ir.cc",
+            "src/maglev/maglev-phi-representation-selector.cc",
+            "src/maglev/maglev-pipeline-statistics.cc",
+            "src/maglev/maglev-regalloc.cc",
+            "src/maglev/maglev.cc",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":enable_maglev_x64": [
+            "src/maglev/x64/maglev-assembler-x64-inl.h",
+            "src/maglev/x64/maglev-assembler-x64.cc",
+            "src/maglev/x64/maglev-ir-x64.cc",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":enable_maglev_arm64": [
+            "src/maglev/arm64/maglev-assembler-arm64-inl.h",
+            "src/maglev/arm64/maglev-assembler-arm64.cc",
+            "src/maglev/arm64/maglev-ir-arm64.cc",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":enable_maglev_arm": [
+            "src/maglev/arm/maglev-assembler-arm-inl.h",
+            "src/maglev/arm/maglev-assembler-arm.cc",
+            "src/maglev/arm/maglev-ir-arm.cc",
+        ],
+        "//conditions:default": [],
+    }) + select({
         ":is_v8_enable_webassembly": [
             "src/asmjs/asm-js.cc",
             "src/asmjs/asm-names.h",
@@ -2578,6 +2765,8 @@ filegroup(
             "src/asmjs/asm-scanner.h",
             "src/asmjs/asm-types.cc",
             "src/asmjs/asm-types.h",
+            "src/compiler/turboshaft/wasm-dead-code-elimination-phase.cc",
+            "src/compiler/turboshaft/wasm-dead-code-elimination-phase.h",
             "src/debug/debug-wasm-objects.cc",
             "src/debug/debug-wasm-objects.h",
             "src/debug/debug-wasm-objects-inl.h",
@@ -2593,15 +2782,20 @@ filegroup(
             "src/wasm/baseline/liftoff-assembler.cc",
             "src/wasm/baseline/liftoff-assembler.h",
             "src/wasm/baseline/liftoff-assembler-defs.h",
+            "src/wasm/baseline/liftoff-assembler-inl.h",
             "src/wasm/baseline/liftoff-compiler.cc",
             "src/wasm/baseline/liftoff-compiler.h",
             "src/wasm/baseline/liftoff-register.h",
+            "src/wasm/baseline/parallel-move.cc",
+            "src/wasm/baseline/parallel-move.h",
+            "src/wasm/baseline/parallel-move-inl.h",
             "src/wasm/branch-hint-map.h",
             "src/wasm/canonical-types.cc",
             "src/wasm/canonical-types.h",
             "src/wasm/code-space-access.cc",
             "src/wasm/code-space-access.h",
             "src/wasm/compilation-environment.h",
+            "src/wasm/compilation-environment-inl.h",
             "src/wasm/constant-expression.cc",
             "src/wasm/constant-expression.h",
             "src/wasm/constant-expression-interface.cc",
@@ -2612,8 +2806,11 @@ filegroup(
             "src/wasm/function-body-decoder-impl.h",
             "src/wasm/function-compiler.cc",
             "src/wasm/function-compiler.h",
+            "src/wasm/fuzzing/random-module-generation.cc",
+            "src/wasm/fuzzing/random-module-generation.h",
             "src/wasm/graph-builder-interface.cc",
             "src/wasm/graph-builder-interface.h",
+            "src/wasm/inlining-tree.h",
             "src/wasm/jump-table-assembler.cc",
             "src/wasm/jump-table-assembler.h",
             "src/wasm/leb-helper.h",
@@ -2650,6 +2847,7 @@ filegroup(
             "src/wasm/value-type.cc",
             "src/wasm/value-type.h",
             "src/wasm/wasm-arguments.h",
+            "src/wasm/wasm-builtin-list.h",
             "src/wasm/wasm-code-manager.cc",
             "src/wasm/wasm-code-manager.h",
             "src/wasm/wasm-debug.cc",
@@ -2691,6 +2889,7 @@ filegroup(
             "src/wasm/wasm-value.h",
             "src/wasm/well-known-imports.cc",
             "src/wasm/well-known-imports.h",
+            "src/wasm/wrappers.cc",
         ],
         "//conditions:default": [],
     }),
@@ -2780,8 +2979,6 @@ filegroup(
         "src/compiler/backend/instruction-selector-impl.h",
         "src/compiler/backend/jump-threading.cc",
         "src/compiler/backend/jump-threading.h",
-        "src/compiler/backend/mid-tier-register-allocator.cc",
-        "src/compiler/backend/mid-tier-register-allocator.h",
         "src/compiler/backend/move-optimizer.cc",
         "src/compiler/backend/move-optimizer.h",
         "src/compiler/backend/register-allocation.h",
@@ -2821,6 +3018,8 @@ filegroup(
         "src/compiler/compiler-source-position-table.h",
         "src/compiler/constant-folding-reducer.cc",
         "src/compiler/constant-folding-reducer.h",
+        "src/compiler/const-tracking-let-helpers.cc",
+        "src/compiler/const-tracking-let-helpers.h",
         "src/compiler/control-equivalence.cc",
         "src/compiler/control-equivalence.h",
         "src/compiler/control-flow-optimizer.cc",
@@ -2948,6 +3147,7 @@ filegroup(
         "src/compiler/phase.h",
         "src/compiler/pipeline.cc",
         "src/compiler/pipeline.h",
+        "src/compiler/pipeline-data-inl.h",
         "src/compiler/pipeline-statistics.cc",
         "src/compiler/pipeline-statistics.h",
         "src/compiler/processed-feedback.h",
@@ -2983,15 +3183,21 @@ filegroup(
         "src/compiler/string-builder-optimizer.h",
         "src/compiler/turbofan.h",
         "src/compiler/turbofan-enabled.cc",
+        "src/compiler/turboshaft/analyzer-iterator.cc",
+        "src/compiler/turboshaft/analyzer-iterator.h",
         "src/compiler/turboshaft/assembler.cc",
         "src/compiler/turboshaft/assembler.h",
         "src/compiler/turboshaft/assert-types-reducer.h",
+        "src/compiler/turboshaft/duplication-optimization-reducer.h",
         "src/compiler/turboshaft/branch-elimination-reducer.h",
         "src/compiler/turboshaft/build-graph-phase.cc",
         "src/compiler/turboshaft/build-graph-phase.h",
         "src/compiler/turboshaft/builtin-call-descriptors.h",
-        "src/compiler/turboshaft/dead-code-elimination-phase.cc",
-        "src/compiler/turboshaft/dead-code-elimination-phase.h",
+        "src/compiler/turboshaft/csa-optimize-phase.cc",
+        "src/compiler/turboshaft/csa-optimize-phase.h",
+        "src/compiler/turboshaft/dataview-lowering-reducer.h",
+        "src/compiler/turboshaft/code-elimination-and-simplification-phase.cc",
+        "src/compiler/turboshaft/code-elimination-and-simplification-phase.h",
         "src/compiler/turboshaft/dead-code-elimination-reducer.h",
         "src/compiler/turboshaft/debug-feature-lowering-phase.cc",
         "src/compiler/turboshaft/debug-feature-lowering-phase.h",
@@ -3002,9 +3208,8 @@ filegroup(
         "src/compiler/turboshaft/decompression-optimization-phase.h",
         "src/compiler/turboshaft/define-assembler-macros.inc",
         "src/compiler/turboshaft/deopt-data.h",
-        "src/compiler/turboshaft/doubly-threaded-list.h",
         "src/compiler/turboshaft/explicit-truncation-reducer.h",
-        "src/compiler/turboshaft/fast-api-call-reducer.h",
+        "src/compiler/turboshaft/fast-api-call-lowering-reducer.h",
         "src/compiler/turboshaft/fast-hash.h",
         "src/compiler/turboshaft/graph.cc",
         "src/compiler/turboshaft/graph.h",
@@ -3012,6 +3217,7 @@ filegroup(
         "src/compiler/turboshaft/graph-builder.h",
         "src/compiler/turboshaft/graph-visualizer.cc",
         "src/compiler/turboshaft/graph-visualizer.h",
+        "src/compiler/turboshaft/js-generic-lowering-reducer.h",
         "src/compiler/turboshaft/index.h",
         "src/compiler/turboshaft/instruction-selection-phase.cc",
         "src/compiler/turboshaft/instruction-selection-phase.h",
@@ -3020,17 +3226,31 @@ filegroup(
         "src/compiler/turboshaft/late-load-elimination-reducer.cc",
         "src/compiler/turboshaft/late-load-elimination-reducer.h",
         "src/compiler/turboshaft/layered-hash-map.h",
+        "src/compiler/turboshaft/load-store-simplification-reducer.h",
+        "src/compiler/turboshaft/loop-finder.cc",
+        "src/compiler/turboshaft/loop-finder.h",
+        "src/compiler/turboshaft/loop-peeling-phase.cc",
+        "src/compiler/turboshaft/loop-peeling-phase.h",
+        "src/compiler/turboshaft/loop-peeling-reducer.h",
+        "src/compiler/turboshaft/loop-unrolling-phase.cc",
+        "src/compiler/turboshaft/loop-unrolling-phase.h",
+        "src/compiler/turboshaft/loop-unrolling-reducer.cc",
+        "src/compiler/turboshaft/loop-unrolling-reducer.h",
         "src/compiler/turboshaft/machine-lowering-phase.cc",
         "src/compiler/turboshaft/machine-lowering-phase.h",
-        "src/compiler/turboshaft/machine-lowering-reducer.h",
+        "src/compiler/turboshaft/machine-lowering-reducer-inl.h",
+        "src/compiler/turboshaft/maglev-early-lowering-reducer-inl.h",
+        "src/compiler/turboshaft/maglev-graph-building-phase.cc",
+        "src/compiler/turboshaft/maglev-graph-building-phase.h",
         "src/compiler/turboshaft/machine-optimization-reducer.h",
         "src/compiler/turboshaft/memory-optimization-reducer.cc",
         "src/compiler/turboshaft/memory-optimization-reducer.h",
         "src/compiler/turboshaft/operation-matcher.h",
         "src/compiler/turboshaft/operations.cc",
         "src/compiler/turboshaft/operations.h",
-        "src/compiler/turboshaft/optimization-phase.cc",
-        "src/compiler/turboshaft/optimization-phase.h",
+        "src/compiler/turboshaft/opmasks.h",
+        "src/compiler/turboshaft/copying-phase.cc",
+        "src/compiler/turboshaft/copying-phase.h",
         "src/compiler/turboshaft/optimize-phase.cc",
         "src/compiler/turboshaft/optimize-phase.h",
         "src/compiler/turboshaft/phase.cc",
@@ -3041,17 +3261,22 @@ filegroup(
         "src/compiler/turboshaft/recreate-schedule.h",
         "src/compiler/turboshaft/recreate-schedule-phase.cc",
         "src/compiler/turboshaft/recreate-schedule-phase.h",
-        "src/compiler/turboshaft/reduce-args-helper.h",
         "src/compiler/turboshaft/reducer-traits.h",
         "src/compiler/turboshaft/representations.cc",
         "src/compiler/turboshaft/representations.h",
         "src/compiler/turboshaft/required-optimization-reducer.h",
         "src/compiler/turboshaft/runtime-call-descriptors.h",
         "src/compiler/turboshaft/select-lowering-reducer.h",
+        "src/compiler/turboshaft/sidetable.cc",
         "src/compiler/turboshaft/sidetable.h",
+        "src/compiler/turboshaft/simplified-lowering-phase.cc",
+        "src/compiler/turboshaft/simplified-lowering-phase.h",
+        "src/compiler/turboshaft/simplified-lowering-reducer.h",
         "src/compiler/turboshaft/simplify-tf-loops.cc",
         "src/compiler/turboshaft/simplify-tf-loops.h",
         "src/compiler/turboshaft/snapshot-table.h",
+        "src/compiler/turboshaft/snapshot-table-opindex.h",
+        "src/compiler/turboshaft/stack-check-lowering-reducer.h",
         "src/compiler/turboshaft/store-store-elimination-phase.cc",
         "src/compiler/turboshaft/store-store-elimination-phase.h",
         "src/compiler/turboshaft/store-store-elimination-reducer.h",
@@ -3137,10 +3362,10 @@ filegroup(
             "src/compiler/backend/s390/unwinding-info-writer-s390.h",
         ],
         "@v8//bazel/config:v8_target_riscv64": [
-            "src/compiler/backend/riscv64/code-generator-riscv64.cc",
-            "src/compiler/backend/riscv64/instruction-codes-riscv64.h",
-            "src/compiler/backend/riscv64/instruction-scheduler-riscv64.cc",
-            "src/compiler/backend/riscv64/instruction-selector-riscv64.cc",
+            "src/compiler/backend/riscv/code-generator-riscv.cc",
+            "src/compiler/backend/riscv/instruction-codes-riscv.h",
+            "src/compiler/backend/riscv/instruction-scheduler-riscv.cc",
+            "src/compiler/backend/riscv/instruction-selector-riscv64.cc",
         ],
         "@v8//bazel/config:v8_target_ppc64le": [
             "src/compiler/backend/ppc/code-generator-ppc.cc",
@@ -3157,6 +3382,14 @@ filegroup(
             "src/compiler/turboshaft/int64-lowering-phase.cc",
             "src/compiler/turboshaft/int64-lowering-phase.h",
             "src/compiler/turboshaft/int64-lowering-reducer.h",
+            "src/compiler/turboshaft/wasm-assembler-helpers.h",
+            "src/compiler/turboshaft/wasm-gc-optimize-phase.cc",
+            "src/compiler/turboshaft/wasm-gc-optimize-phase.h",
+            "src/compiler/turboshaft/wasm-gc-typed-optimization-reducer.cc",
+            "src/compiler/turboshaft/wasm-gc-typed-optimization-reducer.h",
+            "src/compiler/turboshaft/wasm-load-elimination-reducer.h",
+            "src/compiler/turboshaft/wasm-lowering-phase.cc",
+            "src/compiler/turboshaft/wasm-lowering-phase.h",
             "src/compiler/turboshaft/wasm-lowering-reducer.h",
             "src/compiler/turboshaft/wasm-optimize-phase.cc",
             "src/compiler/turboshaft/wasm-optimize-phase.h",
@@ -3252,6 +3485,8 @@ filegroup(
         "src/builtins/setup-builtins-internal.cc",
         "src/builtins/torque-csa-header-includes.h",
         "src/codegen/code-stub-assembler.cc",
+        "third_party/v8/codegen/fp16-inl.h",
+        "src/codegen/code-stub-assembler-inl.h",
         "src/codegen/code-stub-assembler.h",
         "src/heap/setup-heap-internal.cc",
         "src/ic/accessor-assembler.cc",
@@ -3276,7 +3511,7 @@ filegroup(
         "@v8//bazel/config:v8_target_arm": ["src/builtins/arm/builtins-arm.cc"],
         "@v8//bazel/config:v8_target_arm64": ["src/builtins/arm64/builtins-arm64.cc"],
         "@v8//bazel/config:v8_target_s390x": ["src/builtins/s390/builtins-s390.cc"],
-        "@v8//bazel/config:v8_target_riscv64": ["src/builtins/riscv64/builtins-riscv64.cc"],
+        "@v8//bazel/config:v8_target_riscv64": ["src/builtins/riscv/builtins-riscv.cc"],
         "@v8//bazel/config:v8_target_ppc64le": ["src/builtins/ppc/builtins-ppc.cc"],
     }) + select({
         ":is_v8_enable_webassembly": [
@@ -3284,6 +3519,32 @@ filegroup(
             "src/builtins/builtins-wasm-gen.h",
         ],
         "//conditions:default": [],
+    }) + select({
+        # Turboshaft's Maglev graph builder needs some Maglev files. We only
+        # include them explicitely when Maglev is disabled.
+        ":enable_maglev": [],
+        "//conditions:default": [
+            "src/maglev/maglev-basic-block.h",
+            "src/maglev/maglev-code-gen-state.h",
+            "src/maglev/maglev-compilation-info.cc",
+            "src/maglev/maglev-compilation-info.h",
+            "src/maglev/maglev-compilation-unit.cc",
+            "src/maglev/maglev-compilation-unit.h",
+            "src/maglev/maglev-graph-builder.cc",
+            "src/maglev/maglev-graph-builder.h",
+            "src/maglev/maglev-graph.h",
+            "src/maglev/maglev-graph-labeller.h",
+            "src/maglev/maglev-graph-printer.cc",
+            "src/maglev/maglev-graph-printer.h",
+            "src/maglev/maglev-graph-processor.h",
+            "src/maglev/maglev-graph-verifier.h",
+            "src/maglev/maglev-interpreter-frame-state.cc",
+            "src/maglev/maglev-interpreter-frame-state.h",
+            "src/maglev/maglev-ir.cc",
+            "src/maglev/maglev-ir.h",
+            "src/maglev/maglev-ir-inl.h",
+            "src/maglev/maglev-register-frame-array.h",
+        ],
     }),
 )
 
@@ -3401,6 +3662,8 @@ filegroup(
         "src/heap/base/bytes.h",
         "src/heap/base/incremental-marking-schedule.cc",
         "src/heap/base/incremental-marking-schedule.h",
+        "src/heap/base/memory-tagging.h",
+        "src/heap/base/memory-tagging.cc",
         "src/heap/base/stack.cc",
         "src/heap/base/stack.h",
         "src/heap/base/worklist.cc",
@@ -3420,6 +3683,18 @@ filegroup(
         "@v8//bazel/config:is_msvc_asm_x64": ["src/heap/base/asm/x64/push_registers_masm.asm"],
         "@v8//bazel/config:is_msvc_asm_arm64": ["src/heap/base/asm/arm64/push_registers_masm.S"],
     }),
+)
+
+v8_library(
+  name = "lib_fp16",
+  srcs = ["third_party/fp16/src/include/fp16.h"],
+  hdrs = [
+    "third_party/fp16/src/include/fp16/fp16.h",
+    "third_party/fp16/src/include/fp16/bitcasts.h",
+  ],
+  includes = [
+    "third_party/fp16/src/include",
+  ],
 )
 
 filegroup(
@@ -3911,8 +4186,12 @@ v8_library(
         ":noicu/generated_torque_definitions",
     ],
     deps = [
+        ":lib_fp16",
         ":v8_libbase",
         "//external:base_trace_event_common",
+        "//external:absl_btree",
+        "//external:absl_flat_hash_map",
+        "//external:absl_flat_hash_set",
     ],
 )
 
@@ -3964,11 +4243,11 @@ alias(
 
 v8_library(
     name = "v8_vtune",
-    srcs = glob([
+    srcs = [
         "src/third_party/vtune/v8-vtune.h",
         "src/third_party/vtune/vtune-jit.cc",
         "src/third_party/vtune/vtune-jit.h",
-    ]),
+    ],
     copts = ["-I"],
     deps = [
         ":core_lib_noicu",

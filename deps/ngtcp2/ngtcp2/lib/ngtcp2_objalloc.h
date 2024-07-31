@@ -65,15 +65,25 @@ void ngtcp2_objalloc_free(ngtcp2_objalloc *objalloc);
 void ngtcp2_objalloc_clear(ngtcp2_objalloc *objalloc);
 
 #ifndef NOMEMPOOL
-#  define ngtcp2_objalloc_def(NAME, TYPE, OPLENTFIELD)                         \
+#  define ngtcp2_objalloc_decl(NAME, TYPE, OPLENTFIELD)                        \
     inline static void ngtcp2_objalloc_##NAME##_init(                          \
         ngtcp2_objalloc *objalloc, size_t nmemb, const ngtcp2_mem *mem) {      \
       ngtcp2_objalloc_init(                                                    \
           objalloc, ((sizeof(TYPE) + 0xfu) & ~(uintptr_t)0xfu) * nmemb, mem);  \
     }                                                                          \
                                                                                \
-    inline static TYPE *ngtcp2_objalloc_##NAME##_get(                          \
-        ngtcp2_objalloc *objalloc) {                                           \
+    TYPE *ngtcp2_objalloc_##NAME##_get(ngtcp2_objalloc *objalloc);             \
+                                                                               \
+    TYPE *ngtcp2_objalloc_##NAME##_len_get(ngtcp2_objalloc *objalloc,          \
+                                           size_t len);                        \
+                                                                               \
+    inline static void ngtcp2_objalloc_##NAME##_release(                       \
+        ngtcp2_objalloc *objalloc, TYPE *obj) {                                \
+      ngtcp2_opl_push(&objalloc->opl, &obj->OPLENTFIELD);                      \
+    }
+
+#  define ngtcp2_objalloc_def(NAME, TYPE, OPLENTFIELD)                         \
+    TYPE *ngtcp2_objalloc_##NAME##_get(ngtcp2_objalloc *objalloc) {            \
       ngtcp2_opl_entry *oplent = ngtcp2_opl_pop(&objalloc->opl);               \
       TYPE *obj;                                                               \
       int rv;                                                                  \
@@ -91,8 +101,8 @@ void ngtcp2_objalloc_clear(ngtcp2_objalloc *objalloc);
       return ngtcp2_struct_of(oplent, TYPE, OPLENTFIELD);                      \
     }                                                                          \
                                                                                \
-    inline static TYPE *ngtcp2_objalloc_##NAME##_len_get(                      \
-        ngtcp2_objalloc *objalloc, size_t len) {                               \
+    TYPE *ngtcp2_objalloc_##NAME##_len_get(ngtcp2_objalloc *objalloc,          \
+                                           size_t len) {                       \
       ngtcp2_opl_entry *oplent = ngtcp2_opl_pop(&objalloc->opl);               \
       TYPE *obj;                                                               \
       int rv;                                                                  \
@@ -107,14 +117,9 @@ void ngtcp2_objalloc_clear(ngtcp2_objalloc *objalloc);
       }                                                                        \
                                                                                \
       return ngtcp2_struct_of(oplent, TYPE, OPLENTFIELD);                      \
-    }                                                                          \
-                                                                               \
-    inline static void ngtcp2_objalloc_##NAME##_release(                       \
-        ngtcp2_objalloc *objalloc, TYPE *obj) {                                \
-      ngtcp2_opl_push(&objalloc->opl, &obj->OPLENTFIELD);                      \
     }
 #else /* NOMEMPOOL */
-#  define ngtcp2_objalloc_def(NAME, TYPE, OPLENTFIELD)                         \
+#  define ngtcp2_objalloc_decl(NAME, TYPE, OPLENTFIELD)                        \
     inline static void ngtcp2_objalloc_##NAME##_init(                          \
         ngtcp2_objalloc *objalloc, size_t nmemb, const ngtcp2_mem *mem) {      \
       ngtcp2_objalloc_init(                                                    \
@@ -135,6 +140,8 @@ void ngtcp2_objalloc_clear(ngtcp2_objalloc *objalloc);
         ngtcp2_objalloc *objalloc, TYPE *obj) {                                \
       ngtcp2_mem_free(objalloc->balloc.mem, obj);                              \
     }
+
+#  define ngtcp2_objalloc_def(NAME, TYPE, OPLENTFIELD)
 #endif /* NOMEMPOOL */
 
 #endif /* NGTCP2_OBJALLOC_H */

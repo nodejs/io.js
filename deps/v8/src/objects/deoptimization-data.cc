@@ -20,27 +20,25 @@ namespace v8 {
 namespace internal {
 
 Handle<DeoptimizationData> DeoptimizationData::New(Isolate* isolate,
-                                                   int deopt_entry_count,
-                                                   AllocationType allocation) {
-  return Handle<DeoptimizationData>::cast(isolate->factory()->NewFixedArray(
-      LengthFor(deopt_entry_count), allocation));
+                                                   int deopt_entry_count) {
+  return Handle<DeoptimizationData>::cast(
+      isolate->factory()->NewTrustedFixedArray(LengthFor(deopt_entry_count)));
 }
 
 Handle<DeoptimizationData> DeoptimizationData::New(LocalIsolate* isolate,
-                                                   int deopt_entry_count,
-                                                   AllocationType allocation) {
-  return Handle<DeoptimizationData>::cast(isolate->factory()->NewFixedArray(
-      LengthFor(deopt_entry_count), allocation));
+                                                   int deopt_entry_count) {
+  return Handle<DeoptimizationData>::cast(
+      isolate->factory()->NewTrustedFixedArray(LengthFor(deopt_entry_count)));
 }
 
 Handle<DeoptimizationData> DeoptimizationData::Empty(Isolate* isolate) {
   return Handle<DeoptimizationData>::cast(
-      isolate->factory()->empty_fixed_array());
+      isolate->factory()->empty_trusted_fixed_array());
 }
 
 Handle<DeoptimizationData> DeoptimizationData::Empty(LocalIsolate* isolate) {
   return Handle<DeoptimizationData>::cast(
-      isolate->factory()->empty_fixed_array());
+      isolate->factory()->empty_trusted_fixed_array());
 }
 
 Tagged<SharedFunctionInfo> DeoptimizationData::GetInlinedFunction(int index) {
@@ -161,7 +159,7 @@ DeoptimizationFrameTranslation::Iterator::Iterator(
     : buffer_(buffer), index_(index) {
 #ifdef V8_USE_ZLIB
   if (V8_UNLIKELY(v8_flags.turbo_compress_frame_translations)) {
-    const int size = buffer_.get_int(kUncompressedSizeOffset);
+    const int size = buffer_->get_int(kUncompressedSizeOffset);
     uncompressed_contents_.insert(uncompressed_contents_.begin(), size, 0);
 
     uLongf uncompressed_size =
@@ -169,10 +167,9 @@ DeoptimizationFrameTranslation::Iterator::Iterator(
 
     CHECK_EQ(zlib_internal::UncompressHelper(
                  zlib_internal::ZRAW,
-                 base::bit_cast<Bytef*>(uncompressed_contents_.data()),
-                 &uncompressed_size,
-                 buffer_.GetDataStartAddress() + kCompressedDataOffset,
-                 buffer_.DataSize()),
+                 reinterpret_cast<Bytef*>(uncompressed_contents_.data()),
+                 &uncompressed_size, buffer_->begin() + kCompressedDataOffset,
+                 buffer_->DataSize()),
              Z_OK);
     DCHECK(index >= 0 && index < size);
     return;
@@ -183,20 +180,19 @@ DeoptimizationFrameTranslation::Iterator::Iterator(
   // Starting at a location other than a BEGIN would make
   // MATCH_PREVIOUS_TRANSLATION instructions not work.
   DCHECK(TranslationOpcodeIsBegin(
-      static_cast<TranslationOpcode>(buffer_.GetDataStartAddress()[index])));
+      static_cast<TranslationOpcode>(buffer_->begin()[index])));
 }
 
 int32_t DeoptimizationFrameTranslation::Iterator::NextOperand() {
   if (V8_UNLIKELY(v8_flags.turbo_compress_frame_translations)) {
     return uncompressed_contents_[index_++];
   } else if (remaining_ops_to_use_from_previous_translation_) {
-    int32_t value =
-        base::VLQDecode(buffer_.GetDataStartAddress(), &previous_index_);
+    int32_t value = base::VLQDecode(buffer_->begin(), &previous_index_);
     DCHECK_LT(previous_index_, index_);
     return value;
   } else {
-    int32_t value = base::VLQDecode(buffer_.GetDataStartAddress(), &index_);
-    DCHECK_LE(index_, buffer_.length());
+    int32_t value = base::VLQDecode(buffer_->begin(), &index_);
+    DCHECK_LE(index_, buffer_->length());
     return value;
   }
 }
@@ -204,7 +200,7 @@ int32_t DeoptimizationFrameTranslation::Iterator::NextOperand() {
 TranslationOpcode
 DeoptimizationFrameTranslation::Iterator::NextOpcodeAtPreviousIndex() {
   TranslationOpcode opcode =
-      static_cast<TranslationOpcode>(buffer_.get(previous_index_++));
+      static_cast<TranslationOpcode>(buffer_->get(previous_index_++));
   DCHECK_LT(static_cast<uint32_t>(opcode), kNumTranslationOpcodes);
   DCHECK_NE(opcode, TranslationOpcode::MATCH_PREVIOUS_TRANSLATION);
   DCHECK_LT(previous_index_, index_);
@@ -213,8 +209,7 @@ DeoptimizationFrameTranslation::Iterator::NextOpcodeAtPreviousIndex() {
 
 uint32_t
 DeoptimizationFrameTranslation::Iterator::NextUnsignedOperandAtPreviousIndex() {
-  uint32_t value =
-      base::VLQDecodeUnsigned(buffer_.GetDataStartAddress(), &previous_index_);
+  uint32_t value = base::VLQDecodeUnsigned(buffer_->begin(), &previous_index_);
   DCHECK_LT(previous_index_, index_);
   return value;
 }
@@ -225,9 +220,8 @@ uint32_t DeoptimizationFrameTranslation::Iterator::NextOperandUnsigned() {
   } else if (remaining_ops_to_use_from_previous_translation_) {
     return NextUnsignedOperandAtPreviousIndex();
   } else {
-    uint32_t value =
-        base::VLQDecodeUnsigned(buffer_.GetDataStartAddress(), &index_);
-    DCHECK_LE(index_, buffer_.length());
+    uint32_t value = base::VLQDecodeUnsigned(buffer_->begin(), &index_);
+    DCHECK_LE(index_, buffer_->length());
     return value;
   }
 }
@@ -242,8 +236,8 @@ TranslationOpcode DeoptimizationFrameTranslation::Iterator::NextOpcode() {
   if (remaining_ops_to_use_from_previous_translation_) {
     return NextOpcodeAtPreviousIndex();
   }
-  CHECK_LT(index_, buffer_.length());
-  uint8_t opcode_byte = buffer_.get(index_++);
+  CHECK_LT(index_, buffer_->length());
+  uint8_t opcode_byte = buffer_->get(index_++);
 
   // If the opcode byte is greater than any valid opcode, then the opcode is
   // implicitly MATCH_PREVIOUS_TRANSLATION and the operand is the opcode byte
@@ -261,7 +255,7 @@ TranslationOpcode DeoptimizationFrameTranslation::Iterator::NextOpcode() {
   }
 
   TranslationOpcode opcode = static_cast<TranslationOpcode>(opcode_byte);
-  DCHECK_LE(index_, buffer_.length());
+  DCHECK_LE(index_, buffer_->length());
   DCHECK_LT(static_cast<uint32_t>(opcode), kNumTranslationOpcodes);
   if (TranslationOpcodeIsBegin(opcode)) {
     int temp_index = index_;
@@ -269,14 +263,14 @@ TranslationOpcode DeoptimizationFrameTranslation::Iterator::NextOpcode() {
     // previous BEGIN, or zero to indicate that MATCH_PREVIOUS_TRANSLATION will
     // not be used in this translation.
     uint32_t lookback_distance =
-        base::VLQDecodeUnsigned(buffer_.GetDataStartAddress(), &temp_index);
+        base::VLQDecodeUnsigned(buffer_->begin(), &temp_index);
     if (lookback_distance) {
       previous_index_ = index_ - 1 - lookback_distance;
       DCHECK(TranslationOpcodeIsBegin(
-          static_cast<TranslationOpcode>(buffer_.get(previous_index_))));
+          static_cast<TranslationOpcode>(buffer_->get(previous_index_))));
       // The previous BEGIN should specify zero as its lookback distance,
       // meaning it won't use MATCH_PREVIOUS_TRANSLATION.
-      DCHECK_EQ(buffer_.get(previous_index_ + 1), 0);
+      DCHECK_EQ(buffer_->get(previous_index_ + 1), 0);
     }
     ops_since_previous_index_was_updated_ = 1;
   } else if (opcode == TranslationOpcode::MATCH_PREVIOUS_TRANSLATION) {
@@ -334,7 +328,7 @@ bool DeoptimizationFrameTranslation::Iterator::HasNextOpcode() const {
   if (V8_UNLIKELY(v8_flags.turbo_compress_frame_translations)) {
     return index_ < static_cast<int>(uncompressed_contents_.size());
   } else {
-    return index_ < buffer_.length() ||
+    return index_ < buffer_->length() ||
            remaining_ops_to_use_from_previous_translation_ > 1;
   }
 }

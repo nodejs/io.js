@@ -61,7 +61,7 @@ class U_I18N_API StringSegment : public UMemory {
 
     UnicodeString toUnicodeString() const;
 
-    const UnicodeString toTempUnicodeString() const;
+    UnicodeString toTempUnicodeString() const;
 
     /**
      * Returns the first code point in the string segment, or -1 if the string starts with an invalid

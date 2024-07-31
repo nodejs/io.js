@@ -32,7 +32,7 @@ void DependentCode::DeoptimizeDependencyGroups(Isolate* isolate,
                                                Tagged<ObjectT> object,
                                                DependencyGroups groups) {
   // Shared objects are designed to never invalidate code.
-  DCHECK(!Object::InSharedHeap(object) && !object->InReadOnlySpace());
+  DCHECK(!InAnySharedSpace(object) && !InReadOnlySpace(object));
   object->dependent_code()->DeoptimizeDependencyGroups(isolate, groups);
 }
 
@@ -42,7 +42,7 @@ bool DependentCode::MarkCodeForDeoptimization(Isolate* isolate,
                                               Tagged<ObjectT> object,
                                               DependencyGroups groups) {
   // Shared objects are designed to never invalidate code.
-  DCHECK(!object.InAnySharedSpace() && !object.InReadOnlySpace());
+  DCHECK(!InAnySharedSpace(object) && !InReadOnlySpace(object));
   return object->dependent_code()->MarkCodeForDeoptimization(isolate, groups);
 }
 

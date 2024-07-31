@@ -13,23 +13,27 @@
 namespace v8 {
 namespace internal {
 
-#include "torque-generated/src/objects/oddball-tq.inc"
-
 // The Oddball describes objects null, undefined, true, and false.
-class Oddball : public PrimitiveHeapObject {
+V8_OBJECT class Oddball : public PrimitiveHeapObject {
  public:
   // [to_number_raw]: Cached raw to_number computed at startup.
   DECL_PRIMITIVE_ACCESSORS(to_number_raw, double)
   inline void set_to_number_raw_as_bits(uint64_t bits);
 
   // [to_string]: Cached to_string computed at startup.
-  DECL_ACCESSORS(to_string, Tagged<String>)
+  inline Tagged<String> to_string() const;
+  inline void set_to_string(Tagged<String> value,
+                            WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   // [to_number]: Cached to_number computed at startup.
-  DECL_ACCESSORS(to_number, Tagged<Object>)
+  inline Tagged<Object> to_number() const;
+  inline void set_to_number(Tagged<Object> value,
+                            WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   // [typeof]: Cached type_of computed at startup.
-  DECL_ACCESSORS(type_of, Tagged<String>)
+  inline Tagged<String> type_of() const;
+  inline void set_type_of(Tagged<String> value,
+                          WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   inline uint8_t kind() const;
   inline void set_kind(uint8_t kind);
@@ -48,73 +52,71 @@ class Oddball : public PrimitiveHeapObject {
                          const char* to_string, Handle<Object> to_number,
                          const char* type_of, uint8_t kind);
 
-  // Layout description.
-  DECL_FIELD_OFFSET_TQ(ToNumberRaw, HeapObject::kHeaderSize, "float64")
-  DECL_FIELD_OFFSET_TQ(ToString, kToNumberRawOffset + kDoubleSize, "String")
-  DECL_FIELD_OFFSET_TQ(ToNumber, kToStringOffset + kTaggedSize, "Number")
-  DECL_FIELD_OFFSET_TQ(TypeOf, kToNumberOffset + kTaggedSize, "String")
-  DECL_FIELD_OFFSET_TQ(Kind, kTypeOfOffset + kTaggedSize, "Smi")
-  static const int kSize = kKindOffset + kTaggedSize;
-  static const int kHeaderSize = kSize;
-
-  static const uint8_t kFalse = 0;
-  static const uint8_t kTrue = 1;
-  static const uint8_t kNotBooleanMask = static_cast<uint8_t>(~1);
-  static const uint8_t kNull = 3;
-  static const uint8_t kArgumentsMarker = 4;
-  static const uint8_t kUndefined = 5;
-  static const uint8_t kUninitialized = 6;
-  static const uint8_t kOther = 7;
-  static const uint8_t kException = 8;
-  static const uint8_t kOptimizedOut = 9;
-  static const uint8_t kStaleRegister = 10;
-  static const uint8_t kSelfReferenceMarker = 10;
-  static const uint8_t kBasicBlockCountersMarker = 11;
-
-  using BodyDescriptor =
-      FixedBodyDescriptor<kToStringOffset, kKindOffset, kSize>;
-
-  static_assert(kKindOffset == Internals::kOddballKindOffset);
-  static_assert(kNull == Internals::kNullOddballKind);
-  static_assert(kUndefined == Internals::kUndefinedOddballKind);
+  static constexpr uint8_t kFalse = 0;
+  static constexpr uint8_t kTrue = 1;
+  static constexpr uint8_t kNotBooleanMask = static_cast<uint8_t>(~1);
+  static constexpr uint8_t kNull = 3;
+  static constexpr uint8_t kUndefined = 4;
 
   DECL_PRINTER(Oddball)
 
-  OBJECT_CONSTRUCTORS(Oddball, PrimitiveHeapObject);
+ private:
+  friend struct ObjectTraits<Oddball>;
+  friend struct OffsetsForDebug;
+  friend class CodeStubAssembler;
+  friend class maglev::MaglevAssembler;
+  friend class compiler::AccessBuilder;
+  friend class TorqueGeneratedOddballAsserts;
+
+  UnalignedDoubleMember to_number_raw_;
+  TaggedMember<String> to_string_;
+  TaggedMember<Object> to_number_;
+  TaggedMember<String> type_of_;
+  TaggedMember<Smi> kind_;
+} V8_OBJECT_END;
+
+template <>
+struct ObjectTraits<Oddball> {
+  using BodyDescriptor =
+      FixedBodyDescriptor<offsetof(Oddball, to_number_raw_),
+                          offsetof(Oddball, kind_), sizeof(Oddball)>;
+
+  static_assert(offsetof(Oddball, kind_) == Internals::kOddballKindOffset);
+  static_assert(Oddball::kNull == Internals::kNullOddballKind);
+  static_assert(Oddball::kUndefined == Internals::kUndefinedOddballKind);
 };
 
-class Null : public Oddball {
+V8_OBJECT class Null : public Oddball {
  public:
+  inline Null();
   DECL_CAST(Null)
-  OBJECT_CONSTRUCTORS(Null, Oddball);
-};
+} V8_OBJECT_END;
 
-class Undefined : public Oddball {
+V8_OBJECT class Undefined : public Oddball {
  public:
+  inline Undefined();
   DECL_CAST(Undefined)
-  OBJECT_CONSTRUCTORS(Undefined, Oddball);
-};
+} V8_OBJECT_END;
 
-class Boolean : public Oddball {
+V8_OBJECT class Boolean : public Oddball {
  public:
+  inline Boolean();
   DECL_CAST(Boolean)
 
   V8_INLINE bool ToBool(Isolate* isolate) const;
+} V8_OBJECT_END;
 
-  OBJECT_CONSTRUCTORS(Boolean, Oddball);
-};
-
-class True : public Boolean {
+V8_OBJECT class True : public Boolean {
  public:
+  inline True();
   DECL_CAST(True)
-  OBJECT_CONSTRUCTORS(True, Boolean);
-};
+} V8_OBJECT_END;
 
-class False : public Boolean {
+V8_OBJECT class False : public Boolean {
  public:
+  inline False();
   DECL_CAST(False)
-  OBJECT_CONSTRUCTORS(False, Boolean);
-};
+} V8_OBJECT_END;
 
 }  // namespace internal
 }  // namespace v8

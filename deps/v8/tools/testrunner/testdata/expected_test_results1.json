@@ -1,5 +1,183 @@
 {
   "duration_mean": 1,
+  "max_rss_tests": [
+    {
+      "command": "/usr/bin/python out/build/d8_mocked.py --test strawberries --random-seed=123 --nohard-abort --testing-d8-test-runner",
+      "duration": 1,
+      "exit_code": 1,
+      "expected": [
+        "PASS"
+      ],
+      "flags": [
+        "--test",
+        "strawberries",
+        "--random-seed=123",
+        "--nohard-abort",
+        "--testing-d8-test-runner"
+      ],
+      "framework_name": "standard_runner",
+      "marked_heavy": false,
+      "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
+      "name": "sweet/strawberries",
+      "random_seed": 123,
+      "result": "FAIL",
+      "run": 1,
+      "shard_count": 1,
+      "shard_id": 0,
+      "target_name": "d8_mocked.py",
+      "variant": "default",
+      "variant_flags": []
+    },
+    {
+      "command": "/usr/bin/python out/build/d8_mocked.py --test strawberries --random-seed=123 --nohard-abort --testing-d8-test-runner",
+      "duration": 1,
+      "exit_code": 1,
+      "expected": [
+        "PASS"
+      ],
+      "flags": [
+        "--test",
+        "strawberries",
+        "--random-seed=123",
+        "--nohard-abort",
+        "--testing-d8-test-runner"
+      ],
+      "framework_name": "standard_runner",
+      "marked_heavy": false,
+      "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
+      "name": "sweet/strawberries",
+      "random_seed": 123,
+      "result": "FAIL",
+      "run": 2,
+      "shard_count": 1,
+      "shard_id": 0,
+      "target_name": "d8_mocked.py",
+      "variant": "default",
+      "variant_flags": []
+    },
+    {
+      "command": "/usr/bin/python out/build/d8_mocked.py --test strawberries --random-seed=123 --nohard-abort --testing-d8-test-runner",
+      "duration": 1,
+      "exit_code": 1,
+      "expected": [
+        "PASS"
+      ],
+      "flags": [
+        "--test",
+        "strawberries",
+        "--random-seed=123",
+        "--nohard-abort",
+        "--testing-d8-test-runner"
+      ],
+      "framework_name": "standard_runner",
+      "marked_heavy": false,
+      "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
+      "name": "sweet/strawberries",
+      "random_seed": 123,
+      "result": "FAIL",
+      "run": 3,
+      "shard_count": 1,
+      "shard_id": 0,
+      "target_name": "d8_mocked.py",
+      "variant": "default",
+      "variant_flags": []
+    }
+  ],
+  "max_vms_tests": [
+    {
+      "command": "/usr/bin/python out/build/d8_mocked.py --test strawberries --random-seed=123 --nohard-abort --testing-d8-test-runner",
+      "duration": 1,
+      "exit_code": 1,
+      "expected": [
+        "PASS"
+      ],
+      "flags": [
+        "--test",
+        "strawberries",
+        "--random-seed=123",
+        "--nohard-abort",
+        "--testing-d8-test-runner"
+      ],
+      "framework_name": "standard_runner",
+      "marked_heavy": false,
+      "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
+      "name": "sweet/strawberries",
+      "random_seed": 123,
+      "result": "FAIL",
+      "run": 1,
+      "shard_count": 1,
+      "shard_id": 0,
+      "target_name": "d8_mocked.py",
+      "variant": "default",
+      "variant_flags": []
+    },
+    {
+      "command": "/usr/bin/python out/build/d8_mocked.py --test strawberries --random-seed=123 --nohard-abort --testing-d8-test-runner",
+      "duration": 1,
+      "exit_code": 1,
+      "expected": [
+        "PASS"
+      ],
+      "flags": [
+        "--test",
+        "strawberries",
+        "--random-seed=123",
+        "--nohard-abort",
+        "--testing-d8-test-runner"
+      ],
+      "framework_name": "standard_runner",
+      "marked_heavy": false,
+      "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
+      "name": "sweet/strawberries",
+      "random_seed": 123,
+      "result": "FAIL",
+      "run": 2,
+      "shard_count": 1,
+      "shard_id": 0,
+      "target_name": "d8_mocked.py",
+      "variant": "default",
+      "variant_flags": []
+    },
+    {
+      "command": "/usr/bin/python out/build/d8_mocked.py --test strawberries --random-seed=123 --nohard-abort --testing-d8-test-runner",
+      "duration": 1,
+      "exit_code": 1,
+      "expected": [
+        "PASS"
+      ],
+      "flags": [
+        "--test",
+        "strawberries",
+        "--random-seed=123",
+        "--nohard-abort",
+        "--testing-d8-test-runner"
+      ],
+      "framework_name": "standard_runner",
+      "marked_heavy": false,
+      "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
+      "name": "sweet/strawberries",
+      "random_seed": 123,
+      "result": "FAIL",
+      "run": 3,
+      "shard_count": 1,
+      "shard_id": 0,
+      "target_name": "d8_mocked.py",
+      "variant": "default",
+      "variant_flags": []
+    }
+  ],
   "results": [
     {
       "command": "/usr/bin/python out/build/d8_mocked.py --test strawberries --random-seed=123 --nohard-abort --testing-d8-test-runner",
@@ -19,6 +197,8 @@
         "--testing-d8-test-runner"
       ],
       "framework_name": "standard_runner",
+      "max_rss": 1,
+      "max_vms": 1,
       "name": "sweet/strawberries",
       "random_seed": 123,
       "result": "FAIL",
@@ -49,6 +229,8 @@
         "--testing-d8-test-runner"
       ],
       "framework_name": "standard_runner",
+      "max_rss": 1,
+      "max_vms": 1,
       "name": "sweet/strawberries",
       "random_seed": 123,
       "result": "FAIL",
@@ -79,6 +261,8 @@
         "--testing-d8-test-runner"
       ],
       "framework_name": "standard_runner",
+      "max_rss": 1,
+      "max_vms": 1,
       "name": "sweet/strawberries",
       "random_seed": 123,
       "result": "FAIL",
@@ -108,7 +292,10 @@
         "--testing-d8-test-runner"
       ],
       "framework_name": "standard_runner",
+      "marked_heavy": false,
       "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
       "name": "sweet/strawberries",
       "random_seed": 123,
       "result": "FAIL",
@@ -134,7 +321,10 @@
         "--testing-d8-test-runner"
       ],
       "framework_name": "standard_runner",
+      "marked_heavy": false,
       "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
       "name": "sweet/strawberries",
       "random_seed": 123,
       "result": "FAIL",
@@ -160,7 +350,10 @@
         "--testing-d8-test-runner"
       ],
       "framework_name": "standard_runner",
+      "marked_heavy": false,
       "marked_slow": true,
+      "max_rss": 1,
+      "max_vms": 1,
       "name": "sweet/strawberries",
       "random_seed": 123,
       "result": "FAIL",

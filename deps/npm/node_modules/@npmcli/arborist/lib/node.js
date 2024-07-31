@@ -41,8 +41,8 @@ const gatherDepSet = require('./gather-dep-set.js')
 const treeCheck = require('./tree-check.js')
 const { walkUp } = require('walk-up-path')
 
-const { resolve, relative, dirname, basename } = require('path')
-const util = require('util')
+const { resolve, relative, dirname, basename } = require('node:path')
+const util = require('node:util')
 const _package = Symbol('_package')
 const _parent = Symbol('_parent')
 const _target = Symbol.for('_target')
@@ -119,6 +119,8 @@ class Node {
     // package's dependencies in a virtual root.
     this.sourceReference = sourceReference
 
+    // TODO if this came from pacote.manifest we don't have to do this,
+    // we can be told to skip this step
     const pkg = sourceReference ? sourceReference.package
       : normalize(options.pkg || {})
 

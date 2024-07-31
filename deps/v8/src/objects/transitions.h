@@ -55,7 +55,7 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
   // Insert a new transition into |map|'s transition array, extending it
   // as necessary. This can trigger GC.
   static void Insert(Isolate* isolate, Handle<Map> map, Handle<Name> name,
-                     Handle<Map> target, SimpleTransitionFlag flag);
+                     Handle<Map> target, TransitionKindFlag flag);
 
   Tagged<Map> SearchTransition(Tagged<Name> name, PropertyKind kind,
                                PropertyAttributes attributes);
@@ -72,13 +72,7 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
   // or frozen/sealed transitions.
   static bool IsSpecialTransition(ReadOnlyRoots roots, Tagged<Name> name);
 
-  enum RequestedLocation { kAnyLocation, kFieldOnly };
-  MaybeHandle<Map> FindTransitionToDataProperty(
-      Handle<Name> name, RequestedLocation requested_location = kAnyLocation);
-
-  MaybeHandle<Map> FindTransitionToField(Handle<Name> name) {
-    return FindTransitionToDataProperty(name, kFieldOnly);
-  }
+  MaybeHandle<Map> FindTransitionToField(Handle<String> name);
 
   // Find all transitions with given name and calls the callback.
   // Neither GCs nor operations requiring Isolate::full_transition_array_access
@@ -124,20 +118,19 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
   }
 
   // ===== PROTOTYPE TRANSITIONS =====
-  // When you set the prototype of an object using the __proto__ accessor, or if
-  // an unrelated new.target is passed to a constructor you need a new map for
-  // the object (the prototype is stored in the map).  In order not to multiply
-  // maps unnecessarily we store these as transitions in the original map.  That
-  // way we can transition to the same map if the same prototype is set, rather
-  // than creating a new map every time.  The transitions are in the form of a
-  // map where the keys are prototype objects and the values are the maps they
-  // transition to. PutPrototypeTransition can trigger GC.
+  // When you set the prototype of an object using the __proto__ accessor you
+  // need a new map for the object (the prototype is stored in the map).  In
+  // order not to multiply maps unnecessarily we store these as transitions in
+  // the original map.  That way we can transition to the same map if the same
+  // prototype is set, rather than creating a new map every time.  The
+  // transitions are in the form of a map where the keys are prototype objects
+  // and the values are the maps they transition to.
+  // PutPrototypeTransition can trigger GC.
   static void PutPrototypeTransition(Isolate* isolate, Handle<Map>,
                                      Handle<Object> prototype,
                                      Handle<Map> target_map);
   static Handle<Map> GetPrototypeTransition(Isolate* isolate, Handle<Map> map,
-                                            Handle<Object> prototype,
-                                            bool new_target_is_base);
+                                            Handle<Object> prototype);
 
   // During the first-time Map::Update and Map::TryUpdate, the migration target
   // map could be cached in the raw_transitions slot of the old map that is
@@ -188,13 +181,13 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
   friend class TransitionArray;
 
   static inline Encoding GetEncoding(Isolate* isolate,
-                                     MaybeObject raw_transitions);
+                                     Tagged<MaybeObject> raw_transitions);
   static inline Encoding GetEncoding(Isolate* isolate,
                                      Tagged<TransitionArray> array);
   static inline Encoding GetEncoding(Isolate* isolate, Handle<Map> map);
 
   static inline Tagged<TransitionArray> GetTransitionArray(
-      Isolate* isolate, MaybeObject raw_transitions);
+      Isolate* isolate, Tagged<MaybeObject> raw_transitions);
   static inline Tagged<TransitionArray> GetTransitionArray(Isolate* isolate,
                                                            Handle<Map> map);
 
@@ -203,7 +196,7 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
   static inline Tagged<Name> GetSimpleTransitionKey(Tagged<Map> transition);
   inline PropertyDetails GetSimpleTargetDetails(Tagged<Map> transition);
 
-  static inline Tagged<Map> GetTargetFromRaw(MaybeObject raw);
+  static inline Tagged<Map> GetTargetFromRaw(Tagged<MaybeObject> raw);
 
   static void EnsureHasFullTransitionArray(Isolate* isolate, Handle<Map> map);
   static void SetPrototypeTransitions(Isolate* isolate, Handle<Map> map,
@@ -212,7 +205,7 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
                                                         Handle<Map> map);
 
   static inline void ReplaceTransitions(Isolate* isolate, Handle<Map> map,
-                                        MaybeObject new_transitions);
+                                        Tagged<MaybeObject> new_transitions);
   static inline void ReplaceTransitions(
       Isolate* isolate, Handle<Map> map,
       Handle<TransitionArray> new_transitions);
@@ -225,8 +218,8 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
                                       DisallowGarbageCollection* no_gc);
 
   Isolate* isolate_;
-  Map map_;
-  MaybeObject raw_transitions_;
+  Tagged<Map> map_;
+  Tagged<MaybeObject> raw_transitions_;
   Encoding encoding_;
   bool concurrent_access_;
 
@@ -239,7 +232,7 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
 // should use TransitionsAccessors.
 // TransitionArrays have the following format:
 // [0] Link to next TransitionArray (for weak handling support) (strong ref)
-// [1] Smi(0) or WeakFixedArray of prototype transitions (strong ref)
+// [1] Tagged<Smi>(0) or WeakFixedArray of prototype transitions (strong ref)
 // [2] Number of transitions (can be zero after trimming)
 // [3] First transition key (strong ref)
 // [4] First transition target (weak ref)
@@ -258,8 +251,8 @@ class TransitionArray : public WeakFixedArray {
   inline HeapObjectSlot GetKeySlot(int transition_number);
 
   inline Tagged<Map> GetTarget(int transition_number);
-  inline void SetRawTarget(int transition_number, MaybeObject target);
-  inline MaybeObject GetRawTarget(int transition_number);
+  inline void SetRawTarget(int transition_number, Tagged<MaybeObject> target);
+  inline Tagged<MaybeObject> GetRawTarget(int transition_number);
   inline HeapObjectSlot GetTargetSlot(int transition_number);
   inline bool GetTargetIfExists(int transition_number, Isolate* isolate,
                                 Tagged<Map>* target);
@@ -394,7 +387,8 @@ class TransitionArray : public WeakFixedArray {
                                    PropertyKind kind2,
                                    PropertyAttributes attributes2);
 
-  inline void Set(int transition_number, Tagged<Name> key, MaybeObject target);
+  inline void Set(int transition_number, Tagged<Name> key,
+                  Tagged<MaybeObject> target);
 
   OBJECT_CONSTRUCTORS(TransitionArray, WeakFixedArray);
 };

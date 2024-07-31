@@ -9,9 +9,7 @@ Acorn is open source software released under an
 
 You are welcome to
 [report bugs](https://github.com/acornjs/acorn/issues) or create pull
-requests on [github](https://github.com/acornjs/acorn). For questions
-and discussion, please use the
-[Tern discussion forum](https://discuss.ternjs.net).
+requests on [github](https://github.com/acornjs/acorn).
 
 ## Installation
 
@@ -203,6 +201,13 @@ end, type, value}` object (with added `loc` property when the
 option is enabled). When the token's type is `tokTypes.eof`, you
 should stop calling the method, since it will keep returning that same
 token forever.
+
+Note that tokenizing JavaScript without parsing it is, in modern
+versions of the language, not really possible due to the way syntax is
+overloaded in ways that can only be disambiguated by the parse
+context. This package applies a bunch of heuristics to try and do a
+reasonable job, but you are advised to use `parse` with the `onToken`
+option instead of this.
 
 In ES6 environment, returned result can be used as any other
 protocol-compliant iterable:

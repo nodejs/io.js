@@ -629,12 +629,29 @@ TypeTaggedInstance(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   uint32_t type_index;
   napi_value instance, which_type;
+  napi_type_tag tag;
+
+  // Below we copy the tag before setting it to prevent bugs where a pointer
+  // to the tag (instead of the 128-bit tag value) is stored.
 
   NODE_API_CALL(env, napi_get_cb_info(env, info, &argc, &which_type, NULL, NULL));
   NODE_API_CALL(env, napi_get_value_uint32(env, which_type, &type_index));
   VALIDATE_TYPE_INDEX(env, type_index);
   NODE_API_CALL(env, napi_create_object(env, &instance));
-  NODE_API_CALL(env, napi_type_tag_object(env, instance, &type_tags[type_index]));
+  tag = type_tags[type_index];
+  NODE_API_CALL(env, napi_type_tag_object(env, instance, &tag));
+
+  // Since the tag passed to napi_type_tag_object() was copied to the stack,
+  // a type tagging implementation that uses a pointer instead of the
+  // tag value would end up pointing to stack memory.
+  // When CheckTypeTag() is called later on, it might be the case that this
+  // stack address has been left untouched by accident (if no subsequent
+  // function call has clobbered it), which means the pointer would still
+  // point to valid data.
+  // To make sure that tags are stored by value and not by reference,
+  // clear this copy; any implementation using a pointer would end up with
+  // random stack data or { 0, 0 }, but not the original tag value, and fail.
+  memset(&tag, 0, sizeof(tag));
 
   return instance;
 }
@@ -655,6 +672,10 @@ static napi_value TypeTaggedExternal(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   uint32_t type_index;
   napi_value instance, which_type;
+  napi_type_tag tag;
+
+  // See TypeTaggedInstance() for an explanation about why we copy the tag
+  // to the stack and why we call memset on it after the external is tagged.
 
   NODE_API_CALL(env,
                 napi_get_cb_info(env, info, &argc, &which_type, NULL, NULL));
@@ -662,8 +683,10 @@ static napi_value TypeTaggedExternal(napi_env env, napi_callback_info info) {
   VALIDATE_TYPE_INDEX(env, type_index);
   NODE_API_CALL(
       env, napi_create_external(env, IN_LIEU_OF_NULL, NULL, NULL, &instance));
-  NODE_API_CALL(env,
-                napi_type_tag_object(env, instance, &type_tags[type_index]));
+  tag = type_tags[type_index];
+  NODE_API_CALL(env, napi_type_tag_object(env, instance, &tag));
+
+  memset(&tag, 0, sizeof(tag));
 
   return instance;
 }

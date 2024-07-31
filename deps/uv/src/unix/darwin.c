@@ -209,7 +209,7 @@ int uv_cpu_info(uv_cpu_info_t** cpu_infos, int* count) {
   if (cpuspeed == 0)
     /* If sysctl hw.cputype == CPU_TYPE_ARM64, the correct value is unavailable
      * from Apple, but we can hard-code it here to a plausible value. */
-    cpuspeed = 2400000000;
+    cpuspeed = 2400000000U;
 
   if (host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &numcpus,
                           (processor_info_array_t*)&info,
@@ -235,7 +235,7 @@ int uv_cpu_info(uv_cpu_info_t** cpu_infos, int* count) {
     cpu_info->cpu_times.irq = 0;
 
     cpu_info->model = uv__strdup(model);
-    cpu_info->speed = cpuspeed/1000000;
+    cpu_info->speed = (int)(cpuspeed / 1000000);
   }
   vm_deallocate(mach_task_self(), (vm_address_t)info, msg_type);
 

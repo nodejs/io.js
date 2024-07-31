@@ -27,7 +27,8 @@ properties, to be used with EVP_MAC_fetch():
 The general description of these parameters can be found in
 L<EVP_MAC(3)/PARAMETERS>.
 
-All these parameters can be set with EVP_MAC_CTX_set_params().
+All these parameters (except for "block-size") can be set with
+EVP_MAC_CTX_set_params().
 Furthermore, the "size" parameter can be retrieved with
 EVP_MAC_CTX_get_params(), or with EVP_MAC_CTX_get_mac_size().
 The length of the "size" parameter should not exceed that of a B<size_t>.
@@ -45,7 +46,7 @@ Setting this parameter is identical to passing a I<key> to L<EVP_MAC_init(3)>.
 
 =item "custom" (B<OSSL_MAC_PARAM_CUSTOM>) <octet string>
 
-Sets the custom value.
+Sets the customization/personalization string.
 It is an optional value of at most 16 bytes for BLAKE2BMAC or 8 for
 BLAKE2SMAC, and is empty by default.
 
@@ -62,10 +63,10 @@ It can be any number between 1 and 32 for EVP_MAC_BLAKE2S or between 1
 and 64 for EVP_MAC_BLAKE2B.
 It is 32 and 64 respectively by default.
 
-=item "block-size" (B<OSSL_MAC_PARAM_SIZE>) <unsigned integer>
+=item "block-size" (B<OSSL_MAC_PARAM_BLOCK_SIZE>) <unsigned integer>
 
 Gets the MAC block size.
-By default, it is 64 for EVP_MAC_BLAKE2S and 128 for EVP_MAC_BLAKE2B.
+It is 64 for EVP_MAC_BLAKE2S and 128 for EVP_MAC_BLAKE2B.
 
 =back
 

@@ -789,11 +789,33 @@ void uv_cond_broadcast(uv_cond_t* cond) {
     abort();
 }
 
+#if defined(__APPLE__) && defined(__MACH__)
+
+void uv_cond_wait(uv_cond_t* cond, uv_mutex_t* mutex) {
+  int r;
+
+  errno = 0;
+  r = pthread_cond_wait(cond, mutex);
+
+  /* Workaround for a bug in OS X at least up to 13.6
+   * See https://github.com/libuv/libuv/issues/4165
+   */
+  if (r == EINVAL)
+    if (errno == EBUSY)
+      return;
+
+  if (r)
+    abort();
+}
+
+#else /* !(defined(__APPLE__) && defined(__MACH__)) */
+
 void uv_cond_wait(uv_cond_t* cond, uv_mutex_t* mutex) {
   if (pthread_cond_wait(cond, mutex))
     abort();
 }
 
+#endif
 
 int uv_cond_timedwait(uv_cond_t* cond, uv_mutex_t* mutex, uint64_t timeout) {
   int r;

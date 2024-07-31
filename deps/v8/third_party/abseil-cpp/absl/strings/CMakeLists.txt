@@ -1,0 +1,1195 @@
+#
+# Copyright 2017 The Abseil Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+absl_cc_library(
+  NAME
+    string_view
+  HDRS
+    string_view.h
+  SRCS
+    string_view.cc
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::core_headers
+    absl::nullability
+    absl::throw_delegate
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    strings
+  HDRS
+    "ascii.h"
+    "charconv.h"
+    "escaping.h"
+    "has_absl_stringify.h"
+    "internal/damerau_levenshtein_distance.h"
+    "internal/string_constant.h"
+    "internal/has_absl_stringify.h"
+    "match.h"
+    "numbers.h"
+    "str_cat.h"
+    "str_join.h"
+    "str_replace.h"
+    "str_split.h"
+    "strip.h"
+    "substitute.h"
+  SRCS
+    "ascii.cc"
+    "charconv.cc"
+    "escaping.cc"
+    "internal/charconv_bigint.cc"
+    "internal/charconv_bigint.h"
+    "internal/charconv_parse.cc"
+    "internal/charconv_parse.h"
+    "internal/damerau_levenshtein_distance.cc"
+    "internal/memutil.cc"
+    "internal/memutil.h"
+    "internal/stringify_sink.h"
+    "internal/stringify_sink.cc"
+    "internal/stl_type_traits.h"
+    "internal/str_join_internal.h"
+    "internal/str_split_internal.h"
+    "match.cc"
+    "numbers.cc"
+    "str_cat.cc"
+    "str_replace.cc"
+    "str_split.cc"
+    "substitute.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::string_view
+    absl::strings_internal
+    absl::base
+    absl::bits
+    absl::charset
+    absl::config
+    absl::core_headers
+    absl::endian
+    absl::int128
+    absl::memory
+    absl::nullability
+    absl::raw_logging_internal
+    absl::throw_delegate
+    absl::type_traits
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    charset
+  HDRS
+    charset.h
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::core_headers
+    absl::string_view
+  PUBLIC
+)
+
+absl_cc_library(
+  NAME
+    has_ostream_operator
+  HDRS
+    "has_ostream_operator.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+  PUBLIC
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    strings_internal
+  HDRS
+    "internal/escaping.cc"
+    "internal/escaping.h"
+    "internal/ostringstream.h"
+    "internal/resize_uninitialized.h"
+    "internal/utf8.h"
+  SRCS
+    "internal/ostringstream.cc"
+    "internal/utf8.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::endian
+    absl::raw_logging_internal
+    absl::type_traits
+)
+
+absl_cc_test(
+  NAME
+    match_test
+  SRCS
+    "match_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::base
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    escaping_test
+  SRCS
+    "escaping_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::core_headers
+    absl::fixed_array
+    GTest::gmock_main
+    absl::check
+)
+
+absl_cc_test(
+  NAME
+    has_absl_stringify_test
+  SRCS
+    "has_absl_stringify_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::optional
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    has_ostream_operator_test
+  SRCS
+    "has_ostream_operator_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::has_ostream_operator
+    absl::optional
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    ascii_test
+  SRCS
+    "ascii_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::core_headers
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    damerau_levenshtein_distance_test
+  SRCS
+    "internal/damerau_levenshtein_distance_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::base
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    memutil_test
+  SRCS
+    "internal/memutil.h"
+    "internal/memutil_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::core_headers
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    utf8_test
+  SRCS
+    "internal/utf8_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings_internal
+    absl::base
+    absl::core_headers
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    string_constant_test
+  SRCS
+    "internal/string_constant_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::type_traits
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    string_view_test
+  SRCS
+    "string_view_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::config
+    absl::core_headers
+    absl::dynamic_annotations
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    substitute_test
+  SRCS
+    "substitute_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::core_headers
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_replace_test
+  SRCS
+    "str_replace_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_split_test
+  SRCS
+    "str_split_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::core_headers
+    absl::dynamic_annotations
+    absl::btree
+    absl::flat_hash_map
+    absl::node_hash_map
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    ostringstream_test
+  SRCS
+    "internal/ostringstream_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings_internal
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    resize_uninitialized_test
+  SRCS
+    "internal/resize_uninitialized.h"
+    "internal/resize_uninitialized_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::core_headers
+    absl::type_traits
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_join_test
+  SRCS
+    "str_join_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::base
+    absl::core_headers
+    absl::memory
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_cat_test
+  SRCS
+    "str_cat_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::str_format
+    absl::core_headers
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    numbers_test
+  SRCS
+    "internal/numbers_test_common.h"
+    "numbers_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::int128
+    absl::log
+    absl::pow10_helper
+    absl::random_distributions
+    absl::random_random
+    absl::strings
+    absl::strings_internal
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    strip_test
+  SRCS
+    "strip_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::base
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    charset_test
+  SRCS
+    "charset_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    charconv_test
+  SRCS
+    "charconv_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::str_format
+    absl::pow10_helper
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    charconv_parse_test
+  SRCS
+    "internal/charconv_parse.h"
+    "internal/charconv_parse_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::check
+    absl::config
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    charconv_bigint_test
+  SRCS
+    "internal/charconv_bigint.h"
+    "internal/charconv_bigint_test.cc"
+    "internal/charconv_parse.h"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::strings
+    absl::config
+    GTest::gmock_main
+)
+
+absl_cc_library(
+  NAME
+    str_format
+  HDRS
+    "str_format.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::nullability
+    absl::span
+    absl::str_format_internal
+    absl::string_view
+  PUBLIC
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    str_format_internal
+  HDRS
+    "internal/str_format/arg.h"
+    "internal/str_format/bind.h"
+    "internal/str_format/checker.h"
+    "internal/str_format/constexpr_parser.h"
+    "internal/str_format/extension.h"
+    "internal/str_format/float_conversion.h"
+    "internal/str_format/output.h"
+    "internal/str_format/parser.h"
+  SRCS
+    "internal/str_format/arg.cc"
+    "internal/str_format/bind.cc"
+    "internal/str_format/extension.cc"
+    "internal/str_format/float_conversion.cc"
+    "internal/str_format/output.cc"
+    "internal/str_format/parser.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::bits
+    absl::strings
+    absl::config
+    absl::core_headers
+    absl::fixed_array
+    absl::inlined_vector
+    absl::numeric_representation
+    absl::type_traits
+    absl::utility
+    absl::int128
+    absl::span
+)
+
+absl_cc_test(
+  NAME
+    str_format_test
+  SRCS
+    "str_format_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord
+    absl::core_headers
+    absl::span
+    absl::str_format
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_format_extension_test
+  SRCS
+    "internal/str_format/extension_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::str_format
+    absl::str_format_internal
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_format_arg_test
+  SRCS
+    "internal/str_format/arg_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::str_format
+    absl::str_format_internal
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_format_bind_test
+  SRCS
+    "internal/str_format/bind_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::str_format_internal
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_format_checker_test
+  SRCS
+    "internal/str_format/checker_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::str_format
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_format_convert_test
+  SRCS
+    "internal/str_format/convert_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::int128
+    absl::log
+    absl::raw_logging_internal
+    absl::span
+    absl::str_format
+    absl::str_format_internal
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_format_output_test
+  SRCS
+    "internal/str_format/output_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::str_format_internal
+    absl::cord
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    str_format_parser_test
+  SRCS
+    "internal/str_format/parser_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::str_format_internal
+    absl::string_view
+    absl::config
+    absl::core_headers
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    char_formatting_test
+  SRCS
+    "char_formatting_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::str_format
+    absl::strings
+    GTest::gmock_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    pow10_helper
+  HDRS
+    "internal/pow10_helper.h"
+  SRCS
+    "internal/pow10_helper.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+  TESTONLY
+)
+
+absl_cc_test(
+  NAME
+    pow10_helper_test
+  SRCS
+    "internal/pow10_helper_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::pow10_helper
+    absl::str_format
+    GTest::gmock_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cord_internal
+  HDRS
+    "internal/cord_data_edge.h"
+    "internal/cord_internal.h"
+    "internal/cord_rep_btree.h"
+    "internal/cord_rep_btree_navigator.h"
+    "internal/cord_rep_btree_reader.h"
+    "internal/cord_rep_crc.h"
+    "internal/cord_rep_consume.h"
+    "internal/cord_rep_flat.h"
+  SRCS
+    "internal/cord_internal.cc"
+    "internal/cord_rep_btree.cc"
+    "internal/cord_rep_btree_navigator.cc"
+    "internal/cord_rep_btree_reader.cc"
+    "internal/cord_rep_crc.cc"
+    "internal/cord_rep_consume.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::base_internal
+    absl::compressed_tuple
+    absl::config
+    absl::container_memory
+    absl::core_headers
+    absl::crc_cord_state
+    absl::endian
+    absl::inlined_vector
+    absl::layout
+    absl::raw_logging_internal
+    absl::strings
+    absl::throw_delegate
+    absl::type_traits
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cordz_update_tracker
+  HDRS
+    "internal/cordz_update_tracker.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+)
+
+absl_cc_test(
+  NAME
+    cordz_update_tracker_test
+  SRCS
+    "internal/cordz_update_tracker_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cordz_update_tracker
+    absl::core_headers
+    absl::synchronization
+    GTest::gmock_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cordz_functions
+  HDRS
+    "internal/cordz_functions.h"
+  SRCS
+    "internal/cordz_functions.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::exponential_biased
+    absl::raw_logging_internal
+)
+
+absl_cc_test(
+  NAME
+    cordz_functions_test
+  SRCS
+    "internal/cordz_functions_test.cc"
+  DEPS
+    absl::config
+    absl::cordz_functions
+    absl::cordz_test_helpers
+    GTest::gmock_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cordz_statistics
+  HDRS
+    "internal/cordz_statistics.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::cordz_update_tracker
+    absl::synchronization
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cordz_handle
+  HDRS
+    "internal/cordz_handle.h"
+  SRCS
+    "internal/cordz_handle.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::no_destructor
+    absl::raw_logging_internal
+    absl::synchronization
+)
+
+absl_cc_test(
+  NAME
+    cordz_handle_test
+  SRCS
+    "internal/cordz_handle_test.cc"
+  DEPS
+    absl::config
+    absl::cordz_handle
+    absl::cordz_test_helpers
+    absl::memory
+    absl::random_random
+    absl::random_distributions
+    absl::synchronization
+    absl::time
+    GTest::gmock_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cordz_info
+  HDRS
+    "internal/cordz_info.h"
+  SRCS
+    "internal/cordz_info.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::cord_internal
+    absl::cordz_functions
+    absl::cordz_handle
+    absl::cordz_statistics
+    absl::cordz_update_tracker
+    absl::core_headers
+    absl::inlined_vector
+    absl::span
+    absl::raw_logging_internal
+    absl::stacktrace
+    absl::synchronization
+    absl::time
+)
+
+absl_cc_test(
+  NAME
+    cordz_info_test
+  SRCS
+    "internal/cordz_info_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord_internal
+    absl::cordz_test_helpers
+    absl::cordz_handle
+    absl::cordz_info
+    absl::cordz_statistics
+    absl::cordz_test_helpers
+    absl::cordz_update_tracker
+    absl::span
+    absl::stacktrace
+    absl::symbolize
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    cordz_info_statistics_test
+  SRCS
+    "internal/cordz_info_statistics_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord
+    absl::cord_internal
+    absl::cordz_info
+    absl::cordz_sample_token
+    absl::cordz_statistics
+    absl::cordz_update_scope
+    absl::cordz_update_tracker
+    absl::crc_cord_state
+    absl::thread_pool
+    GTest::gmock_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cordz_sample_token
+  HDRS
+    "internal/cordz_sample_token.h"
+  SRCS
+    "internal/cordz_sample_token.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+    absl::cordz_handle
+    absl::cordz_info
+)
+
+absl_cc_test(
+  NAME
+    cordz_sample_token_test
+  SRCS
+    "internal/cordz_sample_token_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord_internal
+    absl::cordz_handle
+    absl::cordz_info
+    absl::cordz_info
+    absl::cordz_sample_token
+    absl::cordz_test_helpers
+    absl::memory
+    absl::random_random
+    absl::synchronization
+    absl::thread_pool
+    absl::time
+    GTest::gmock_main
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cordz_update_scope
+  HDRS
+    "internal/cordz_update_scope.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::config
+    absl::cord_internal
+    absl::cordz_info
+    absl::cordz_update_tracker
+    absl::core_headers
+)
+
+absl_cc_test(
+  NAME
+    cordz_update_scope_test
+  SRCS
+    "internal/cordz_update_scope_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord_internal
+    absl::cordz_info
+    absl::cordz_test_helpers
+    absl::cordz_update_scope
+    absl::cordz_update_tracker
+    absl::core_headers
+    GTest::gmock_main
+)
+
+absl_cc_library(
+  NAME
+    cord
+  HDRS
+    "cord.h"
+    "cord_buffer.h"
+  SRCS
+    "cord.cc"
+    "cord_analysis.cc"
+    "cord_analysis.h"
+    "cord_buffer.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::cord_internal
+    absl::cordz_functions
+    absl::cordz_info
+    absl::cordz_update_scope
+    absl::cordz_update_tracker
+    absl::core_headers
+    absl::crc32c
+    absl::crc_cord_state
+    absl::endian
+    absl::function_ref
+    absl::inlined_vector
+    absl::nullability
+    absl::optional
+    absl::raw_logging_internal
+    absl::span
+    absl::strings
+    absl::type_traits
+  PUBLIC
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cord_rep_test_util
+  HDRS
+    "internal/cord_rep_test_util.h"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord_internal
+    absl::raw_logging_internal
+    absl::strings
+  TESTONLY
+)
+
+absl_cc_library(
+  NAME
+    cord_test_helpers
+  HDRS
+    "cord_test_helpers.h"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord
+    absl::cord_internal
+    absl::strings
+  TESTONLY
+  PUBLIC
+)
+
+# Internal-only target, do not depend on directly.
+absl_cc_library(
+  NAME
+    cordz_test_helpers
+  HDRS
+    "cordz_test_helpers.h"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord
+    absl::cord_internal
+    absl::cordz_info
+    absl::cordz_sample_token
+    absl::cordz_statistics
+    absl::cordz_update_tracker
+    absl::core_headers
+    absl::nullability
+    absl::strings
+  TESTONLY
+)
+
+absl_cc_test(
+  NAME
+    cord_test
+  SRCS
+    "cord_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::check
+    absl::config
+    absl::cord
+    absl::cord_test_helpers
+    absl::cordz_test_helpers
+    absl::core_headers
+    absl::endian
+    absl::fixed_array
+    absl::function_ref
+    absl::hash
+    absl::hash_testing
+    absl::log
+    absl::optional
+    absl::random_random
+    absl::str_format
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    cord_data_edge_test
+  SRCS
+    "internal/cord_data_edge_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::cord_internal
+    absl::cord_rep_test_util
+    absl::core_headers
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    cord_rep_btree_test
+  SRCS
+    "internal/cord_rep_btree_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::cleanup
+    absl::config
+    absl::cord_internal
+    absl::cord_rep_test_util
+    absl::core_headers
+    absl::raw_logging_internal
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    cord_rep_btree_navigator_test
+  SRCS
+    "internal/cord_rep_btree_navigator_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::cord_internal
+    absl::cord_rep_test_util
+    absl::core_headers
+    absl::raw_logging_internal
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    cord_rep_btree_reader_test
+  SRCS
+    "internal/cord_rep_btree_reader_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::config
+    absl::cord_internal
+    absl::cord_rep_test_util
+    absl::core_headers
+    absl::raw_logging_internal
+    absl::strings
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    cord_rep_crc_test
+  SRCS
+    "internal/cord_rep_crc_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::cord_internal
+    absl::cord_rep_test_util
+    absl::crc_cord_state
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    cordz_test
+  SRCS
+    "cordz_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::cord
+    absl::cord_internal
+    absl::cord_test_helpers
+    absl::cordz_test_helpers
+    absl::cordz_functions
+    absl::cordz_info
+    absl::cordz_sample_token
+    absl::cordz_statistics
+    absl::cordz_update_tracker
+    absl::base
+    absl::config
+    absl::core_headers
+    absl::raw_logging_internal
+    absl::strings
+    GTest::gmock_main
+)

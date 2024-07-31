@@ -279,10 +279,8 @@ class JSArrayBufferView
 class JSTypedArray
     : public TorqueGeneratedJSTypedArray<JSTypedArray, JSArrayBufferView> {
  public:
-  // TODO(v8:4153): This should be equal to JSArrayBuffer::kMaxByteLength
-  // eventually.
-  static constexpr size_t kMaxLength = v8::TypedArray::kMaxLength;
-  static_assert(kMaxLength <= JSArrayBuffer::kMaxByteLength);
+  static constexpr size_t kMaxByteLength = JSArrayBuffer::kMaxByteLength;
+  static_assert(kMaxByteLength == v8::TypedArray::kMaxByteLength);
 
   // [length]: length of typed array in elements.
   DECL_PRIMITIVE_GETTER(length, size_t)

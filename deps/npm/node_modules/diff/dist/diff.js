@@ -1,40 +1,3 @@
-/*!
-
- diff v5.1.0
-
-Software License Agreement (BSD License)
-
-Copyright (c) 2009-2015, Kevin Decker <kpdecker@gmail.com>
-
-All rights reserved.
-
-Redistribution and use of this software in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
-
-* Redistributions in binary form must reproduce the above
-  copyright notice, this list of conditions and the
-  following disclaimer in the documentation and/or other
-  materials provided with the distribution.
-
-* Neither the name of Kevin Decker nor the names of its
-  contributors may be used to endorse or promote products
-  derived from this software without specific prior
-  written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
-IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
-FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
-IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-@license
-*/
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -44,6 +7,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   function Diff() {}
   Diff.prototype = {
     diff: function diff(oldString, newString) {
+      var _options$timeout;
+
       var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
       var callback = options.callback;
 
@@ -80,64 +45,96 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         maxEditLength = Math.min(maxEditLength, options.maxEditLength);
       }
 
+      var maxExecutionTime = (_options$timeout = options.timeout) !== null && _options$timeout !== void 0 ? _options$timeout : Infinity;
+      var abortAfterTimestamp = Date.now() + maxExecutionTime;
       var bestPath = [{
-        newPos: -1,
-        components: []
+        oldPos: -1,
+        lastComponent: undefined
       }]; // Seed editLength = 0, i.e. the content starts with the same values
 
-      var oldPos = this.extractCommon(bestPath[0], newString, oldString, 0);
+      var newPos = this.extractCommon(bestPath[0], newString, oldString, 0);
 
-      if (bestPath[0].newPos + 1 >= newLen && oldPos + 1 >= oldLen) {
+      if (bestPath[0].oldPos + 1 >= oldLen && newPos + 1 >= newLen) {
         // Identity per the equality and tokenizer
         return done([{
           value: this.join(newString),
           count: newString.length
         }]);
-      } // Main worker method. checks all permutations of a given edit length for acceptance.
+      } // Once we hit the right edge of the edit graph on some diagonal k, we can
+      // definitely reach the end of the edit graph in no more than k edits, so
+      // there's no point in considering any moves to diagonal k+1 any more (from
+      // which we're guaranteed to need at least k+1 more edits).
+      // Similarly, once we've reached the bottom of the edit graph, there's no
+      // point considering moves to lower diagonals.
+      // We record this fact by setting minDiagonalToConsider and
+      // maxDiagonalToConsider to some finite value once we've hit the edge of
+      // the edit graph.
+      // This optimization is not faithful to the original algorithm presented in
+      // Myers's paper, which instead pointlessly extends D-paths off the end of
+      // the edit graph - see page 7 of Myers's paper which notes this point
+      // explicitly and illustrates it with a diagram. This has major performance
+      // implications for some common scenarios. For instance, to compute a diff
+      // where the new text simply appends d characters on the end of the
+      // original text of length n, the true Myers algorithm will take O(n+d^2)
+      // time while this optimization needs only O(n+d) time.
 
+
+      var minDiagonalToConsider = -Infinity,
+          maxDiagonalToConsider = Infinity; // Main worker method. checks all permutations of a given edit length for acceptance.
 
       function execEditLength() {
-        for (var diagonalPath = -1 * editLength; diagonalPath <= editLength; diagonalPath += 2) {
+        for (var diagonalPath = Math.max(minDiagonalToConsider, -editLength); diagonalPath <= Math.min(maxDiagonalToConsider, editLength); diagonalPath += 2) {
           var basePath = void 0;
+          var removePath = bestPath[diagonalPath - 1],
+              addPath = bestPath[diagonalPath + 1];
 
-          var addPath = bestPath[diagonalPath - 1],
-              removePath = bestPath[diagonalPath + 1],
-              _oldPos = (removePath ? removePath.newPos : 0) - diagonalPath;
-
-          if (addPath) {
+          if (removePath) {
             // No one else is going to attempt to use this value, clear it
             bestPath[diagonalPath - 1] = undefined;
           }
 
-          var canAdd = addPath && addPath.newPos + 1 < newLen,
-              canRemove = removePath && 0 <= _oldPos && _oldPos < oldLen;
+          var canAdd = false;
+
+          if (addPath) {
+            // what newPos will be after we do an insertion:
+            var addPathNewPos = addPath.oldPos - diagonalPath;
+            canAdd = addPath && 0 <= addPathNewPos && addPathNewPos < newLen;
+          }
+
+          var canRemove = removePath && removePath.oldPos + 1 < oldLen;
 
           if (!canAdd && !canRemove) {
             // If this path is a terminal then prune
             bestPath[diagonalPath] = undefined;
             continue;
           } // Select the diagonal that we want to branch from. We select the prior
-          // path whose position in the new string is the farthest from the origin
+          // path whose position in the old string is the farthest from the origin
           // and does not pass the bounds of the diff graph
+          // TODO: Remove the `+ 1` here to make behavior match Myers algorithm
+          //       and prefer to order removals before insertions.
 
 
-          if (!canAdd || canRemove && addPath.newPos < removePath.newPos) {
-            basePath = clonePath(removePath);
-            self.pushComponent(basePath.components, undefined, true);
+          if (!canRemove || canAdd && removePath.oldPos + 1 < addPath.oldPos) {
+            basePath = self.addToPath(addPath, true, undefined, 0);
           } else {
-            basePath = addPath; // No need to clone, we've pulled it from the list
-
-            basePath.newPos++;
-            self.pushComponent(basePath.components, true, undefined);
+            basePath = self.addToPath(removePath, undefined, true, 1);
           }
 
-          _oldPos = self.extractCommon(basePath, newString, oldString, diagonalPath); // If we have hit the end of both strings, then we are done
+          newPos = self.extractCommon(basePath, newString, oldString, diagonalPath);
 
-          if (basePath.newPos + 1 >= newLen && _oldPos + 1 >= oldLen) {
-            return done(buildValues(self, basePath.components, newString, oldString, self.useLongestToken));
+          if (basePath.oldPos + 1 >= oldLen && newPos + 1 >= newLen) {
+            // If we have hit the end of both strings, then we are done
+            return done(buildValues(self, basePath.lastComponent, newString, oldString, self.useLongestToken));
           } else {
-            // Otherwise track this path as a potential candidate and continue.
             bestPath[diagonalPath] = basePath;
+
+            if (basePath.oldPos + 1 >= oldLen) {
+              maxDiagonalToConsider = Math.min(maxDiagonalToConsider, diagonalPath - 1);
+            }
+
+            if (newPos + 1 >= newLen) {
+              minDiagonalToConsider = Math.max(minDiagonalToConsider, diagonalPath + 1);
+            }
           }
         }
 
@@ -151,7 +148,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       if (callback) {
         (function exec() {
           setTimeout(function () {
-            if (editLength > maxEditLength) {
+            if (editLength > maxEditLength || Date.now() > abortAfterTimestamp) {
               return callback();
             }
 
@@ -161,7 +158,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
           }, 0);
         })();
       } else {
-        while (editLength <= maxEditLength) {
+        while (editLength <= maxEditLength && Date.now() <= abortAfterTimestamp) {
           var ret = execEditLength();
 
           if (ret) {
@@ -170,30 +167,36 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         }
       }
     },
-    pushComponent: function pushComponent(components, added, removed) {
-      var last = components[components.length - 1];
+    addToPath: function addToPath(path, added, removed, oldPosInc) {
+      var last = path.lastComponent;
 
       if (last && last.added === added && last.removed === removed) {
-        // We need to clone here as the component clone operation is just
-        // as shallow array clone
-        components[components.length - 1] = {
-          count: last.count + 1,
-          added: added,
-          removed: removed
+        return {
+          oldPos: path.oldPos + oldPosInc,
+          lastComponent: {
+            count: last.count + 1,
+            added: added,
+            removed: removed,
+            previousComponent: last.previousComponent
+          }
         };
       } else {
-        components.push({
-          count: 1,
-          added: added,
-          removed: removed
-        });
+        return {
+          oldPos: path.oldPos + oldPosInc,
+          lastComponent: {
+            count: 1,
+            added: added,
+            removed: removed,
+            previousComponent: last
+          }
+        };
       }
     },
     extractCommon: function extractCommon(basePath, newString, oldString, diagonalPath) {
       var newLen = newString.length,
           oldLen = oldString.length,
-          newPos = basePath.newPos,
-          oldPos = newPos - diagonalPath,
+          oldPos = basePath.oldPos,
+          newPos = oldPos - diagonalPath,
           commonCount = 0;
 
       while (newPos + 1 < newLen && oldPos + 1 < oldLen && this.equals(newString[newPos + 1], oldString[oldPos + 1])) {
@@ -203,13 +206,14 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       }
 
       if (commonCount) {
-        basePath.components.push({
-          count: commonCount
-        });
+        basePath.lastComponent = {
+          count: commonCount,
+          previousComponent: basePath.lastComponent
+        };
       }
 
-      basePath.newPos = newPos;
-      return oldPos;
+      basePath.oldPos = oldPos;
+      return newPos;
     },
     equals: function equals(left, right) {
       if (this.options.comparator) {
@@ -240,7 +244,20 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     }
   };
 
-  function buildValues(diff, components, newString, oldString, useLongestToken) {
+  function buildValues(diff, lastComponent, newString, oldString, useLongestToken) {
+    // First we convert our linked list of components in reverse order to an
+    // array in the right order:
+    var components = [];
+    var nextComponent;
+
+    while (lastComponent) {
+      components.push(lastComponent);
+      nextComponent = lastComponent.previousComponent;
+      delete lastComponent.previousComponent;
+      lastComponent = nextComponent;
+    }
+
+    components.reverse();
     var componentPos = 0,
         componentLen = components.length,
         newPos = 0,
@@ -283,21 +300,14 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     // This is only available for string mode.
 
 
-    var lastComponent = components[componentLen - 1];
+    var finalComponent = components[componentLen - 1];
 
-    if (componentLen > 1 && typeof lastComponent.value === 'string' && (lastComponent.added || lastComponent.removed) && diff.equals('', lastComponent.value)) {
-      components[componentLen - 2].value += lastComponent.value;
+    if (componentLen > 1 && typeof finalComponent.value === 'string' && (finalComponent.added || finalComponent.removed) && diff.equals('', finalComponent.value)) {
+      components[componentLen - 2].value += finalComponent.value;
       components.pop();
     }
 
     return components;
-  }
-
-  function clonePath(path) {
-    return {
-      newPos: path.newPos,
-      components: path.components.slice(0)
-    };
   }
 
   var characterDiff = new Diff();
@@ -380,6 +390,11 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   var lineDiff = new Diff();
 
   lineDiff.tokenize = function (value) {
+    if (this.options.stripTrailingCr) {
+      // remove one \r before \n to match GNU diff's --strip-trailing-cr behavior
+      value = value.replace(/\r\n/g, '\n');
+    }
+
     var retLines = [],
         linesAndNewlines = value.split(/(\n|\r\n)/); // Ignore the final empty token that occurs if the string ends with a new line
 
@@ -449,6 +464,55 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     }
 
     return _typeof(obj);
+  }
+
+  function _defineProperty(obj, key, value) {
+    if (key in obj) {
+      Object.defineProperty(obj, key, {
+        value: value,
+        enumerable: true,
+        configurable: true,
+        writable: true
+      });
+    } else {
+      obj[key] = value;
+    }
+
+    return obj;
+  }
+
+  function ownKeys(object, enumerableOnly) {
+    var keys = Object.keys(object);
+
+    if (Object.getOwnPropertySymbols) {
+      var symbols = Object.getOwnPropertySymbols(object);
+      if (enumerableOnly) symbols = symbols.filter(function (sym) {
+        return Object.getOwnPropertyDescriptor(object, sym).enumerable;
+      });
+      keys.push.apply(keys, symbols);
+    }
+
+    return keys;
+  }
+
+  function _objectSpread2(target) {
+    for (var i = 1; i < arguments.length; i++) {
+      var source = arguments[i] != null ? arguments[i] : {};
+
+      if (i % 2) {
+        ownKeys(Object(source), true).forEach(function (key) {
+          _defineProperty(target, key, source[key]);
+        });
+      } else if (Object.getOwnPropertyDescriptors) {
+        Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
+      } else {
+        ownKeys(Object(source)).forEach(function (key) {
+          Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
+        });
+      }
+    }
+
+    return target;
   }
 
   function _toConsumableArray(arr) {
@@ -883,7 +947,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         var line = _hunk.lines[j],
             operation = line.length > 0 ? line[0] : ' ',
             content = line.length > 0 ? line.substr(1) : line,
-            delimiter = _hunk.linedelimiters[j];
+            delimiter = _hunk.linedelimiters && _hunk.linedelimiters[j] || '\n';
 
         if (operation === ' ') {
           _toPos++;
@@ -1090,6 +1154,10 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     };
   }
   function formatPatch(diff) {
+    if (Array.isArray(diff)) {
+      return diff.map(formatPatch).join('\n');
+    }
+
     var ret = [];
 
     if (diff.oldFileName == diff.newFileName) {
@@ -1545,6 +1613,39 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     };
   }
 
+  function reversePatch(structuredPatch) {
+    if (Array.isArray(structuredPatch)) {
+      return structuredPatch.map(reversePatch).reverse();
+    }
+
+    return _objectSpread2(_objectSpread2({}, structuredPatch), {}, {
+      oldFileName: structuredPatch.newFileName,
+      oldHeader: structuredPatch.newHeader,
+      newFileName: structuredPatch.oldFileName,
+      newHeader: structuredPatch.oldHeader,
+      hunks: structuredPatch.hunks.map(function (hunk) {
+        return {
+          oldLines: hunk.newLines,
+          oldStart: hunk.newStart,
+          newLines: hunk.oldLines,
+          newStart: hunk.oldStart,
+          linedelimiters: hunk.linedelimiters,
+          lines: hunk.lines.map(function (l) {
+            if (l.startsWith('-')) {
+              return "+".concat(l.slice(1));
+            }
+
+            if (l.startsWith('+')) {
+              return "-".concat(l.slice(1));
+            }
+
+            return l;
+          })
+        };
+      })
+    });
+  }
+
   // See: http://code.google.com/p/google-diff-match-patch/wiki/API
   function convertChangesToDMP(changes) {
     var ret = [],
@@ -1618,8 +1719,10 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   exports.diffTrimmedLines = diffTrimmedLines;
   exports.diffWords = diffWords;
   exports.diffWordsWithSpace = diffWordsWithSpace;
+  exports.formatPatch = formatPatch;
   exports.merge = merge;
   exports.parsePatch = parsePatch;
+  exports.reversePatch = reversePatch;
   exports.structuredPatch = structuredPatch;
 
   Object.defineProperty(exports, '__esModule', { value: true });

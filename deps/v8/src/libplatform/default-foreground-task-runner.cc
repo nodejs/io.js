@@ -55,7 +55,8 @@ void DefaultForegroundTaskRunner::PostTaskLocked(std::unique_ptr<Task> task,
   event_loop_control_.NotifyOne();
 }
 
-void DefaultForegroundTaskRunner::PostTask(std::unique_ptr<Task> task) {
+void DefaultForegroundTaskRunner::PostTaskImpl(std::unique_ptr<Task> task,
+                                               const SourceLocation& location) {
   base::MutexGuard guard(&lock_);
   PostTaskLocked(std::move(task), kNestable, guard);
 }
@@ -74,19 +75,22 @@ void DefaultForegroundTaskRunner::PostDelayedTaskLocked(
   event_loop_control_.NotifyOne();
 }
 
-void DefaultForegroundTaskRunner::PostDelayedTask(std::unique_ptr<Task> task,
-                                                  double delay_in_seconds) {
+void DefaultForegroundTaskRunner::PostDelayedTaskImpl(
+    std::unique_ptr<Task> task, double delay_in_seconds,
+    const SourceLocation& location) {
   base::MutexGuard guard(&lock_);
   PostDelayedTaskLocked(std::move(task), delay_in_seconds, kNestable, guard);
 }
 
-void DefaultForegroundTaskRunner::PostNonNestableDelayedTask(
-    std::unique_ptr<Task> task, double delay_in_seconds) {
+void DefaultForegroundTaskRunner::PostNonNestableDelayedTaskImpl(
+    std::unique_ptr<Task> task, double delay_in_seconds,
+    const SourceLocation& location) {
   base::MutexGuard guard(&lock_);
   PostDelayedTaskLocked(std::move(task), delay_in_seconds, kNonNestable, guard);
 }
 
-void DefaultForegroundTaskRunner::PostIdleTask(std::unique_ptr<IdleTask> task) {
+void DefaultForegroundTaskRunner::PostIdleTaskImpl(
+    std::unique_ptr<IdleTask> task, const SourceLocation& location) {
   CHECK_EQ(IdleTaskSupport::kEnabled, idle_task_support_);
   base::MutexGuard guard(&lock_);
   if (terminated_) return;
@@ -97,8 +101,8 @@ bool DefaultForegroundTaskRunner::IdleTasksEnabled() {
   return idle_task_support_ == IdleTaskSupport::kEnabled;
 }
 
-void DefaultForegroundTaskRunner::PostNonNestableTask(
-    std::unique_ptr<Task> task) {
+void DefaultForegroundTaskRunner::PostNonNestableTaskImpl(
+    std::unique_ptr<Task> task, const SourceLocation& location) {
   base::MutexGuard guard(&lock_);
   PostTaskLocked(std::move(task), kNonNestable, guard);
 }

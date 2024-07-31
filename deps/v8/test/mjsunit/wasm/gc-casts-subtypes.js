@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --experimental-wasm-type-reflection
+// Flags: --experimental-wasm-type-reflection
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -49,6 +49,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
       kExprLocalGet, 0,
       kGCPrefix, kExprRefTest, targetType & kLeb128Mask,
     ]).exportFunc();
+
     builder.addFunction('castNull' + testName, makeSig([], []))
     .addLocals(wasmRefNullType(sourceType), 1)
     .addBody([
@@ -56,20 +57,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
       kGCPrefix, kExprRefCast, targetType & kLeb128Mask,
       kExprDrop,
     ]).exportFunc();
-    builder.addFunction('branchDeprecatedNull' + testName,
-                        makeSig([], [kWasmI32]))
-    .addLocals(wasmRefNullType(sourceType), 1)
-    .addBody([
-      kExprBlock, kWasmRef, targetType & kLeb128Mask,
-        kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCast, 0, targetType & kLeb128Mask,
-        kExprI32Const, 0,
-        kExprReturn,
-      kExprEnd,
-      kExprDrop,
-      kExprI32Const, 1,
-      kExprReturn,
-    ]).exportFunc();
+
     if (isDowncast) {
       builder.addFunction('branchNull' + testName, makeSig([], [kWasmI32]))
       .addLocals(wasmRefNullType(sourceType), 1)
@@ -85,6 +73,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
         kExprI32Const, 1,
         kExprReturn,
       ]).exportFunc();
+
       builder.addFunction('branchFailNull' + testName, makeSig([], [kWasmI32]))
       .addLocals(wasmRefNullType(sourceType), 1)
       .addBody([
@@ -109,7 +98,6 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
     print(testName);
     assertEquals(0, wasm['testNull' + testName]());
     assertTraps(kTrapIllegalCast, wasm['castNull' + testName]);
-    assertEquals(0, wasm['branchDeprecatedNull' + testName]());
     if (isDowncast) {
       assertEquals(0, wasm['branchNull' + testName]());
       assertEquals(0, wasm['branchFailNull' + testName]());
@@ -237,167 +225,6 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   assertTraps(kTrapIllegalCast, () => wasm.castNullToSub(jsFct));
   assertTraps(kTrapIllegalCast, () => wasm.castNullToSub(wasm.fctSuper));
   assertSame(wasm.fctSub, wasm.castNullToSub(wasm.fctSub));
-})();
-
-(function BrOnCastDeprecatedFuncRef() {
-  print(arguments.callee.name);
-  let builder = new WasmModuleBuilder();
-  let sigSuper = builder.addType(makeSig([kWasmI32], []), kNoSuperType, false);
-  let sigSub = builder.addType(makeSig([kWasmI32], []), sigSuper);
-
-  builder.addFunction('fctSuper', sigSuper).addBody([]).exportFunc();
-  builder.addFunction('fctSub', sigSub).addBody([]).exportFunc();
-  let targets = {
-    "funcref": kFuncRefCode,
-    "nullfuncref": kNullFuncRefCode,
-    "super": sigSuper,
-    "sub": sigSub
-  };
-  for (const [name, typeCode] of Object.entries(targets)) {
-    builder.addFunction(`brOnCast_${name}`,
-      makeSig([kWasmFuncRef], [kWasmI32]))
-    .addBody([
-      kExprBlock, kWasmRef, typeCode,
-        kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCast, 0, typeCode,
-        kExprI32Const, 0,
-        kExprReturn,
-      kExprEnd,
-      kExprDrop,
-      kExprI32Const, 1,
-      kExprReturn,
-    ]).exportFunc();
-
-    builder.addFunction(`brOnCastNull_${name}`,
-      makeSig([kWasmFuncRef], [kWasmI32]))
-    .addBody([
-      kExprBlock, kWasmRefNull, typeCode,
-        kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCastNull, 0, typeCode,
-        kExprI32Const, 0,
-        kExprReturn,
-      kExprEnd,
-      kExprDrop,
-      kExprI32Const, 1,
-      kExprReturn,
-    ]).exportFunc();
-
-    builder.addFunction(`brOnCastFail_${name}`,
-      makeSig([kWasmFuncRef], [kWasmI32]))
-    .addBody([
-      kExprBlock, kFuncRefCode,
-        kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCastFail, 0, typeCode,
-        kExprI32Const, 0,
-        kExprReturn,
-      kExprEnd,
-      kExprDrop,
-      kExprI32Const, 1,
-      kExprReturn,
-    ]).exportFunc();
-
-    builder.addFunction(`brOnCastFailNull_${name}`,
-      makeSig([kWasmFuncRef], [kWasmI32]))
-    .addBody([
-      kExprBlock, kWasmRef, kFuncRefCode,
-        kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCastFailNull, 0, typeCode,
-        kExprI32Const, 0,
-        kExprReturn,
-      kExprEnd,
-      kExprDrop,
-      kExprI32Const, 1,
-      kExprReturn,
-    ]).exportFunc();
-  }
-
-  let instance = builder.instantiate();
-  let wasm = instance.exports;
-  let jsFct = new WebAssembly.Function(
-      {parameters:['i32', 'i32'], results: ['i32']},
-      function mul(a, b) { return a * b; });
-  assertEquals(0, wasm.brOnCast_funcref(null));
-  assertEquals(0, wasm.brOnCast_nullfuncref(null));
-  assertEquals(0, wasm.brOnCast_super(null));
-  assertEquals(0, wasm.brOnCast_sub(null));
-
-  assertEquals(1, wasm.brOnCast_funcref(jsFct));
-  assertEquals(0, wasm.brOnCast_nullfuncref(jsFct));
-  assertEquals(0, wasm.brOnCast_super(jsFct));
-  assertEquals(0, wasm.brOnCast_sub(jsFct));
-
-  assertEquals(1, wasm.brOnCast_funcref(wasm.fctSuper));
-  assertEquals(0, wasm.brOnCast_nullfuncref(wasm.fctSuper));
-  assertEquals(1, wasm.brOnCast_super(wasm.fctSuper));
-  assertEquals(0, wasm.brOnCast_sub(wasm.fctSuper));
-
-  assertEquals(1, wasm.brOnCast_funcref(wasm.fctSub));
-  assertEquals(0, wasm.brOnCast_nullfuncref(wasm.fctSub));
-  assertEquals(1, wasm.brOnCast_super(wasm.fctSub));
-  assertEquals(1, wasm.brOnCast_sub(wasm.fctSub));
-
-  // br_on_cast null
-  assertEquals(1, wasm.brOnCastNull_funcref(null));
-  assertEquals(1, wasm.brOnCastNull_nullfuncref(null));
-  assertEquals(1, wasm.brOnCastNull_super(null));
-  assertEquals(1, wasm.brOnCastNull_sub(null));
-
-  assertEquals(1, wasm.brOnCastNull_funcref(jsFct));
-  assertEquals(0, wasm.brOnCastNull_nullfuncref(jsFct));
-  assertEquals(0, wasm.brOnCastNull_super(jsFct));
-  assertEquals(0, wasm.brOnCastNull_sub(jsFct));
-
-  assertEquals(1, wasm.brOnCastNull_funcref(wasm.fctSuper));
-  assertEquals(0, wasm.brOnCastNull_nullfuncref(wasm.fctSuper));
-  assertEquals(1, wasm.brOnCastNull_super(wasm.fctSuper));
-  assertEquals(0, wasm.brOnCastNull_sub(wasm.fctSuper));
-
-  assertEquals(1, wasm.brOnCastNull_funcref(wasm.fctSub));
-  assertEquals(0, wasm.brOnCastNull_nullfuncref(wasm.fctSub));
-  assertEquals(1, wasm.brOnCastNull_super(wasm.fctSub));
-  assertEquals(1, wasm.brOnCastNull_sub(wasm.fctSub));
-
-  // br_on_cast_fail
-  assertEquals(1, wasm.brOnCastFail_funcref(null));
-  assertEquals(1, wasm.brOnCastFail_nullfuncref(null));
-  assertEquals(1, wasm.brOnCastFail_super(null));
-  assertEquals(1, wasm.brOnCastFail_sub(null));
-
-  assertEquals(0, wasm.brOnCastFail_funcref(jsFct));
-  assertEquals(1, wasm.brOnCastFail_nullfuncref(jsFct));
-  assertEquals(1, wasm.brOnCastFail_super(jsFct));
-  assertEquals(1, wasm.brOnCastFail_sub(jsFct));
-
-  assertEquals(0, wasm.brOnCastFail_funcref(wasm.fctSuper));
-  assertEquals(1, wasm.brOnCastFail_nullfuncref(wasm.fctSuper));
-  assertEquals(0, wasm.brOnCastFail_super(wasm.fctSuper));
-  assertEquals(1, wasm.brOnCastFail_sub(wasm.fctSuper));
-
-  assertEquals(0, wasm.brOnCastFail_funcref(wasm.fctSub));
-  assertEquals(1, wasm.brOnCastFail_nullfuncref(wasm.fctSub));
-  assertEquals(0, wasm.brOnCastFail_super(wasm.fctSub));
-  assertEquals(0, wasm.brOnCastFail_sub(wasm.fctSub));
-
-  // br_on_cast_fail null
-  assertEquals(0, wasm.brOnCastFailNull_funcref(null));
-  assertEquals(0, wasm.brOnCastFailNull_nullfuncref(null));
-  assertEquals(0, wasm.brOnCastFailNull_super(null));
-  assertEquals(0, wasm.brOnCastFailNull_sub(null));
-
-  assertEquals(0, wasm.brOnCastFailNull_funcref(jsFct));
-  assertEquals(1, wasm.brOnCastFailNull_nullfuncref(jsFct));
-  assertEquals(1, wasm.brOnCastFailNull_super(jsFct));
-  assertEquals(1, wasm.brOnCastFailNull_sub(jsFct));
-
-  assertEquals(0, wasm.brOnCastFailNull_funcref(wasm.fctSuper));
-  assertEquals(1, wasm.brOnCastFailNull_nullfuncref(wasm.fctSuper));
-  assertEquals(0, wasm.brOnCastFailNull_super(wasm.fctSuper));
-  assertEquals(1, wasm.brOnCastFailNull_sub(wasm.fctSuper));
-
-  assertEquals(0, wasm.brOnCastFailNull_funcref(wasm.fctSub));
-  assertEquals(1, wasm.brOnCastFailNull_nullfuncref(wasm.fctSub));
-  assertEquals(0, wasm.brOnCastFailNull_super(wasm.fctSub));
-  assertEquals(0, wasm.brOnCastFailNull_sub(wasm.fctSub));
 })();
 
 (function BrOnCastFuncRef() {
@@ -651,179 +478,6 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
               () => wasm.castNullToNullExternRef(wasm.castToExternRef));
 })();
 
-(function BrOnCastDeprecatedExternRef() {
-  print(arguments.callee.name);
-  let builder = new WasmModuleBuilder();
-
-  builder.addFunction('castToExternRef',
-    makeSig([kWasmExternRef], [kWasmI32]))
-  .addBody([
-    kExprBlock, kWasmRef, kExternRefCode,
-      kExprLocalGet, 0,
-      kGCPrefix, kExprBrOnCast, 0, kExternRefCode,
-      kExprI32Const, 0,
-      kExprReturn,
-    kExprEnd,
-    kExprDrop,
-    kExprI32Const, 1,
-    kExprReturn,
-  ])
-  .exportFunc();
-  builder.addFunction('castToNullExternRef',
-    makeSig([kWasmExternRef], [kWasmI32]))
-  .addBody([
-    kExprBlock, kWasmRef, kNullExternRefCode,
-      kExprLocalGet, 0,
-      kGCPrefix, kExprBrOnCast, 0, kNullExternRefCode,
-      kExprI32Const, 0,
-      kExprReturn,
-    kExprEnd,
-    kExprDrop,
-    kExprI32Const, 1,
-    kExprReturn,
-  ])
-  .exportFunc();
-
-  builder.addFunction('castNullToExternRef',
-    makeSig([kWasmExternRef], [kWasmI32]))
-  .addBody([
-    kExprBlock, kWasmRefNull, kExternRefCode,
-      kExprLocalGet, 0,
-      kGCPrefix, kExprBrOnCastNull, 0, kExternRefCode,
-      kExprI32Const, 0,
-      kExprReturn,
-    kExprEnd,
-    kExprDrop,
-    kExprI32Const, 1,
-    kExprReturn,
-  ])
-  .exportFunc();
-  builder.addFunction('castNullToNullExternRef',
-    makeSig([kWasmExternRef], [kWasmI32]))
-  .addBody([
-    kExprBlock, kWasmRefNull, kNullExternRefCode,
-      kExprLocalGet, 0,
-      kGCPrefix, kExprBrOnCastNull, 0, kNullExternRefCode,
-      kExprI32Const, 0,
-      kExprReturn,
-    kExprEnd,
-    kExprDrop,
-    kExprI32Const, 1,
-    kExprReturn,
-  ])
-  .exportFunc();
-
-  builder.addFunction('castFailToExternRef',
-    makeSig([kWasmExternRef], [kWasmI32]))
-  .addBody([
-    kExprBlock, kWasmRefNull, kExternRefCode,
-      kExprLocalGet, 0,
-      kGCPrefix, kExprBrOnCastFail, 0, kExternRefCode,
-      kExprI32Const, 0,
-      kExprReturn,
-    kExprEnd,
-    kExprDrop,
-    kExprI32Const, 1,
-    kExprReturn,
-  ])
-  .exportFunc();
-  builder.addFunction('castFailToNullExternRef',
-    makeSig([kWasmExternRef], [kWasmI32]))
-  .addBody([
-    kExprBlock, kWasmRefNull, kExternRefCode,
-      kExprLocalGet, 0,
-      kGCPrefix, kExprBrOnCastFail, 0, kNullExternRefCode,
-      kExprI32Const, 0,
-      kExprReturn,
-    kExprEnd,
-    kExprDrop,
-    kExprI32Const, 1,
-    kExprReturn,
-  ])
-  .exportFunc();
-
-  builder.addFunction('castFailNullToExternRef',
-    makeSig([kWasmExternRef], [kWasmI32]))
-  .addBody([
-    kExprBlock, kWasmRef, kExternRefCode,
-      kExprLocalGet, 0,
-      kGCPrefix, kExprBrOnCastFailNull, 0, kExternRefCode,
-      kExprI32Const, 0,
-      kExprReturn,
-    kExprEnd,
-    kExprDrop,
-    kExprI32Const, 1,
-    kExprReturn,
-  ])
-  .exportFunc();
-  builder.addFunction('castFailNullToNullExternRef',
-    makeSig([kWasmExternRef], [kWasmI32]))
-  .addBody([
-    kExprBlock, kWasmRef, kExternRefCode,
-      kExprLocalGet, 0,
-      kGCPrefix, kExprBrOnCastFailNull, 0, kNullExternRefCode,
-      kExprI32Const, 0,
-      kExprReturn,
-    kExprEnd,
-    kExprDrop,
-    kExprI32Const, 1,
-    kExprReturn,
-  ])
-  .exportFunc();
-
-  let instance = builder.instantiate();
-  let wasm = instance.exports;
-  let obj = {};
-
-  assertEquals(0, wasm.castToExternRef(null));
-  assertEquals(1, wasm.castToExternRef(undefined));
-  assertEquals(1, wasm.castToExternRef(1));
-  assertEquals(1, wasm.castToExternRef(obj));
-  assertEquals(1, wasm.castToExternRef(wasm.castToExternRef));
-
-  assertEquals(0, wasm.castToNullExternRef(null));
-  assertEquals(0, wasm.castToNullExternRef(undefined));
-  assertEquals(0, wasm.castToNullExternRef(1));
-  assertEquals(0, wasm.castToNullExternRef(obj));
-  assertEquals(0, wasm.castToNullExternRef(wasm.castToExternRef));
-
-  assertEquals(1, wasm.castNullToExternRef(null));
-  assertEquals(1, wasm.castNullToExternRef(undefined));
-  assertEquals(1, wasm.castNullToExternRef(1));
-  assertEquals(1, wasm.castNullToExternRef(obj));
-  assertEquals(1, wasm.castNullToExternRef(wasm.castToExternRef));
-
-  assertEquals(1, wasm.castNullToNullExternRef(null));
-  assertEquals(0, wasm.castNullToNullExternRef(undefined));
-  assertEquals(0, wasm.castNullToNullExternRef(1));
-  assertEquals(0, wasm.castNullToNullExternRef(obj));
-  assertEquals(0, wasm.castNullToNullExternRef(wasm.castToExternRef));
-
-  assertEquals(1, wasm.castFailToExternRef(null));
-  assertEquals(0, wasm.castFailToExternRef(undefined));
-  assertEquals(0, wasm.castFailToExternRef(1));
-  assertEquals(0, wasm.castFailToExternRef(obj));
-  assertEquals(0, wasm.castFailToExternRef(wasm.castToExternRef));
-
-  assertEquals(1, wasm.castFailToNullExternRef(null));
-  assertEquals(1, wasm.castFailToNullExternRef(undefined));
-  assertEquals(1, wasm.castFailToNullExternRef(1));
-  assertEquals(1, wasm.castFailToNullExternRef(obj));
-  assertEquals(1, wasm.castFailToNullExternRef(wasm.castToExternRef));
-
-  assertEquals(0, wasm.castFailNullToExternRef(null));
-  assertEquals(0, wasm.castFailNullToExternRef(undefined));
-  assertEquals(0, wasm.castFailNullToExternRef(1));
-  assertEquals(0, wasm.castFailNullToExternRef(obj));
-  assertEquals(0, wasm.castFailNullToExternRef(wasm.castToExternRef));
-
-  assertEquals(0, wasm.castFailNullToNullExternRef(null));
-  assertEquals(1, wasm.castFailNullToNullExternRef(undefined));
-  assertEquals(1, wasm.castFailNullToNullExternRef(1));
-  assertEquals(1, wasm.castFailNullToNullExternRef(obj));
-  assertEquals(1, wasm.castFailNullToNullExternRef(wasm.castToExternRef));
-})();
-
 (function BrOnCastExternRef() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
@@ -1030,11 +684,11 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
   let createBodies = {
     nullref: [kExprRefNull, kNullRefCode],
-    i31ref: [kExprI32Const, 42, kGCPrefix, kExprI31New],
+    i31ref: [kExprI32Const, 42, kGCPrefix, kExprRefI31],
     structSuper: [kExprI32Const, 42, kGCPrefix, kExprStructNew, structSuper],
     structSub: [kExprI32Const, 42, kGCPrefix, kExprStructNew, structSub],
     array: [kExprI32Const, 42, kGCPrefix, kExprArrayNewFixed, array, 1],
-    any: [kExprCallFunction, createExternIdx, kGCPrefix, kExprExternInternalize],
+    any: [kExprCallFunction, createExternIdx, kGCPrefix, kExprAnyConvertExtern],
   };
 
   // Each Test lists the following:

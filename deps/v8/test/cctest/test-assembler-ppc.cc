@@ -325,7 +325,7 @@ TEST(4) {
 
     CodeDesc desc;
     assm.GetCode(isolate, &desc);
-    Object code = isolate->heap()->CreateCode(
+    Tagged<Object> code = isolate->heap()->CreateCode(
         desc,
         CodeKind::FOR_TESTING,
         Handle<Code>())->ToObjectChecked();
@@ -385,7 +385,7 @@ TEST(5) {
 
     CodeDesc desc;
     assm.GetCode(isolate, &desc);
-    Object code = isolate->heap()->CreateCode(
+    Tagged<Object> code = isolate->heap()->CreateCode(
         desc,
         CodeKind::FOR_TESTING,
         Handle<Code>())->ToObjectChecked();
@@ -420,7 +420,7 @@ TEST(6) {
 
     CodeDesc desc;
     assm.GetCode(isolate, &desc);
-    Object code = isolate->heap()->CreateCode(
+    Tagged<Object> code = isolate->heap()->CreateCode(
         desc,
         CodeKind::FOR_TESTING,
         Handle<Code>())->ToObjectChecked();
@@ -495,7 +495,7 @@ static void TestRoundingMode(VCVTTypes types,
 
     CodeDesc desc;
     assm.GetCode(isolate, &desc);
-    Object code = isolate->heap()->CreateCode(
+    Tagged<Object> code = isolate->heap()->CreateCode(
         desc,
         CodeKind::FOR_TESTING,
         Handle<Code>())->ToObjectChecked();
@@ -682,7 +682,7 @@ TEST(8) {
 
     CodeDesc desc;
     assm.GetCode(isolate, &desc);
-    Object code = isolate->heap()->CreateCode(
+    Tagged<Object> code = isolate->heap()->CreateCode(
         desc,
         CodeKind::FOR_TESTING,
         Handle<Code>())->ToObjectChecked();
@@ -797,7 +797,7 @@ TEST(9) {
 
     CodeDesc desc;
     assm.GetCode(isolate, &desc);
-    Object code = isolate->heap()->CreateCode(
+    Tagged<Object> code = isolate->heap()->CreateCode(
         desc,
         CodeKind::FOR_TESTING,
         Handle<Code>())->ToObjectChecked();
@@ -908,7 +908,7 @@ TEST(10) {
 
     CodeDesc desc;
     assm.GetCode(isolate, &desc);
-    Object code = isolate->heap()->CreateCode(
+    Tagged<Object> code = isolate->heap()->CreateCode(
         desc,
         CodeKind::FOR_TESTING,
         Handle<Code>())->ToObjectChecked();
@@ -1005,7 +1005,7 @@ TEST(11) {
 
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
-  Object code = isolate->heap()->CreateCode(
+  Tagged<Object> code = isolate->heap()->CreateCode(
       desc,
       CodeKind::FOR_TESTING,
       Handle<Code>())->ToObjectChecked();

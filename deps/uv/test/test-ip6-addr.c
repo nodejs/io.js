@@ -51,7 +51,7 @@ TEST_IMPL(ip6_addr_link_local) {
   int ix;
   int r;
 
-  ASSERT(0 == uv_interface_addresses(&addresses, &count));
+  ASSERT_OK(uv_interface_addresses(&addresses, &count));
 
   for (ix = 0; ix < count; ix++) {
     address = addresses + ix;
@@ -59,10 +59,10 @@ TEST_IMPL(ip6_addr_link_local) {
     if (address->address.address6.sin6_family != AF_INET6)
       continue;
 
-    ASSERT(0 == uv_inet_ntop(AF_INET6,
-                             &address->address.address6.sin6_addr,
-                             string_address,
-                             sizeof(string_address)));
+    ASSERT_OK(uv_inet_ntop(AF_INET6,
+                           &address->address.address6.sin6_addr,
+                           string_address,
+                           sizeof(string_address)));
 
     /* Skip addresses that are not link-local. */
     if (strncmp(string_address, "fe80::", 6) != 0)
@@ -72,21 +72,23 @@ TEST_IMPL(ip6_addr_link_local) {
     device_name = address->name;
 
     scoped_addr_len = sizeof(scoped_addr);
-    ASSERT(0 == uv_if_indextoname(iface_index, scoped_addr, &scoped_addr_len));
+    ASSERT_OK(uv_if_indextoname(iface_index,
+                                scoped_addr,
+                                &scoped_addr_len));
 #ifndef _WIN32
     /* This assert fails on Windows, as Windows semantics are different. */
-    ASSERT(0 == strcmp(device_name, scoped_addr));
+    ASSERT_OK(strcmp(device_name, scoped_addr));
 #endif
 
     interface_id_len = sizeof(interface_id);
     r = uv_if_indextoiid(iface_index, interface_id, &interface_id_len);
-    ASSERT(0 == r);
+    ASSERT_OK(r);
 #ifdef _WIN32
     /* On Windows, the interface identifier is the numeric string of the index. */
-    ASSERT(strtoul(interface_id, NULL, 10) == iface_index);
+    ASSERT_EQ(strtoul(interface_id, NULL, 10), iface_index);
 #else
     /* On Unix/Linux, the interface identifier is the interface device name. */
-    ASSERT(0 == strcmp(device_name, interface_id));
+    ASSERT_OK(strcmp(device_name, interface_id));
 #endif
 
     snprintf(scoped_addr,
@@ -102,16 +104,18 @@ TEST_IMPL(ip6_addr_link_local) {
             device_name);
     fflush(stderr);
 
-    ASSERT(0 == uv_ip6_addr(scoped_addr, TEST_PORT, &addr));
+    ASSERT_OK(uv_ip6_addr(scoped_addr, TEST_PORT, &addr));
     fprintf(stderr, "Got scope_id 0x%2x\n", (unsigned)addr.sin6_scope_id);
     fflush(stderr);
-    ASSERT(iface_index == addr.sin6_scope_id);
+    ASSERT_EQ(iface_index, addr.sin6_scope_id);
   }
 
   uv_free_interface_addresses(addresses, count);
 
   scoped_addr_len = sizeof(scoped_addr);
-  ASSERT(0 != uv_if_indextoname((unsigned int)-1, scoped_addr, &scoped_addr_len));
+  ASSERT_NE(0, uv_if_indextoname((unsigned int)-1,
+                                 scoped_addr,
+                                 &scoped_addr_len));
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -137,16 +141,16 @@ TEST_IMPL(ip6_addr_link_local) {
     X("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255.255")                    \
 
 #define TEST_GOOD(ADDR)                                                       \
-    ASSERT(0 == uv_inet_pton(AF_INET6, ADDR, &addr));                         \
-    ASSERT(0 == uv_inet_pton(AF_INET6, ADDR "%en1", &addr));                  \
-    ASSERT(0 == uv_inet_pton(AF_INET6, ADDR "%%%%", &addr));                  \
-    ASSERT(0 == uv_inet_pton(AF_INET6, ADDR "%en1:1.2.3.4", &addr));          \
+    ASSERT_OK(uv_inet_pton(AF_INET6, ADDR, &addr));                           \
+    ASSERT_OK(uv_inet_pton(AF_INET6, ADDR "%en1", &addr));                    \
+    ASSERT_OK(uv_inet_pton(AF_INET6, ADDR "%%%%", &addr));                    \
+    ASSERT_OK(uv_inet_pton(AF_INET6, ADDR "%en1:1.2.3.4", &addr));            \
 
 #define TEST_BAD(ADDR)                                                        \
-    ASSERT(0 != uv_inet_pton(AF_INET6, ADDR, &addr));                         \
-    ASSERT(0 != uv_inet_pton(AF_INET6, ADDR "%en1", &addr));                  \
-    ASSERT(0 != uv_inet_pton(AF_INET6, ADDR "%%%%", &addr));                  \
-    ASSERT(0 != uv_inet_pton(AF_INET6, ADDR "%en1:1.2.3.4", &addr));          \
+    ASSERT_NE(0, uv_inet_pton(AF_INET6, ADDR, &addr));                        \
+    ASSERT_NE(0, uv_inet_pton(AF_INET6, ADDR "%en1", &addr));                 \
+    ASSERT_NE(0, uv_inet_pton(AF_INET6, ADDR "%%%%", &addr));                 \
+    ASSERT_NE(0, uv_inet_pton(AF_INET6, ADDR "%en1:1.2.3.4", &addr));         \
 
 TEST_IMPL(ip6_pton) {
   struct in6_addr addr;
@@ -163,9 +167,9 @@ TEST_IMPL(ip6_pton) {
 
 TEST_IMPL(ip6_sin6_len) {
   struct sockaddr_in6 s;
-  ASSERT_EQ(0, uv_ip6_addr("::", 0, &s));
+  ASSERT_OK(uv_ip6_addr("::", 0, &s));
 #ifdef SIN6_LEN
-  ASSERT(s.sin6_len == sizeof(s));
+  ASSERT_EQ(s.sin6_len, sizeof(s));
 #endif
   return 0;
 }

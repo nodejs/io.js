@@ -217,7 +217,7 @@ public:
      * @return   The TimeZone's raw GMT offset.
      * @stable ICU 3.8
      */
-    virtual int32_t getRawOffset(void) const override;
+    virtual int32_t getRawOffset() const override;
 
     /**
      * Queries if this time zone uses daylight savings time.
@@ -225,7 +225,7 @@ public:
      * false, otherwise.
      * @stable ICU 3.8
      */
-    virtual UBool useDaylightTime(void) const override;
+    virtual UBool useDaylightTime() const override;
 
 #ifndef U_FORCE_HIDE_DEPRECATED_API
     /**
@@ -313,8 +313,8 @@ public:
         int32_t& rawOffset, int32_t& dstOffset, UErrorCode& status) const override;
 
 private:
-    void deleteRules(void);
-    void deleteTransitions(void);
+    void deleteRules();
+    void deleteTransitions();
     UVector* copyRules(UVector* source);
     TimeZoneRule* findRuleInFinal(UDate date, UBool local,
         int32_t NonExistingTimeOpt, int32_t DuplicatedTimeOpt) const;
@@ -346,7 +346,7 @@ public:
      * @return          The class ID for all objects of this class.
      * @stable ICU 3.8
      */
-    static UClassID U_EXPORT2 getStaticClassID(void);
+    static UClassID U_EXPORT2 getStaticClassID();
 
     /**
      * Returns a unique class ID POLYMORPHICALLY. Pure virtual override. This
@@ -359,7 +359,7 @@ public:
      *                  other classes have different class IDs.
      * @stable ICU 3.8
      */
-    virtual UClassID getDynamicClassID(void) const override;
+    virtual UClassID getDynamicClassID() const override;
 };
 
 U_NAMESPACE_END

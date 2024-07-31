@@ -62,7 +62,7 @@ TEST_IMPL(osx_select) {
   }
 
   r = uv_tty_init(uv_default_loop(), &tty, fd, 1);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_read_start((uv_stream_t*) &tty, alloc_cb, read_cb);
 
@@ -72,12 +72,12 @@ TEST_IMPL(osx_select) {
         "feel pretty happy\n";
   for (i = 0, len = strlen(str); i < len; i++) {
     r = ioctl(fd, TIOCSTI, str + i);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
   }
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(read_count == 3);
+  ASSERT_EQ(3, read_count);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -97,13 +97,13 @@ TEST_IMPL(osx_select_many_fds) {
   TEST_FILE_LIMIT(ARRAY_SIZE(tcps) + 100);
 
   r = uv_ip4_addr("127.0.0.1", 0, &addr);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   for (i = 0; i < ARRAY_SIZE(tcps); i++) {
     r = uv_tcp_init(uv_default_loop(), &tcps[i]);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
     r = uv_tcp_bind(&tcps[i], (const struct sockaddr *) &addr, 0);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
     uv_unref((uv_handle_t*) &tcps[i]);
   }
 
@@ -115,10 +115,10 @@ TEST_IMPL(osx_select_many_fds) {
   }
 
   r = uv_tty_init(uv_default_loop(), &tty, fd, 1);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_read_start((uv_stream_t*) &tty, alloc_cb, read_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   /* Emulate user-input */
   str = "got some input\n"
@@ -126,12 +126,12 @@ TEST_IMPL(osx_select_many_fds) {
         "feel pretty happy\n";
   for (i = 0, len = strlen(str); i < len; i++) {
     r = ioctl(fd, TIOCSTI, str + i);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
   }
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(read_count == 3);
+  ASSERT_EQ(3, read_count);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

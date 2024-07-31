@@ -1,4 +1,4 @@
-// META: global=window,worker
+// META: global=window,worker,shadowrealm
 'use strict';
 
 // Tests which patch the global environment are kept separate to avoid

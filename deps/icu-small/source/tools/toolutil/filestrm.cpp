@@ -74,7 +74,7 @@ T_FileStream_wopen(const wchar_t* filename, const wchar_t* mode)
 U_CAPI void U_EXPORT2
 T_FileStream_close(FileStream* fileStream)
 {
-    if (fileStream != 0)
+    if (fileStream != nullptr)
         fclose((FILE*)fileStream);
 }
 
@@ -190,7 +190,7 @@ T_FileStream_eof(FileStream* fileStream)
 U_CAPI int U_EXPORT2
 T_FileStream_error(FileStream* fileStream)
 {
-    return (fileStream == 0 || ferror((FILE*)fileStream));
+    return (fileStream == nullptr || ferror((FILE*)fileStream));
 }
 
 /* This function doesn't work. */

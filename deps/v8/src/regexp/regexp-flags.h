@@ -70,6 +70,8 @@ constexpr base::Optional<RegExpFlag> TryRegExpFlagFromChar(char c) {
 #undef V
 // clang-format on
 
+std::ostream& operator<<(std::ostream& os, RegExpFlags flags);
+
 }  // namespace internal
 }  // namespace v8
 

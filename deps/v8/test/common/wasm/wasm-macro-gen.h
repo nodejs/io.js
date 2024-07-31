@@ -319,18 +319,23 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
 //------------------------------------------------------------------------------
 // Int32 Const operations
 //------------------------------------------------------------------------------
-#define WASM_I32V(val) kExprI32Const, U32V_5(val)
+#define WASM_I32V(val) WASM_I32V_5(val)
 
-#define WASM_I32V_1(val) \
-  static_cast<uint8_t>(CheckI32v((val), 1), kExprI32Const), U32V_1(val)
-#define WASM_I32V_2(val) \
-  static_cast<uint8_t>(CheckI32v((val), 2), kExprI32Const), U32V_2(val)
-#define WASM_I32V_3(val) \
-  static_cast<uint8_t>(CheckI32v((val), 3), kExprI32Const), U32V_3(val)
-#define WASM_I32V_4(val) \
-  static_cast<uint8_t>(CheckI32v((val), 4), kExprI32Const), U32V_4(val)
-#define WASM_I32V_5(val) \
-  static_cast<uint8_t>(CheckI32v((val), 5), kExprI32Const), U32V_5(val)
+#define WASM_I32V_1(val)                                    \
+  static_cast<uint8_t>(CheckI32v((val), 1), kExprI32Const), \
+      U32V_1(static_cast<int32_t>(val))
+#define WASM_I32V_2(val)                                    \
+  static_cast<uint8_t>(CheckI32v((val), 2), kExprI32Const), \
+      U32V_2(static_cast<int32_t>(val))
+#define WASM_I32V_3(val)                                    \
+  static_cast<uint8_t>(CheckI32v((val), 3), kExprI32Const), \
+      U32V_3(static_cast<int32_t>(val))
+#define WASM_I32V_4(val)                                    \
+  static_cast<uint8_t>(CheckI32v((val), 4), kExprI32Const), \
+      U32V_4(static_cast<int32_t>(val))
+#define WASM_I32V_5(val)                                    \
+  static_cast<uint8_t>(CheckI32v((val), 5), kExprI32Const), \
+      U32V_5(static_cast<int32_t>(val))
 
 //------------------------------------------------------------------------------
 // Int64 Const operations
@@ -585,14 +590,10 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
 #define WASM_REF_IS_NULL(val) val, kExprRefIsNull
 #define WASM_REF_AS_NON_NULL(val) val, kExprRefAsNonNull
 #define WASM_REF_EQ(lhs, rhs) lhs, rhs, kExprRefEq
-#define WASM_REF_TEST_DEPRECATED(ref, typeidx) \
-  ref, WASM_GC_OP(kExprRefTestDeprecated), static_cast<uint8_t>(typeidx)
 #define WASM_REF_TEST(ref, typeidx) \
   ref, WASM_GC_OP(kExprRefTest), static_cast<uint8_t>(typeidx)
 #define WASM_REF_TEST_NULL(ref, typeidx) \
   ref, WASM_GC_OP(kExprRefTestNull), static_cast<uint8_t>(typeidx)
-#define WASM_REF_CAST_DEPRECATED(ref, typeidx) \
-  ref, WASM_GC_OP(kExprRefCastDeprecated), static_cast<uint8_t>(typeidx)
 #define WASM_REF_CAST(ref, typeidx) \
   ref, WASM_GC_OP(kExprRefCast), static_cast<uint8_t>(typeidx)
 #define WASM_REF_CAST_NULL(ref, typeidx) \
@@ -600,53 +601,29 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
 // Takes a reference value from the value stack to allow sequences of
 // conditional branches.
 #define WASM_BR_ON_CAST(depth, sourcetype, targettype)               \
-  WASM_GC_OP(kExprBrOnCastGeneric),                                  \
+  WASM_GC_OP(kExprBrOnCast),                                         \
       static_cast<uint8_t>(0b01), /*source is nullable*/             \
       static_cast<uint8_t>(depth), static_cast<uint8_t>(sourcetype), \
       static_cast<uint8_t>(targettype)
 #define WASM_BR_ON_CAST_NULL(depth, sourcetype, targettype)          \
-  WASM_GC_OP(kExprBrOnCastGeneric),                                  \
+  WASM_GC_OP(kExprBrOnCast),                                         \
       static_cast<uint8_t>(0b11) /*source & target nullable*/,       \
       static_cast<uint8_t>(depth), static_cast<uint8_t>(sourcetype), \
       static_cast<uint8_t>(targettype)
-#define WASM_BR_ON_CAST_DEPRECATED(depth, typeidx)                  \
-  WASM_GC_OP(kExprBrOnCastDeprecated), static_cast<uint8_t>(depth), \
-      static_cast<uint8_t>(typeidx)
 #define WASM_BR_ON_CAST_FAIL(depth, sourcetype, targettype)          \
-  WASM_GC_OP(kExprBrOnCastFailGeneric),                              \
+  WASM_GC_OP(kExprBrOnCastFail),                                     \
       static_cast<uint8_t>(0b01), /*source is nullable*/             \
       static_cast<uint8_t>(depth), static_cast<uint8_t>(sourcetype), \
       static_cast<uint8_t>(targettype)
 #define WASM_BR_ON_CAST_FAIL_NULL(depth, sourcetype, targettype)     \
-  WASM_GC_OP(kExprBrOnCastFailGeneric),                              \
+  WASM_GC_OP(kExprBrOnCastFail),                                     \
       static_cast<uint8_t>(0b11), /*source, target nullable*/        \
       static_cast<uint8_t>(depth), static_cast<uint8_t>(sourcetype), \
       static_cast<uint8_t>(targettype)
-#define WASM_BR_ON_CAST_FAIL_DEPRECATED(depth, typeidx)                 \
-  WASM_GC_OP(kExprBrOnCastFailDeprecated), static_cast<uint8_t>(depth), \
-      static_cast<uint8_t>(typeidx)
 
-#define WASM_GC_INTERNALIZE(extern) extern, WASM_GC_OP(kExprExternInternalize)
-#define WASM_GC_EXTERNALIZE(ref) ref, WASM_GC_OP(kExprExternExternalize)
-
-#define WASM_REF_IS_STRUCT(ref) ref, WASM_GC_OP(kExprRefIsStruct)
-#define WASM_REF_IS_ARRAY(ref) ref, WASM_GC_OP(kExprRefIsArray)
-#define WASM_REF_IS_I31(ref) ref, WASM_GC_OP(kExprRefIsI31)
-#define WASM_REF_AS_STRUCT(ref) ref, WASM_GC_OP(kExprRefAsStruct)
-#define WASM_REF_AS_ARRAY(ref) ref, WASM_GC_OP(kExprRefAsArray)
-#define WASM_REF_AS_I31(ref) ref, WASM_GC_OP(kExprRefAsI31)
-#define WASM_BR_ON_ARRAY(depth) \
-  WASM_GC_OP(kExprBrOnArray), static_cast<uint8_t>(depth)
-#define WASM_BR_ON_STRUCT(depth) \
-  WASM_GC_OP(kExprBrOnStruct), static_cast<uint8_t>(depth)
-#define WASM_BR_ON_I31(depth) \
-  WASM_GC_OP(kExprBrOnI31), static_cast<uint8_t>(depth)
-#define WASM_BR_ON_NON_ARRAY(depth) \
-  WASM_GC_OP(kExprBrOnNonArray), static_cast<uint8_t>(depth)
-#define WASM_BR_ON_NON_STRUCT(depth) \
-  WASM_GC_OP(kExprBrOnNonStruct), static_cast<uint8_t>(depth)
-#define WASM_BR_ON_NON_I31(depth) \
-  WASM_GC_OP(kExprBrOnNonI31), static_cast<uint8_t>(depth)
+#define WASM_GC_ANY_CONVERT_EXTERN(extern) \
+  extern, WASM_GC_OP(kExprAnyConvertExtern)
+#define WASM_GC_EXTERN_CONVERT_ANY(ref) ref, WASM_GC_OP(kExprExternConvertAny)
 
 #define WASM_ARRAY_NEW(index, default_value, length) \
   default_value, length, WASM_GC_OP(kExprArrayNew), static_cast<uint8_t>(index)
@@ -670,7 +647,7 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
   __VA_ARGS__, WASM_GC_OP(kExprArrayNewFixed), static_cast<uint8_t>(index), \
       static_cast<uint8_t>(length)
 
-#define WASM_I31_NEW(val) val, WASM_GC_OP(kExprI31New)
+#define WASM_REF_I31(val) val, WASM_GC_OP(kExprRefI31)
 #define WASM_I31_GET_S(val) val, WASM_GC_OP(kExprI31GetS)
 #define WASM_I31_GET_U(val) val, WASM_GC_OP(kExprI31GetU)
 
@@ -957,8 +934,8 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
 #define WASM_ATOMICS_STORE_OP(op, x, y, representation) \
   x, y, WASM_ATOMICS_OP(op),                            \
       static_cast<uint8_t>(ElementSizeLog2Of(representation)), ZERO_OFFSET
-#define WASM_ATOMICS_WAIT(op, index, value, timeout, offset) \
-  index, value, timeout, WASM_ATOMICS_OP(op), ZERO_ALIGNMENT, offset
+#define WASM_ATOMICS_WAIT(op, index, value, timeout, alignment, offset) \
+  index, value, timeout, WASM_ATOMICS_OP(op), alignment, offset
 #define WASM_ATOMICS_FENCE WASM_ATOMICS_OP(kExprAtomicFence), ZERO_OFFSET
 
 //------------------------------------------------------------------------------

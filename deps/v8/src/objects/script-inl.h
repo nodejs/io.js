@@ -146,6 +146,12 @@ void Script::set_produce_compile_hints(bool produce_compile_hints) {
   set_flags(ProduceCompileHintsBit::update(flags(), produce_compile_hints));
 }
 
+bool Script::deserialized() const { return DeserializedBit::decode(flags()); }
+
+void Script::set_deserialized(bool value) {
+  set_flags(DeserializedBit::update(flags(), value));
+}
+
 bool Script::is_repl_mode() const { return IsReplModeBit::decode(flags()); }
 
 void Script::set_is_repl_mode(bool value) {

@@ -45,11 +45,9 @@ class V8_NODISCARD MemReaderScope {
 IDebugHostContext* MemReaderScope::context_;
 
 StructField::StructField(std::u16string field_name, std::u16string type_name,
-                         std::string uncompressed_type_name, uint64_t offset,
-                         uint8_t num_bits, uint8_t shift_bits)
+                         uint64_t offset, uint8_t num_bits, uint8_t shift_bits)
     : name(field_name),
       type_name(type_name),
-      uncompressed_type_name(uncompressed_type_name),
       offset(offset),
       num_bits(num_bits),
       shift_bits(shift_bits) {}
@@ -60,12 +58,10 @@ StructField& StructField::operator=(const StructField&) = default;
 StructField& StructField::operator=(StructField&&) = default;
 
 Property::Property(std::u16string property_name, std::u16string type_name,
-                   std::string uncompressed_type_name, uint64_t address,
-                   size_t item_size)
+                   uint64_t address, size_t item_size)
     : name(property_name),
       type(PropertyType::kPointer),
       type_name(type_name),
-      uncompressed_type_name(uncompressed_type_name),
       addr_value(address),
       item_size(item_size) {}
 Property::~Property() = default;
@@ -89,8 +85,7 @@ std::vector<Property> GetPropertiesAsVector(size_t num_properties,
     const auto& source_prop = *(properties)[property_index];
     Property dest_prop(ConvertToU16String(source_prop.name),
                        ConvertToU16String(source_prop.type),
-                       source_prop.decompressed_type, source_prop.address,
-                       source_prop.size);
+                       source_prop.address, source_prop.size);
     if (source_prop.kind != d::PropertyKind::kSingle) {
       dest_prop.type = PropertyType::kArray;
       dest_prop.length = source_prop.num_values;
@@ -107,7 +102,6 @@ std::vector<Property> GetPropertiesAsVector(size_t num_properties,
         const auto& struct_field = *source_prop.struct_fields[field_index];
         dest_prop.fields.push_back({ConvertToU16String(struct_field.name),
                                     ConvertToU16String(struct_field.type),
-                                    struct_field.decompressed_type,
                                     struct_field.offset, struct_field.num_bits,
                                     struct_field.shift_bits});
       }
@@ -145,23 +139,13 @@ V8HeapObject GetHeapObject(WRL::ComPtr<IDebugHostContext> sp_context,
       const std::string& type_name = props->guessed_types[type_index];
       Property dest_prop(
           ConvertToU16String(("guessed type " + type_name).c_str()),
-          ConvertToU16String(is_compressed ? kTaggedValue : type_name),
-          type_name, referring_pointer,
+          ConvertToU16String(type_name), referring_pointer,
           is_compressed ? i::kTaggedSize : sizeof(void*));
       obj.properties.push_back(dest_prop);
     }
   }
 
   return obj;
-}
-
-std::vector<std::u16string> ListObjectClasses() {
-  const d::ClassList* class_list = d::ListObjectClasses();
-  std::vector<std::u16string> result;
-  for (size_t i = 0; i < class_list->num_class_names; ++i) {
-    result.push_back(ConvertToU16String(class_list->class_names[i]));
-  }
-  return result;
 }
 
 const char* BitsetName(uint64_t payload) { return d::BitsetName(payload); }

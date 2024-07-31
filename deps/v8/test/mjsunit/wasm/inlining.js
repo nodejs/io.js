@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-inlining --no-liftoff
-// Flags: --experimental-wasm-return-call
-// Flags: --experimental-wasm-gc --allow-natives-syntax
+// Flags: --experimental-wasm-inlining --no-liftoff --allow-natives-syntax
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -36,7 +34,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   let callee = builder.addFunction("callee", kSig_ii_i)
     .addBody([kExprLocalGet, 0, kExprI32Const, 1, kExprI32Sub,
               kExprLocalGet, 0, kExprI32Const, 1, kExprI32Add]);
-  // g(x) = { let (a, b) = f(x); a * b}
+  // g(x) = { let (a, b) = f(x); a * b }
   builder.addFunction("main", kSig_i_i)
     .addBody([kExprLocalGet, 0, kExprCallFunction, callee.index, kExprI32Mul])
     .exportAs("main");
@@ -45,11 +43,11 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   assertEquals(9 * 11, instance.exports.main(10));
 })();
 
-(function NoReturnTest() {
+(function VoidReturnTest() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
 
-  let global = builder.addGlobal(kWasmI32, true);
+  let global = builder.addGlobal(kWasmI32, true, false);
 
   let callee = builder.addFunction("callee", kSig_v_i)
     .addBody([kExprLocalGet, 0, kExprGlobalSet, global.index]);
@@ -61,6 +59,29 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
   let instance = builder.instantiate();
   assertEquals(10, instance.exports.main(10));
+})();
+
+(function NoReturnTest() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+
+  let tag = builder.addTag(kSig_v_i);
+
+  let callee = builder.addFunction("callee", kSig_i_i)
+    .addBody([kExprI32Const, 42, kExprThrow, tag]);
+
+  builder.addFunction("main", kSig_i_i)
+    .addBody([
+      kExprTry, kWasmI32,
+        kExprI32Const, 10, kExprCallFunction, callee.index,
+        kExprI32Const, 10, kExprI32Add,
+      kExprCatch, tag,
+        kExprI32Const, 1, kExprI32Add,
+      kExprEnd])
+    .exportFunc();
+
+  let instance = builder.instantiate();
+  assertEquals(43, instance.exports.main(10));
 })();
 
 (function LoopInLoopTest() {
@@ -326,7 +347,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 })();
 
 // Things get more complex if we also need to reload the memory context.
-(function UnandledInHandledWithMemoryTest() {
+(function UnhandledInHandledWithMemoryTest() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
 
@@ -356,6 +377,85 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
   let instance = builder.instantiate();
   assertEquals(25, instance.exports.main(10));
+})();
+
+(function TailCallInCatchBlock() {
+  // A tail call frame replaces the caller frame, so an exception should not be
+  // catchable in the caller frame.
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+
+  let tag = builder.addTag(kSig_v_i);
+
+  let callee = builder.addFunction("callee", kSig_i_i)
+    .addBody([kExprI32Const, 42, kExprThrow, tag])
+
+  builder.addFunction("main", kSig_i_i)
+    .addBody([
+      kExprTry, kWasmI32,
+        kExprLocalGet, 0, kExprReturnCall, callee.index,
+      kExprCatch, tag,
+      kExprEnd])
+    .exportFunc();
+
+  let instance = builder.instantiate();
+
+  assertThrows(() => instance.exports.main(10), WebAssembly.Exception);
+})();
+
+(function TailCallInNestedCallInCatchBlock() {
+  // In contrast to the previous test, if there is an intermediate frame, the
+  // parent frame should be able to catch the exception.
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+
+  let tag = builder.addTag(kSig_v_i);
+
+  let callee = builder.addFunction("callee", kSig_i_i)
+    .addBody([kExprI32Const, 42, kExprThrow, tag]);
+
+  let intermediate = builder.addFunction("intermediate", kSig_i_i)
+    .addBody([kExprLocalGet, 0, kExprReturnCall, callee.index]);
+
+  builder.addFunction("main", kSig_i_i)
+    .addBody([
+      kExprTry, kWasmI32,
+        kExprLocalGet, 0, kExprCallFunction, intermediate.index,
+      kExprCatch, tag,
+      kExprEnd])
+    .exportFunc();
+
+  let instance = builder.instantiate();
+
+  assertEquals(42, instance.exports.main(10));
+})();
+
+(function CallInTailCallInCatchBlock() {
+  // A tail call removes the current frame, so an exception should not be
+  // caught even from within a nested inlined call.
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+
+  let tag = builder.addTag(kSig_v_i);
+
+  let callee = builder.addFunction("callee", kSig_i_i)
+    .addBody([kExprI32Const, 42, kExprThrow, tag]);
+
+  let intermediate = builder.addFunction("intermediate", kSig_i_i)
+    .addBody([kExprLocalGet, 0, kExprI32Const, 1, kExprI32Add,
+              kExprCallFunction, callee.index]);
+
+  builder.addFunction("main", kSig_i_i)
+    .addBody([
+      kExprTry, kWasmI32,
+        kExprLocalGet, 0, kExprReturnCall, intermediate.index,
+      kExprCatch, tag,
+      kExprEnd])
+    .exportFunc();
+
+  let instance = builder.instantiate();
+
+  assertThrows(() => instance.exports.main(10), WebAssembly.Exception);
 })();
 
 (function LoopUnrollingTest() {
@@ -590,7 +690,6 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   function TestStackTrace(main) {
     assertEquals([7, 0], main(21, 3));
     assertTraps(kTrapDivByZero, () => main(1, 0));
-    // Test stack trace for trap.
     try {
       main(1, 0);
       assertUnreachable();
@@ -614,6 +713,263 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
         // [name, index, offset]
         ['callee', '' + callee.index, '0x8c'],
         ['main', '' + caller.index, '0xaa'],
+      ];
+      CheckCallStack(e, expected_entries);
+    }
+  }
+
+  function CheckCallStack(error, expected_entries) {
+    print(error.stack);
+    let regex = /at ([^ ]+) \(wasm[^\[]+\[([0-9]+)\]:(0x[0-9a-f]+)\)/g;
+    let entries = [...error.stack.matchAll(regex)];
+    for (let i = 0; i < expected_entries.length; ++i) {
+      let actual = entries[i];
+      print(`match = ${actual[0]}`);
+      let expected = expected_entries[i];
+      assertEquals(expected[0], actual[1]);
+      assertEquals(expected[1], actual[2]);
+      assertEquals(expected[2], actual[3]);
+    }
+    assertEquals(expected_entries.length, entries.length);
+  }
+})();
+
+(function InliningTrapFromCalleeWithNestedTailCall() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+
+  // Add some types to have an index offset.
+  for (let i = 0; i < 10; ++i) {
+    builder.addFunction(null, makeSig([], [])).addBody([]);
+  }
+
+  let callee = builder.addFunction('callee', kSig_i_ii)
+    .addBody([
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprI32DivU,
+    ]);
+
+  let intermediate = builder.addFunction('intermediate', kSig_i_ii)
+    .addBody([
+      // Some nops, so that the call doesn't have the same offset as the div
+      // in the callee.
+      kExprNop, kExprNop,
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprReturnCall, callee.index,
+    ])
+    .exportFunc();
+
+  let caller = builder.addFunction('main', kSig_ii_ii)
+    .addBody([
+      // Some nops, so that the call doesn't have the same offset as the div
+      // in the callee.
+      kExprNop, kExprNop, kExprNop, kExprNop, kExprNop,
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprCallFunction, intermediate.index,
+      // If it didn't trap, call it again without intermediate function and with
+      // swapped arguments.
+      kExprLocalGet, 1,
+      kExprLocalGet, 0,
+      kExprCallFunction, callee.index,
+    ])
+    .exportFunc();
+
+  let wire_bytes = builder.toBuffer();
+  let module = new WebAssembly.Module(wire_bytes);
+  let instance = new WebAssembly.Instance(module, {});
+  TestStackTrace(instance.exports.main);
+  // Serialize and deserialize the module to verify that the inlining positions
+  // are properly "transformed" here.
+  print("Repeat test with serialized module.")
+  module = %DeserializeWasmModule(%SerializeWasmModule(module), wire_bytes);
+  instance = new WebAssembly.Instance(module, {});
+  TestStackTrace(instance.exports.main);
+
+  function TestStackTrace(main) {
+    assertEquals([7, 0], main(21, 3));
+    assertTraps(kTrapDivByZero, () => main(1, 0));
+    // Test stack trace for trap.
+    try {
+      main(1, 0);
+      assertUnreachable();
+    } catch(e) {
+      assertMatches(/RuntimeError: divide by zero/, e.stack);
+      let expected_entries = [
+        // [name, index, offset]
+        ['callee', '' + callee.index, '0x8c'],
+        ['main', '' + caller.index, '0xa4'],
+      ];
+      CheckCallStack(e, expected_entries);
+    }
+
+    try {
+      main(0, 1);
+      assertUnreachable();
+    } catch(e) {
+      assertMatches(/RuntimeError: divide by zero/, e.stack);
+      let expected_entries = [
+        // [name, index, offset]
+        ['callee', '' + callee.index, '0x8c'],
+        ['main', '' + caller.index, '0xaa'],
+      ];
+      CheckCallStack(e, expected_entries);
+    }
+  }
+
+  function CheckCallStack(error, expected_entries) {
+    print(error.stack);
+    let regex = /at ([^ ]+) \(wasm[^\[]+\[([0-9]+)\]:(0x[0-9a-f]+)\)/g;
+    let entries = [...error.stack.matchAll(regex)];
+    for (let i = 0; i < expected_entries.length; ++i) {
+      let actual = entries[i];
+      print(`match = ${actual[0]}`);
+      let expected = expected_entries[i];
+      assertEquals(expected[0], actual[1]);
+      assertEquals(expected[1], actual[2]);
+      assertEquals(expected[2], actual[3]);
+    }
+    assertEquals(expected_entries.length, entries.length);
+  }
+})();
+
+(function InliningTrapFromCalleeWithSingleTailCall() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+
+  // Add some types to have an index offset.
+  for (let i = 0; i < 10; ++i) {
+    builder.addFunction(null, makeSig([], [])).addBody([]);
+  }
+
+  let callee = builder.addFunction('callee', kSig_ii_ii)
+    .addBody([
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprI32DivU,
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprI32Mul,
+    ]);
+
+  let caller = builder.addFunction('main', kSig_ii_ii)
+    .addBody([
+      // Some nops, so that the call doesn't have the same offset as the div
+      // in the callee.
+      kExprNop, kExprNop,
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprReturnCall, callee.index,
+    ])
+    .exportFunc();
+
+  let wire_bytes = builder.toBuffer();
+  let module = new WebAssembly.Module(wire_bytes);
+  let instance = new WebAssembly.Instance(module, {});
+  TestStackTrace(instance.exports.main);
+  // Serialize and deserialize the module to verify that the inlining positions
+  // are properly "transformed" here.
+  print("Repeat test with serialized module.")
+  module = %DeserializeWasmModule(%SerializeWasmModule(module), wire_bytes);
+  instance = new WebAssembly.Instance(module, {});
+  TestStackTrace(instance.exports.main);
+
+  function TestStackTrace(main) {
+    assertEquals([7, 63], main(21, 3));
+    try {
+      main(1, 0);
+      assertUnreachable();
+    } catch(e) {
+      assertMatches(/RuntimeError: divide by zero/, e.stack);
+      let expected_entries = [
+        // [name, index, offset]
+        ['callee', '' + callee.index, '0x77'],
+      ];
+      CheckCallStack(e, expected_entries);
+    }
+  }
+
+  function CheckCallStack(error, expected_entries) {
+    print(error.stack);
+    let regex = /at ([^ ]+) \(wasm[^\[]+\[([0-9]+)\]:(0x[0-9a-f]+)\)/g;
+    let entries = [...error.stack.matchAll(regex)];
+    for (let i = 0; i < expected_entries.length; ++i) {
+      let actual = entries[i];
+      print(`match = ${actual[0]}`);
+      let expected = expected_entries[i];
+      assertEquals(expected[0], actual[1]);
+      assertEquals(expected[1], actual[2]);
+      assertEquals(expected[2], actual[3]);
+    }
+    assertEquals(expected_entries.length, entries.length);
+  }
+})();
+
+(function InliningTrapFromCalleeWithMultipleCalls() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+
+  // Add some types to have an index offset.
+  for (let i = 0; i < 10; ++i) {
+    builder.addFunction(null, makeSig([], [])).addBody([]);
+  }
+
+  let callee0 = builder.addFunction('callee0', kSig_i_ii)
+    .addBody([
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprI32DivU
+    ]);
+
+  let callee1 = builder.addFunction('callee1', kSig_i_ii)
+    .addBody([kExprLocalGet, 0, kExprLocalGet, 1, kExprCallFunction,
+              callee0.index]);
+
+  let callee2 = builder.addFunction('callee2', kSig_i_ii)
+    .addBody([kExprLocalGet, 0, kExprLocalGet, 1, kExprReturnCall,
+              callee1.index])
+
+  let callee3 = builder.addFunction('callee3', kSig_i_ii)
+    .addBody([kExprLocalGet, 0, kExprLocalGet, 1, kExprReturnCall,
+              callee2.index])
+
+  let callee4 = builder.addFunction('callee4', kSig_i_ii)
+    .addBody([kExprLocalGet, 0, kExprLocalGet, 1, kExprCallFunction,
+              callee3.index]);
+
+  let main = builder.addFunction('main', kSig_i_ii)
+    .addBody([
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprReturnCall, callee4.index,
+    ])
+    .exportFunc();
+
+  let wire_bytes = builder.toBuffer();
+  let module = new WebAssembly.Module(wire_bytes);
+  let instance = new WebAssembly.Instance(module, {});
+  TestStackTrace(instance.exports.main);
+  // Serialize and deserialize the module to verify that the inlining positions
+  // are properly "transformed" here.
+  print("Repeat test with serialized module.")
+  module = %DeserializeWasmModule(%SerializeWasmModule(module), wire_bytes);
+  instance = new WebAssembly.Instance(module, {});
+  TestStackTrace(instance.exports.main);
+
+  function TestStackTrace(main) {
+    assertEquals(7, main(21, 3));
+    try {
+      main(1, 0);
+      assertUnreachable();
+    } catch(e) {
+      assertMatches(/RuntimeError: divide by zero/, e.stack);
+      let expected_entries = [
+        // [name, index, offset]
+        ['callee0', '' + callee0.index, '0x91'],
+        ['callee1', '' + callee1.index, '0x99'],
+        ['callee4', '' + callee4.index, '0xb4'],
       ];
       CheckCallStack(e, expected_entries);
     }

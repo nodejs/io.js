@@ -1,13 +1,12 @@
-// npm explore <pkg>[@<version>]
-// open a subshell to the package folder.
-
 const pkgJson = require('@npmcli/package-json')
 const runScript = require('@npmcli/run-script')
-const { join, relative } = require('path')
-const log = require('../utils/log-shim.js')
-const completion = require('../utils/completion/installed-shallow.js')
-const BaseCommand = require('../base-command.js')
+const { join, relative } = require('node:path')
+const { log, output } = require('proc-log')
+const completion = require('../utils/installed-shallow.js')
+const BaseCommand = require('../base-cmd.js')
 
+// npm explore <pkg>[@<version>]
+// open a subshell to the package folder.
 class Explore extends BaseCommand {
   static description = 'Browse an installed package'
   static name = 'explore'
@@ -50,30 +49,26 @@ class Explore extends BaseCommand {
     }
 
     if (!args.length) {
-      this.npm.output(`\nExploring ${path}\nType 'exit' or ^D when finished\n`)
+      output.standard(`\nExploring ${path}\nType 'exit' or ^D when finished\n`)
     }
-    log.disableProgress()
-    try {
-      return await runScript({
-        ...this.npm.flatOptions,
-        pkg,
-        banner: false,
-        path,
-        event: '_explore',
-        stdio: 'inherit',
-      }).catch(er => {
-        process.exitCode = typeof er.code === 'number' && er.code !== 0 ? er.code
-          : 1
+
+    return runScript({
+      ...this.npm.flatOptions,
+      pkg,
+      path,
+      event: '_explore',
+      stdio: 'inherit',
+    }).catch(er => {
+      process.exitCode = typeof er.code === 'number' && er.code !== 0 ? er.code
+        : 1
         // if it's not an exit error, or non-interactive, throw it
-        const isProcExit = er.message === 'command failed' &&
+      const isProcExit = er.message === 'command failed' &&
           (typeof er.code === 'number' || /^SIG/.test(er.signal || ''))
-        if (args.length || !isProcExit) {
-          throw er
-        }
-      })
-    } finally {
-      log.enableProgress()
-    }
+      if (args.length || !isProcExit) {
+        throw er
+      }
+    })
   }
 }
+
 module.exports = Explore

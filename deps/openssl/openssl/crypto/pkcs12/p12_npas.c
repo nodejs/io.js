@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -77,8 +77,9 @@ static int newpass_p12(PKCS12 *p12, const char *oldpass, const char *newpass)
             bags = PKCS12_unpack_p7data(p7);
         } else if (bagnid == NID_pkcs7_encrypted) {
             bags = PKCS12_unpack_p7encdata(p7, oldpass, -1);
-            if (!alg_get(p7->d.encrypted->enc_data->algorithm,
-                         &pbe_nid, &pbe_iter, &pbe_saltlen))
+            if (p7->d.encrypted == NULL
+                    || !alg_get(p7->d.encrypted->enc_data->algorithm,
+                                &pbe_nid, &pbe_iter, &pbe_saltlen))
                 goto err;
         } else {
             continue;

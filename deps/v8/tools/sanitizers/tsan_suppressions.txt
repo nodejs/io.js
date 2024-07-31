@@ -8,3 +8,8 @@ deadlock:LockAndUnlockDifferentIsolatesThread::Run
 # A global safepoint might lock client isolate mutexes in any order, which
 # would be reported as potential deadlocks.
 deadlock:GlobalSafepoint::EnterGlobalSafepointScope
+
+# Allow racy reads of constant HeapNumber field values, for concurrent compilers
+# that promise that this race is benign (compilation will fail if the race
+# happens).
+race:RacyReadHeapNumberBits

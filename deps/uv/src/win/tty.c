@@ -482,9 +482,11 @@ static DWORD CALLBACK uv_tty_line_read_thread(void* data) {
   uv_loop_t* loop;
   uv_tty_t* handle;
   uv_req_t* req;
-  DWORD bytes, read_bytes;
+  DWORD bytes;
+  size_t read_bytes;
   WCHAR utf16[MAX_INPUT_BUFFER_LENGTH / 3];
-  DWORD chars, read_chars;
+  DWORD chars;
+  DWORD read_chars;
   LONG status;
   COORD pos;
   BOOL read_console_success;
@@ -525,16 +527,13 @@ static DWORD CALLBACK uv_tty_line_read_thread(void* data) {
                                       NULL);
 
   if (read_console_success) {
-    read_bytes = WideCharToMultiByte(CP_UTF8,
-                                     0,
-                                     utf16,
-                                     read_chars,
-                                     handle->tty.rd.read_line_buffer.base,
-                                     bytes,
-                                     NULL,
-                                     NULL);
+    read_bytes = bytes;
+    uv_utf16_to_wtf8(utf16,
+                     read_chars,
+                     &handle->tty.rd.read_line_buffer.base,
+                     &read_bytes);
     SET_REQ_SUCCESS(req);
-    req->u.io.overlapped.InternalHigh = read_bytes;
+    req->u.io.overlapped.InternalHigh = (DWORD) read_bytes;
   } else {
     SET_REQ_ERROR(req, GetLastError());
   }
@@ -696,7 +695,7 @@ void uv_process_tty_read_raw_req(uv_loop_t* loop, uv_tty_t* handle,
 
   DWORD records_left, records_read;
   uv_buf_t buf;
-  off_t buf_used;
+  _off_t buf_used;
 
   assert(handle->type == UV_TTY);
   assert(handle->flags & UV_HANDLE_TTY_READABLE);
@@ -798,7 +797,9 @@ void uv_process_tty_read_raw_req(uv_loop_t* loop, uv_tty_t* handle,
       }
 
       if (KEV.uChar.UnicodeChar != 0) {
-        int prefix_len, char_len;
+        int prefix_len;
+        size_t char_len;
+        char* last_key_buf;
 
         /* Character key pressed */
         if (KEV.uChar.UnicodeChar >= 0xD800 &&
@@ -819,38 +820,31 @@ void uv_process_tty_read_raw_req(uv_loop_t* loop, uv_tty_t* handle,
           prefix_len = 0;
         }
 
-        if (KEV.uChar.UnicodeChar >= 0xDC00 &&
-            KEV.uChar.UnicodeChar < 0xE000) {
+        char_len = sizeof handle->tty.rd.last_key;
+        last_key_buf = &handle->tty.rd.last_key[prefix_len];
+        if (handle->tty.rd.last_utf16_high_surrogate) {
           /* UTF-16 surrogate pair */
           WCHAR utf16_buffer[2];
           utf16_buffer[0] = handle->tty.rd.last_utf16_high_surrogate;
           utf16_buffer[1] = KEV.uChar.UnicodeChar;
-          char_len = WideCharToMultiByte(CP_UTF8,
-                                         0,
-                                         utf16_buffer,
-                                         2,
-                                         &handle->tty.rd.last_key[prefix_len],
-                                         sizeof handle->tty.rd.last_key,
-                                         NULL,
-                                         NULL);
+          if (uv_utf16_to_wtf8(utf16_buffer,
+                               2,
+                               &last_key_buf,
+                               &char_len))
+            char_len = 0;
+          handle->tty.rd.last_utf16_high_surrogate = 0;
         } else {
           /* Single UTF-16 character */
-          char_len = WideCharToMultiByte(CP_UTF8,
-                                         0,
-                                         &KEV.uChar.UnicodeChar,
-                                         1,
-                                         &handle->tty.rd.last_key[prefix_len],
-                                         sizeof handle->tty.rd.last_key,
-                                         NULL,
-                                         NULL);
+          if (uv_utf16_to_wtf8(&KEV.uChar.UnicodeChar,
+                               1,
+                               &last_key_buf,
+                               &char_len))
+            char_len = 0;
         }
-
-        /* Whatever happened, the last character wasn't a high surrogate. */
-        handle->tty.rd.last_utf16_high_surrogate = 0;
 
         /* If the utf16 character(s) couldn't be converted something must be
          * wrong. */
-        if (!char_len) {
+        if (char_len == 0) {
           handle->flags &= ~UV_HANDLE_READING;
           DECREASE_ACTIVE_COUNT(loop, handle);
           handle->read_cb((uv_stream_t*) handle,
@@ -2252,7 +2246,7 @@ void uv__tty_close(uv_tty_t* handle) {
   if (handle->u.fd == -1)
     CloseHandle(handle->handle);
   else
-    close(handle->u.fd);
+    _close(handle->u.fd);
 
   handle->u.fd = -1;
   handle->handle = INVALID_HANDLE_VALUE;

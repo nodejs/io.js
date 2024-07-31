@@ -113,6 +113,7 @@ UI_METHOD                               datatype
 UI_STRING                               datatype
 UI_string_types                         datatype
 UI_string_types                         datatype
+X509_ATTRIBUTE                          datatype
 X509_STORE_CTX_cert_crl_fn              datatype
 X509_STORE_CTX_check_crl_fn             datatype
 X509_STORE_CTX_check_issued_fn          datatype

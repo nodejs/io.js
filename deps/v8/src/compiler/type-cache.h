@@ -42,13 +42,13 @@ class V8_EXPORT_PRIVATE TypeCache final {
       Type::Union(kDoubleRepresentableInt64, Type::MinusZero(), zone());
   Type const kDoubleRepresentableUint64 = CreateRange(
       std::numeric_limits<uint64_t>::min(), kMaxDoubleRepresentableUint64);
+  Type const kFloat16 = Type::Number();
   Type const kFloat32 = Type::Number();
   Type const kFloat64 = Type::Number();
   Type const kBigInt64 = Type::SignedBigInt64();
   Type const kBigUint64 = Type::UnsignedBigInt64();
 
-  Type const kHoleySmi =
-      Type::Union(Type::SignedSmall(), Type::TheHole(), zone());
+  Type const kHoleySmi = Type::Union(Type::SignedSmall(), Type::Hole(), zone());
 
   Type const kSingletonZero = CreateRange(0.0, 0.0);
   Type const kSingletonOne = CreateRange(1.0, 1.0);
@@ -96,10 +96,9 @@ class V8_EXPORT_PRIVATE TypeCache final {
   // [0, FixedArray::kMaxLength].
   Type const kFixedArrayLengthType = CreateRange(0.0, FixedArray::kMaxLength);
 
-  // The WeakFixedArray::length property always containts a smi in the range
-  // [0, WeakFixedArray::kMaxLength].
+  // The WeakFixedArray::length property always containts a smi in the range:
   Type const kWeakFixedArrayLengthType =
-      CreateRange(0.0, WeakFixedArray::kMaxLength);
+      CreateRange(0.0, WeakFixedArray::kMaxCapacity);
 
   // The FixedDoubleArray::length property always containts a smi in the range
   // [0, FixedDoubleArray::kMaxLength].
@@ -125,9 +124,9 @@ class V8_EXPORT_PRIVATE TypeCache final {
   Type const kJSArrayBufferViewByteOffsetType = kJSArrayBufferByteLengthType;
 
   // The JSTypedArray::length property always contains an untagged number in
-  // the range [0, JSTypedArray::kMaxLength].
+  // the range [0, JSTypedArray::kMaxByteLength].
   Type const kJSTypedArrayLengthType =
-      CreateRange(0.0, JSTypedArray::kMaxLength);
+      CreateRange(0.0, JSTypedArray::kMaxByteLength);
 
   // The String::length property always contains a smi in the range
   // [0, String::kMaxLength].

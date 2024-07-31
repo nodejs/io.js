@@ -497,6 +497,7 @@ bool OpcodeIsAllowed(IrOpcode::Value op) {
     case IrOpcode::kStringLessThan:
     case IrOpcode::kStringLessThanOrEqual:
     case IrOpcode::kCheckString:
+    case IrOpcode::kCheckStringOrStringWrapper:
     case IrOpcode::kTypedStateValues:
       return true;
     default:

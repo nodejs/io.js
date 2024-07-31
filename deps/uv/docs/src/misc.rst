@@ -839,3 +839,50 @@ API
     Causes the calling thread to sleep for `msec` milliseconds.
 
     .. versionadded:: 1.34.0
+
+String manipulation functions
+-----------------------------
+
+These string utilities are needed internally for dealing with Windows, and are
+exported to allow clients to work uniformly with this data when the libuv API
+is not complete.
+
+.. c:function:: size_t uv_utf16_length_as_wtf8(const uint16_t* utf16, ssize_t utf16_len)
+
+    Get the length of a UTF-16 (or UCS-2) `utf16` value after converting it to
+    WTF-8. If `utf16` is NUL terminated, `utf16_len` can be set to -1,
+    otherwise it must be specified.
+
+    .. versionadded:: 1.47.0
+
+.. c:function:: int uv_utf16_to_wtf8(const uint16_t* utf16, ssize_t utf16_len, char** wtf8_ptr, size_t* wtf8_len_ptr)
+
+    Convert UTF-16 (or UCS-2) data in `utf16` to WTF-8 data in `*wtf8_ptr`. The
+    `utf16_len` count (in characters) gives the length of `utf16`. If `utf16`
+    is NUL terminated, `utf16_len` can be set to -1, otherwise it must be
+    specified. If `wtf8_ptr` is `NULL`, no result will be computed, but the
+    length (equal to `uv_utf16_length_as_wtf8`) will be stored in `wtf8_ptr`.
+    If `*wtf8_ptr` is `NULL`, space for the conversion will be allocated and
+    returned in `wtf8_ptr` and the length will be returned in `wtf8_len_ptr`.
+    Otherwise, the length of `*wtf8_ptr` must be passed in `wtf8_len_ptr`. The
+    `wtf8_ptr` must contain an extra space for an extra NUL after the result.
+    If the result is truncated, `UV_ENOBUFS` will be returned and
+    `wtf8_len_ptr` will be the length of the required `wtf8_ptr` to contain the
+    whole result.
+
+    .. versionadded:: 1.47.0
+
+.. c:function:: ssize_t uv_wtf8_length_as_utf16(const char* wtf8)
+
+    Get the length in characters of a NUL-terminated WTF-8 `wtf8` value
+    after converting it to UTF-16 (or UCS-2), including NUL terminator.
+
+    .. versionadded:: 1.47.0
+
+.. c:function:: void uv_wtf8_to_utf16(const char* utf8, uint16_t* utf16, size_t utf16_len)
+
+    Convert NUL-terminated WTF-8 data in `wtf8` to UTF-16 (or UCS-2) data
+    in `utf16`. The `utf16_len` count (in characters) must include space
+    for the NUL terminator.
+
+    .. versionadded:: 1.47.0

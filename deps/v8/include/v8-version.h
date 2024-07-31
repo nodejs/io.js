@@ -8,10 +8,10 @@
 // These macros define the version number for the current version.
 // NOTE these macros are used by some of the tool scripts and the build
 // system so their names cannot be changed without changing the scripts.
-#define V8_MAJOR_VERSION 11
-#define V8_MINOR_VERSION 8
-#define V8_BUILD_NUMBER 172
-#define V8_PATCH_LEVEL 15
+#define V8_MAJOR_VERSION 12
+#define V8_MINOR_VERSION 4
+#define V8_BUILD_NUMBER 254
+#define V8_PATCH_LEVEL 21
 
 // Use 1 for candidates and 0 otherwise.
 // (Boolean macro values are not supported by all preprocessors.)

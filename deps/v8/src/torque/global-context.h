@@ -112,10 +112,22 @@ class GlobalContext : public base::ContextualClass<GlobalContext> {
     if (c.macros_for_cc_output_set_.insert(item).second) {
       c.macros_for_cc_output_.push_back(item);
     }
+    EnsureInCCDebugOutputList(macro, source);
   }
   static const std::vector<std::pair<TorqueMacro*, SourceId>>&
   AllMacrosForCCOutput() {
     return Get().macros_for_cc_output_;
+  }
+  static void EnsureInCCDebugOutputList(TorqueMacro* macro, SourceId source) {
+    GlobalContext& c = Get();
+    auto item = std::make_pair(macro, source);
+    if (c.macros_for_cc_debug_output_set_.insert(item).second) {
+      c.macros_for_cc_debug_output_.push_back(item);
+    }
+  }
+  static const std::vector<std::pair<TorqueMacro*, SourceId>>&
+  AllMacrosForCCDebugOutput() {
+    return Get().macros_for_cc_debug_output_;
   }
 
  private:
@@ -131,6 +143,8 @@ class GlobalContext : public base::ContextualClass<GlobalContext> {
   std::map<std::string, size_t> fresh_ids_;
   std::vector<std::pair<TorqueMacro*, SourceId>> macros_for_cc_output_;
   std::set<std::pair<TorqueMacro*, SourceId>> macros_for_cc_output_set_;
+  std::vector<std::pair<TorqueMacro*, SourceId>> macros_for_cc_debug_output_;
+  std::set<std::pair<TorqueMacro*, SourceId>> macros_for_cc_debug_output_set_;
   bool instance_types_initialized_ = false;
 
   friend class LanguageServerData;
@@ -149,6 +163,7 @@ class TargetArchitecture : public base::ContextualClass<TargetArchitecture> {
   static size_t RawPtrSize() { return Get().raw_ptr_size_; }
   static size_t ExternalPointerSize() { return Get().external_ptr_size_; }
   static size_t IndirectPointerSize() { return Get().indirect_ptr_size_; }
+  static size_t ProtectedPointerSize() { return TaggedSize(); }
   static size_t MaxHeapAlignment() { return TaggedSize(); }
   static bool ArePointersCompressed() { return TaggedSize() < RawPtrSize(); }
   static int SmiTagAndShiftSize() { return Get().smi_tag_and_shift_size_; }

@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 
+#include "absl/container/btree_map.h"
 #include "src/base/optional.h"
 #include "src/codegen/arm64/constants-arm64.h"
 #include "src/codegen/arm64/instructions-arm64.h"
@@ -3350,7 +3351,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // Note that the maximum reachable offset (first member of the pairs) should
   // always be positive but has the same type as the return value for
   // pc_offset() for convenience.
-  std::map<int, Label*> unresolved_branches_;
+  absl::btree_map<int, Label*> unresolved_branches_;
 
   // We generate a veneer for a branch if we reach within this distance of the
   // limit of the range.

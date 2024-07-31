@@ -29,8 +29,8 @@ namespace {
 
 enum class RedeclarationType { kSyntaxError = 0, kTypeError = 1 };
 
-Object ThrowRedeclarationError(Isolate* isolate, Handle<String> name,
-                               RedeclarationType redeclaration_type) {
+Tagged<Object> ThrowRedeclarationError(Isolate* isolate, Handle<String> name,
+                                       RedeclarationType redeclaration_type) {
   HandleScope scope(isolate);
   if (redeclaration_type == RedeclarationType::kSyntaxError) {
     THROW_NEW_ERROR_RETURN_FAILURE(
@@ -42,10 +42,10 @@ Object ThrowRedeclarationError(Isolate* isolate, Handle<String> name,
 }
 
 // May throw a RedeclarationError.
-Object DeclareGlobal(Isolate* isolate, Handle<JSGlobalObject> global,
-                     Handle<String> name, Handle<Object> value,
-                     PropertyAttributes attr, bool is_var,
-                     RedeclarationType redeclaration_type) {
+Tagged<Object> DeclareGlobal(Isolate* isolate, Handle<JSGlobalObject> global,
+                             Handle<String> name, Handle<Object> value,
+                             PropertyAttributes attr, bool is_var,
+                             RedeclarationType redeclaration_type) {
   Handle<ScriptContextTable> script_contexts(
       global->native_context()->script_context_table(), isolate);
   VariableLookupResult lookup;
@@ -140,9 +140,9 @@ RUNTIME_FUNCTION(Runtime_DeclareModuleExports) {
 
   int length = declarations->length();
   FOR_WITH_HANDLE_SCOPE(isolate, int, i = 0, i, i < length, i++, {
-    Object decl = declarations->get(i);
+    Tagged<Object> decl = declarations->get(i);
     int index;
-    Object value;
+    Tagged<Object> value;
     if (IsSmi(decl)) {
       index = Smi::ToInt(decl);
       value = ReadOnlyRoots(isolate).the_hole_value();
@@ -151,8 +151,8 @@ RUNTIME_FUNCTION(Runtime_DeclareModuleExports) {
           SharedFunctionInfo::cast(declarations->get(i)), isolate);
       int feedback_index = Smi::ToInt(declarations->get(++i));
       index = Smi::ToInt(declarations->get(++i));
-      Handle<FeedbackCell> feedback_cell =
-          closure_feedback_cell_array->GetFeedbackCell(feedback_index);
+      Handle<FeedbackCell> feedback_cell(
+          closure_feedback_cell_array->get(feedback_index), isolate);
       value = *Factory::JSFunctionBuilder(isolate, sfi, context)
                    .set_feedback_cell(feedback_cell)
                    .Build();
@@ -199,8 +199,8 @@ RUNTIME_FUNCTION(Runtime_DeclareGlobals) {
       Handle<SharedFunctionInfo> sfi = Handle<SharedFunctionInfo>::cast(decl);
       name = handle(sfi->Name(), isolate);
       int index = Smi::ToInt(declarations->get(++i));
-      Handle<FeedbackCell> feedback_cell =
-          closure_feedback_cell_array->GetFeedbackCell(index);
+      Handle<FeedbackCell> feedback_cell(
+          closure_feedback_cell_array->get(index), isolate);
       value = Factory::JSFunctionBuilder(isolate, sfi, context)
                   .set_feedback_cell(feedback_cell)
                   .Build();
@@ -208,7 +208,7 @@ RUNTIME_FUNCTION(Runtime_DeclareGlobals) {
 
     // Compute the property attributes. According to ECMA-262,
     // the property must be non-configurable except in eval.
-    Script script = Script::cast(closure->shared()->script());
+    Tagged<Script> script = Script::cast(closure->shared()->script());
     PropertyAttributes attr =
         script->compilation_type() == Script::CompilationType::kEval
             ? NONE
@@ -216,9 +216,10 @@ RUNTIME_FUNCTION(Runtime_DeclareGlobals) {
 
     // ES#sec-globaldeclarationinstantiation 5.d:
     // If hasRestrictedGlobal is true, throw a SyntaxError exception.
-    Object result = DeclareGlobal(isolate, global, name, value, attr, is_var,
-                                  RedeclarationType::kSyntaxError);
-    if (isolate->has_pending_exception()) return result;
+    Tagged<Object> result =
+        DeclareGlobal(isolate, global, name, value, attr, is_var,
+                      RedeclarationType::kSyntaxError);
+    if (IsException(result)) return result;
   });
 
   return ReadOnlyRoots(isolate).undefined_value();
@@ -226,8 +227,8 @@ RUNTIME_FUNCTION(Runtime_DeclareGlobals) {
 
 namespace {
 
-Object DeclareEvalHelper(Isolate* isolate, Handle<String> name,
-                         Handle<Object> value) {
+Tagged<Object> DeclareEvalHelper(Isolate* isolate, Handle<String> name,
+                                 Handle<Object> value) {
   // Declarations are always made in a function, native, eval, or script
   // context, or a declaration block scope. Since this is called from eval, the
   // context passed is the context of the caller, which may be some nested
@@ -259,7 +260,7 @@ Object DeclareEvalHelper(Isolate* isolate, Handle<String> name,
       Context::Lookup(context, name, DONT_FOLLOW_CHAINS, &index, &attributes,
                       &init_flag, &mode);
   DCHECK(holder.is_null() || !IsSourceTextModule(*holder));
-  DCHECK(!isolate->has_pending_exception());
+  DCHECK(!isolate->has_exception());
 
   Handle<JSObject> object;
 
@@ -350,7 +351,7 @@ std::unique_ptr<Handle<Object>[]> GetCallerArguments(Isolate* isolate,
   // Find frame containing arguments passed to the caller.
   JavaScriptStackFrameIterator it(isolate);
   JavaScriptFrame* frame = it.frame();
-  std::vector<SharedFunctionInfo> functions;
+  std::vector<Tagged<SharedFunctionInfo>> functions;
   frame->GetFunctions(&functions);
   if (functions.size() > 1) {
     int inlined_jsframe_index = static_cast<int>(functions.size()) - 1;
@@ -450,12 +451,13 @@ Handle<JSObject> NewSloppyArguments(Isolate* isolate, Handle<JSFunction> callee,
 
       // Walk all context slots to find context allocated parameters. Mark each
       // found parameter as mapped.
+      ReadOnlyRoots roots{isolate};
       for (int i = 0; i < scope_info->ContextLocalCount(); i++) {
         if (!scope_info->ContextLocalIsParameter(i)) continue;
         int parameter = scope_info->ContextLocalParameterNumber(i);
         if (parameter >= mapped_count) continue;
-        arguments->set_the_hole(parameter);
-        Smi slot = Smi::FromInt(scope_info->ContextHeaderLength() + i);
+        arguments->set_the_hole(roots, parameter);
+        Tagged<Smi> slot = Smi::FromInt(scope_info->ContextHeaderLength() + i);
         parameter_map->set_mapped_entries(parameter, slot);
       }
     } else {
@@ -475,7 +477,7 @@ Handle<JSObject> NewSloppyArguments(Isolate* isolate, Handle<JSFunction> callee,
 class HandleArguments {
  public:
   explicit HandleArguments(Handle<Object>* array) : array_(array) {}
-  Object operator[](int index) { return *array_[index]; }
+  Tagged<Object> operator[](int index) { return *array_[index]; }
 
  private:
   Handle<Object>* array_;
@@ -484,7 +486,7 @@ class HandleArguments {
 class ParameterArguments {
  public:
   explicit ParameterArguments(Address parameters) : parameters_(parameters) {}
-  Object operator[](int index) {
+  Tagged<Object> operator[](int index) {
     return *FullObjectSlot(parameters_ - (index + 1) * kSystemPointerSize);
   }
 
@@ -547,9 +549,10 @@ RUNTIME_FUNCTION(Runtime_NewRestParameter) {
   Handle<JSObject> result = isolate->factory()->NewJSArray(
       PACKED_ELEMENTS, num_elements, num_elements,
       ArrayStorageAllocationMode::DONT_INITIALIZE_ARRAY_ELEMENTS);
+  if (num_elements == 0) return *result;
   {
     DisallowGarbageCollection no_gc;
-    FixedArray elements = FixedArray::cast(result->elements());
+    Tagged<FixedArray> elements = FixedArray::cast(result->elements());
     WriteBarrierMode mode = elements->GetWriteBarrierMode(no_gc);
     for (int i = 0; i < num_elements; i++) {
       elements->set(i, *arguments[i + start_index], mode);
@@ -642,8 +645,7 @@ RUNTIME_FUNCTION(Runtime_DeleteLookupSlot) {
   // If the slot was not found the result is true.
   if (holder.is_null()) {
     // In case of JSProxy, an exception might have been thrown.
-    if (isolate->has_pending_exception())
-      return ReadOnlyRoots(isolate).exception();
+    if (isolate->has_exception()) return ReadOnlyRoots(isolate).exception();
     return ReadOnlyRoots(isolate).true_value();
   }
 
@@ -675,7 +677,7 @@ MaybeHandle<Object> LoadLookupSlot(Isolate* isolate, Handle<String> name,
   Handle<Context> context(isolate->context(), isolate);
   Handle<Object> holder = Context::Lookup(context, name, FOLLOW_CHAINS, &index,
                                           &attributes, &flag, &mode);
-  if (isolate->has_pending_exception()) return MaybeHandle<Object>();
+  if (isolate->has_exception()) return MaybeHandle<Object>();
 
   if (!holder.is_null() && IsSourceTextModule(*holder)) {
     Handle<Object> receiver = isolate->factory()->undefined_value();
@@ -757,7 +759,7 @@ RUNTIME_FUNCTION_RETURN_PAIR(Runtime_LoadLookupSlotForCall) {
   Handle<Object> receiver;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, value, LoadLookupSlot(isolate, name, kThrowOnError, &receiver),
-      MakePair(ReadOnlyRoots(isolate).exception(), Object()));
+      MakePair(ReadOnlyRoots(isolate).exception(), Tagged<Object>()));
   return MakePair(*value, *receiver);
 }
 
@@ -772,9 +774,9 @@ RUNTIME_FUNCTION(Runtime_LoadLookupSlotForCall_Baseline) {
   Handle<Object> value;
   if (!LoadLookupSlot(isolate, name, kThrowOnError, &receiver)
            .ToHandle(&value)) {
-    DCHECK((isolate)->has_pending_exception());
+    DCHECK((isolate)->has_exception());
     value_ret.store(ReadOnlyRoots(isolate).exception());
-    receiver_ret.store(Object());
+    receiver_ret.store(Tagged<Object>());
     return ReadOnlyRoots(isolate).exception();
   }
   value_ret.store(*value);
@@ -798,7 +800,7 @@ MaybeHandle<Object> StoreLookupSlot(
                       &flag, &mode, &is_sloppy_function_name);
   if (holder.is_null()) {
     // In case of JSProxy, an exception might have been thrown.
-    if (isolate->has_pending_exception()) return MaybeHandle<Object>();
+    if (isolate->has_exception()) return MaybeHandle<Object>();
   } else if (IsSourceTextModule(*holder)) {
     if ((attributes & READ_ONLY) == 0) {
       SourceTextModule::StoreVariable(Handle<SourceTextModule>::cast(holder),
@@ -811,13 +813,18 @@ MaybeHandle<Object> StoreLookupSlot(
   }
   // The property was found in a context slot.
   if (index != Context::kNotFound) {
+    auto holder_context = Handle<Context>::cast(holder);
     if (flag == kNeedsInitialization &&
-        IsTheHole(Handle<Context>::cast(holder)->get(index), isolate)) {
+        IsTheHole(holder_context->get(index), isolate)) {
       THROW_NEW_ERROR(isolate,
                       NewReferenceError(MessageTemplate::kNotDefined, name),
                       Object);
     }
     if ((attributes & READ_ONLY) == 0) {
+      if (v8_flags.const_tracking_let && holder_context->IsScriptContext()) {
+        Context::UpdateConstTrackingLetSideData(holder_context, index, value,
+                                                isolate);
+      }
       Handle<Context>::cast(holder)->set(index, *value);
     } else if (!is_sloppy_function_name || is_strict(language_mode)) {
       THROW_NEW_ERROR(
@@ -902,8 +909,16 @@ RUNTIME_FUNCTION(Runtime_StoreGlobalNoHoleCheckForReplLetOrConst) {
   VariableLookupResult lookup_result;
   bool found = script_contexts->Lookup(name, &lookup_result);
   CHECK(found);
-  Handle<Context> script_context = ScriptContextTable::GetContext(
-      isolate, script_contexts, lookup_result.context_index);
+  Handle<Context> script_context =
+      handle(script_contexts->get(lookup_result.context_index), isolate);
+  // We need to initialize the side data also for variables declared with
+  // VariableMode::kConst. This is because such variables can be accessed
+  // by functions using the LdaContextSlot bytecode, and such accesses are not
+  // regarded as "immutable" when optimizing.
+  if (v8_flags.const_tracking_let) {
+    Context::UpdateConstTrackingLetSideData(
+        script_context, lookup_result.slot_index, value, isolate);
+  }
 
   script_context->set(lookup_result.slot_index, *value);
   return *value;

@@ -14,6 +14,7 @@
 #include "src/objects/free-space-inl.h"
 #include "src/objects/js-array-buffer-inl.h"
 #include "src/objects/js-weak-refs-inl.h"
+#include "src/objects/literal-objects-inl.h"
 #include "src/objects/module-inl.h"
 #include "src/objects/objects-body-descriptors-inl.h"
 #include "src/objects/objects-inl.h"
@@ -45,10 +46,11 @@ inline bool ContainsReadOnlyMap(PtrComprCageBase, Tagged<HeapObject>) {
   V(AllocationSite)                       \
   V(BigInt)                               \
   V(BytecodeArray)                        \
+  V(BytecodeWrapper)                      \
   V(ByteArray)                            \
-  V(CallHandlerInfo)                      \
   V(Cell)                                 \
   V(Code)                                 \
+  V(CodeWrapper)                          \
   V(DataHandler)                          \
   V(DataObject)                           \
   V(DescriptorArray)                      \
@@ -59,6 +61,7 @@ inline bool ContainsReadOnlyMap(PtrComprCageBase, Tagged<HeapObject>) {
   V(FeedbackVector)                       \
   V(FixedArray)                           \
   V(FixedDoubleArray)                     \
+  V(FunctionTemplateInfo)                 \
   V(InstructionStream)                    \
   V(PreparseData)                         \
   V(PropertyArray)                        \
@@ -85,7 +88,7 @@ inline bool ContainsReadOnlyMap(PtrComprCageBase, Tagged<HeapObject>) {
       PtrComprCageBase cage_base, Tagged<HeapObject> object) {                \
     /* If you see this DCHECK fail we encountered a Map with a VisitorId that \
      * should have only ever appeared in read-only space. */                  \
-    DCHECK(object->map(cage_base).InReadOnlySpace());                         \
+    DCHECK(InReadOnlySpace(object->map(cage_base)));                          \
     return true;                                                              \
   }
 READ_ONLY_MAPS_VISITOR_ID_LIST(DEFINE_READ_ONLY_MAP_SPECIALIZATION)
@@ -123,12 +126,34 @@ ResultType HeapVisitor<ResultType, ConcreteVisitor>::Visit(
     Tagged<Map> map, Tagged<HeapObject> object) {
   ConcreteVisitor* visitor = static_cast<ConcreteVisitor*>(this);
   switch (map->visitor_id()) {
-#define CASE(TypeName)               \
-  case kVisit##TypeName:             \
-    return visitor->Visit##TypeName( \
+#define CASE(TypeName)                                                        \
+  case kVisit##TypeName:                                                      \
+    /* If this DCHECK fails, it means that the object type wasn't added       \
+     * to the TRUSTED_VISITOR_ID_LIST.                                        \
+     * Note: This would normally be just !IsTrustedObject(obj), however we    \
+     * might see trusted objects here before they've been migrated to trusted \
+     * space, hence the second condition. */                                  \
+    DCHECK(!IsTrustedObject(object) || !IsTrustedSpaceObject(object));        \
+    return visitor->Visit##TypeName(                                          \
         map, ConcreteVisitor::template Cast<TypeName>(object));
     TYPED_VISITOR_ID_LIST(CASE)
     TORQUE_VISITOR_ID_LIST(CASE)
+#undef CASE
+#define CASE(TypeName)                                                     \
+  case kVisit##TypeName:                                                   \
+    DCHECK(IsTrustedObject(object));                                       \
+    /* Trusted objects are protected from modifications by an attacker as  \
+     * they are located outside of the sandbox. However, an attacker can   \
+     * still craft their own fake trusted objects inside the sandbox. In   \
+     * this case, bad things might happen if these objects are then        \
+     * processed by e.g. an object visitor as they will typically assume   \
+     * that these objects are trustworthy. The following check defends     \
+     * against that by ensuring that the object is outside of the sandbox. \
+     * See also crbug.com/c/1505089. */                                    \
+    SBXCHECK(OutsideSandboxOrInReadonlySpace(object));                     \
+    return visitor->Visit##TypeName(                                       \
+        map, ConcreteVisitor::template Cast<TypeName>(object));
+    TRUSTED_VISITOR_ID_LIST(CASE)
 #undef CASE
     case kVisitShortcutCandidate:
       return visitor->VisitShortcutCandidate(
@@ -148,6 +173,17 @@ ResultType HeapVisitor<ResultType, ConcreteVisitor>::Visit(
     case kDataOnlyVisitorIdCount:
     case kVisitorIdCount:
       UNREACHABLE();
+  }
+  // TODO(chromium:327992715): Remove once we have some clarity why execution
+  // can reach this point.
+  {
+    Isolate* isolate;
+    if (GetIsolateFromHeapObject(object, &isolate)) {
+      isolate->PushParamsAndDie(
+          reinterpret_cast<void*>(object.ptr()),
+          reinterpret_cast<void*>(map.ptr()),
+          reinterpret_cast<void*>(static_cast<intptr_t>(map->visitor_id())));
+    }
   }
   UNREACHABLE();
   // Make the compiler happy.
@@ -173,7 +209,7 @@ void HeapVisitor<ResultType, ConcreteVisitor>::VisitMapPointerIfNeeded(
 #define VISIT(TypeName)                                                      \
   template <typename ResultType, typename ConcreteVisitor>                   \
   ResultType HeapVisitor<ResultType, ConcreteVisitor>::Visit##TypeName(      \
-      Map map, TypeName object) {                                            \
+      Tagged<Map> map, Tagged<TypeName> object) {                            \
     ConcreteVisitor* visitor = static_cast<ConcreteVisitor*>(this);          \
     /* If you see the following DCHECK fail, then the size computation of    \
      * BodyDescriptor doesn't match the size return via obj.Size(). This is  \
@@ -181,15 +217,19 @@ void HeapVisitor<ResultType, ConcreteVisitor>::VisitMapPointerIfNeeded(
      * reasons. The fix likely involves adding a padding field in the object \
      * defintions. */                                                        \
     DCHECK_EQ(object->SizeFromMap(map),                                      \
-              TypeName::BodyDescriptor::SizeOf(map, object));                \
+              ObjectTraits<TypeName>::BodyDescriptor::SizeOf(map, object));  \
     visitor->template VisitMapPointerIfNeeded<VisitorId::kVisit##TypeName>(  \
         object);                                                             \
-    const int size = TypeName::BodyDescriptor::SizeOf(map, object);          \
-    TypeName::BodyDescriptor::IterateBody(map, object, size, visitor);       \
+    const int size =                                                         \
+        ObjectTraits<TypeName>::BodyDescriptor::SizeOf(map, object);         \
+    ObjectTraits<TypeName>::BodyDescriptor::IterateBody(map, object, size,   \
+                                                        visitor);            \
     return static_cast<ResultType>(size);                                    \
   }
+
 TYPED_VISITOR_ID_LIST(VISIT)
 TORQUE_VISITOR_ID_LIST(VISIT)
+TRUSTED_VISITOR_ID_LIST(VISIT)
 #undef VISIT
 
 template <typename ResultType, typename ConcreteVisitor>
@@ -324,7 +364,7 @@ ConcurrentHeapVisitor<ResultType, ConcreteVisitor>::VisitStringLocked(
   // The object has been locked. At this point shared read access is
   // guaranteed but we must re-read the map and check whether the string has
   // transitioned.
-  Tagged<Map> map = object->map(visitor->cage_base());
+  Tagged<Map> map = object->map();
   int size;
   switch (map->visitor_id()) {
 #define UNSAFE_STRING_TRANSITION_TARGET_CASE(VisitorIdType, TypeName)         \
@@ -332,8 +372,8 @@ ConcurrentHeapVisitor<ResultType, ConcreteVisitor>::VisitStringLocked(
     visitor                                                                   \
         ->template VisitMapPointerIfNeeded<VisitorId::kVisit##VisitorIdType>( \
             object);                                                          \
-    size = TypeName::BodyDescriptor::SizeOf(map, object);                     \
-    TypeName::BodyDescriptor::IterateBody(                                    \
+    size = ObjectTraits<TypeName>::BodyDescriptor::SizeOf(map, object);       \
+    ObjectTraits<TypeName>::BodyDescriptor::IterateBody(                      \
         map, TypeName::unchecked_cast(object), size, visitor);                \
     break;
 
@@ -343,7 +383,6 @@ ConcurrentHeapVisitor<ResultType, ConcreteVisitor>::VisitStringLocked(
       UNREACHABLE();
   }
   return static_cast<ResultType>(size);
-  ;
 }
 
 template <typename ConcreteVisitor>

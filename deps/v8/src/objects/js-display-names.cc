@@ -15,6 +15,7 @@
 #include "src/heap/factory.h"
 #include "src/objects/intl-objects.h"
 #include "src/objects/js-display-names-inl.h"
+#include "src/objects/js-locale.h"
 #include "src/objects/managed-inl.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/option-utils.h"
@@ -54,6 +55,7 @@ bool IsUnicodeScriptSubtag(const std::string& value) {
 }
 
 bool IsUnicodeRegionSubtag(const std::string& value) {
+  if (value.empty()) return false;
   UErrorCode status = U_ZERO_ERROR;
   icu::LocaleBuilder builder;
   builder.setRegion(value).build(status);
@@ -129,11 +131,18 @@ class LanguageNames : public LocaleDisplayNamesCommon {
     UErrorCode status = U_ZERO_ERROR;
     // 1.a If code does not match the unicode_language_id production, throw a
     // RangeError exception.
+    icu::Locale tagLocale = icu::Locale::forLanguageTag(code, status);
+    icu::Locale l(tagLocale.getBaseName());
+    if (U_FAILURE(status) || tagLocale != l ||
+        !JSLocale::StartsWithUnicodeLanguageId(code)) {
+      THROW_NEW_ERROR_RETURN_VALUE(
+          isolate, NewRangeError(MessageTemplate::kInvalidArgument),
+          Nothing<icu::UnicodeString>());
+    }
 
     // 1.b If IsStructurallyValidLanguageTag(code) is false, throw a RangeError
     // exception.
-    icu::Locale l =
-        icu::Locale(icu::Locale::forLanguageTag(code, status).getBaseName());
+
     // 1.c Set code to CanonicalizeUnicodeLocaleId(code).
     l.canonicalize(status);
     std::string checked = l.toLanguageTag<std::string>(status);

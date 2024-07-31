@@ -440,7 +440,7 @@ Response V8HeapProfilerAgentImpl::getObjectByHeapObjectId(
 
 void V8HeapProfilerAgentImpl::takePendingHeapSnapshots() {
   // Each task will remove itself from m_heapSnapshotTasks.
-  while (m_asyncCallbacks->m_heapSnapshotTasks.size() > 0) {
+  while (!m_asyncCallbacks->m_heapSnapshotTasks.empty()) {
     m_asyncCallbacks->m_heapSnapshotTasks.front()->Run(
         cppgc::EmbedderStackState::kMayContainHeapPointers);
   }

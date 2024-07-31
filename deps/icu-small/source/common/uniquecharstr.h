@@ -10,6 +10,7 @@
 #include "charstr.h"
 #include "uassert.h"
 #include "uhash.h"
+#include "cmemory.h"
 
 U_NAMESPACE_BEGIN
 
@@ -47,22 +48,20 @@ public:
     }
 
     /**
-     * Adds a string and returns a unique number for it.
-     * The string's buffer contents must not change, nor move around in memory,
+     * Adds a NUL-terminated string and returns a unique number for it.
+     * The string must not change, nor move around in memory,
      * while this UniqueCharStrings is in use.
-     * The string contents must be NUL-terminated exactly at s.length().
      *
-     * Best used with read-only-alias UnicodeString objects that point to
-     * stable storage, such as strings returned by resource bundle functions.
+     * Best used with string data in a stable storage, such as strings returned
+     * by resource bundle functions.
      */
-    int32_t add(const UnicodeString &s, UErrorCode &errorCode) {
-        if (U_FAILURE(errorCode)) { return 0; }
+    int32_t add(const char16_t*p, UErrorCode &errorCode) {
+        if (U_FAILURE(errorCode)) { return -1; }
         if (isFrozen) {
             errorCode = U_NO_WRITE_PERMISSION;
-            return 0;
+            return -1;
         }
         // The string points into the resource bundle.
-        const char16_t *p = s.getBuffer();
         int32_t oldIndex = uhash_geti(&map, p);
         if (oldIndex != 0) {  // found duplicate
             return oldIndex;
@@ -71,9 +70,31 @@ public:
         // The strings object is also terminated with one implicit NUL.
         strings->append(0, errorCode);
         int32_t newIndex = strings->length();
-        strings->appendInvariantChars(s, errorCode);
+        strings->appendInvariantChars(p, u_strlen(p), errorCode);
         uhash_puti(&map, const_cast<char16_t *>(p), newIndex, &errorCode);
         return newIndex;
+    }
+
+    /**
+     * Adds a unicode string by value and returns a unique number for it.
+     */
+    int32_t addByValue(UnicodeString s, UErrorCode &errorCode) {
+        if (U_FAILURE(errorCode)) { return -1; }
+        if (isFrozen) {
+            errorCode = U_NO_WRITE_PERMISSION;
+            return -1;
+        }
+        int32_t oldIndex = uhash_geti(&map, s.getTerminatedBuffer());
+        if (oldIndex != 0) {  // found duplicate
+            return oldIndex;
+        }
+        // We need to store the string content of the UnicodeString.
+        UnicodeString *key = keyStore.create(s);
+        if (key == nullptr) {
+            errorCode = U_MEMORY_ALLOCATION_ERROR;
+            return -1;
+        }
+        return add(key->getTerminatedBuffer(), errorCode);
     }
 
     void freeze() { isFrozen = true; }
@@ -90,6 +111,7 @@ public:
 private:
     UHashtable map;
     CharString *strings;
+    MemoryPool<UnicodeString> keyStore;
     bool isFrozen = false;
 };
 

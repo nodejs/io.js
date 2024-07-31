@@ -460,7 +460,7 @@ TEST_F(LoadEliminationTest, AliasAnalysisForFinishRegion) {
 
   Node* object0 = effect = graph()->NewNode(
       simplified()->Allocate(Type::Any(), AllocationType::kYoung),
-      jsgraph()->Constant(16), effect, control);
+      jsgraph()->ConstantNoHole(16), effect, control);
   load_elimination.Reduce(effect);
 
   Node* region0 = effect =
@@ -473,7 +473,7 @@ TEST_F(LoadEliminationTest, AliasAnalysisForFinishRegion) {
 
   Node* object1 = effect = graph()->NewNode(
       simplified()->Allocate(Type::Any(), AllocationType::kYoung),
-      jsgraph()->Constant(16), effect, control);
+      jsgraph()->ConstantNoHole(16), effect, control);
   load_elimination.Reduce(effect);
 
   Node* region1 = effect =

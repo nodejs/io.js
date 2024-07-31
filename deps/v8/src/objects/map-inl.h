@@ -57,7 +57,7 @@ RELEASE_ACQUIRE_WEAK_ACCESSORS(Map, raw_transitions,
 ACCESSORS_CHECKED2(Map, prototype, Tagged<HeapObject>, kPrototypeOffset, true,
                    IsNull(value) || IsJSProxy(value) || IsWasmObject(value) ||
                        (IsJSObject(value) &&
-                        (value.InWritableSharedSpace() ||
+                        (InWritableSharedSpace(value) ||
                          value->map()->is_prototype_map())))
 
 DEF_GETTER(Map, prototype_info, Tagged<Object>) {
@@ -199,7 +199,8 @@ bool Map::TooManyFastProperties(StoreOrigin store_origin) const {
   if (UnusedPropertyFields() != 0) return false;
   if (is_prototype_map()) return false;
   if (store_origin == StoreOrigin::kNamed) {
-    int limit = std::max({kMaxFastProperties, GetInObjectProperties()});
+    int limit = std::max(
+        {v8_flags.max_fast_properties.value(), GetInObjectProperties()});
     FieldCounts counts = GetFieldCounts();
     // Only count mutable fields so that objects with large numbers of
     // constant functions do not go to dictionary mode. That would be bad
@@ -207,7 +208,8 @@ bool Map::TooManyFastProperties(StoreOrigin store_origin) const {
     int external = counts.mutable_count() - GetInObjectProperties();
     return external > limit || counts.GetTotal() > kMaxNumberOfDescriptors;
   } else {
-    int limit = std::max({kFastPropertiesSoftLimit, GetInObjectProperties()});
+    int limit = std::max(
+        {v8_flags.fast_properties_soft_limit.value(), GetInObjectProperties()});
     int external =
         NumberOfFields(ConcurrencyMode::kSynchronous) - GetInObjectProperties();
     return external > limit;
@@ -297,11 +299,12 @@ int Map::instance_size() const {
   return instance_size_in_words() << kTaggedSizeLog2;
 }
 
-void Map::set_instance_size(int value) {
-  CHECK(IsAligned(value, kTaggedSize));
-  value >>= kTaggedSizeLog2;
-  CHECK_LT(static_cast<unsigned>(value), 256);
-  set_instance_size_in_words(value);
+void Map::set_instance_size(int size_in_bytes) {
+  CHECK(IsAligned(size_in_bytes, kTaggedSize));
+  DCHECK_LE(static_cast<unsigned>(size_in_bytes), JSObject::kMaxInstanceSize);
+  int size_in_words = size_in_bytes >>= kTaggedSizeLog2;
+  CHECK_LE(static_cast<unsigned>(size_in_words), kMaxUInt8);
+  set_instance_size_in_words(size_in_words);
 }
 
 int Map::inobject_properties_start_or_constructor_function_index() const {
@@ -313,7 +316,7 @@ int Map::inobject_properties_start_or_constructor_function_index() const {
 
 void Map::set_inobject_properties_start_or_constructor_function_index(
     int value) {
-  CHECK_LT(static_cast<unsigned>(value), 256);
+  CHECK_LE(static_cast<unsigned>(value), kMaxUInt8);
   RELAXED_WRITE_BYTE_FIELD(
       *this, kInobjectPropertiesStartOrConstructorFunctionIndexOffset,
       static_cast<uint8_t>(value));
@@ -722,7 +725,7 @@ bool Map::CanTransition() const {
   // Shared JS objects have fixed shapes and do not transition. Their maps are
   // either in shared space or RO space.
   DCHECK_IMPLIES(InstanceTypeChecker::IsAlwaysSharedSpaceJSObject(type),
-                 InAnySharedSpace());
+                 InAnySharedSpace(*this));
   return InstanceTypeChecker::IsJSObject(type) &&
          !InstanceTypeChecker::IsAlwaysSharedSpaceJSObject(type);
 }
@@ -790,10 +793,13 @@ void Map::AppendDescriptor(Isolate* isolate, Descriptor* desc) {
 #endif
 }
 
-bool Map::ConcurrentIsMap(PtrComprCageBase cage_base,
-                          const Object& object) const {
-  return IsHeapObject(object) && HeapObject::cast(object)->map(cage_base) ==
-                                     GetReadOnlyRoots(cage_base).meta_map();
+// static
+bool Map::ConcurrentIsHeapObjectWithMap(PtrComprCageBase cage_base,
+                                        Tagged<Object> object,
+                                        Tagged<Map> meta_map) {
+  if (!IsHeapObject(object)) return false;
+  Tagged<HeapObject> heap_object = HeapObject::cast(object);
+  return heap_object->map(cage_base) == meta_map;
 }
 
 DEF_GETTER(Map, GetBackPointer, Tagged<HeapObject>) {
@@ -807,10 +813,19 @@ DEF_GETTER(Map, GetBackPointer, Tagged<HeapObject>) {
 bool Map::TryGetBackPointer(PtrComprCageBase cage_base,
                             Tagged<Map>* back_pointer) const {
   Tagged<Object> object = constructor_or_back_pointer(cage_base, kRelaxedLoad);
-  if (ConcurrentIsMap(cage_base, object)) {
+  // We don't expect maps from another native context in the transition tree,
+  // so just compare object's map against current map's meta map.
+  Tagged<Map> meta_map = map(cage_base);
+  if (ConcurrentIsHeapObjectWithMap(cage_base, object, meta_map)) {
+    DCHECK(IsMap(object));
+    // Sanity check - only contextful maps can transition.
+    DCHECK(IsNativeContext(meta_map->native_context_or_null()));
     *back_pointer = Map::cast(object);
     return true;
   }
+  // If it was a map that'd mean that there are maps from different native
+  // contexts in the transition tree.
+  DCHECK(!IsMap(object));
   return false;
 }
 
@@ -848,16 +863,27 @@ RELAXED_ACCESSORS_CHECKED2(Map, constructor_or_back_pointer, Tagged<Object>,
                            IsNull(value) || !IsContextMap(*this))
 ACCESSORS_CHECKED(Map, native_context, Tagged<NativeContext>,
                   kConstructorOrBackPointerOrNativeContextOffset,
-                  IsContextMap(*this))
+                  IsContextMap(*this) || IsMapMap(*this))
 ACCESSORS_CHECKED(Map, native_context_or_null, Tagged<Object>,
                   kConstructorOrBackPointerOrNativeContextOffset,
                   (IsNull(value) || IsNativeContext(value)) &&
-                      IsContextMap(*this))
+                      (IsContextMap(*this) || IsMapMap(*this)))
+// Unlike native_context_or_null() this getter allows the value to be
+// equal to Smi::uninitialized_deserialization_value().
+DEF_GETTER(Map, raw_native_context_or_null, Tagged<Object>) {
+  Tagged<Object> value = TaggedField<
+      Tagged<Object>,
+      kConstructorOrBackPointerOrNativeContextOffset>::load(cage_base, *this);
+  DCHECK(IsNull(value) || IsNativeContext(value) ||
+         value == Smi::uninitialized_deserialization_value());
+  DCHECK(IsContextMap(*this) || IsMapMap(*this));
+  return value;
+}
 #if V8_ENABLE_WEBASSEMBLY
 ACCESSORS_CHECKED(Map, wasm_type_info, Tagged<WasmTypeInfo>,
                   kConstructorOrBackPointerOrNativeContextOffset,
                   IsWasmStructMap(*this) || IsWasmArrayMap(*this) ||
-                      IsWasmInternalFunctionMap(*this))
+                      IsWasmFuncRefMap(*this))
 #endif  // V8_ENABLE_WEBASSEMBLY
 
 bool Map::IsPrototypeValidityCellValid() const {
@@ -874,10 +900,20 @@ bool Map::IsPrototypeValidityCellValid() const {
 DEF_GETTER(Map, GetConstructorRaw, Tagged<Object>) {
   Tagged<Object> maybe_constructor = constructor_or_back_pointer(cage_base);
   // Follow any back pointers.
-  while (ConcurrentIsMap(cage_base, maybe_constructor)) {
+  // We don't expect maps from another native context in the transition tree,
+  // so just compare object's map against current map's meta map.
+  Tagged<Map> meta_map = map(cage_base);
+  while (
+      ConcurrentIsHeapObjectWithMap(cage_base, maybe_constructor, meta_map)) {
+    DCHECK(IsMap(maybe_constructor));
+    // Sanity check - only contextful maps can transition.
+    DCHECK(IsNativeContext(meta_map->native_context_or_null()));
     maybe_constructor =
         Map::cast(maybe_constructor)->constructor_or_back_pointer(cage_base);
   }
+  // If it was a map that'd mean that there are maps from different native
+  // contexts in the transition tree.
+  DCHECK(!IsMap(maybe_constructor));
   return maybe_constructor;
 }
 
@@ -903,13 +939,14 @@ DEF_GETTER(Map, GetConstructor, Tagged<Object>) {
   return maybe_constructor;
 }
 
-Tagged<Object> Map::TryGetConstructor(Isolate* isolate, int max_steps) {
-  Tagged<Object> maybe_constructor = constructor_or_back_pointer(isolate);
+Tagged<Object> Map::TryGetConstructor(PtrComprCageBase cage_base,
+                                      int max_steps) {
+  Tagged<Object> maybe_constructor = constructor_or_back_pointer(cage_base);
   // Follow any back pointers.
-  while (IsMap(maybe_constructor, isolate)) {
+  while (IsMap(maybe_constructor, cage_base)) {
     if (max_steps-- == 0) return Smi::FromInt(0);
     maybe_constructor =
-        Map::cast(maybe_constructor)->constructor_or_back_pointer(isolate);
+        Map::cast(maybe_constructor)->constructor_or_back_pointer(cage_base);
   }
   if (IsTuple2(maybe_constructor)) {
     // Get constructor from the {constructor, non-instance_prototype} tuple.

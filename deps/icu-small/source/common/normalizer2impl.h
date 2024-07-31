@@ -141,12 +141,12 @@ public:
     /** Constructs only; init() should be called. */
     ReorderingBuffer(const Normalizer2Impl &ni, UnicodeString &dest) :
         impl(ni), str(dest),
-        start(NULL), reorderStart(NULL), limit(NULL),
+        start(nullptr), reorderStart(nullptr), limit(nullptr),
         remainingCapacity(0), lastCC(0) {}
     /** Constructs, removes the string contents, and initializes for a small initial capacity. */
     ReorderingBuffer(const Normalizer2Impl &ni, UnicodeString &dest, UErrorCode &errorCode);
     ~ReorderingBuffer() {
-        if(start!=NULL) {
+        if (start != nullptr) {
             str.releaseBuffer((int32_t)(limit-start));
         }
     }
@@ -245,7 +245,7 @@ private:
  */
 class U_COMMON_API Normalizer2Impl : public UObject {
 public:
-    Normalizer2Impl() : normTrie(NULL), fCanonIterData(NULL) { }
+    Normalizer2Impl() : normTrie(nullptr), fCanonIterData(nullptr) {}
     virtual ~Normalizer2Impl();
 
     void init(const int32_t *inIndexes, const UCPTrie *inTrie,
@@ -623,7 +623,7 @@ private:
     const uint16_t *getMapping(uint16_t norm16) const { return extraData+(norm16>>OFFSET_SHIFT); }
     const uint16_t *getCompositionsListForDecompYes(uint16_t norm16) const {
         if(norm16<JAMO_L || MIN_NORMAL_MAYBE_YES<=norm16) {
-            return NULL;
+            return nullptr;
         } else if(norm16<minMaybeYes) {
             return getMapping(norm16);  // for yesYes; if Jamo L: harmless empty list
         } else {
@@ -789,7 +789,8 @@ unorm_getFCD16(UChar32 c);
  *
  * Normalizer2 .nrm data files provide data for the Unicode Normalization algorithms.
  * ICU ships with data files for standard Unicode Normalization Forms
- * NFC and NFD (nfc.nrm), NFKC and NFKD (nfkc.nrm) and NFKC_Casefold (nfkc_cf.nrm).
+ * NFC and NFD (nfc.nrm), NFKC and NFKD (nfkc.nrm),
+ * NFKC_Casefold (nfkc_cf.nrm) and NFKC_Simple_Casefold (nfkc_scf.nrm).
  * Custom (application-specific) data can be built into additional .nrm files
  * with the gennorm2 build tool.
  * ICU ships with one such file, uts46.nrm, for the implementation of UTS #46.

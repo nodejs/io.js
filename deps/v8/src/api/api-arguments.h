@@ -42,6 +42,9 @@ class CustomArguments : public CustomArgumentsBase {
   template <typename V>
   Handle<V> GetReturnValue(Isolate* isolate) const;
 
+  template <typename V>
+  Handle<V> GetReturnValueNoHoleCheck(Isolate* isolate) const;
+
   inline Isolate* isolate() const {
     return reinterpret_cast<Isolate*>((*slot_at(T::kIsolateIndex)).ptr());
   }
@@ -209,7 +212,7 @@ class FunctionCallbackArguments
    * and used if it's been set to anything inside the callback.
    * New style callbacks always use the return value.
    */
-  inline Handle<Object> Call(Tagged<CallHandlerInfo> handler);
+  inline Handle<Object> Call(Tagged<FunctionTemplateInfo> function);
 
  private:
   inline Tagged<JSReceiver> holder() const;

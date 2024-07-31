@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -740,7 +740,15 @@ static int ec_pki_priv_to_der(const void *veckey, unsigned char **pder)
 # define ec_pem_type            "EC"
 
 # ifndef OPENSSL_NO_SM2
-#  define sm2_evp_type          EVP_PKEY_SM2
+/*
+ * Albeit SM2 is a slightly different algorithm than ECDSA, the key type
+ * encoding (in all places where an AlgorithmIdentifier is produced, such
+ * as PrivateKeyInfo and SubjectPublicKeyInfo) is the same as for ECC keys
+ * according to the example in GM/T 0015-2012, appendix D.2.
+ * This leaves the distinction of SM2 keys to the EC group (which is found
+ * in AlgorithmIdentified.params).
+ */
+#  define sm2_evp_type          ec_evp_type
 #  define sm2_input_type        "SM2"
 #  define sm2_pem_type          "SM2"
 # endif

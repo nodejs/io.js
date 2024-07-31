@@ -3,6 +3,8 @@ import * as fixtures from '../common/fixtures.mjs';
 import * as snapshot from '../common/assertSnapshot.js';
 import { describe, it } from 'node:test';
 import { hostname } from 'node:os';
+import { chdir, cwd } from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 const skipForceColors =
   process.config.variables.icu_gyp_path !== 'tools/icu/icu-generic.gyp' ||
@@ -14,8 +16,10 @@ function replaceTestDuration(str) {
     .replaceAll(/duration_ms [0-9.]+/g, 'duration_ms *');
 }
 
+const root = fileURLToPath(new URL('../..', import.meta.url)).slice(0, -1);
+
 const color = '(\\[\\d+m)';
-const stackTraceBasePath = new RegExp(`${color}\\(${process.cwd()}/?${color}(.*)${color}\\)`, 'g');
+const stackTraceBasePath = new RegExp(`${color}\\(${root.replaceAll(/[\\^$*+?.()|[\]{}]/g, '\\$&')}/?${color}(.*)${color}\\)`, 'g');
 
 function replaceSpecDuration(str) {
   return str
@@ -70,11 +74,13 @@ const specTransform = snapshot.transform(
   replaceSpecDuration,
   snapshot.replaceWindowsLineEndings,
   snapshot.replaceStackTrace,
+  snapshot.replaceWindowsPaths,
 );
 const junitTransform = snapshot.transform(
   replaceJunitDuration,
   snapshot.replaceWindowsLineEndings,
   snapshot.replaceStackTrace,
+  snapshot.replaceWindowsPaths,
 );
 const lcovTransform = snapshot.transform(
   snapshot.replaceWindowsLineEndings,
@@ -91,26 +97,37 @@ const tests = [
   { name: 'test-runner/output/abort_hooks.js' },
   { name: 'test-runner/output/describe_it.js' },
   { name: 'test-runner/output/describe_nested.js' },
+  { name: 'test-runner/output/eval_dot.js', transform: specTransform },
+  { name: 'test-runner/output/eval_spec.js', transform: specTransform },
+  { name: 'test-runner/output/eval_tap.js' },
   { name: 'test-runner/output/hooks.js' },
   { name: 'test-runner/output/hooks_spec_reporter.js', transform: specTransform },
+  { name: 'test-runner/output/skip-each-hooks.js', transform: specTransform },
+  { name: 'test-runner/output/suite-skip-hooks.js', transform: specTransform },
   { name: 'test-runner/output/timeout_in_before_each_should_not_affect_further_tests.js' },
   { name: 'test-runner/output/hooks-with-no-global-test.js' },
+  { name: 'test-runner/output/global-hooks-with-no-tests.js' },
   { name: 'test-runner/output/before-and-after-each-too-many-listeners.js' },
   { name: 'test-runner/output/before-and-after-each-with-timeout-too-many-listeners.js' },
+  { name: 'test-runner/output/force_exit.js', transform: specTransform },
   { name: 'test-runner/output/global_after_should_fail_the_test.js' },
   { name: 'test-runner/output/no_refs.js' },
   { name: 'test-runner/output/no_tests.js' },
   { name: 'test-runner/output/only_tests.js' },
-  { name: 'test-runner/output/dot_reporter.js' },
+  { name: 'test-runner/output/dot_reporter.js', transform: specTransform },
   { name: 'test-runner/output/junit_reporter.js', transform: junitTransform },
   { name: 'test-runner/output/spec_reporter_successful.js', transform: specTransform },
   { name: 'test-runner/output/spec_reporter.js', transform: specTransform },
   { name: 'test-runner/output/spec_reporter_cli.js', transform: specTransform },
+  { name: 'test-runner/output/source_mapped_locations.mjs' },
   process.features.inspector ? { name: 'test-runner/output/lcov_reporter.js', transform: lcovTransform } : false,
   { name: 'test-runner/output/output.js' },
   { name: 'test-runner/output/output_cli.js' },
+  { name: 'test-runner/output/name_and_skip_patterns.js' },
   { name: 'test-runner/output/name_pattern.js' },
   { name: 'test-runner/output/name_pattern_with_only.js' },
+  { name: 'test-runner/output/skip_pattern.js' },
+  { name: 'test-runner/output/unfinished-suite-async-error.js' },
   { name: 'test-runner/output/unresolved_promise.js' },
   { name: 'test-runner/output/default_output.js', transform: specTransform, tty: true },
   { name: 'test-runner/output/arbitrary-output.js' },
@@ -127,6 +144,7 @@ const tests = [
       replaceTestDuration,
     ),
   },
+  { name: 'test-runner/output/test-runner-plan.js' },
   process.features.inspector ? { name: 'test-runner/output/coverage_failure.js' } : false,
 ]
 .filter(Boolean)
@@ -137,6 +155,9 @@ const tests = [
   }),
 }));
 
+if (cwd() !== root) {
+  chdir(root);
+}
 describe('test runner output', { concurrency: true }, () => {
   for (const { name, fn } of tests) {
     it(name, fn);

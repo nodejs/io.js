@@ -14,7 +14,7 @@ agenda to ensure they are active and have the support they need.
 | Startup Snapshot       | [Joyee Cheung][joyeecheung]      | <https://github.com/nodejs/node/issues/35711>     |
 | V8 Currency            | [Michaël Zasso][targos]          |                                                   |
 | Next-10                | [Michael Dawson][mhdawson]       | <https://github.com/nodejs/next-10>               |
-| Single executable apps | [Darshan Sen][RaisinTen]         | <https://github.com/nodejs/node/issues/43432>     |
+| Single executable apps |                                  | <https://github.com/nodejs/node/issues/43432>     |
 | Performance            |                                  | <https://github.com/nodejs/performance>           |
 | Primordials            | [Benjamin Gruenbaum][benjamingr] | <https://github.com/nodejs/primordials-use-cases> |
 
@@ -39,7 +39,6 @@ agenda to ensure they are active and have the support they need.
 
 </details>
 
-[RaisinTen]: https://github.com/RaisinTen
 [aduh95]: https://github.com/aduh95
 [benjamingr]: https://github.com/benjamingr
 [jasnell]: https://github.com/jasnell

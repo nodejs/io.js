@@ -44,7 +44,7 @@ class ResultDBIndicator(ProgressIndicator):
       rdb_result.update(duration=f'{result.output.duration:f}s')
 
     if result.has_unexpected_output:
-      formated_output = formatted_result_output(result,relative=True)
+      formated_output = formatted_result_output(result, relative=True)
       relative_cmd = result.cmd.to_string(relative=True)
       artifacts = {
         'output' : write_artifact(formated_output),
@@ -67,7 +67,8 @@ class ResultDBIndicator(ProgressIndicator):
 
 
 def write_artifact(value):
-  with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp:
+  with tempfile.NamedTemporaryFile(
+      mode='w', delete=False, encoding='utf-8') as tmp:
     tmp.write(value)
     return { 'filePath': tmp.name }
 
@@ -92,12 +93,17 @@ def strip_ascii_control_characters(unicode_string):
   return re.sub(r'[^\x20-\x7E]', '?', str(unicode_string))
 
 
+TESTING_SINK = None
+
+
 def rdb_sink():
   try:
     import requests
   except:
     log_instantiation_failure('Failed to import requests module.')
     return None
+  if TESTING_SINK:
+    return TESTING_SINK
   luci_context = os.environ.get('LUCI_CONTEXT')
   if not luci_context:
     log_instantiation_failure('No LUCI_CONTEXT found.')

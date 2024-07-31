@@ -183,7 +183,7 @@ void UVector::insertElementAt(int32_t elem, int32_t index, UErrorCode &status) {
 }
 
 void* UVector::elementAt(int32_t index) const {
-    return (0 <= index && index < count) ? elements[index].pointer : 0;
+    return (0 <= index && index < count) ? elements[index].pointer : nullptr;
 }
 
 int32_t UVector::elementAti(int32_t index) const {

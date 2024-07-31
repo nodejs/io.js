@@ -13,11 +13,11 @@ Setting breakpoint
     scriptId : <scriptId>
 }
 Paused:
-Script wasm://wasm/2633f626 byte offset 316: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/4ed17ea6 byte offset 316: Wasm opcode 0x01 (kExprNop)
 Scope:
 at $main (0:316):
  - scope (wasm-expression-stack):
-   stack: 
+   stack:
  - scope (local):
    $anyref_local: Struct ((ref $type0))
    $anyref_local2: Array ((ref $type1))
@@ -28,7 +28,7 @@ at $main (0:316):
    module: Module
    functions: "$my_func": (Function), "$fill_tables": (Function), "$main": (Function)
    globals: "$global0": function $my_func() { [native code] } (funcref)
-   tables: 
+   tables:
       $import.any_table: 0: Array(2) (anyref), 1: 321 (anyref), 2: null (anyref), 3: null (anyref)
       $import.func_table: 0: function () { [native code] } (funcref), 1: function $my_func() { [native code] } (funcref), 2: null (funcref)
       $exported_ref_table: 0: Struct ((ref $type0)), 1: Array ((ref $type1)), 2: 30 (anyref), 3: null (anyref)

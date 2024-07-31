@@ -70,8 +70,8 @@ const mockSbom = async (t, { mocks, config, ...opts } = {}) => {
     },
     command: 'sbom',
     mocks: {
-      path: {
-        ...require('path'),
+      'node:path': {
+        ...require('node:path'),
         sep: '/',
       },
       ...mocks,

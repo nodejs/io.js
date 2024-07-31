@@ -1,5 +1,10 @@
 include_rules = [
+  "+perfetto/base/time.h",
+  "+perfetto/protozero/scattered_heap_buffer.h",
+  "+perfetto/tracing/data_source.h",
   "+perfetto/tracing/track_event.h",
   "+perfetto/tracing/track_event_legacy.h",
-  "+protos/perfetto"
+  "+protos/perfetto",
+  "+src/heap/spaces.h",
+  "+v8/src/logging/code-events.h"
 ]

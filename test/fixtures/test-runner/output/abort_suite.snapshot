@@ -137,6 +137,7 @@ not ok 2 - describe abort signal
     *
     *
     *
+    *
   ...
 1..2
 # tests 9

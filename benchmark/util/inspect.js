@@ -9,7 +9,7 @@ const opts = {
   none: undefined,
 };
 const bench = common.createBenchmark(main, {
-  n: [2e4],
+  n: [8e4],
   method: [
     'Object',
     'Object_empty',

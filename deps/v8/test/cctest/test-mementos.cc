@@ -38,7 +38,6 @@ namespace internal {
 static void SetUpNewSpaceWithPoisonedMementoAtTop() {
   Isolate* isolate = CcTest::i_isolate();
   Heap* heap = isolate->heap();
-  NewSpace* new_space = heap->new_space();
 
   // Make sure we can allocate some objects without causing a GC later.
   heap::InvokeMajorGC(heap);
@@ -46,19 +45,19 @@ static void SetUpNewSpaceWithPoisonedMementoAtTop() {
   // Allocate a string, the GC may suspect a memento behind the string.
   Handle<SeqOneByteString> string =
       isolate->factory()->NewRawOneByteString(12).ToHandleChecked();
-  CHECK(!string->is_null());
+  CHECK(!(*string).is_null());
 
   // Create an allocation memento behind the string with a garbage allocation
   // site pointer.
   Tagged<AllocationMemento> memento = AllocationMemento::unchecked_cast(
-      Object(new_space->top() + kHeapObjectTag));
+      Tagged<Object>(heap->NewSpaceTop() + kHeapObjectTag));
   memento->set_map_after_allocation(
       ReadOnlyRoots(heap).allocation_memento_map(), SKIP_WRITE_BARRIER);
 
-  // Using this accessor because set_memento expects an Object and not a
-  // MaybeObject.
-  TaggedField<MaybeObject, AllocationMemento::kAllocationSiteOffset>::store(
-      memento, MaybeObject(kHeapObjectTag));
+  // Using this accessor as we're writing an invalid tagged pointer.
+  Tagged_t poison = kHeapObjectTag;
+  memento->WriteField<Tagged_t>(AllocationMemento::kAllocationSiteOffset,
+                                poison);
 }
 
 
@@ -75,30 +74,6 @@ TEST(Regress340063) {
   i::heap::InvokeAtomicMajorGC(CcTest::heap());
 }
 
-
-TEST(Regress470390) {
-#ifdef VERIFY_HEAP
-  // With MinorMS, we may have object allocated after `new_space->top()`. If the
-  // next object after `new_space->top()` is an invalid memento, heap
-  // verification should fail.
-  if (v8_flags.minor_ms) return;
-#endif  // VERIFY_HEAP
-
-  CcTest::InitializeVM();
-  if (!i::v8_flags.allocation_site_pretenuring || v8_flags.single_generation)
-    return;
-  v8::HandleScope scope(CcTest::isolate());
-
-  SetUpNewSpaceWithPoisonedMementoAtTop();
-
-  // Set the new space limit to be equal to the top.
-  Address top = CcTest::heap()->new_space()->top();
-  *(CcTest::heap()->new_space()->allocation_limit_address()) = top;
-
-  // Call GC to see if we can handle a poisonous memento right after the
-  // current new space top pointer.
-  i::heap::InvokeAtomicMajorGC(CcTest::heap());
-}
 
 TEST(BadMementoAfterTopForceMinorGC) {
   CcTest::InitializeVM();

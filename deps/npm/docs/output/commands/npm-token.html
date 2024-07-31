@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-token">npm-token</h1>
+<h1 id="----npm-token----1082">
+    <span>npm-token</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Manage your authentication tokens</span>
 </header>
 
@@ -158,23 +166,13 @@ npm token create [--read-only] [--cidr=list]
 Shows a table of all active authentication tokens. You can request
 this as JSON with <code>--json</code> or tab-separated values with <code>--parseable</code>.</li>
 </ul>
-<pre><code class="language-bash">+--------+---------+------------+----------+----------------+
-| id     | token   | created    | read-only | CIDR whitelist |
-+--------+---------+------------+----------+----------------+
-| 7f3134 | 1fa9ba… | 2017-10-02 | yes      |                |
-+--------+---------+------------+----------+----------------+
-| c03241 | af7aef… | 2017-10-02 | no       | 192.168.0.1/24 |
-+--------+---------+------------+----------+----------------+
-| e0cf92 | 3a436a… | 2017-10-02 | no       |                |
-+--------+---------+------------+----------+----------------+
-| 63eb9d | 74ef35… | 2017-09-28 | no       |                |
-+--------+---------+------------+----------+----------------+
-| 2daaa8 | cbad5f… | 2017-09-26 | no       |                |
-+--------+---------+------------+----------+----------------+
-| 68c2fe | 127e51… | 2017-09-23 | no       |                |
-+--------+---------+------------+----------+----------------+
-| 6334e1 | 1dadd1… | 2017-09-23 | no       |                |
-+--------+---------+------------+----------+----------------+
+<pre><code>Read only token npm_1f… with id 7f3134 created 2017-10-21
+
+Publish token npm_af…  with id c03241 created 2017-10-02
+with IP Whitelist: 192.168.0.1/24
+
+Publish token npm_… with id e0cf92 created 2017-10-02
+
 </code></pre>
 <ul>
 <li>
@@ -191,15 +189,7 @@ website</a>
 for more information on generating automation tokens.</p>
 </li>
 </ul>
-<pre><code class="language-bash">+----------------+--------------------------------------+
-| token          | a73c9572-f1b9-8983-983d-ba3ac3cc913d |
-+----------------+--------------------------------------+
-| cidr_whitelist |                                      |
-+----------------+--------------------------------------+
-| readonly       | false                                |
-+----------------+--------------------------------------+
-| created        | 2017-10-02T07:52:24.838Z             |
-+----------------+--------------------------------------+
+<pre><code>Created publish token a73c9572-f1b9-8983-983d-ba3ac3cc913d
 </code></pre>
 <ul>
 <li><code>npm token revoke &lt;token|id&gt;</code>:

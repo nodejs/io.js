@@ -312,7 +312,7 @@ int32_t nghttp2_stream_dep_distributed_weight(nghttp2_stream *stream,
                                               int32_t weight) {
   weight = stream->weight * weight / stream->sum_dep_weight;
 
-  return nghttp2_max(1, weight);
+  return nghttp2_max_int32(1, weight);
 }
 
 #ifdef STREAM_DEP_DEBUG

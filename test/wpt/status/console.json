@@ -1,11 +1,9 @@
 {
   "idlharness.any.js": {
-    "fail": {
-      "flaky": [
-        "console namespace: operation assert(optional boolean, any...)",
-        "console namespace: operation table(optional any, optional sequence<DOMString>)",
-        "console namespace: operation dir(optional any, optional object?)"
-      ]
-    }
+    "note": "https://github.com/nodejs/node/issues/44185",
+    "requires": ["crypto", "small-icu"]
+  },
+  "idlharness-shadowrealm.window.js": {
+    "skip": "ShadowRealm support is not enabled"
   }
 }

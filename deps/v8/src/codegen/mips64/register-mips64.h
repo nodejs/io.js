@@ -284,12 +284,9 @@ DEFINE_REGISTER_NAMES(Register, GENERAL_REGISTERS)
 DEFINE_REGISTER_NAMES(FPURegister, DOUBLE_REGISTERS)
 DEFINE_REGISTER_NAMES(MSARegister, SIMD128_REGISTERS)
 
-// Give alias names to registers for calling conventions.
-
-constexpr Register arg_reg_1 = a0;
-constexpr Register arg_reg_2 = a1;
-constexpr Register arg_reg_3 = a2;
-constexpr Register arg_reg_4 = a3;
+constexpr Register kCArgRegs[] = {a0, a1, a2, a3, a4, a5, a6, a7};
+constexpr int kRegisterPassedArguments = arraysize(kCArgRegs);
+constexpr int kFPRegisterPassedArguments = 8;
 
 constexpr Register kReturnRegister0 = v0;
 constexpr Register kReturnRegister1 = v1;

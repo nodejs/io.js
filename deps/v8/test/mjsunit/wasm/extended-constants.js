@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-extended-const
-
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
 (function ExtendedConstantsTestI32() {
@@ -15,7 +13,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   let imported_global_1 = builder.addImportedGlobal("m", "g1", kWasmI32, false);
 
   let defined_global = builder.addGlobal(
-    kWasmI32, false,
+    kWasmI32, false, false,
     [kExprGlobalGet, imported_global_0, kExprGlobalGet, imported_global_1,
      kExprGlobalGet, imported_global_0, ...wasmI32Const(1),
      kExprI32Sub, kExprI32Mul, kExprI32Add]);
@@ -44,7 +42,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   let imported_global_1 = builder.addImportedGlobal("m", "g1", kWasmI64, false);
 
   let defined_global = builder.addGlobal(
-    kWasmI64, false,
+    kWasmI64, false, false,
     [kExprGlobalGet, imported_global_0, kExprI64Const, 1, kExprI64Sub,
      kExprGlobalGet, imported_global_1, kExprI64Mul,
      kExprGlobalGet, imported_global_0, kExprI64Add]);

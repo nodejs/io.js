@@ -141,7 +141,7 @@ class _Boolean(_Type):
     """Boolean settings, can have the values 'false' or 'true'."""
 
     def _Validate(self, value):
-        if value != "true" and value != "false":
+        if value not in {"true", "false"}:
             raise ValueError("expected bool; got %r" % value)
 
     def ValidateMSVS(self, value):
@@ -793,6 +793,8 @@ _MSBuildOnly(
     _compile, "CompileAsManaged", _Enumeration([], new=["false", "true"])
 )  # /clr
 _MSBuildOnly(_compile, "CreateHotpatchableImage", _boolean)  # /hotpatch
+_MSBuildOnly(_compile, "LanguageStandard", _string)
+_MSBuildOnly(_compile, "LanguageStandard_C", _string)
 _MSBuildOnly(_compile, "MultiProcessorCompilation", _boolean)  # /MP
 _MSBuildOnly(_compile, "PreprocessOutputPath", _string)  # /Fi
 _MSBuildOnly(_compile, "ProcessorNumber", _integer)  # the number of processors

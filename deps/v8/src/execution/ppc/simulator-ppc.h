@@ -176,11 +176,11 @@ class Simulator : public SimulatorBase {
   double get_double_from_register_pair(int reg);
   void set_d_register_from_double(int dreg, const double dbl) {
     DCHECK(dreg >= 0 && dreg < kNumFPRs);
-    *base::bit_cast<double*>(&fp_registers_[dreg]) = dbl;
+    fp_registers_[dreg] = base::bit_cast<int64_t>(dbl);
   }
   double get_double_from_d_register(int dreg) {
     DCHECK(dreg >= 0 && dreg < kNumFPRs);
-    return *base::bit_cast<double*>(&fp_registers_[dreg]);
+    return base::bit_cast<double>(fp_registers_[dreg]);
   }
   void set_d_register(int dreg, int64_t value) {
     DCHECK(dreg >= 0 && dreg < kNumFPRs);
@@ -437,7 +437,7 @@ class Simulator : public SimulatorBase {
   T get_simd_register_bytes(int reg, int byte_from) {
     // Byte location is reversed in memory.
     int from = kSimd128Size - 1 - (byte_from + sizeof(T) - 1);
-    void* src = base::bit_cast<uint8_t*>(&simd_registers_[reg]) + from;
+    void* src = reinterpret_cast<uint8_t*>(&simd_registers_[reg]) + from;
     T dst;
     memcpy(&dst, src, sizeof(T));
     return dst;
@@ -460,7 +460,7 @@ class Simulator : public SimulatorBase {
   void set_simd_register_bytes(int reg, int byte_from, T value) {
     // Byte location is reversed in memory.
     int from = kSimd128Size - 1 - (byte_from + sizeof(T) - 1);
-    void* dst = base::bit_cast<uint8_t*>(&simd_registers_[reg]) + from;
+    void* dst = reinterpret_cast<uint8_t*>(&simd_registers_[reg]) + from;
     memcpy(dst, &value, sizeof(T));
   }
 

@@ -4,6 +4,7 @@ const stream = require('stream');
 const assert = require('assert');
 
 const writable = new stream.Writable({
+  highWaterMark: 16 * 1024,
   write: common.mustCall(function(chunk, encoding, cb) {
     assert.strictEqual(
       readable._readableState.awaitDrainWriters,
@@ -26,6 +27,7 @@ const writable = new stream.Writable({
 // A readable stream which produces two buffers.
 const bufs = [Buffer.alloc(32 * 1024), Buffer.alloc(33 * 1024)]; // above hwm
 const readable = new stream.Readable({
+  highWaterMark: 16 * 1024,
   read: function() {
     while (bufs.length > 0) {
       this.push(bufs.shift());

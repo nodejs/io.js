@@ -65,6 +65,8 @@ class V8_EXPORT_PRIVATE OptimizingCompileDispatcher {
 
   enum ModeFlag { COMPILE, FLUSH };
   static constexpr TaskPriority kTaskPriority = TaskPriority::kUserVisible;
+  static constexpr TaskPriority kEfficiencyTaskPriority =
+      TaskPriority::kBestEffort;
 
   void FlushQueues(BlockingBehavior blocking_behavior,
                    bool restore_function_code);

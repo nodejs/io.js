@@ -8,6 +8,7 @@
 #include "src/common/globals.h"
 #include "src/flags/flags.h"
 #include "src/objects/js-objects.h"
+#include "src/runtime/runtime.h"
 
 namespace v8 {
 namespace internal {
@@ -31,6 +32,16 @@ enum class StackCheckKind : uint8_t {
   kCodeStubAssembler,
   kWasm,
 };
+
+inline Runtime::FunctionId GetBuiltinForStackCheckKind(StackCheckKind kind) {
+  if (kind == StackCheckKind::kJSFunctionEntry) {
+    return Runtime::kStackGuardWithGap;
+  } else if (kind == StackCheckKind::kJSIterationBody) {
+    return Runtime::kHandleNoHeapWritesInterrupts;
+  } else {
+    return Runtime::kStackGuard;
+  }
+}
 
 enum class CanThrow : uint8_t { kNo, kYes };
 

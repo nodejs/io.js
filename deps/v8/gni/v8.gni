@@ -8,6 +8,7 @@ import("//build/config/gclient_args.gni")
 import("//build/config/ios/config.gni")
 import("//build/config/sanitizers/sanitizers.gni")
 import("//build/config/v8_target_cpu.gni")
+import("//build_overrides/build.gni")
 import("release_branch_toggle.gni")
 import("split_static_library.gni")
 
@@ -48,7 +49,11 @@ declare_args() {
   # Enable monolithic static library for embedders.
   v8_monolithic = false
 
-  # Expose symbols for dynamic linking.
+  # Expose public symbols for native modules of Node.js and Electron. Default
+  # is false.
+  v8_expose_public_symbols = ""
+
+  # Deprecated for v8_expose_public_symbols.
   v8_expose_symbols = false
 
   # Implement tracing using Perfetto (https://perfetto.dev).
@@ -84,10 +89,18 @@ declare_args() {
   v8_enable_wasm_simd256_revec = false
 
   # Enable runtime call stats.
-  v8_enable_runtime_call_stats = !is_on_release_branch
+  # TODO(liviurau): Remove old name after Chromium config update
+  # https://crbug.com/1476977.
+  v8_enable_runtime_call_stats =
+      !(is_on_release_branch || v8_is_on_release_branch)
 
   # Add fuzzilli fuzzer support.
   v8_fuzzilli = false
+
+  # Enable FuzzTest
+  v8_enable_fuzztest = !build_with_v8_embedder &&
+                       !(defined(build_with_node) && build_with_node) &&
+                       !(is_win && is_component_build) && is_clang
 
   # Scan the call stack conservatively during garbage collection.
   v8_enable_conservative_stack_scanning = false
@@ -96,7 +109,10 @@ declare_args() {
   v8_enable_direct_handle = ""
 
   # Use direct pointers in local handles.
-  v8_enable_direct_local = false
+  v8_enable_direct_local = ""
+
+  # Check for off-stack allocated local handles.
+  v8_enable_local_off_stack_check = false
 
   v8_enable_google_benchmark = false
 
@@ -145,6 +161,9 @@ declare_args() {
   # Change code emission and runtime features to be CET shadow-stack compliant
   # (incomplete and experimental).
   v8_enable_cet_shadow_stack = false
+
+  # Emit CET IBT landing pad instructions in JIT generated code (experimental).
+  v8_enable_cet_ibt = false
 }
 
 if (v8_use_external_startup_data == "") {
@@ -193,10 +212,13 @@ if (v8_enable_turbofan == "") {
 assert(v8_enable_turbofan || !v8_enable_webassembly,
        "Webassembly is not available when Turbofan is disabled.")
 
-# Direct internal handles are enabled by default if conservative stack scanning
-# is enabled.
+# Direct internal handles and direct locals are enabled by default if
+# conservative stack scanning is enabled.
 if (v8_enable_direct_handle == "") {
   v8_enable_direct_handle = v8_enable_conservative_stack_scanning
+}
+if (v8_enable_direct_local == "") {
+  v8_enable_direct_local = v8_enable_conservative_stack_scanning
 }
 
 # Points to // in v8 stand-alone or to //v8/ in chromium. We need absolute
@@ -215,6 +237,7 @@ v8_remove_configs = []
 v8_add_configs = [
   v8_path_prefix + ":features",
   v8_path_prefix + ":toolchain",
+  v8_path_prefix + ":strict_warnings",
 ]
 
 if (is_debug && !v8_optimized_debug) {
@@ -225,7 +248,7 @@ if (is_debug && !v8_optimized_debug) {
 
   # TODO(crbug.com/621335) Rework this so that we don't have the confusion
   # between "optimize_speed" and "optimize_max".
-  if (is_posix && !is_android && !using_sanitizer) {
+  if (((is_posix && !is_android) || is_win) && !using_sanitizer) {
     v8_add_configs += [ "//build/config/compiler:optimize_speed" ]
   } else {
     v8_add_configs += [ "//build/config/compiler:optimize_max" ]
@@ -252,8 +275,7 @@ if (v8_symbol_level != symbol_level) {
   }
 }
 
-if ((is_posix || is_fuchsia) &&
-    (v8_enable_backtrace || v8_monolithic || v8_expose_symbols)) {
+if ((is_posix || is_fuchsia) && (v8_enable_backtrace || v8_monolithic)) {
   v8_remove_configs += [ "//build/config/gcc:symbol_visibility_hidden" ]
   v8_add_configs += [ "//build/config/gcc:symbol_visibility_default" ]
 }

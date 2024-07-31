@@ -1,7 +1,7 @@
 // An edge in the dependency graph
 // Represents a dependency relationship of some kind
 
-const util = require('util')
+const util = require('node:util')
 const npa = require('npm-package-arg')
 const depValid = require('./dep-valid.js')
 

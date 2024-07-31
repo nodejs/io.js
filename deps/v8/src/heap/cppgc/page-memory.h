@@ -5,7 +5,6 @@
 #ifndef V8_HEAP_CPPGC_PAGE_MEMORY_H_
 #define V8_HEAP_CPPGC_PAGE_MEMORY_H_
 
-#include <array>
 #include <map>
 #include <memory>
 #include <unordered_map>
@@ -15,6 +14,7 @@
 #include "src/base/macros.h"
 #include "src/base/platform/mutex.h"
 #include "src/heap/cppgc/globals.h"
+#include "src/heap/cppgc/heap-config.h"
 
 namespace cppgc {
 namespace internal {
@@ -61,84 +61,12 @@ class V8_EXPORT_PRIVATE PageMemory final {
   MemoryRegion writable_;
 };
 
-class V8_EXPORT_PRIVATE PageMemoryRegion {
+class V8_EXPORT_PRIVATE PageMemoryRegion final {
  public:
-  virtual ~PageMemoryRegion();
+  PageMemoryRegion(PageAllocator&, MemoryRegion);
+  ~PageMemoryRegion();
 
   const MemoryRegion reserved_region() const { return reserved_region_; }
-  bool is_large() const { return is_large_; }
-
-  // Lookup writeable base for an |address| that's contained in
-  // PageMemoryRegion. Filters out addresses that are contained in non-writeable
-  // regions (e.g. guard pages).
-  inline Address Lookup(ConstAddress address) const;
-
-  // Disallow copy/move.
-  PageMemoryRegion(const PageMemoryRegion&) = delete;
-  PageMemoryRegion& operator=(const PageMemoryRegion&) = delete;
-
-  virtual void UnprotectForTesting() = 0;
-
- protected:
-  PageMemoryRegion(PageAllocator&, MemoryRegion, bool);
-
-  PageAllocator& allocator_;
-  const MemoryRegion reserved_region_;
-  const bool is_large_;
-};
-
-// NormalPageMemoryRegion serves kNumPageRegions normal-sized PageMemory object.
-class V8_EXPORT_PRIVATE NormalPageMemoryRegion final : public PageMemoryRegion {
- public:
-  static constexpr size_t kNumPageRegions = 10;
-
-  static std::unique_ptr<NormalPageMemoryRegion> Create(PageAllocator&);
-  ~NormalPageMemoryRegion() override;
-
-  const PageMemory GetPageMemory(size_t index) const {
-    DCHECK_LT(index, kNumPageRegions);
-    return PageMemory(
-        MemoryRegion(reserved_region().base() + kPageSize * index, kPageSize),
-        MemoryRegion(
-            reserved_region().base() + kPageSize * index + kGuardPageSize,
-            kPageSize - 2 * kGuardPageSize));
-  }
-
-  // Allocates a normal page at |writeable_base| address. Changes page
-  // protection.
-  // Returns true when the allocation was successful and false otherwise.
-  V8_WARN_UNUSED_RESULT bool TryAllocate(Address writeable_base);
-
-  // Frees a normal page at at |writeable_base| address. Changes page
-  // protection.
-  void Free(Address);
-
-  inline Address Lookup(ConstAddress) const;
-
-  void UnprotectForTesting() final;
-
- private:
-  NormalPageMemoryRegion(PageAllocator&, MemoryRegion);
-
-  void ChangeUsed(size_t index, bool value) {
-    DCHECK_LT(index, kNumPageRegions);
-    DCHECK_EQ(value, !page_memories_in_use_[index]);
-    page_memories_in_use_[index] = value;
-  }
-
-  size_t GetIndex(ConstAddress address) const {
-    return static_cast<size_t>(address - reserved_region().base()) >>
-           kPageSizeLog2;
-  }
-
-  std::array<bool, kNumPageRegions> page_memories_in_use_ = {};
-};
-
-// LargePageMemoryRegion serves a single large PageMemory object.
-class V8_EXPORT_PRIVATE LargePageMemoryRegion final : public PageMemoryRegion {
- public:
-  static std::unique_ptr<LargePageMemoryRegion> Create(PageAllocator&, size_t);
-  ~LargePageMemoryRegion() override;
 
   const PageMemory GetPageMemory() const {
     return PageMemory(
@@ -147,12 +75,24 @@ class V8_EXPORT_PRIVATE LargePageMemoryRegion final : public PageMemoryRegion {
                      reserved_region().size() - 2 * kGuardPageSize));
   }
 
-  inline Address Lookup(ConstAddress) const;
+  // Lookup writeable base for an |address| that's contained in
+  // PageMemoryRegion. Filters out addresses that are contained in non-writeable
+  // regions (e.g. guard pages).
+  inline Address Lookup(ConstAddress address) const {
+    const MemoryRegion writeable_region = GetPageMemory().writeable_region();
+    return writeable_region.Contains(address) ? writeable_region.base()
+                                              : nullptr;
+  }
 
-  void UnprotectForTesting() final;
+  // Disallow copy/move.
+  PageMemoryRegion(const PageMemoryRegion&) = delete;
+  PageMemoryRegion& operator=(const PageMemoryRegion&) = delete;
+
+  void UnprotectForTesting();
 
  private:
-  LargePageMemoryRegion(PageAllocator&, MemoryRegion);
+  PageAllocator& allocator_;
+  const MemoryRegion reserved_region_;
 };
 
 // A PageMemoryRegionTree is a binary search tree of PageMemoryRegions sorted
@@ -175,21 +115,25 @@ class V8_EXPORT_PRIVATE PageMemoryRegionTree final {
 };
 
 // A pool of PageMemory objects represented by the writeable base addresses.
-//
-// The pool does not keep its elements alive but merely provides pooling
-// capabilities.
+// TODO (v8:14390): Consider sharing the page-pool across multiple threads.
 class V8_EXPORT_PRIVATE NormalPageMemoryPool final {
  public:
-  using Result = std::pair<NormalPageMemoryRegion*, Address>;
+  // Adds a new entry to the pool.
+  void Add(PageMemoryRegion*);
+  // Takes a new entry entry from the pool or nullptr in case the pool is empty.
+  PageMemoryRegion* Take();
 
-  NormalPageMemoryPool();
-  ~NormalPageMemoryPool();
+  // Returns the number of entries pooled.
+  size_t pooled() const { return pool_.size(); }
 
-  void Add(NormalPageMemoryRegion*, Address);
-  Result Take();
+  void DiscardPooledPages(PageAllocator& allocator);
+
+  auto& get_raw_pool_for_testing() { return pool_; }
 
  private:
-  std::vector<Result> pool_;
+  // The pool of pages that are not returned to the OS. Bounded by
+  // `primary_pool_capacity_`.
+  std::vector<PageMemoryRegion*> pool_;
 };
 
 // A backend that is used for allocating and freeing normal and large pages.
@@ -209,7 +153,7 @@ class V8_EXPORT_PRIVATE PageBackend final {
 
   // Returns normal page memory back to the backend. Expects the
   // |writeable_base| returned by |AllocateNormalMemory()|.
-  void FreeNormalPageMemory(size_t, Address writeable_base);
+  void FreeNormalPageMemory(Address writeable_base, FreeMemoryHandling);
 
   // Allocates a large page from the backend.
   //
@@ -228,14 +172,29 @@ class V8_EXPORT_PRIVATE PageBackend final {
   PageBackend(const PageBackend&) = delete;
   PageBackend& operator=(const PageBackend&) = delete;
 
+  void DiscardPooledPages();
+
+  PageMemoryRegionTree& get_page_memory_region_tree_for_testing() {
+    return page_memory_region_tree_;
+  }
+
+  NormalPageMemoryPool& get_page_pool_for_testing() { return page_pool_; }
+
  private:
   // Guards against concurrent uses of `Lookup()`.
   mutable v8::base::Mutex mutex_;
   PageAllocator& normal_page_allocator_;
   PageAllocator& large_page_allocator_;
+
+  // A PageMemoryRegion for a normal page is kept alive by the
+  // `normal_page_memory_regions_` and as such is always present there.
+  // It's present in:
+  //  - `page_pool_` when it's not used (and available for allocation),
+  //  - `page_memory_region_tree_` when used (i.e. allocated).
   NormalPageMemoryPool page_pool_;
   PageMemoryRegionTree page_memory_region_tree_;
-  std::vector<std::unique_ptr<PageMemoryRegion>> normal_page_memory_regions_;
+  std::unordered_map<PageMemoryRegion*, std::unique_ptr<PageMemoryRegion>>
+      normal_page_memory_regions_;
   std::unordered_map<PageMemoryRegion*, std::unique_ptr<PageMemoryRegion>>
       large_page_memory_regions_;
 };
@@ -247,29 +206,9 @@ inline bool SupportsCommittingGuardPages(PageAllocator& allocator) {
          kGuardPageSize % allocator.CommitPageSize() == 0;
 }
 
-Address NormalPageMemoryRegion::Lookup(ConstAddress address) const {
-  size_t index = GetIndex(address);
-  if (!page_memories_in_use_[index]) return nullptr;
-  const MemoryRegion writeable_region = GetPageMemory(index).writeable_region();
-  return writeable_region.Contains(address) ? writeable_region.base() : nullptr;
-}
-
-Address LargePageMemoryRegion::Lookup(ConstAddress address) const {
-  const MemoryRegion writeable_region = GetPageMemory().writeable_region();
-  return writeable_region.Contains(address) ? writeable_region.base() : nullptr;
-}
-
-Address PageMemoryRegion::Lookup(ConstAddress address) const {
-  DCHECK(reserved_region().Contains(address));
-  return is_large()
-             ? static_cast<const LargePageMemoryRegion*>(this)->Lookup(address)
-             : static_cast<const NormalPageMemoryRegion*>(this)->Lookup(
-                   address);
-}
-
 PageMemoryRegion* PageMemoryRegionTree::Lookup(ConstAddress address) const {
   auto it = set_.upper_bound(address);
-  // This check also covers set_.size() > 0, since for empty vectors it is
+  // This check also covers set_.size() > 0, since for empty container it is
   // guaranteed that begin() == end().
   if (it == set_.begin()) return nullptr;
   auto* result = std::next(it, -1)->second;

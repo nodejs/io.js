@@ -84,6 +84,29 @@ class V8_EXPORT Context : public Data {
    * created by a previous call to Context::New with the same global
    * template. The state of the global object will be completely reset
    * and only object identify will remain.
+   *
+   * \param internal_fields_deserializer An optional callback used
+   * to deserialize fields set by
+   * v8::Object::SetAlignedPointerInInternalField() in wrapper objects
+   * from the default context snapshot. It should match the
+   * SerializeInternalFieldsCallback() used by
+   * v8::SnapshotCreator::SetDefaultContext() when the default context
+   * snapshot is created. It does not need to be configured if the default
+   * context snapshot contains no wrapper objects with pointer internal
+   * fields, or if no custom startup snapshot is configured
+   * in the v8::CreateParams used to create the isolate.
+   *
+   * \param microtask_queue An optional microtask queue used to manage
+   * the microtasks created in this context. If not set the per-isolate
+   * default microtask queue would be used.
+   *
+   * \param context_data_deserializer An optional callback used
+   * to deserialize embedder data set by
+   * v8::Context::SetAlignedPointerInEmbedderData() in the default
+   * context from the default context snapshot. It does not need to be
+   * configured if the default context snapshot contains no pointer embedder
+   * data, or if no custom startup snapshot is configured in the
+   * v8::CreateParams used to create the isolate.
    */
   static Local<Context> New(
       Isolate* isolate, ExtensionConfiguration* extensions = nullptr,
@@ -91,7 +114,9 @@ class V8_EXPORT Context : public Data {
       MaybeLocal<Value> global_object = MaybeLocal<Value>(),
       DeserializeInternalFieldsCallback internal_fields_deserializer =
           DeserializeInternalFieldsCallback(),
-      MicrotaskQueue* microtask_queue = nullptr);
+      MicrotaskQueue* microtask_queue = nullptr,
+      DeserializeContextDataCallback context_data_deserializer =
+          DeserializeContextDataCallback());
 
   /**
    * Create a new context from a (non-default) context snapshot. There
@@ -103,21 +128,37 @@ class V8_EXPORT Context : public Data {
    * \param context_snapshot_index The index of the context snapshot to
    * deserialize from. Use v8::Context::New for the default snapshot.
    *
-   * \param embedder_fields_deserializer Optional callback to deserialize
-   * internal fields. It should match the SerializeInternalFieldCallback used
-   * to serialize.
+   * \param internal_fields_deserializer An optional callback used
+   * to deserialize fields set by
+   * v8::Object::SetAlignedPointerInInternalField() in wrapper objects
+   * from the default context snapshot. It does not need to be
+   * configured if there are no wrapper objects with no internal
+   * pointer fields in the default context snapshot or if no startup
+   * snapshot is configured when the isolate is created.
    *
    * \param extensions See v8::Context::New.
    *
    * \param global_object See v8::Context::New.
+   *
+   * \param internal_fields_deserializer Similar to
+   * internal_fields_deserializer in v8::Context::New but applies to
+   * the context specified by the context_snapshot_index.
+   *
+   * \param microtask_queue  See v8::Context::New.
+   *
+   * \param context_data_deserializer  Similar to
+   * context_data_deserializer in v8::Context::New but applies to
+   * the context specified by the context_snapshot_index.
    */
   static MaybeLocal<Context> FromSnapshot(
       Isolate* isolate, size_t context_snapshot_index,
-      DeserializeInternalFieldsCallback embedder_fields_deserializer =
+      DeserializeInternalFieldsCallback internal_fields_deserializer =
           DeserializeInternalFieldsCallback(),
       ExtensionConfiguration* extensions = nullptr,
       MaybeLocal<Value> global_object = MaybeLocal<Value>(),
-      MicrotaskQueue* microtask_queue = nullptr);
+      MicrotaskQueue* microtask_queue = nullptr,
+      DeserializeContextDataCallback context_data_deserializer =
+          DeserializeContextDataCallback());
 
   /**
    * Returns an global object that isn't backed by an actual context.
@@ -182,7 +223,7 @@ class V8_EXPORT Context : public Data {
      * parameter. Returns true if the operation completed successfully.
      */
     virtual bool FreezeEmbedderObjectAndGetChildren(
-        Local<Object> obj, std::vector<Local<Object>>& children_out) = 0;
+        Local<Object> obj, LocalVector<Object>& children_out) = 0;
   };
 
   /**
@@ -310,18 +351,6 @@ class V8_EXPORT Context : public Data {
   void SetAbortScriptExecution(AbortScriptExecutionCallback callback);
 
   /**
-   * Returns the value that was set or restored by
-   * SetContinuationPreservedEmbedderData(), if any.
-   */
-  Local<Value> GetContinuationPreservedEmbedderData() const;
-
-  /**
-   * Sets a value that will be stored on continuations and reset while the
-   * continuation runs.
-   */
-  void SetContinuationPreservedEmbedderData(Local<Value> context);
-
-  /**
    * Set or clear hooks to be invoked for promise lifecycle operations.
    * To clear a hook, set it to an empty v8::Function. Each function will
    * receive the observed promise as the first argument. If a chaining
@@ -436,12 +465,12 @@ void* Context::GetAlignedPointerFromEmbedderData(int index) {
 
 template <class T>
 MaybeLocal<T> Context::GetDataFromSnapshotOnce(size_t index) {
-  auto slot = GetDataFromSnapshotOnce(index);
-  if (slot) {
+  if (auto slot = GetDataFromSnapshotOnce(index); slot) {
     internal::PerformCastCheck(
         internal::ValueHelper::SlotAsValue<T, false>(slot));
+    return Local<T>::FromSlot(slot);
   }
-  return Local<T>::FromSlot(slot);
+  return {};
 }
 
 Context* Context::Cast(v8::Data* data) {

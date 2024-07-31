@@ -1,0 +1,110 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("uv_gn_build") {
+  config("uv_external_config") {
+    include_dirs = [ "include" ]
+  }
+
+  config("uv_internal_config") {
+    include_dirs = [
+      "include",
+      "src",
+    ]
+
+    defines = [ "BUILDING_UV_SHARED" ]  # always export symbols
+    if (is_posix) {
+      defines += [
+        "_LARGEFILE_SOURCE",
+        "_FILE_OFFSET_BITS=64",
+      ]
+    }
+    if (is_linux) {
+      defines += [
+        "_POSIX_C_SOURCE=200112",
+        "_GNU_SOURCE",
+      ]
+    }
+    if (is_apple) {
+      defines += [
+        "_DARWIN_USE_64_BIT_INODE=1",
+        "_DARWIN_UNLIMITED_SELECT=1",
+      ]
+    }
+    if (is_clang || !is_win) {
+      cflags_c = [
+        "-Wno-deprecated-declarations",
+        "-Wno-extra-semi",
+        "-Wno-implicit-fallthrough",
+        "-Wno-missing-braces",
+        "-Wno-string-conversion",
+        "-Wno-shadow",
+        "-Wno-unreachable-code",
+        "-Wno-unreachable-code-return",
+        "-Wno-unused-but-set-parameter",
+        "-Wno-unused-but-set-variable",
+        "-Wno-unused-function",
+        "-Wno-unused-result",
+        "-Wno-unused-variable",
+      ]
+    }
+  }
+
+  gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                            [ rebase_path("uv.gyp") ],
+                            "scope",
+                            [ "uv.gyp" ])
+
+  component(target_name) {
+    forward_variables_from(invoker, "*")
+
+    configs += [ ":uv_internal_config" ]
+    public_configs = [ ":uv_external_config" ]
+
+    if (is_posix) {
+      configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
+      configs += [ "//build/config/gcc:symbol_visibility_default" ]
+    }
+
+    if (is_win) {
+      libs = [
+        "advapi32.lib",
+        "iphlpapi.lib",
+        "psapi.lib",
+        "shell32.lib",
+        "user32.lib",
+        "userenv.lib",
+        "ws2_32.lib",
+      ]
+    }
+    if (is_posix) {
+      libs = [ "m" ]
+      ldflags = [ "-pthread" ]
+    }
+    if (is_linux) {
+      libs += [
+        "dl",
+        "rt",
+      ]
+    }
+
+    sources = gypi_values.uv_sources_common
+    if (is_win) {
+      sources += gypi_values.uv_sources_win
+    }
+    if (is_posix) {
+      sources += gypi_values.uv_sources_posix +
+                 [ "src/unix/proctitle.c" ]
+    }
+    if (is_linux) {
+      sources += gypi_values.uv_sources_linux
+    }
+    if (is_apple) {
+      sources += gypi_values.uv_sources_apple +
+                 gypi_values.uv_sources_bsd_common
+    }
+  }
+}

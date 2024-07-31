@@ -18,7 +18,11 @@ places the result in B<r> (C<(a*r)%n==1>). If B<r> is NULL,
 a new B<BIGNUM> is created.
 
 B<ctx> is a previously allocated B<BN_CTX> used for temporary
-variables. B<r> may be the same B<BIGNUM> as B<a> or B<n>.
+variables. B<r> may be the same B<BIGNUM> as B<a>.
+
+=head1 NOTES
+
+It is an error to use the same B<BIGNUM> as B<n>.
 
 =head1 RETURN VALUES
 

@@ -1,8 +1,6 @@
-'use strict'
-
-const { resolve } = require('path')
-const BaseCommand = require('../base-command.js')
-const log = require('../utils/log-shim.js')
+const { resolve } = require('node:path')
+const BaseCommand = require('../base-cmd.js')
+const { log, output } = require('proc-log')
 
 class QuerySelectorItem {
   constructor (node) {
@@ -50,70 +48,76 @@ class Query extends BaseCommand {
     'workspaces',
     'include-workspace-root',
     'package-lock-only',
+    'expect-results',
   ]
 
-  get parsedResponse () {
-    return JSON.stringify(this.#response, null, 2)
+  constructor (...args) {
+    super(...args)
+    this.npm.config.set('json', true)
   }
 
   async exec (args) {
-    // one dir up from wherever node_modules lives
-    const where = resolve(this.npm.dir, '..')
+    const packageLock = this.npm.config.get('package-lock-only')
     const Arborist = require('@npmcli/arborist')
-    const opts = {
+    const arb = new Arborist({
       ...this.npm.flatOptions,
-      path: where,
-      forceActual: true,
-    }
-    const arb = new Arborist(opts)
+      // one dir up from wherever node_modules lives
+      path: resolve(this.npm.dir, '..'),
+      forceActual: !packageLock,
+    })
     let tree
-    if (this.npm.config.get('package-lock-only')) {
+    if (packageLock) {
       try {
         tree = await arb.loadVirtual()
       } catch (err) {
         log.verbose('loadVirtual', err.stack)
-        /* eslint-disable-next-line max-len */
-        throw this.usageError('A package lock or shrinkwrap file is required in package-lock-only mode')
+        throw this.usageError(
+          'A package lock or shrinkwrap file is required in package-lock-only mode'
+        )
       }
     } else {
-      tree = await arb.loadActual(opts)
+      tree = await arb.loadActual()
     }
-    const items = await tree.querySelectorAll(args[0], this.npm.flatOptions)
-    this.buildResponse(items)
-
-    this.npm.output(this.parsedResponse)
+    await this.#queryTree(tree, args[0])
+    this.#output()
   }
 
   async execWorkspaces (args) {
     await this.setWorkspaces()
     const Arborist = require('@npmcli/arborist')
-    const opts = {
+    const arb = new Arborist({
       ...this.npm.flatOptions,
       path: this.npm.prefix,
+    })
+    // FIXME: Workspace support in query does not work as expected so this does not
+    // do the same package-lock-only check as this.exec().
+    // https://github.com/npm/cli/pull/6732#issuecomment-1708804921
+    const tree = await arb.loadActual()
+    for (const path of this.workspacePaths) {
+      const wsTree = path === tree.root.path
+        ? tree // --includes-workspace-root
+        : await tree.querySelectorAll(`.workspace:path(${path})`).then(r => r[0].target)
+      await this.#queryTree(wsTree, args[0])
     }
-    const arb = new Arborist(opts)
-    const tree = await arb.loadActual(opts)
-    for (const workspacePath of this.workspacePaths) {
-      let items
-      if (workspacePath === tree.root.path) {
-        // include-workspace-root
-        items = await tree.querySelectorAll(args[0])
-      } else {
-        const [workspace] = await tree.querySelectorAll(`.workspace:path(${workspacePath})`)
-        items = await workspace.target.querySelectorAll(args[0], this.npm.flatOptions)
-      }
-      this.buildResponse(items)
-    }
-    this.npm.output(this.parsedResponse)
+    this.#output()
+  }
+
+  #output () {
+    this.checkExpected(this.#response.length)
+    output.buffer(this.#response)
   }
 
   // builds a normalized inventory
-  buildResponse (items) {
+  async #queryTree (tree, arg) {
+    const items = await tree.querySelectorAll(arg, this.npm.flatOptions)
     for (const node of items) {
-      if (!this.#seen.has(node.target.location)) {
+      const { location } = node.target
+      if (!location || !this.#seen.has(location)) {
         const item = new QuerySelectorItem(node)
         this.#response.push(item)
-        this.#seen.add(item.location)
+        if (location) {
+          this.#seen.add(item.location)
+        }
       }
     }
   }

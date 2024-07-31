@@ -225,6 +225,7 @@ const values = [
       const errLines = stderr.trim().split(/[\r\n]+/);
       const errLine = errLines.find((l) => /^Error/.exec(l));
       assert.strictEqual(errLine, `Error: ${fixture}`);
+      assert.strictEqual(errLines.length, 7);
     })
   );
 }
@@ -277,5 +278,22 @@ const values = [
       message: 'The last argument must be of type function.' +
                common.invalidArgTypeHelper(value)
     });
+  });
+}
+
+{
+  // Test Promise factory
+  function promiseFn(value) {
+    return Promise.reject(value);
+  }
+
+  const cbPromiseFn = callbackify(promiseFn);
+
+  cbPromiseFn(null, (err) => {
+    assert.strictEqual(err.message, 'Promise was rejected with falsy value');
+    assert.strictEqual(err.code, 'ERR_FALSY_VALUE_REJECTION');
+    assert.strictEqual(err.reason, null);
+    const stack = err.stack.split(/[\r\n]+/);
+    assert.match(stack[1], /at process\.processTicksAndRejections/);
   });
 }

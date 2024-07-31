@@ -8,7 +8,7 @@ const assert = require('assert');
 const { spawnSync } = require('child_process');
 
 {
-  // Relative path as CLI args are NOT supported yet
+  // Relative path as CLI args are supported
   const { status, stdout } = spawnSync(
     process.execPath,
     [
@@ -25,6 +25,6 @@ const { spawnSync } = require('child_process');
   );
 
   const [fsWrite] = stdout.toString().split('\n');
-  assert.strictEqual(fsWrite, 'false');
+  assert.strictEqual(fsWrite, 'true');
   assert.strictEqual(status, 0);
 }

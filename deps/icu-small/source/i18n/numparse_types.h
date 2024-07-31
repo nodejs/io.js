@@ -12,8 +12,7 @@
 #include "string_segment.h"
 
 U_NAMESPACE_BEGIN
-namespace numparse {
-namespace impl {
+namespace numparse::impl {
 
 // Forward-declarations
 class ParsedNumber;
@@ -263,9 +262,7 @@ class U_I18N_API MutableMatcherCollection {
     virtual void addMatcher(NumberParseMatcher& matcher) = 0;
 };
 
-
-} // namespace impl
-} // namespace numparse
+} // namespace numparse::impl
 U_NAMESPACE_END
 
 #endif //__NUMPARSE_TYPES_H__

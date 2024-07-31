@@ -3,6 +3,8 @@ import { TlsOptions } from 'tls'
 import Dispatcher from './dispatcher'
 import buildConnector from "./connector";
 
+type ClientConnectOptions = Omit<Dispatcher.ConnectOptions, "origin">;
+
 /**
  * A basic HTTP/1.1 client, mapped on top a single TCP/TLS connection. Pipelining is disabled by default.
  */
@@ -14,6 +16,15 @@ export class Client extends Dispatcher {
   closed: boolean;
   /** `true` after `client.destroyed()` has been called or `client.close()` has been called and the client shutdown has completed. */
   destroyed: boolean;
+
+  // Override dispatcher APIs.
+  override connect(
+    options: ClientConnectOptions
+  ): Promise<Dispatcher.ConnectData>;
+  override connect(
+    options: ClientConnectOptions,
+    callback: (err: Error | null, data: Dispatcher.ConnectData) => void
+  ): void;
 }
 
 export declare namespace Client {
@@ -77,7 +88,7 @@ export declare namespace Client {
     */
     allowH2?: boolean;
     /**
-     * @description Dictates the maximum number of concurrent streams for a single H2 session. It can be overriden by a SETTINGS remote frame.
+     * @description Dictates the maximum number of concurrent streams for a single H2 session. It can be overridden by a SETTINGS remote frame.
      * @default 100
     */
     maxConcurrentStreams?: number

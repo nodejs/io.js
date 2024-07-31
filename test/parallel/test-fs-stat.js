@@ -80,8 +80,6 @@ fs.stat(__filename, common.mustSucceed((s) => {
   assert.strictEqual(s.isFIFO(), false);
   assert.strictEqual(s.isSymbolicLink(), false);
 
-  const jsonString = JSON.stringify(s);
-  const parsed = JSON.parse(jsonString);
   [
     'dev', 'mode', 'nlink', 'uid',
     'gid', 'rdev', 'blksize', 'ino', 'size', 'blocks',
@@ -91,19 +89,15 @@ fs.stat(__filename, common.mustSucceed((s) => {
     assert.ok(k in s, `${k} should be in Stats`);
     assert.notStrictEqual(s[k], undefined, `${k} should not be undefined`);
     assert.notStrictEqual(s[k], null, `${k} should not be null`);
-    assert.notStrictEqual(parsed[k], undefined, `${k} should not be undefined`);
-    assert.notStrictEqual(parsed[k], null, `${k} should not be null`);
   });
   [
     'dev', 'mode', 'nlink', 'uid', 'gid', 'rdev', 'blksize', 'ino', 'size',
     'blocks', 'atimeMs', 'mtimeMs', 'ctimeMs', 'birthtimeMs',
   ].forEach((k) => {
     assert.strictEqual(typeof s[k], 'number', `${k} should be a number`);
-    assert.strictEqual(typeof parsed[k], 'number', `${k} should be a number`);
   });
   ['atime', 'mtime', 'ctime', 'birthtime'].forEach((k) => {
     assert.ok(s[k] instanceof Date, `${k} should be a Date`);
-    assert.strictEqual(typeof parsed[k], 'string', `${k} should be a string`);
   });
 }));
 
@@ -160,3 +154,61 @@ fs.open(__filename, 'r', undefined, common.mustCall((err, fd) => {
 
 // Should not throw an error
 fs.lstat(__filename, undefined, common.mustCall());
+
+{
+  fs.Stats(
+    0,                                        // dev
+    0,                                        // mode
+    0,                                        // nlink
+    0,                                        // uid
+    0,                                        // gid
+    0,                                        // rdev
+    0,                                        // blksize
+    0,                                        // ino
+    0,                                        // size
+    0,                                        // blocks
+    Date.UTC(1970, 0, 1, 0, 0, 0),            // atime
+    Date.UTC(1970, 0, 1, 0, 0, 0),            // mtime
+    Date.UTC(1970, 0, 1, 0, 0, 0),            // ctime
+    Date.UTC(1970, 0, 1, 0, 0, 0)             // birthtime
+  );
+  common.expectWarning({
+    DeprecationWarning: [
+      ['fs.Stats constructor is deprecated.',
+       'DEP0180'],
+    ]
+  });
+}
+
+{
+  // These two tests have an equivalent in ./test-fs-stat-bigint.js
+
+  // Stats Date properties can be set before reading them
+  fs.stat(__filename, common.mustSucceed((s) => {
+    s.atime = 2;
+    s.mtime = 3;
+    s.ctime = 4;
+    s.birthtime = 5;
+
+    assert.strictEqual(s.atime, 2);
+    assert.strictEqual(s.mtime, 3);
+    assert.strictEqual(s.ctime, 4);
+    assert.strictEqual(s.birthtime, 5);
+  }));
+
+  // Stats Date properties can be set after reading them
+  fs.stat(__filename, common.mustSucceed((s) => {
+    // eslint-disable-next-line no-unused-expressions
+    s.atime, s.mtime, s.ctime, s.birthtime;
+
+    s.atime = 2;
+    s.mtime = 3;
+    s.ctime = 4;
+    s.birthtime = 5;
+
+    assert.strictEqual(s.atime, 2);
+    assert.strictEqual(s.mtime, 3);
+    assert.strictEqual(s.ctime, 4);
+    assert.strictEqual(s.birthtime, 5);
+  }));
+}

@@ -28,8 +28,8 @@ macro EnsureWriteableFastElements(
   dcheck(IsFastSmiOrTaggedElementsKind(array.map.elements_kind));
 
   const length = Convert<intptr>(Cast<Smi>(array.length) otherwise unreachable);
-  array.elements =
-      ExtractFixedArray(UnsafeCast<FixedArray>(elements), 0, length, length);
+  array.elements = ExtractFixedArray(
+      UnsafeCast<FixedArray>(elements), 0, length, length, TheHole);
   dcheck(array.elements.map != kCOWMap);
 }
 

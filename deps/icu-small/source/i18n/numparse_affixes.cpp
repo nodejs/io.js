@@ -29,7 +29,7 @@ namespace {
  * Either both arguments must be null or the pattern string inside the AffixPatternMatcher must equal
  * the given pattern string.
  */
-static bool matched(const AffixPatternMatcher* affix, const UnicodeString& patternString) {
+bool matched(const AffixPatternMatcher* affix, const UnicodeString& patternString) {
     return (affix == nullptr && patternString.isBogus()) ||
            (affix != nullptr && affix->getPattern() == patternString);
 }
@@ -37,7 +37,7 @@ static bool matched(const AffixPatternMatcher* affix, const UnicodeString& patte
 /**
  * Helper method to return the length of the given AffixPatternMatcher. Returns 0 for null.
  */
-static int32_t length(const AffixPatternMatcher* matcher) {
+int32_t length(const AffixPatternMatcher* matcher) {
     return matcher == nullptr ? 0 : matcher->getPattern().length();
 }
 
@@ -45,7 +45,7 @@ static int32_t length(const AffixPatternMatcher* matcher) {
  * Helper method to return whether (1) both lhs and rhs are null/invalid, or (2) if they are both
  * valid, whether they are equal according to operator==.  Similar to Java Objects.equals()
  */
-static bool equals(const AffixPatternMatcher* lhs, const AffixPatternMatcher* rhs) {
+bool equals(const AffixPatternMatcher* lhs, const AffixPatternMatcher* rhs) {
     if (lhs == nullptr && rhs == nullptr) {
         return true;
     }

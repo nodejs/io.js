@@ -8,8 +8,8 @@
 // a result.
 
 const localeCompare = require('@isaacs/string-locale-compare')('en')
-const log = require('proc-log')
-const { cleanUrl } = require('npm-registry-fetch')
+const { log } = require('proc-log')
+const { redact } = require('@npmcli/redact')
 const deepestNestingTarget = require('./deepest-nesting-target.js')
 const CanPlaceDep = require('./can-place-dep.js')
 const {
@@ -188,7 +188,7 @@ class PlaceDep {
       `${this.dep.name}@${this.dep.version}`,
       this.canPlace.description,
       `for: ${this.edge.from.package._id || this.edge.from.location}`,
-      `want: ${cleanUrl(this.edge.spec || '*')}`
+      `want: ${redact(this.edge.spec || '*')}`
     )
 
     const placementType = this.canPlace.canPlace === CONFLICT

@@ -272,7 +272,7 @@ class ConsStringGenerationData {
   int max_leaves_;
   // Cached data.
   Handle<String> building_blocks_[kNumberOfBuildingBlocks];
-  String empty_string_;
+  Tagged<String> empty_string_;
   MyRandomNumberGenerator rng_;
   // Stats.
   ConsStringStats stats_;
@@ -600,7 +600,7 @@ TEST(ConsStringWithEmptyFirstFlatten) {
       isolate->factory()->NewStringFromAsciiChecked("snd012345012345678");
   cons->set_first(*new_fst);
   cons->set_second(*new_snd);
-  CHECK(!cons->IsFlat(GetPtrComprCageBase(*cons)));
+  CHECK(!cons->IsFlat());
   CHECK_EQ(initial_length, new_fst->length() + new_snd->length());
   CHECK_EQ(initial_length, cons->length());
 
@@ -1689,16 +1689,16 @@ TEST(InvalidExternalString) {
     HandleScope scope(isolate);
     DummyOneByteResource r;
     CHECK(isolate->factory()->NewExternalStringFromOneByte(&r).is_null());
-    CHECK(isolate->has_pending_exception());
-    isolate->clear_pending_exception();
+    CHECK(isolate->has_exception());
+    isolate->clear_exception();
   }
 
   {
     HandleScope scope(isolate);
     DummyResource r;
     CHECK(isolate->factory()->NewExternalStringFromTwoByte(&r).is_null());
-    CHECK(isolate->has_pending_exception());
-    isolate->clear_pending_exception();
+    CHECK(isolate->has_exception());
+    isolate->clear_exception();
   }
 }
 
@@ -1716,8 +1716,8 @@ TEST(InvalidExternalString) {
               ->FUN(v8::base::Vector<const TYPE>::cast(dummy))           \
               .is_null());                                               \
     memset(dummy.begin(), 0x20, dummy.length() * sizeof(TYPE));          \
-    CHECK(isolate->has_pending_exception());                             \
-    isolate->clear_pending_exception();                                  \
+    CHECK(isolate->has_exception());                                     \
+    isolate->clear_exception();                                          \
     dummy.Dispose();                                                     \
   }
 
@@ -1734,10 +1734,10 @@ TEST(FormatMessage) {
   Handle<String> arg0 = isolate->factory()->NewStringFromAsciiChecked("arg0");
   Handle<String> arg1 = isolate->factory()->NewStringFromAsciiChecked("arg1");
   Handle<String> arg2 = isolate->factory()->NewStringFromAsciiChecked("arg2");
-  Handle<String> result =
-      MessageFormatter::TryFormat(
-          isolate, MessageTemplate::kPropertyNotFunction, arg0, arg1, arg2)
-          .ToHandleChecked();
+  Handle<String> result = MessageFormatter::TryFormat(
+                              isolate, MessageTemplate::kPropertyNotFunction,
+                              base::VectorOf({arg0, arg1, arg2}))
+                              .ToHandleChecked();
   Handle<String> expected = isolate->factory()->NewStringFromAsciiChecked(
       "'arg0' returned for property 'arg1' of object 'arg2' is not a function");
   CHECK(String::Equals(isolate, result, expected));
@@ -1753,7 +1753,7 @@ TEST(Regress609831) {
         "String.fromCharCode(32, 32, 32, 32, 32, "
         "32, 32, 32, 32, 32, 32, 32, 32, 32, 32, "
         "32, 32, 32, 32, 32, 32, 32, 32, 32, 32)");
-    CHECK(IsSeqOneByteString(*v8::Utils::OpenHandle(*result)));
+    CHECK(IsSeqOneByteString(*v8::Utils::OpenDirectHandle(*result)));
   }
   {
     HandleScope scope(isolate);
@@ -1761,7 +1761,7 @@ TEST(Regress609831) {
         "String.fromCharCode(432, 432, 432, 432, 432, "
         "432, 432, 432, 432, 432, 432, 432, 432, 432, "
         "432, 432, 432, 432, 432, 432, 432, 432, 432)");
-    CHECK(IsSeqTwoByteString(*v8::Utils::OpenHandle(*result)));
+    CHECK(IsSeqTwoByteString(*v8::Utils::OpenDirectHandle(*result)));
   }
 }
 

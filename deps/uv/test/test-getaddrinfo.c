@@ -40,8 +40,8 @@ static void getaddrinfo_fail_cb(uv_getaddrinfo_t* req,
                                 int status,
                                 struct addrinfo* res) {
 
-  ASSERT(fail_cb_called == 0);
-  ASSERT(status < 0);
+  ASSERT_OK(fail_cb_called);
+  ASSERT_LT(status, 0);
   ASSERT_NULL(res);
   uv_freeaddrinfo(res);  /* Should not crash. */
   fail_cb_called++;
@@ -51,7 +51,7 @@ static void getaddrinfo_fail_cb(uv_getaddrinfo_t* req,
 static void getaddrinfo_basic_cb(uv_getaddrinfo_t* handle,
                                  int status,
                                  struct addrinfo* res) {
-  ASSERT(handle == getaddrinfo_handle);
+  ASSERT_PTR_EQ(handle, getaddrinfo_handle);
   getaddrinfo_cbs++;
   free(handle);
   uv_freeaddrinfo(res);
@@ -66,7 +66,7 @@ static void getaddrinfo_cuncurrent_cb(uv_getaddrinfo_t* handle,
 
   for (i = 0; i < CONCURRENT_COUNT; i++) {
     if (&getaddrinfo_handles[i] == handle) {
-      ASSERT(i == *data);
+      ASSERT_EQ(i, *data);
 
       callback_counts[i]++;
       break;
@@ -89,22 +89,22 @@ TEST_IMPL(getaddrinfo_fail) {
   
   uv_getaddrinfo_t req;
 
-  ASSERT(UV_EINVAL == uv_getaddrinfo(uv_default_loop(),
-                                     &req,
-                                     (uv_getaddrinfo_cb) abort,
-                                     NULL,
-                                     NULL,
-                                     NULL));
+  ASSERT_EQ(UV_EINVAL, uv_getaddrinfo(uv_default_loop(),
+                                      &req,
+                                      (uv_getaddrinfo_cb) abort,
+                                      NULL,
+                                      NULL,
+                                      NULL));
 
   /* Use a FQDN by ending in a period */
-  ASSERT(0 == uv_getaddrinfo(uv_default_loop(),
-                             &req,
-                             getaddrinfo_fail_cb,
-                             "example.invalid.",
-                             NULL,
-                             NULL));
-  ASSERT(0 == uv_run(uv_default_loop(), UV_RUN_DEFAULT));
-  ASSERT(fail_cb_called == 1);
+  ASSERT_OK(uv_getaddrinfo(uv_default_loop(),
+                           &req,
+                           getaddrinfo_fail_cb,
+                           "example.invalid.",
+                           NULL,
+                           NULL));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+  ASSERT_EQ(1, fail_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -119,12 +119,12 @@ TEST_IMPL(getaddrinfo_fail_sync) {
   uv_getaddrinfo_t req;
 
   /* Use a FQDN by ending in a period */
-  ASSERT(0 > uv_getaddrinfo(uv_default_loop(),
-                            &req,
-                            NULL,
-                            "example.invalid.",
-                            NULL,
-                            NULL));
+  ASSERT_GT(0, uv_getaddrinfo(uv_default_loop(),
+                              &req,
+                              NULL,
+                              "example.invalid.",
+                              NULL,
+                              NULL));
   uv_freeaddrinfo(req.addrinfo);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
@@ -147,11 +147,11 @@ TEST_IMPL(getaddrinfo_basic) {
                      name,
                      NULL,
                      NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(getaddrinfo_cbs == 1);
+  ASSERT_EQ(1, getaddrinfo_cbs);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -165,12 +165,12 @@ TEST_IMPL(getaddrinfo_basic_sync) {
 #endif
   uv_getaddrinfo_t req;
 
-  ASSERT(0 == uv_getaddrinfo(uv_default_loop(),
-                             &req,
-                             NULL,
-                             name,
-                             NULL,
-                             NULL));
+  ASSERT_OK(uv_getaddrinfo(uv_default_loop(),
+                           &req,
+                           NULL,
+                           name,
+                           NULL,
+                           NULL));
   uv_freeaddrinfo(req.addrinfo);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
@@ -201,13 +201,13 @@ TEST_IMPL(getaddrinfo_concurrent) {
                        name,
                        NULL,
                        NULL);
-    ASSERT(r == 0);
+    ASSERT_OK(r);
   }
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
   for (i = 0; i < CONCURRENT_COUNT; i++) {
-    ASSERT(callback_counts[i] == 1);
+    ASSERT_EQ(1, callback_counts[i]);
   }
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());

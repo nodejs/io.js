@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include <string.h>
 #include <openssl/bn.h>
 #include <openssl/core.h>
+#include <openssl/err.h>
 #include <openssl/params.h>
 #include "internal/numbers.h"
 #include "internal/nelem.h"
@@ -558,6 +559,7 @@ static const OSSL_PARAM params_from_text[] = {
     /* Arbitrary size buffer.  Make sure the result fits in a long */
     OSSL_PARAM_DEFN("num", OSSL_PARAM_INTEGER, NULL, 0),
     OSSL_PARAM_DEFN("unum", OSSL_PARAM_UNSIGNED_INTEGER, NULL, 0),
+    OSSL_PARAM_DEFN("octets", OSSL_PARAM_OCTET_STRING, NULL, 0),
     OSSL_PARAM_END,
 };
 
@@ -655,14 +657,56 @@ static int check_int_from_text(const struct int_from_text_test_st a)
     return a.expected_res;
 }
 
+static int check_octetstr_from_hexstr(void)
+{
+    OSSL_PARAM param;
+    static const char *values[] = { "", "F", "FF", "FFF", "FFFF", NULL };
+    int i;
+    int errcnt = 0;
+
+    /* Test odd vs even number of hex digits */
+    for (i = 0; values[i] != NULL; i++) {
+        int expected = (strlen(values[i]) % 2) != 1;
+        int result;
+
+        ERR_clear_error();
+        memset(&param, 0, sizeof(param));
+        if (expected)
+            result =
+                TEST_true(OSSL_PARAM_allocate_from_text(&param,
+                                                        params_from_text,
+                                                        "hexoctets", values[i], 0,
+                                                        NULL));
+        else
+            result =
+                TEST_false(OSSL_PARAM_allocate_from_text(&param,
+                                                         params_from_text,
+                                                         "hexoctets", values[i], 0,
+                                                         NULL));
+        if (!result) {
+            TEST_error("unexpected OSSL_PARAM_allocate_from_text() %s for 'octets' \"%s\"",
+                       (expected ? "failure" : "success"), values[i]);
+            errcnt++;
+        }
+        OPENSSL_free(param.data);
+    }
+    return errcnt == 0;
+}
+
 static int test_allocate_from_text(int i)
 {
     return check_int_from_text(int_from_text_test_cases[i]);
+}
+
+static int test_more_allocate_from_text(void)
+{
+    return check_octetstr_from_hexstr();
 }
 
 int setup_tests(void)
 {
     ADD_ALL_TESTS(test_case, OSSL_NELEM(test_cases));
     ADD_ALL_TESTS(test_allocate_from_text, OSSL_NELEM(int_from_text_test_cases));
+    ADD_TEST(test_more_allocate_from_text);
     return 1;
 }

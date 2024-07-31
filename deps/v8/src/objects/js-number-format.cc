@@ -556,9 +556,11 @@ Handle<String> SignDisplayString(Isolate* isolate,
   return ReadOnlyRoots(isolate).auto_string_handle();
 }
 
+}  // anonymous namespace
+
 // Return RoundingMode as string based on skeleton.
-Handle<String> RoundingModeString(Isolate* isolate,
-                                  const icu::UnicodeString& skeleton) {
+Handle<String> JSNumberFormat::RoundingModeString(
+    Isolate* isolate, const icu::UnicodeString& skeleton) {
   static const char* rounding_mode = "rounding-mode-";
   int32_t start = skeleton.indexOf(rounding_mode);
   if (start >= 0) {
@@ -611,8 +613,8 @@ Handle<String> RoundingModeString(Isolate* isolate,
   return ReadOnlyRoots(isolate).halfEven_string_handle();
 }
 
-Handle<Object> RoundingIncrement(Isolate* isolate,
-                                 const icu::UnicodeString& skeleton) {
+Handle<Object> JSNumberFormat::RoundingIncrement(
+    Isolate* isolate, const icu::UnicodeString& skeleton) {
   int32_t cur = skeleton.indexOf(u"precision-increment/");
   if (cur < 0) return isolate->factory()->NewNumberFromInt(1);
   cur += 20;  // length of "precision-increment/"
@@ -627,8 +629,8 @@ Handle<Object> RoundingIncrement(Isolate* isolate,
 }
 
 // Return RoundingPriority as string based on skeleton.
-Handle<String> RoundingPriorityString(Isolate* isolate,
-                                      const icu::UnicodeString& skeleton) {
+Handle<String> JSNumberFormat::RoundingPriorityString(
+    Isolate* isolate, const icu::UnicodeString& skeleton) {
   int32_t found;
   // If #r or @r is followed by a SPACE or in the end of line.
   if ((found = skeleton.indexOf("#r")) >= 0 ||
@@ -648,8 +650,8 @@ Handle<String> RoundingPriorityString(Isolate* isolate,
 }
 
 // Return trailingZeroDisplay as string based on skeleton.
-Handle<String> TrailingZeroDisplayString(Isolate* isolate,
-                                         const icu::UnicodeString& skeleton) {
+Handle<String> JSNumberFormat::TrailingZeroDisplayString(
+    Isolate* isolate, const icu::UnicodeString& skeleton) {
   int32_t found;
   if ((found = skeleton.indexOf("/w")) >= 0) {
     if (found + 2 == skeleton.length() || skeleton[found + 2] == ' ') {
@@ -658,8 +660,6 @@ Handle<String> TrailingZeroDisplayString(Isolate* isolate,
   }
   return ReadOnlyRoots(isolate).auto_string_handle();
 }
-
-}  // anonymous namespace
 
 // Return the minimum integer digits by counting the number of '0' after
 // "integer-width/*" in the skeleton.
@@ -786,7 +786,7 @@ std::string UnitFromSkeleton(const icu::UnicodeString& skeleton) {
     return "";
   }
   // Find the end of the subtype.
-  size_t end = str.find(" ", begin);
+  size_t end = str.find(' ', begin);
   // Ex:
   // "unit/acre .### rounding-mode-half-up"
   //       b   e
@@ -847,7 +847,7 @@ JSNumberFormat::SetDigitOptionsToFormatter(
       break;
     case Intl::RoundingType::kMorePrecision:
       relaxed = true;
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case Intl::RoundingType::kLessPrecision:
       precision =
           icu::number::Precision::minMaxFraction(
@@ -910,8 +910,9 @@ Handle<JSObject> JSNumberFormat::ResolvedOptions(
   //    [[Notation]]                    "notation"
   //    [[CompactDisplay]]              "compactDisplay"
   //    [[SignDisplay]]                 "signDisplay"
-  //    [[RoundingMode]]                "roundingMode"
   //    [[RoundingIncrement]]           "roundingIncrement"
+  //    [[RoundingMode]]                "roundingMode"
+  //    [[ComputedRoundingPriority]]    "roundingPriority"
   //    [[TrailingZeroDisplay]]         "trailingZeroDisplay"
 
   CHECK(JSReceiver::CreateDataProperty(isolate, options,
@@ -972,18 +973,6 @@ Handle<JSObject> JSNumberFormat::ResolvedOptions(
           .FromJust());
 
   int32_t mnsd = 0, mxsd = 0, mnfd = 0, mxfd = 0;
-  bool has_significant_digits =
-      SignificantDigitsFromSkeleton(skeleton, &mnsd, &mxsd);
-  if (has_significant_digits) {
-    CHECK(JSReceiver::CreateDataProperty(
-              isolate, options, factory->minimumSignificantDigits_string(),
-              factory->NewNumberFromInt(mnsd), Just(kDontThrow))
-              .FromJust());
-    CHECK(JSReceiver::CreateDataProperty(
-              isolate, options, factory->maximumSignificantDigits_string(),
-              factory->NewNumberFromInt(mxsd), Just(kDontThrow))
-              .FromJust());
-  }
   if (FractionDigitsFromSkeleton(skeleton, &mnfd, &mxfd)) {
     CHECK(JSReceiver::CreateDataProperty(
               isolate, options, factory->minimumFractionDigits_string(),
@@ -992,6 +981,16 @@ Handle<JSObject> JSNumberFormat::ResolvedOptions(
     CHECK(JSReceiver::CreateDataProperty(
               isolate, options, factory->maximumFractionDigits_string(),
               factory->NewNumberFromInt(mxfd), Just(kDontThrow))
+              .FromJust());
+  }
+  if (SignificantDigitsFromSkeleton(skeleton, &mnsd, &mxsd)) {
+    CHECK(JSReceiver::CreateDataProperty(
+              isolate, options, factory->minimumSignificantDigits_string(),
+              factory->NewNumberFromInt(mnsd), Just(kDontThrow))
+              .FromJust());
+    CHECK(JSReceiver::CreateDataProperty(
+              isolate, options, factory->maximumSignificantDigits_string(),
+              factory->NewNumberFromInt(mxsd), Just(kDontThrow))
               .FromJust());
   }
 
@@ -1017,12 +1016,12 @@ Handle<JSObject> JSNumberFormat::ResolvedOptions(
             SignDisplayString(isolate, skeleton), Just(kDontThrow))
             .FromJust());
   CHECK(JSReceiver::CreateDataProperty(
-            isolate, options, factory->roundingMode_string(),
-            RoundingModeString(isolate, skeleton), Just(kDontThrow))
-            .FromJust());
-  CHECK(JSReceiver::CreateDataProperty(
             isolate, options, factory->roundingIncrement_string(),
             RoundingIncrement(isolate, skeleton), Just(kDontThrow))
+            .FromJust());
+  CHECK(JSReceiver::CreateDataProperty(
+            isolate, options, factory->roundingMode_string(),
+            RoundingModeString(isolate, skeleton), Just(kDontThrow))
             .FromJust());
   CHECK(JSReceiver::CreateDataProperty(
             isolate, options, factory->roundingPriority_string(),
@@ -1745,7 +1744,7 @@ Maybe<IntlMathematicalValue> IntlMathematicalValue::From(Isolate* isolate,
       MaybeHandle<BigInt> maybe_bigint = StringToBigInt(isolate, string);
       // If the parsing of BigInt fail, return nan
       if (maybe_bigint.is_null()) {
-        isolate->clear_pending_exception();
+        isolate->clear_exception();
         result.value_ = factory->nan_value();
         return Just(result);
       }

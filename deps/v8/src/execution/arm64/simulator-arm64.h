@@ -1409,7 +1409,7 @@ class Simulator : public DecoderVisitor, public SimulatorBase {
     int number;
   };
 
-  static const PACKey kPACKeyIB;
+  static V8_EXPORT_PRIVATE const PACKey kPACKeyIB;
 
   // Current implementation is that all pointers are tagged.
   static bool HasTBI(uint64_t ptr, PointerType type) {

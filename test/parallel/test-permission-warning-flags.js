@@ -5,7 +5,9 @@ const { spawnSync } = require('child_process');
 const assert = require('assert');
 
 const warnFlags = [
+  '--allow-addons',
   '--allow-child-process',
+  '--allow-wasi',
   '--allow-worker',
 ];
 

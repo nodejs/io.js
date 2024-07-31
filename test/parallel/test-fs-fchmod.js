@@ -14,8 +14,8 @@ const fs = require('fs');
     message: 'The "fd" argument must be of type number.' +
              common.invalidArgTypeHelper(input)
   };
-  assert.throws(() => fs.fchmod(input), errObj);
-  assert.throws(() => fs.fchmodSync(input), errObj);
+  assert.throws(() => fs.fchmod(input, 0o666, () => {}), errObj);
+  assert.throws(() => fs.fchmodSync(input, 0o666), errObj);
 });
 
 
@@ -38,8 +38,8 @@ assert.throws(() => fs.fchmod(1, '123x'), {
     message: 'The value of "fd" is out of range. It must be >= 0 && <= ' +
              `2147483647. Received ${input}`
   };
-  assert.throws(() => fs.fchmod(input), errObj);
-  assert.throws(() => fs.fchmodSync(input), errObj);
+  assert.throws(() => fs.fchmod(input, 0o666, () => {}), errObj);
+  assert.throws(() => fs.fchmodSync(input, 0o666), errObj);
 });
 
 [-1, 2 ** 32].forEach((input) => {
@@ -50,7 +50,7 @@ assert.throws(() => fs.fchmod(1, '123x'), {
              `4294967295. Received ${input}`
   };
 
-  assert.throws(() => fs.fchmod(1, input), errObj);
+  assert.throws(() => fs.fchmod(1, input, () => {}), errObj);
   assert.throws(() => fs.fchmodSync(1, input), errObj);
 });
 
@@ -61,10 +61,10 @@ assert.throws(() => fs.fchmod(1, '123x'), {
     message: 'The value of "fd" is out of range. It must be an integer. ' +
              `Received ${input}`
   };
-  assert.throws(() => fs.fchmod(input), errObj);
-  assert.throws(() => fs.fchmodSync(input), errObj);
+  assert.throws(() => fs.fchmod(input, 0o666, () => {}), errObj);
+  assert.throws(() => fs.fchmodSync(input, 0o666), errObj);
   errObj.message = errObj.message.replace('fd', 'mode');
-  assert.throws(() => fs.fchmod(1, input), errObj);
+  assert.throws(() => fs.fchmod(1, input, () => {}), errObj);
   assert.throws(() => fs.fchmodSync(1, input), errObj);
 });
 
@@ -75,9 +75,9 @@ assert.throws(() => fs.fchmod(1, '123x'), {
     message: 'The value of "fd" is out of range. It must be an integer. ' +
              `Received ${input}`
   };
-  assert.throws(() => fs.fchmod(input), errObj);
-  assert.throws(() => fs.fchmodSync(input), errObj);
+  assert.throws(() => fs.fchmod(input, 0o666, () => {}), errObj);
+  assert.throws(() => fs.fchmodSync(input, 0o666), errObj);
   errObj.message = errObj.message.replace('fd', 'mode');
-  assert.throws(() => fs.fchmod(1, input), errObj);
+  assert.throws(() => fs.fchmod(1, input, () => {}), errObj);
   assert.throws(() => fs.fchmodSync(1, input), errObj);
 });

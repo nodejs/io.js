@@ -9,6 +9,7 @@
 #include "src/base/platform/time.h"
 #include "src/builtins/builtins-definitions.h"
 #include "src/execution/isolate.h"
+#include "src/execution/thread-id.h"
 #include "src/logging/log-inl.h"
 #include "src/logging/log.h"
 
@@ -89,12 +90,18 @@ void TimedHistogram::RecordAbandon(base::ElapsedTimer* timer,
 
 #ifdef DEBUG
 bool TimedHistogram::ToggleRunningState(bool expect_to_run) const {
-  static thread_local base::LazyInstance<
-      std::unordered_map<const TimedHistogram*, bool>>::type active_timer =
-      LAZY_INSTANCE_INITIALIZER;
-  bool is_running = (*active_timer.Pointer())[this];
+#if __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexit-time-destructors"
+#endif
+  static thread_local std::unordered_map<const TimedHistogram*, bool>
+      active_timer;
+#if __clang__
+#pragma clang diagnostic pop
+#endif
+  bool is_running = active_timer[this];
   DCHECK_NE(is_running, expect_to_run);
-  (*active_timer.Pointer())[this] = !is_running;
+  active_timer[this] = !is_running;
   return true;
 }
 #endif

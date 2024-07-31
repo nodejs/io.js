@@ -27,7 +27,7 @@ namespace node {
   /* This was intended for invalid inspector arguments but is actually now */  \
   /* just a duplicate of InvalidCommandLineArgument */                         \
   V(InvalidCommandLineArgument2, 12)                                           \
-  V(UnfinishedTopLevelAwait, 13)                                               \
+  V(UnsettledTopLevelAwait, 13)                                                \
   V(StartupSnapshotFailure, 14)                                                \
   /* If the process exits from unhandled signals e.g. SIGABRT, SIGTRAP, */     \
   /* typically the exit codes are 128 + signal number. We also exit with */    \

@@ -83,9 +83,9 @@ TEST_F(BackgroundCompileTaskTest, SyntaxError) {
   task->RunOnMainThread(isolate());
   ASSERT_FALSE(Compiler::FinalizeBackgroundCompileTask(
       task.get(), isolate(), Compiler::KEEP_EXCEPTION));
-  ASSERT_TRUE(isolate()->has_pending_exception());
+  ASSERT_TRUE(isolate()->has_exception());
 
-  isolate()->clear_pending_exception();
+  isolate()->clear_exception();
 }
 
 TEST_F(BackgroundCompileTaskTest, CompileAndRun) {
@@ -135,9 +135,9 @@ TEST_F(BackgroundCompileTaskTest, CompileFailure) {
   task->RunOnMainThread(isolate());
   ASSERT_FALSE(Compiler::FinalizeBackgroundCompileTask(
       task.get(), isolate(), Compiler::KEEP_EXCEPTION));
-  ASSERT_TRUE(isolate()->has_pending_exception());
+  ASSERT_TRUE(isolate()->has_exception());
 
-  isolate()->clear_pending_exception();
+  isolate()->clear_exception();
 }
 
 class CompileTask : public Task {

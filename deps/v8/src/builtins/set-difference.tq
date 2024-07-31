@@ -19,15 +19,15 @@ transitioning javascript builtin SetPrototypeDifference(
   // 3. Let otherRec be ? GetSetRecord(other).
   let otherRec = GetSetRecord(other, methodName);
 
-  const table = Cast<OrderedHashSet>(o.table) otherwise unreachable;
+  const table = NewStableBackingTableWitness(o);
 
   // 4. Let resultSetData be a copy of O.[[SetData]].
-  let resultSetData = Cast<OrderedHashSet>(CloneFixedArray(
-      table, ExtractFixedArrayFlag::kFixedArrays)) otherwise unreachable;
+  let resultSetData = Cast<OrderedHashSet>(
+      CloneFixedArray(table.GetTable(), ExtractFixedArrayFlag::kFixedArrays))
+      otherwise unreachable;
 
   // 5. Let thisSize be the number of elements in O.[[SetData]].
-  const thisSize =
-      LoadOrderedHashTableMetadata(table, kOrderedHashSetNumberOfElementsIndex);
+  const thisSize = table.LoadSize();
 
   let numberOfElements = Convert<Smi>(thisSize);
 
@@ -36,15 +36,13 @@ transitioning javascript builtin SetPrototypeDifference(
       case (otherSet: JSSetWithNoCustomIteration): {
         CheckSetRecordHasJSSetMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashSet>(otherSet.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherSet);
 
-        const otherSize = LoadOrderedHashTableMetadata(
-            otherTable, kOrderedHashSetNumberOfElementsIndex);
+        const otherSize = otherTable.LoadSize();
 
         if (thisSize <= otherSize) {
-          numberOfElements =
-              FastDifference<OrderedHashSet>(table, otherTable, resultSetData);
+          numberOfElements = FastDifference<OrderedHashSet>(
+              table, otherTable.GetTable(), resultSetData);
         } else {
           numberOfElements = FastDifference<OrderedHashSet>(
               otherTable, resultSetData, resultSetData);
@@ -54,21 +52,19 @@ transitioning javascript builtin SetPrototypeDifference(
       case (otherMap: JSMapWithNoCustomIteration): {
         CheckSetRecordHasJSMapMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashMap>(otherMap.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherMap);
 
-        const otherSize = LoadOrderedHashTableMetadata(
-            otherTable, kOrderedHashSetNumberOfElementsIndex);
+        const otherSize = otherTable.LoadSize();
 
         if (thisSize <= otherSize) {
-          numberOfElements =
-              FastDifference<OrderedHashMap>(table, otherTable, resultSetData);
+          numberOfElements = FastDifference<OrderedHashMap>(
+              table, otherTable.GetTable(), resultSetData);
           goto Done;
         } else {
           // TODO(13556): Change `FastDifference` macro to be able to handle
           // this case as well.
-          let otherIterator =
-              collections::NewUnmodifiedOrderedHashMapIterator(otherTable);
+          let otherIterator = collections::NewUnmodifiedOrderedHashMapIterator(
+              otherTable.GetTable());
 
           // c. Repeat, while next is not false,
           while (true) {
@@ -91,7 +87,7 @@ transitioning javascript builtin SetPrototypeDifference(
     // 6. If thisSize ≤ otherRec.[[Size]], then
     if (thisSize <= Convert<int32>(otherRec.size)) {
       // a. Let index be 0.
-      let thisIter = collections::NewOrderedHashSetIterator(table);
+      let thisIter = collections::NewOrderedHashSetIterator(table.GetTable());
 
       // b. Repeat, while index < thisSize,
       while (true) {
@@ -164,10 +160,11 @@ transitioning javascript builtin SetPrototypeDifference(
 // needs to be checked (tableToLookup), and delete the value from result
 // (resultSetData) if it exists in the table.
 macro FastDifference<T : type extends FixedArray>(
-    implicit context: Context)(collectionToIterate: OrderedHashSet,
-    tableToLookup: T, resultSetData: OrderedHashSet): Smi {
-  let iter =
-      collections::NewUnmodifiedOrderedHashSetIterator(collectionToIterate);
+    implicit context: Context)(
+    collectionToIterate: StableJSSetBackingTableWitness, tableToLookup: T,
+    resultSetData: OrderedHashSet): Smi {
+  let iter = collections::NewUnmodifiedOrderedHashSetIterator(
+      collectionToIterate.GetTable());
 
   let numberOfElements = UnsafeCast<Smi>(
       resultSetData.objects[kOrderedHashSetNumberOfElementsIndex]);

@@ -25,6 +25,8 @@ extern class PrototypeInfo extends Struct {
 
   bit_field: SmiTagged<PrototypeInfoFlags>;
 
-  // [object_create_map]: A field caching the map for Object.create(prototype).
-  object_create_map: Weak<Map>|Undefined;
+  // [derived_maps]: A field caching derived maps. The first entry is the map
+  // for Object.create. The following contain entries used by GetDerivedMap
+  // which feeds Reflect.construct, proxies and similar.
+  derived_maps: WeakArrayList|Undefined;
 }

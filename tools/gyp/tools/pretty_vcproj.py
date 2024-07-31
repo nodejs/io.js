@@ -21,7 +21,7 @@ from xml.dom.minidom import Node
 
 __author__ = "nsylvain (Nicolas Sylvain)"
 ARGUMENTS = None
-REPLACEMENTS = dict()
+REPLACEMENTS = {}
 
 
 def cmp(x, y):

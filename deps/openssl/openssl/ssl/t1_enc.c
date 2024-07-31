@@ -427,7 +427,12 @@ int tls1_change_cipher_state(SSL *s, int which)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (EVP_CIPHER_get0_provider(c) != NULL
+
+    /*
+     * The cipher we actually ended up using in the EVP_CIPHER_CTX may be
+     * different to that in c if we have an ENGINE in use
+     */
+    if (EVP_CIPHER_get0_provider(EVP_CIPHER_CTX_get0_cipher(dd)) != NULL
             && !tls_provider_set_tls_params(s, dd, c, m)) {
         /* SSLfatal already called */
         goto err;

@@ -13,6 +13,7 @@ bitfield struct ScriptFlags extends uint31 {
   // Whether an instrumentation breakpoint is set for this script (wasm only).
   break_on_entry: bool: 1 bit;
   produce_compile_hints: bool: 1 bit;
+  deserialized: bool: 1 bit;
 }
 
 extern class Script extends Struct {

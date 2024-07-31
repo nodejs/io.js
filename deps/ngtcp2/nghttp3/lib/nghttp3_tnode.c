@@ -31,26 +31,12 @@
 #include "nghttp3_conn.h"
 #include "nghttp3_conv.h"
 
-nghttp3_node_id *nghttp3_node_id_init(nghttp3_node_id *nid,
-                                      nghttp3_node_id_type type, int64_t id) {
-  nid->type = type;
-  nid->id = id;
-  return nid;
-}
-
-int nghttp3_node_id_eq(const nghttp3_node_id *a, const nghttp3_node_id *b) {
-  return a->type == b->type && a->id == b->id;
-}
-
-void nghttp3_tnode_init(nghttp3_tnode *tnode, const nghttp3_node_id *nid,
-                        uint64_t seq, uint8_t pri) {
-  assert(nghttp3_pri_uint8_urgency(pri) < NGHTTP3_URGENCY_LEVELS);
-
+void nghttp3_tnode_init(nghttp3_tnode *tnode, int64_t id) {
   tnode->pe.index = NGHTTP3_PQ_BAD_INDEX;
-  tnode->nid = *nid;
-  tnode->seq = seq;
+  tnode->id = id;
   tnode->cycle = 0;
-  tnode->pri = pri;
+  tnode->pri.urgency = NGHTTP3_DEFAULT_URGENCY;
+  tnode->pri.inc = 0;
 }
 
 void nghttp3_tnode_free(nghttp3_tnode *tnode) { (void)tnode; }
@@ -86,12 +72,11 @@ int nghttp3_tnode_schedule(nghttp3_tnode *tnode, nghttp3_pq *pq,
   uint64_t penalty = nwrite / NGHTTP3_STREAM_MIN_WRITELEN;
 
   if (tnode->pe.index == NGHTTP3_PQ_BAD_INDEX) {
-    tnode->cycle = pq_get_first_cycle(pq) +
-                   ((nwrite == 0 || !nghttp3_pri_uint8_inc(tnode->pri))
-                        ? 0
-                        : nghttp3_max(1, penalty));
+    tnode->cycle =
+        pq_get_first_cycle(pq) +
+        ((nwrite == 0 || !tnode->pri.inc) ? 0 : nghttp3_max(1, penalty));
   } else if (nwrite > 0) {
-    if (!nghttp3_pri_uint8_inc(tnode->pri) || nghttp3_pq_size(pq) == 1) {
+    if (!tnode->pri.inc || nghttp3_pq_size(pq) == 1) {
       return 0;
     }
 

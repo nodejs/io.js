@@ -28,6 +28,7 @@
 #include "unicode/smpdtfmt.h"
 #include "unicode/dtptngen.h"
 #include "unicode/udisplaycontext.h"
+#include "unicode/gregocal.h"
 #include "reldtfmt.h"
 #include "sharedobject.h"
 #include "unifiedcache.h"
@@ -121,8 +122,8 @@ DateFmtBestPatternKey::~DateFmtBestPatternKey() { }
 
 
 DateFormat::DateFormat()
-:   fCalendar(0),
-    fNumberFormat(0),
+:   fCalendar(nullptr),
+    fNumberFormat(nullptr),
     fCapitalizationContext(UDISPCTX_CAPITALIZATION_NONE)
 {
 }
@@ -131,8 +132,8 @@ DateFormat::DateFormat()
 
 DateFormat::DateFormat(const DateFormat& other)
 :   Format(other),
-    fCalendar(0),
-    fNumberFormat(0),
+    fCalendar(nullptr),
+    fNumberFormat(nullptr),
     fCapitalizationContext(UDISPCTX_CAPITALIZATION_NONE)
 {
     *this = other;
@@ -277,15 +278,25 @@ DateFormat::format(Calendar& /* unused cal */,
 UnicodeString&
 DateFormat::format(UDate date, UnicodeString& appendTo, FieldPosition& fieldPosition) const {
     if (fCalendar != nullptr) {
-        // Use a clone of our calendar instance
-        Calendar* calClone = fCalendar->clone();
-        if (calClone != nullptr) {
-            UErrorCode ec = U_ZERO_ERROR;
-            calClone->setTime(date, ec);
+        UErrorCode ec = U_ZERO_ERROR;
+        const auto* calType = fCalendar->getType();
+        // Avoid a heap allocation and corresponding free for the common case
+        if (uprv_strcmp(calType, "gregorian") == 0) {
+            GregorianCalendar cal(*static_cast<GregorianCalendar*>(fCalendar));
+            cal.setTime(date, ec);
             if (U_SUCCESS(ec)) {
-                format(*calClone, appendTo, fieldPosition);
+                format(cal, appendTo, fieldPosition);
             }
-            delete calClone;
+        } else {
+            // Use a clone of our calendar instance
+            Calendar *calClone = fCalendar->clone();
+            if (calClone != nullptr) {
+                calClone->setTime(date, ec);
+                if (U_SUCCESS(ec)) {
+                    format(*calClone, appendTo, fieldPosition);
+                }
+                delete calClone;
+            }
         }
     }
     return appendTo;
@@ -297,13 +308,24 @@ UnicodeString&
 DateFormat::format(UDate date, UnicodeString& appendTo, FieldPositionIterator* posIter,
                    UErrorCode& status) const {
     if (fCalendar != nullptr) {
-        Calendar* calClone = fCalendar->clone();
-        if (calClone != nullptr) {
-            calClone->setTime(date, status);
-            if (U_SUCCESS(status)) {
-               format(*calClone, appendTo, posIter, status);
+        UErrorCode ec = U_ZERO_ERROR;
+        const auto* calType = fCalendar->getType();
+        // Avoid a heap allocation and corresponding free for the common case
+        if (uprv_strcmp(calType, "gregorian") == 0) {
+            GregorianCalendar cal(*static_cast<GregorianCalendar*>(fCalendar));
+            cal.setTime(date, ec);
+            if (U_SUCCESS(ec)) {
+                format(cal, appendTo, posIter, status);
             }
-            delete calClone;
+        } else {
+            Calendar* calClone = fCalendar->clone();
+            if (calClone != nullptr) {
+                calClone->setTime(date, status);
+                if (U_SUCCESS(status)) {
+                    format(*calClone, appendTo, posIter, status);
+                }
+                delete calClone;
+            }
         }
     }
     return appendTo;
@@ -430,13 +452,13 @@ DateFormat::getBestPattern(
         UErrorCode &status) {
     UnifiedCache *cache = UnifiedCache::getInstance(status);
     if (U_FAILURE(status)) {
-        return UnicodeString();
+        return {};
     }
     DateFmtBestPatternKey key(locale, skeleton, status);
     const DateFmtBestPattern *patternPtr = nullptr;
     cache->get(key, patternPtr, status);
     if (U_FAILURE(status)) {
-        return UnicodeString();
+        return {};
     }
     UnicodeString result(patternPtr->fPattern);
     patternPtr->removeRef();
@@ -539,7 +561,7 @@ DateFormat::create(EStyle timeStyle, EStyle dateStyle, const Locale& locale)
     // This should never really happen, because the preceding constructor
     // should always succeed.  If the resource data is unavailable, a last
     // resort object should be returned.
-    return 0;
+    return nullptr;
 }
 
 //----------------------------------------------------------------------

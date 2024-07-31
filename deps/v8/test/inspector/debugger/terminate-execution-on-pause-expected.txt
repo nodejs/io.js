@@ -11,25 +11,6 @@ Running test: testTerminateAtBreakpoint
     id : <messageId>
 }
 
-Running test: testTerminateRuntimeEvaluate
-{
-    id : <messageId>
-    result : {
-    }
-}
-{
-    error : {
-        code : -32000
-        message : Execution was terminated
-    }
-    id : <messageId>
-}
-{
-    description : 42
-    type : number
-    value : 42
-}
-
 Running test: testTerminateRuntimeEvaluateOnCallFrame
 {
     id : <messageId>

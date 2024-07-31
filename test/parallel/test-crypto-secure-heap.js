@@ -7,8 +7,8 @@ if (!common.hasCrypto)
 if (common.isWindows)
   common.skip('Not supported on Windows');
 
-if (process.config.variables.asan)
-  common.skip('ASAN does not play well with secure heap allocations');
+if (common.isASan)
+  common.skip('ASan does not play well with secure heap allocations');
 
 const assert = require('assert');
 const { fork } = require('child_process');

@@ -53,13 +53,13 @@ TEST_IMPL(barrier_1) {
   memset(&wc, 0, sizeof(wc));
   wc.niter = 1;
 
-  ASSERT_EQ(0, uv_barrier_init(&wc.barrier, 2));
-  ASSERT_EQ(0, uv_thread_create(&thread, worker, &wc));
+  ASSERT_OK(uv_barrier_init(&wc.barrier, 2));
+  ASSERT_OK(uv_thread_create(&thread, worker, &wc));
 
   uv_sleep(100);
   wc.main_barrier_wait_rval = uv_barrier_wait(&wc.barrier);
 
-  ASSERT_EQ(0, uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
   uv_barrier_destroy(&wc.barrier);
 
   ASSERT_EQ(1, (wc.main_barrier_wait_rval ^ wc.worker_barrier_wait_rval));
@@ -76,12 +76,12 @@ TEST_IMPL(barrier_2) {
   wc.delay = 100;
   wc.niter = 1;
 
-  ASSERT_EQ(0, uv_barrier_init(&wc.barrier, 2));
-  ASSERT_EQ(0, uv_thread_create(&thread, worker, &wc));
+  ASSERT_OK(uv_barrier_init(&wc.barrier, 2));
+  ASSERT_OK(uv_thread_create(&thread, worker, &wc));
 
   wc.main_barrier_wait_rval = uv_barrier_wait(&wc.barrier);
 
-  ASSERT_EQ(0, uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
   uv_barrier_destroy(&wc.barrier);
 
   ASSERT_EQ(1, (wc.main_barrier_wait_rval ^ wc.worker_barrier_wait_rval));
@@ -98,13 +98,13 @@ TEST_IMPL(barrier_3) {
   memset(&wc, 0, sizeof(wc));
   wc.niter = 5;
 
-  ASSERT_EQ(0, uv_barrier_init(&wc.barrier, 2));
-  ASSERT_EQ(0, uv_thread_create(&thread, worker, &wc));
+  ASSERT_OK(uv_barrier_init(&wc.barrier, 2));
+  ASSERT_OK(uv_thread_create(&thread, worker, &wc));
 
   for (i = 0; i < wc.niter; i++)
     wc.main_barrier_wait_rval += uv_barrier_wait(&wc.barrier);
 
-  ASSERT_EQ(0, uv_thread_join(&thread));
+  ASSERT_OK(uv_thread_join(&thread));
   uv_barrier_destroy(&wc.barrier);
 
   ASSERT_EQ(wc.niter, wc.main_barrier_wait_rval + wc.worker_barrier_wait_rval);
@@ -133,10 +133,10 @@ TEST_IMPL(barrier_serial_thread) {
   uv_barrier_t barrier;
   unsigned i;
 
-  ASSERT_EQ(0, uv_barrier_init(&barrier, ARRAY_SIZE(threads) + 1));
+  ASSERT_OK(uv_barrier_init(&barrier, ARRAY_SIZE(threads) + 1));
 
   for (i = 0; i < ARRAY_SIZE(threads); ++i)
-    ASSERT_EQ(0, uv_thread_create(&threads[i], serial_worker, &barrier));
+    ASSERT_OK(uv_thread_create(&threads[i], serial_worker, &barrier));
 
   for (i = 0; i < 5; i++)
     uv_barrier_wait(&barrier);
@@ -144,7 +144,7 @@ TEST_IMPL(barrier_serial_thread) {
     uv_barrier_destroy(&barrier);
 
   for (i = 0; i < ARRAY_SIZE(threads); ++i)
-    ASSERT_EQ(0, uv_thread_join(&threads[i]));
+    ASSERT_OK(uv_thread_join(&threads[i]));
 
   return 0;
 }
@@ -153,7 +153,7 @@ TEST_IMPL(barrier_serial_thread) {
 TEST_IMPL(barrier_serial_thread_single) {
   uv_barrier_t barrier;
 
-  ASSERT_EQ(0, uv_barrier_init(&barrier, 1));
+  ASSERT_OK(uv_barrier_init(&barrier, 1));
   ASSERT_LT(0, uv_barrier_wait(&barrier));
   uv_barrier_destroy(&barrier);
   return 0;

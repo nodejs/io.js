@@ -99,6 +99,7 @@ await (async function testUnixCppEntriesProvider() {
       '081f08a0 00000004 B stdout\n'
     ].join('\n'), ''];
   };
+
   var shell_prov = new LinuxCppEntriesProvider();
   var shell_syms = [];
   await shell_prov.parseVmSymbols('shell', 0x08048000, 0x081ee000, 0,
@@ -111,6 +112,21 @@ await (async function testUnixCppEntriesProvider() {
        ['v8::internal::Runtime_DebugGetPropertyDetails(v8::internal::Arguments)', 0x0813a0b0, 0x0813a0b0 + 0x855],
        ['v8::internal::RegExpMacroAssembler::CheckPosition(int, v8::internal::Label*)', 0x0818b220, 0x0818b220 + 0x36]],
       shell_syms);
+  // With BigInts
+  const useBigIntsArgs = [undefined, undefined, undefined, undefined, true]
+  var shell_prov = new LinuxCppEntriesProvider(...useBigIntsArgs);
+  var shell_syms = [];
+  await shell_prov.parseVmSymbols('shell', 0x08048000n, 0x081ee000n, 0n,
+      (...params) => shell_syms.push(params));
+  assertEquals(
+      [['_init', 0x08049790n, 0x08049f50n],
+       ['_start', 0x08049f50n, 0x08139150n],
+       ['v8::internal::Runtime_StringReplaceRegExpWithString(v8::internal::Arguments)', 0x08139150n, 0x08139150n + 0xb4bn],
+       ['v8::internal::Runtime::GetElementOrCharAt(v8::internal::Handle<v8::internal::Object>, unsigned int)', 0x08139ca0n, 0x08139ca0n + 0x3f1n],
+       ['v8::internal::Runtime_DebugGetPropertyDetails(v8::internal::Arguments)', 0x0813a0b0n, 0x0813a0b0n + 0x855n],
+       ['v8::internal::RegExpMacroAssembler::CheckPosition(int, v8::internal::Label*)', 0x0818b220n, 0x0818b220n + 0x36n]],
+      shell_syms);
+
 
   // libc library
   LinuxCppEntriesProvider.prototype.loadSymbols = function(libName) {
@@ -175,6 +191,15 @@ await (async function testUnixCppEntriesProvider() {
     android_ref_syms[i][2] += 0xf7c5c000;
   }
   assertEquals(android_ref_syms, android_syms);
+  // With BigInts
+  var android_prov = new LinuxCppEntriesProvider(...useBigIntsArgs);
+  var android_syms = [];
+  await android_prov.parseVmSymbols('libmonochrome', 0xf7c5c000n, 0xf9c5c000n, 0n,
+      (...params) => android_syms.push(params));
+  var android_ref_syms_bigints =  android_ref_syms.map(entry => [
+    entry[0], BigInt(entry[1]), BigInt(entry[2])
+  ])
+  assertEquals(android_ref_syms_bigints, android_syms);
 
   LinuxCppEntriesProvider.prototype.loadSymbols = oldLoadSymbols;
 })();
@@ -230,6 +255,16 @@ await (async function testMacOSCppEntriesProvider() {
     stdc_ref_syms[i][2] += 0x95728fb4;
   }
   assertEquals(stdc_ref_syms, stdc_syms);
+  // With BigInts
+  const useBigIntsArgs = [undefined, undefined, undefined, undefined, true];
+  var stdc_prov = new MacOSCppEntriesProvider(...useBigIntsArgs);
+  var stdc_syms = [];
+  await stdc_prov.parseVmSymbols('stdc++', 0x95728fb4n, 0x95770005n, 0n,
+      (...params) => stdc_syms.push(params));
+  var stdc_ref_syms_bigints = stdc_ref_syms.map(entry => [
+    entry[0], BigInt(entry[1]), BigInt(entry[2])
+  ])
+  assertEquals(stdc_ref_syms_bigints, stdc_syms);
 
   MacOSCppEntriesProvider.prototype.loadSymbols = oldLoadSymbols;
 })();
@@ -269,6 +304,19 @@ await (async function testWindowsCppEntriesProvider() {
        ['v8::DefaultFatalErrorHandler', 0x00401b70, 0x004020b0],
        ['v8::EnsureInitialized', 0x004020b0, 0x0057c000]],
       shell_syms);
+  // With BigInts
+  const useBigIntsArgs = [undefined, undefined, undefined, undefined, true];
+  var shell_prov = new WindowsCppEntriesProvider(...useBigIntsArgs);
+  var shell_syms = [];
+  await shell_prov.parseVmSymbols('shell.exe', 0x00400000n, 0x0057c000n, 0n,
+      (...params) => shell_syms.push(params));
+  assertEquals(
+      [['ReadFile', 0x00401000n, 0x004010a0n],
+       ['Print', 0x004010a0n, 0x00402230n],
+       ['v8::String::?1Utf8Value', 0x00402230n, 0x004964ban],
+       ['v8::DefaultFatalErrorHandler', 0x00401b70n, 0x004020b0n],
+       ['v8::EnsureInitialized', 0x004020b0n, 0x0057c000n]],
+      shell_syms);
 
   WindowsCppEntriesProvider.prototype.loadSymbols = oldLoadSymbols;
 })();
@@ -305,6 +353,17 @@ await (async function testWindowsProcessExeAndDllMapFile() {
       [['RunMain', 0x00401780, 0x00401ac0],
        ['_main', 0x00401ac0, 0x00472000]],
       exe_exe_syms, '.exe with .exe symbols');
+  // With BigInts
+  read = exeSymbols;
+  const useBigIntsArgs = [undefined, undefined, undefined, undefined, true];
+  var exe_exe_syms = [];
+  await (new WindowsCppEntriesProvider(...useBigIntsArgs)).parseVmSymbols(
+      'chrome.exe', 0x00400000n, 0x00472000n, 0n,
+      (...params) => exe_exe_syms.push(params));
+  assertEquals(
+      [['RunMain', 0x00401780n, 0x00401ac0n],
+       ['_main', 0x00401ac0n, 0x00472000n]],
+      exe_exe_syms, '.exe with .exe symbols');
 
   read = dllSymbols;
   var exe_dll_syms = [];
@@ -324,6 +383,16 @@ await (async function testWindowsProcessExeAndDllMapFile() {
       [['_DllMain@12', 0x01c31780, 0x01c31ac0],
        ['___DllMainCRTStartup', 0x01c31ac0, 0x02b80000]],
       dll_dll_syms, '.dll with .dll symbols');
+  // With BigInts
+  read = dllSymbols;
+  var dll_dll_syms = [];
+  await (new WindowsCppEntriesProvider(...useBigIntsArgs)).parseVmSymbols(
+      'chrome.dll', 0x01c30000n, 0x02b80000n, 0n,
+      (...params) => dll_dll_syms.push(params));
+  assertEquals(
+      [['_DllMain@12', 0x01c31780n, 0x01c31ac0n],
+       ['___DllMainCRTStartup', 0x01c31ac0n, 0x02b80000n]],
+      dll_dll_syms, '.dll with .dll symbols');
 
   read = exeSymbols;
   var dll_exe_syms = [];
@@ -339,15 +408,17 @@ await (async function testWindowsProcessExeAndDllMapFile() {
 
 
 class CppEntriesProviderMock {
-  constructor(filename) {
+  constructor(filename, useBigIntAddresses=false) {
     this.isLoaded = false;
     this.symbols = JSON.parse(d8.file.read(filename));
+    this.parseAddr = useBigIntAddresses ? BigInt : parseInt;
   }
   parseVmSymbols(name, startAddr, endAddr, slideAddr, symbolAdder) {
     if (this.isLoaded) return;
     this.isLoaded = true;
-    for (let symbol of this.symbols) {
-      symbolAdder.apply(null, symbol);
+    for (let symbolInfo of this.symbols) {
+      const [name, start, end] = symbolInfo;
+      symbolAdder.call(null, name, this.parseAddr(start), this.parseAddr(end))
     }
   }
 }
@@ -439,13 +510,22 @@ await (async function testProcessing() {
       'tickprocessor-test-large.log', 'tickprocessor-test-large.default'],
   };
   for (var testName in testData) {
-    console.log('=== testProcessing-' + testName + ' ===');
-    await testTickProcessor(...testData[testName]);
+    await testTickProcessor(testName, ...testData[testName]);
   }
 })();
 
-async function testTickProcessor(logInput, refOutput, args=[]) {
-  // /foo/bar/tickprocesser.mjs => /foo/bar/
+async function testTickProcessor(testName, logInput, refOutput, args=[]) {
+  console.log('=== testProcessing-' + testName + ' ===');
+  await testTickProcessorBasic(logInput, refOutput, args);
+  // Using BigInt address should not affect the output.
+  console.log('=== testProcessing-' + testName + '-bigint-addresses ===');
+  await testTickProcessorBasic(
+      logInput, refOutput, [...args, '--use-bigint-addresses']);
+}
+
+async function testTickProcessorBasic(
+      logInput, refOutput, args=[]) {
+  // /foo/bar/tickprocessor.mjs => /foo/bar/
   const dir = import.meta.url.split("/").slice(0, -1).join('/') + '/';
   const params = ArgumentsProcessor.process(args);
   await testExpectations(dir, logInput, refOutput, params);
@@ -455,7 +535,8 @@ async function testTickProcessor(logInput, refOutput, args=[]) {
 
 async function testExpectations(dir, logInput, refOutput, params) {
   const symbolsFile = dir + logInput + '.symbols.json';
-  const cppEntries = new CppEntriesProviderMock(symbolsFile);
+  const cppEntries = new CppEntriesProviderMock(
+      symbolsFile, params.useBigIntAddresses);
   const tickProcessor = TickProcessor.fromParams(params, cppEntries);
   const printMonitor = new PrintMonitor(dir + refOutput);
   await tickProcessor.processLogFileInTest(dir + logInput);

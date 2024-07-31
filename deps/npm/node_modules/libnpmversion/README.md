@@ -31,7 +31,6 @@ npmVersion(arg, {
   ignoreScripts: false, // do not run pre/post/version lifecycle scripts
   scriptShell: '/bin/bash', // shell to run lifecycle scripts in
   message: 'v%s', // message for tag and commit, replace %s with the version
-  silent: false, // passed to @npmcli/run-script to control whether it logs
 }).then(newVersion => {
   console.error('version updated!', newVersion)
 })

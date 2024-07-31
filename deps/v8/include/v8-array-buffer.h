@@ -319,6 +319,12 @@ class V8_EXPORT ArrayBuffer : public Object {
   std::shared_ptr<BackingStore> GetBackingStore();
 
   /**
+   * More efficient shortcut for
+   * GetBackingStore()->IsResizableByUserJavaScript().
+   */
+  bool IsResizableByUserJavaScript() const;
+
+  /**
    * More efficient shortcut for GetBackingStore()->Data(). The returned pointer
    * is valid as long as the ArrayBuffer is alive.
    */

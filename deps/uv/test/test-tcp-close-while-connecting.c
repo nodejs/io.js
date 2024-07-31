@@ -69,24 +69,24 @@ TEST_IMPL(tcp_close_while_connecting) {
   int r;
 
   loop = uv_default_loop();
-  ASSERT(0 == uv_ip4_addr("1.2.3.4", TEST_PORT, &addr));
-  ASSERT(0 == uv_tcp_init(loop, &tcp_handle));
+  ASSERT_OK(uv_ip4_addr("1.2.3.4", TEST_PORT, &addr));
+  ASSERT_OK(uv_tcp_init(loop, &tcp_handle));
   r = uv_tcp_connect(&connect_req,
                      &tcp_handle,
                      (const struct sockaddr*) &addr,
                      connect_cb);
   if (r == UV_ENETUNREACH)
     RETURN_SKIP("Network unreachable.");
-  ASSERT(r == 0);
-  ASSERT(0 == uv_timer_init(loop, &timer1_handle));
-  ASSERT(0 == uv_timer_start(&timer1_handle, timer1_cb, 1, 0));
-  ASSERT(0 == uv_timer_init(loop, &timer2_handle));
-  ASSERT(0 == uv_timer_start(&timer2_handle, timer2_cb, 86400 * 1000, 0));
-  ASSERT(0 == uv_run(loop, UV_RUN_DEFAULT));
+  ASSERT_OK(r);
+  ASSERT_OK(uv_timer_init(loop, &timer1_handle));
+  ASSERT_OK(uv_timer_start(&timer1_handle, timer1_cb, 1, 0));
+  ASSERT_OK(uv_timer_init(loop, &timer2_handle));
+  ASSERT_OK(uv_timer_start(&timer2_handle, timer2_cb, 86400 * 1000, 0));
+  ASSERT_OK(uv_run(loop, UV_RUN_DEFAULT));
 
-  ASSERT(connect_cb_called == 1);
-  ASSERT(timer1_cb_called == 1);
-  ASSERT(close_cb_called == 2);
+  ASSERT_EQ(1, connect_cb_called);
+  ASSERT_EQ(1, timer1_cb_called);
+  ASSERT_EQ(2, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(loop);
 

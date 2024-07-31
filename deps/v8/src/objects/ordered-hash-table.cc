@@ -195,7 +195,7 @@ MaybeHandle<OrderedHashSet> OrderedHashSet::Add(Isolate* isolate,
   MaybeHandle<OrderedHashSet> table_candidate =
       OrderedHashSet::EnsureCapacityForAdding(isolate, table);
   if (!table_candidate.ToHandle(&table)) {
-    CHECK(isolate->has_pending_exception());
+    CHECK(isolate->has_exception());
     return table_candidate;
   }
   DisallowGarbageCollection no_gc;
@@ -242,7 +242,7 @@ Handle<FixedArray> OrderedHashSet::ConvertToKeysArray(
     }
     result->set(i, key);
   }
-  return FixedArray::ShrinkOrEmpty(isolate, result, length);
+  return FixedArray::RightTrimOrEmpty(isolate, result, length);
 }
 
 Tagged<HeapObject> OrderedHashSet::GetEmpty(ReadOnlyRoots ro_roots) {
@@ -282,7 +282,7 @@ MaybeHandle<Derived> OrderedHashTable<Derived, entrysize>::Rehash(
   for (InternalIndex old_entry : table->IterateEntries()) {
     int old_entry_raw = old_entry.as_int();
     Tagged<Object> key = table->KeyAt(old_entry);
-    if (IsTheHole(key, isolate)) {
+    if (IsHashTableHole(key, isolate)) {
       table->SetRemovedIndexAt(removed_holes_index++, old_entry_raw);
       continue;
     }
@@ -357,9 +357,10 @@ bool OrderedHashTable<Derived, entrysize>::Delete(Isolate* isolate,
   int nod = table->NumberOfDeletedElements();
   int index = table->EntryToIndex(entry);
 
-  Tagged<Object> hole = ReadOnlyRoots(isolate).the_hole_value();
+  Tagged<Object> hash_table_hole =
+      ReadOnlyRoots(isolate).hash_table_hole_value();
   for (int i = 0; i < entrysize; ++i) {
-    table->set(index + i, hole);
+    table->set(index + i, hash_table_hole);
   }
 
   table->SetNumberOfElements(nof - 1);
@@ -448,7 +449,8 @@ InternalIndex OrderedNameDictionary::FindEntry(IsolateT* isolate,
   while (raw_entry != kNotFound) {
     InternalIndex entry(raw_entry);
     Tagged<Object> candidate_key = KeyAt(entry);
-    DCHECK(IsTheHole(candidate_key) || IsUniqueName(Name::cast(candidate_key)));
+    DCHECK(IsHashTableHole(candidate_key) ||
+           IsUniqueName(Name::cast(candidate_key)));
     if (candidate_key == raw_key) return entry;
 
     // TODO(gsathya): This is loading the bucket count from the hash
@@ -500,7 +502,7 @@ void OrderedNameDictionary::SetEntry(InternalIndex entry, Tagged<Object> key,
                                      Tagged<Object> value,
                                      PropertyDetails details) {
   DisallowGarbageCollection gc;
-  DCHECK_IMPLIES(!IsName(key), IsTheHole(key));
+  DCHECK_IMPLIES(!IsName(key), IsHashTableHole(key));
   DisallowGarbageCollection no_gc;
   int index = EntryToIndex(entry);
   this->set(index, key);
@@ -517,9 +519,10 @@ Handle<OrderedNameDictionary> OrderedNameDictionary::DeleteEntry(
     InternalIndex entry) {
   DCHECK(entry.is_found());
 
-  Tagged<Object> hole = ReadOnlyRoots(isolate).the_hole_value();
+  Tagged<Object> hash_table_hole =
+      ReadOnlyRoots(isolate).hash_table_hole_value();
   PropertyDetails details = PropertyDetails::Empty();
-  table->SetEntry(entry, hole, hole, details);
+  table->SetEntry(entry, hash_table_hole, hash_table_hole, details);
 
   int nof = table->NumberOfElements();
   table->SetNumberOfElements(nof - 1);
@@ -888,9 +891,9 @@ bool SmallOrderedHashTable<Derived>::Delete(Isolate* isolate,
   int nof = table->NumberOfElements();
   int nod = table->NumberOfDeletedElements();
 
-  Tagged<Object> hole = ReadOnlyRoots(isolate).the_hole_value();
+  Tagged<Object> the_hole = ReadOnlyRoots(isolate).the_hole_value();
   for (int j = 0; j < Derived::kEntrySize; j++) {
-    table->SetDataEntry(entry.as_int(), j, hole);
+    table->SetDataEntry(entry.as_int(), j, the_hole);
   }
 
   table->SetNumberOfElements(nof - 1);
@@ -905,9 +908,9 @@ Handle<SmallOrderedNameDictionary> SmallOrderedNameDictionary::DeleteEntry(
   DCHECK(entry.is_found());
   {
     DisallowGarbageCollection no_gc;
-    Tagged<Object> hole = ReadOnlyRoots(isolate).the_hole_value();
+    Tagged<Object> the_hole = ReadOnlyRoots(isolate).the_hole_value();
     PropertyDetails details = PropertyDetails::Empty();
-    table->SetEntry(entry, hole, hole, details);
+    table->SetEntry(entry, the_hole, the_hole, details);
 
     int nof = table->NumberOfElements();
     table->SetNumberOfElements(nof - 1);
@@ -1477,12 +1480,12 @@ bool OrderedHashTableIterator<Derived, TableType>::HasMore() {
 
   Transition();
 
-  TableType table = TableType::cast(this->table());
+  Tagged<TableType> table = TableType::cast(this->table());
   int index = Smi::ToInt(this->index());
   int used_capacity = table->UsedCapacity();
 
   while (index < used_capacity &&
-         IsTheHole(table->KeyAt(InternalIndex(index)), ro_roots)) {
+         IsHashTableHole(table->KeyAt(InternalIndex(index)), ro_roots)) {
     index++;
   }
 

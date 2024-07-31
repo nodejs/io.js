@@ -127,7 +127,7 @@ host multiple scopes, but a scope only ever points to one registry.
 You can also associate a scope with a registry using `npm config`:
 
 ```bash
-npm config set @myco:registry http://reg.example.com
+npm config set @myco:registry=http://reg.example.com
 ```
 
 Once a scope is associated with a registry, any `npm install` for a package

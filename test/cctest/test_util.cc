@@ -1,8 +1,13 @@
 #include "debug_utils-inl.h"
 #include "env-inl.h"
 #include "gtest/gtest.h"
+#include "node_options-inl.h"
+#include "node_test_fixture.h"
 #include "simdutf.h"
 #include "util-inl.h"
+#include "v8-function-callback.h"
+#include "v8-primitive.h"
+#include "v8.h"
 
 using node::Calloc;
 using node::Malloc;
@@ -14,7 +19,9 @@ using node::ToLower;
 using node::UncheckedCalloc;
 using node::UncheckedMalloc;
 
-TEST(UtilTest, ListHead) {
+class UtilTest : public EnvironmentTestFixture {};
+
+TEST_F(UtilTest, ListHead) {
   struct Item { node::ListNode<Item> node_; };
   typedef node::ListHead<Item, &Item::node_> List;
 
@@ -68,7 +75,7 @@ TEST(UtilTest, ListHead) {
   EXPECT_FALSE(list.begin() != list.end());
 }
 
-TEST(UtilTest, StringEqualNoCase) {
+TEST_F(UtilTest, StringEqualNoCase) {
   EXPECT_FALSE(StringEqualNoCase("a", "b"));
   EXPECT_TRUE(StringEqualNoCase("", ""));
   EXPECT_TRUE(StringEqualNoCase("equal", "equal"));
@@ -78,7 +85,7 @@ TEST(UtilTest, StringEqualNoCase) {
   EXPECT_FALSE(StringEqualNoCase("equals", "equal"));
 }
 
-TEST(UtilTest, StringEqualNoCaseN) {
+TEST_F(UtilTest, StringEqualNoCaseN) {
   EXPECT_FALSE(StringEqualNoCaseN("a", "b", strlen("a")));
   EXPECT_TRUE(StringEqualNoCaseN("", "", strlen("")));
   EXPECT_TRUE(StringEqualNoCaseN("equal", "equal", strlen("equal")));
@@ -92,7 +99,7 @@ TEST(UtilTest, StringEqualNoCaseN) {
   EXPECT_FALSE(StringEqualNoCaseN("abc\0abc", "abcd\0efg", strlen("abcdefgh")));
 }
 
-TEST(UtilTest, ToLower) {
+TEST_F(UtilTest, ToLower) {
   EXPECT_EQ('0', ToLower('0'));
   EXPECT_EQ('a', ToLower('a'));
   EXPECT_EQ('a', ToLower('A'));
@@ -105,28 +112,28 @@ TEST(UtilTest, ToLower) {
     free(pointer);                                                             \
   } while (0)
 
-TEST(UtilTest, Malloc) {
+TEST_F(UtilTest, Malloc) {
   TEST_AND_FREE(Malloc<char>, 0);
   TEST_AND_FREE(Malloc<char>, 1);
   TEST_AND_FREE(Malloc, 0);
   TEST_AND_FREE(Malloc, 1);
 }
 
-TEST(UtilTest, Calloc) {
+TEST_F(UtilTest, Calloc) {
   TEST_AND_FREE(Calloc<char>, 0);
   TEST_AND_FREE(Calloc<char>, 1);
   TEST_AND_FREE(Calloc, 0);
   TEST_AND_FREE(Calloc, 1);
 }
 
-TEST(UtilTest, UncheckedMalloc) {
+TEST_F(UtilTest, UncheckedMalloc) {
   TEST_AND_FREE(UncheckedMalloc<char>, 0);
   TEST_AND_FREE(UncheckedMalloc<char>, 1);
   TEST_AND_FREE(UncheckedMalloc, 0);
   TEST_AND_FREE(UncheckedMalloc, 1);
 }
 
-TEST(UtilTest, UncheckedCalloc) {
+TEST_F(UtilTest, UncheckedCalloc) {
   TEST_AND_FREE(UncheckedCalloc<char>, 0);
   TEST_AND_FREE(UncheckedCalloc<char>, 1);
   TEST_AND_FREE(UncheckedCalloc, 0);
@@ -212,7 +219,7 @@ static void MaybeStackBufferBasic() {
   free(rawbuf);
 }
 
-TEST(UtilTest, MaybeStackBuffer) {
+TEST_F(UtilTest, MaybeStackBuffer) {
   MaybeStackBufferBasic<uint8_t>();
   MaybeStackBufferBasic<uint16_t>();
 
@@ -253,7 +260,7 @@ TEST(UtilTest, MaybeStackBuffer) {
   }
 }
 
-TEST(UtilTest, SPrintF) {
+TEST_F(UtilTest, SPrintF) {
   // %d, %u and %s all do the same thing. The actual C++ type is used to infer
   // the right representation.
   EXPECT_EQ(SPrintF("%s", false), "false");
@@ -298,4 +305,52 @@ TEST(UtilTest, SPrintF) {
 
   const std::string with_zero = std::string("a") + '\0' + 'b';
   EXPECT_EQ(SPrintF("%s", with_zero), with_zero);
+}
+
+TEST_F(UtilTest, DumpJavaScriptStackWithNoIsolate) {
+  node::DumpJavaScriptBacktrace(stderr);
+}
+
+TEST_F(UtilTest, DetermineSpecificErrorType) {
+  const v8::HandleScope handle_scope(isolate_);
+  Argv argv;
+  Env env{handle_scope, argv, node::EnvironmentFlags::kNoBrowserGlobals};
+
+  // Boolean
+  EXPECT_EQ(
+      node::DetermineSpecificErrorType(*env, v8::Boolean::New(isolate_, true)),
+      "type boolean (true)");
+
+  // BigInt
+  EXPECT_EQ(
+      node::DetermineSpecificErrorType(*env, v8::BigInt::New(isolate_, 255)),
+      "type bigint (255)");
+
+  // String
+  EXPECT_EQ(
+      node::DetermineSpecificErrorType(
+          *env, v8::String::NewFromUtf8(isolate_, "input").ToLocalChecked()),
+      "type string ('input')");
+  // String that calls JSONStringify
+  EXPECT_EQ(
+      node::DetermineSpecificErrorType(
+          *env, v8::String::NewFromUtf8(isolate_, "'input'").ToLocalChecked()),
+      "type string (\"'input'\")");
+  EXPECT_EQ(node::DetermineSpecificErrorType(
+                *env,
+                v8::String::NewFromUtf8(isolate_,
+                                        "string with more than 26 characters")
+                    .ToLocalChecked()),
+            "type string ('string with more than 26 ...')");
+
+  // Number, Int32, Uint32
+  EXPECT_EQ(
+      node::DetermineSpecificErrorType(*env, v8::Number::New(isolate_, 10)),
+      "type number (10)");
+  EXPECT_EQ(
+      node::DetermineSpecificErrorType(*env, v8::Int32::New(isolate_, -255)),
+      "type number (-255)");
+  EXPECT_EQ(
+      node::DetermineSpecificErrorType(*env, v8::Uint32::New(isolate_, 255)),
+      "type number (255)");
 }

@@ -1113,12 +1113,23 @@ CollationBuilder::addWithClosure(const UnicodeString &nfdPrefix, const UnicodeSt
     return ce32;
 }
 
+// ICU-22517
+// This constant defines a limit for the addOnlyClosure to return
+// error, to avoid taking a long time for canonical closure expansion.
+// Please let us know if you have a reasonable use case that needed
+// for a practical Collation rule that needs to increase this limit.
+// This value is needed for compiling a rule with eight Hangul syllables such as
+// "&a=b쫊쫊쫊쫊쫊쫊쫊" without error, which should be more than realistic
+// usage.
+static constexpr int32_t kClosureLoopLimit = 3000;
+
 uint32_t
 CollationBuilder::addOnlyClosure(const UnicodeString &nfdPrefix, const UnicodeString &nfdString,
                                  const int64_t newCEs[], int32_t newCEsLength, uint32_t ce32,
                                  UErrorCode &errorCode) {
     if(U_FAILURE(errorCode)) { return ce32; }
 
+    int32_t loop = 0;
     // Map from canonically equivalent input to the CEs. (But not from the all-NFD input.)
     if(nfdPrefix.isEmpty()) {
         CanonicalIterator stringIter(nfdString, errorCode);
@@ -1128,6 +1139,11 @@ CollationBuilder::addOnlyClosure(const UnicodeString &nfdPrefix, const UnicodeSt
             UnicodeString str = stringIter.next();
             if(str.isBogus()) { break; }
             if(ignoreString(str, errorCode) || str == nfdString) { continue; }
+            if (loop++ > kClosureLoopLimit) {
+                // To avoid hang as in ICU-22517, return with error.
+                errorCode = U_INPUT_TOO_LONG_ERROR;
+                return ce32;
+            }
             ce32 = addIfDifferent(prefix, str, newCEs, newCEsLength, ce32, errorCode);
             if(U_FAILURE(errorCode)) { return ce32; }
         }
@@ -1144,6 +1160,11 @@ CollationBuilder::addOnlyClosure(const UnicodeString &nfdPrefix, const UnicodeSt
                 UnicodeString str = stringIter.next();
                 if(str.isBogus()) { break; }
                 if(ignoreString(str, errorCode) || (samePrefix && str == nfdString)) { continue; }
+                if (loop++ > kClosureLoopLimit) {
+                    // To avoid hang as in ICU-22517, return with error.
+                    errorCode = U_INPUT_TOO_LONG_ERROR;
+                    return ce32;
+                }
                 ce32 = addIfDifferent(prefix, str, newCEs, newCEsLength, ce32, errorCode);
                 if(U_FAILURE(errorCode)) { return ce32; }
             }

@@ -32,7 +32,6 @@ using v8::Isolate;
 using v8::Local;
 using v8::Locker;
 using v8::Maybe;
-using v8::MaybeLocal;
 using v8::Null;
 using v8::Number;
 using v8::Object;
@@ -63,6 +62,7 @@ Worker::Worker(Environment* env,
       thread_id_(AllocateEnvironmentThreadId()),
       name_(name),
       env_vars_(env_vars),
+      embedder_preload_(env->embedder_preload()),
       snapshot_data_(snapshot_data) {
   Debug(this, "Creating new worker instance with thread id %llu",
         thread_id_.id);
@@ -89,7 +89,7 @@ Worker::Worker(Environment* env,
   // Without this check, to use the permission model with
   // workers (--allow-worker) one would need to pass --allow-inspector as well
   if (env->permission()->is_granted(
-          node::permission::PermissionScope::kInspector)) {
+          env, node::permission::PermissionScope::kInspector)) {
     inspector_parent_handle_ =
         GetInspectorParentHandle(env, thread_id_, url.c_str(), name.c_str());
   }
@@ -217,7 +217,13 @@ class WorkerThreadData {
       CHECK(!loop_init_failed_);
       bool platform_finished = false;
 
-      isolate_data_.reset();
+      // https://github.com/nodejs/node/issues/51129 - IsolateData destructor
+      // can kick off GC before teardown, so ensure the isolate is entered.
+      {
+        Locker locker(isolate);
+        Isolate::Scope isolate_scope(isolate);
+        isolate_data_.reset();
+      }
 
       w_->platform_->AddIsolateFinishedCallback(isolate, [](void* data) {
         *static_cast<bool*>(data) = true;
@@ -353,6 +359,9 @@ void Worker::Run() {
       CHECK(!context.IsEmpty());
       Context::Scope context_scope(context);
       {
+#if HAVE_INSPECTOR
+        environment_flags_ |= EnvironmentFlags::kNoWaitForInspectorFrontend;
+#endif
         env_.reset(CreateEnvironment(
             data.isolate_data_.get(),
             context,
@@ -374,6 +383,10 @@ void Worker::Run() {
         this->env_ = env_.get();
       }
       Debug(this, "Created Environment for worker with id %llu", thread_id_.id);
+
+#if HAVE_INSPECTOR
+      this->env_->WaitForInspectorFrontendByOptions();
+#endif
       if (is_stopped()) return;
       {
         if (!CreateEnvMessagePort(env_.get())) {
@@ -381,8 +394,12 @@ void Worker::Run() {
         }
 
         Debug(this, "Created message port for worker %llu", thread_id_.id);
-        if (LoadEnvironment(env_.get(), StartExecutionCallback{}).IsEmpty())
+        if (LoadEnvironment(env_.get(),
+                            StartExecutionCallback{},
+                            std::move(embedder_preload_))
+                .IsEmpty()) {
           return;
+        }
 
         Debug(this, "Loaded environment for worker %llu", thread_id_.id);
       }
@@ -531,23 +548,48 @@ void Worker::New(const FunctionCallbackInfo<Value>& args) {
     });
 
 #ifndef NODE_WITHOUT_NODE_OPTIONS
-    MaybeLocal<String> maybe_node_opts =
-        env_vars->Get(isolate, OneByteString(isolate, "NODE_OPTIONS"));
-    Local<String> node_opts;
-    if (maybe_node_opts.ToLocal(&node_opts)) {
-      std::string node_options(*String::Utf8Value(isolate, node_opts));
+    std::string node_options;
+    if (env_vars->Get("NODE_OPTIONS").To(&node_options)) {
       std::vector<std::string> errors{};
       std::vector<std::string> env_argv =
           ParseNodeOptionsEnvVar(node_options, &errors);
       // [0] is expected to be the program name, add dummy string.
       env_argv.insert(env_argv.begin(), "");
       std::vector<std::string> invalid_args{};
-      options_parser::Parse(&env_argv,
-                            nullptr,
-                            &invalid_args,
-                            per_isolate_opts.get(),
-                            kAllowedInEnvvar,
-                            &errors);
+
+      std::string parent_node_options;
+      USE(env->env_vars()->Get("NODE_OPTIONS").To(&parent_node_options));
+
+      // If the worker code passes { env: { ...process.env, ... } } or
+      // the NODE_OPTIONS is otherwise character-for-character equal to the
+      // original NODE_OPTIONS, allow per-process options inherited into
+      // the worker since worker spawning code is not usually in charge of
+      // how the NODE_OPTIONS is configured for the parent.
+      // TODO(joyeecheung): a more intelligent filter may be more desirable.
+      // but a string comparison is good enough(TM) for the case where the
+      // worker spawning code just wants to pass the parent configuration down
+      // and does not intend to modify NODE_OPTIONS.
+      if (parent_node_options == node_options) {
+        // Creates a wrapper per-process option over the per_isolate_opts
+        // to allow per-process options copied from the parent.
+        std::unique_ptr<PerProcessOptions> per_process_opts =
+            std::make_unique<PerProcessOptions>();
+        per_process_opts->per_isolate = per_isolate_opts;
+        options_parser::Parse(&env_argv,
+                              nullptr,
+                              &invalid_args,
+                              per_process_opts.get(),
+                              kAllowedInEnvvar,
+                              &errors);
+      } else {
+        options_parser::Parse(&env_argv,
+                              nullptr,
+                              &invalid_args,
+                              per_isolate_opts.get(),
+                              kAllowedInEnvvar,
+                              &errors);
+      }
+
       if (!errors.empty() && args[1]->IsObject()) {
         // Only fail for explicitly provided env, this protects from failures
         // when NODE_OPTIONS from parent's env is used (which is the default).
@@ -562,26 +604,29 @@ void Worker::New(const FunctionCallbackInfo<Value>& args) {
       }
     }
 #endif  // NODE_WITHOUT_NODE_OPTIONS
-  }
 
-  if (args[2]->IsArray()) {
-    Local<Array> array = args[2].As<Array>();
     // The first argument is reserved for program name, but we don't need it
     // in workers.
     std::vector<std::string> exec_argv = {""};
-    uint32_t length = array->Length();
-    for (uint32_t i = 0; i < length; i++) {
-      Local<Value> arg;
-      if (!array->Get(env->context(), i).ToLocal(&arg)) {
-        return;
+    if (args[2]->IsArray()) {
+      Local<Array> array = args[2].As<Array>();
+      uint32_t length = array->Length();
+      for (uint32_t i = 0; i < length; i++) {
+        Local<Value> arg;
+        if (!array->Get(env->context(), i).ToLocal(&arg)) {
+          return;
+        }
+        Local<String> arg_v8;
+        if (!arg->ToString(env->context()).ToLocal(&arg_v8)) {
+          return;
+        }
+        Utf8Value arg_utf8_value(args.GetIsolate(), arg_v8);
+        std::string arg_string(arg_utf8_value.out(), arg_utf8_value.length());
+        exec_argv.push_back(arg_string);
       }
-      Local<String> arg_v8;
-      if (!arg->ToString(env->context()).ToLocal(&arg_v8)) {
-        return;
-      }
-      Utf8Value arg_utf8_value(args.GetIsolate(), arg_v8);
-      std::string arg_string(arg_utf8_value.out(), arg_utf8_value.length());
-      exec_argv.push_back(arg_string);
+    } else {
+      exec_argv.insert(
+          exec_argv.end(), env->exec_argv().begin(), env->exec_argv().end());
     }
 
     std::vector<std::string> invalid_args{};
@@ -597,11 +642,12 @@ void Worker::New(const FunctionCallbackInfo<Value>& args) {
 
     // The first argument is program name.
     invalid_args.erase(invalid_args.begin());
-    if (errors.size() > 0 || invalid_args.size() > 0) {
+    // Only fail for explicitly provided execArgv, this protects from failures
+    // when execArgv from parent's execArgv is used (which is the default).
+    if (errors.size() > 0 || (invalid_args.size() > 0 && args[2]->IsArray())) {
       Local<Value> error;
-      if (!ToV8Value(env->context(),
-                     errors.size() > 0 ? errors : invalid_args)
-                         .ToLocal(&error)) {
+      if (!ToV8Value(env->context(), errors.size() > 0 ? errors : invalid_args)
+               .ToLocal(&error)) {
         return;
       }
       Local<String> key =
@@ -901,7 +947,7 @@ void GetEnvMessagePort(const FunctionCallbackInfo<Value>& args) {
   Local<Object> port = env->message_port();
   CHECK_IMPLIES(!env->is_main_thread(), !port.IsEmpty());
   if (!port.IsEmpty()) {
-    CHECK_EQ(port->GetCreationContext().ToLocalChecked()->GetIsolate(),
+    CHECK_EQ(port->GetCreationContextChecked()->GetIsolate(),
              args.GetIsolate());
     args.GetReturnValue().Set(port);
   }

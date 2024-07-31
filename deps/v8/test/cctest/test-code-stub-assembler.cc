@@ -11,7 +11,7 @@
 #include "src/builtins/builtins-promise.h"
 #include "src/builtins/builtins-string-gen.h"
 #include "src/builtins/builtins-utils-inl.h"
-#include "src/codegen/code-stub-assembler.h"
+#include "src/codegen/code-stub-assembler-inl.h"
 #include "src/codegen/interface-descriptors-inl.h"
 #include "src/compiler/node.h"
 #include "src/debug/debug.h"
@@ -420,7 +420,7 @@ TEST(FixedArrayAccessSmiIndex) {
   CodeStubAssembler m(asm_tester.state());
   Handle<FixedArray> array = isolate->factory()->NewFixedArray(5);
   array->set(4, Smi::FromInt(733));
-  m.Return(m.LoadFixedArrayElement(m.HeapConstant(array),
+  m.Return(m.LoadFixedArrayElement(m.HeapConstantNoHole(array),
                                    m.SmiTag(m.IntPtrConstant(4)), 0));
   FunctionTester ft(asm_tester.GenerateCode());
   MaybeHandle<Object> result = ft.Call();
@@ -432,8 +432,8 @@ TEST(LoadHeapNumberValue) {
   CodeAssemblerTester asm_tester(isolate);
   CodeStubAssembler m(asm_tester.state());
   Handle<HeapNumber> number = isolate->factory()->NewHeapNumber(1234);
-  m.Return(m.SmiFromInt32(m.Signed(
-      m.ChangeFloat64ToUint32(m.LoadHeapNumberValue(m.HeapConstant(number))))));
+  m.Return(m.SmiFromInt32(m.Signed(m.ChangeFloat64ToUint32(
+      m.LoadHeapNumberValue(m.HeapConstantNoHole(number))))));
   FunctionTester ft(asm_tester.GenerateCode());
   MaybeHandle<Object> result = ft.Call();
   CHECK_EQ(1234, Smi::cast(*result.ToHandleChecked()).value());
@@ -444,7 +444,7 @@ TEST(LoadInstanceType) {
   CodeAssemblerTester asm_tester(isolate);
   CodeStubAssembler m(asm_tester.state());
   Handle<HeapObject> undefined = isolate->factory()->undefined_value();
-  m.Return(m.SmiFromInt32(m.LoadInstanceType(m.HeapConstant(undefined))));
+  m.Return(m.SmiFromInt32(m.LoadInstanceType(m.HeapConstantNoHole(undefined))));
   FunctionTester ft(asm_tester.GenerateCode());
   MaybeHandle<Object> result = ft.Call();
   CHECK_EQ(InstanceType::ODDBALL_TYPE,
@@ -1109,10 +1109,10 @@ TEST(TransitionLookup) {
   }
 
   CHECK(IsTransitionArray(
-      root_map->raw_transitions()->GetHeapObjectAssumeStrong()));
+      root_map->raw_transitions().GetHeapObjectAssumeStrong()));
   Handle<TransitionArray> transitions(
       TransitionArray::cast(
-          root_map->raw_transitions()->GetHeapObjectAssumeStrong()),
+          root_map->raw_transitions().GetHeapObjectAssumeStrong()),
       isolate);
   DCHECK(transitions->IsSortedNoDuplicates());
 
@@ -1318,6 +1318,10 @@ TEST(TryHasOwnProperty) {
         factory->NewFunctionForTesting(factory->empty_string());
     JSFunction::EnsureHasInitialMap(function);
     function->initial_map()->set_instance_type(JS_GLOBAL_OBJECT_TYPE);
+    function->initial_map()->set_instance_size(JSGlobalObject::kHeaderSize);
+    function->initial_map()->SetInObjectUnusedPropertyFields(0);
+    function->initial_map()->SetInObjectPropertiesStartInWords(
+        function->initial_map()->instance_size_in_words());
     function->initial_map()->set_is_prototype_map(true);
     function->initial_map()->set_is_dictionary_map(true);
     function->initial_map()->set_may_have_interesting_properties(true);
@@ -1408,10 +1412,10 @@ TEST(TryGetOwnProperty) {
     m.Return(m.UncheckedCast<Object>(var_value.value()));
 
     m.BIND(&if_not_found);
-    m.Return(m.HeapConstant(not_found_symbol));
+    m.Return(m.HeapConstantNoHole(not_found_symbol));
 
     m.BIND(&if_bailout);
-    m.Return(m.HeapConstant(bailout_symbol));
+    m.Return(m.HeapConstantNoHole(bailout_symbol));
   }
 
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
@@ -2079,7 +2083,7 @@ TEST(PopAndReturnFromTFCBuiltinWithStackParameters) {
   // Setup CSA for creating TFC-style builtin with stack arguments.
   // For the testing purposes we need any interface descriptor that has at
   // least one argument passed on stack.
-  using Descriptor = FlatMapIntoArrayDescriptor;
+  using Descriptor = FlattenIntoArrayWithMapFnDescriptor;
   Descriptor descriptor;
   CHECK_LT(0, Descriptor::GetStackParameterCount());
 
@@ -2102,7 +2106,7 @@ TNode<Object> MakeConstantNode(CodeStubAssembler& m, Handle<Object> value) {
   if (IsSmi(*value)) {
     return m.SmiConstant(Smi::ToInt(*value));
   }
-  return m.HeapConstant(Handle<HeapObject>::cast(value));
+  return m.HeapConstantNoHole(Handle<HeapObject>::cast(value));
 }
 
 // Buids a CSA function that calls |target| function with given arguments
@@ -2621,8 +2625,8 @@ class AppendJSArrayCodeStubAssembler : public CodeStubAssembler {
     TVariable<IntPtrT> arg_index(this);
     Label bailout(this);
     arg_index = IntPtrConstant(0);
-    TNode<Smi> length = BuildAppendJSArray(kind_, HeapConstant(array), &args,
-                                           &arg_index, &bailout);
+    TNode<Smi> length = BuildAppendJSArray(kind_, HeapConstantNoHole(array),
+                                           &args, &arg_index, &bailout);
     Return(length);
 
     BIND(&bailout);
@@ -3020,7 +3024,7 @@ TEST(AllocateFunctionWithMapAndContext) {
   CHECK_EQ(isolate->factory()
                ->promise_capability_default_resolve_shared_fun()
                ->GetCode(isolate),
-           fun->code());
+           fun->code(isolate));
 }
 
 TEST(CreatePromiseGetCapabilitiesExecutorContext) {
@@ -3971,12 +3975,11 @@ void TestCallJumpBuiltin(CallJumpMode mode,
 
     TNode<Smi> index = m.SmiConstant(2);
 
-    Callable callable = Builtins::CallableFor(isolate, Builtin::kStringRepeat);
     if (mode == kCall) {
-      m.Return(m.CallStub(callable, context, str, index));
+      m.Return(m.CallBuiltin(Builtin::kStringRepeat, context, str, index));
     } else {
       DCHECK_EQ(mode, kTailCall);
-      m.TailCallStub(callable, context, str, index);
+      m.TailCallBuiltin(Builtin::kStringRepeat, context, str, index);
     }
   }
   AssemblerOptions options = AssemblerOptions::Default(isolate);

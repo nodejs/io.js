@@ -124,7 +124,7 @@ class V8_EXPORT_PRIVATE WasmLoadElimination final
   Reduction ReduceWasmArrayInitializeLength(Node* node);
   Reduction ReduceStringPrepareForGetCodeunit(Node* node);
   Reduction ReduceStringAsWtf16(Node* node);
-  Reduction ReduceExternInternalize(Node* node);
+  Reduction ReduceAnyConvertExtern(Node* node);
   Reduction ReduceEffectPhi(Node* node);
   Reduction ReduceStart(Node* node);
   Reduction ReduceOtherNode(Node* node);

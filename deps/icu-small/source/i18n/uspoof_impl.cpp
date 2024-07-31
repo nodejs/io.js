@@ -108,7 +108,7 @@ USpoofChecker *SpoofImpl::asUSpoofChecker() {
 //    received from the C API.
 //
 const SpoofImpl *SpoofImpl::validateThis(const USpoofChecker *sc, UErrorCode &status) {
-    auto* This = validate(sc, status);
+    const auto* This = validate(sc, status);
     if (U_FAILURE(status)) {
         return nullptr;
     }

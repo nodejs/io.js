@@ -638,7 +638,6 @@ def main():
             "Object_h.template",
             "ValueConversions_h.template",
             "Maybe_h.template",
-            "Array_h.template",
             "DispatcherBase_h.template",
             "Parser_h.template",
             "encoding_h.template",

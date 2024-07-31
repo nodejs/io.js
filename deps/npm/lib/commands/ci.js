@@ -1,10 +1,11 @@
 const reifyFinish = require('../utils/reify-finish.js')
 const runScript = require('@npmcli/run-script')
-const fs = require('fs/promises')
-const log = require('../utils/log-shim.js')
+const fs = require('node:fs/promises')
+const path = require('node:path')
+const { log, time } = require('proc-log')
 const validateLockfile = require('../utils/validate-lockfile.js')
-
 const ArboristWorkspaceCmd = require('../arborist-cmd.js')
+const getWorkspaces = require('../utils/get-workspaces.js')
 
 class CI extends ArboristWorkspaceCmd {
   static description = 'Clean install a project'
@@ -75,14 +76,26 @@ class CI extends ArboristWorkspaceCmd {
       )
     }
 
-    // Only remove node_modules after we've successfully loaded the virtual
-    // tree and validated the lockfile
-    await this.npm.time('npm-ci:rm', async () => {
-      const path = `${where}/node_modules`
-      // get the list of entries so we can skip the glob for performance
-      const entries = await fs.readdir(path, null).catch(er => [])
-      return Promise.all(entries.map(f => fs.rm(`${path}/${f}`, { force: true, recursive: true })))
-    })
+    const dryRun = this.npm.config.get('dry-run')
+    if (!dryRun) {
+      const workspacePaths = await getWorkspaces([], {
+        path: this.npm.localPrefix,
+        includeWorkspaceRoot: true,
+      })
+
+      // Only remove node_modules after we've successfully loaded the virtual
+      // tree and validated the lockfile
+      await time.start('npm-ci:rm', async () => {
+        return await Promise.all([...workspacePaths.values()].map(async modulePath => {
+          const fullPath = path.join(modulePath, 'node_modules')
+          // get the list of entries so we can skip the glob for performance
+          const entries = await fs.readdir(fullPath, null).catch(() => [])
+          return Promise.all(entries.map(folder => {
+            return fs.rm(path.join(fullPath, folder), { force: true, recursive: true })
+          }))
+        }))
+      })
+    }
 
     await arb.reify(opts)
 
@@ -105,7 +118,6 @@ class CI extends ArboristWorkspaceCmd {
           args: [],
           scriptShell,
           stdio: 'inherit',
-          banner: !this.npm.silent,
           event,
         })
       }

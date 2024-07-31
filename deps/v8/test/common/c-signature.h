@@ -33,8 +33,9 @@ namespace compiler {
 
 template <typename T>
 inline constexpr MachineType MachineTypeForC() {
-  static_assert(std::is_convertible<T, Object>::value,
-                "all non-specialized types must be convertible to Object");
+  static_assert(
+      std::is_convertible<T, Tagged<Object>>::value,
+      "all non-specialized types must be convertible to Tagged<Object>");
   return MachineType::AnyTagged();
 }
 

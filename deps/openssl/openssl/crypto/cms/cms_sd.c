@@ -1037,31 +1037,32 @@ int CMS_add_smimecap(CMS_SignerInfo *si, STACK_OF(X509_ALGOR) *algs)
 int CMS_add_simple_smimecap(STACK_OF(X509_ALGOR) **algs,
                             int algnid, int keysize)
 {
-    X509_ALGOR *alg;
+    X509_ALGOR *alg = NULL;
     ASN1_INTEGER *key = NULL;
 
     if (keysize > 0) {
         key = ASN1_INTEGER_new();
-        if (key == NULL || !ASN1_INTEGER_set(key, keysize)) {
-            ASN1_INTEGER_free(key);
-            return 0;
-        }
+        if (key == NULL || !ASN1_INTEGER_set(key, keysize))
+            goto err;
     }
     alg = X509_ALGOR_new();
-    if (alg == NULL) {
-        ASN1_INTEGER_free(key);
-        return 0;
-    }
+    if (alg == NULL)
+        goto err;
 
-    X509_ALGOR_set0(alg, OBJ_nid2obj(algnid),
-                    key ? V_ASN1_INTEGER : V_ASN1_UNDEF, key);
+    if (!X509_ALGOR_set0(alg, OBJ_nid2obj(algnid),
+                         key ? V_ASN1_INTEGER : V_ASN1_UNDEF, key))
+        goto err;
+    key = NULL;
     if (*algs == NULL)
         *algs = sk_X509_ALGOR_new_null();
-    if (*algs == NULL || !sk_X509_ALGOR_push(*algs, alg)) {
-        X509_ALGOR_free(alg);
-        return 0;
-    }
+    if (*algs == NULL || !sk_X509_ALGOR_push(*algs, alg))
+        goto err;
     return 1;
+
+ err:
+    ASN1_INTEGER_free(key);
+    X509_ALGOR_free(alg);
+    return 0;
 }
 
 /* Check to see if a cipher exists and if so add S/MIME capabilities */

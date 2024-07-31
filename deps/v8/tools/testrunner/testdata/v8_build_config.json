@@ -2,6 +2,7 @@
   "arch": "x64",
   "asan": false,
   "cfi": false,
+  "component_build": false,
   "dcheck_always_on": false,
   "debugging_features": false,
   "full_debug": false,

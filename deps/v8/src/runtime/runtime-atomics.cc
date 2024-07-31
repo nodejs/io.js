@@ -256,33 +256,42 @@ inline int64_t FromObject<int64_t>(Handle<Object> bigint) {
   return Handle<BigInt>::cast(bigint)->AsInt64();
 }
 
-inline Object ToObject(Isolate* isolate, int8_t t) { return Smi::FromInt(t); }
+inline Tagged<Object> ToObject(Isolate* isolate, int8_t t) {
+  return Smi::FromInt(t);
+}
 
-inline Object ToObject(Isolate* isolate, uint8_t t) { return Smi::FromInt(t); }
+inline Tagged<Object> ToObject(Isolate* isolate, uint8_t t) {
+  return Smi::FromInt(t);
+}
 
-inline Object ToObject(Isolate* isolate, int16_t t) { return Smi::FromInt(t); }
+inline Tagged<Object> ToObject(Isolate* isolate, int16_t t) {
+  return Smi::FromInt(t);
+}
 
-inline Object ToObject(Isolate* isolate, uint16_t t) { return Smi::FromInt(t); }
+inline Tagged<Object> ToObject(Isolate* isolate, uint16_t t) {
+  return Smi::FromInt(t);
+}
 
-inline Object ToObject(Isolate* isolate, int32_t t) {
+inline Tagged<Object> ToObject(Isolate* isolate, int32_t t) {
   return *isolate->factory()->NewNumber(t);
 }
 
-inline Object ToObject(Isolate* isolate, uint32_t t) {
+inline Tagged<Object> ToObject(Isolate* isolate, uint32_t t) {
   return *isolate->factory()->NewNumber(t);
 }
 
-inline Object ToObject(Isolate* isolate, int64_t t) {
+inline Tagged<Object> ToObject(Isolate* isolate, int64_t t) {
   return *BigInt::FromInt64(isolate, t);
 }
 
-inline Object ToObject(Isolate* isolate, uint64_t t) {
+inline Tagged<Object> ToObject(Isolate* isolate, uint64_t t) {
   return *BigInt::FromUint64(isolate, t);
 }
 
 template <typename T>
 struct Load {
-  static inline Object Do(Isolate* isolate, void* buffer, size_t index) {
+  static inline Tagged<Object> Do(Isolate* isolate, void* buffer,
+                                  size_t index) {
     T result = LoadSeqCst(static_cast<T*>(buffer) + index);
     return ToObject(isolate, result);
   }
@@ -299,8 +308,8 @@ struct Store {
 
 template <typename T>
 struct Exchange {
-  static inline Object Do(Isolate* isolate, void* buffer, size_t index,
-                          Handle<Object> obj) {
+  static inline Tagged<Object> Do(Isolate* isolate, void* buffer, size_t index,
+                                  Handle<Object> obj) {
     T value = FromObject<T>(obj);
     T result = ExchangeSeqCst(static_cast<T*>(buffer) + index, value);
     return ToObject(isolate, result);
@@ -308,8 +317,9 @@ struct Exchange {
 };
 
 template <typename T>
-inline Object DoCompareExchange(Isolate* isolate, void* buffer, size_t index,
-                                Handle<Object> oldobj, Handle<Object> newobj) {
+inline Tagged<Object> DoCompareExchange(Isolate* isolate, void* buffer,
+                                        size_t index, Handle<Object> oldobj,
+                                        Handle<Object> newobj) {
   T oldval = FromObject<T>(oldobj);
   T newval = FromObject<T>(newobj);
   T result =
@@ -319,8 +329,8 @@ inline Object DoCompareExchange(Isolate* isolate, void* buffer, size_t index,
 
 template <typename T>
 struct Add {
-  static inline Object Do(Isolate* isolate, void* buffer, size_t index,
-                          Handle<Object> obj) {
+  static inline Tagged<Object> Do(Isolate* isolate, void* buffer, size_t index,
+                                  Handle<Object> obj) {
     T value = FromObject<T>(obj);
     T result = AddSeqCst(static_cast<T*>(buffer) + index, value);
     return ToObject(isolate, result);
@@ -329,8 +339,8 @@ struct Add {
 
 template <typename T>
 struct Sub {
-  static inline Object Do(Isolate* isolate, void* buffer, size_t index,
-                          Handle<Object> obj) {
+  static inline Tagged<Object> Do(Isolate* isolate, void* buffer, size_t index,
+                                  Handle<Object> obj) {
     T value = FromObject<T>(obj);
     T result = SubSeqCst(static_cast<T*>(buffer) + index, value);
     return ToObject(isolate, result);
@@ -339,8 +349,8 @@ struct Sub {
 
 template <typename T>
 struct And {
-  static inline Object Do(Isolate* isolate, void* buffer, size_t index,
-                          Handle<Object> obj) {
+  static inline Tagged<Object> Do(Isolate* isolate, void* buffer, size_t index,
+                                  Handle<Object> obj) {
     T value = FromObject<T>(obj);
     T result = AndSeqCst(static_cast<T*>(buffer) + index, value);
     return ToObject(isolate, result);
@@ -349,8 +359,8 @@ struct And {
 
 template <typename T>
 struct Or {
-  static inline Object Do(Isolate* isolate, void* buffer, size_t index,
-                          Handle<Object> obj) {
+  static inline Tagged<Object> Do(Isolate* isolate, void* buffer, size_t index,
+                                  Handle<Object> obj) {
     T value = FromObject<T>(obj);
     T result = OrSeqCst(static_cast<T*>(buffer) + index, value);
     return ToObject(isolate, result);
@@ -359,8 +369,8 @@ struct Or {
 
 template <typename T>
 struct Xor {
-  static inline Object Do(Isolate* isolate, void* buffer, size_t index,
-                          Handle<Object> obj) {
+  static inline Tagged<Object> Do(Isolate* isolate, void* buffer, size_t index,
+                                  Handle<Object> obj) {
     T value = FromObject<T>(obj);
     T result = XorSeqCst(static_cast<T*>(buffer) + index, value);
     return ToObject(isolate, result);
@@ -396,8 +406,9 @@ struct Xor {
 // but also includes the ToInteger/ToBigInt conversion that's part of
 // https://tc39.github.io/ecma262/#sec-atomicreadmodifywrite
 template <template <typename> class Op>
-Object GetModifySetValueInBuffer(RuntimeArguments args, Isolate* isolate,
-                                 const char* method_name) {
+Tagged<Object> GetModifySetValueInBuffer(RuntimeArguments args,
+                                         Isolate* isolate,
+                                         const char* method_name) {
   HandleScope scope(isolate);
   DCHECK_EQ(3, args.length());
   Handle<JSTypedArray> sta = args.at<JSTypedArray>(0);
@@ -632,9 +643,9 @@ RUNTIME_FUNCTION(Runtime_AtomicsLoadSharedStructOrArray) {
 namespace {
 
 template <typename WriteOperation>
-Object AtomicFieldWrite(Isolate* isolate, Handle<JSObject> object,
-                        Handle<Name> field_name, Handle<Object> value,
-                        WriteOperation write_operation) {
+Tagged<Object> AtomicFieldWrite(Isolate* isolate, Handle<JSObject> object,
+                                Handle<Name> field_name, Handle<Object> value,
+                                WriteOperation write_operation) {
   LookupIterator it(isolate, object, PropertyKey(isolate, field_name),
                     LookupIterator::OWN);
   Maybe<bool> result = Nothing<bool>();

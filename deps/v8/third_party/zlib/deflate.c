@@ -1,5 +1,5 @@
 /* deflate.c -- compress data using the deflation algorithm
- * Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler
+ * Copyright (C) 1995-2023 Jean-loup Gailly and Mark Adler
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
@@ -65,7 +65,7 @@
 #endif
 
 const char deflate_copyright[] =
-   " deflate 1.2.13.1 Copyright 1995-2022 Jean-loup Gailly and Mark Adler ";
+   " deflate 1.3.0.1 Copyright 1995-2023 Jean-loup Gailly and Mark Adler ";
 /*
   If you use the zlib library in a product, an acknowledgment is welcome
   in the documentation of your product. If for some reason you cannot
@@ -168,6 +168,11 @@ local const config configuration_table[10] = {
  * bit values at the expense of memory usage). We slide even when level == 0 to
  * keep the hash table consistent if we switch back to level > 0 later.
  */
+#if defined(__has_feature)
+#  if __has_feature(memory_sanitizer)
+     __attribute__((no_sanitize("memory")))
+#  endif
+#endif
 local void slide_hash(deflate_state *s) {
 #if defined(DEFLATE_SLIDE_HASH_SSE2) || defined(DEFLATE_SLIDE_HASH_NEON)
     slide_hash_simd(s->head, s->prev, s->w_size, s->hash_size);
@@ -382,11 +387,12 @@ int ZEXPORT deflateInit_(z_streamp strm, int level, const char *version,
     /* To do: ignore strm->next_in if we use it as window */
 }
 
+#define WINDOW_PADDING 8
+
 /* ========================================================================= */
 int ZEXPORT deflateInit2_(z_streamp strm, int level, int method,
                           int windowBits, int memLevel, int strategy,
                           const char *version, int stream_size) {
-    unsigned window_padding = 8;
     deflate_state *s;
     int wrap = 1;
     static const char my_version[] = ZLIB_VERSION;
@@ -457,15 +463,9 @@ int ZEXPORT deflateInit2_(z_streamp strm, int level, int method,
     s->w_size = 1 << s->w_bits;
     s->w_mask = s->w_size - 1;
 
+    s->chromium_zlib_hash = 1;
+#if defined(USE_ZLIB_RABIN_KARP_ROLLING_HASH)
     s->chromium_zlib_hash = 0;
-#if !defined(USE_ZLIB_RABIN_KARP_ROLLING_HASH)
-  #if defined(TARGET_CPU_WITH_CRC) && defined(CRC32_SIMD_SSE42_PCLMUL)
-    if (x86_cpu_enable_simd)
-      s->chromium_zlib_hash = 1;
-  #elif defined(TARGET_CPU_WITH_CRC) && defined(CRC32_ARMV8_CRC32)
-    if (arm_cpu_enable_crc32)
-      s->chromium_zlib_hash = 1;
-  #endif
 #endif
 
     s->hash_bits = memLevel + 7;
@@ -478,11 +478,11 @@ int ZEXPORT deflateInit2_(z_streamp strm, int level, int method,
     s->hash_shift =  ((s->hash_bits + MIN_MATCH-1) / MIN_MATCH);
 
     s->window = (Bytef *) ZALLOC(strm,
-                                 s->w_size + window_padding,
+                                 s->w_size + WINDOW_PADDING,
                                  2*sizeof(Byte));
     /* Avoid use of unitialized values in the window, see crbug.com/1137613 and
      * crbug.com/1144420 */
-    zmemzero(s->window, (s->w_size + window_padding) * (2 * sizeof(Byte)));
+    zmemzero(s->window, (s->w_size + WINDOW_PADDING) * (2 * sizeof(Byte)));
     s->prev   = (Posf *)  ZALLOC(strm, s->w_size, sizeof(Pos));
     /* Avoid use of uninitialized value, see:
      * https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=11360
@@ -532,7 +532,11 @@ int ZEXPORT deflateInit2_(z_streamp strm, int level, int method,
      * the compressed data for a dynamic block also cannot overwrite the
      * symbols from which it is being constructed.
      */
+#ifdef LIT_MEM
+    s->pending_buf = (uchf *) ZALLOC(strm, s->lit_bufsize, 5);
+#else
     s->pending_buf = (uchf *) ZALLOC(strm, s->lit_bufsize, 4);
+#endif
     s->pending_buf_size = (ulg)s->lit_bufsize * 4;
 
     if (s->window == Z_NULL || s->prev == Z_NULL || s->head == Z_NULL ||
@@ -542,8 +546,14 @@ int ZEXPORT deflateInit2_(z_streamp strm, int level, int method,
         deflateEnd (strm);
         return Z_MEM_ERROR;
     }
+#ifdef LIT_MEM
+    s->d_buf = (ushf *)(s->pending_buf + (s->lit_bufsize << 1));
+    s->l_buf = s->pending_buf + (s->lit_bufsize << 2);
+    s->sym_end = s->lit_bufsize - 1;
+#else
     s->sym_buf = s->pending_buf + s->lit_bufsize;
     s->sym_end = (s->lit_bufsize - 1) * 3;
+#endif
     /* We avoid equality with lit_bufsize*3 because of wraparound at 64K
      * on 16 bit machines and because stored blocks are restricted to
      * 64K-1 bytes.
@@ -755,9 +765,15 @@ int ZEXPORT deflatePrime(z_streamp strm, int bits, int value) {
 
     if (deflateStateCheck(strm)) return Z_STREAM_ERROR;
     s = strm->state;
+#ifdef LIT_MEM
+    if (bits < 0 || bits > 16 ||
+        (uchf *)s->d_buf < s->pending_out + ((Buf_size + 7) >> 3))
+        return Z_BUF_ERROR;
+#else
     if (bits < 0 || bits > 16 ||
         s->sym_buf < s->pending_out + ((Buf_size + 7) >> 3))
         return Z_BUF_ERROR;
+#endif
     do {
         put = Buf_size - s->bi_valid;
         if (put > bits)
@@ -907,6 +923,12 @@ uLong ZEXPORT deflateBound(z_streamp strm, uLong sourceLen) {
     default:                                /* for compiler happiness */
         wraplen = 6;
     }
+
+    /* With Chromium's hashing, s->hash_bits may not correspond to the
+       memLevel, making the computations below incorrect. Return the
+       conservative bound. */
+    if (s->chromium_zlib_hash)
+        return (fixedlen > storelen ? fixedlen : storelen) + wraplen;
 
     /* if not default parameters, return one of the conservative bounds */
     if (s->w_bits != 15 || s->hash_bits != 8 + 7)
@@ -1327,10 +1349,16 @@ int ZEXPORT deflateCopy(z_streamp dest, z_streamp source) {
     zmemcpy((voidpf)ds, (voidpf)ss, sizeof(deflate_state));
     ds->strm = dest;
 
-    ds->window = (Bytef *) ZALLOC(dest, ds->w_size, 2*sizeof(Byte));
+    ds->window = (Bytef *) ZALLOC(dest,
+                                  ds->w_size + WINDOW_PADDING,
+                                  2*sizeof(Byte));
     ds->prev   = (Posf *)  ZALLOC(dest, ds->w_size, sizeof(Pos));
     ds->head   = (Posf *)  ZALLOC(dest, ds->hash_size, sizeof(Pos));
+#ifdef LIT_MEM
+    ds->pending_buf = (uchf *) ZALLOC(dest, ds->lit_bufsize, 5);
+#else
     ds->pending_buf = (uchf *) ZALLOC(dest, ds->lit_bufsize, 4);
+#endif
 
     if (ds->window == Z_NULL || ds->prev == Z_NULL || ds->head == Z_NULL ||
         ds->pending_buf == Z_NULL) {
@@ -1338,13 +1366,23 @@ int ZEXPORT deflateCopy(z_streamp dest, z_streamp source) {
         return Z_MEM_ERROR;
     }
     /* following zmemcpy do not work for 16-bit MSDOS */
-    zmemcpy(ds->window, ss->window, ds->w_size * 2 * sizeof(Byte));
+    zmemcpy(ds->window, ss->window,
+            (ds->w_size + WINDOW_PADDING) * 2 * sizeof(Byte));
     zmemcpy((voidpf)ds->prev, (voidpf)ss->prev, ds->w_size * sizeof(Pos));
     zmemcpy((voidpf)ds->head, (voidpf)ss->head, ds->hash_size * sizeof(Pos));
+#ifdef LIT_MEM
+    zmemcpy(ds->pending_buf, ss->pending_buf, (uInt)ds->lit_bufsize * 5);
+#else
     zmemcpy(ds->pending_buf, ss->pending_buf, (uInt)ds->pending_buf_size);
+#endif
 
     ds->pending_out = ds->pending_buf + (ss->pending_out - ss->pending_buf);
+#ifdef LIT_MEM
+    ds->d_buf = (ushf *)(ds->pending_buf + (ds->lit_bufsize << 1));
+    ds->l_buf = ds->pending_buf + (ds->lit_bufsize << 2);
+#else
     ds->sym_buf = ds->pending_buf + ds->lit_bufsize;
+#endif
 
     ds->l_desc.dyn_tree = ds->dyn_ltree;
     ds->d_desc.dyn_tree = ds->dyn_dtree;

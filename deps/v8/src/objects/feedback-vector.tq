@@ -16,7 +16,8 @@ bitfield struct FeedbackVectorFlags extends uint16 {
   maybe_has_turbofan_code: bool: 1 bit;
   // Just one bit, since only {kNone,kInProgress} are relevant for OSR.
   osr_tiering_state: TieringState: 1 bit;
-  all_your_bits_are_belong_to_jgruber: uint32: 9 bit;
+  interrupt_budget_reset_by_ic_change: bool: 1 bit;
+  all_your_bits_are_belong_to_jgruber: uint32: 8 bit;
 }
 
 bitfield struct OsrState extends uint8 {
@@ -32,19 +33,26 @@ bitfield struct OsrState extends uint8 {
   dont_use_these_bits_unless_beneficial: uint32: 3 bit;
 }
 
+@cppObjectDefinition
+extern class ClosureFeedbackCellArray extends HeapObject {
+  const capacity: Smi;
+  objects[capacity]: FeedbackCell;
+}
+
 @generateBodyDescriptor
 extern class FeedbackVector extends HeapObject {
   const length: int32;
   invocation_count: int32;
   @if(TAGGED_SIZE_8_BYTES) optional_padding: uint32;
-  // TODO(jgruber): These bits are available.
-  placeholder0: uint8;
+  invocation_count_before_stable: uint8;
   osr_state: OsrState;
   flags: FeedbackVectorFlags;
   shared_function_info: SharedFunctionInfo;
   closure_feedback_cell_array: ClosureFeedbackCellArray;
   parent_feedback_cell: FeedbackCell;
-  maybe_optimized_code: Weak<Code>;
+  // TODO(saelo): if we had support for weak indirect pointers, this field
+  // could become a code pointer, which would save one indirection.
+  maybe_optimized_code: Weak<CodeWrapper>;
   @cppRelaxedLoad raw_feedback_slots[length]: MaybeObject;
 }
 

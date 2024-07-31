@@ -1,6 +1,6 @@
 'use strict';
 
-const { fork } = require('child_process');
+const { spawn, fork } = require('node:child_process');
 const { inspect } = require('util');
 const path = require('path');
 const CLI = require('./_cli.js');
@@ -24,6 +24,12 @@ const cli = new CLI(`usage: ./node compare.js [options] [--] <category> ...
                                 repeated)
   --set      variable=value     set benchmark variable (can be repeated)
   --no-progress                 don't show benchmark progress indicator
+
+  Examples:
+    --set CPUSET=0            Runs benchmarks on CPU core 0.
+    --set CPUSET=0-2          Specifies that benchmarks should run on CPU cores 0 to 2.
+
+  Note: The CPUSET format should match the specifications of the 'taskset' command
 `, { arrayArgs: ['set', 'filter', 'exclude'], boolArgs: ['no-progress'] });
 
 if (!cli.optional.new || !cli.optional.old) {
@@ -69,10 +75,21 @@ if (showProgress) {
 
 (function recursive(i) {
   const job = queue[i];
+  const resolvedPath = path.resolve(__dirname, job.filename);
 
-  const child = fork(path.resolve(__dirname, job.filename), cli.optional.set, {
-    execPath: cli.optional[job.binary],
-  });
+  const cpuCore = cli.getCpuCoreSetting();
+  let child;
+  if (cpuCore !== null) {
+    const spawnArgs = ['-c', cpuCore, cli.optional[job.binary], resolvedPath, ...cli.optional.set];
+    child = spawn('taskset', spawnArgs, {
+      env: process.env,
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    });
+  } else {
+    child = fork(resolvedPath, cli.optional.set, {
+      execPath: cli.optional[job.binary],
+    });
+  }
 
   child.on('message', (data) => {
     if (data.type === 'report') {

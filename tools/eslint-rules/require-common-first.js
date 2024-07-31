@@ -13,7 +13,7 @@ const { isRequireCall, isString } = require('./rules-utils.js');
 module.exports = {
   create(context) {
     const requiredModule = 'common';
-    const isESM = context.parserOptions.sourceType === 'module';
+    const isESM = context.languageOptions.sourceType === 'module';
     const foundModules = [];
 
     /**

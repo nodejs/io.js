@@ -44,7 +44,7 @@ V8_EXPORT void MoveGlobalReference(internal::Address** from,
  * isolate.
  */
 template <class T>
-class Eternal : public IndirectHandleBase {
+class Eternal : public api_internal::IndirectHandleBase {
  public:
   V8_INLINE Eternal() = default;
 
@@ -88,7 +88,7 @@ V8_EXPORT void MakeWeak(internal::Address* location, void* data,
  *
  */
 template <class T>
-class PersistentBase : public IndirectHandleBase {
+class PersistentBase : public api_internal::IndirectHandleBase {
  public:
   /**
    * If non-empty, destroy the underlying storage cell
@@ -257,7 +257,9 @@ struct CopyablePersistentTraits {
  * Copy, assignment and destructor behavior is controlled by the traits
  * class M.
  *
- * Note: Persistent class hierarchy is subject to future changes.
+ * CAVEAT: Persistent objects do not have proper destruction behavior by default
+ * and as such will leak the object without explicit clear. Consider using
+ * `v8::Global` instead which has proper destruction and move semantics.
  */
 template <class T, class M>
 class Persistent : public PersistentBase<T> {

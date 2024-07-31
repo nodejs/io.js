@@ -12,9 +12,9 @@
 #include "src/libplatform/default-platform.h"
 #include "src/utils/locked-queue-inl.h"
 
-#if !defined(_WIN32) && !defined(_WIN64)
+#if !defined(V8_OS_WIN)
 #include <unistd.h>
-#endif  // !defined(_WIN32) && !defined(_WIN64)
+#endif  // !defined(V8_OS_WIN)
 
 namespace v8 {
 namespace internal {

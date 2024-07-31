@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/common/ptr-compr-inl.h"
 #include "src/execution/isolate.h"
 #include "src/wasm/c-api.h"
 #include "test/wasm-api-tests/wasm-api-test.h"
@@ -35,12 +36,19 @@ TEST_F(WasmCapiTest, Serialize) {
   // We reset the module and collect it to make sure the NativeModuleCache does
   // not contain it anymore. Otherwise deserialization will not happen.
   ResetModule();
-  Heap* heap =
-      reinterpret_cast<::wasm::StoreImpl*>(store())->i_isolate()->heap();
-  heap->PreciseCollectAllGarbage(GCFlag::kForced,
-                                 GarbageCollectionReason::kTesting);
-  heap->PreciseCollectAllGarbage(GCFlag::kForced,
-                                 GarbageCollectionReason::kTesting);
+  {
+    Isolate* isolate =
+        reinterpret_cast<::wasm::StoreImpl*>(store())->i_isolate();
+    // This method might be called on a thread that's not bound to any Isolate
+    // and thus pointer compression schemes might have cage base value unset.
+    // Ensure cage bases are initialized so that the V8 heap can be accessed.
+    i::PtrComprCageAccessScope ptr_compr_cage_access_scope(isolate);
+    Heap* heap = isolate->heap();
+    heap->PreciseCollectAllGarbage(GCFlag::kForced,
+                                   GarbageCollectionReason::kTesting);
+    heap->PreciseCollectAllGarbage(GCFlag::kForced,
+                                   GarbageCollectionReason::kTesting);
+  }
   own<Module> deserialized = Module::deserialize(store(), serialized);
 
   // Try to serialize the module again. This can fail if deserialization does

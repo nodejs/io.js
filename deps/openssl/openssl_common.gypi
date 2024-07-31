@@ -26,7 +26,7 @@
     }, 'OS=="win"', {
       'defines': [
         ## default of Win. See INSTALL in openssl repo.
-        'OPENSSLDIR="C:\\\Program\ Files\\\Common\ Files\\\SSL"',
+        'OPENSSLDIR="C:\\\\Program\\ Files\\\\Common\\ Files\\\\SSL"',
         'ENGINESDIR="NUL"',
         'OPENSSL_SYS_WIN32', 'WIN32_LEAN_AND_MEAN', 'L_ENDIAN',
         '_CRT_SECURE_NO_DEPRECATE', 'UNICODE', '_UNICODE',
@@ -67,7 +67,7 @@
         'TERMIOS',
       ],
       'conditions': [
-        [ 'llvm_version=="0.0"', {
+        [ 'clang==0', {
           'cflags': ['-Wno-old-style-declaration',],
         }],
       ],

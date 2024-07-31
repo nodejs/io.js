@@ -41,6 +41,7 @@
 
 #if V8_ENABLE_WEBASSEMBLY
 #include "src/wasm/wasm-external-refs.h"
+#include "src/wasm/wasm-js.h"
 #endif  // V8_ENABLE_WEBASSEMBLY
 
 #ifdef V8_INTL_SUPPORT
@@ -249,14 +250,16 @@ ExternalReference::shared_external_pointer_table_address_address(
       isolate->shared_external_pointer_table_address_address());
 }
 
+ExternalReference ExternalReference::trusted_pointer_table_base_address(
+    Isolate* isolate) {
+  // TODO(saelo): maybe the external pointer table external references should
+  // also directly return the table base address?
+  return ExternalReference(isolate->trusted_pointer_table_base_address());
+}
+
 ExternalReference ExternalReference::code_pointer_table_address() {
-  // TODO(saelo) remove this ifdef when merging V8_CODE_POINTER_SANDBOXING into
-  // V8_ENABLE_SANDBOX
-#ifdef V8_CODE_POINTER_SANDBOXING
+  // TODO(saelo): maybe rename to code_pointer_table_base_address?
   return ExternalReference(GetProcessWideCodePointerTable()->base_address());
-#else
-  return ExternalReference(kNullAddress);
-#endif
 }
 
 #endif  // V8_ENABLE_SANDBOX
@@ -336,6 +339,14 @@ struct IsValidExternalReferenceType<Result (Class::*)(Args...)> {
 
 }  // namespace
 
+// .. for functions that will not be called through CallCFunction. For these,
+// all signatures are valid.
+#define RAW_FUNCTION_REFERENCE(Name, Target)         \
+  ExternalReference ExternalReference::Name() {      \
+    return ExternalReference(FUNCTION_ADDR(Target)); \
+  }
+
+// .. for functions that will be called through CallCFunction.
 #define FUNCTION_REFERENCE(Name, Target)                                   \
   ExternalReference ExternalReference::Name() {                            \
     static_assert(IsValidExternalReferenceType<decltype(&Target)>::value); \
@@ -367,16 +378,19 @@ namespace {
 
 intptr_t DebugBreakAtEntry(Isolate* isolate, Address raw_sfi) {
   DisallowGarbageCollection no_gc;
-  Tagged<SharedFunctionInfo> sfi = SharedFunctionInfo::cast(Object(raw_sfi));
+  Tagged<SharedFunctionInfo> sfi =
+      SharedFunctionInfo::cast(Tagged<Object>(raw_sfi));
   return isolate->debug()->BreakAtEntry(sfi) ? 1 : 0;
 }
 
 Address DebugGetCoverageInfo(Isolate* isolate, Address raw_sfi) {
   DisallowGarbageCollection no_gc;
-  Tagged<SharedFunctionInfo> sfi = SharedFunctionInfo::cast(Object(raw_sfi));
-  base::Optional<DebugInfo> debug_info = isolate->debug()->TryGetDebugInfo(sfi);
-  if (debug_info.has_value() && debug_info->HasCoverageInfo()) {
-    return debug_info->coverage_info().ptr();
+  Tagged<SharedFunctionInfo> sfi =
+      SharedFunctionInfo::cast(Tagged<Object>(raw_sfi));
+  base::Optional<Tagged<DebugInfo>> debug_info =
+      isolate->debug()->TryGetDebugInfo(sfi);
+  if (debug_info.has_value() && debug_info.value()->HasCoverageInfo()) {
+    return debug_info.value()->coverage_info().ptr();
   }
   return Smi::zero().ptr();
 }
@@ -450,73 +464,75 @@ FUNCTION_REFERENCE(new_deoptimizer_function, Deoptimizer::New)
 FUNCTION_REFERENCE(compute_output_frames_function,
                    Deoptimizer::ComputeOutputFrames)
 
-IF_WASM(FUNCTION_REFERENCE, wasm_sync_stack_limit, wasm::sync_stack_limit)
-IF_WASM(FUNCTION_REFERENCE, wasm_switch_to_the_central_stack,
-        wasm::switch_to_the_central_stack)
-IF_WASM(FUNCTION_REFERENCE, wasm_switch_from_the_central_stack,
-        wasm::switch_from_the_central_stack)
-IF_WASM(FUNCTION_REFERENCE, wasm_f32_trunc, wasm::f32_trunc_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f32_floor, wasm::f32_floor_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f32_ceil, wasm::f32_ceil_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f32_nearest_int, wasm::f32_nearest_int_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f64_trunc, wasm::f64_trunc_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f64_floor, wasm::f64_floor_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f64_ceil, wasm::f64_ceil_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f64_nearest_int, wasm::f64_nearest_int_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_int64_to_float32,
-        wasm::int64_to_float32_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_uint64_to_float32,
-        wasm::uint64_to_float32_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_int64_to_float64,
-        wasm::int64_to_float64_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_uint64_to_float64,
-        wasm::uint64_to_float64_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float32_to_int64,
-        wasm::float32_to_int64_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float32_to_uint64,
-        wasm::float32_to_uint64_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float64_to_int64,
-        wasm::float64_to_int64_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float64_to_uint64,
-        wasm::float64_to_uint64_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float32_to_int64_sat,
-        wasm::float32_to_int64_sat_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float32_to_uint64_sat,
-        wasm::float32_to_uint64_sat_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float64_to_int64_sat,
-        wasm::float64_to_int64_sat_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float64_to_uint64_sat,
-        wasm::float64_to_uint64_sat_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_int64_div, wasm::int64_div_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_int64_mod, wasm::int64_mod_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_uint64_div, wasm::uint64_div_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_uint64_mod, wasm::uint64_mod_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_word32_ctz, wasm::word32_ctz_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_word64_ctz, wasm::word64_ctz_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_word32_popcnt, wasm::word32_popcnt_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_word64_popcnt, wasm::word64_popcnt_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_word32_rol, wasm::word32_rol_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_word32_ror, wasm::word32_ror_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_word64_rol, wasm::word64_rol_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_word64_ror, wasm::word64_ror_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f64x2_ceil, wasm::f64x2_ceil_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f64x2_floor, wasm::f64x2_floor_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f64x2_trunc, wasm::f64x2_trunc_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f64x2_nearest_int,
-        wasm::f64x2_nearest_int_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f32x4_ceil, wasm::f32x4_ceil_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f32x4_floor, wasm::f32x4_floor_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f32x4_trunc, wasm::f32x4_trunc_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_f32x4_nearest_int,
-        wasm::f32x4_nearest_int_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_memory_init, wasm::memory_init_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_memory_copy, wasm::memory_copy_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_memory_fill, wasm::memory_fill_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_float64_pow, wasm::float64_pow_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_array_copy, wasm::array_copy_wrapper)
-IF_WASM(FUNCTION_REFERENCE, wasm_array_fill, wasm::array_fill_wrapper)
-IF_WASM(FUNCTION_REFERENCE_WITH_TYPE, wasm_string_to_f64,
-        wasm::flat_string_to_f64, BUILTIN_FP_POINTER_CALL)
+#ifdef V8_ENABLE_WEBASSEMBLY
+FUNCTION_REFERENCE(wasm_sync_stack_limit, wasm::sync_stack_limit)
+FUNCTION_REFERENCE(wasm_switch_to_the_central_stack,
+                   wasm::switch_to_the_central_stack)
+FUNCTION_REFERENCE(wasm_switch_from_the_central_stack,
+                   wasm::switch_from_the_central_stack)
+FUNCTION_REFERENCE(wasm_switch_to_the_central_stack_for_js,
+                   wasm::switch_to_the_central_stack_for_js)
+FUNCTION_REFERENCE(wasm_switch_from_the_central_stack_for_js,
+                   wasm::switch_from_the_central_stack_for_js)
+FUNCTION_REFERENCE(wasm_f32_trunc, wasm::f32_trunc_wrapper)
+FUNCTION_REFERENCE(wasm_f32_floor, wasm::f32_floor_wrapper)
+FUNCTION_REFERENCE(wasm_f32_ceil, wasm::f32_ceil_wrapper)
+FUNCTION_REFERENCE(wasm_f32_nearest_int, wasm::f32_nearest_int_wrapper)
+FUNCTION_REFERENCE(wasm_f64_trunc, wasm::f64_trunc_wrapper)
+FUNCTION_REFERENCE(wasm_f64_floor, wasm::f64_floor_wrapper)
+FUNCTION_REFERENCE(wasm_f64_ceil, wasm::f64_ceil_wrapper)
+FUNCTION_REFERENCE(wasm_f64_nearest_int, wasm::f64_nearest_int_wrapper)
+FUNCTION_REFERENCE(wasm_int64_to_float32, wasm::int64_to_float32_wrapper)
+FUNCTION_REFERENCE(wasm_uint64_to_float32, wasm::uint64_to_float32_wrapper)
+FUNCTION_REFERENCE(wasm_int64_to_float64, wasm::int64_to_float64_wrapper)
+FUNCTION_REFERENCE(wasm_uint64_to_float64, wasm::uint64_to_float64_wrapper)
+FUNCTION_REFERENCE(wasm_float32_to_int64, wasm::float32_to_int64_wrapper)
+FUNCTION_REFERENCE(wasm_float32_to_uint64, wasm::float32_to_uint64_wrapper)
+FUNCTION_REFERENCE(wasm_float64_to_int64, wasm::float64_to_int64_wrapper)
+FUNCTION_REFERENCE(wasm_float64_to_uint64, wasm::float64_to_uint64_wrapper)
+FUNCTION_REFERENCE(wasm_float32_to_int64_sat,
+                   wasm::float32_to_int64_sat_wrapper)
+FUNCTION_REFERENCE(wasm_float32_to_uint64_sat,
+                   wasm::float32_to_uint64_sat_wrapper)
+FUNCTION_REFERENCE(wasm_float64_to_int64_sat,
+                   wasm::float64_to_int64_sat_wrapper)
+FUNCTION_REFERENCE(wasm_float64_to_uint64_sat,
+                   wasm::float64_to_uint64_sat_wrapper)
+FUNCTION_REFERENCE(wasm_int64_div, wasm::int64_div_wrapper)
+FUNCTION_REFERENCE(wasm_int64_mod, wasm::int64_mod_wrapper)
+FUNCTION_REFERENCE(wasm_uint64_div, wasm::uint64_div_wrapper)
+FUNCTION_REFERENCE(wasm_uint64_mod, wasm::uint64_mod_wrapper)
+FUNCTION_REFERENCE(wasm_word32_ctz, base::bits::CountTrailingZeros<uint32_t>)
+FUNCTION_REFERENCE(wasm_word64_ctz, base::bits::CountTrailingZeros<uint64_t>)
+FUNCTION_REFERENCE(wasm_word32_popcnt, base::bits::CountPopulation<uint32_t>)
+FUNCTION_REFERENCE(wasm_word64_popcnt, base::bits::CountPopulation<uint64_t>)
+FUNCTION_REFERENCE(wasm_word32_rol, wasm::word32_rol_wrapper)
+FUNCTION_REFERENCE(wasm_word32_ror, wasm::word32_ror_wrapper)
+FUNCTION_REFERENCE(wasm_word64_rol, wasm::word64_rol_wrapper)
+FUNCTION_REFERENCE(wasm_word64_ror, wasm::word64_ror_wrapper)
+FUNCTION_REFERENCE(wasm_f64x2_ceil, wasm::f64x2_ceil_wrapper)
+FUNCTION_REFERENCE(wasm_f64x2_floor, wasm::f64x2_floor_wrapper)
+FUNCTION_REFERENCE(wasm_f64x2_trunc, wasm::f64x2_trunc_wrapper)
+FUNCTION_REFERENCE(wasm_f64x2_nearest_int, wasm::f64x2_nearest_int_wrapper)
+FUNCTION_REFERENCE(wasm_f32x4_ceil, wasm::f32x4_ceil_wrapper)
+FUNCTION_REFERENCE(wasm_f32x4_floor, wasm::f32x4_floor_wrapper)
+FUNCTION_REFERENCE(wasm_f32x4_trunc, wasm::f32x4_trunc_wrapper)
+FUNCTION_REFERENCE(wasm_f32x4_nearest_int, wasm::f32x4_nearest_int_wrapper)
+FUNCTION_REFERENCE(wasm_memory_init, wasm::memory_init_wrapper)
+FUNCTION_REFERENCE(wasm_memory_copy, wasm::memory_copy_wrapper)
+FUNCTION_REFERENCE(wasm_memory_fill, wasm::memory_fill_wrapper)
+FUNCTION_REFERENCE(wasm_float64_pow, wasm::float64_pow_wrapper)
+FUNCTION_REFERENCE(wasm_array_copy, wasm::array_copy_wrapper)
+FUNCTION_REFERENCE(wasm_array_fill, wasm::array_fill_wrapper)
+FUNCTION_REFERENCE_WITH_TYPE(wasm_string_to_f64, wasm::flat_string_to_f64,
+                             BUILTIN_FP_POINTER_CALL)
+int32_t (&futex_emulation_wake)(void*, uint32_t) = FutexEmulation::Wake;
+FUNCTION_REFERENCE(wasm_atomic_notify, futex_emulation_wake)
+
+#define V(Name) RAW_FUNCTION_REFERENCE(wasm_##Name, wasm::Name)
+WASM_JS_EXTERNAL_REFERENCE_LIST(V)
+#undef V
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 static void f64_acos_wrapper(Address data) {
   double input = ReadUnalignedValue<double>(data);
@@ -630,9 +646,8 @@ ExternalReference ExternalReference::handle_scope_limit_address(
   return ExternalReference(HandleScope::current_limit_address(isolate));
 }
 
-ExternalReference ExternalReference::scheduled_exception_address(
-    Isolate* isolate) {
-  return ExternalReference(isolate->scheduled_exception_address());
+ExternalReference ExternalReference::exception_address(Isolate* isolate) {
+  return ExternalReference(isolate->exception_address());
 }
 
 ExternalReference ExternalReference::address_of_pending_message(
@@ -796,9 +811,9 @@ namespace {
 static uintptr_t BaselinePCForBytecodeOffset(Address raw_code_obj,
                                              int bytecode_offset,
                                              Address raw_bytecode_array) {
-  Tagged<Code> code_obj = Code::cast(Object(raw_code_obj));
+  Tagged<Code> code_obj = Code::cast(Tagged<Object>(raw_code_obj));
   Tagged<BytecodeArray> bytecode_array =
-      BytecodeArray::cast(Object(raw_bytecode_array));
+      BytecodeArray::cast(Tagged<Object>(raw_bytecode_array));
   return code_obj->GetBaselineStartPCForBytecodeOffset(bytecode_offset,
                                                        bytecode_array);
 }
@@ -806,9 +821,9 @@ static uintptr_t BaselinePCForBytecodeOffset(Address raw_code_obj,
 static uintptr_t BaselinePCForNextExecutedBytecode(Address raw_code_obj,
                                                    int bytecode_offset,
                                                    Address raw_bytecode_array) {
-  Tagged<Code> code_obj = Code::cast(Object(raw_code_obj));
+  Tagged<Code> code_obj = Code::cast(Tagged<Object>(raw_code_obj));
   Tagged<BytecodeArray> bytecode_array =
-      BytecodeArray::cast(Object(raw_bytecode_array));
+      BytecodeArray::cast(Tagged<Object>(raw_bytecode_array));
   return code_obj->GetBaselinePCForNextExecutedBytecode(bytecode_offset,
                                                         bytecode_array);
 }
@@ -1087,35 +1102,33 @@ namespace {
 
 void StringWriteToFlatOneByte(Address source, uint8_t* sink, int32_t start,
                               int32_t length) {
-  return String::WriteToFlat<uint8_t>(String::cast(Object(source)), sink, start,
-                                      length);
+  return String::WriteToFlat<uint8_t>(String::cast(Tagged<Object>(source)),
+                                      sink, start, length);
 }
 
 void StringWriteToFlatTwoByte(Address source, uint16_t* sink, int32_t start,
                               int32_t length) {
-  return String::WriteToFlat<uint16_t>(String::cast(Object(source)), sink,
-                                       start, length);
+  return String::WriteToFlat<uint16_t>(String::cast(Tagged<Object>(source)),
+                                       sink, start, length);
 }
 
 const uint8_t* ExternalOneByteStringGetChars(Address string) {
-  PtrComprCageBase cage_base = GetPtrComprCageBaseFromOnHeapAddress(string);
   // The following CHECK is a workaround to prevent a CFI bug where
   // ExternalOneByteStringGetChars() and ExternalTwoByteStringGetChars() are
   // merged by the linker, resulting in one of the input type's vtable address
   // failing the address range check.
   // TODO(chromium:1160961): Consider removing the CHECK when CFI is fixed.
-  CHECK(IsExternalOneByteString(Object(string), cage_base));
-  return ExternalOneByteString::cast(Object(string))->GetChars(cage_base);
+  CHECK(IsExternalOneByteString(Tagged<Object>(string)));
+  return ExternalOneByteString::cast(Tagged<Object>(string))->GetChars();
 }
 const uint16_t* ExternalTwoByteStringGetChars(Address string) {
-  PtrComprCageBase cage_base = GetPtrComprCageBaseFromOnHeapAddress(string);
   // The following CHECK is a workaround to prevent a CFI bug where
   // ExternalOneByteStringGetChars() and ExternalTwoByteStringGetChars() are
   // merged by the linker, resulting in one of the input type's vtable address
   // failing the address range check.
   // TODO(chromium:1160961): Consider removing the CHECK when CFI is fixed.
-  CHECK(IsExternalTwoByteString(Object(string), cage_base));
-  return ExternalTwoByteString::cast(Object(string))->GetChars(cage_base);
+  CHECK(IsExternalTwoByteString(Tagged<Object>(string)));
+  return ExternalTwoByteString::cast(Tagged<Object>(string))->GetChars();
 }
 
 }  // namespace
@@ -1148,13 +1161,13 @@ FUNCTION_REFERENCE(orderedhashmap_gethash_raw, OrderedHashMap::GetHash)
 
 Address GetOrCreateHash(Isolate* isolate, Address raw_key) {
   DisallowGarbageCollection no_gc;
-  return Object::GetOrCreateHash(Object(raw_key), isolate).ptr();
+  return Object::GetOrCreateHash(Tagged<Object>(raw_key), isolate).ptr();
 }
 
 FUNCTION_REFERENCE(get_or_create_hash_raw, GetOrCreateHash)
 
 static Address JSReceiverCreateIdentityHash(Isolate* isolate, Address raw_key) {
-  Tagged<JSReceiver> key = JSReceiver::cast(Object(raw_key));
+  Tagged<JSReceiver> key = JSReceiver::cast(Tagged<Object>(raw_key));
   return JSReceiver::CreateIdentityHash(isolate, key).ptr();
 }
 
@@ -1178,16 +1191,16 @@ static size_t NameDictionaryLookupForwardedString(Isolate* isolate,
   DisallowGarbageCollection no_gc;
   HandleScope handle_scope(isolate);
 
-  Handle<String> key(String::cast(Object(raw_key)), isolate);
+  Handle<String> key(String::cast(Tagged<Object>(raw_key)), isolate);
   // This function should only be used as the slow path for forwarded strings.
   DCHECK(Name::IsForwardingIndex(key->raw_hash_field()));
 
-  Dictionary dict = Dictionary::cast(Object(raw_dict));
+  Tagged<Dictionary> dict = Dictionary::cast(Tagged<Object>(raw_dict));
   ReadOnlyRoots roots(isolate);
   uint32_t hash = key->hash();
   InternalIndex entry = mode == kFindExisting
-                            ? dict.FindEntry(isolate, roots, key, hash)
-                            : dict.FindInsertionEntry(isolate, roots, hash);
+                            ? dict->FindEntry(isolate, roots, key, hash)
+                            : dict->FindInsertionEntry(isolate, roots, hash);
   return entry.raw_value();
 }
 
@@ -1314,8 +1327,8 @@ FUNCTION_REFERENCE(check_object_type, CheckObjectType)
 #ifdef V8_INTL_SUPPORT
 
 static Address ConvertOneByteToLower(Address raw_src, Address raw_dst) {
-  Tagged<String> src = String::cast(Object(raw_src));
-  Tagged<String> dst = String::cast(Object(raw_dst));
+  Tagged<String> src = String::cast(Tagged<Object>(raw_src));
+  Tagged<String> dst = String::cast(Tagged<Object>(raw_dst));
   return Intl::ConvertOneByteToLower(src, dst).ptr();
 }
 FUNCTION_REFERENCE(intl_convert_one_byte_to_lower, ConvertOneByteToLower)
@@ -1386,7 +1399,7 @@ ExternalReference ExternalReference::runtime_function_table_address(
 }
 
 static Address InvalidatePrototypeChainsWrapper(Address raw_map) {
-  Tagged<Map> map = Map::cast(Object(raw_map));
+  Tagged<Map> map = Map::cast(Tagged<Object>(raw_map));
   return JSObject::InvalidatePrototypeChains(map).ptr();
 }
 
@@ -1409,6 +1422,10 @@ ExternalReference ExternalReference::fast_c_call_caller_fp_address(
       isolate->isolate_data()->fast_c_call_caller_fp_address());
 }
 
+ExternalReference ExternalReference::context_address(Isolate* isolate) {
+  return ExternalReference(isolate->context_address());
+}
+
 ExternalReference ExternalReference::fast_c_call_caller_pc_address(
     Isolate* isolate) {
   return ExternalReference(
@@ -1425,6 +1442,12 @@ ExternalReference ExternalReference::api_callback_thunk_argument_address(
     Isolate* isolate) {
   return ExternalReference(
       isolate->isolate_data()->api_callback_thunk_argument_address());
+}
+
+ExternalReference ExternalReference::continuation_preserved_embedder_data(
+    Isolate* isolate) {
+  return ExternalReference(
+      isolate->continuation_preserved_embedder_data_address());
 }
 
 ExternalReference ExternalReference::stack_is_iterable_address(
@@ -1673,14 +1696,15 @@ IF_TSAN(FUNCTION_REFERENCE, tsan_relaxed_load_function_32_bits,
 IF_TSAN(FUNCTION_REFERENCE, tsan_relaxed_load_function_64_bits,
         tsan_relaxed_load_64_bits)
 
-static int EnterMicrotaskContextWrapper(HandleScopeImplementer* hsi,
-                                        Address raw_context) {
-  Tagged<NativeContext> context = NativeContext::cast(Object(raw_context));
-  hsi->EnterMicrotaskContext(context);
+static int EnterContextWrapper(HandleScopeImplementer* hsi,
+                               Address raw_context) {
+  Tagged<NativeContext> context =
+      NativeContext::cast(Tagged<Object>(raw_context));
+  hsi->EnterContext(context);
   return 0;
 }
 
-FUNCTION_REFERENCE(call_enter_context_function, EnterMicrotaskContextWrapper)
+FUNCTION_REFERENCE(call_enter_context_function, EnterContextWrapper)
 
 FUNCTION_REFERENCE(
     js_finalization_registry_remove_cell_from_unregister_token_map,
@@ -1721,6 +1745,7 @@ void abort_with_reason(int reason) {
   UNREACHABLE();
 }
 
+#undef RAW_FUNCTION_REFERENCE
 #undef FUNCTION_REFERENCE
 #undef FUNCTION_REFERENCE_WITH_TYPE
 

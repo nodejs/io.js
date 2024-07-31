@@ -23,12 +23,12 @@ class BuiltinArguments : public JavaScriptArguments {
       : Arguments(length, arguments) {
     // Check we have at least the receiver.
     DCHECK_LE(1, this->length());
-    DCHECK(Object((*at(0)).ptr()).IsObject());
+    DCHECK(Tagged<Object>((*at(0)).ptr()).IsObject());
   }
 
   Tagged<Object> operator[](int index) const {
     DCHECK_LT(index, length());
-    return Object(*address_of_arg_at(index + kArgsOffset));
+    return Tagged<Object>(*address_of_arg_at(index + kArgsOffset));
   }
 
   template <class S = Object>
@@ -104,7 +104,7 @@ static_assert(BuiltinArguments::kNumExtraArgsWithReceiver ==
 // TODO(cbruni): add global flag to check whether any tracing events have been
 // enabled.
 #define BUILTIN_RCS(name)                                                  \
-  V8_WARN_UNUSED_RESULT static Object Builtin_Impl_##name(                 \
+  V8_WARN_UNUSED_RESULT static Tagged<Object> Builtin_Impl_##name(         \
       BuiltinArguments args, Isolate* isolate);                            \
                                                                            \
   V8_NOINLINE static Address Builtin_Impl_Stats_##name(                    \
@@ -126,11 +126,11 @@ static_assert(BuiltinArguments::kNumExtraArgsWithReceiver ==
     return BUILTIN_CONVERT_RESULT(Builtin_Impl_##name(args, isolate));     \
   }                                                                        \
                                                                            \
-  V8_WARN_UNUSED_RESULT static Object Builtin_Impl_##name(                 \
+  V8_WARN_UNUSED_RESULT static Tagged<Object> Builtin_Impl_##name(         \
       BuiltinArguments args, Isolate* isolate)
 
 #define BUILTIN_NO_RCS(name)                                               \
-  V8_WARN_UNUSED_RESULT static Object Builtin_Impl_##name(                 \
+  V8_WARN_UNUSED_RESULT static Tagged<Object> Builtin_Impl_##name(         \
       BuiltinArguments args, Isolate* isolate);                            \
                                                                            \
   V8_WARN_UNUSED_RESULT Address Builtin_##name(                            \
@@ -140,7 +140,7 @@ static_assert(BuiltinArguments::kNumExtraArgsWithReceiver ==
     return BUILTIN_CONVERT_RESULT(Builtin_Impl_##name(args, isolate));     \
   }                                                                        \
                                                                            \
-  V8_WARN_UNUSED_RESULT static Object Builtin_Impl_##name(                 \
+  V8_WARN_UNUSED_RESULT static Tagged<Object> Builtin_Impl_##name(         \
       BuiltinArguments args, Isolate* isolate)
 
 #ifdef V8_RUNTIME_CALL_STATS

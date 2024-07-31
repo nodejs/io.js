@@ -4,7 +4,7 @@
 // this version number must be increased to avoid conflicts.
 const globalDispatcher = Symbol.for('undici.globalDispatcher.1')
 const { InvalidArgumentError } = require('./core/errors')
-const Agent = require('./agent')
+const Agent = require('./dispatcher/agent')
 
 if (getGlobalDispatcher() === undefined) {
   setGlobalDispatcher(new Agent())

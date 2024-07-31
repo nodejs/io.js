@@ -2,6 +2,7 @@ const { Minipass } = require('minipass')
 const fetch = require('minipass-fetch')
 const promiseRetry = require('promise-retry')
 const ssri = require('ssri')
+const { log } = require('proc-log')
 
 const CachingMinipassPipeline = require('./pipeline.js')
 const { getAgent } = require('@npmcli/agent')
@@ -89,6 +90,8 @@ const remoteFetch = (request, options) => {
           options.onRetry(res)
         }
 
+        /* eslint-disable-next-line max-len */
+        log.http('fetch', `${req.method} ${req.url} attempt ${attemptNum} failed with ${res.status}`)
         return retryHandler(res)
       }
 
@@ -112,6 +115,7 @@ const remoteFetch = (request, options) => {
         options.onRetry(err)
       }
 
+      log.http('fetch', `${req.method} ${req.url} attempt ${attemptNum} failed with ${err.code}`)
       return retryHandler(err)
     }
   }, options.retry).catch((err) => {

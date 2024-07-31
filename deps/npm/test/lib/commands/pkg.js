@@ -1,5 +1,5 @@
-const { resolve } = require('path')
-const { readFileSync } = require('fs')
+const { resolve } = require('node:path')
+const { readFileSync } = require('node:fs')
 const t = require('tap')
 const _mockNpm = require('../../fixtures/mock-npm')
 const { cleanCwd } = require('../../fixtures/clean-snapshot')
@@ -7,7 +7,10 @@ const { cleanCwd } = require('../../fixtures/clean-snapshot')
 t.cleanSnapshot = (str) => cleanCwd(str)
 
 const mockNpm = async (t, { ...opts } = {}) => {
-  const res = await _mockNpm(t, opts)
+  const res = await _mockNpm(t, {
+    ...opts,
+    command: 'pkg',
+  })
 
   const readPackageJson = (dir = '') =>
     JSON.parse(readFileSync(resolve(res.prefix, dir, 'package.json'), 'utf8'))
@@ -80,6 +83,50 @@ t.test('get single arg', async t => {
     JSON.parse(OUTPUT()),
     '1.1.1',
     'should print retrieved package.json field'
+  )
+})
+
+t.test('get multiple arg', async t => {
+  const { pkg, OUTPUT } = await mockNpm(t, {
+    prefixDir: {
+      'package.json': JSON.stringify({
+        name: 'foo',
+        version: '1.1.1',
+      }),
+    },
+  })
+
+  await pkg('get', 'name', 'version')
+
+  t.strictSame(
+    JSON.parse(OUTPUT()),
+    {
+      name: 'foo',
+      version: '1.1.1',
+    },
+    'should print retrieved package.json field'
+  )
+})
+
+t.test('get multiple arg with empty value', async t => {
+  const { pkg, OUTPUT } = await mockNpm(t, {
+    prefixDir: {
+      'package.json': JSON.stringify({
+        name: 'foo',
+        author: '',
+      }),
+    },
+  })
+
+  await pkg('get', 'name', 'author')
+
+  t.strictSame(
+    JSON.parse(OUTPUT()),
+    {
+      name: 'foo',
+      author: '',
+    },
+    'should print retrieved package.json field regardless of empty value'
   )
 })
 
@@ -531,7 +578,7 @@ t.test('delete nested field', async t => {
 })
 
 t.test('workspaces', async t => {
-  const { pkg, OUTPUT, readPackageJson } = await mockNpm(t, {
+  const mockWorkspaces = (t) => mockNpm(t, {
     prefixDir: {
       'package.json': JSON.stringify({
         name: 'root',
@@ -558,64 +605,121 @@ t.test('workspaces', async t => {
     config: { workspaces: true },
   })
 
-  await pkg('get', 'name', 'version')
+  t.test('get', async t => {
+    const { pkg, OUTPUT } = await mockWorkspaces(t)
+    await pkg('get', 'name', 'version')
+    t.strictSame(
+      JSON.parse(OUTPUT()),
+      {
+        a: {
+          name: 'a',
+          version: '1.0.0',
+        },
+        b: {
+          name: 'b',
+          version: '1.2.3',
+        },
+      },
+      'should return expected result for configured workspaces'
+    )
+  })
 
-  t.strictSame(
-    JSON.parse(OUTPUT()),
-    {
-      a: {
+  t.test('set', async t => {
+    const { pkg, readPackageJson } = await mockWorkspaces(t)
+
+    await pkg('set', 'funding=http://example.com')
+
+    t.strictSame(
+      readPackageJson('packages/a'),
+      {
         name: 'a',
         version: '1.0.0',
+        funding: 'http://example.com',
       },
-      b: {
+      'should add field to workspace a'
+    )
+
+    t.strictSame(
+      readPackageJson('packages/b'),
+      {
         name: 'b',
         version: '1.2.3',
+        funding: 'http://example.com',
+      },
+      'should add field to workspace b'
+    )
+
+    await pkg('delete', 'version')
+
+    t.strictSame(
+      readPackageJson('packages/a'),
+      {
+        name: 'a',
+        funding: 'http://example.com',
+      },
+      'should delete version field from workspace a'
+    )
+
+    t.strictSame(
+      readPackageJson('packages/b'),
+      {
+        name: 'b',
+        funding: 'http://example.com',
+      },
+      'should delete version field from workspace b'
+    )
+  })
+})
+
+t.test('single workspace', async t => {
+  const mockWorkspace = (t) => mockNpm(t, {
+    prefixDir: {
+      'package.json': JSON.stringify({
+        name: 'root',
+        version: '1.0.0',
+        workspaces: [
+          'packages/*',
+        ],
+      }),
+      packages: {
+        a: {
+          'package.json': JSON.stringify({
+            name: 'a',
+            version: '1.0.0',
+          }),
+        },
+        b: {
+          'package.json': JSON.stringify({
+            name: 'b',
+            version: '1.2.3',
+          }),
+        },
       },
     },
-    'should return expected result for configured workspaces'
-  )
+    config: { workspace: ['packages/a'] },
+  })
 
-  await pkg('set', 'funding=http://example.com')
+  t.test('multiple args', async t => {
+    const { pkg, OUTPUT } = await mockWorkspace(t)
+    await pkg('get', 'name', 'version')
 
-  t.strictSame(
-    readPackageJson('packages/a'),
-    {
-      name: 'a',
-      version: '1.0.0',
-      funding: 'http://example.com',
-    },
-    'should add field to workspace a'
-  )
+    t.strictSame(
+      JSON.parse(OUTPUT()),
+      { a: { name: 'a', version: '1.0.0' } },
+      'should only return info for one workspace'
+    )
+  })
 
-  t.strictSame(
-    readPackageJson('packages/b'),
-    {
-      name: 'b',
-      version: '1.2.3',
-      funding: 'http://example.com',
-    },
-    'should add field to workspace b'
-  )
+  t.test('single arg', async t => {
+    const { pkg, OUTPUT } = await mockWorkspace(t)
+    await pkg('get', 'version')
 
-  await pkg('delete', 'version')
-
-  t.strictSame(
-    readPackageJson('packages/a'),
-    {
-      name: 'a',
-      funding: 'http://example.com',
-    },
-    'should delete version field from workspace a'
-  )
-
-  t.strictSame(
-    readPackageJson('packages/b'),
-    {
-      name: 'b',
-      funding: 'http://example.com',
-    },
-    'should delete version field from workspace b'
-  )
+    t.strictSame(
+      JSON.parse(OUTPUT()),
+      { a: '1.0.0' },
+      'should only return info for one workspace'
+    )
+  })
 })
 
 t.test('fix', async t => {

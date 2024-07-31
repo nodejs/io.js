@@ -36,7 +36,7 @@ ACCESSORS(SourceTextModule, async_parent_modules, Tagged<ArrayList>,
           kAsyncParentModulesOffset)
 
 struct Module::Hash {
-  V8_INLINE size_t operator()(Module const& module) const {
+  V8_INLINE size_t operator()(Tagged<Module> module) const {
     return module->hash();
   }
 };
@@ -123,12 +123,12 @@ void SourceTextModule::AddAsyncParentModule(Isolate* isolate,
 Handle<SourceTextModule> SourceTextModule::GetAsyncParentModule(
     Isolate* isolate, int index) {
   Handle<SourceTextModule> module(
-      SourceTextModule::cast(async_parent_modules()->Get(index)), isolate);
+      SourceTextModule::cast(async_parent_modules()->get(index)), isolate);
   return module;
 }
 
 int SourceTextModule::AsyncParentModuleCount() {
-  return async_parent_modules()->Length();
+  return async_parent_modules()->length();
 }
 
 bool SourceTextModule::IsAsyncEvaluating() const {

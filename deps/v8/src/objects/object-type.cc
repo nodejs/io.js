@@ -14,8 +14,8 @@ namespace internal {
 Address CheckObjectType(Address raw_value, Address raw_type,
                         Address raw_location) {
 #ifdef DEBUG
-  ObjectType type = static_cast<ObjectType>(Smi(raw_type).value());
-  String location = String::cast(Object(raw_location));
+  ObjectType type = static_cast<ObjectType>(Tagged<Smi>(raw_type).value());
+  Tagged<String> location = String::cast(Tagged<Object>(raw_location));
   const char* expected;
 
   if (HAS_WEAK_HEAP_OBJECT_TAG(raw_value)) {
@@ -44,7 +44,7 @@ Address CheckObjectType(Address raw_value, Address raw_type,
 #undef TYPE_STRUCT_CASE
     }
   } else {
-    Object value(raw_value);
+    Tagged<Object> value(raw_value);
     switch (type) {
       case ObjectType::kHeapObjectReference:
         if (!IsSmi(value)) return Smi::FromInt(0).ptr();
@@ -73,7 +73,7 @@ Address CheckObjectType(Address raw_value, Address raw_type,
 #undef TYPE_STRUCT_CASE
     }
   }
-  MaybeObject maybe_value(raw_value);
+  Tagged<MaybeObject> maybe_value(raw_value);
   std::stringstream value_description;
   Print(maybe_value, value_description);
   FATAL(

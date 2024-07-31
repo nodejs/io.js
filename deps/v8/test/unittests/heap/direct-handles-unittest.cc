@@ -105,14 +105,14 @@ TEST_F(DirectHandlesTest, MaybeObjectDirectHandleIsIdenticalTo) {
 
 namespace {
 template <typename Callback>
-void CheckDirectHandleUsage(Callback callback) {
+void ExpectFailure(Callback callback) {
   EXPECT_DEATH_IF_SUPPORTED(callback(), "");
 }
 }  // anonymous namespace
 
 TEST_F(DirectHandlesTest, DirectHandleOutOfStackFails) {
   // Out-of-stack allocation of direct handles should fail.
-  CheckDirectHandleUsage([]() {
+  ExpectFailure([]() {
     auto ptr = std::make_unique<i::DirectHandle<i::String>>();
     USE(ptr);
   });
@@ -121,28 +121,48 @@ TEST_F(DirectHandlesTest, DirectHandleOutOfStackFails) {
 namespace {
 class BackgroundThread final : public v8::base::Thread {
  public:
-  explicit BackgroundThread(i::Heap* heap)
+  explicit BackgroundThread(i::Isolate* isolate, bool park_and_wait)
       : v8::base::Thread(base::Thread::Options("BackgroundThread")),
-        heap_(heap) {}
+        isolate_(isolate),
+        park_and_wait_(park_and_wait) {}
 
   void Run() override {
-    i::LocalHeap lh(heap_, i::ThreadKind::kBackground);
-    // Usage of direct handles in background threads should fail.
-    CheckDirectHandleUsage([]() {
-      i::DirectHandle<i::String> direct;
-      USE(direct);
-    });
+    i::LocalIsolate isolate(isolate_, i::ThreadKind::kBackground);
+    i::UnparkedScope unparked_scope(&isolate);
+    i::LocalHandleScope handle_scope(&isolate);
+    // Using a direct handle when unparked is allowed.
+    i::DirectHandle<i::String> direct = isolate.factory()->empty_string();
+    // Park and wait, if we must.
+    if (park_and_wait_) {
+      // Parking a background thread while holding a direct handle fails.
+      ExpectFailure([&isolate]() {
+        isolate.heap()->BlockWhileParked([]() {
+          // nothing
+        });
+      });
+    }
+    // Keep the direct handle alive.
+    CHECK_EQ(0, direct->length());
   }
 
-  i::Heap* heap_;
+ private:
+  i::Isolate* isolate_;
+  bool park_and_wait_;
 };
 }  // anonymous namespace
 
-TEST_F(DirectHandlesTest, DirectHandleInBackgroundThreadFails) {
-  i::Heap* heap = i_isolate()->heap();
-  i::LocalHeap lh(heap, i::ThreadKind::kMain);
+TEST_F(DirectHandlesTest, DirectHandleInBackgroundThread) {
+  i::LocalHeap lh(i_isolate()->heap(), i::ThreadKind::kMain);
   lh.SetUpMainThreadForTesting();
-  auto thread = std::make_unique<BackgroundThread>(heap);
+  auto thread = std::make_unique<BackgroundThread>(i_isolate(), false);
+  CHECK(thread->Start());
+  thread->Join();
+}
+
+TEST_F(DirectHandlesTest, DirectHandleInParkedBackgroundThreadFails) {
+  i::LocalHeap lh(i_isolate()->heap(), i::ThreadKind::kMain);
+  lh.SetUpMainThreadForTesting();
+  auto thread = std::make_unique<BackgroundThread>(i_isolate(), true);
   CHECK(thread->Start());
   thread->Join();
 }
@@ -174,27 +194,37 @@ TEST_F(DirectHandlesSharedTest, DirectHandleInClient) {
 namespace {
 class ClientMainThread final : public i::ParkingThread {
  public:
-  ClientMainThread()
-      : ParkingThread(base::Thread::Options("ClientMainThread")) {}
+  explicit ClientMainThread(bool background_park_and_wait)
+      : ParkingThread(base::Thread::Options("ClientMainThread")),
+        background_park_and_wait_(background_park_and_wait) {}
 
   void Run() override {
     IsolateWrapper isolate_wrapper(kNoCounters);
-    Isolate* client_isolate = isolate_wrapper.isolate();
     i::Isolate* i_client_isolate =
-        reinterpret_cast<i::Isolate*>(client_isolate);
+        reinterpret_cast<i::Isolate*>(isolate_wrapper.isolate());
 
-    i::Heap* heap = i_client_isolate->heap();
-    i::LocalHeap lh(heap, i::ThreadKind::kMain);
+    i::LocalHeap lh(i_client_isolate->heap(), i::ThreadKind::kMain);
     lh.SetUpMainThreadForTesting();
-    auto thread = std::make_unique<BackgroundThread>(heap);
+    auto thread = std::make_unique<BackgroundThread>(i_client_isolate,
+                                                     background_park_and_wait_);
     CHECK(thread->Start());
     thread->Join();
   }
+
+ private:
+  bool background_park_and_wait_;
 };
 }  // anonymous namespace
 
-TEST_F(DirectHandlesSharedTest, DirectHandleInClientBackgroundThreadFails) {
-  auto thread = std::make_unique<ClientMainThread>();
+TEST_F(DirectHandlesSharedTest, DirectHandleInClientBackgroundThread) {
+  auto thread = std::make_unique<ClientMainThread>(false);
+  CHECK(thread->Start());
+  thread->ParkedJoin(i_isolate()->main_thread_local_isolate());
+}
+
+TEST_F(DirectHandlesSharedTest,
+       DirectHandleInParkedClientBackgroundThreadFails) {
+  auto thread = std::make_unique<ClientMainThread>(true);
   CHECK(thread->Start());
   thread->ParkedJoin(i_isolate()->main_thread_local_isolate());
 }

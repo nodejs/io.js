@@ -53,7 +53,7 @@ This parameter is ignored for KMAC.
 
 These parameters work as described in L<EVP_KDF(3)/PARAMETERS>.
 
-=item "key" (B<EVP_KDF_CTRL_SET_KEY>) <octet string>
+=item "key" (B<OSSL_KDF_PARAM_SECRET>) <octet string>
 
 This parameter set the shared secret that is used for key derivation.
 
@@ -116,7 +116,7 @@ fixedinfo value "label" and salt "salt":
                                          SN_hmac, strlen(SN_hmac));
  *p++ = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
                                          SN_sha256, strlen(SN_sha256));
- *p++ = OSSL_PARAM_construct_octet_string(EVP_KDF_CTRL_SET_KEY,
+ *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SECRET,
                                           "secret", (size_t)6);
  *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO,
                                           "label", (size_t)5);
@@ -143,7 +143,7 @@ fixedinfo value "label", salt of "salt" and KMAC outlen of 20:
 
  *p++ = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_MAC,
                                          SN_kmac128, strlen(SN_kmac128));
- *p++ = OSSL_PARAM_construct_octet_string(EVP_KDF_CTRL_SET_KEY,
+ *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SECRET,
                                           "secret", (size_t)6);
  *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO,
                                           "label", (size_t)5);

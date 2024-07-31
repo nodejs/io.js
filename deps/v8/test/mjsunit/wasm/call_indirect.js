@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-return-call --experimental-wasm-gc
-
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 (function TestCallIndirectJSFunction() {
@@ -20,7 +18,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
     let table = builder.addTable(kWasmFuncRef, 10, 10);
 
-    builder.addActiveElementSegment(table, wasmI32Const(0), [callee]);
+    builder.addActiveElementSegment(table.index, wasmI32Const(0), [callee]);
 
     let left = -2;
     let right = 3;
@@ -133,4 +131,61 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
               () => importing_instance.exports.main(10, table_size - 1));
   assertTraps(kTrapTableOutOfBounds,
               () => importing_instance.exports.main(10, table_size));
+})();
+
+(function TestSubtyping() {
+  print(arguments.callee.name);
+
+  // This test is the same as https://github.com/WebAssembly/gc/pull/526,
+  // rewritten in WasmModuleBuilder syntax.
+
+  const builder = new WasmModuleBuilder();
+
+  let t1 = builder.addType(kSig_v_v, kNoSuperType, false);
+  let t2 = builder.addType(kSig_v_v, t1, false);
+  let t3 = builder.addType(kSig_v_v, t2, false);
+  let t4 = builder.addType(kSig_v_v, kNoSuperType, true);
+
+  let f2 = builder.addFunction('f2', t2).addBody([]);
+  let f3 = builder.addFunction('f3', t3).addBody([]);
+  let tab0 = builder.addTable(wasmRefNullType(t2), 2).index;
+  builder.addActiveElementSegment(
+      tab0, wasmI32Const(0), [f2.index, f3.index]);
+
+  builder.addFunction('run', kSig_v_v).exportFunc().addBody([
+    // The immediate type being a supertype of the table type (and hence
+    // also of the table elements) is okay.
+    kExprI32Const, 0,
+    kExprCallIndirect, t1, tab0,
+    kExprI32Const, 1,
+    kExprCallIndirect, t1, tab0,
+    // The immediate type being equal to the type of the table and its
+    // elements is okay.
+    kExprI32Const, 0,
+    kExprCallIndirect, t2, tab0,
+    kExprI32Const, 1,
+    kExprCallIndirect, t2, tab0,
+    // The immediate type being a subtype of the table type is okay,
+    // as long as the requested element matches that subtype.
+    kExprI32Const, 1,
+    kExprCallIndirect, t3, tab0,
+  ]);
+
+  builder.addFunction('fail1', kSig_v_v).exportFunc().addBody([
+    // The immediate type is a subtype of the table type here, but the
+    // retrieved element can't be downcast to it.
+    kExprI32Const, 0,
+    kExprCallIndirect, t3, tab0,
+  ]);
+  builder.addFunction('fail2', kSig_v_v).exportFunc().addBody([
+    // The immediate type is entirely unrelated to the table type here.
+    // This validates, but traps at runtime.
+    kExprI32Const, 0,
+    kExprCallIndirect, t4, tab0,
+  ]);
+
+  let instance = builder.instantiate();
+  instance.exports.run();  // Does not trap.
+  assertTraps(kTrapFuncSigMismatch, () => instance.exports.fail1());
+  assertTraps(kTrapFuncSigMismatch, () => instance.exports.fail2());
 })();

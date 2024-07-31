@@ -12,13 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SocksClientError = exports.SocksClient = void 0;
 const events_1 = require("events");
 const net = require("net");
-const ip = require("ip");
 const smart_buffer_1 = require("smart-buffer");
 const constants_1 = require("../common/constants");
 const helpers_1 = require("../common/helpers");
 const receivebuffer_1 = require("../common/receivebuffer");
 const util_1 = require("../common/util");
 Object.defineProperty(exports, "SocksClientError", { enumerable: true, get: function () { return util_1.SocksClientError; } });
+const ip_address_1 = require("ip-address");
 class SocksClient extends events_1.EventEmitter {
     constructor(options) {
         super();
@@ -161,11 +161,11 @@ class SocksClient extends events_1.EventEmitter {
         // IPv4/IPv6/Hostname
         if (net.isIPv4(options.remoteHost.host)) {
             buff.writeUInt8(constants_1.Socks5HostType.IPv4);
-            buff.writeUInt32BE(ip.toLong(options.remoteHost.host));
+            buff.writeUInt32BE((0, helpers_1.ipv4ToInt32)(options.remoteHost.host));
         }
         else if (net.isIPv6(options.remoteHost.host)) {
             buff.writeUInt8(constants_1.Socks5HostType.IPv6);
-            buff.writeBuffer(ip.toBuffer(options.remoteHost.host));
+            buff.writeBuffer((0, helpers_1.ipToBuffer)(options.remoteHost.host));
         }
         else {
             buff.writeUInt8(constants_1.Socks5HostType.Hostname);
@@ -189,10 +189,10 @@ class SocksClient extends events_1.EventEmitter {
         const hostType = buff.readUInt8();
         let remoteHost;
         if (hostType === constants_1.Socks5HostType.IPv4) {
-            remoteHost = ip.fromLong(buff.readUInt32BE());
+            remoteHost = (0, helpers_1.int32ToIpv4)(buff.readUInt32BE());
         }
         else if (hostType === constants_1.Socks5HostType.IPv6) {
-            remoteHost = ip.toString(buff.readBuffer(16));
+            remoteHost = ip_address_1.Address6.fromByteArray(Array.from(buff.readBuffer(16))).canonicalForm();
         }
         else {
             remoteHost = buff.readString(buff.readUInt8());
@@ -401,7 +401,7 @@ class SocksClient extends events_1.EventEmitter {
         buff.writeUInt16BE(this.options.destination.port);
         // Socks 4 (IPv4)
         if (net.isIPv4(this.options.destination.host)) {
-            buff.writeBuffer(ip.toBuffer(this.options.destination.host));
+            buff.writeBuffer((0, helpers_1.ipToBuffer)(this.options.destination.host));
             buff.writeStringNT(userId);
             // Socks 4a (hostname)
         }
@@ -433,7 +433,7 @@ class SocksClient extends events_1.EventEmitter {
                 buff.readOffset = 2;
                 const remoteHost = {
                     port: buff.readUInt16BE(),
-                    host: ip.fromLong(buff.readUInt32BE()),
+                    host: (0, helpers_1.int32ToIpv4)(buff.readUInt32BE()),
                 };
                 // If host is 0.0.0.0, set to proxy host.
                 if (remoteHost.host === '0.0.0.0') {
@@ -464,7 +464,7 @@ class SocksClient extends events_1.EventEmitter {
             buff.readOffset = 2;
             const remoteHost = {
                 port: buff.readUInt16BE(),
-                host: ip.fromLong(buff.readUInt32BE()),
+                host: (0, helpers_1.int32ToIpv4)(buff.readUInt32BE()),
             };
             this.setState(constants_1.SocksClientState.Established);
             this.removeInternalSocketHandlers();
@@ -610,11 +610,11 @@ class SocksClient extends events_1.EventEmitter {
         // ipv4, ipv6, domain?
         if (net.isIPv4(this.options.destination.host)) {
             buff.writeUInt8(constants_1.Socks5HostType.IPv4);
-            buff.writeBuffer(ip.toBuffer(this.options.destination.host));
+            buff.writeBuffer((0, helpers_1.ipToBuffer)(this.options.destination.host));
         }
         else if (net.isIPv6(this.options.destination.host)) {
             buff.writeUInt8(constants_1.Socks5HostType.IPv6);
-            buff.writeBuffer(ip.toBuffer(this.options.destination.host));
+            buff.writeBuffer((0, helpers_1.ipToBuffer)(this.options.destination.host));
         }
         else {
             buff.writeUInt8(constants_1.Socks5HostType.Hostname);
@@ -652,7 +652,7 @@ class SocksClient extends events_1.EventEmitter {
                 }
                 buff = smart_buffer_1.SmartBuffer.fromBuffer(this.receiveBuffer.get(dataNeeded).slice(4));
                 remoteHost = {
-                    host: ip.fromLong(buff.readUInt32BE()),
+                    host: (0, helpers_1.int32ToIpv4)(buff.readUInt32BE()),
                     port: buff.readUInt16BE(),
                 };
                 // If given host is 0.0.0.0, assume remote proxy ip instead.
@@ -685,7 +685,7 @@ class SocksClient extends events_1.EventEmitter {
                 }
                 buff = smart_buffer_1.SmartBuffer.fromBuffer(this.receiveBuffer.get(dataNeeded).slice(4));
                 remoteHost = {
-                    host: ip.toString(buff.readBuffer(16)),
+                    host: ip_address_1.Address6.fromByteArray(Array.from(buff.readBuffer(16))).canonicalForm(),
                     port: buff.readUInt16BE(),
                 };
             }
@@ -743,7 +743,7 @@ class SocksClient extends events_1.EventEmitter {
                 }
                 buff = smart_buffer_1.SmartBuffer.fromBuffer(this.receiveBuffer.get(dataNeeded).slice(4));
                 remoteHost = {
-                    host: ip.fromLong(buff.readUInt32BE()),
+                    host: (0, helpers_1.int32ToIpv4)(buff.readUInt32BE()),
                     port: buff.readUInt16BE(),
                 };
                 // If given host is 0.0.0.0, assume remote proxy ip instead.
@@ -776,7 +776,7 @@ class SocksClient extends events_1.EventEmitter {
                 }
                 buff = smart_buffer_1.SmartBuffer.fromBuffer(this.receiveBuffer.get(dataNeeded).slice(4));
                 remoteHost = {
-                    host: ip.toString(buff.readBuffer(16)),
+                    host: ip_address_1.Address6.fromByteArray(Array.from(buff.readBuffer(16))).canonicalForm(),
                     port: buff.readUInt16BE(),
                 };
             }

@@ -35,14 +35,13 @@ cp -r "${BUILD_DIR}/lib/clang" "${PACKAGE_DIR}/lib"
 cp "${THIS_DIR}/libgcmole.so" "${PACKAGE_DIR}"
 
 # Generate the archive. Set some flags on tar to make the output more
-# deterministic (e.g. not dependent on timestamps by using the timestamp of
-# gcmole.cc for all files)
+# deterministic (e.g. not dependent on timestamps).
 cd "$(dirname "${PACKAGE_DIR}")"
 tar \
   --sort=name \
   --owner=root:0 \
   --group=root:0 \
-  --mtime="${THIS_DIR}/gcmole.cc" \
+  --mtime="UTC 1970-01-01" \
   --create \
   "$(basename "${PACKAGE_DIR}")" | gzip --no-name >"${PACKAGE_FILE}"
 

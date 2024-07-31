@@ -24,6 +24,44 @@
  encode("\u2026", "%A1%AD", "legacy ICU special case 2");
  encode("\uFF5E", "%A1%AB", "legacy ICU special case 3");
 
+ // GB18030-2022
+ encode("\uFE10", "%A6%D9", "GB18030-2022 1");
+ encode("\uFE12", "%A6%DA", "GB18030-2022 2");
+ encode("\uFE11", "%A6%DB", "GB18030-2022 3");
+ encode("\uFE13", "%A6%DC", "GB18030-2022 4");
+ encode("\uFE14", "%A6%DD", "GB18030-2022 5");
+ encode("\uFE15", "%A6%DE", "GB18030-2022 6");
+ encode("\uFE16", "%A6%DF", "GB18030-2022 7");
+ encode("\uFE17", "%A6%EC", "GB18030-2022 8");
+ encode("\uFE18", "%A6%ED", "GB18030-2022 9");
+ encode("\uFE19", "%A6%F3", "GB18030-2022 10");
+ encode("\u9FB4", "%FEY", "GB18030-2022 11");
+ encode("\u9FB5", "%FEa", "GB18030-2022 12");
+ encode("\u9FB6", "%FEf", "GB18030-2022 13");
+ encode("\u9FB7", "%FEg", "GB18030-2022 14");
+ encode("\u9FB8", "%FEm", "GB18030-2022 15");
+ encode("\u9FB9", "%FE~", "GB18030-2022 16");
+ encode("\u9FBA", "%FE%90", "GB18030-2022 17");
+ encode("\u9FBB", "%FE%A0", "GB18030-2022 18");
+ encode("\uE78D", "%841%826", "GB18030-2022 19");
+ encode("\uE78E", "%841%828", "GB18030-2022 20");
+ encode("\uE78F", "%841%827", "GB18030-2022 21");
+ encode("\uE790", "%841%829", "GB18030-2022 22");
+ encode("\uE791", "%841%830", "GB18030-2022 23");
+ encode("\uE792", "%841%831", "GB18030-2022 24");
+ encode("\uE793", "%841%832", "GB18030-2022 25");
+ encode("\uE794", "%841%833", "GB18030-2022 26");
+ encode("\uE795", "%841%834", "GB18030-2022 27");
+ encode("\uE796", "%841%835", "GB18030-2022 28");
+ encode("\uE81E", "%825%907", "GB18030-2022 29");
+ encode("\uE826", "%825%908", "GB18030-2022 30");
+ encode("\uE82B", "%825%909", "GB18030-2022 31");
+ encode("\uE82C", "%825%910", "GB18030-2022 32");
+ encode("\uE832", "%825%911", "GB18030-2022 33");
+ encode("\uE843", "%825%912", "GB18030-2022 34");
+ encode("\uE854", "%825%913", "GB18030-2022 35");
+ encode("\uE864", "%825%914", "GB18030-2022 36");
+
  const upperCaseNibble = x => {
    return Math.floor(x).toString(16).toUpperCase();
  }

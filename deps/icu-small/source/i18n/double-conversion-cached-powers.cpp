@@ -47,9 +47,7 @@
 // ICU PATCH: Wrap in ICU namespace
 U_NAMESPACE_BEGIN
 
-namespace double_conversion {
-
-namespace PowersOfTenCache {
+namespace double_conversion::PowersOfTenCache {
 
 struct CachedPower {
   uint64_t significand;
@@ -184,9 +182,7 @@ void GetCachedPowerForDecimalExponent(int requested_exponent,
   DOUBLE_CONVERSION_ASSERT(requested_exponent < *found_exponent + kDecimalExponentDistance);
 }
 
-}  // namespace PowersOfTenCache
-
-}  // namespace double_conversion
+} // namespace double_conversion::PowersOfTenCache
 
 // ICU PATCH: Close ICU namespace
 U_NAMESPACE_END

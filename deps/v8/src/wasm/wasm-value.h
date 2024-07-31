@@ -52,6 +52,10 @@ class Simd128 {
            kSimd128Size);
   }
 
+  bool operator==(const Simd128& other) const noexcept {
+    return memcmp(val_, other.val_, sizeof val_) == 0;
+  }
+
   const uint8_t* bytes() { return val_; }
 
   template <typename T>

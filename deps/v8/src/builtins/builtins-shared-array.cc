@@ -2,18 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/builtins/accessors.h"
 #include "src/builtins/builtins-utils-inl.h"
 #include "src/objects/js-shared-array-inl.h"
 
 namespace v8 {
 namespace internal {
-
-// We cannot allocate large objects with |AllocationType::kSharedOld|,
-// see |HeapAllocator::AllocateRawLargeInternal|.
-constexpr int kMaxJSSharedArraySize = (1 << 14) - 2;
-static_assert(FixedArray::SizeFor(kMaxJSSharedArraySize) <=
-              kMaxRegularHeapObjectSize);
 
 BUILTIN(SharedArrayConstructor) {
   DCHECK(v8_flags.shared_string_table);
@@ -30,12 +23,18 @@ BUILTIN(SharedArrayConstructor) {
   }
 
   int length = Smi::cast(*length_number).value();
-  if (length < 0 || length > kMaxJSSharedArraySize) {
+  if (length < 0 || length > FixedArray::kMaxCapacity) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewRangeError(MessageTemplate::kSharedArraySizeOutOfRange));
   }
 
   return *isolate->factory()->NewJSSharedArray(args.target(), length);
+}
+
+BUILTIN(SharedArrayIsSharedArray) {
+  HandleScope scope(isolate);
+  return isolate->heap()->ToBoolean(
+      IsJSSharedArray(*args.atOrUndefined(isolate, 1)));
 }
 
 }  // namespace internal

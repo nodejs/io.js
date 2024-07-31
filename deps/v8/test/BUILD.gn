@@ -176,6 +176,7 @@ v8_header_set("common_test_headers") {
   configs = []
 
   public_deps = [
+    "../:v8_abseil",
     "../:v8_internal_headers",
     "../:v8_libbase",
   ]

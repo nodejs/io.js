@@ -20,6 +20,8 @@ function runTest() {
 async function runTests() {
   const instance = new NodeInstance(undefined, script);
   const session = await instance.connectInspectorSession();
+  await session.send({ method: 'NodeRuntime.enable' });
+  await session.waitForNotification('NodeRuntime.waitingForDebugger');
   await session.send([
     { 'method': 'Runtime.enable' },
     { 'method': 'Debugger.enable' },
@@ -29,6 +31,7 @@ async function runTests() {
       'params': { 'patterns': [] } },
     { 'method': 'Runtime.runIfWaitingForDebugger' },
   ]);
+  session.send({ method: 'NodeRuntime.disable' });
 
   await session.waitForBreakOnLine(0, '[eval]');
   await session.send({ 'method': 'Debugger.resume' });

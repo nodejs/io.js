@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-sbom">npm-sbom</h1>
+<h1 id="----npm-sbom----1082">
+    <span>npm-sbom</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Generate a Software Bill of Materials (SBOM)</span>
 </header>
 
@@ -379,7 +387,7 @@ instead of checking <code>node_modules</code> and downloading dependencies.</p>
 <li>Type: "library", "application", or "framework"</li>
 </ul>
 <p>The type of package described by the generated SBOM. For SPDX, this is the
-value for the <code>primaryPackagePurpose</code> fieled. For CycloneDX, this is the
+value for the <code>primaryPackagePurpose</code> field. For CycloneDX, this is the
 value for the <code>type</code> field.</p>
 <h4 id="workspace"><code>workspace</code></h4>
 <ul>

@@ -23,6 +23,7 @@ class MaglevPipelineStatistics : public compiler::PipelineStatisticsBase,
   MaglevPipelineStatistics(maglev::MaglevCompilationInfo* info,
                            std::shared_ptr<CompilationStatistics> stats,
                            compiler::ZoneStats* zone_stats);
+  ~MaglevPipelineStatistics();
   MaglevPipelineStatistics(const MaglevPipelineStatistics&) = delete;
   MaglevPipelineStatistics& operator=(const MaglevPipelineStatistics&) = delete;
 

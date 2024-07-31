@@ -37,7 +37,7 @@ void CheckRegisterConfiguration(int count, const Register* registers,
 #endif
 
 void CallInterfaceDescriptorData::InitializeRegisters(
-    Flags flags, int return_count, int parameter_count,
+    Flags flags, CodeEntrypointTag tag, int return_count, int parameter_count,
     StackArgumentOrder stack_order, int register_parameter_count,
     const Register* registers, const DoubleRegister* double_registers,
     const Register* return_registers,
@@ -52,6 +52,7 @@ void CallInterfaceDescriptorData::InitializeRegisters(
 #endif
 
   flags_ = flags;
+  tag_ = tag;
   stack_order_ = stack_order;
   return_count_ = return_count;
   param_count_ = parameter_count;
@@ -172,6 +173,11 @@ void WriteBarrierDescriptor::Verify(CallInterfaceDescriptorData* data) {
   DCHECK(allocatable_regs.has(kContextRegister));
   DCHECK(allocatable_regs.has(kReturnRegister0));
   VerifyArgumentRegisterCount(data, 4);
+}
+// static
+void IndirectPointerWriteBarrierDescriptor::Verify(
+    CallInterfaceDescriptorData* data) {
+  WriteBarrierDescriptor::Verify(data);
 }
 #endif  // DEBUG
 

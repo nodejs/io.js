@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --wasm-staging --experimental-wasm-gc
+// Flags: --wasm-staging
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -145,7 +145,7 @@ kExprBlock, 0x06,  // block @32 i32 i32 (ref 1) (ref any) i32 (ref 1) i64 (ref n
   kExprNop,  // nop
   kExprI64Const, 0xe1, 0x00,  // i64.const
   kExprI32Const, 0x00,  // i32.const
-  kAtomicPrefix, kExprI64AtomicLoad, 0x02, 0xe0, 0x8c, 0xbc, 0x03,  // i64.atomic.load64
+  kAtomicPrefix, kExprI64AtomicLoad, 0x03, 0xe0, 0x8c, 0xbc, 0x03,  // i64.atomic.load64
   kExprI64ShrU,  // i64.shr_u
   kAtomicPrefix, kExprI64AtomicStore8U, 0x00, 0x80, 0x82, 0x7c,  // i64.atomic.store8_u
   kExprBlock, 0x40,  // block @219

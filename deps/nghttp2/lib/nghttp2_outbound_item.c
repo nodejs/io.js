@@ -27,6 +27,32 @@
 #include <assert.h>
 #include <string.h>
 
+nghttp2_data_provider_wrap *
+nghttp2_data_provider_wrap_v1(nghttp2_data_provider_wrap *dpw,
+                              const nghttp2_data_provider *data_prd) {
+  if (!data_prd) {
+    return NULL;
+  }
+
+  dpw->version = NGHTTP2_DATA_PROVIDER_V1;
+  dpw->data_prd.v1 = *data_prd;
+
+  return dpw;
+}
+
+nghttp2_data_provider_wrap *
+nghttp2_data_provider_wrap_v2(nghttp2_data_provider_wrap *dpw,
+                              const nghttp2_data_provider2 *data_prd) {
+  if (!data_prd) {
+    return NULL;
+  }
+
+  dpw->version = NGHTTP2_DATA_PROVIDER_V2;
+  dpw->data_prd.v2 = *data_prd;
+
+  return dpw;
+}
+
 void nghttp2_outbound_item_init(nghttp2_outbound_item *item) {
   item->cycle = 0;
   item->qnext = NULL;

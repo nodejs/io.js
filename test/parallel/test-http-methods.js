@@ -52,6 +52,7 @@ const methods = [
   'PROPPATCH',
   'PURGE',
   'PUT',
+  'QUERY',
   'REBIND',
   'REPORT',
   'SEARCH',

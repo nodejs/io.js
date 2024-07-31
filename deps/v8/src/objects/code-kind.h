@@ -24,7 +24,6 @@ namespace internal {
   V(WASM_TO_CAPI_FUNCTION) \
   V(WASM_TO_JS_FUNCTION)   \
   V(JS_TO_WASM_FUNCTION)   \
-  V(JS_TO_JS_FUNCTION)     \
   V(C_WASM_ENTRY)          \
   V(INTERPRETED_FUNCTION)  \
   V(BASELINE)              \
@@ -97,6 +96,25 @@ inline constexpr bool CodeKindCanTierUp(CodeKind kind) {
 // kind stored either in the FeedbackVector cache, or in the OSR cache?'.
 inline constexpr bool CodeKindIsStoredInOptimizedCodeCache(CodeKind kind) {
   return kind == CodeKind::MAGLEV || kind == CodeKind::TURBOFAN;
+}
+
+inline constexpr bool CodeKindUsesBytecodeOrInterpreterData(CodeKind kind) {
+  return CodeKindIsBaselinedJSFunction(kind);
+}
+
+inline constexpr bool CodeKindUsesDeoptimizationData(CodeKind kind) {
+  return CodeKindCanDeoptimize(kind);
+}
+
+inline constexpr bool CodeKindUsesBytecodeOffsetTable(CodeKind kind) {
+  return kind == CodeKind::BASELINE;
+}
+
+inline constexpr bool CodeKindMayLackSourcePositionTable(CodeKind kind) {
+  // Either code that uses a bytecode offset table or code that may be embedded
+  // in the snapshot, in which case the source position table is cleared.
+  return CodeKindUsesBytecodeOffsetTable(kind) || kind == CodeKind::BUILTIN ||
+         kind == CodeKind::BYTECODE_HANDLER || kind == CodeKind::FOR_TESTING;
 }
 
 inline CodeKind CodeKindForTopTier() { return CodeKind::TURBOFAN; }

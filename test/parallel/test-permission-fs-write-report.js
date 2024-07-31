@@ -7,7 +7,6 @@ if (!common.hasCrypto)
   common.skip('no crypto');
 
 const assert = require('assert');
-const path = require('path');
 
 {
   assert.throws(() => {
@@ -15,7 +14,7 @@ const path = require('path');
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'FileSystemWrite',
-    resource: path.resolve('./secret.txt'),
+    resource: './secret.txt',
   }));
 }
 

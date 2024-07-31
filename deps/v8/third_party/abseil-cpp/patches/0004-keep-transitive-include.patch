@@ -1,0 +1,17 @@
+TODO: crbug.com/1491724 - Remove when other libraries stop relying on this.
+---
+diff --git a/third_party/abseil-cpp/absl/status/status.h b/third_party/abseil-cpp/absl/status/status.h
+index d4f741404ce81..4788a0e8340a0 100644
+--- a/third_party/abseil-cpp/absl/status/status.h
++++ b/third_party/abseil-cpp/absl/status/status.h
+@@ -67,6 +67,10 @@
+ #include "absl/strings/string_view.h"
+ #include "absl/types/optional.h"
+ 
++// TODO: crbug.com/1491724 - Remove include below when other third_party
++// libraries stop silently rely on it.
++#include "absl/strings/str_cat.h"
++
+ namespace absl {
+ ABSL_NAMESPACE_BEGIN
+ 

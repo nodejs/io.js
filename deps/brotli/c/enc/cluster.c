@@ -6,14 +6,15 @@
 
 /* Functions for clustering similar histograms together. */
 
-#include "./cluster.h"
+#include "cluster.h"
+
+#include <brotli/types.h>
 
 #include "../common/platform.h"
-#include <brotli/types.h>
-#include "./bit_cost.h"  /* BrotliPopulationCost */
-#include "./fast_log.h"
-#include "./histogram.h"
-#include "./memory.h"
+#include "bit_cost.h"  /* BrotliPopulationCost */
+#include "fast_log.h"
+#include "histogram.h"
+#include "memory.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -38,15 +39,15 @@ static BROTLI_INLINE double ClusterCostDiff(size_t size_a, size_t size_b) {
 #define CODE(X) X
 
 #define FN(X) X ## Literal
-#include "./cluster_inc.h"  /* NOLINT(build/include) */
+#include "cluster_inc.h"  /* NOLINT(build/include) */
 #undef FN
 
 #define FN(X) X ## Command
-#include "./cluster_inc.h"  /* NOLINT(build/include) */
+#include "cluster_inc.h"  /* NOLINT(build/include) */
 #undef FN
 
 #define FN(X) X ## Distance
-#include "./cluster_inc.h"  /* NOLINT(build/include) */
+#include "cluster_inc.h"  /* NOLINT(build/include) */
 #undef FN
 
 #undef CODE

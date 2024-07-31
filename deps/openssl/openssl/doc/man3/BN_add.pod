@@ -114,6 +114,11 @@ temporary variables; see L<BN_CTX_new(3)>.
 Unless noted otherwise, the result B<BIGNUM> must be different from
 the arguments.
 
+=head1 NOTES
+
+For modular operations such as BN_nnmod() or BN_mod_exp() it is an error
+to use the same B<BIGNUM> object for the modulus as for the output.
+
 =head1 RETURN VALUES
 
 The BN_mod_sqrt() returns the result (possibly incorrect if I<p> is

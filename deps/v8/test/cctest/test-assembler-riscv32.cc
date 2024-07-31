@@ -362,6 +362,51 @@ UTEST_R2_FORM_WITH_OP(sll, uint32_t, 0x12345678U, 17, <<)
 UTEST_R2_FORM_WITH_OP(srl, uint32_t, 0x82340000U, 17, >>)
 UTEST_R2_FORM_WITH_OP(sra, int32_t, -0x12340000, 17, >>)
 
+// RV64B
+#ifdef CAN_USE_ZBA_INSTRUCTIONS
+UTEST_R2_FORM_WITH_RES(sh1add, int32_t, LARGE_UINT_UNDER_32_BIT,
+                       LARGE_INT_UNDER_32_BIT,
+                       int32_t((LARGE_INT_UNDER_32_BIT) +
+                               (LARGE_UINT_UNDER_32_BIT << 1)))
+UTEST_R2_FORM_WITH_RES(sh2add, int32_t, LARGE_UINT_UNDER_32_BIT,
+                       LARGE_INT_UNDER_32_BIT,
+                       int32_t((LARGE_INT_UNDER_32_BIT) +
+                               (LARGE_UINT_UNDER_32_BIT << 2)))
+UTEST_R2_FORM_WITH_RES(sh3add, int32_t, LARGE_UINT_UNDER_32_BIT,
+                       LARGE_INT_UNDER_32_BIT,
+                       int32_t((LARGE_INT_UNDER_32_BIT) +
+                               (LARGE_UINT_UNDER_32_BIT << 3)))
+#endif
+
+#ifdef CAN_USE_ZBB_INSTRUCTIONS
+UTEST_R2_FORM_WITH_RES(andn, int32_t, LARGE_UINT_UNDER_32_BIT,
+                       LARGE_INT_UNDER_32_BIT,
+                       int32_t((LARGE_UINT_UNDER_32_BIT) &
+                               (~LARGE_INT_UNDER_32_BIT)))
+
+UTEST_R2_FORM_WITH_RES(orn, int32_t, LARGE_UINT_UNDER_32_BIT,
+                       LARGE_INT_UNDER_32_BIT,
+                       int32_t((LARGE_UINT_UNDER_32_BIT) |
+                               (~LARGE_INT_UNDER_32_BIT)))
+
+UTEST_R2_FORM_WITH_RES(xnor, int32_t, LARGE_UINT_UNDER_32_BIT,
+                       LARGE_INT_UNDER_32_BIT,
+                       int32_t((~LARGE_UINT_UNDER_32_BIT) ^
+                               (~LARGE_INT_UNDER_32_BIT)))
+
+UTEST_R1_FORM_WITH_RES(clz, int32_t, int32_t, 0b000011000100000000000, 15)
+UTEST_R1_FORM_WITH_RES(ctz, int32_t, int32_t, 0b000011000100000000000, 11)
+UTEST_R1_FORM_WITH_RES(cpop, int32_t, int32_t, 0b000011000100000000000, 3)
+
+UTEST_R2_FORM_WITH_RES(max, int32_t, -1012, 3456, 3456)
+UTEST_R2_FORM_WITH_RES(min, int32_t, -1012, 3456, -1012)
+UTEST_R2_FORM_WITH_RES(maxu, uint32_t, -1012, 3456, uint32_t(-1012))
+UTEST_R2_FORM_WITH_RES(minu, uint32_t, -1012, 3456, 3456)
+
+UTEST_R1_FORM_WITH_RES(sextb, int32_t, int32_t, 0xB080, int32_t(0xffffff80))
+UTEST_R1_FORM_WITH_RES(sexth, int32_t, int32_t, 0xB080, int32_t(0xffffb080))
+UTEST_R1_FORM_WITH_RES(zexth, int32_t, int32_t, 0xB080, 0xB080)
+#endif
 // -- Memory fences --
 // void fence(uint8_t pred, uint8_t succ);
 // void fence_tso();
@@ -487,7 +532,8 @@ TEST(RISCV_UTEST_fmv_d_double) {
     __ fmv_d(fa0, ft0);
     __ fsd(fa0, a1, 0);
   };
-  GenAndRunTest<int32_t, double*>(&src, &dst, fn);
+  GenAndRunTest<int32_t, int32_t>(reinterpret_cast<int32_t>(&src),
+                                  reinterpret_cast<int32_t>(&dst), fn);
   CHECK_EQ(base::bit_cast<int64_t>(0xC037800000000000),
            base::bit_cast<int64_t>(dst));
 }
@@ -504,7 +550,8 @@ TEST(RISCV_UTEST_fmv_d_double_signaling_NaN) {
     __ fsd(fa0, a1, 0);
   };
 
-  GenAndRunTest<int32_t, int64_t*>(&src, &dst, fn);
+  GenAndRunTest<int32_t, int32_t>(reinterpret_cast<int32_t>(&src),
+                                  reinterpret_cast<int32_t>(&dst), fn);
   CHECK_EQ(base::bit_cast<int64_t>(0x7ff4000000000000),
            base::bit_cast<int64_t>(dst));
 }
@@ -1683,7 +1730,7 @@ TEST(jump_tables3) {
     values[i] = isolate->factory()->NewHeapNumber<AllocationType::kOld>(value);
   }
   Label labels[kNumCases], done, dispatch;
-  Object obj;
+  Tagged<Object> obj;
   int32_t imm32;
 
   auto fn = [&labels, &done, &dispatch, values, &obj,
@@ -1726,7 +1773,8 @@ TEST(jump_tables3) {
 
   for (int i = 0; i < kNumCases; ++i) {
     Handle<Object> result(
-        Object(reinterpret_cast<Address>(f.Call(i, 0, 0, 0, 0))), isolate);
+        Tagged<Object>(reinterpret_cast<Address>(f.Call(i, 0, 0, 0, 0))),
+        isolate);
 #ifdef OBJECT_PRINT
     ::printf("f(%d) = ", i);
     Print(*result, std::cout);
@@ -1891,7 +1939,7 @@ TEST(RVV_VFNEG_signaling_NaN) {
         width == 32 ? __ flw(ft0, a0, 0) : __ fld(ft0, a0, 0);               \
         __ vl(v1, a1, 0, VSew::E##width);                                    \
         __ instr_name(reg1, reg2);                                           \
-        __ fsd(ft0, a0, 0);                                                  \
+        width == 32 ? __ fsw(ft0, a0, 0) : __ fsd(ft0, a0, 0);               \
         __ vs(v1, a1, 0, VSew::E##width);                                    \
       };                                                                     \
       GenAndRunTest<int32_t, int32_t>((int32_t)&rs1_fval, (int32_t)res, fn); \
@@ -1912,7 +1960,7 @@ TEST(RVV_VFNEG_signaling_NaN) {
       width == 32 ? __ flw(ft0, a0, 0) : __ fld(ft0, a0, 0);                 \
       __ vl(v1, a1, 0, VSew::E##width);                                      \
       __ instr_name(reg1, reg2);                                             \
-      __ fsd(ft0, a0, 0);                                                    \
+      width == 32 ? __ fsw(ft0, a0, 0) : __ fsd(ft0, a0, 0);                 \
       __ vs(v1, a1, 0, VSew::E##width);                                      \
     };                                                                       \
     GenAndRunTest<int32_t, int32_t>((int32_t)&rs1_fval, (int32_t)res, fn);   \
@@ -2212,7 +2260,7 @@ UTEST_RVV_VF_VV_FORM_WITH_OP(vfdiv_vv, /)
     };                                                                         \
     for (float rs1_fval : compiler::ValueHelper::GetVector<float>()) {         \
       for (float rs2_fval : compiler::ValueHelper::GetVector<float>()) {       \
-        GenAndRunTest<double*, float>(rs1_fval, rs2_fval, fn);                 \
+        GenAndRunTest<int32_t, float>(rs1_fval, rs2_fval, fn);                 \
         for (size_t i = 0; i < n; i++) {                                       \
           CHECK_DOUBLE_EQ(                                                     \
               check_fn(rs1_fval, rs2_fval)                                     \
@@ -2252,7 +2300,7 @@ UTEST_RVV_VF_VV_FORM_WITH_OP(vfdiv_vv, /)
     };                                                                         \
     for (float rs1_fval : compiler::ValueHelper::GetVector<float>()) {         \
       for (float rs2_fval : compiler::ValueHelper::GetVector<float>()) {       \
-        GenAndRunTest<double*, float>(rs1_fval, rs2_fval, fn);                 \
+        GenAndRunTest<int32_t, float>(rs1_fval, rs2_fval, fn);                 \
         for (size_t i = 0; i < n; i++) {                                       \
           CHECK_DOUBLE_EQ(                                                     \
               check_fn(rs1_fval, rs2_fval)                                     \
@@ -2506,7 +2554,8 @@ UTEST_RVV_FMA_VF_FORM_WITH_RES(vfnmsac_vf, ARRAY_FLOAT,
       __ instr_name(v0, v2, v4);                                       \
       __ VU.set(t0, VSew::E64, Vlmul::m1);                             \
       __ li(a0, Operand(int32_t(&result)));                            \
-      __ vs(v0, a0, 0, VSew::E64);                                     \
+      __ vfmv_fs(fa0, v0);                                             \
+      __ fsd(fa0, a0, 0);                                              \
     };                                                                 \
     for (float rs1_fval : compiler::ValueHelper::GetVector<float>()) { \
       std::vector<double> temp_arr(kRvvVLEN / 32,                      \
@@ -2525,7 +2574,7 @@ UTEST_RVV_FMA_VF_FORM_WITH_RES(vfnmsac_vf, ARRAY_FLOAT,
           break;                                                       \
         }                                                              \
       }                                                                \
-      GenAndRunTest<double*, float>(rs1_fval, fn);                     \
+      GenAndRunTest<int32_t, float>(rs1_fval, fn);                     \
       CHECK_DOUBLE_EQ(UseCanonicalNan<double>(expect_res), result);    \
     }                                                                  \
   }

@@ -4,8 +4,7 @@
 
 #include "src/builtins/builtins-utils-gen.h"
 #include "src/builtins/builtins.h"
-#include "src/codegen/code-factory.h"
-#include "src/codegen/code-stub-assembler.h"
+#include "src/codegen/code-stub-assembler-inl.h"
 #include "src/execution/isolate.h"
 #include "src/objects/js-generator.h"
 #include "src/objects/objects-inl.h"
@@ -63,8 +62,8 @@ void GeneratorBuiltinsAssembler::InnerResume(
   {
     compiler::ScopedExceptionHandler handler(this, &if_exception,
                                              &var_exception);
-    result = CallStub(CodeFactory::ResumeGenerator(isolate()), context, value,
-                      receiver);
+    result = CallBuiltin(Builtin::kResumeGeneratorTrampoline, context, value,
+                         receiver);
   }
 
   // If the generator is not suspended (i.e., its state is 'executing'),
@@ -107,6 +106,9 @@ void GeneratorBuiltinsAssembler::InnerResume(
       case JSGeneratorObject::kThrow:
         builtin_result = CallRuntime(Runtime::kThrow, context, value);
         break;
+      case JSGeneratorObject::kRethrow:
+        // Currently only async generators use this mode.
+        UNREACHABLE();
     }
     args->PopAndReturn(builtin_result);
   }

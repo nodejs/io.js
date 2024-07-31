@@ -1,12 +1,12 @@
 const t = require('tap')
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs')
+const path = require('node:path')
+const stream = require('node:stream')
 const ini = require('ini')
 
 const { load: loadMockNpm } = require('../../fixtures/mock-npm.js')
 const mockGlobals = require('@npmcli/mock-globals')
 const MockRegistry = require('@npmcli/mock-registry')
-const stream = require('stream')
 
 const mockLogin = async (t, { stdin: stdinLines, registry: registryUrl, ...options } = {}) => {
   let stdin

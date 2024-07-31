@@ -1,4 +1,4 @@
-.TH "PACKAGE.JSON" "5" "October 2023" "" ""
+.TH "PACKAGE.JSON" "5" "July 2024" "NPM@10.8.2" ""
 .SH "NAME"
 \fBpackage.json\fR - Specifics of npm's package.json handling
 .SS "Description"
@@ -30,7 +30,7 @@ Some tips:
 .IP \(bu 4
 Don't use the same name as a core Node module.
 .IP \(bu 4
-Don't put "js" or "node" in the name. It's assumed that it's js, since you're writing a package.json file, and you can specify the engine using the "engines" field. (See below.)
+Don't put "js" or "node" in the name. It's assumed that it's js, since you're writing a package.json file, and you can specify the engine using the "\fBengines\fR \fI(engines)\fR" field. (See below.)
 .IP \(bu 4
 The name will probably be passed as an argument to require(), so it should be something short, but also reasonably descriptive.
 .IP \(bu 4
@@ -52,7 +52,7 @@ Put a description in it. It's a string. This helps people discover your package,
 Put keywords in it. It's an array of strings. This helps people discover your package as it's listed in \fBnpm search\fR.
 .SS "homepage"
 .P
-The url to the project homepage.
+The URL to the project homepage.
 .P
 Example:
 .P
@@ -63,7 +63,7 @@ Example:
 .RE
 .SS "bugs"
 .P
-The url to your project's issue tracker and / or the email address to which issues should be reported. These are helpful for people who encounter issues with your package.
+The URL to your project's issue tracker and / or the email address to which issues should be reported. These are helpful for people who encounter issues with your package.
 .P
 It should look like this:
 .P
@@ -78,9 +78,9 @@ It should look like this:
 .fi
 .RE
 .P
-You can specify either one or both values. If you want to provide only a url, you can specify the value for "bugs" as a simple string instead of an object.
+You can specify either one or both values. If you want to provide only a URL, you can specify the value for "bugs" as a simple string instead of an object.
 .P
-If a url is provided, it will be used by the \fBnpm bugs\fR command.
+If a URL is provided, it will be used by the \fBnpm bugs\fR command.
 .SS "license"
 .P
 You should specify a license for your package so that people know how they are permitted to use it, and any restrictions you're placing on it.
@@ -205,7 +205,7 @@ Both email and url are optional either way.
 npm also sets a top-level "maintainers" field with your npm user info.
 .SS "funding"
 .P
-You can specify an object containing a URL that provides up-to-date information about ways to help fund development of your package, or a string URL, or an array of these:
+You can specify an object containing a URL that provides up-to-date information about ways to help fund development of your package, a string URL, or an array of objects and string URLs:
 .P
 .RS 2
 .nf
@@ -213,15 +213,33 @@ You can specify an object containing a URL that provides up-to-date information 
   "funding": {
     "type" : "individual",
     "url" : "http://example.com/donate"
-  },
-
+  }
+}
+.fi
+.RE
+.P
+.RS 2
+.nf
+{
   "funding": {
     "type" : "patreon",
     "url" : "https://www.patreon.com/my-account"
-  },
-
-  "funding": "http://example.com/donate",
-
+  }
+}
+.fi
+.RE
+.P
+.RS 2
+.nf
+{
+  "funding": "http://example.com/donate"
+}
+.fi
+.RE
+.P
+.RS 2
+.nf
+{
   "funding": \[lB]
     {
       "type" : "individual",
@@ -237,7 +255,7 @@ You can specify an object containing a URL that provides up-to-date information 
 .fi
 .RE
 .P
-Users can use the \fBnpm fund\fR subcommand to list the \fBfunding\fR URLs of all dependencies of their project, direct and indirect. A shortcut to visit each funding url is also available when providing the project name such as: \fBnpm fund <projectname>\fR (when there are multiple URLs, the first one will be visited)
+Users can use the \fBnpm fund\fR subcommand to list the \fBfunding\fR URLs of all dependencies of their project, direct and indirect. A shortcut to visit each funding URL is also available when providing the project name such as: \fBnpm fund <projectname>\fR (when there are multiple URLs, the first one will be visited)
 .SS "files"
 .P
 The optional \fBfiles\fR field is an array of file patterns that describes the entries to be included when your package is installed as a dependency. File patterns follow a similar syntax to \fB.gitignore\fR, but reversed: including a file, directory, or glob pattern (\fB*\fR, \fB**/*\fR, and such) will make it so that file is included in the tarball when it's packed. Omitting the field will make it default to \fB\[lB]"*"\[rB]\fR, which means it will include all files.
@@ -263,20 +281,10 @@ The file(s) in the "bin" field
 .P
 \fBREADME\fR & \fBLICENSE\fR can have any case and extension.
 .P
-Conversely, some files are always ignored:
+Some files are always ignored by default:
 .RS 0
 .IP \(bu 4
-\fB.git\fR
-.IP \(bu 4
-\fBCVS\fR
-.IP \(bu 4
-\fB.svn\fR
-.IP \(bu 4
-\fB.hg\fR
-.IP \(bu 4
-\fB.lock-wscript\fR
-.IP \(bu 4
-\fB.wafpickle-N\fR
+\fB*.orig\fR
 .IP \(bu 4
 \fB.*.swp\fR
 .IP \(bu 4
@@ -284,19 +292,52 @@ Conversely, some files are always ignored:
 .IP \(bu 4
 \fB._*\fR
 .IP \(bu 4
+\fB.git\fR
+.IP \(bu 4
+\fB.hg\fR
+.IP \(bu 4
+\fB.lock-wscript\fR
+.IP \(bu 4
+\fB.npmrc\fR
+.IP \(bu 4
+\fB.svn\fR
+.IP \(bu 4
+\fB.wafpickle-N\fR
+.IP \(bu 4
+\fBCVS\fR
+.IP \(bu 4
+\fBconfig.gypi\fR
+.IP \(bu 4
+\fBnode_modules\fR
+.IP \(bu 4
 \fBnpm-debug.log\fR
+.IP \(bu 4
+\fBpackage-lock.json\fR (use \fB\fBnpm-shrinkwrap.json\fR\fR \fI\(la/configuring-npm/npm-shrinkwrap-json\(ra\fR if you wish it to be published)
+.IP \(bu 4
+\fBpnpm-lock.yaml\fR
+.IP \(bu 4
+\fByarn.lock\fR
+.RE 0
+
+.P
+Most of these ignored files can be included specifically if included in the \fBfiles\fR globs. Exceptions to this are:
+.RS 0
+.IP \(bu 4
+\fB.git\fR
 .IP \(bu 4
 \fB.npmrc\fR
 .IP \(bu 4
 \fBnode_modules\fR
 .IP \(bu 4
-\fBconfig.gypi\fR
+\fBpackage-lock.json\fR
 .IP \(bu 4
-\fB*.orig\fR
+\fBpnpm-lock.yaml\fR
 .IP \(bu 4
-\fBpackage-lock.json\fR (use \fB\fBnpm-shrinkwrap.json\fR\fR \fI\(la/configuring-npm/npm-shrinkwrap-json\(ra\fR if you wish it to be published)
+\fByarn.lock\fR
 .RE 0
 
+.P
+These can not be included.
 .SS "main"
 .P
 The main field is a module ID that is the primary entry point to your program. That is, if your package is named \fBfoo\fR, and a user installs it, and then does \fBrequire("foo")\fR, then your main module's exports object will be returned.
@@ -321,7 +362,7 @@ For example, myapp could have this:
 .nf
 {
   "bin": {
-    "myapp": "./cli.js"
+    "myapp": "bin/cli.js"
   }
 }
 .fi
@@ -336,7 +377,7 @@ If you have a single executable, and its name should be the name of the package,
 {
   "name": "my-program",
   "version": "1.2.5",
-  "bin": "./path/to/program"
+  "bin": "path/to/program"
 }
 .fi
 .RE
@@ -349,7 +390,7 @@ would be the same as this:
   "name": "my-program",
   "version": "1.2.5",
   "bin": {
-    "my-program": "./path/to/program"
+    "my-program": "path/to/program"
   }
 }
 .fi
@@ -433,7 +474,7 @@ Because of the way the \fBbin\fR directive works, specifying both a \fBbin\fR pa
 A folder that is full of man pages. Sugar to generate a "man" array by walking the folder.
 .SS "repository"
 .P
-Specify the place where your code lives. This is helpful for people who want to contribute. If the git repo is on GitHub, then the \fBnpm docs\fR command will be able to find you.
+Specify the place where your code lives. This is helpful for people who want to contribute. If the git repo is on GitHub, then the \fBnpm repo\fR command will be able to find you.
 .P
 Do it like this:
 .P
@@ -442,13 +483,13 @@ Do it like this:
 {
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/cli.git"
+    "url": "git+https://github.com/npm/cli.git"
   }
 }
 .fi
 .RE
 .P
-The URL should be a publicly available (perhaps read-only) url that can be handed directly to a VCS program without any modification. It should not be a url to an html project page that you put in your browser. It's for computers.
+The URL should be a publicly available (perhaps read-only) URL that can be handed directly to a VCS program without any modification. It should not be a URL to an html project page that you put in your browser. It's for computers.
 .P
 For GitHub, GitHub gist, Bitbucket, or GitLab repositories you can use the same shortcut syntax you use for \fBnpm install\fR:
 .P
@@ -475,8 +516,8 @@ If the \fBpackage.json\fR for your package is not in the root directory (for exa
 {
   "repository": {
     "type": "git",
-    "url": "https://github.com/facebook/react.git",
-    "directory": "packages/react-dom"
+    "url": "git+https://github.com/npm/cli.git",
+    "directory": "workspaces/libnpmpublish"
   }
 }
 .fi
@@ -576,7 +617,7 @@ You may specify a tarball URL in place of a version range.
 This tarball will be downloaded and installed locally to your package at install time.
 .SS "Git URLs as Dependencies"
 .P
-Git urls are of the form:
+Git URLs are of the form:
 .P
 .RS 2
 .nf
@@ -621,7 +662,7 @@ This flow will occur if your git dependency uses \fBworkspaces\fR, or if any of 
 If your git repository includes pre-built artifacts, you will likely want to make sure that none of the above scripts are defined, or your dependency will be rebuilt for every installation.
 .SS "GitHub URLs"
 .P
-As of version 1.1.65, you can refer to GitHub urls as just "foo": "user/foo-project". Just as with git URLs, a \fBcommit-ish\fR suffix can be included. For example:
+As of version 1.1.65, you can refer to GitHub URLs as just "foo": "user/foo-project". Just as with git URLs, a \fBcommit-ish\fR suffix can be included. For example:
 .P
 .RS 2
 .nf
@@ -663,7 +704,7 @@ in which case they will be normalized to a relative path and added to your \fBpa
 .fi
 .RE
 .P
-This feature is helpful for local offline development and creating tests that require npm installing where you don't want to hit an external server, but should not be used when publishing packages to the public registry.
+This feature is helpful for local offline development and creating tests that require npm installing where you don't want to hit an external server, but should not be used when publishing your package to the public registry.
 .P
 \fInote\fR: Packages linked by local path will not have their own dependencies installed when \fBnpm install\fR is ran in this case. You must run \fBnpm install\fR from inside the local path itself.
 .SS "devDependencies"
@@ -731,7 +772,7 @@ Trying to install another plugin with a conflicting requirement may cause an err
 Assuming the host complies with \fBsemver\fR \fI\(lahttps://semver.org/\(ra\fR, only changes in the host package's major version will break your plugin. Thus, if you've worked with every 1.x version of the host package, use \fB"^1.0"\fR or \fB"1.x"\fR to express this. If you depend on features introduced in 1.5.2, use \fB"^1.5.2"\fR.
 .SS "peerDependenciesMeta"
 .P
-When a user installs your package, npm will emit warnings if packages specified in \fBpeerDependencies\fR are not already installed. The \fBpeerDependenciesMeta\fR field serves to provide npm more information on how your peer dependencies are to be used. Specifically, it allows peer dependencies to be marked as optional.
+The \fBpeerDependenciesMeta\fR field serves to provide npm more information on how your peer dependencies are to be used. Specifically, it allows peer dependencies to be marked as optional. Npm will not automatically install optional peer dependencies. This allows you to integrate and interact with a variety of host packages without requiring all of them to be installed.
 .P
 For example:
 .P
@@ -752,8 +793,6 @@ For example:
 }
 .fi
 .RE
-.P
-Marking a peer dependency as optional ensures npm will not emit a warning if the \fBsoy-milk\fR package is not installed on the host. This allows you to integrate and interact with a variety of host packages without requiring all of them to be installed.
 .SS "bundleDependencies"
 .P
 This defines an array of package names that will be bundled when publishing the package.
@@ -785,7 +824,7 @@ If this is spelled \fB"bundledDependencies"\fR, then that is also honored.
 Alternatively, \fB"bundleDependencies"\fR can be defined as a boolean value. A value of \fBtrue\fR will bundle all dependencies, a value of \fBfalse\fR will bundle none.
 .SS "optionalDependencies"
 .P
-If a dependency can be used, but you would like npm to proceed if it cannot be found or fails to install, then you may put it in the \fBoptionalDependencies\fR object. This is a map of package name to version or url, just like the \fBdependencies\fR object. The difference is that build failures do not cause installation to fail. Running \fBnpm install
+If a dependency can be used, but you would like npm to proceed if it cannot be found or fails to install, then you may put it in the \fBoptionalDependencies\fR object. This is a map of package name to version or URL, just like the \fBdependencies\fR object. The difference is that build failures do not cause installation to fail. Running \fBnpm install
 --omit=optional\fR will prevent these dependencies from being installed.
 .P
 It is still your program's responsibility to handle the lack of the dependency. For example, something like this:
@@ -816,6 +855,8 @@ Entries in \fBoptionalDependencies\fR will override entries of the same name in 
 If you need to make specific changes to dependencies of your dependencies, for example replacing the version of a dependency with a known security issue, replacing an existing dependency with a fork, or making sure that the same version of a package is used everywhere, then you may add an override.
 .P
 Overrides provide a way to replace a package in your dependency tree with another version, or another package entirely. These changes can be scoped as specific or as vague as desired.
+.P
+Overrides are only considered in the root \fBpackage.json\fR file for a project. Overrides in installed dependencies (including npm help workspaces) are not considered in dependency tree resolution. Published packages may dictate their resolutions by pinning dependencies or using an \fB\fBnpm-shrinkwrap.json\fR\fR \fI\(la/configuring-npm/npm-shrinkwrap-json\(ra\fR file.
 .P
 To make sure the package \fBfoo\fR is always installed as version \fB1.0.0\fR no matter what version your dependencies rely on:
 .P

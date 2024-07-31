@@ -15,8 +15,8 @@
 #include "formatted_string_builder.h"
 #include "number_types.h"
 
-U_NAMESPACE_BEGIN namespace number {
-namespace impl {
+U_NAMESPACE_BEGIN
+namespace number::impl {
 
 /**
  * The canonical implementation of {@link Modifier}, containing a prefix and suffix string.
@@ -41,7 +41,7 @@ class U_I18N_API ConstantAffixModifier : public Modifier, public UObject {
 
     void getParameters(Parameters& output) const override;
 
-    bool semanticallyEquivalent(const Modifier& other) const override;
+    bool strictEquals(const Modifier& other) const override;
 
   private:
     UnicodeString fPrefix;
@@ -77,7 +77,7 @@ class U_I18N_API SimpleModifier : public Modifier, public UMemory {
 
     void getParameters(Parameters& output) const override;
 
-    bool semanticallyEquivalent(const Modifier& other) const override;
+    bool strictEquals(const Modifier& other) const override;
 
     /**
      * TODO: This belongs in SimpleFormatterImpl. The only reason I haven't moved it there yet is because
@@ -170,7 +170,7 @@ class U_I18N_API ConstantMultiFieldModifier : public Modifier, public UMemory {
 
     void getParameters(Parameters& output) const override;
 
-    bool semanticallyEquivalent(const Modifier& other) const override;
+    bool strictEquals(const Modifier& other) const override;
 
   protected:
     // NOTE: In Java, these are stored as array pointers. In C++, the FormattedStringBuilder is stored by
@@ -264,7 +264,7 @@ class U_I18N_API EmptyModifier : public Modifier, public UMemory {
         output.obj = nullptr;
     }
 
-    bool semanticallyEquivalent(const Modifier& other) const override {
+    bool strictEquals(const Modifier& other) const override {
         return other.getCodePointCount() == 0;
     }
 
@@ -350,8 +350,7 @@ class U_I18N_API AdoptingModifierStore : public ModifierStore, public UMemory {
     AdoptingSignumModifierStore mods[StandardPlural::COUNT] = {};
 };
 
-} // namespace impl
-} // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 

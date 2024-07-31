@@ -32,12 +32,11 @@ proc.once('exit', common.mustCall(() => {
     const traces = JSON.parse(data.toString()).traceEvents;
     assert(traces.length > 0);
     let count = 0;
-    traces.forEach((trace) => {
-      if (trace.cat === 'node,node.net,node.net.native' &&
-          trace.name === 'connect') {
+    for (const trace of traces) {
+      if (trace.cat === 'node,node.net,node.net.native' && trace.name === 'connect') {
         count++;
       }
-    });
+    }
     // Two begin, two end
     assert.strictEqual(count, 4);
   }));

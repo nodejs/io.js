@@ -31,12 +31,15 @@
 #include <stdio.h>
 
 #include "uv.h"
+
+/* <winioctl.h> requires <windows.h>, included via "uv.h" above, but needs to
+   be included before our "winapi.h", included via "internal.h" below. */
+#include <winioctl.h>
+
 #include "internal.h"
 #include "req-inl.h"
 #include "handle-inl.h"
 #include "fs-fd-hash-inl.h"
-
-#include <winioctl.h>
 
 
 #define UV_FS_FREE_PATHS         0x0002
@@ -141,279 +144,6 @@ void uv__fs_init(void) {
   uv__allocation_granularity = system_info.dwAllocationGranularity;
 
   uv__fd_hash_init();
-}
-
-
-static int32_t fs__decode_wtf8_char(const char** input) {
-  uint32_t code_point;
-  uint8_t b1;
-  uint8_t b2;
-  uint8_t b3;
-  uint8_t b4;
-
-  b1 = **input;
-  if (b1 <= 0x7F)
-    return b1; /* ASCII code point */
-  if (b1 < 0xC2)
-    return -1; /* invalid: continuation byte */
-  code_point = b1;
-
-  b2 = *++*input;
-  if ((b2 & 0xC0) != 0x80)
-    return -1; /* invalid: not a continuation byte */
-  code_point = (code_point << 6) | (b2 & 0x3F);
-  if (b1 <= 0xDF)
-    return 0x7FF & code_point; /* two-byte character */
-
-  b3 = *++*input;
-  if ((b3 & 0xC0) != 0x80)
-    return -1; /* invalid: not a continuation byte */
-  code_point = (code_point << 6) | (b3 & 0x3F);
-  if (b1 <= 0xEF)
-    return 0xFFFF & code_point; /* three-byte character */
-
-  b4 = *++*input;
-  if ((b4 & 0xC0) != 0x80)
-    return -1; /* invalid: not a continuation byte */
-  code_point = (code_point << 6) | (b4 & 0x3F);
-  if (b1 <= 0xF4)
-    if (code_point <= 0x10FFFF)
-      return code_point; /* four-byte character */
-
-  /* code point too large */
-  return -1;
-}
-
-
-static ssize_t fs__get_length_wtf8(const char* source_ptr) {
-  size_t w_target_len = 0;
-  int32_t code_point;
-
-  do {
-    code_point = fs__decode_wtf8_char(&source_ptr);
-    if (code_point < 0)
-      return -1;
-    if (code_point > 0xFFFF)
-      w_target_len++;
-    w_target_len++;
-  } while (*source_ptr++);
-  return w_target_len;
-}
-
-
-static void fs__wtf8_to_wide(const char* source_ptr, WCHAR* w_target) {
-  int32_t code_point;
-
-  do {
-    code_point = fs__decode_wtf8_char(&source_ptr);
-    /* fs__get_length_wtf8 should have been called and checked first. */
-    assert(code_point >= 0);
-    if (code_point > 0x10000) {
-      assert(code_point < 0x10FFFF);
-      *w_target++ = (((code_point - 0x10000) >> 10) + 0xD800);
-      *w_target++ = ((code_point - 0x10000) & 0x3FF) + 0xDC00;
-    } else {
-      *w_target++ = code_point;
-    }
-  } while (*source_ptr++);
-}
-
-
-INLINE static int fs__capture_path(uv_fs_t* req, const char* path,
-    const char* new_path, const int copy_path) {
-  WCHAR* buf;
-  WCHAR* pos;
-  size_t buf_sz = 0;
-  size_t path_len = 0;
-  ssize_t pathw_len = 0;
-  ssize_t new_pathw_len = 0;
-
-  /* new_path can only be set if path is also set. */
-  assert(new_path == NULL || path != NULL);
-
-  if (path != NULL) {
-    pathw_len = fs__get_length_wtf8(path);
-    if (pathw_len < 0)
-      return ERROR_INVALID_NAME;
-    buf_sz += pathw_len * sizeof(WCHAR);
-  }
-
-  if (path != NULL && copy_path) {
-    path_len = 1 + strlen(path);
-    buf_sz += path_len;
-  }
-
-  if (new_path != NULL) {
-    new_pathw_len = fs__get_length_wtf8(new_path);
-    if (new_pathw_len < 0)
-      return ERROR_INVALID_NAME;
-    buf_sz += new_pathw_len * sizeof(WCHAR);
-  }
-
-
-  if (buf_sz == 0) {
-    req->file.pathw = NULL;
-    req->fs.info.new_pathw = NULL;
-    req->path = NULL;
-    return 0;
-  }
-
-  buf = uv__malloc(buf_sz);
-  if (buf == NULL) {
-    return ERROR_OUTOFMEMORY;
-  }
-
-  pos = buf;
-
-  if (path != NULL) {
-    fs__wtf8_to_wide(path, pos);
-    req->file.pathw = pos;
-    pos += pathw_len;
-  } else {
-    req->file.pathw = NULL;
-  }
-
-  if (new_path != NULL) {
-    fs__wtf8_to_wide(new_path, pos);
-    req->fs.info.new_pathw = pos;
-    pos += new_pathw_len;
-  } else {
-    req->fs.info.new_pathw = NULL;
-  }
-
-  req->path = path;
-  if (path != NULL && copy_path) {
-    memcpy(pos, path, path_len);
-    assert(path_len == buf_sz - (pos - buf) * sizeof(WCHAR));
-    req->path = (char*) pos;
-  }
-
-  req->flags |= UV_FS_FREE_PATHS;
-
-  return 0;
-}
-
-
-
-INLINE static void uv__fs_req_init(uv_loop_t* loop, uv_fs_t* req,
-    uv_fs_type fs_type, const uv_fs_cb cb) {
-  uv__once_init();
-  UV_REQ_INIT(req, UV_FS);
-  req->loop = loop;
-  req->flags = 0;
-  req->fs_type = fs_type;
-  req->sys_errno_ = 0;
-  req->result = 0;
-  req->ptr = NULL;
-  req->path = NULL;
-  req->cb = cb;
-  memset(&req->fs, 0, sizeof(req->fs));
-}
-
-
-static int32_t fs__get_surrogate_value(const WCHAR* w_source_ptr,
-                                       size_t w_source_len) {
-  WCHAR u;
-  WCHAR next;
-
-  u = w_source_ptr[0];
-  if (u >= 0xD800 && u <= 0xDBFF && w_source_len > 1) {
-    next = w_source_ptr[1];
-    if (next >= 0xDC00 && next <= 0xDFFF)
-      return 0x10000 + ((u - 0xD800) << 10) + (next - 0xDC00);
-  }
-  return u;
-}
-
-
-static size_t fs__get_length_wide(const WCHAR* w_source_ptr,
-                                  size_t w_source_len) {
-  size_t target_len;
-  int32_t code_point;
-
-  target_len = 0;
-  for (; w_source_len; w_source_len--, w_source_ptr++) {
-    code_point = fs__get_surrogate_value(w_source_ptr, w_source_len);
-    /* Can be invalid UTF-8 but must be valid WTF-8. */
-    assert(code_point >= 0);
-    if (code_point < 0x80)
-      target_len += 1;
-    else if (code_point < 0x800)
-      target_len += 2;
-    else if (code_point < 0x10000)
-      target_len += 3;
-    else {
-      target_len += 4;
-      w_source_ptr++;
-      w_source_len--;
-    }
-  }
-  return target_len;
-}
-
-
-static int fs__wide_to_wtf8(WCHAR* w_source_ptr,
-                            size_t w_source_len,
-                            char** target_ptr,
-                            size_t* target_len_ptr) {
-  size_t target_len;
-  char* target;
-  int32_t code_point;
-
-  /* If *target_ptr is provided, then *target_len_ptr must be its length
-   * (excluding space for null), otherwise we will compute the target_len_ptr
-   * length and may return a new allocation in *target_ptr if target_ptr is
-   * provided. */
-  if (target_ptr == NULL || *target_ptr == NULL) {
-    target_len = fs__get_length_wide(w_source_ptr, w_source_len);
-    if (target_len_ptr != NULL)
-      *target_len_ptr = target_len;
-  } else {
-    target_len = *target_len_ptr;
-  }
-
-  if (target_ptr == NULL)
-    return 0;
-
-  if (*target_ptr == NULL) {
-    target = uv__malloc(target_len + 1);
-    if (target == NULL) {
-      SetLastError(ERROR_OUTOFMEMORY);
-      return -1;
-    }
-    *target_ptr = target;
-  } else {
-    target = *target_ptr;
-  }
-
-  for (; w_source_len; w_source_len--, w_source_ptr++) {
-    code_point = fs__get_surrogate_value(w_source_ptr, w_source_len);
-    /* Can be invalid UTF-8 but must be valid WTF-8. */
-    assert(code_point >= 0);
-
-    if (code_point < 0x80) {
-      *target++ = code_point;
-    } else if (code_point < 0x800) {
-      *target++ = 0xC0 | (code_point >> 6);
-      *target++ = 0x80 | (code_point & 0x3F);
-    } else if (code_point < 0x10000) {
-      *target++ = 0xE0 | (code_point >> 12);
-      *target++ = 0x80 | ((code_point >> 6) & 0x3F);
-      *target++ = 0x80 | (code_point & 0x3F);
-    } else {
-      *target++ = 0xF0 | (code_point >> 18);
-      *target++ = 0x80 | ((code_point >> 12) & 0x3F);
-      *target++ = 0x80 | ((code_point >> 6) & 0x3F);
-      *target++ = 0x80 | (code_point & 0x3F);
-      w_source_ptr++;
-      w_source_len--;
-    }
-  }
-  assert((size_t) (target - *target_ptr) == target_len);
-
-  *target++ = '\0';
-
-  return 0;
 }
 
 
@@ -550,7 +280,98 @@ INLINE static int fs__readlink_handle(HANDLE handle,
   }
 
   assert(target_ptr == NULL || *target_ptr == NULL);
-  return fs__wide_to_wtf8(w_target, w_target_len, target_ptr, target_len_ptr);
+  return uv_utf16_to_wtf8(w_target, w_target_len, target_ptr, target_len_ptr);
+}
+
+
+INLINE static int fs__capture_path(uv_fs_t* req, const char* path,
+    const char* new_path, const int copy_path) {
+  WCHAR* buf;
+  WCHAR* pos;
+  size_t buf_sz = 0;
+  size_t path_len = 0;
+  ssize_t pathw_len = 0;
+  ssize_t new_pathw_len = 0;
+
+  /* new_path can only be set if path is also set. */
+  assert(new_path == NULL || path != NULL);
+
+  if (path != NULL) {
+    pathw_len = uv_wtf8_length_as_utf16(path);
+    if (pathw_len < 0)
+      return ERROR_INVALID_NAME;
+    buf_sz += pathw_len * sizeof(WCHAR);
+  }
+
+  if (path != NULL && copy_path) {
+    path_len = 1 + strlen(path);
+    buf_sz += path_len;
+  }
+
+  if (new_path != NULL) {
+    new_pathw_len = uv_wtf8_length_as_utf16(new_path);
+    if (new_pathw_len < 0)
+      return ERROR_INVALID_NAME;
+    buf_sz += new_pathw_len * sizeof(WCHAR);
+  }
+
+
+  if (buf_sz == 0) {
+    req->file.pathw = NULL;
+    req->fs.info.new_pathw = NULL;
+    req->path = NULL;
+    return 0;
+  }
+
+  buf = uv__malloc(buf_sz);
+  if (buf == NULL) {
+    return ERROR_OUTOFMEMORY;
+  }
+
+  pos = buf;
+
+  if (path != NULL) {
+    uv_wtf8_to_utf16(path, pos, pathw_len);
+    req->file.pathw = pos;
+    pos += pathw_len;
+  } else {
+    req->file.pathw = NULL;
+  }
+
+  if (new_path != NULL) {
+    uv_wtf8_to_utf16(new_path, pos, new_pathw_len);
+    req->fs.info.new_pathw = pos;
+    pos += new_pathw_len;
+  } else {
+    req->fs.info.new_pathw = NULL;
+  }
+
+  req->path = path;
+  if (path != NULL && copy_path) {
+    memcpy(pos, path, path_len);
+    assert(path_len == buf_sz - (pos - buf) * sizeof(WCHAR));
+    req->path = (char*) pos;
+  }
+
+  req->flags |= UV_FS_FREE_PATHS;
+
+  return 0;
+}
+
+
+INLINE static void uv__fs_req_init(uv_loop_t* loop, uv_fs_t* req,
+    uv_fs_type fs_type, const uv_fs_cb cb) {
+  uv__once_init();
+  UV_REQ_INIT(req, UV_FS);
+  req->loop = loop;
+  req->flags = 0;
+  req->fs_type = fs_type;
+  req->sys_errno_ = 0;
+  req->result = 0;
+  req->ptr = NULL;
+  req->path = NULL;
+  req->cb = cb;
+  memset(&req->fs, 0, sizeof(req->fs));
 }
 
 
@@ -586,8 +407,8 @@ void fs__open(uv_fs_t* req) {
 
   /* Obtain the active umask. umask() never fails and returns the previous
    * umask. */
-  current_umask = umask(0);
-  umask(current_umask);
+  current_umask = _umask(0);
+  _umask(current_umask);
 
   /* convert flags and mode to CreateFile parameters */
   switch (flags & (UV_FS_O_RDONLY | UV_FS_O_WRONLY | UV_FS_O_RDWR)) {
@@ -1569,7 +1390,7 @@ void fs__scandir(uv_fs_t* req) {
         continue;
 
       /* Compute the space required to store the filename as WTF-8. */
-      wtf8_len = fs__get_length_wide(&info->FileName[0], wchar_len);
+      wtf8_len = uv_utf16_length_as_wtf8(&info->FileName[0], wchar_len);
 
       /* Resize the dirent array if needed. */
       if (dirents_used >= dirents_size) {
@@ -1597,8 +1418,8 @@ void fs__scandir(uv_fs_t* req) {
 
       /* Convert file name to UTF-8. */
       wtf8 = &dirent->d_name[0];
-      if (fs__wide_to_wtf8(&info->FileName[0], wchar_len, &wtf8, &wtf8_len) == -1)
-        goto win32_error;
+      if (uv_utf16_to_wtf8(&info->FileName[0], wchar_len, &wtf8, &wtf8_len) != 0)
+        goto out_of_memory_error;
 
       /* Fill out the type field. */
       if (info->FileAttributes & FILE_ATTRIBUTE_DEVICE)
@@ -2824,7 +2645,7 @@ static ssize_t fs__realpath_handle(HANDLE handle, char** realpath_ptr) {
   }
 
   assert(*realpath_ptr == NULL);
-  r = fs__wide_to_wtf8(w_realpath_ptr, w_realpath_len, realpath_ptr, NULL);
+  r = uv_utf16_to_wtf8(w_realpath_ptr, w_realpath_len, realpath_ptr, NULL);
   uv__free(w_realpath_buf);
   return r;
 }

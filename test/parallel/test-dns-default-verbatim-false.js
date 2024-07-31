@@ -38,14 +38,14 @@ function allowFailed(fn) {
   };
 
   await allowFailed(promisify(dns.lookup)('example.org'));
-  checkParameter(false);
+  checkParameter(cares.DNS_ORDER_IPV4_FIRST);
 
   await allowFailed(dnsPromises.lookup('example.org'));
-  checkParameter(false);
+  checkParameter(cares.DNS_ORDER_IPV4_FIRST);
 
   await allowFailed(promisify(dns.lookup)('example.org', {}));
-  checkParameter(false);
+  checkParameter(cares.DNS_ORDER_IPV4_FIRST);
 
   await allowFailed(dnsPromises.lookup('example.org', {}));
-  checkParameter(false);
+  checkParameter(cares.DNS_ORDER_IPV4_FIRST);
 })().then(common.mustCall());

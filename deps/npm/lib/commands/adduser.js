@@ -1,8 +1,7 @@
-const log = require('../utils/log-shim.js')
-const replaceInfo = require('../utils/replace-info.js')
+const { log, output } = require('proc-log')
+const { redactLog: replaceInfo } = require('@npmcli/redact')
 const auth = require('../utils/auth.js')
-
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 
 class AddUser extends BaseCommand {
   static description = 'Add a registry user account'
@@ -13,7 +12,7 @@ class AddUser extends BaseCommand {
     'auth-type',
   ]
 
-  async exec (args) {
+  async exec () {
     const scope = this.npm.config.get('scope')
     let registry = this.npm.config.get('registry')
 
@@ -27,7 +26,6 @@ class AddUser extends BaseCommand {
 
     const creds = this.npm.config.getCredentialsByURI(registry)
 
-    log.disableProgress()
     log.notice('', `Log in on ${replaceInfo(registry)}`)
 
     const { message, newCreds } = await auth.adduser(this.npm, {
@@ -45,7 +43,8 @@ class AddUser extends BaseCommand {
 
     await this.npm.config.save('user')
 
-    this.npm.output(message)
+    output.standard(message)
   }
 }
+
 module.exports = AddUser

@@ -9,7 +9,8 @@ const assert = require('assert');
 const {
   assertIsObject,
   assertWithinRange,
-  sessionName
+  sessionName,
+  assertIsArray
 } = require('internal/http2/util');
 
 // Code coverage for sessionName utility function
@@ -49,3 +50,31 @@ assert.throws(
   });
 
 assertIsObject({}, 'test');
+
+assert.throws(
+  () => assertIsArray('foo', 'test'), {
+    code: 'ERR_INVALID_ARG_TYPE',
+    name: 'TypeError',
+    message: 'The "test" argument must be an instance of Array. Received type ' +
+    "string ('foo')"
+  }
+);
+
+assert.throws(
+  () => assertIsArray({}, 'test'), {
+    code: 'ERR_INVALID_ARG_TYPE',
+    name: 'TypeError',
+    message: 'The "test" argument must be an instance of Array. Received an instance of Object'
+  }
+);
+
+assert.throws(
+  () => assertIsArray(1, 'test'), {
+    code: 'ERR_INVALID_ARG_TYPE',
+    name: 'TypeError',
+    message: 'The "test" argument must be an instance of Array. Received type ' +
+    'number (1)'
+  }
+);
+
+assertIsArray([], 'test');

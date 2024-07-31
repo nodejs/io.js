@@ -35,7 +35,7 @@ TEST_IMPL(process_priority) {
 
   /* Verify that passing a NULL pointer returns UV_EINVAL. */
   r = uv_os_getpriority(0, NULL);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   /* Verify that all valid values work. */
   for (i = UV_PRIORITY_HIGHEST; i <= UV_PRIORITY_LOW; i++) {
@@ -46,38 +46,38 @@ TEST_IMPL(process_priority) {
     if (r == UV_EACCES)
       continue;
 
-    ASSERT(r == 0);
-    ASSERT(uv_os_getpriority(0, &priority) == 0);
+    ASSERT_OK(r);
+    ASSERT_OK(uv_os_getpriority(0, &priority));
 
     /* Verify that the priority values match on Unix, and are range mapped
        on Windows. */
 #ifndef _WIN32
-    ASSERT(priority == i);
+    ASSERT_EQ(priority, i);
 #else
     /* On Windows, only elevated users can set UV_PRIORITY_HIGHEST. Other
        users will silently be set to UV_PRIORITY_HIGH. */
     if (i < UV_PRIORITY_HIGH)
       ASSERT(priority == UV_PRIORITY_HIGHEST || priority == UV_PRIORITY_HIGH);
     else if (i < UV_PRIORITY_ABOVE_NORMAL)
-      ASSERT(priority == UV_PRIORITY_HIGH);
+      ASSERT_EQ(priority, UV_PRIORITY_HIGH);
     else if (i < UV_PRIORITY_NORMAL)
-      ASSERT(priority == UV_PRIORITY_ABOVE_NORMAL);
+      ASSERT_EQ(priority, UV_PRIORITY_ABOVE_NORMAL);
     else if (i < UV_PRIORITY_BELOW_NORMAL)
-      ASSERT(priority == UV_PRIORITY_NORMAL);
+      ASSERT_EQ(priority, UV_PRIORITY_NORMAL);
     else if (i < UV_PRIORITY_LOW)
-      ASSERT(priority == UV_PRIORITY_BELOW_NORMAL);
+      ASSERT_EQ(priority, UV_PRIORITY_BELOW_NORMAL);
     else
-      ASSERT(priority == UV_PRIORITY_LOW);
+      ASSERT_EQ(priority, UV_PRIORITY_LOW);
 #endif
 
     /* Verify that the current PID and 0 are equivalent. */
-    ASSERT(uv_os_getpriority(uv_os_getpid(), &r) == 0);
-    ASSERT(priority == r);
+    ASSERT_OK(uv_os_getpriority(uv_os_getpid(), &r));
+    ASSERT_EQ(priority, r);
   }
 
   /* Verify that invalid priorities return UV_EINVAL. */
-  ASSERT(uv_os_setpriority(0, UV_PRIORITY_HIGHEST - 1) == UV_EINVAL);
-  ASSERT(uv_os_setpriority(0, UV_PRIORITY_LOW + 1) == UV_EINVAL);
+  ASSERT_EQ(uv_os_setpriority(0, UV_PRIORITY_HIGHEST - 1), UV_EINVAL);
+  ASSERT_EQ(uv_os_setpriority(0, UV_PRIORITY_LOW + 1), UV_EINVAL);
 
   return 0;
 }

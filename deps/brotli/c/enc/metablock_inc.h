@@ -27,6 +27,9 @@ typedef struct FN(BlockSplitter) {
   HistogramType* histograms_;  /* not owned */
   size_t* histograms_size_;  /* not owned */
 
+  /* Temporary storage for BlockSplitterFinishBlock. */
+  HistogramType combined_histo[2];
+
   /* The number of symbols that we want to collect before deciding on whether
      or not to merge the block with a previous one or emit a new block. */
   size_t target_block_size_;
@@ -104,17 +107,16 @@ static void FN(BlockSplitterFinishBlock)(
   } else if (self->block_size_ > 0) {
     double entropy = BitsEntropy(histograms[self->curr_histogram_ix_].data_,
                                  self->alphabet_size_);
-    HistogramType combined_histo[2];
     double combined_entropy[2];
     double diff[2];
     size_t j;
     for (j = 0; j < 2; ++j) {
       size_t last_histogram_ix = self->last_histogram_ix_[j];
-      combined_histo[j] = histograms[self->curr_histogram_ix_];
-      FN(HistogramAddHistogram)(&combined_histo[j],
+      self->combined_histo[j] = histograms[self->curr_histogram_ix_];
+      FN(HistogramAddHistogram)(&self->combined_histo[j],
           &histograms[last_histogram_ix]);
       combined_entropy[j] = BitsEntropy(
-          &combined_histo[j].data_[0], self->alphabet_size_);
+          &self->combined_histo[j].data_[0], self->alphabet_size_);
       diff[j] = combined_entropy[j] - entropy - last_entropy[j];
     }
 
@@ -141,7 +143,7 @@ static void FN(BlockSplitterFinishBlock)(
       split->lengths[self->num_blocks_] = (uint32_t)self->block_size_;
       split->types[self->num_blocks_] = split->types[self->num_blocks_ - 2];
       BROTLI_SWAP(size_t, self->last_histogram_ix_, 0, 1);
-      histograms[self->last_histogram_ix_[0]] = combined_histo[1];
+      histograms[self->last_histogram_ix_[0]] = self->combined_histo[1];
       last_entropy[1] = last_entropy[0];
       last_entropy[0] = combined_entropy[1];
       ++self->num_blocks_;
@@ -152,7 +154,7 @@ static void FN(BlockSplitterFinishBlock)(
     } else {
       /* Combine this block with last block. */
       split->lengths[self->num_blocks_ - 1] += (uint32_t)self->block_size_;
-      histograms[self->last_histogram_ix_[0]] = combined_histo[0];
+      histograms[self->last_histogram_ix_[0]] = self->combined_histo[0];
       last_entropy[0] = combined_entropy[0];
       if (split->num_types == 1) {
         last_entropy[1] = last_entropy[0];

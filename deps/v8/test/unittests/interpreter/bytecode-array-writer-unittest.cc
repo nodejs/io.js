@@ -141,8 +141,8 @@ TEST_F(BytecodeArrayWriterUnittest, SimpleExample) {
     CHECK_EQ(bytecodes()->at(i), expected_bytes[i]);
   }
 
-  Handle<BytecodeArray> bytecode_array =
-      writer()->ToBytecodeArray(isolate(), 0, 0, factory()->empty_byte_array());
+  Handle<BytecodeArray> bytecode_array = writer()->ToBytecodeArray(
+      isolate(), 0, 0, factory()->empty_trusted_byte_array());
   bytecode_array->set_source_position_table(
       *writer()->ToSourcePositionTable(isolate()), kReleaseStore);
   CHECK_EQ(bytecodes()->size(), arraysize(expected_bytes));
@@ -228,8 +228,8 @@ TEST_F(BytecodeArrayWriterUnittest, ComplexExample) {
              static_cast<int>(expected_bytes[i]));
   }
 
-  Handle<BytecodeArray> bytecode_array =
-      writer()->ToBytecodeArray(isolate(), 0, 0, factory()->empty_byte_array());
+  Handle<BytecodeArray> bytecode_array = writer()->ToBytecodeArray(
+      isolate(), 0, 0, factory()->empty_trusted_byte_array());
   bytecode_array->set_source_position_table(
       *writer()->ToSourcePositionTable(isolate()), kReleaseStore);
   SourcePositionTableIterator source_iterator(
@@ -277,8 +277,8 @@ TEST_F(BytecodeArrayWriterUnittest, ElideNoneffectfulBytecodes) {
              static_cast<int>(expected_bytes[i]));
   }
 
-  Handle<BytecodeArray> bytecode_array =
-      writer()->ToBytecodeArray(isolate(), 0, 0, factory()->empty_byte_array());
+  Handle<BytecodeArray> bytecode_array = writer()->ToBytecodeArray(
+      isolate(), 0, 0, factory()->empty_trusted_byte_array());
   bytecode_array->set_source_position_table(
       *writer()->ToSourcePositionTable(isolate()), kReleaseStore);
   SourcePositionTableIterator source_iterator(
@@ -345,8 +345,8 @@ TEST_F(BytecodeArrayWriterUnittest, DeadcodeElimination) {
              static_cast<int>(expected_bytes[i]));
   }
 
-  Handle<BytecodeArray> bytecode_array =
-      writer()->ToBytecodeArray(isolate(), 0, 0, factory()->empty_byte_array());
+  Handle<BytecodeArray> bytecode_array = writer()->ToBytecodeArray(
+      isolate(), 0, 0, factory()->empty_trusted_byte_array());
   bytecode_array->set_source_position_table(
       *writer()->ToSourcePositionTable(isolate()), kReleaseStore);
   SourcePositionTableIterator source_iterator(

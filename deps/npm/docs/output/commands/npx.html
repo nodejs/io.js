@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npx">npx</h1>
+<h1 id="----npx----1082">
+    <span>npx</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Run a command from a local or remote npm package</span>
 </header>
 
@@ -252,7 +260,8 @@ executable.</li>
 always present in the executed process <code>PATH</code>.</li>
 <li>The <code>--npm</code> option is removed.  <code>npx</code> will always use the <code>npm</code> it ships
 with.</li>
-<li>The <code>--node-arg</code> and <code>-n</code> options are removed.</li>
+<li>The <code>--node-arg</code> and <code>-n</code> options have been removed. Use <a href="https://nodejs.org/api/cli.html#node_optionsoptions"><code>NODE_OPTIONS</code></a> instead: e.g.,
+<code>NODE_OPTIONS="--trace-warnings --trace-exit" npx foo --random=true</code></li>
 <li>The <code>--always-spawn</code> option is redundant, and thus removed.</li>
 <li>The <code>--shell</code> option is replaced with <code>--script-shell</code>, but maintained
 in the <code>npx</code> executable for backwards compatibility.</li>

@@ -218,7 +218,7 @@ std::unique_ptr<std::vector<MemoryRegion>> ParseProcSelfMaps(
   }
 
   fclose(fp);
-  if (!error && result->size()) return result;
+  if (!error && !result->empty()) return result;
 
   return nullptr;
 }

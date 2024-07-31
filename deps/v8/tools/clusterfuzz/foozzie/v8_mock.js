@@ -104,6 +104,8 @@ Object.defineProperty(
   const origArrayFrom = Array.from;
   const origArrayIsArray = Array.isArray;
   const origFunctionPrototype = Function.prototype;
+  const origArrayMap = Array.prototype.map;
+  const applyOrigArrayMap = origFunctionPrototype.apply.bind(origArrayMap);
   const origIsNaN = isNaN;
   const origIterator = Symbol.iterator;
   const deNaNify = function(value) { return origIsNaN(value) ? 1 : value; };
@@ -112,8 +114,8 @@ Object.defineProperty(
     // Remove NaN values from parameters to "set" function.
     const set = type.prototype.set;
     type.prototype.set = function(array, offset) {
-      if (Array.isArray(array)) {
-        array = array.map(deNaNify);
+      if (origArrayIsArray(array)) {
+        array = applyOrigArrayMap(array, [deNaNify]);
       }
       set.apply(this, [array, offset]);
     };
@@ -128,7 +130,7 @@ Object.defineProperty(
             args[i] = origArrayFrom(args[i]);
           }
           if (origArrayIsArray(args[i])) {
-            args[i] = args[i].map(deNaNify);
+            args[i] = applyOrigArrayMap(args[i], [deNaNify]);
           }
         }
 

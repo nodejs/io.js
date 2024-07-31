@@ -59,8 +59,8 @@ gzip -dc "$LIBUV_TARBALL" | tar xf -
 rm "$LIBUV_TARBALL"
 mv libuv-libuv-* uv
 
-echo "Replacing existing libuv (except GYP build files)"
-mv "$DEPS_DIR/uv/"*.gyp "$DEPS_DIR/uv/"*.gypi "$WORKSPACE/uv/"
+echo "Replacing existing libuv (except GYP and GN build files)"
+mv "$DEPS_DIR/uv/"*.gyp "$DEPS_DIR/uv/"*.gypi "$DEPS_DIR/uv/"*.gn "$DEPS_DIR/uv/"*.gni "$WORKSPACE/uv/"
 rm -rf "$DEPS_DIR/uv"
 mv "$WORKSPACE/uv" "$DEPS_DIR/"
 

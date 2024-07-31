@@ -234,13 +234,13 @@ main(int argc, char* argv[]) {
         if (thename) {
             bundle = ures_openDirect(thename, locale.data(), &status);
         } else {
-            bundle = ures_open(fromICUData ? 0 : inputDir, locale.data(), &status);
+            bundle = ures_open(fromICUData ? nullptr : inputDir, locale.data(), &status);
         }
         if (U_SUCCESS(status)) {
             UFILE *out = nullptr;
 
-            const char *filename = 0;
-            const char *ext = 0;
+            const char* filename = nullptr;
+            const char* ext = nullptr;
 
             if (locale.isEmpty() || !tostdout) {
                 filename = findBasename(arg);
@@ -275,7 +275,7 @@ main(int argc, char* argv[]) {
             }
 
             // now, set the callback.
-            ucnv_setFromUCallBack(u_fgetConverter(out), UCNV_FROM_U_CALLBACK_ESCAPE, UCNV_ESCAPE_C, 0, 0, &status);
+            ucnv_setFromUCallBack(u_fgetConverter(out), UCNV_FROM_U_CALLBACK_ESCAPE, UCNV_ESCAPE_C, nullptr, nullptr, &status);
             if (U_FAILURE(status)) {
               u_fprintf(ustderr, "%s: couldn't configure converter for encoding\n", pname);
               u_fclose(ustderr);

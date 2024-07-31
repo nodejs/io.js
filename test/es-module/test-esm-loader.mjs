@@ -43,6 +43,11 @@ await assert.rejects(
   { code: 'ERR_INVALID_RETURN_PROPERTY_VALUE' },
 );
 
+await assert.rejects(import('esmHook/commonJsNullSource.mjs'), {
+  code: 'ERR_INVALID_RETURN_PROPERTY_VALUE',
+  message: /"source".*'load'.*got type bigint/,
+});
+
 await import('../fixtures/es-module-loaders/js-as-esm.js')
 .then((parsedModule) => {
   assert.strictEqual(typeof parsedModule, 'object');

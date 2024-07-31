@@ -207,6 +207,17 @@
 #endif
 
 /**
+ * \def U_REAL_MSVC
+ * Defined if the compiler is the real MSVC compiler (and not something like
+ * Clang setting _MSC_VER in order to compile Windows code that requires it).
+ * Otherwise undefined.
+ * @internal
+ */
+#if (defined(_MSC_VER) && !(defined(__clang__) && __clang__)) || defined(U_IN_DOXYGEN)
+#   define U_REAL_MSVC
+#endif
+
+/**
  * \def CYGWINMSVC
  * Defined if this is Windows with Cygwin, but using MSVC rather than gcc.
  * Otherwise undefined.
@@ -300,51 +311,6 @@
 #   define U_PLATFORM_IS_DARWIN_BASED 1
 #else
 #   define U_PLATFORM_IS_DARWIN_BASED 0
-#endif
-
-/**
- * \def U_HAVE_STDINT_H
- * Defines whether stdint.h is available. It is a C99 standard header.
- * We used to include inttypes.h which includes stdint.h but we usually do not need
- * the additional definitions from inttypes.h.
- * @internal
- */
-#ifdef U_HAVE_STDINT_H
-    /* Use the predefined value. */
-#elif U_PLATFORM_USES_ONLY_WIN32_API
-#   if defined(__BORLANDC__) || U_PLATFORM == U_PF_MINGW || (defined(_MSC_VER) && _MSC_VER>=1600)
-        /* Windows Visual Studio 9 and below do not have stdint.h & inttypes.h, but VS 2010 adds them. */
-#       define U_HAVE_STDINT_H 1
-#   else
-#       define U_HAVE_STDINT_H 0
-#   endif
-#elif U_PLATFORM == U_PF_SOLARIS
-    /* Solaris has inttypes.h but not stdint.h. */
-#   define U_HAVE_STDINT_H 0
-#elif U_PLATFORM == U_PF_AIX && !defined(_AIX51) && defined(_POWER)
-    /* PPC AIX <= 4.3 has inttypes.h but not stdint.h. */
-#   define U_HAVE_STDINT_H 0
-#else
-#   define U_HAVE_STDINT_H 1
-#endif
-
-/**
- * \def U_HAVE_INTTYPES_H
- * Defines whether inttypes.h is available. It is a C99 standard header.
- * We include inttypes.h where it is available but stdint.h is not.
- * @internal
- */
-#ifdef U_HAVE_INTTYPES_H
-    /* Use the predefined value. */
-#elif U_PLATFORM == U_PF_SOLARIS
-    /* Solaris has inttypes.h but not stdint.h. */
-#   define U_HAVE_INTTYPES_H 1
-#elif U_PLATFORM == U_PF_AIX && !defined(_AIX51) && defined(_POWER)
-    /* PPC AIX <= 4.3 has inttypes.h but not stdint.h. */
-#   define U_HAVE_INTTYPES_H 1
-#else
-    /* Most platforms have both inttypes.h and stdint.h, or neither. */
-#   define U_HAVE_INTTYPES_H U_HAVE_STDINT_H
 #endif
 
 /*===========================================================================*/
@@ -507,6 +473,8 @@
     /* Otherwise use the predefined value. */
 #elif !defined(__cplusplus)
 #   define U_CPLUSPLUS_VERSION 0
+#elif __cplusplus >= 201703L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
+#   define U_CPLUSPLUS_VERSION 17
 #elif __cplusplus >= 201402L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201402L)
 #   define U_CPLUSPLUS_VERSION 14
 #elif __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
@@ -754,9 +722,9 @@
     /*
      * Notes:
      * C++11 and C11 require support for UTF-16 literals
-     * TODO: Fix for plain C. Doesn't work on Mac.
+     * Doesn't work on Mac C11 (see workaround in ptypes.h).
      */
-#   if U_CPLUSPLUS_VERSION >= 11 || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L)
+#   if defined(__cplusplus) || !U_PLATFORM_IS_DARWIN_BASED
 #       define U_HAVE_CHAR16_T 1
 #   else
 #       define U_HAVE_CHAR16_T 0

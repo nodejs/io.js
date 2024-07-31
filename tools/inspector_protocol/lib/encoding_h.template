@@ -9,6 +9,7 @@
 #ifndef {{"_".join(config.protocol.namespace)}}_encoding_h
 #define {{"_".join(config.protocol.namespace)}}_encoding_h
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -23,6 +24,19 @@ namespace {{namespace}} {
 
 // ===== encoding/encoding.h =====
 
+// This library is designed to be portable. The only allowed dependency
+// are the C/C++ standard libraries, up to C++11. We support both 32 bit
+// and 64 architectures.
+//
+// Types used below:
+// uint8_t: a byte, e.g. for raw bytes or UTF8 characters
+// uint16_t: two bytes, e.g. for UTF16 characters
+// For input parameters:
+//   span<uint8_t>: pointer to bytes and length
+//   span<uint16_t>: pointer to UTF16 chars and length
+// For output parameters:
+//   std::vector<uint8_t> - Owned segment of bytes / utf8 characters and length.
+//   std::string - Same, for compatibility, even though char is signed.
 
 // =============================================================================
 // span - sequence of bytes
@@ -79,6 +93,22 @@ inline span<uint8_t> SpanFrom(const char* str) {
 
 inline span<uint8_t> SpanFrom(const std::string& v) {
   return span<uint8_t>(reinterpret_cast<const uint8_t*>(v.data()), v.size());
+}
+
+// Less than / equality comparison functions for sorting / searching for byte
+// spans. These are similar to absl::string_view's < and == operators.
+inline bool SpanLessThan(span<uint8_t> x, span<uint8_t> y) noexcept {
+  auto min_size = std::min(x.size(), y.size());
+  const int r = min_size == 0 ? 0 : memcmp(x.data(), y.data(), min_size);
+  return (r < 0) || (r == 0 && x.size() < y.size());
+}
+
+inline bool SpanEquals(span<uint8_t> x, span<uint8_t> y) noexcept {
+  auto len = x.size();
+  if (len != y.size())
+    return false;
+  return x.data() == y.data() || len == 0 ||
+         std::memcmp(x.data(), y.data(), len) == 0;
 }
 
 // =============================================================================

@@ -33,6 +33,7 @@ The suite json format is expected to be:
   ]
   "main": <main js perf runner file>,
   "results_regexp": <optional regexp>,
+  "results_default": <optional result default value>,
   "results_processor": <optional python results processor script>,
   "units": <the unit specification for the performance dashboard>,
   "process_size": <flag - collect maximum memory used by the process>,
@@ -40,6 +41,7 @@ The suite json format is expected to be:
     {
       "name": <name of the trace>,
       "results_regexp": <optional more specific regexp>,
+      "results_default": <optional result default value>,
       "results_processor": <optional python results processor script>,
       "units": <the unit specification for the performance dashboard>,
       "process_size": <flag - collect maximum memory used by the process>,
@@ -60,7 +62,9 @@ specified, it is called after running the tests (with a path relative to the
 suite level's path). It is expected to read the measurement's output text
 on stdin and print the processed output to stdout.
 
-The results_regexp will be applied to the processed output.
+The results_regexp will be applied to the processed output. If a
+results_default value is provided, it will be used in case the regexp doesn't
+match. Otherwise, an error is added to the output.
 
 A suite without "tests" is considered a performance test itself.
 
@@ -341,6 +345,7 @@ class DefaultSentinel(Node):
     self.resources = []
     self.results_processor = None
     self.results_regexp = None
+    self.results_default = None
     self.stddev_regexp = None
     self.units = 'score'
     self.total = False
@@ -411,6 +416,8 @@ class GraphConfig(Node):
             "parent.results_regexp='%s' suite.name='%s' suite='%s', error: %s" %
             (parent.results_regexp, suite['name'], str(suite)[:100], e))
 
+    self.results_default = suite.get('results_default', None)
+
     # A similar regular expression for the standard deviation (optional).
     if parent.stddev_regexp:
       stddev_default = parent.stddev_regexp % re.escape(suite['name'])
@@ -471,7 +478,7 @@ class LeafTraceConfig(GraphConfig):
       results_for_total = []
       for trace in self.children:
         result = trace.ConsumeOutput(output, result_tracker)
-        if result:
+        if result is not None:
           results_for_total.append(result)
 
     result = None
@@ -485,9 +492,12 @@ class LeafTraceConfig(GraphConfig):
           'Regexp "%s" returned a non-numeric for test %s.' %
           (self.results_regexp, self.name))
     except:
-      result_tracker.AddError(
-          'Regexp "%s" did not match for test %s.' %
-          (self.results_regexp, self.name))
+      if self.results_default is not None:
+        result = float(self.results_default)
+      else:
+        result_tracker.AddError(
+            'Regexp "%s" did not match for test %s.' %
+            (self.results_regexp, self.name))
 
     try:
       if self.stddev_regexp:
@@ -501,7 +511,7 @@ class LeafTraceConfig(GraphConfig):
           'Regexp "%s" did not match for test %s.' %
           (self.stddev_regexp, self.name))
 
-    if result:
+    if result is not None:
       result_tracker.AddTraceResult(self, result, stddev)
     return result
 
@@ -522,7 +532,7 @@ class TraceConfig(GraphConfig):
     results_for_total = []
     for trace in self.children:
       result = trace.ConsumeOutput(output, result_tracker)
-      if result:
+      if result is not None:
         results_for_total.append(result)
 
     if self.total:
@@ -698,9 +708,12 @@ def BuildGraphConfigs(suite, parent, arch):
     graph = VariantConfig(suite, parent, arch)
     variant_class = GetGraphConfigClass(suite, parent)
     for variant_suite in variants:
-      # Propagate down the results_regexp if it's not override in the variant
+      # Propagate down the results_regexp and default if they are not
+      # overridden in the variant.
       variant_suite.setdefault('results_regexp',
                                suite.get('results_regexp', None))
+      variant_suite.setdefault('results_default',
+                               suite.get('results_default', None))
       variant_graph = variant_class(variant_suite, graph, arch)
       graph.AppendChild(variant_graph)
       for subsuite in suite.get('tests', []):
@@ -1006,7 +1019,7 @@ class AndroidPlatform(Platform):  # pragma: no cover
       logging.debug('Dumping logcat into %s', logcat_file)
 
     output = Output()
-    start = time.time()
+    output.start_time = time.time()
     try:
       if not self.is_dry_run:
         output.stdout = self.driver.run(
@@ -1025,7 +1038,7 @@ class AndroidPlatform(Platform):  # pragma: no cover
       output.timed_out = True
     if runnable.process_size:
       output.stdout += 'MaxMemory: Unsupported'
-    output.duration = time.time() - start
+    output.end_time = time.time()
     return output
 
 

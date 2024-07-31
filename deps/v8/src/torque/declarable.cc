@@ -89,8 +89,8 @@ SpecializationRequester::SpecializationRequester(SourcePosition position,
 }
 
 std::vector<Declarable*> Scope::Lookup(const QualifiedName& name) {
-  if (name.namespace_qualification.size() >= 1 &&
-      name.namespace_qualification[0] == "") {
+  if (!name.namespace_qualification.empty() &&
+      name.namespace_qualification[0].empty()) {
     return GlobalContext::GetDefaultNamespace()->Lookup(
         name.DropFirstNamespaceQualification());
   }

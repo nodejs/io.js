@@ -1,41 +1,45 @@
 const t = require('tap')
+const procLog = require('proc-log')
 const tmock = require('../../fixtures/tmock')
 
 let readOpts = null
 let readResult = null
-const read = async (opts) => {
-  readOpts = opts
-  return readResult
-}
-
-const npmUserValidate = {
-  username: (username) => {
-    if (username === 'invalid') {
-      return new Error('invalid username')
-    }
-
-    return null
-  },
-  email: (email) => {
-    if (email.startsWith('invalid')) {
-      return new Error('invalid email')
-    }
-
-    return null
-  },
-}
-
 let logMsg = null
+
 const readUserInfo = tmock(t, '{LIB}/utils/read-user-info.js', {
-  read,
-  npmlog: {
-    clearProgress: () => {},
-    showProgress: () => {},
+  read: {
+    read: async (opts) => {
+      readOpts = opts
+      return readResult
+    },
   },
   'proc-log': {
-    warn: (msg) => logMsg = msg,
+    ...procLog,
+    log: {
+      ...procLog.log,
+      warn: (msg) => logMsg = msg,
+    },
+    input: {
+      ...procLog.input,
+      read: (fn) => fn(),
+    },
   },
-  'npm-user-validate': npmUserValidate,
+  'npm-user-validate': {
+    username: (username) => {
+      if (username === 'invalid') {
+        return new Error('invalid username')
+      }
+
+      return null
+    },
+    email: (email) => {
+      if (email.startsWith('invalid')) {
+        return new Error('invalid email')
+      }
+
+      return null
+    },
+  },
 })
 
 t.beforeEach(() => {

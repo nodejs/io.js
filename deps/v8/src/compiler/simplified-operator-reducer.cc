@@ -300,12 +300,12 @@ Reduction SimplifiedOperatorReducer::ReplaceInt32(int32_t value) {
 
 
 Reduction SimplifiedOperatorReducer::ReplaceNumber(double value) {
-  return Replace(jsgraph()->Constant(value));
+  return Replace(jsgraph()->ConstantNoHole(value));
 }
 
 
 Reduction SimplifiedOperatorReducer::ReplaceNumber(int32_t value) {
-  return Replace(jsgraph()->Constant(value));
+  return Replace(jsgraph()->ConstantNoHole(value));
 }
 
 Factory* SimplifiedOperatorReducer::factory() const {

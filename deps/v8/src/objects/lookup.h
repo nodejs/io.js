@@ -61,15 +61,43 @@ class V8_EXPORT_PRIVATE LookupIterator final {
   };
 
   enum State {
-    ACCESS_CHECK,
-    INTEGER_INDEXED_EXOTIC,
-    INTERCEPTOR,
-    JSPROXY,
-    WASM_OBJECT,
+    // The property was not found by the iterator (this is a terminal state,
+    // iteration should not continue after hitting a not-found state).
     NOT_FOUND,
+    // Typed arrays have special handling for "canonical numeric index string"
+    // (https://tc39.es/ecma262/#sec-canonicalnumericindexstring), where not
+    // finding such an index (either because of OOB, or because it's not a valid
+    // integer index) immediately returns undefined, without walking the
+    // prototype (https://tc39.es/ecma262/#sec-typedarray-get).
+    TYPED_ARRAY_INDEX_NOT_FOUND,
+    // The next lookup requires an access check -- we can continue iteration on
+    // a successful check, otherwise we should abort.
+    ACCESS_CHECK,
+    // Interceptors are API-level hooks for optionally handling a lookup in
+    // embedder code -- if their handling returns false, then we should continue
+    // the iteration, though we should be conscious that an interceptor may have
+    // side effects despite returning false and might invalidate the lookup
+    // iterator state.
+    INTERCEPTOR,
+    // Proxies are user-space hooks for handling lookups in JS code.
+    // https://tc39.es/ecma262/#proxy-exotic-object
+    JSPROXY,
+    // Accessors are hooks for property getters/setters -- these can be
+    // user-space accessors (AccessorPair), or API accessors (AccessorInfo).
     ACCESSOR,
+    // Data properties are stored as data fields on an object (either properties
+    // or elements).
     DATA,
+    // WasmGC objects are opaque in JS, and appear to have no properties.
+    WASM_OBJECT,
+
+    // A LookupIterator in the transition state is in the middle of performing
+    // a data transition (that is, as part of a data property write, updating
+    // the receiver and its map to allow the write).
+    //
+    // This state is not expected to be observed while performing a lookup.
     TRANSITION,
+
     // Set state_ to BEFORE_PROPERTY to ensure that the next lookup will be a
     // PROPERTY lookup.
     BEFORE_PROPERTY = INTERCEPTOR
@@ -219,6 +247,11 @@ class V8_EXPORT_PRIVATE LookupIterator final {
   // If not found returns false and leaves the LookupIterator unmodified.
   bool TryLookupCachedProperty(Handle<AccessorPair> accessor);
   bool TryLookupCachedProperty();
+
+  // Test whether the object has an internal marker property.
+  static bool HasInternalMarkerProperty(Isolate* isolate,
+                                        Tagged<JSReceiver> object,
+                                        Handle<Symbol> marker);
 
  private:
   friend PropertyKey;

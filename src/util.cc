@@ -20,6 +20,8 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "util.h"  // NOLINT(build/include_inline)
+#include <cmath>
+#include <cstdint>
 #include "util-inl.h"
 
 #include "debug_utils-inl.h"
@@ -30,7 +32,7 @@
 #include "node_snapshot_builder.h"
 #include "node_v8_platform-inl.h"
 #include "string_bytes.h"
-#include "uv.h"
+#include "v8-value.h"
 
 #ifdef _WIN32
 #include <io.h>  // _S_IREAD _S_IWRITE
@@ -53,6 +55,31 @@
 #include <sstream>
 
 static std::atomic_int seq = {0};  // Sequence number for diagnostic filenames.
+
+// F_OK etc. constants
+#ifdef _WIN32
+#include "uv.h"
+#else
+#include <unistd.h>
+#endif
+
+// The access modes can be any of F_OK, R_OK, W_OK or X_OK. Some might not be
+// available on specific systems. They can be used in combination as well
+// (F_OK | R_OK | W_OK | X_OK).
+constexpr int kMaximumAccessMode = F_OK | W_OK | R_OK | X_OK;
+constexpr int kMinimumAccessMode = std::min({F_OK, W_OK, R_OK, X_OK});
+
+constexpr int kDefaultCopyMode = 0;
+// The copy modes can be any of UV_FS_COPYFILE_EXCL, UV_FS_COPYFILE_FICLONE or
+// UV_FS_COPYFILE_FICLONE_FORCE. They can be used in combination as well
+// (US_FS_COPYFILE_EXCL | US_FS_COPYFILE_FICLONE |
+// US_FS_COPYFILE_FICLONE_FORCE).
+constexpr int kMinimumCopyMode = std::min({kDefaultCopyMode,
+                                           UV_FS_COPYFILE_EXCL,
+                                           UV_FS_COPYFILE_FICLONE,
+                                           UV_FS_COPYFILE_FICLONE_FORCE});
+constexpr int kMaximumCopyMode =
+    UV_FS_COPYFILE_EXCL | UV_FS_COPYFILE_FICLONE | UV_FS_COPYFILE_FICLONE_FORCE;
 
 namespace node {
 
@@ -201,6 +228,10 @@ double GetCurrentTimeInMicroseconds() {
 }
 
 int WriteFileSync(const char* path, uv_buf_t buf) {
+  return WriteFileSync(path, &buf, 1);
+}
+
+int WriteFileSync(const char* path, uv_buf_t* bufs, size_t buf_count) {
   uv_fs_t req;
   int fd = uv_fs_open(nullptr,
                       &req,
@@ -213,7 +244,7 @@ int WriteFileSync(const char* path, uv_buf_t buf) {
     return fd;
   }
 
-  int err = uv_fs_write(nullptr, &req, fd, &buf, 1, 0, nullptr);
+  int err = uv_fs_write(nullptr, &req, fd, bufs, buf_count, 0, nullptr);
   uv_fs_req_cleanup(&req);
   if (err < 0) {
     return err;
@@ -289,7 +320,7 @@ std::vector<char> ReadFileSync(FILE* fp) {
 void DiagnosticFilename::LocalTime(TIME_TYPE* tm_struct) {
 #ifdef _WIN32
   GetLocalTime(tm_struct);
-#else  // UNIX, OSX
+#else  // UNIX, macOS
   struct timeval time_val;
   gettimeofday(&time_val, nullptr);
   localtime_r(&time_val.tv_sec, tm_struct);
@@ -312,7 +343,7 @@ std::string DiagnosticFilename::MakeFilename(
   oss << "." << std::setfill('0') << std::setw(2) << tm_struct.wHour;
   oss << std::setfill('0') << std::setw(2) << tm_struct.wMinute;
   oss << std::setfill('0') << std::setw(2) << tm_struct.wSecond;
-#else  // UNIX, OSX
+#else  // UNIX, macOS
   oss << "."
             << std::setfill('0')
             << std::setw(4)
@@ -678,7 +709,7 @@ Local<String> UnionBytes::ToStringChecked(Isolate* isolate) const {
   }
 }
 
-RAIIIsolate::RAIIIsolate(const SnapshotData* data)
+RAIIIsolateWithoutEntering::RAIIIsolateWithoutEntering(const SnapshotData* data)
     : allocator_{ArrayBuffer::Allocator::NewDefaultAllocator()} {
   isolate_ = Isolate::Allocate();
   CHECK_NOT_NULL(isolate_);
@@ -692,9 +723,142 @@ RAIIIsolate::RAIIIsolate(const SnapshotData* data)
   Isolate::Initialize(isolate_, params);
 }
 
-RAIIIsolate::~RAIIIsolate() {
+RAIIIsolateWithoutEntering::~RAIIIsolateWithoutEntering() {
   per_process::v8_platform.Platform()->UnregisterIsolate(isolate_);
   isolate_->Dispose();
+}
+
+RAIIIsolate::RAIIIsolate(const SnapshotData* data)
+    : isolate_{data}, isolate_scope_{isolate_.get()} {}
+
+RAIIIsolate::~RAIIIsolate() {}
+
+// Returns a string representation of the input value, including type.
+// JavaScript implementation is available in lib/internal/errors.js
+std::string DetermineSpecificErrorType(Environment* env,
+                                       v8::Local<v8::Value> input) {
+  if (input->IsFunction()) {
+    return "function";
+  } else if (input->IsString()) {
+    auto value = Utf8Value(env->isolate(), input).ToString();
+    if (value.size() > 28) {
+      value = value.substr(0, 25) + "...";
+    }
+    if (value.find('\'') == std::string::npos) {
+      return SPrintF("type string ('%s')", value);
+    }
+
+    // Stringify the input value.
+    Local<String> stringified =
+        v8::JSON::Stringify(env->context(), input).ToLocalChecked();
+    Utf8Value stringified_value(env->isolate(), stringified);
+    return SPrintF("type string (%s)", stringified_value.out());
+  } else if (input->IsObject()) {
+    v8::Local<v8::String> constructor_name =
+        input.As<v8::Object>()->GetConstructorName();
+    Utf8Value name(env->isolate(), constructor_name);
+    return SPrintF("an instance of %s", name.out());
+  }
+
+  Utf8Value utf8_value(env->isolate(),
+                       input->ToString(env->context()).ToLocalChecked());
+
+  if (input->IsNumber() || input->IsInt32() || input->IsUint32()) {
+    auto value = input.As<v8::Number>()->Value();
+    if (std::isnan(value)) {
+      return "type number (NaN)";
+    } else if (std::isinf(value)) {
+      return "type number (Infinity)";
+    }
+    return SPrintF("type number (%s)", utf8_value.out());
+  } else if (input->IsBigInt() || input->IsBoolean() || input->IsSymbol()) {
+    Utf8Value type(env->isolate(), input->TypeOf(env->isolate()));
+    return SPrintF("type %s (%s)", type.out(), utf8_value.out());
+  }
+
+  // For example: null, undefined
+  return utf8_value.ToString();
+}
+
+v8::Maybe<int32_t> GetValidatedFd(Environment* env,
+                                  v8::Local<v8::Value> input) {
+  if (!input->IsInt32() && !input->IsNumber()) {
+    std::string error_type = node::DetermineSpecificErrorType(env, input);
+    THROW_ERR_INVALID_ARG_TYPE(env,
+                               "The \"fd\" argument must be of type "
+                               "number. Received %s",
+                               error_type.c_str());
+    return v8::Nothing<int32_t>();
+  }
+
+  const double fd = input.As<v8::Number>()->Value();
+  const bool is_out_of_range = fd < 0 || fd > INT32_MAX;
+
+  if (is_out_of_range || !IsSafeJsInt(input)) {
+    Utf8Value utf8_value(
+        env->isolate(), input->ToDetailString(env->context()).ToLocalChecked());
+    if (is_out_of_range && !std::isinf(fd)) {
+      THROW_ERR_OUT_OF_RANGE(env,
+                             "The value of \"fd\" is out of range. "
+                             "It must be >= 0 && <= %s. Received %s",
+                             std::to_string(INT32_MAX),
+                             utf8_value.out());
+    } else {
+      THROW_ERR_OUT_OF_RANGE(
+          env,
+          "The value of \"fd\" is out of range. It must be an integer. "
+          "Received %s",
+          utf8_value.out());
+    }
+    return v8::Nothing<int32_t>();
+  }
+
+  return v8::Just(static_cast<int32_t>(fd));
+}
+
+v8::Maybe<int> GetValidFileMode(Environment* env,
+                                v8::Local<v8::Value> input,
+                                uv_fs_type type) {
+  // Allow only int32 or null/undefined values.
+  if (input->IsNumber()) {
+    // We cast the input to v8::Number to avoid overflows.
+    auto num = input.As<v8::Number>()->Value();
+
+    // Handle infinity and NaN values
+    if (std::isinf(num) || std::isnan(num)) {
+      THROW_ERR_OUT_OF_RANGE(env, "mode is out of range");
+      return v8::Nothing<int>();
+    }
+  } else if (!input->IsNullOrUndefined()) {
+    THROW_ERR_INVALID_ARG_TYPE(env, "mode must be int32 or null/undefined");
+    return v8::Nothing<int>();
+  }
+
+  int min = kMinimumAccessMode;
+  int max = kMaximumAccessMode;
+  int def = F_OK;
+
+  CHECK(type == UV_FS_ACCESS || type == UV_FS_COPYFILE);
+
+  if (type == UV_FS_COPYFILE) {
+    min = kMinimumCopyMode;
+    max = kMaximumCopyMode;
+    def = input->IsNullOrUndefined() ? kDefaultCopyMode
+                                     : input.As<v8::Int32>()->Value();
+  }
+
+  if (input->IsNullOrUndefined()) {
+    return v8::Just(def);
+  }
+
+  const int mode = input.As<v8::Int32>()->Value();
+  if (mode < min || mode > max) {
+    THROW_ERR_OUT_OF_RANGE(
+        env, "mode is out of range: >= %d && <= %d", min, max);
+    return v8::Nothing<int>();
+  }
+
+  return v8::Just(mode);
 }
 
 }  // namespace node

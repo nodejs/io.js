@@ -359,7 +359,12 @@ exists.
 =item EVP_EncryptUpdate()
 
 Encrypts I<inl> bytes from the buffer I<in> and writes the encrypted version to
-I<out>. This function can be called multiple times to encrypt successive blocks
+I<out>. The pointers I<out> and I<in> may point to the same location, in which
+case the encryption will be done in-place. If I<out> and I<in> point to different
+locations, the two buffers must be disjoint, otherwise the operation might fail
+or the outcome might be undefined.
+
+This function can be called multiple times to encrypt successive blocks
 of data. The amount of data written depends on the block alignment of the
 encrypted data.
 For most ciphers and modes, the amount of data written can be anything
@@ -368,10 +373,9 @@ For wrap cipher modes, the amount of data written can be anything
 from zero bytes to (inl + cipher_block_size) bytes.
 For stream ciphers, the amount of data written can be anything from zero
 bytes to inl bytes.
-Thus, I<out> should contain sufficient room for the operation being performed.
-The actual number of bytes written is placed in I<outl>. It also
-checks if I<in> and I<out> are partially overlapping, and if they are
-0 is returned to indicate failure.
+Thus, the buffer pointed to by I<out> must contain sufficient room for the
+operation being performed.
+The actual number of bytes written is placed in I<outl>.
 
 If padding is enabled (the default) then EVP_EncryptFinal_ex() encrypts
 the "final" data, that is any data that remains in a partial block.

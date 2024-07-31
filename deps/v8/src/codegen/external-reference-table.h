@@ -38,7 +38,7 @@ class ExternalReferenceTable {
       Accessors::kAccessorInfoCount + Accessors::kAccessorGetterCount +
       Accessors::kAccessorSetterCount + Accessors::kAccessorCallbackCount;
   // The number of stub cache external references, see AddStubCache.
-  static constexpr int kStubCacheReferenceCount = 12;
+  static constexpr int kStubCacheReferenceCount = 6 * 3;  // 3 stub caches
   static constexpr int kStatsCountersReferenceCount =
 #define SC(...) +1
       STATS_COUNTER_NATIVE_CODE_LIST(SC);

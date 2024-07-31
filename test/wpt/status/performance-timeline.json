@@ -7,6 +7,18 @@
       ]
     }
   },
+  "idlharness.any.js": {
+    "fail": {
+      "note": "not implemented",
+      "expected": [
+        "PerformanceEntry interface: attribute id",
+        "PerformanceEntry interface: attribute navigationId"
+      ]
+    }
+  },
+  "navigation-id.helper.js": {
+    "skip": "This is not a test file."
+  },
   "webtiming-resolution.any.js": {
     "skip": "flaky"
   }

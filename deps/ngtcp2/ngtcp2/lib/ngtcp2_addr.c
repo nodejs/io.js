@@ -27,6 +27,8 @@
 #include <string.h>
 #include <assert.h>
 
+#include "ngtcp2_unreachable.h"
+
 ngtcp2_addr *ngtcp2_addr_init(ngtcp2_addr *dest, const ngtcp2_sockaddr *addr,
                               ngtcp2_socklen addrlen) {
   dest->addrlen = addrlen;
@@ -66,8 +68,7 @@ static int sockaddr_eq(const ngtcp2_sockaddr *a, const ngtcp2_sockaddr *b) {
            memcmp(&ai->sin6_addr, &bi->sin6_addr, sizeof(ai->sin6_addr)) == 0;
   }
   default:
-    assert(0);
-    abort();
+    ngtcp2_unreachable();
   }
 }
 
@@ -109,8 +110,7 @@ uint32_t ngtcp2_addr_compare(const ngtcp2_addr *aa, const ngtcp2_addr *bb) {
     return flags;
   }
   default:
-    assert(0);
-    abort();
+    ngtcp2_unreachable();
   }
 }
 

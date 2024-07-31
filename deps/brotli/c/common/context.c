@@ -1,4 +1,4 @@
-#include "./context.h"
+#include "context.h"
 
 #include <brotli/types.h>
 

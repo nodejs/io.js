@@ -31,6 +31,9 @@ int main(void) {
   assert(ret == 0);
   assert(now - before >= 2);
 
+  // V8 has a bug that allows unsupported parts of this test to run,
+  // causing the test to fail. poll_win.c is a workaround.
+  // https://github.com/nodejs/node/issues/51822
   // The rest of the test is unsupported on Windows.
   if (is_win)
     return 0;

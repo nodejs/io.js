@@ -596,6 +596,19 @@ void BytecodeAnalysis::Analyze() {
           ResumeJumpTarget::Leaf(suspend_id, resume_offset));
     }
 
+    if (loop_stack_.size() > 1) {
+      auto& loop = loop_stack_.top();
+      if (Bytecodes::IsCallOrConstruct(bytecode)) {
+        loop.loop_info->mark_non_trivial();
+      } else if (Bytecodes::IsUnconditionalJump(bytecode) &&
+                 bytecode != Bytecode::kJumpLoop) {
+        int target = iterator.GetJumpTargetOffset();
+        if (target < loop.loop_info->loop_end()) {
+          loop.loop_info->mark_non_trivial();
+        }
+      }
+    }
+
     if (analyze_liveness_) {
       BytecodeLiveness& liveness =
           liveness_map().InsertNewLiveness(current_offset);
@@ -698,6 +711,7 @@ void BytecodeAnalysis::PushLoop(int loop_header, int loop_end) {
 
   if (loop_stack_.top().loop_info) {
     loop_stack_.top().loop_info->mark_not_innermost();
+    loop_stack_.top().loop_info->mark_non_trivial();
   }
   loop_stack_.push({loop_header, loop_info});
 }

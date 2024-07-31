@@ -390,16 +390,14 @@ void PrintSingleDeoptFrame(
         return;
       }
       os << " : {";
-      bool first = true;
+      os << "<closure>:"
+         << PrintNodeLabel(graph_labeller, frame.as_interpreted().closure())
+         << ":" << current_input_location->operand();
+      current_input_location++;
       frame.as_interpreted().frame_state()->ForEachValue(
           frame.as_interpreted().unit(),
           [&](ValueNode* node, interpreter::Register reg) {
-            if (first) {
-              first = false;
-            } else {
-              os << ", ";
-            }
-            os << reg.ToString() << ":";
+            os << ", " << reg.ToString() << ":";
             if (lazy_deopt_info_if_top_frame &&
                 lazy_deopt_info_if_top_frame->IsResultRegister(reg)) {
               os << "<result>";
@@ -721,7 +719,7 @@ ProcessResult MaglevPrintingVisitor::Process(Phi* phi,
     case ValueRepresentation::kHoleyFloat64:
       os_ << "ʰᶠ";
       break;
-    case ValueRepresentation::kWord64:
+    case ValueRepresentation::kIntPtr:
       UNREACHABLE();
   }
   if (phi->input_count() == 0) {
@@ -748,6 +746,9 @@ ProcessResult MaglevPrintingVisitor::Process(Phi* phi,
   if (phi->has_valid_live_range()) {
     os_ << ", live range: [" << phi->live_range().start << "-"
         << phi->live_range().end << "]";
+  }
+  if (!phi->has_id()) {
+    os_ << ", " << phi->use_count() << " uses";
   }
   os_ << "\n";
 
@@ -890,12 +891,13 @@ ProcessResult MaglevPrintingVisitor::Process(ControlNode* control_node,
           case ValueRepresentation::kHoleyFloat64:
             os_ << "ʰᶠ";
             break;
-          case ValueRepresentation::kWord64:
+          case ValueRepresentation::kIntPtr:
             UNREACHABLE();
         }
         os_ << " " << phi->owner().ToString() << " " << phi->result().operand()
             << "\n";
       }
+#ifdef V8_ENABLE_MAGLEV
       if (target->state()->register_state().is_initialized()) {
         PrintVerticalArrows(os_, targets_);
         PrintPadding(os_, graph_labeller_, max_node_id_, -1);
@@ -917,6 +919,7 @@ ProcessResult MaglevPrintingVisitor::Process(ControlNode* control_node,
         target->state()->register_state().ForEachDoubleRegister(
             print_register_merges);
       }
+#endif
     }
   }
 

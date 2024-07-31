@@ -16,8 +16,8 @@
 #include "number_decimfmtprops.h"
 #include "number_affixutils.h"
 
-U_NAMESPACE_BEGIN namespace number {
-namespace impl {
+U_NAMESPACE_BEGIN
+namespace number::impl {
 
 // Forward declaration
 class PatternParser;
@@ -330,8 +330,7 @@ class U_I18N_API PatternStringUtils {
                                    UErrorCode& status);
 };
 
-} // namespace impl
-} // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 

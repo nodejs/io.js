@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -64,6 +64,26 @@ static void *aes_wrap_newctx(size_t kbits, size_t blkbits,
         ctx->pad = (ctx->ivlen == AES_WRAP_PAD_IVLEN);
     }
     return wctx;
+}
+
+static void *aes_wrap_dupctx(void *wctx)
+{
+    PROV_AES_WRAP_CTX *ctx = wctx;
+    PROV_AES_WRAP_CTX *dctx = wctx;
+
+    if (ctx == NULL)
+        return NULL;
+    dctx = OPENSSL_memdup(ctx, sizeof(*ctx));
+
+    if (dctx != NULL && dctx->base.tlsmac != NULL && dctx->base.alloced) {
+        dctx->base.tlsmac = OPENSSL_memdup(dctx->base.tlsmac,
+                                           dctx->base.tlsmacsize);
+        if (dctx->base.tlsmac == NULL) {
+            OPENSSL_free(dctx);
+            dctx = NULL;
+        }
+    }
+    return dctx;
 }
 
 static void aes_wrap_freectx(void *vctx)
@@ -281,6 +301,7 @@ static int aes_wrap_set_ctx_params(void *vctx, const OSSL_PARAM params[])
         { OSSL_FUNC_CIPHER_UPDATE, (void (*)(void))aes_##mode##_cipher },      \
         { OSSL_FUNC_CIPHER_FINAL, (void (*)(void))aes_##mode##_final },        \
         { OSSL_FUNC_CIPHER_FREECTX, (void (*)(void))aes_##mode##_freectx },    \
+        { OSSL_FUNC_CIPHER_DUPCTX, (void (*)(void))aes_##mode##_dupctx },      \
         { OSSL_FUNC_CIPHER_GET_PARAMS,                                         \
             (void (*)(void))aes_##kbits##_##fname##_get_params },              \
         { OSSL_FUNC_CIPHER_GETTABLE_PARAMS,                                    \

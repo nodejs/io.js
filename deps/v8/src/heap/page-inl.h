@@ -13,27 +13,28 @@ namespace v8 {
 namespace internal {
 
 template <typename Callback>
-void Page::ForAllFreeListCategories(Callback callback) {
+void PageMetadata::ForAllFreeListCategories(Callback callback) {
   for (int i = kFirstCategory; i < owner()->free_list()->number_of_categories();
        i++) {
     callback(categories_[i]);
   }
 }
 
-void Page::MarkEvacuationCandidate() {
-  DCHECK(!IsFlagSet(NEVER_EVACUATE));
+void PageMetadata::MarkEvacuationCandidate() {
+  DCHECK(!Chunk()->IsFlagSet(MemoryChunk::NEVER_EVACUATE));
   DCHECK_NULL(slot_set<OLD_TO_OLD>());
   DCHECK_NULL(typed_slot_set<OLD_TO_OLD>());
-  SetFlag(EVACUATION_CANDIDATE);
+  Chunk()->SetFlag(MemoryChunk::EVACUATION_CANDIDATE);
   reinterpret_cast<PagedSpace*>(owner())->free_list()->EvictFreeListItems(this);
 }
 
-void Page::ClearEvacuationCandidate() {
-  if (!IsFlagSet(COMPACTION_WAS_ABORTED)) {
+void PageMetadata::ClearEvacuationCandidate() {
+  MemoryChunk* chunk = Chunk();
+  if (!chunk->IsFlagSet(MemoryChunk::COMPACTION_WAS_ABORTED)) {
     DCHECK_NULL(slot_set<OLD_TO_OLD>());
     DCHECK_NULL(typed_slot_set<OLD_TO_OLD>());
   }
-  ClearFlag(EVACUATION_CANDIDATE);
+  chunk->ClearFlag(MemoryChunk::EVACUATION_CANDIDATE);
   InitializeFreeListCategories();
 }
 

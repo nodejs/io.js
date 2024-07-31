@@ -276,3 +276,13 @@ assert.throws(
   assert.strictEqual(a.digest('hex'), b.digest('hex'));
   assert.strictEqual(c.digest('hex'), d.digest('hex'));
 }
+
+{
+  crypto.Hash('sha256');
+  common.expectWarning({
+    DeprecationWarning: [
+      ['crypto.Hash constructor is deprecated.',
+       'DEP0179'],
+    ]
+  });
+}

@@ -10,6 +10,7 @@
 * [Running benchmarks](#running-benchmarks)
   * [Running individual benchmarks](#running-individual-benchmarks)
   * [Running all benchmarks](#running-all-benchmarks)
+  * [Specifying CPU Cores for Benchmarks with run.js](#specifying-cpu-cores-for-benchmarks-with-runjs)
   * [Filtering benchmarks](#filtering-benchmarks)
   * [Comparing Node.js versions](#comparing-nodejs-versions)
   * [Comparing parameters](#comparing-parameters)
@@ -163,6 +164,33 @@ It is possible to execute more groups by adding extra process arguments.
 node benchmark/run.js assert async_hooks
 ```
 
+#### Specifying CPU Cores for Benchmarks with run.js
+
+When using `run.js` to execute a group of benchmarks,
+you can specify on which CPU cores the
+benchmarks should execute
+by using the `--set CPUSET=value` option.
+This controls the CPU core
+affinity for the benchmark process,
+potentially reducing
+interference from other processes and allowing
+for performance
+testing under specific hardware configurations.
+
+The `CPUSET` option utilizes the `taskset` command's format
+for setting CPU affinity, where `value` can be a single core
+number or a range of cores.
+
+Examples:
+
+* `node benchmark/run.js --set CPUSET=0` ... runs benchmarks on CPU core 0.
+* `node benchmark/run.js --set CPUSET=0-2` ...
+  specifies that benchmarks should run on CPU cores 0 to 2.
+
+Note: This option is only applicable when using `run.js`.
+Ensure the `taskset` command is available on your system
+and the specified `CPUSET` format matches its requirements.
+
 #### Filtering benchmarks
 
 `benchmark/run.js` and `benchmark/compare.js` have `--filter pattern` and
@@ -288,8 +316,16 @@ module, you can use the `--filter` option:_
   --old      ./old-node-binary  old node binary (required)
   --runs     30                 number of samples
   --filter   pattern            string to filter benchmark scripts
+  --exclude  pattern            excludes scripts matching <pattern> (can be
+                                repeated)
   --set      variable=value     set benchmark variable (can be repeated)
   --no-progress                 don't show benchmark progress indicator
+
+    Examples:
+    --set CPUSET=0            Runs benchmarks on CPU core 0.
+    --set CPUSET=0-2          Specifies that benchmarks should run on CPU cores 0 to 2.
+
+  Note: The CPUSET format should match the specifications of the 'taskset' command
 ```
 
 For analyzing the benchmark results, use [node-benchmark-compare][] or the R

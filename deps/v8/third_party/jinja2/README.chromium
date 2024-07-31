@@ -19,4 +19,6 @@ LICENSE.rst and README.rst files.  Other files have been removed.
 Additional chromium-specific files are:
 * README.chromium (this file)
 * OWNERS
+* DIR_METADATA
 * jinja2.gni
+* .gitignore

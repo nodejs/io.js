@@ -63,7 +63,7 @@ Handle<Object> HeapTester::TestAllocateAfterFailures() {
 
   // Large object space.
   static const size_t kLargeObjectSpaceFillerLength =
-      3 * (Page::kPageSize / 10);
+      3 * (PageMetadata::kPageSize / 10);
   static const size_t kLargeObjectSpaceFillerSize =
       FixedArray::SizeFor(kLargeObjectSpaceFillerLength);
   CHECK_GT(kLargeObjectSpaceFillerSize,

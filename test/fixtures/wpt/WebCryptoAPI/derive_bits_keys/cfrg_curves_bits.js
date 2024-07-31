@@ -60,6 +60,15 @@ function define_tests() {
           }, algorithmName + " mixed case parameters");
 
           // Null length
+          // "Null" is not valid per the current spec
+          //   - https://github.com/w3c/webcrypto/issues/322
+          //   - https://github.com/w3c/webcrypto/issues/329
+          //
+          // Proposal for a spec change:
+          //   - https://github.com/w3c/webcrypto/pull/345
+          //
+          // This test case may be replaced by these new tests:
+          //   - https://github.com/web-platform-tests/wpt/pull/43400
           promise_test(function(test) {
               return subtle.deriveBits({name: algorithmName, public: publicKeys[algorithmName]}, privateKeys[algorithmName], null)
               .then(function(derivation) {

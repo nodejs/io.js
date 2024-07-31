@@ -8,7 +8,7 @@ const readJson = require('./read-json.js')
 const git = require('@npmcli/git')
 const commit = require('./commit.js')
 const tag = require('./tag.js')
-const log = require('proc-log')
+const { log } = require('proc-log')
 
 const runScript = require('@npmcli/run-script')
 
@@ -20,7 +20,6 @@ module.exports = async (newversion, opts) => {
     ignoreScripts,
     preid,
     pkg,
-    silent,
   } = opts
 
   const { valid, clean, inc } = semver
@@ -65,7 +64,6 @@ module.exports = async (newversion, opts) => {
       pkg,
       stdio: 'inherit',
       event: 'preversion',
-      banner: !silent,
       env: {
         npm_old_version: current,
         npm_new_version: newV,
@@ -101,7 +99,6 @@ module.exports = async (newversion, opts) => {
       pkg,
       stdio: 'inherit',
       event: 'version',
-      banner: !silent,
       env: {
         npm_old_version: current,
         npm_new_version: newV,
@@ -128,7 +125,6 @@ module.exports = async (newversion, opts) => {
       pkg,
       stdio: 'inherit',
       event: 'postversion',
-      banner: !silent,
       env: {
         npm_old_version: current,
         npm_new_version: newV,

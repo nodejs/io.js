@@ -20,11 +20,10 @@ transitioning javascript builtin SetPrototypeIsSupersetOf(
   // 3. Let otherRec be ? GetSetRecord(other).
   let otherRec = GetSetRecord(other, methodName);
 
-  const table = Cast<OrderedHashSet>(o.table) otherwise unreachable;
+  let table = NewStableBackingTableWitness(o);
 
   // 4. Let thisSize be the number of elements in O.[[SetData]].
-  const thisSize =
-      LoadOrderedHashTableMetadata(table, kOrderedHashSetNumberOfElementsIndex);
+  const thisSize = table.LoadSize();
 
   // 5. If thisSize < otherRec.[[Size]], return false.
   if (thisSize < Convert<int32>(otherRec.size)) {
@@ -36,15 +35,15 @@ transitioning javascript builtin SetPrototypeIsSupersetOf(
       case (otherSet: JSSetWithNoCustomIteration): {
         CheckSetRecordHasJSSetMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashSet>(otherSet.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherSet);
 
-        let iter = collections::NewUnmodifiedOrderedHashSetIterator(otherTable);
+        let iter = collections::NewUnmodifiedOrderedHashSetIterator(
+            otherTable.GetTable());
 
         while (true) {
           const nextValue = iter.Next() otherwise Done;
 
-          if (!TableHasKey(table, nextValue)) {
+          if (!table.HasKey(nextValue)) {
             return False;
           }
         }
@@ -52,15 +51,15 @@ transitioning javascript builtin SetPrototypeIsSupersetOf(
       case (otherMap: JSMapWithNoCustomIteration): {
         CheckSetRecordHasJSMapMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashMap>(otherMap.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherMap);
 
-        let iter = collections::NewUnmodifiedOrderedHashMapIterator(otherTable);
+        let iter = collections::NewUnmodifiedOrderedHashMapIterator(
+            otherTable.GetTable());
 
         while (true) {
           const nextValue = iter.Next() otherwise Done;
 
-          if (!TableHasKey(table, nextValue.key)) {
+          if (!table.HasKey(nextValue.key)) {
             return False;
           }
         }
@@ -87,7 +86,8 @@ transitioning javascript builtin SetPrototypeIsSupersetOf(
       const nextValue =
           iterator::IteratorValue(nextRecord, fastIteratorResultMap);
       //      ii. If SetDataHas(O.[[SetData]], nextValue) is false, then
-      if (!TableHasKey(table, nextValue)) {
+      table.ReloadTable();
+      if (!table.HasKey(nextValue)) {
         //          1. Perform ? IteratorClose(keysIter,
         //          NormalCompletion(unused)).
         //          2. Return false.

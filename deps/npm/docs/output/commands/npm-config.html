@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-config">npm-config</h1>
+<h1 id="----npm-config----1082">
+    <span>npm-config</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">Manage the npm configuration files</span>
 </header>
 
@@ -171,7 +179,8 @@ of the user and global npmrc files.</p>
 <pre><code class="language-bash">npm config set key=value [key=value...]
 npm set key=value [key=value...]
 </code></pre>
-<p>Sets each of the config keys to the value provided.</p>
+<p>Sets each of the config keys to the value provided. Modifies the user configuration
+file unless <a href="../commands/npm-config#location.html"><code>location</code></a> is passed.</p>
 <p>If value is omitted, the key will be removed from your config file entirely.</p>
 <p>Note: for backwards compatibility, <code>npm config set key value</code> is supported
 as an alias for <code>npm config set key=value</code>.</p>

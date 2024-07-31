@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --experimental-wasm-js-inlining
-
 /**
  * Note: The wasm module builder is not available for performance tests.
  * To change the wasm code, switch the use_module_builder flag to true, update
@@ -69,7 +67,7 @@ if (use_module_builder) {
         kExprLocalGet, 0, // length
         kExprLocalGet, 2, // backingStore
         kGCPrefix, kExprStructNew, arrayStruct,
-        kGCPrefix, kExprExternExternalize,
+        kGCPrefix, kExprExternConvertAny,
       ])
       .exportFunc();
 
@@ -77,7 +75,7 @@ if (use_module_builder) {
         makeSig([kWasmExternRef], [kWasmI32]))
       .addBody([
         kExprLocalGet, 0,
-        kGCPrefix, kExprExternInternalize,
+        kGCPrefix, kExprAnyConvertExtern,
         kGCPrefix, kExprRefCast, arrayStruct,
         kGCPrefix, kExprStructGet, arrayStruct, 0,
       ])
@@ -86,7 +84,7 @@ if (use_module_builder) {
     builder.addFunction('get', makeSig([kWasmExternRef, kWasmI32], [kWasmI32]))
       .addBody([
         kExprLocalGet, 0,
-        kGCPrefix, kExprExternInternalize,
+        kGCPrefix, kExprAnyConvertExtern,
         kGCPrefix, kExprRefCast, arrayStruct,
         kGCPrefix, kExprStructGet, arrayStruct, 1,
         kExprLocalGet, 1,
@@ -99,7 +97,7 @@ if (use_module_builder) {
       .addBody([
         // index = cast<arrayStruct>(internalize(local.get 0)).length;
         kExprLocalGet, 0,
-        kGCPrefix, kExprExternInternalize,
+        kGCPrefix, kExprAnyConvertExtern,
         kGCPrefix, kExprRefCast, arrayStruct,
         kGCPrefix, kExprStructGet, arrayStruct, 0,
         kExprLocalTee, 1,
@@ -117,7 +115,7 @@ if (use_module_builder) {
           //     .backingStore[--index]
           //   + result;
           kExprLocalGet, 0,
-          kGCPrefix, kExprExternInternalize,
+          kGCPrefix, kExprAnyConvertExtern,
           kGCPrefix, kExprRefCast, arrayStruct,
           kGCPrefix, kExprStructGet, arrayStruct, 1,
 
@@ -146,22 +144,22 @@ if (use_module_builder) {
   } else {
     instance = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([
       0, 97, 115, 109, 1, 0, 0, 0, 1, 36, 6, 80, 0, 94, 127, 1, 80, 0, 95, 2,
-      127, 1, 107, 0, 1, 96, 1, 127, 1, 111, 96, 1, 111, 1, 127, 96, 2, 111,
+      127, 1, 100, 0, 1, 96, 1, 127, 1, 111, 96, 1, 111, 1, 127, 96, 2, 111,
       127, 1, 127, 96, 1, 111, 1, 127, 3, 5, 4, 2, 3, 4, 5, 7, 48, 4, 11, 99,
       114, 101, 97, 116, 101, 65, 114, 114, 97, 121, 0, 0, 9, 103, 101, 116, 76,
       101, 110, 103, 116, 104, 0, 1, 3, 103, 101, 116, 0, 2, 12, 119, 97, 115,
       109, 83, 117, 109, 65, 114, 114, 97, 121, 0, 3, 10, 147, 1, 4, 49, 2, 1,
-      127, 1, 107, 0, 32, 0, 34, 1, 251, 28, 0, 33, 2, 3, 64, 32, 2, 32, 1, 65,
-      1, 107, 34, 1, 32, 1, 251, 22, 0, 32, 1, 65, 0, 71, 13, 0, 11, 32, 0, 32,
-      2, 251, 7, 1, 251, 113, 11, 13, 0, 32, 0, 251, 112, 251, 65, 1, 251, 3, 1,
-      0, 11, 18, 0, 32, 0, 251, 112, 251, 65, 1, 251, 3, 1, 1, 32, 1, 251, 19,
-      0, 11, 62, 1, 2, 127, 32, 0, 251, 112, 251, 65, 1, 251, 3, 1, 0, 34, 1,
-      69, 4, 64, 65, 0, 15, 11, 3, 64, 32, 0, 251, 112, 251, 65, 1, 251, 3, 1,
-      1, 32, 1, 65, 1, 107, 34, 1, 251, 19, 0, 32, 2, 106, 33, 2, 32, 1, 65, 0,
-      71, 13, 0, 11, 32, 2, 11, 0, 51, 4, 110, 97, 109, 101, 1, 44, 4, 0, 11,
-      99, 114, 101, 97, 116, 101, 65, 114, 114, 97, 121, 1, 9, 103, 101, 116,
-      76, 101, 110, 103, 116, 104, 2, 3, 103, 101, 116, 3, 12, 119, 97, 115,
-      109, 83, 117, 109, 65, 114, 114, 97, 121
+      127, 1, 100, 0, 32, 0, 34, 1, 251, 7, 0, 33, 2, 3, 64, 32, 2, 32, 1, 65,
+      1, 107, 34, 1, 32, 1, 251, 14, 0, 32, 1, 65, 0, 71, 13, 0, 11, 32, 0, 32,
+      2, 251, 0, 1, 251, 27, 11, 13, 0, 32, 0, 251, 26, 251, 22, 1, 251, 2, 1,
+      0, 11, 18, 0, 32, 0, 251, 26, 251, 22, 1, 251, 2, 1, 1, 32, 1, 251, 11, 0,
+      11, 62, 1, 2, 127, 32, 0, 251, 26, 251, 22, 1, 251, 2, 1, 0, 34, 1, 69, 4,
+      64, 65, 0, 15, 11, 3, 64, 32, 0, 251, 26, 251, 22, 1, 251, 2, 1, 1, 32, 1,
+      65, 1, 107, 34, 1, 251, 11, 0, 32, 2, 106, 33, 2, 32, 1, 65, 0, 71, 13, 0,
+      11, 32, 2, 11, 0, 51, 4, 110, 97, 109, 101, 1, 44, 4, 0, 11, 99, 114, 101,
+      97, 116, 101, 65, 114, 114, 97, 121, 1, 9, 103, 101, 116, 76, 101, 110,
+      103, 116, 104, 2, 3, 103, 101, 116, 3, 12, 119, 97, 115, 109, 83, 117,
+      109, 65, 114, 114, 97, 121
     ])), {});
   }
 

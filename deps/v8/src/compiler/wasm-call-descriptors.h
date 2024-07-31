@@ -37,6 +37,11 @@ class WasmCallDescriptors {
 #if V8_TARGET_ARCH_32_BIT
   V8_EXPORT_PRIVATE compiler::CallDescriptor* GetLoweredCallDescriptor(
       const compiler::CallDescriptor* original);
+#else
+  V8_EXPORT_PRIVATE compiler::CallDescriptor* GetLoweredCallDescriptor(
+      const compiler::CallDescriptor* original) {
+    UNREACHABLE();
+  }
 #endif  // V8_TARGET_ARCH_32_BIT
 
  private:

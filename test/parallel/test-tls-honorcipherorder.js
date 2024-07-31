@@ -29,7 +29,7 @@ function test(honorCipherOrder, clientCipher, expectedCipher, defaultCiphers) {
 
   const server = tls.createServer(soptions, mustCall(function(clearTextStream) {
     // End socket to send CLOSE_NOTIFY and TCP FIN packet, otherwise
-    // it may hang for ~30 seconds in FIN_WAIT_1 state (at least on OSX).
+    // it may hang for ~30 seconds in FIN_WAIT_1 state (at least on macOS).
     clearTextStream.end();
   }));
   server.listen(0, localhost, mustCall(function() {

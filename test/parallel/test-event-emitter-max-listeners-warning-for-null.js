@@ -16,7 +16,7 @@ process.on('warning', common.mustCall((warning) => {
   assert.strictEqual(warning.count, 2);
   assert.strictEqual(warning.type, null);
   assert.ok(warning.message.includes(
-    '2 null listeners added to [EventEmitter].'));
+    '2 null listeners added to [EventEmitter]. MaxListeners is 1.'));
 }));
 
 e.on(null, () => {});

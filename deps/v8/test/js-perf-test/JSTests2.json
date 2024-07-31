@@ -182,7 +182,19 @@
         {"name": "SmiCopyWithin"},
         {"name": "StringCopyWithin"},
         {"name": "SparseSmiCopyWithin"},
-        {"name": "SparseStringCopyWithin"}
+        {"name": "SparseStringCopyWithin"},
+        {"name": "Array.at(-1)-smi"},
+        {"name": "Array.at(0)-smi"},
+        {"name": "Array.at(20)-smi"},
+        {"name": "Array.at(80)-smi"},
+        {"name": "Array.at(-1)-double"},
+        {"name": "Array.at(0)-double"},
+        {"name": "Array.at(20)-double"},
+        {"name": "Array.at(80)-double"},
+        {"name": "Array.at(-1)-object"},
+        {"name": "Array.at(0)-object"},
+        {"name": "Array.at(20)-object"},
+        {"name": "Array.at(80)-object"}
       ]
     }
   ]

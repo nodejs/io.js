@@ -184,46 +184,45 @@ TEST_F(InterpreterTest, InterpreterLoadStoreRegisters) {
   }
 }
 
-static const Token::Value kShiftOperators[] = {
-    Token::Value::SHL, Token::Value::SAR, Token::Value::SHR};
+static const Token::Value kShiftOperators[] = {Token::kShl, Token::kSar,
+                                               Token::kShr};
 
 static const Token::Value kArithmeticOperators[] = {
-    Token::Value::BIT_OR, Token::Value::BIT_XOR, Token::Value::BIT_AND,
-    Token::Value::SHL,    Token::Value::SAR,     Token::Value::SHR,
-    Token::Value::ADD,    Token::Value::SUB,     Token::Value::MUL,
-    Token::Value::DIV,    Token::Value::MOD};
+    Token::kBitOr, Token::kBitXor, Token::kBitAnd, Token::kShl,
+    Token::kSar,   Token::kShr,    Token::kAdd,    Token::kSub,
+    Token::kMul,   Token::kDiv,    Token::kMod};
 
 static double BinaryOpC(Token::Value op, double lhs, double rhs) {
   switch (op) {
-    case Token::Value::ADD:
+    case Token::kAdd:
       return lhs + rhs;
-    case Token::Value::SUB:
+    case Token::kSub:
       return lhs - rhs;
-    case Token::Value::MUL:
+    case Token::kMul:
       return lhs * rhs;
-    case Token::Value::DIV:
+    case Token::kDiv:
       return base::Divide(lhs, rhs);
-    case Token::Value::MOD:
+    case Token::kMod:
       return Modulo(lhs, rhs);
-    case Token::Value::BIT_OR:
+    case Token::kBitOr:
       return (v8::internal::DoubleToInt32(lhs) |
               v8::internal::DoubleToInt32(rhs));
-    case Token::Value::BIT_XOR:
+    case Token::kBitXor:
       return (v8::internal::DoubleToInt32(lhs) ^
               v8::internal::DoubleToInt32(rhs));
-    case Token::Value::BIT_AND:
+    case Token::kBitAnd:
       return (v8::internal::DoubleToInt32(lhs) &
               v8::internal::DoubleToInt32(rhs));
-    case Token::Value::SHL: {
+    case Token::kShl: {
       return base::ShlWithWraparound(DoubleToInt32(lhs), DoubleToInt32(rhs));
     }
-    case Token::Value::SAR: {
+    case Token::kSar: {
       int32_t val = v8::internal::DoubleToInt32(lhs);
       uint32_t count = v8::internal::DoubleToUint32(rhs) & 0x1F;
       int32_t result = val >> count;
       return result;
     }
-    case Token::Value::SHR: {
+    case Token::kShr: {
       uint32_t val = v8::internal::DoubleToUint32(lhs);
       uint32_t count = v8::internal::DoubleToUint32(rhs) & 0x1F;
       uint32_t result = val >> count;
@@ -350,7 +349,7 @@ TEST_F(InterpreterTest, InterpreterBinaryOpsBigInt) {
     for (size_t r = 0; r < arraysize(inputs); r++) {
       for (size_t o = 0; o < arraysize(kArithmeticOperators); o++) {
         // Skip over unsigned right shift.
-        if (kArithmeticOperators[o] == Token::Value::SHR) continue;
+        if (kArithmeticOperators[o] == Token::kShr) continue;
 
         FeedbackVectorSpec feedback_spec(zone());
         BytecodeArrayBuilder builder(zone(), 1, 1, &feedback_spec);
@@ -375,7 +374,7 @@ TEST_F(InterpreterTest, InterpreterBinaryOpsBigInt) {
         Handle<Object> return_value = callable().ToHandleChecked();
         CHECK(IsBigInt(*return_value));
         if (tester.HasFeedbackMetadata()) {
-          MaybeObject feedback = callable.vector()->Get(slot);
+          Tagged<MaybeObject> feedback = callable.vector()->Get(slot);
           CHECK(IsSmi(feedback));
           // TODO(panq): Create a standalone unit test for kBigInt64.
           CHECK(BinaryOperationFeedback::kBigInt64 ==
@@ -488,7 +487,7 @@ TEST_F(InterpreterTest, InterpreterStringAdd) {
     Register reg(0);
     builder.LoadLiteral(test_cases[i].lhs).StoreAccumulatorInRegister(reg);
     LoadLiteralForTest(&builder, test_cases[i].rhs);
-    builder.BinaryOperation(Token::Value::ADD, reg, GetIndex(slot)).Return();
+    builder.BinaryOperation(Token::kAdd, reg, GetIndex(slot)).Return();
     Handle<BytecodeArray> bytecode_array = builder.ToBytecodeArray(i_isolate());
 
     InterpreterTester tester(i_isolate(), bytecode_array, metadata);
@@ -497,7 +496,7 @@ TEST_F(InterpreterTest, InterpreterStringAdd) {
     CHECK(Object::SameValue(*return_value, *test_cases[i].expected_value));
 
     if (tester.HasFeedbackMetadata()) {
-      MaybeObject feedback = callable.vector()->Get(slot);
+      Tagged<MaybeObject> feedback = callable.vector()->Get(slot);
       CHECK(IsSmi(feedback));
       CHECK_EQ(test_cases[i].expected_feedback, feedback.ToSmi().value());
     }
@@ -557,13 +556,13 @@ TEST_F(InterpreterTest, InterpreterParameter8) {
       FeedbackMetadata::New(i_isolate(), &feedback_spec);
 
   builder.LoadAccumulatorWithRegister(builder.Receiver())
-      .BinaryOperation(Token::Value::ADD, builder.Parameter(0), GetIndex(slot))
-      .BinaryOperation(Token::Value::ADD, builder.Parameter(1), GetIndex(slot1))
-      .BinaryOperation(Token::Value::ADD, builder.Parameter(2), GetIndex(slot2))
-      .BinaryOperation(Token::Value::ADD, builder.Parameter(3), GetIndex(slot3))
-      .BinaryOperation(Token::Value::ADD, builder.Parameter(4), GetIndex(slot4))
-      .BinaryOperation(Token::Value::ADD, builder.Parameter(5), GetIndex(slot5))
-      .BinaryOperation(Token::Value::ADD, builder.Parameter(6), GetIndex(slot6))
+      .BinaryOperation(Token::kAdd, builder.Parameter(0), GetIndex(slot))
+      .BinaryOperation(Token::kAdd, builder.Parameter(1), GetIndex(slot1))
+      .BinaryOperation(Token::kAdd, builder.Parameter(2), GetIndex(slot2))
+      .BinaryOperation(Token::kAdd, builder.Parameter(3), GetIndex(slot3))
+      .BinaryOperation(Token::kAdd, builder.Parameter(4), GetIndex(slot4))
+      .BinaryOperation(Token::kAdd, builder.Parameter(5), GetIndex(slot5))
+      .BinaryOperation(Token::kAdd, builder.Parameter(6), GetIndex(slot6))
       .Return();
   ast_factory.Internalize(i_isolate());
   Handle<BytecodeArray> bytecode_array = builder.ToBytecodeArray(i_isolate());
@@ -601,92 +600,92 @@ TEST_F(InterpreterTest, InterpreterBinaryOpTypeFeedback) {
 
   BinaryOpExpectation const kTestCases[] = {
       // ADD
-      {Token::Value::ADD, LiteralForTest(2), LiteralForTest(3),
+      {Token::kAdd, LiteralForTest(2), LiteralForTest(3),
        Handle<Smi>(Smi::FromInt(5), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::ADD, LiteralForTest(Smi::kMaxValue), LiteralForTest(1),
+      {Token::kAdd, LiteralForTest(Smi::kMaxValue), LiteralForTest(1),
        i_isolate()->factory()->NewHeapNumber(Smi::kMaxValue + 1.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::ADD, LiteralForTest(3.1415), LiteralForTest(3),
+      {Token::kAdd, LiteralForTest(3.1415), LiteralForTest(3),
        i_isolate()->factory()->NewHeapNumber(3.1415 + 3),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::ADD, LiteralForTest(3.1415), LiteralForTest(1.4142),
+      {Token::kAdd, LiteralForTest(3.1415), LiteralForTest(1.4142),
        i_isolate()->factory()->NewHeapNumber(3.1415 + 1.4142),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::ADD, LiteralForTest(ast_factory.GetOneByteString("foo")),
+      {Token::kAdd, LiteralForTest(ast_factory.GetOneByteString("foo")),
        LiteralForTest(ast_factory.GetOneByteString("bar")),
        i_isolate()->factory()->NewStringFromAsciiChecked("foobar"),
        BinaryOperationFeedback::kString},
-      {Token::Value::ADD, LiteralForTest(2),
+      {Token::kAdd, LiteralForTest(2),
        LiteralForTest(ast_factory.GetOneByteString("2")),
        i_isolate()->factory()->NewStringFromAsciiChecked("22"),
        BinaryOperationFeedback::kAny},
       // SUB
-      {Token::Value::SUB, LiteralForTest(2), LiteralForTest(3),
+      {Token::kSub, LiteralForTest(2), LiteralForTest(3),
        Handle<Smi>(Smi::FromInt(-1), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::SUB, LiteralForTest(Smi::kMinValue), LiteralForTest(1),
+      {Token::kSub, LiteralForTest(Smi::kMinValue), LiteralForTest(1),
        i_isolate()->factory()->NewHeapNumber(Smi::kMinValue - 1.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::SUB, LiteralForTest(3.1415), LiteralForTest(3),
+      {Token::kSub, LiteralForTest(3.1415), LiteralForTest(3),
        i_isolate()->factory()->NewHeapNumber(3.1415 - 3),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::SUB, LiteralForTest(3.1415), LiteralForTest(1.4142),
+      {Token::kSub, LiteralForTest(3.1415), LiteralForTest(1.4142),
        i_isolate()->factory()->NewHeapNumber(3.1415 - 1.4142),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::SUB, LiteralForTest(2),
+      {Token::kSub, LiteralForTest(2),
        LiteralForTest(ast_factory.GetOneByteString("1")),
        Handle<Smi>(Smi::FromInt(1), i_isolate()),
        BinaryOperationFeedback::kAny},
       // MUL
-      {Token::Value::MUL, LiteralForTest(2), LiteralForTest(3),
+      {Token::kMul, LiteralForTest(2), LiteralForTest(3),
        Handle<Smi>(Smi::FromInt(6), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::MUL, LiteralForTest(Smi::kMinValue), LiteralForTest(2),
+      {Token::kMul, LiteralForTest(Smi::kMinValue), LiteralForTest(2),
        i_isolate()->factory()->NewHeapNumber(Smi::kMinValue * 2.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::MUL, LiteralForTest(3.1415), LiteralForTest(3),
+      {Token::kMul, LiteralForTest(3.1415), LiteralForTest(3),
        i_isolate()->factory()->NewHeapNumber(3 * 3.1415),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::MUL, LiteralForTest(3.1415), LiteralForTest(1.4142),
+      {Token::kMul, LiteralForTest(3.1415), LiteralForTest(1.4142),
        i_isolate()->factory()->NewHeapNumber(3.1415 * 1.4142),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::MUL, LiteralForTest(2),
+      {Token::kMul, LiteralForTest(2),
        LiteralForTest(ast_factory.GetOneByteString("1")),
        Handle<Smi>(Smi::FromInt(2), i_isolate()),
        BinaryOperationFeedback::kAny},
       // DIV
-      {Token::Value::DIV, LiteralForTest(6), LiteralForTest(3),
+      {Token::kDiv, LiteralForTest(6), LiteralForTest(3),
        Handle<Smi>(Smi::FromInt(2), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::DIV, LiteralForTest(3), LiteralForTest(2),
+      {Token::kDiv, LiteralForTest(3), LiteralForTest(2),
        i_isolate()->factory()->NewHeapNumber(3.0 / 2.0),
        BinaryOperationFeedback::kSignedSmallInputs},
-      {Token::Value::DIV, LiteralForTest(3.1415), LiteralForTest(3),
+      {Token::kDiv, LiteralForTest(3.1415), LiteralForTest(3),
        i_isolate()->factory()->NewHeapNumber(3.1415 / 3),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::DIV, LiteralForTest(3.1415),
+      {Token::kDiv, LiteralForTest(3.1415),
        LiteralForTest(-std::numeric_limits<double>::infinity()),
        i_isolate()->factory()->NewHeapNumber(-0.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::DIV, LiteralForTest(2),
+      {Token::kDiv, LiteralForTest(2),
        LiteralForTest(ast_factory.GetOneByteString("1")),
        Handle<Smi>(Smi::FromInt(2), i_isolate()),
        BinaryOperationFeedback::kAny},
       // MOD
-      {Token::Value::MOD, LiteralForTest(5), LiteralForTest(3),
+      {Token::kMod, LiteralForTest(5), LiteralForTest(3),
        Handle<Smi>(Smi::FromInt(2), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::MOD, LiteralForTest(-4), LiteralForTest(2),
+      {Token::kMod, LiteralForTest(-4), LiteralForTest(2),
        i_isolate()->factory()->NewHeapNumber(-0.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::MOD, LiteralForTest(3.1415), LiteralForTest(3),
+      {Token::kMod, LiteralForTest(3.1415), LiteralForTest(3),
        i_isolate()->factory()->NewHeapNumber(fmod(3.1415, 3.0)),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::MOD, LiteralForTest(-3.1415), LiteralForTest(-1.4142),
+      {Token::kMod, LiteralForTest(-3.1415), LiteralForTest(-1.4142),
        i_isolate()->factory()->NewHeapNumber(fmod(-3.1415, -1.4142)),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::MOD, LiteralForTest(3),
+      {Token::kMod, LiteralForTest(3),
        LiteralForTest(ast_factory.GetOneByteString("-2")),
        Handle<Smi>(Smi::FromInt(1), i_isolate()),
        BinaryOperationFeedback::kAny}};
@@ -713,7 +712,7 @@ TEST_F(InterpreterTest, InterpreterBinaryOpTypeFeedback) {
     auto callable = tester.GetCallable<>();
 
     Handle<Object> return_val = callable().ToHandleChecked();
-    MaybeObject feedback0 = callable.vector()->Get(slot0);
+    Tagged<MaybeObject> feedback0 = callable.vector()->Get(slot0);
     CHECK(IsSmi(feedback0));
     CHECK_EQ(test_case.feedback, feedback0.ToSmi().value());
     CHECK(
@@ -735,66 +734,66 @@ TEST_F(InterpreterTest, InterpreterBinaryOpSmiTypeFeedback) {
 
   BinaryOpExpectation const kTestCases[] = {
       // ADD
-      {Token::Value::ADD, LiteralForTest(2), 42,
+      {Token::kAdd, LiteralForTest(2), 42,
        Handle<Smi>(Smi::FromInt(44), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::ADD, LiteralForTest(2), Smi::kMaxValue,
+      {Token::kAdd, LiteralForTest(2), Smi::kMaxValue,
        i_isolate()->factory()->NewHeapNumber(Smi::kMaxValue + 2.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::ADD, LiteralForTest(3.1415), 2,
+      {Token::kAdd, LiteralForTest(3.1415), 2,
        i_isolate()->factory()->NewHeapNumber(3.1415 + 2.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::ADD, LiteralForTest(ast_factory.GetOneByteString("2")), 2,
+      {Token::kAdd, LiteralForTest(ast_factory.GetOneByteString("2")), 2,
        i_isolate()->factory()->NewStringFromAsciiChecked("22"),
        BinaryOperationFeedback::kAny},
       // SUB
-      {Token::Value::SUB, LiteralForTest(2), 42,
+      {Token::kSub, LiteralForTest(2), 42,
        Handle<Smi>(Smi::FromInt(-40), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::SUB, LiteralForTest(Smi::kMinValue), 1,
+      {Token::kSub, LiteralForTest(Smi::kMinValue), 1,
        i_isolate()->factory()->NewHeapNumber(Smi::kMinValue - 1.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::SUB, LiteralForTest(3.1415), 2,
+      {Token::kSub, LiteralForTest(3.1415), 2,
        i_isolate()->factory()->NewHeapNumber(3.1415 - 2.0),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::SUB, LiteralForTest(ast_factory.GetOneByteString("2")), 2,
+      {Token::kSub, LiteralForTest(ast_factory.GetOneByteString("2")), 2,
        Handle<Smi>(Smi::zero(), i_isolate()), BinaryOperationFeedback::kAny},
       // BIT_OR
-      {Token::Value::BIT_OR, LiteralForTest(4), 1,
+      {Token::kBitOr, LiteralForTest(4), 1,
        Handle<Smi>(Smi::FromInt(5), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::BIT_OR, LiteralForTest(3.1415), 8,
+      {Token::kBitOr, LiteralForTest(3.1415), 8,
        Handle<Smi>(Smi::FromInt(11), i_isolate()),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::BIT_OR, LiteralForTest(ast_factory.GetOneByteString("2")),
-       1, Handle<Smi>(Smi::FromInt(3), i_isolate()),
+      {Token::kBitOr, LiteralForTest(ast_factory.GetOneByteString("2")), 1,
+       Handle<Smi>(Smi::FromInt(3), i_isolate()),
        BinaryOperationFeedback::kAny},
       // BIT_AND
-      {Token::Value::BIT_AND, LiteralForTest(3), 1,
+      {Token::kBitAnd, LiteralForTest(3), 1,
        Handle<Smi>(Smi::FromInt(1), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::BIT_AND, LiteralForTest(3.1415), 2,
+      {Token::kBitAnd, LiteralForTest(3.1415), 2,
        Handle<Smi>(Smi::FromInt(2), i_isolate()),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::BIT_AND, LiteralForTest(ast_factory.GetOneByteString("2")),
-       1, Handle<Smi>(Smi::zero(), i_isolate()), BinaryOperationFeedback::kAny},
+      {Token::kBitAnd, LiteralForTest(ast_factory.GetOneByteString("2")), 1,
+       Handle<Smi>(Smi::zero(), i_isolate()), BinaryOperationFeedback::kAny},
       // SHL
-      {Token::Value::SHL, LiteralForTest(3), 1,
+      {Token::kShl, LiteralForTest(3), 1,
        Handle<Smi>(Smi::FromInt(6), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::SHL, LiteralForTest(3.1415), 2,
+      {Token::kShl, LiteralForTest(3.1415), 2,
        Handle<Smi>(Smi::FromInt(12), i_isolate()),
        BinaryOperationFeedback::kNumber},
-      {Token::Value::SHL, LiteralForTest(ast_factory.GetOneByteString("2")), 1,
+      {Token::kShl, LiteralForTest(ast_factory.GetOneByteString("2")), 1,
        Handle<Smi>(Smi::FromInt(4), i_isolate()),
        BinaryOperationFeedback::kAny},
       // SAR
-      {Token::Value::SAR, LiteralForTest(3), 1,
+      {Token::kSar, LiteralForTest(3), 1,
        Handle<Smi>(Smi::FromInt(1), i_isolate()),
        BinaryOperationFeedback::kSignedSmall},
-      {Token::Value::SAR, LiteralForTest(3.1415), 2,
+      {Token::kSar, LiteralForTest(3.1415), 2,
        Handle<Smi>(Smi::zero(), i_isolate()), BinaryOperationFeedback::kNumber},
-      {Token::Value::SAR, LiteralForTest(ast_factory.GetOneByteString("2")), 1,
+      {Token::kSar, LiteralForTest(ast_factory.GetOneByteString("2")), 1,
        Handle<Smi>(Smi::FromInt(1), i_isolate()),
        BinaryOperationFeedback::kAny}};
   ast_factory.Internalize(i_isolate());
@@ -821,7 +820,7 @@ TEST_F(InterpreterTest, InterpreterBinaryOpSmiTypeFeedback) {
     auto callable = tester.GetCallable<>();
 
     Handle<Object> return_val = callable().ToHandleChecked();
-    MaybeObject feedback0 = callable.vector()->Get(slot0);
+    Tagged<MaybeObject> feedback0 = callable.vector()->Get(slot0);
     CHECK(IsSmi(feedback0));
     CHECK_EQ(test_case.feedback, feedback0.ToSmi().value());
     CHECK(
@@ -848,9 +847,9 @@ TEST_F(InterpreterTest, InterpreterUnaryOpFeedback) {
   };
   TestCase const kTestCases[] = {
       // Testing ADD and BIT_NOT would require generalizing the test setup.
-      {Token::Value::SUB, smi_one, smi_min, number, bigint, str},
-      {Token::Value::INC, smi_one, smi_max, number, bigint, str},
-      {Token::Value::DEC, smi_one, smi_min, number, bigint, str}};
+      {Token::kSub, smi_one, smi_min, number, bigint, str},
+      {Token::kInc, smi_one, smi_max, number, bigint, str},
+      {Token::kDec, smi_one, smi_min, number, bigint, str}};
   for (TestCase const& test_case : kTestCases) {
     i::FeedbackVectorSpec feedback_spec(zone());
     BytecodeArrayBuilder builder(zone(), 6, 0, &feedback_spec);
@@ -889,23 +888,23 @@ TEST_F(InterpreterTest, InterpreterUnaryOpFeedback) {
                  test_case.bigint_feedback_value, test_case.any_feedback_value)
             .ToHandleChecked();
     USE(return_val);
-    MaybeObject feedback0 = callable.vector()->Get(slot0);
+    Tagged<MaybeObject> feedback0 = callable.vector()->Get(slot0);
     CHECK(IsSmi(feedback0));
     CHECK_EQ(BinaryOperationFeedback::kSignedSmall, feedback0.ToSmi().value());
 
-    MaybeObject feedback1 = callable.vector()->Get(slot1);
+    Tagged<MaybeObject> feedback1 = callable.vector()->Get(slot1);
     CHECK(IsSmi(feedback1));
     CHECK_EQ(BinaryOperationFeedback::kNumber, feedback1.ToSmi().value());
 
-    MaybeObject feedback2 = callable.vector()->Get(slot2);
+    Tagged<MaybeObject> feedback2 = callable.vector()->Get(slot2);
     CHECK(IsSmi(feedback2));
     CHECK_EQ(BinaryOperationFeedback::kNumber, feedback2.ToSmi().value());
 
-    MaybeObject feedback3 = callable.vector()->Get(slot3);
+    Tagged<MaybeObject> feedback3 = callable.vector()->Get(slot3);
     CHECK(IsSmi(feedback3));
     CHECK_EQ(BinaryOperationFeedback::kBigInt, feedback3.ToSmi().value());
 
-    MaybeObject feedback4 = callable.vector()->Get(slot4);
+    Tagged<MaybeObject> feedback4 = callable.vector()->Get(slot4);
     CHECK(IsSmi(feedback4));
     CHECK_EQ(BinaryOperationFeedback::kAny, feedback4.ToSmi().value());
   }
@@ -913,8 +912,8 @@ TEST_F(InterpreterTest, InterpreterUnaryOpFeedback) {
 
 TEST_F(InterpreterTest, InterpreterBitwiseTypeFeedback) {
   const Token::Value kBitwiseBinaryOperators[] = {
-      Token::Value::BIT_OR, Token::Value::BIT_XOR, Token::Value::BIT_AND,
-      Token::Value::SHL,    Token::Value::SHR,     Token::Value::SAR};
+      Token::kBitOr, Token::kBitXor, Token::kBitAnd,
+      Token::kShl,   Token::kShr,    Token::kSar};
 
   for (Token::Value op : kBitwiseBinaryOperators) {
     i::FeedbackVectorSpec feedback_spec(zone());
@@ -948,15 +947,15 @@ TEST_F(InterpreterTest, InterpreterBitwiseTypeFeedback) {
     Handle<Object> return_val =
         callable(arg1, arg2, arg3, arg4).ToHandleChecked();
     USE(return_val);
-    MaybeObject feedback0 = callable.vector()->Get(slot0);
+    Tagged<MaybeObject> feedback0 = callable.vector()->Get(slot0);
     CHECK(IsSmi(feedback0));
     CHECK_EQ(BinaryOperationFeedback::kSignedSmall, feedback0.ToSmi().value());
 
-    MaybeObject feedback1 = callable.vector()->Get(slot1);
+    Tagged<MaybeObject> feedback1 = callable.vector()->Get(slot1);
     CHECK(IsSmi(feedback1));
     CHECK_EQ(BinaryOperationFeedback::kNumber, feedback1.ToSmi().value());
 
-    MaybeObject feedback2 = callable.vector()->Get(slot2);
+    Tagged<MaybeObject> feedback2 = callable.vector()->Get(slot2);
     CHECK(IsSmi(feedback2));
     CHECK_EQ(BinaryOperationFeedback::kAny, feedback2.ToSmi().value());
   }
@@ -1448,7 +1447,7 @@ static BytecodeArrayBuilder& IncrementRegister(BytecodeArrayBuilder* builder,
                                                int slot_index) {
   return builder->StoreAccumulatorInRegister(scratch)
       .LoadLiteral(Smi::FromInt(value))
-      .BinaryOperation(Token::Value::ADD, reg, slot_index)
+      .BinaryOperation(Token::kAdd, reg, slot_index)
       .StoreAccumulatorInRegister(reg)
       .LoadAccumulatorWithRegister(scratch);
 }
@@ -1595,7 +1594,7 @@ TEST_F(InterpreterTest, InterpreterJumpConstantWith16BitOperand) {
   // Consume all 8-bit operands
   for (int i = 1; i <= 256; i++) {
     builder.LoadLiteral(i + 0.5);
-    builder.BinaryOperation(Token::Value::ADD, reg, GetIndex(slot));
+    builder.BinaryOperation(Token::kAdd, reg, GetIndex(slot));
     builder.StoreAccumulatorInRegister(reg);
   }
   builder.Jump(&done);
@@ -1604,7 +1603,7 @@ TEST_F(InterpreterTest, InterpreterJumpConstantWith16BitOperand) {
   builder.Bind(&fake);
   for (int i = 0; i < 6600; i++) {
     builder.LoadLiteral(Smi::zero());  // 1-byte
-    builder.BinaryOperation(Token::Value::ADD, scratch,
+    builder.BinaryOperation(Token::kAdd, scratch,
                             GetIndex(slot));      // 6-bytes
     builder.StoreAccumulatorInRegister(scratch);  // 4-bytes
     builder.MoveRegister(scratch, reg);           // 6-bytes
@@ -1676,27 +1675,27 @@ TEST_F(InterpreterTest, InterpreterJumpWith32BitOperand) {
 }
 
 static const Token::Value kComparisonTypes[] = {
-    Token::Value::EQ,  Token::Value::EQ_STRICT, Token::Value::LT,
-    Token::Value::LTE, Token::Value::GT,        Token::Value::GTE};
+    Token::kEq,         Token::kEqStrict,    Token::kLessThan,
+    Token::kLessThanEq, Token::kGreaterThan, Token::kGreaterThanEq};
 
 template <typename T>
 bool CompareC(Token::Value op, T lhs, T rhs, bool types_differed = false) {
   switch (op) {
-    case Token::Value::EQ:
+    case Token::kEq:
       return lhs == rhs;
-    case Token::Value::NE:
+    case Token::kNotEq:
       return lhs != rhs;
-    case Token::Value::EQ_STRICT:
+    case Token::kEqStrict:
       return (lhs == rhs) && !types_differed;
-    case Token::Value::NE_STRICT:
+    case Token::kNotEqStrict:
       return (lhs != rhs) || types_differed;
-    case Token::Value::LT:
+    case Token::kLessThan:
       return lhs < rhs;
-    case Token::Value::LTE:
+    case Token::kLessThanEq:
       return lhs <= rhs;
-    case Token::Value::GT:
+    case Token::kGreaterThan:
       return lhs > rhs;
-    case Token::Value::GTE:
+    case Token::kGreaterThanEq:
       return lhs >= rhs;
     default:
       UNREACHABLE();
@@ -1747,7 +1746,7 @@ TEST_F(InterpreterTest, InterpreterSmiComparisons) {
         CHECK_EQ(Object::BooleanValue(*return_value, i_isolate()),
                  CompareC(comparison, inputs[i], inputs[j]));
         if (tester.HasFeedbackMetadata()) {
-          MaybeObject feedback = callable.vector()->Get(slot);
+          Tagged<MaybeObject> feedback = callable.vector()->Get(slot);
           CHECK(IsSmi(feedback));
           CHECK_EQ(CompareOperationFeedback::kSignedSmall,
                    feedback.ToSmi().value());
@@ -1796,7 +1795,7 @@ TEST_F(InterpreterTest, InterpreterHeapNumberComparisons) {
         CHECK_EQ(Object::BooleanValue(*return_value, i_isolate()),
                  CompareC(comparison, inputs[i], inputs[j]));
         if (tester.HasFeedbackMetadata()) {
-          MaybeObject feedback = callable.vector()->Get(slot);
+          Tagged<MaybeObject> feedback = callable.vector()->Get(slot);
           CHECK(IsSmi(feedback));
           CHECK_EQ(CompareOperationFeedback::kNumber, feedback.ToSmi().value());
         }
@@ -1838,7 +1837,7 @@ TEST_F(InterpreterTest, InterpreterBigIntComparisons) {
         Handle<Object> return_value = callable().ToHandleChecked();
         CHECK(IsBoolean(*return_value));
         if (tester.HasFeedbackMetadata()) {
-          MaybeObject feedback = callable.vector()->Get(slot);
+          Tagged<MaybeObject> feedback = callable.vector()->Get(slot);
           CHECK(IsSmi(feedback));
           // TODO(panq): Create a standalone unit test for kBigInt64.
           CHECK(CompareOperationFeedback::kBigInt64 ==
@@ -1886,7 +1885,7 @@ TEST_F(InterpreterTest, InterpreterStringComparisons) {
         CHECK_EQ(Object::BooleanValue(*return_value, i_isolate()),
                  CompareC(comparison, inputs[i], inputs[j]));
         if (tester.HasFeedbackMetadata()) {
-          MaybeObject feedback = callable.vector()->Get(slot);
+          Tagged<MaybeObject> feedback = callable.vector()->Get(slot);
           CHECK(IsSmi(feedback));
           int const expected_feedback =
               Token::IsOrderedRelationalCompareOp(comparison)
@@ -1909,8 +1908,7 @@ static void LoadStringAndAddSpace(BytecodeArrayBuilder* builder,
       .LoadLiteral(ast_factory->GetOneByteString(cstr))
       .StoreAccumulatorInRegister(string_reg)
       .LoadLiteral(ast_factory->GetOneByteString(" "))
-      .BinaryOperation(Token::Value::ADD, string_reg,
-                       GetIndex(string_add_slot));
+      .BinaryOperation(Token::kAdd, string_reg, GetIndex(string_add_slot));
 }
 
 TEST_F(InterpreterTest, InterpreterMixedComparisons) {
@@ -1997,9 +1995,9 @@ TEST_F(InterpreterTest, InterpreterMixedComparisons) {
             CHECK_EQ(Object::BooleanValue(*return_value, i_isolate()),
                      CompareC(comparison, lhs, rhs, true));
             if (tester.HasFeedbackMetadata()) {
-              MaybeObject feedback = callable.vector()->Get(slot);
+              Tagged<MaybeObject> feedback = callable.vector()->Get(slot);
               CHECK(IsSmi(feedback));
-              if (kComparisonTypes[c] == Token::Value::EQ) {
+              if (kComparisonTypes[c] == Token::kEq) {
                 // For sloppy equality, we have more precise feedback.
                 CHECK_EQ(
                     CompareOperationFeedback::kNumber |
@@ -2043,7 +2041,7 @@ TEST_F(InterpreterTest, InterpreterStrictNotEqual) {
           callable(lhs_obj, rhs_obj).ToHandleChecked();
       CHECK(IsBoolean(*return_value));
       CHECK_EQ(Object::BooleanValue(*return_value, i_isolate()),
-               CompareC(Token::Value::NE_STRICT, lhs, rhs, true));
+               CompareC(Token::kNotEqStrict, lhs, rhs, true));
     }
   }
 
@@ -2060,7 +2058,7 @@ TEST_F(InterpreterTest, InterpreterStrictNotEqual) {
           callable(lhs_obj, rhs_obj).ToHandleChecked();
       CHECK(IsBoolean(*return_value));
       CHECK_EQ(Object::BooleanValue(*return_value, i_isolate()),
-               CompareC(Token::Value::NE_STRICT, inputs_str[i], inputs_str[j]));
+               CompareC(Token::kNotEqStrict, inputs_str[i], inputs_str[j]));
     }
   }
 
@@ -2080,9 +2078,9 @@ TEST_F(InterpreterTest, InterpreterStrictNotEqual) {
       Handle<Object> return_value =
           callable(lhs_obj, rhs_obj).ToHandleChecked();
       CHECK(IsBoolean(*return_value));
-      CHECK_EQ(Object::BooleanValue(*return_value, i_isolate()),
-               CompareC(Token::Value::NE_STRICT, inputs_number[i],
-                        inputs_number[j]));
+      CHECK_EQ(
+          Object::BooleanValue(*return_value, i_isolate()),
+          CompareC(Token::kNotEqStrict, inputs_number[i], inputs_number[j]));
     }
   }
 }
@@ -2163,7 +2161,7 @@ TEST_F(InterpreterTest, InterpreterInstanceOf) {
     size_t func_entry = builder.AllocateDeferredConstantPoolEntry();
     builder.SetDeferredConstantPoolEntry(func_entry, func);
     builder.LoadConstantPoolEntry(func_entry)
-        .CompareOperation(Token::Value::INSTANCEOF, r0, GetIndex(slot))
+        .CompareOperation(Token::kInstanceOf, r0, GetIndex(slot))
         .Return();
 
     Handle<BytecodeArray> bytecode_array = builder.ToBytecodeArray(i_isolate());
@@ -2199,7 +2197,7 @@ TEST_F(InterpreterTest, InterpreterTestIn) {
     size_t array_entry = builder.AllocateDeferredConstantPoolEntry();
     builder.SetDeferredConstantPoolEntry(array_entry, array);
     builder.LoadConstantPoolEntry(array_entry)
-        .CompareOperation(Token::Value::IN, r0, GetIndex(slot))
+        .CompareOperation(Token::kIn, r0, GetIndex(slot))
         .Return();
 
     ast_factory.Internalize(i_isolate());
@@ -4747,7 +4745,7 @@ TEST_F(InterpreterTest, InterpreterWithNativeStack) {
 
   i::FakeCodeEventLogger code_event_logger(i_isolate());
   i::v8_flags.interpreted_frames_native_stack = true;
-  i_isolate()->v8_file_logger()->AddLogEventListener(&code_event_logger);
+  CHECK(i_isolate()->logger()->AddListener(&code_event_logger));
 
   const char* source_text =
       "function testInterpreterWithNativeStack(a,b) { return a + b };";
@@ -4769,7 +4767,7 @@ TEST_F(InterpreterTest, InterpreterWithNativeStack) {
   CHECK(code->is_interpreter_trampoline_builtin());
   CHECK_NE(code.address(), interpreter_entry_trampoline->address());
 
-  i_isolate()->v8_file_logger()->RemoveLogEventListener(&code_event_logger);
+  CHECK(i_isolate()->logger()->RemoveListener(&code_event_logger));
 }
 #endif  // V8_TARGET_ARCH_ARM
 
@@ -4819,7 +4817,7 @@ TEST_F(InterpreterTest, InterpreterCollectSourcePositions) {
 
   Compiler::CollectSourcePositions(i_isolate(), sfi);
 
-  Tagged<ByteArray> source_position_table =
+  Tagged<TrustedByteArray> source_position_table =
       bytecode_array->SourcePositionTable();
   CHECK(bytecode_array->HasSourcePositionTable());
   CHECK_GT(source_position_table->length(), 0);
@@ -4848,7 +4846,7 @@ TEST_F(InterpreterTest, InterpreterCollectSourcePositions_StackOverflow) {
   i_isolate()->stack_guard()->SetStackLimit(GetCurrentStackPosition());
   Compiler::CollectSourcePositions(i_isolate(), sfi);
   // Stack overflowed so source position table can be returned but is empty.
-  Tagged<ByteArray> source_position_table =
+  Tagged<TrustedByteArray> source_position_table =
       bytecode_array->SourcePositionTable();
   CHECK(!bytecode_array->HasSourcePositionTable());
   CHECK_EQ(source_position_table->length(), 0);
@@ -4983,7 +4981,7 @@ TEST_F(InterpreterTest, InterpreterCollectSourcePositions_GenerateStackTrace) {
   }
 
   CHECK(bytecode_array->HasSourcePositionTable());
-  Tagged<ByteArray> source_position_table =
+  Tagged<TrustedByteArray> source_position_table =
       bytecode_array->SourcePositionTable();
   CHECK_GT(source_position_table->length(), 0);
 }

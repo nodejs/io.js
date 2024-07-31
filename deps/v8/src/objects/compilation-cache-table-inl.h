@@ -68,20 +68,22 @@ class ScriptCacheKey : public HashTableKey {
   ScriptCacheKey(Handle<String> source, MaybeHandle<Object> name,
                  int line_offset, int column_offset,
                  v8::ScriptOriginOptions origin_options,
-                 MaybeHandle<Object> host_defined_options, Isolate* isolate);
+                 MaybeHandle<Object> host_defined_options,
+                 MaybeHandle<FixedArray> maybe_wrapped_arguments,
+                 Isolate* isolate);
 
   bool IsMatch(Tagged<Object> other) override;
-  bool MatchesOrigin(Tagged<Script> script);
+  bool MatchesScript(Tagged<Script> script);
 
   Handle<Object> AsHandle(Isolate* isolate, Handle<SharedFunctionInfo> shared);
 
-  static base::Optional<String> SourceFromObject(Tagged<Object> obj) {
+  static base::Optional<Tagged<String>> SourceFromObject(Tagged<Object> obj) {
     DisallowGarbageCollection no_gc;
     DCHECK(IsWeakFixedArray(obj));
     Tagged<WeakFixedArray> array = WeakFixedArray::cast(obj);
     DCHECK_EQ(array->length(), kEnd);
 
-    MaybeObject maybe_script = array->Get(kWeakScript);
+    Tagged<MaybeObject> maybe_script = array->get(kWeakScript);
     if (Tagged<HeapObject> script; maybe_script.GetHeapObjectIfWeak(&script)) {
       Tagged<PrimitiveHeapObject> source_or_undefined =
           Script::cast(script)->source();
@@ -100,6 +102,7 @@ class ScriptCacheKey : public HashTableKey {
   int column_offset_;
   v8::ScriptOriginOptions origin_options_;
   MaybeHandle<Object> host_defined_options_;
+  MaybeHandle<FixedArray> wrapped_arguments_;
   Isolate* isolate_;
 };
 
@@ -140,9 +143,8 @@ uint32_t CompilationCacheShape::HashForObject(ReadOnlyRoots roots,
 
   // Script.
   if (IsWeakFixedArray(object)) {
-    uint32_t result = static_cast<uint32_t>(Smi::ToInt(
-        WeakFixedArray::cast(object)->Get(ScriptCacheKey::kHash).ToSmi()));
-    return result;
+    return static_cast<uint32_t>(Smi::ToInt(
+        WeakFixedArray::cast(object)->get(ScriptCacheKey::kHash).ToSmi()));
   }
 
   // Eval: See EvalCacheKey::ToHandle for the encoding.

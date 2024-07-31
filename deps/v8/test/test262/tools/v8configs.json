@@ -1,0 +1,45 @@
+{
+  "github": {
+    "name": "Test262",
+    "org": "tc39",
+    "repo": "test262",
+    "main_branch": "main",
+    "patch_path_renames": [
+      {
+        "source": "test/test262/local-tests/test/staging/features.txt",
+        "destination": "features.txt"
+      },
+      {
+        "source": "test/test262/local-tests/test/staging",
+        "destination": "test/staging"
+      }
+    ]
+  },
+  "gerrit": {
+    "revision_footer": "Test262-Export-Revision: ",
+    "relative_tests_path": "test/test262/local-tests/test/staging",
+    "project": "v8/v8",
+    "branch": "main"
+  },
+  "exporter": {
+    "pr_label": "v8-export",
+    "committer_email": "V8 Test262 Sync",
+    "committer_name": "v8-test262-autoroller@chromium.org",
+    "pr_updated_comment": "Successfully updated Test262 GitHub pull request with new revision \"{subject}\": {pr_url}",
+    "inflight_cl_comment": "Exportable changes to test262 were detected in this CL and a pull request in the upstream repo has been made: {pr_url}.\n\nWhen this CL lands, the bot will automatically merge the PR on GitHub if the required GitHub checks pass."
+  },
+  "importer": {
+    "files_to_copy": [
+      {
+        "source": "features.txt",
+        "destination": "test/test262/local-tests/test/staging/features.txt"
+      }
+    ],
+    "paths_to_sync": [
+      {
+        "source": "test/staging",
+        "destination": "test/test262/local-tests/test/staging"
+      }
+    ]
+  }
+}

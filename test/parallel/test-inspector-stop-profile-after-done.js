@@ -14,12 +14,15 @@ async function runTests() {
                                  }, ${common.platformTimeout(30)});`);
   const session = await child.connectInspectorSession();
 
-  session.send([
+  await session.send({ method: 'NodeRuntime.enable' });
+  await session.waitForNotification('NodeRuntime.waitingForDebugger');
+  await session.send([
     { method: 'Profiler.setSamplingInterval',
       params: { interval: common.platformTimeout(300) } },
-    { method: 'Profiler.enable' },
-    { method: 'Runtime.runIfWaitingForDebugger' },
-    { method: 'Profiler.start' }]);
+    { method: 'Profiler.enable' }]);
+  await session.send({ method: 'Runtime.runIfWaitingForDebugger' });
+  await session.send({ method: 'NodeRuntime.disable' });
+  await session.send({ method: 'Profiler.start' });
   while (await child.nextStderrString() !==
          'Waiting for the debugger to disconnect...');
   await session.send({ method: 'Profiler.stop' });

@@ -3,7 +3,7 @@
 require('../common');
 
 const {
-  injectAndCodeSign,
+  generateSEA,
   skipIfSingleExecutableIsNotSupported,
 } = require('../common/sea');
 
@@ -12,9 +12,9 @@ skipIfSingleExecutableIsNotSupported();
 // This tests "useCodeCache" is ignored when "useSnapshot" is true.
 
 const tmpdir = require('../common/tmpdir');
-const { copyFileSync, writeFileSync, existsSync } = require('fs');
+const { writeFileSync, existsSync } = require('fs');
 const {
-  spawnSyncAndExitWithoutError
+  spawnSyncAndAssert,
 } = require('../common/child_process');
 const { join } = require('path');
 const assert = require('assert');
@@ -45,11 +45,15 @@ const outputFile = join(tmpdir.path, process.platform === 'win32' ? 'sea.exe' : 
   }
   `);
 
-  spawnSyncAndExitWithoutError(
+  spawnSyncAndAssert(
     process.execPath,
     ['--experimental-sea-config', 'sea-config.json'],
     {
-      cwd: tmpdir.path
+      cwd: tmpdir.path,
+      env: {
+        NODE_DEBUG_NATIVE: 'SEA',
+        ...process.env,
+      },
     },
     {
       stderr: /"useCodeCache" is redundant when "useSnapshot" is true/
@@ -58,11 +62,17 @@ const outputFile = join(tmpdir.path, process.platform === 'win32' ? 'sea.exe' : 
 
   assert(existsSync(seaPrepBlob));
 
-  copyFileSync(process.execPath, outputFile);
-  injectAndCodeSign(outputFile, seaPrepBlob);
+  generateSEA(outputFile, process.execPath, seaPrepBlob);
 
-  spawnSyncAndExitWithoutError(outputFile, {
-    stdout: 'Hello from snapshot',
-    trim: true,
-  });
+  spawnSyncAndAssert(
+    outputFile,
+    {
+      env: {
+        NODE_DEBUG_NATIVE: 'SEA,MKSNAPSHOT',
+        ...process.env,
+      }
+    }, {
+      stdout: 'Hello from snapshot',
+      trim: true,
+    });
 }

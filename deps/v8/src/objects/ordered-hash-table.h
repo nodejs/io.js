@@ -254,8 +254,9 @@ class OrderedHashTable : public FixedArray {
     set(NumberOfDeletedElementsIndex(), Smi::FromInt(num));
   }
 
-
-  void SetNextTable(Derived next_table) { set(NextTableIndex(), next_table); }
+  void SetNextTable(Tagged<Derived> next_table) {
+    set(NextTableIndex(), next_table);
+  }
 
   void SetRemovedIndexAt(int index, int removed_index) {
     return set(RemovedHolesIndex() + index, Smi::FromInt(removed_index));

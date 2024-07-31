@@ -1,18 +1,5 @@
 .\"
 .\" Copyright 1998 by the Massachusetts Institute of Technology.
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_SAVE_OPTIONS 3 "5 March 2010"
@@ -22,7 +9,7 @@ ares_save_options \- Save configuration values obtained from initialized ares_ch
 .nf
 #include <ares.h>
 
-int ares_save_options(ares_channel \fIchannel\fP,
+int ares_save_options(const ares_channel_t *\fIchannel\fP,
                       struct ares_options *\fIoptions\fP, int *\fIoptmask\fP)
 .fi
 .SH DESCRIPTION
@@ -49,7 +36,7 @@ The channel data was successfully stored
 The memory was exhausted
 .TP 15
 .B ARES_ENODATA
-The channel data identified by 
+The channel data identified by
 .IR channel
 were invalid.
 .SH NOTE
@@ -60,9 +47,9 @@ this config struct, which may no longer be the complete set of config
 options. \fBares_dup(3)\fP will not have that restriction.
 
 The ares_options struct can not handle potential IPv6 name servers the
-ares_channel might be configured to use. The \fBares_save_options(3)\fP function
+ares channel might be configured to use. The \fBares_save_options(3)\fP function
 will only return IPv4 servers, if any. In order to retrieve all name servers
-an ares_channel might be using, the \fBares_get_servers(3)\fP function must be
+an ares channel might be using, the \fBares_get_servers(3)\fP function must be
 used instead.
 .SH SEE ALSO
 .BR ares_destroy_options (3),
@@ -71,7 +58,3 @@ used instead.
 .BR ares_dup (3)
 .SH AVAILABILITY
 ares_save_options(3) was added in c-ares 1.4.0
-.SH AUTHOR
-Brad House
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.

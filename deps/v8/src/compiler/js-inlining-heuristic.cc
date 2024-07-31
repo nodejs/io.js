@@ -299,6 +299,10 @@ void JSInliningHeuristic::Finalize() {
     int total_size =
         total_inlined_bytecode_size_ + static_cast<int>(size_of_candidate);
     if (total_size > max_inlined_bytecode_size_cumulative_) {
+      if (v8_flags.profile_guided_optimization) {
+        info_->shared_info()->set_cached_tiering_decision(
+            CachedTieringDecision::kNormal);
+      }
       // Try if any smaller functions are available to inline.
       continue;
     }
@@ -667,7 +671,7 @@ void JSInliningHeuristic::CreateOrReuseDispatch(
     // TODO(2206): Make comparison be based on underlying SharedFunctionInfo
     // instead of the target JSFunction reference directly.
     Node* target =
-        jsgraph()->Constant(candidate.functions[i].value(), broker());
+        jsgraph()->ConstantNoHole(candidate.functions[i].value(), broker());
     if (i != (*num_calls - 1)) {
       Node* check =
           graph()->NewNode(simplified()->ReferenceEqual(), callee, target);

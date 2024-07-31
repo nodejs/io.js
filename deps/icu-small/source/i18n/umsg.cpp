@@ -232,11 +232,11 @@ umsg_open(  const char16_t  *pattern,
     //check arguments
     if(status==nullptr || U_FAILURE(*status))
     {
-      return 0;
+      return nullptr;
     }
     if(pattern==nullptr||patternLength<-1){
         *status=U_ILLEGAL_ARGUMENT_ERROR;
-        return 0;
+        return nullptr;
     }
 
     UParseError tErr;
@@ -282,9 +282,9 @@ umsg_clone(const UMessageFormat *fmt,
         return nullptr;
     }
     UMessageFormat retVal = (UMessageFormat)((MessageFormat*)fmt)->clone();
-    if(retVal == 0) {
+    if (retVal == nullptr) {
         *status = U_MEMORY_ALLOCATION_ERROR;
-        return 0;
+        return nullptr;
     }
     return retVal;    
 }
@@ -344,7 +344,7 @@ umsg_toPattern(const UMessageFormat *fmt,
     if(status ==nullptr||U_FAILURE(*status)){
         return -1;
     }
-    if(fmt==nullptr||resultLength<0 || (resultLength>0 && result==0)){
+    if (fmt == nullptr || resultLength < 0 || (resultLength > 0 && result == nullptr)) {
         *status=U_ILLEGAL_ARGUMENT_ERROR;
         return -1;
     }
@@ -393,11 +393,11 @@ umsg_vformat(   const UMessageFormat *fmt,
                 UErrorCode     *status)
 {
     //check arguments
-    if(status==0 || U_FAILURE(*status))
+    if (status == nullptr || U_FAILURE(*status))
     {
         return -1;
     }
-    if(fmt==nullptr||resultLength<0 || (resultLength>0 && result==0)) {
+    if (fmt == nullptr || resultLength < 0 || (resultLength > 0 && result == nullptr)) {
         *status=U_ILLEGAL_ARGUMENT_ERROR;
         return -1;
     }

@@ -30,6 +30,9 @@
 #include <sys/types.h>
 #include <sys/event.h>
 #include <sys/time.h>
+#if defined(__FreeBSD__)
+#include <sys/user.h>
+#endif
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
@@ -262,6 +265,9 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
 
     if (nfds == -1)
       assert(errno == EINTR);
+    else if (nfds == 0)
+      /* Unlimited timeout should only return with events or signal. */
+      assert(timeout != -1);
 
     if (pset != NULL)
       pthread_sigmask(SIG_UNBLOCK, pset, NULL);
@@ -286,8 +292,6 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
         timeout = user_timeout;
         reset_timeout = 0;
       } else if (nfds == 0) {
-        /* Reached the user timeout value. */
-        assert(timeout != -1);
         return;
       }
 
@@ -479,6 +483,26 @@ static void uv__fs_event(uv_loop_t* loop, uv__io_t* w, unsigned int fflags) {
    */
   if (fcntl(handle->event_watcher.fd, F_GETPATH, pathbuf) == 0)
     path = uv__basename_r(pathbuf);
+#elif defined(F_KINFO)
+  /* We try to get the file info reference from the file descriptor.
+   * the struct's kf_structsize must be initialised beforehand
+   * whether with the KINFO_FILE_SIZE constant or this way.
+   */
+  struct stat statbuf;
+  struct kinfo_file kf;
+
+  if (handle->event_watcher.fd != -1 &&
+     (!uv__fstat(handle->event_watcher.fd, &statbuf) && !(statbuf.st_mode & S_IFDIR))) {
+     /* we are purposely not using KINFO_FILE_SIZE here
+      * as it is not available on non intl archs
+      * and here it gives 1392 too on intel.
+      * anyway, the man page also mentions we can proceed
+      * this way.
+      */
+     kf.kf_structsize = sizeof(kf);
+     if (fcntl(handle->event_watcher.fd, F_KINFO, &kf) == 0)
+       path = uv__basename_r(kf.kf_path);
+  }
 #endif
   handle->cb(handle, path, events, 0);
 

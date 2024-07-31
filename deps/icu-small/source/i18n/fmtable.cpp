@@ -56,7 +56,7 @@ using number::impl::DecimalQuantity;
 // Return true if *a == *b.
 static inline UBool objectEquals(const UObject* a, const UObject* b) {
     // LATER: return *a == *b;
-    return *((const Measure*) a) == *((const Measure*) b);
+    return *((const Measure*) a) == *b;
 }
 
 // Return a clone of *a.
@@ -775,9 +775,7 @@ Formattable::populateDecimalQuantity(number::impl::DecimalQuantity& output, UErr
 // ---------------------------------------
 void
 Formattable::adoptDecimalQuantity(DecimalQuantity *dq) {
-    if (fDecimalQuantity != nullptr) {
-        delete fDecimalQuantity;
-    }
+    delete fDecimalQuantity;
     fDecimalQuantity = dq;
     if (dq == nullptr) { // allow adoptDigitList(nullptr) to clear
         return;

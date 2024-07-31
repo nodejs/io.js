@@ -86,8 +86,9 @@ const crypto = require('crypto');
   }
 
   {
-    const v = crypto.constants.OPENSSL_VERSION_NUMBER;
-    const hasOpenSSL3WithNewErrorMessage = (v >= 0x300000c0 && v <= 0x30100000) || (v >= 0x30100040 && v <= 0x30200000);
+    // Error message was changed in OpenSSL 3.0.x from 3.0.12, and 3.1.x from 3.1.4.
+    const hasOpenSSL3WithNewErrorMessage = (common.hasOpenSSL(3, 0, 12) && !common.hasOpenSSL(3, 1, 0)) ||
+                                           (common.hasOpenSSL(3, 1, 4));
     assert.throws(() => {
       dh3.computeSecret('');
     }, { message: common.hasOpenSSL3 && !hasOpenSSL3WithNewErrorMessage ?

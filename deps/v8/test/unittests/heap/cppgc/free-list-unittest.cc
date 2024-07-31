@@ -146,6 +146,15 @@ TEST(FreeListTest, Append) {
   EXPECT_TRUE(list1.IsEmpty());
 }
 
+#ifdef DEBUG
+TEST(FreeListTest, AppendSelf) {
+  auto blocks = CreateEntries();
+  FreeList list = CreatePopulatedFreeList(blocks);
+  // Appending a free list to itself should fail in debug builds.
+  EXPECT_DEATH_IF_SUPPORTED({ list.Append(std::move(list)); }, "");
+}
+#endif
+
 TEST(FreeListTest, Contains) {
   auto blocks = CreateEntries();
   FreeList list = CreatePopulatedFreeList(blocks);

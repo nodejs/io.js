@@ -265,7 +265,11 @@ void VirtualAddressSubspace::FreePages(Address address, size_t size) {
   // The order here is important: on Windows, the allocation first has to be
   // freed to a placeholder before the placeholder can be merged (during the
   // merge_callback) with any surrounding placeholder mappings.
-  CHECK(reservation_.Free(reinterpret_cast<void*>(address), size));
+  if (!reservation_.Free(reinterpret_cast<void*>(address), size)) {
+    // This can happen due to an out-of-memory condition, such as running out
+    // of available VMAs for the process.
+    FatalOOM(OOMType::kProcess, "VirtualAddressSubspace::FreePages");
+  }
   CHECK_EQ(size, region_allocator_.FreeRegion(address));
 }
 

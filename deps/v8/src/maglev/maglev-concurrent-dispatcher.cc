@@ -8,9 +8,13 @@
 #include "src/compiler/compilation-dependencies.h"
 #include "src/compiler/js-heap-broker.h"
 #include "src/execution/isolate.h"
+#include "src/execution/local-isolate-inl.h"
 #include "src/flags/flags.h"
+#include "src/handles/handles-inl.h"
 #include "src/handles/persistent-handles.h"
+#include "src/heap/local-heap-inl.h"
 #include "src/heap/parked-scope.h"
+#include "src/maglev/maglev-code-generator.h"
 #include "src/maglev/maglev-compilation-info.h"
 #include "src/maglev/maglev-compiler.h"
 #include "src/maglev/maglev-graph-labeller.h"
@@ -145,10 +149,20 @@ CompilationJob::Status MaglevCompilationJob::FinalizeJobImpl(Isolate* isolate) {
     return CompilationJob::FAILED;
   }
   info()->set_code(code);
+  GlobalHandleVector<Map> maps = CollectRetainedMaps(isolate, code);
   RegisterWeakObjectsInOptimizedCode(
-      isolate, info()->broker()->target_native_context().object(), code);
+      isolate, info()->broker()->target_native_context().object(), code,
+      std::move(maps));
   EndPhaseKind();
   return CompilationJob::SUCCEEDED;
+}
+
+GlobalHandleVector<Map> MaglevCompilationJob::CollectRetainedMaps(
+    Isolate* isolate, Handle<Code> code) {
+  if (v8_flags.maglev_build_code_on_background) {
+    return info()->code_generator()->RetainedMaps(isolate);
+  }
+  return OptimizedCompilationJob::CollectRetainedMaps(isolate, code);
 }
 
 void MaglevCompilationJob::DisposeOnMainThread(Isolate* isolate) {
@@ -238,6 +252,9 @@ class MaglevConcurrentDispatcher::JobTask final : public v8::JobTask {
       : dispatcher_(dispatcher) {}
 
   void Run(JobDelegate* delegate) override {
+    if (incoming_queue()->IsEmpty() && destruction_queue()->IsEmpty()) {
+      return;
+    }
     TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.compile"), "V8.MaglevTask");
     LocalIsolate local_isolate(isolate(), ThreadKind::kBackground);
     DCHECK(local_isolate.heap()->IsParked());
@@ -266,6 +283,7 @@ class MaglevConcurrentDispatcher::JobTask final : public v8::JobTask {
         TRACE_EVENT_WITH_FLOW0(TRACE_DISABLED_BY_DEFAULT("v8.compile"),
                                "V8.MaglevDestructBackground", job->trace_id(),
                                TRACE_EVENT_FLAG_FLOW_IN);
+        UnparkedScope unparked_scope(&local_isolate);
         job.reset();
       } else {
         break;
@@ -363,7 +381,11 @@ void MaglevConcurrentDispatcher::FinalizeFinishedJobs() {
 
 void MaglevConcurrentDispatcher::AwaitCompileJobs() {
   // Use Join to wait until there are no more queued or running jobs.
-  job_handle_->Join();
+  {
+    AllowGarbageCollection allow_before_parking;
+    isolate_->main_thread_local_isolate()->BlockMainThreadWhileParked(
+        [this]() { job_handle_->Join(); });
+  }
   // Join kills the job handle, so drop it and post a new one.
   job_handle_ = V8::GetCurrentPlatform()->PostJob(
       TaskPriority::kUserVisible, std::make_unique<JobTask>(this));
@@ -375,10 +397,12 @@ void MaglevConcurrentDispatcher::Flush(BlockingBehavior behavior) {
     std::unique_ptr<MaglevCompilationJob> job;
     incoming_queue_.Dequeue(&job);
   }
-  if (behavior == BlockingBehavior::kBlock) {
-    job_handle_->Cancel();
-    job_handle_ = V8::GetCurrentPlatform()->PostJob(
-        TaskPriority::kUserVisible, std::make_unique<JobTask>(this));
+  while (!destruction_queue_.IsEmpty()) {
+    std::unique_ptr<MaglevCompilationJob> job;
+    destruction_queue_.Dequeue(&job);
+  }
+  if (behavior == BlockingBehavior::kBlock && job_handle_->IsValid()) {
+    AwaitCompileJobs();
   }
   while (!outgoing_queue_.IsEmpty()) {
     std::unique_ptr<MaglevCompilationJob> job;

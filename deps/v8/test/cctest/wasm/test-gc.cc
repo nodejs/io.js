@@ -31,10 +31,7 @@ class WasmGCTester {
  public:
   explicit WasmGCTester(
       TestExecutionTier execution_tier = TestExecutionTier::kTurbofan)
-      : flag_gc(&v8::internal::v8_flags.experimental_wasm_gc, true),
-        flag_typedfuns(&v8::internal::v8_flags.experimental_wasm_typed_funcref,
-                       true),
-        flag_liftoff(&v8::internal::v8_flags.liftoff,
+      : flag_liftoff(&v8::internal::v8_flags.liftoff,
                      execution_tier == TestExecutionTier::kLiftoff),
         flag_liftoff_only(&v8::internal::v8_flags.liftoff_only,
                           execution_tier == TestExecutionTier::kLiftoff),
@@ -75,7 +72,7 @@ class WasmGCTester {
   MaybeHandle<Object> CallExportedFunction(const char* name, int argc,
                                            Handle<Object> args[]) {
     Handle<WasmExportedFunction> func =
-        testing::GetExportedFunction(isolate_, instance_, name)
+        testing::GetExportedFunction(isolate_, instance_object_, name)
             .ToHandleChecked();
     return Execution::Call(isolate_, func,
                            isolate_->factory()->undefined_value(), argc, args);
@@ -115,50 +112,55 @@ class WasmGCTester {
         testing::CompileAndInstantiateForTesting(
             isolate_, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()));
     if (thrower.error()) FATAL("%s", thrower.error_msg());
-    instance_ = maybe_instance.ToHandleChecked();
+    instance_object_ = maybe_instance.ToHandleChecked();
+    trusted_instance_data_ =
+        handle(instance_object_->trusted_data(isolate_), isolate_);
   }
 
   void CheckResult(uint32_t function_index, int32_t expected) {
     const FunctionSig* sig = sigs.i_v();
-    DCHECK(*sig == *instance_->module()->functions[function_index].sig);
+    DCHECK(*sig == *instance_object_->module()->functions[function_index].sig);
     CWasmArgumentsPacker packer(CWasmArgumentsPacker::TotalSize(sig));
     CheckResultImpl(function_index, sig, &packer, expected);
   }
 
   void CheckResult(uint32_t function_index, int32_t expected, int32_t arg) {
     const FunctionSig* sig = sigs.i_i();
-    DCHECK(*sig == *instance_->module()->functions[function_index].sig);
+    DCHECK(*sig == *instance_object_->module()->functions[function_index].sig);
     CWasmArgumentsPacker packer(CWasmArgumentsPacker::TotalSize(sig));
     packer.Push(arg);
     CheckResultImpl(function_index, sig, &packer, expected);
   }
 
   MaybeHandle<Object> GetResultObject(uint32_t function_index) {
-    const FunctionSig* sig = instance_->module()->functions[function_index].sig;
+    const FunctionSig* sig =
+        instance_object_->module()->functions[function_index].sig;
     DCHECK_EQ(sig->parameter_count(), 0);
     DCHECK_EQ(sig->return_count(), 1);
     CWasmArgumentsPacker packer(CWasmArgumentsPacker::TotalSize(sig));
     CallFunctionImpl(function_index, sig, &packer);
-    CHECK(!isolate_->has_pending_exception());
+    CHECK(!isolate_->has_exception());
     packer.Reset();
-    return Handle<Object>(Object(packer.Pop<Address>()), isolate_);
+    return Handle<Object>(Tagged<Object>(packer.Pop<Address>()), isolate_);
   }
 
   MaybeHandle<Object> GetResultObject(uint32_t function_index, int32_t arg) {
-    const FunctionSig* sig = instance_->module()->functions[function_index].sig;
+    const FunctionSig* sig =
+        instance_object_->module()->functions[function_index].sig;
     DCHECK_EQ(sig->parameter_count(), 1);
     DCHECK_EQ(sig->return_count(), 1);
     DCHECK(sig->parameters()[0] == kWasmI32);
     CWasmArgumentsPacker packer(CWasmArgumentsPacker::TotalSize(sig));
     packer.Push(arg);
     CallFunctionImpl(function_index, sig, &packer);
-    CHECK(!isolate_->has_pending_exception());
+    CHECK(!isolate_->has_exception());
     packer.Reset();
-    return Handle<Object>(Object(packer.Pop<Address>()), isolate_);
+    return Handle<Object>(Tagged<Object>(packer.Pop<Address>()), isolate_);
   }
 
   void CheckHasThrown(uint32_t function_index, const char* expected = "") {
-    const FunctionSig* sig = instance_->module()->functions[function_index].sig;
+    const FunctionSig* sig =
+        instance_object_->module()->functions[function_index].sig;
     DCHECK_EQ(sig->parameter_count(), 0);
     CWasmArgumentsPacker packer(CWasmArgumentsPacker::TotalSize(sig));
     CheckHasThrownImpl(function_index, sig, &packer, expected);
@@ -166,7 +168,8 @@ class WasmGCTester {
 
   void CheckHasThrown(uint32_t function_index, int32_t arg,
                       const char* expected = "") {
-    const FunctionSig* sig = instance_->module()->functions[function_index].sig;
+    const FunctionSig* sig =
+        instance_object_->module()->functions[function_index].sig;
     DCHECK_EQ(sig->parameter_count(), 1);
     DCHECK(sig->parameters()[0] == kWasmI32);
     CWasmArgumentsPacker packer(CWasmArgumentsPacker::TotalSize(sig));
@@ -187,16 +190,19 @@ class WasmGCTester {
     return true;
   }
 
-  Handle<WasmInstanceObject> instance() { return instance_; }
-  Isolate* isolate() { return isolate_; }
+  Handle<WasmInstanceObject> instance_object() const {
+    return instance_object_;
+  }
+  Handle<WasmTrustedInstanceData> trusted_instance_data() const {
+    return trusted_instance_data_;
+  }
+  Isolate* isolate() const { return isolate_; }
   WasmModuleBuilder* builder() { return &builder_; }
   Zone* zone() { return &zone_; }
 
   TestSignatures sigs;
 
  private:
-  const FlagScope<bool> flag_gc;
-  const FlagScope<bool> flag_typedfuns;
   const FlagScope<bool> flag_liftoff;
   const FlagScope<bool> flag_liftoff_only;
   const FlagScope<bool> flag_wasm_dynamic_tiering;
@@ -215,10 +221,10 @@ class WasmGCTester {
   void CheckResultImpl(uint32_t function_index, const FunctionSig* sig,
                        CWasmArgumentsPacker* packer, int32_t expected) {
     CallFunctionImpl(function_index, sig, packer);
-    if (isolate_->has_pending_exception()) {
+    if (isolate_->has_exception()) {
       Handle<String> message =
           ErrorUtils::ToString(isolate_,
-                               handle(isolate_->pending_exception(), isolate_))
+                               handle(isolate_->exception(), isolate_))
               .ToHandleChecked();
       FATAL("%s", message->ToCString().get());
     }
@@ -229,22 +235,23 @@ class WasmGCTester {
   void CheckHasThrownImpl(uint32_t function_index, const FunctionSig* sig,
                           CWasmArgumentsPacker* packer, const char* expected) {
     CallFunctionImpl(function_index, sig, packer);
-    CHECK(isolate_->has_pending_exception());
+    CHECK(isolate_->has_exception());
     Handle<String> message =
-        ErrorUtils::ToString(isolate_,
-                             handle(isolate_->pending_exception(), isolate_))
+        ErrorUtils::ToString(isolate_, handle(isolate_->exception(), isolate_))
             .ToHandleChecked();
     std::string message_str(message->ToCString().get());
     CHECK_NE(message_str.find(expected), std::string::npos);
-    isolate_->clear_pending_exception();
+    isolate_->clear_exception();
   }
 
   void CallFunctionImpl(uint32_t function_index, const FunctionSig* sig,
                         CWasmArgumentsPacker* packer) {
     WasmCodeRefScope code_ref_scope;
-    NativeModule* native_module = instance_->module_object()->native_module();
-    Address wasm_call_target = instance_->GetCallTarget(function_index);
-    Handle<Object> object_ref = instance_;
+    NativeModule* native_module =
+        instance_object_->module_object()->native_module();
+    Address wasm_call_target =
+        trusted_instance_data_->GetCallTarget(function_index);
+    Handle<Object> object_ref = instance_object_;
     Handle<Code> c_wasm_entry =
         compiler::CompileCWasmEntry(isolate_, sig, native_module->module());
     Execution::CallWasm(isolate_, c_wasm_entry, wasm_call_target, object_ref,
@@ -257,7 +264,8 @@ class WasmGCTester {
 
   Isolate* const isolate_;
   const HandleScope scope;
-  Handle<WasmInstanceObject> instance_;
+  Handle<WasmInstanceObject> instance_object_;
+  Handle<WasmTrustedInstanceData> trusted_instance_data_;
   ErrorThrower thrower;
 };
 
@@ -613,18 +621,6 @@ WASM_COMPILED_EXEC_TEST(BrOnCast) {
        WASM_GC_OP(kExprStructGet), type_index, 0, WASM_LOCAL_GET(0),
        kExprI32Add, kExprEnd});
 
-  const uint8_t kTestNullDeprecated = tester.DefineFunction(
-      tester.sigs.i_v(), {kWasmI32, kWasmStructRef},
-      {WASM_BLOCK_R(ValueType::RefNull(type_index),
-                    WASM_LOCAL_SET(0, WASM_I32V(111)),
-                    WASM_LOCAL_GET(1),  // Put a nullref onto the value stack.
-                    // Not taken for nullref.
-                    WASM_BR_ON_CAST(0, kStructRefCode, type_index),
-                    WASM_GC_OP(kExprRefCastDeprecated), type_index,
-
-                    WASM_LOCAL_SET(0, WASM_I32V(222))),  // Final result.
-       WASM_DROP, WASM_LOCAL_GET(0), kExprEnd});
-
   const uint8_t kTestNull = tester.DefineFunction(
       tester.sigs.i_v(), {kWasmI32, kWasmStructRef},
       {WASM_BLOCK_R(ValueType::RefNull(type_index),
@@ -665,7 +661,6 @@ WASM_COMPILED_EXEC_TEST(BrOnCast) {
   tester.CompileModule();
   tester.CheckResult(kTestStructStatic, 222);
   tester.CheckResult(kTestStructStaticNull, 222);
-  tester.CheckResult(kTestNullDeprecated, 222);
   tester.CheckHasThrown(kTestNull);
   tester.CheckResult(kTestNullNull, 111);
   tester.CheckResult(kTypedAfterBranch, 42);
@@ -1223,42 +1218,32 @@ WASM_COMPILED_EXEC_TEST(RefTrivialCastsStatic) {
   uint8_t type_index = tester.DefineStruct({F(wasm::kWasmI32, true)});
   uint8_t subtype_index = tester.DefineStruct(
       {F(wasm::kWasmI32, true), F(wasm::kWasmS128, true)}, type_index);
-  ValueType sig_types[] = {kWasmS128, kWasmI32, kWasmF64};
-  FunctionSig sig(1, 2, sig_types);
-  uint8_t sig_index = tester.DefineSignature(&sig);
+  uint8_t subtype2_index = tester.DefineStruct(
+      {F(wasm::kWasmI32, true), F(wasm::kWasmF64, true)}, type_index);
 
-  const uint8_t kRefTestNullDeprecated = tester.DefineFunction(
+  const uint8_t kRefTestNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_TEST_DEPRECATED(WASM_REF_NULL(type_index), subtype_index),
-       kExprEnd});
+      {WASM_REF_TEST(WASM_REF_NULL(type_index), subtype_index), kExprEnd});
   // Upcasts should be optimized away for nominal types.
-  const uint8_t kRefTestUpcastDeprecated = tester.DefineFunction(
+  const uint8_t kRefTestUpcast = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_TEST_DEPRECATED(WASM_STRUCT_NEW_DEFAULT(subtype_index),
-                                type_index),
+      {WASM_REF_TEST(WASM_STRUCT_NEW_DEFAULT(subtype_index), type_index),
        kExprEnd});
-  const uint8_t kRefTestUpcastNullDeprecated = tester.DefineFunction(
+  const uint8_t kRefTestUpcastNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_TEST_DEPRECATED(WASM_REF_NULL(subtype_index), type_index),
-       kExprEnd});
-  const uint8_t kRefTestUnrelatedNullableDeprecated = tester.DefineFunction(
+      {WASM_REF_TEST(WASM_REF_NULL(subtype_index), type_index), kExprEnd});
+  const uint8_t kRefTestUnrelatedNullable = tester.DefineFunction(
       tester.sigs.i_v(), {refNull(subtype_index)},
       {WASM_LOCAL_SET(0, WASM_STRUCT_NEW_DEFAULT(subtype_index)),
-       WASM_REF_TEST_DEPRECATED(WASM_LOCAL_GET(0), sig_index), kExprEnd});
-  const uint8_t kRefTestUnrelatedNullDeprecated = tester.DefineFunction(
+       WASM_REF_TEST(WASM_LOCAL_GET(0), subtype2_index), kExprEnd});
+  const uint8_t kRefTestUnrelatedNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_TEST_DEPRECATED(WASM_REF_NULL(subtype_index), sig_index),
-       kExprEnd});
-  const uint8_t kRefTestUnrelatedNonNullableDeprecated = tester.DefineFunction(
+      {WASM_REF_TEST(WASM_REF_NULL(subtype_index), subtype2_index), kExprEnd});
+  const uint8_t kRefTestUnrelatedNonNullable = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_TEST_DEPRECATED(WASM_STRUCT_NEW_DEFAULT(type_index), sig_index),
+      {WASM_REF_TEST(WASM_STRUCT_NEW_DEFAULT(type_index), subtype2_index),
        kExprEnd});
 
-  const uint8_t kRefCastNullDeprecated =
-      tester.DefineFunction(tester.sigs.i_v(), {},
-                            {WASM_REF_IS_NULL(WASM_REF_CAST_DEPRECATED(
-                                 WASM_REF_NULL(type_index), subtype_index)),
-                             kExprEnd});
   const uint8_t kRefCastNull =
       tester.DefineFunction(tester.sigs.i_v(), {},
                             {WASM_REF_IS_NULL(WASM_REF_CAST(
@@ -1269,33 +1254,11 @@ WASM_COMPILED_EXEC_TEST(RefTrivialCastsStatic) {
       {WASM_REF_IS_NULL(
            WASM_REF_CAST(WASM_STRUCT_NEW_DEFAULT(subtype_index), type_index)),
        kExprEnd});
-  const uint8_t kRefCastUpcastNullDeprecated =
-      tester.DefineFunction(tester.sigs.i_v(), {},
-                            {WASM_REF_IS_NULL(WASM_REF_CAST_DEPRECATED(
-                                 WASM_REF_NULL(subtype_index), type_index)),
-                             kExprEnd});
   const uint8_t kRefCastUpcastNull =
       tester.DefineFunction(tester.sigs.i_v(), {},
                             {WASM_REF_IS_NULL(WASM_REF_CAST(
                                  WASM_REF_NULL(subtype_index), type_index)),
                              kExprEnd});
-  // Note: Casting of types from different type hierarchies is only valid for
-  // the deprecated cast instruction.
-  const uint8_t kRefCastUnrelatedNullable = tester.DefineFunction(
-      tester.sigs.i_v(), {refNull(subtype_index)},
-      {WASM_LOCAL_SET(0, WASM_STRUCT_NEW_DEFAULT(subtype_index)),
-       WASM_REF_IS_NULL(WASM_REF_CAST_DEPRECATED(WASM_LOCAL_GET(0), sig_index)),
-       kExprEnd});
-  const uint8_t kRefCastUnrelatedNull =
-      tester.DefineFunction(tester.sigs.i_v(), {},
-                            {WASM_REF_IS_NULL(WASM_REF_CAST_DEPRECATED(
-                                 WASM_REF_NULL(subtype_index), sig_index)),
-                             kExprEnd});
-  const uint8_t kRefCastUnrelatedNonNullable = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_CAST_DEPRECATED(
-           WASM_STRUCT_NEW_DEFAULT(type_index), sig_index)),
-       kExprEnd});
 
   const uint8_t kBrOnCastNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
@@ -1317,28 +1280,6 @@ WASM_COMPILED_EXEC_TEST(RefTrivialCastsStatic) {
       tester.sigs.i_v(), {},
       {WASM_BLOCK_R(refNull(type_index), WASM_REF_NULL(type_index),
                     WASM_BR_ON_CAST(0, type_index, type_index), WASM_DROP,
-                    WASM_RETURN(WASM_I32V(0))),
-       WASM_DROP, WASM_I32V(1), WASM_END});
-
-  const uint8_t kBrOnCastUnrelatedNullable = tester.DefineFunction(
-      tester.sigs.i_v(), {refNull(subtype_index)},
-      {WASM_LOCAL_SET(0, WASM_STRUCT_NEW_DEFAULT(subtype_index)),
-       WASM_BLOCK_R(refNull(sig_index), WASM_LOCAL_GET(0),
-                    WASM_BR_ON_CAST_DEPRECATED(0, sig_index), WASM_DROP,
-                    WASM_RETURN(WASM_I32V(0))),
-       WASM_DROP, WASM_I32V(1), WASM_END});
-
-  const uint8_t kBrOnCastUnrelatedNull = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_BLOCK_R(refNull(sig_index), WASM_REF_NULL(subtype_index),
-                    WASM_BR_ON_CAST_DEPRECATED(0, sig_index), WASM_DROP,
-                    WASM_RETURN(WASM_I32V(0))),
-       WASM_DROP, WASM_I32V(1), WASM_END});
-
-  const uint8_t kBrOnCastUnrelatedNonNullable = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_BLOCK_R(refNull(sig_index), WASM_STRUCT_NEW_DEFAULT(subtype_index),
-                    WASM_BR_ON_CAST_DEPRECATED(0, sig_index), WASM_DROP,
                     WASM_RETURN(WASM_I32V(0))),
        WASM_DROP, WASM_I32V(1), WASM_END});
 
@@ -1366,60 +1307,26 @@ WASM_COMPILED_EXEC_TEST(RefTrivialCastsStatic) {
                     WASM_DROP, WASM_RETURN(WASM_I32V(0))),
        WASM_DROP, WASM_I32V(1), WASM_END});
 
-  const uint8_t kBrOnCastFailUnrelatedNullable = tester.DefineFunction(
-      tester.sigs.i_v(), {refNull(subtype_index)},
-      {WASM_LOCAL_SET(0, WASM_STRUCT_NEW_DEFAULT(subtype_index)),
-       WASM_BLOCK_R(refNull(subtype_index), WASM_LOCAL_GET(0),
-                    WASM_BR_ON_CAST_FAIL_DEPRECATED(0, sig_index), WASM_DROP,
-                    WASM_RETURN(WASM_I32V(0))),
-       WASM_DROP, WASM_I32V(1), WASM_END});
-
-  const uint8_t kBrOnCastFailUnrelatedNull = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_BLOCK_R(refNull(subtype_index), WASM_REF_NULL(subtype_index),
-                    WASM_BR_ON_CAST_FAIL_DEPRECATED(0, sig_index), WASM_DROP,
-                    WASM_RETURN(WASM_I32V(0))),
-       WASM_DROP, WASM_I32V(1), WASM_END});
-
-  const uint8_t kBrOnCastFailUnrelatedNonNullable = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_BLOCK_R(refNull(subtype_index),
-                    WASM_STRUCT_NEW_DEFAULT(subtype_index),
-                    WASM_BR_ON_CAST_FAIL_DEPRECATED(0, sig_index), WASM_DROP,
-                    WASM_RETURN(WASM_I32V(0))),
-       WASM_DROP, WASM_I32V(1), WASM_END});
-
   tester.CompileModule();
 
-  tester.CheckResult(kRefTestNullDeprecated, 0);
-  tester.CheckResult(kRefTestUpcastDeprecated, 1);
-  tester.CheckResult(kRefTestUpcastNullDeprecated, 0);
-  tester.CheckResult(kRefTestUnrelatedNullableDeprecated, 0);
-  tester.CheckResult(kRefTestUnrelatedNullDeprecated, 0);
-  tester.CheckResult(kRefTestUnrelatedNonNullableDeprecated, 0);
+  tester.CheckResult(kRefTestNull, 0);
+  tester.CheckResult(kRefTestUpcast, 1);
+  tester.CheckResult(kRefTestUpcastNull, 0);
+  tester.CheckResult(kRefTestUnrelatedNullable, 0);
+  tester.CheckResult(kRefTestUnrelatedNull, 0);
+  tester.CheckResult(kRefTestUnrelatedNonNullable, 0);
 
-  tester.CheckResult(kRefCastNullDeprecated, 1);
   tester.CheckHasThrown(kRefCastNull);
   tester.CheckResult(kRefCastUpcast, 0);
-  tester.CheckResult(kRefCastUpcastNullDeprecated, 1);
   tester.CheckHasThrown(kRefCastUpcastNull);
-  tester.CheckHasThrown(kRefCastUnrelatedNullable);
-  tester.CheckResult(kRefCastUnrelatedNull, 1);
-  tester.CheckHasThrown(kRefCastUnrelatedNonNullable);
 
   tester.CheckResult(kBrOnCastNull, 0);
   tester.CheckResult(kBrOnCastUpcast, 1);
   tester.CheckResult(kBrOnCastUpcastNull, 0);
-  tester.CheckResult(kBrOnCastUnrelatedNullable, 0);
-  tester.CheckResult(kBrOnCastUnrelatedNull, 0);
-  tester.CheckResult(kBrOnCastUnrelatedNonNullable, 0);
 
   tester.CheckResult(kBrOnCastFailNull, 1);
   tester.CheckResult(kBrOnCastFailUpcast, 0);
   tester.CheckResult(kBrOnCastFailUpcastNull, 1);
-  tester.CheckResult(kBrOnCastFailUnrelatedNullable, 1);
-  tester.CheckResult(kBrOnCastFailUnrelatedNull, 1);
-  tester.CheckResult(kBrOnCastFailUnrelatedNonNullable, 1);
 }
 
 WASM_COMPILED_EXEC_TEST(TrivialAbstractCasts) {
@@ -1431,58 +1338,65 @@ WASM_COMPILED_EXEC_TEST(TrivialAbstractCasts) {
 
   const uint8_t kIsArrayNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_ARRAY(WASM_REF_NULL(kAnyRefCode)), kExprEnd});
+      {WASM_REF_TEST(WASM_REF_NULL(kAnyRefCode), kArrayRefCode), kExprEnd});
   const uint8_t kIsArrayUpcast = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_ARRAY(WASM_ARRAY_NEW_DEFAULT(type_index, WASM_I32V(10))),
+      {WASM_REF_TEST(WASM_ARRAY_NEW_DEFAULT(type_index, WASM_I32V(10)),
+                     kArrayRefCode),
        kExprEnd});
   const uint8_t kIsArrayUpcastNullable = tester.DefineFunction(
       tester.sigs.i_v(), {ValueType::RefNull(type_index)},
       {WASM_LOCAL_SET(0, WASM_ARRAY_NEW_DEFAULT(type_index, WASM_I32V(10))),
-       WASM_REF_IS_ARRAY(WASM_LOCAL_GET(0)), kExprEnd});
+       WASM_REF_TEST(WASM_LOCAL_GET(0), kArrayRefCode), kExprEnd});
   const uint8_t kIsArrayUpcastNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_ARRAY(WASM_REF_NULL(type_index)), kExprEnd});
+      {WASM_REF_TEST(WASM_REF_NULL(type_index), kArrayRefCode), kExprEnd});
   const uint8_t kIsArrayUnrelated = tester.DefineFunction(
       tester.sigs.i_v(), {ValueType::RefNull(struct_type_index)},
       {WASM_LOCAL_SET(0, WASM_STRUCT_NEW_DEFAULT(struct_type_index)),
-       WASM_REF_IS_ARRAY(WASM_LOCAL_GET(0)), kExprEnd});
+       WASM_REF_TEST(WASM_LOCAL_GET(0), kArrayRefCode), kExprEnd});
   const uint8_t kIsArrayUnrelatedNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_ARRAY(WASM_REF_NULL(kI31RefCode)), kExprEnd});
+      {WASM_REF_TEST(WASM_REF_NULL(kI31RefCode), kArrayRefCode), kExprEnd});
   const uint8_t kIsArrayUnrelatedNonNullable = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_ARRAY(WASM_I31_NEW(WASM_I32V(10))), kExprEnd});
+      {WASM_REF_TEST(WASM_REF_I31(WASM_I32V(10)), kArrayRefCode), kExprEnd});
 
-  const uint8_t kAsArrayNull = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_AS_ARRAY(WASM_REF_NULL(kAnyRefCode))),
-       kExprEnd});
+  const uint8_t kAsArrayNull =
+      tester.DefineFunction(tester.sigs.i_v(), {},
+                            {WASM_REF_IS_NULL(WASM_REF_CAST(
+                                 WASM_REF_NULL(kAnyRefCode), kArrayRefCode)),
+                             kExprEnd});
   const uint8_t kAsArrayUpcast = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_AS_ARRAY(
-           WASM_ARRAY_NEW_DEFAULT(type_index, WASM_I32V(10)))),
+      {WASM_REF_IS_NULL(WASM_REF_CAST(
+           WASM_ARRAY_NEW_DEFAULT(type_index, WASM_I32V(10)), kArrayRefCode)),
        kExprEnd});
   const uint8_t kAsArrayUpcastNullable = tester.DefineFunction(
       tester.sigs.i_v(), {ValueType::RefNull(type_index)},
       {WASM_LOCAL_SET(0, WASM_ARRAY_NEW_DEFAULT(type_index, WASM_I32V(10))),
-       WASM_REF_IS_NULL(WASM_REF_AS_ARRAY(WASM_LOCAL_GET(0))), kExprEnd});
-  const uint8_t kAsArrayUpcastNull = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_AS_ARRAY(WASM_REF_NULL(type_index))),
+       WASM_REF_IS_NULL(WASM_REF_CAST(WASM_LOCAL_GET(0), kArrayRefCode)),
        kExprEnd});
+  const uint8_t kAsArrayUpcastNull =
+      tester.DefineFunction(tester.sigs.i_v(), {},
+                            {WASM_REF_IS_NULL(WASM_REF_CAST(
+                                 WASM_REF_NULL(type_index), kArrayRefCode)),
+                             kExprEnd});
   const uint8_t kAsArrayUnrelated = tester.DefineFunction(
       tester.sigs.i_v(), {ValueType::RefNull(struct_type_index)},
       {WASM_LOCAL_SET(0, WASM_STRUCT_NEW_DEFAULT(struct_type_index)),
-       WASM_REF_IS_NULL(WASM_REF_AS_ARRAY(WASM_LOCAL_GET(0))), kExprEnd});
-  const uint8_t kAsArrayUnrelatedNull = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_AS_ARRAY(WASM_REF_NULL(kI31RefCode))),
+       WASM_REF_IS_NULL(WASM_REF_CAST(WASM_LOCAL_GET(0), kArrayRefCode)),
        kExprEnd});
-  const uint8_t kAsArrayUnrelatedNonNullable = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_AS_ARRAY(WASM_I31_NEW(WASM_I32V(10)))),
-       kExprEnd});
+  const uint8_t kAsArrayUnrelatedNull =
+      tester.DefineFunction(tester.sigs.i_v(), {},
+                            {WASM_REF_IS_NULL(WASM_REF_CAST(
+                                 WASM_REF_NULL(kI31RefCode), kArrayRefCode)),
+                             kExprEnd});
+  const uint8_t kAsArrayUnrelatedNonNullable =
+      tester.DefineFunction(tester.sigs.i_v(), {},
+                            {WASM_REF_IS_NULL(WASM_REF_CAST(
+                                 WASM_REF_I31(WASM_I32V(10)), kArrayRefCode)),
+                             kExprEnd});
 
   tester.CompileModule();
 
@@ -1517,8 +1431,9 @@ WASM_COMPILED_EXEC_TEST(ArrayNewMap) {
   tester.CompileModule();
   Handle<Object> result = tester.GetResultObject(array_new).ToHandleChecked();
   CHECK(IsWasmArray(*result));
-  CHECK_EQ(Handle<WasmArray>::cast(result)->map(),
-           tester.instance()->managed_object_maps()->get(type_index));
+  CHECK_EQ(
+      Handle<WasmArray>::cast(result)->map(),
+      tester.trusted_instance_data()->managed_object_maps()->get(type_index));
 }
 
 WASM_COMPILED_EXEC_TEST(FunctionRefs) {
@@ -1544,16 +1459,6 @@ WASM_COMPILED_EXEC_TEST(FunctionRefs) {
   const uint8_t cast_reference = tester.DefineFunction(
       &sig_func, {}, {WASM_REF_FUNC(sig_index), kExprEnd});
 
-  const uint8_t test_deprecated = tester.DefineFunction(
-      tester.sigs.i_v(), {kWasmFuncRef},
-      {WASM_LOCAL_SET(0, WASM_REF_FUNC(func_index)),
-       WASM_REF_TEST_DEPRECATED(WASM_LOCAL_GET(0), sig_index), kExprEnd});
-
-  const uint8_t test_fail_deprecated = tester.DefineFunction(
-      tester.sigs.i_v(), {kWasmFuncRef},
-      {WASM_LOCAL_SET(0, WASM_REF_FUNC(func_index)),
-       WASM_REF_TEST_DEPRECATED(WASM_LOCAL_GET(0), other_sig_index), kExprEnd});
-
   const uint8_t test = tester.DefineFunction(
       tester.sigs.i_v(), {kWasmFuncRef},
       {WASM_LOCAL_SET(0, WASM_REF_FUNC(func_index)),
@@ -1566,23 +1471,25 @@ WASM_COMPILED_EXEC_TEST(FunctionRefs) {
 
   tester.CompileModule();
 
+  i::Isolate* i_isolate = CcTest::i_isolate();
   Handle<Object> result_cast = tester.GetResultObject(cast).ToHandleChecked();
-  CHECK(IsWasmInternalFunction(*result_cast));
-  Handle<JSFunction> cast_function = WasmInternalFunction::GetOrCreateExternal(
-      Handle<WasmInternalFunction>::cast(result_cast));
+  CHECK(IsWasmFuncRef(*result_cast));
+  Handle<WasmInternalFunction> result_cast_internal{
+      WasmFuncRef::cast(*result_cast)->internal(), i_isolate};
+  Handle<JSFunction> cast_function =
+      WasmInternalFunction::GetOrCreateExternal(result_cast_internal);
 
   Handle<Object> result_cast_reference =
       tester.GetResultObject(cast_reference).ToHandleChecked();
-  CHECK(IsWasmInternalFunction(*result_cast_reference));
+  CHECK(IsWasmFuncRef(*result_cast_reference));
+  Handle<WasmInternalFunction> result_cast_reference_internal{
+      WasmFuncRef::cast(*result_cast_reference)->internal(), i_isolate};
   Handle<JSFunction> cast_function_reference =
-      WasmInternalFunction::GetOrCreateExternal(
-          Handle<WasmInternalFunction>::cast(result_cast_reference));
+      WasmInternalFunction::GetOrCreateExternal(result_cast_reference_internal);
 
-  CHECK_EQ(cast_function->code()->instruction_start(),
-           cast_function_reference->code()->instruction_start());
+  CHECK_EQ(cast_function->code(i_isolate)->instruction_start(),
+           cast_function_reference->code(i_isolate)->instruction_start());
 
-  tester.CheckResult(test_deprecated, 1);
-  tester.CheckResult(test_fail_deprecated, 0);
   tester.CheckResult(test, 1);
   tester.CheckResult(test_fail, 0);
 }
@@ -1611,6 +1518,7 @@ WASM_COMPILED_EXEC_TEST(CallRef) {
 // Test that calling a function expecting any ref accepts the abstract null
 // type argument (nullref, nullfuncref, nullexternref).
 WASM_COMPILED_EXEC_TEST(CallAbstractNullTypeImplicitConversion) {
+  FlagScope<bool> exnref(&v8_flags.experimental_wasm_exnref, true);
   const struct {
     ValueType super_type;
     ValueTypeCode sub_type_code;
@@ -1622,6 +1530,7 @@ WASM_COMPILED_EXEC_TEST(CallAbstractNullTypeImplicitConversion) {
       {kWasmArrayRef.AsNullable(), kNoneCode},
       {kWasmAnyRef, kNoneCode},
       {kWasmExternRef, kNoExternCode},
+      {kWasmExnRef, kNoExnCode},
       {refNull(0), kNoneCode},    // struct
       {refNull(1), kNoneCode},    // array
       {refNull(2), kNoFuncCode},  // signature
@@ -1659,27 +1568,28 @@ WASM_COMPILED_EXEC_TEST(CastNullRef) {
        kExprEnd});
   uint8_t to_array = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_AS_ARRAY(WASM_REF_NULL(kNoneCode))),
+      {WASM_REF_IS_NULL(WASM_REF_CAST(WASM_REF_NULL(kNoneCode), kArrayRefCode)),
        kExprEnd});
-  uint8_t to_struct = tester.DefineFunction(
-      tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_AS_STRUCT(WASM_REF_NULL(kNoneCode))),
-       kExprEnd});
+  uint8_t to_struct =
+      tester.DefineFunction(tester.sigs.i_v(), {},
+                            {WASM_REF_IS_NULL(WASM_REF_CAST(
+                                 WASM_REF_NULL(kNoneCode), kStructRefCode)),
+                             kExprEnd});
   uint8_t to_i31 = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_REF_AS_I31(WASM_REF_NULL(kNoneCode))), kExprEnd});
+      {WASM_REF_IS_NULL(WASM_REF_CAST(WASM_REF_NULL(kNoneCode), kI31RefCode)),
+       kExprEnd});
   uint8_t struct_idx = tester.DefineStruct({F(wasm::kWasmI32, true)});
   uint8_t to_struct_idx = tester.DefineFunction(
       tester.sigs.i_v(), {},
       {WASM_REF_IS_NULL(WASM_REF_CAST(WASM_REF_NULL(kNoneCode), struct_idx)),
        kExprEnd});
   tester.CompileModule();
-  // Generic casts trap on null.
+  // ref.cast traps on null.
   tester.CheckHasThrown(to_non_null);
   tester.CheckHasThrown(to_array);
   tester.CheckHasThrown(to_struct);
   tester.CheckHasThrown(to_i31);
-  // ref.cast traps on null.
   tester.CheckHasThrown(to_struct_idx);
 }
 
@@ -1735,106 +1645,108 @@ WASM_COMPILED_EXEC_TEST(AbstractTypeChecks) {
 
   uint8_t kStructCheckNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_STRUCT(WASM_REF_NULL(kAnyRefCode)), kExprEnd});
+      {WASM_REF_TEST(WASM_REF_NULL(kAnyRefCode), kStructRefCode), kExprEnd});
   uint8_t kArrayCheckNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_ARRAY(WASM_REF_NULL(kAnyRefCode)), kExprEnd});
+      {WASM_REF_TEST(WASM_REF_NULL(kAnyRefCode), kArrayRefCode), kExprEnd});
   uint8_t kI31CheckNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_I31(WASM_REF_NULL(kAnyRefCode)), kExprEnd});
+      {WASM_REF_TEST(WASM_REF_NULL(kAnyRefCode), kI31RefCode), kExprEnd});
 
-  uint8_t kStructCastNull =
-      tester.DefineFunction(tester.sigs.i_v(), {},
-                            {WASM_REF_AS_STRUCT(WASM_REF_NULL(kAnyRefCode)),
-                             WASM_DROP, WASM_I32V(1), kExprEnd});
-  uint8_t kArrayCastNull =
-      tester.DefineFunction(tester.sigs.i_v(), {},
-                            {WASM_REF_AS_ARRAY(WASM_REF_NULL(kAnyRefCode)),
-                             WASM_DROP, WASM_I32V(1), kExprEnd});
-  uint8_t kI31CastNull =
-      tester.DefineFunction(tester.sigs.i_v(), {},
-                            {WASM_REF_AS_I31(WASM_REF_NULL(kAnyRefCode)),
-                             WASM_DROP, WASM_I32V(1), kExprEnd});
+  uint8_t kStructCastNull = tester.DefineFunction(
+      tester.sigs.i_v(), {},
+      {WASM_REF_CAST(WASM_REF_NULL(kAnyRefCode), kStructRefCode), WASM_DROP,
+       WASM_I32V(1), kExprEnd});
+  uint8_t kArrayCastNull = tester.DefineFunction(
+      tester.sigs.i_v(), {},
+      {WASM_REF_CAST(WASM_REF_NULL(kAnyRefCode), kArrayRefCode), WASM_DROP,
+       WASM_I32V(1), kExprEnd});
+  uint8_t kI31CastNull = tester.DefineFunction(
+      tester.sigs.i_v(), {},
+      {WASM_REF_CAST(WASM_REF_NULL(kAnyRefCode), kI31RefCode), WASM_DROP,
+       WASM_I32V(1), kExprEnd});
 
-#define TYPE_CHECK(type, value)                              \
-  tester.DefineFunction(tester.sigs.i_v(), {kWasmAnyRef},    \
-                        {WASM_LOCAL_SET(0, WASM_SEQ(value)), \
-                         WASM_REF_IS_##type(WASM_LOCAL_GET(0)), kExprEnd})
+#define TYPE_CHECK(type, value)            \
+  tester.DefineFunction(                   \
+      tester.sigs.i_v(), {kWasmAnyRef},    \
+      {WASM_LOCAL_SET(0, WASM_SEQ(value)), \
+       WASM_REF_TEST(WASM_LOCAL_GET(0), k##type##RefCode), kExprEnd})
 
   uint8_t kStructCheckSuccess =
-      TYPE_CHECK(STRUCT, WASM_STRUCT_NEW_DEFAULT(struct_index));
-  uint8_t kStructCheckFailure = TYPE_CHECK(STRUCT, WASM_I31_NEW(WASM_I32V(42)));
+      TYPE_CHECK(Struct, WASM_STRUCT_NEW_DEFAULT(struct_index));
+  uint8_t kStructCheckFailure = TYPE_CHECK(Struct, WASM_REF_I31(WASM_I32V(42)));
   uint8_t kArrayCheckSuccess =
-      TYPE_CHECK(ARRAY, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
+      TYPE_CHECK(Array, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
   uint8_t kArrayCheckFailure =
-      TYPE_CHECK(ARRAY, WASM_STRUCT_NEW_DEFAULT(struct_index));
-  uint8_t kI31CheckSuccess = TYPE_CHECK(I31, WASM_I31_NEW(WASM_I32V(42)));
+      TYPE_CHECK(Array, WASM_STRUCT_NEW_DEFAULT(struct_index));
+  uint8_t kI31CheckSuccess = TYPE_CHECK(I31, WASM_REF_I31(WASM_I32V(42)));
   uint8_t kI31CheckFailure =
       TYPE_CHECK(I31, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
 #undef TYPE_CHECK
 
-#define TYPE_CAST(type, value)                                             \
-  tester.DefineFunction(tester.sigs.i_v(), {kWasmAnyRef},                  \
-                        {WASM_LOCAL_SET(0, WASM_SEQ(value)),               \
-                         WASM_REF_AS_##type(WASM_LOCAL_GET(0)), WASM_DROP, \
-                         WASM_I32V(1), kExprEnd})
+#define TYPE_CAST(type, value)                                               \
+  tester.DefineFunction(tester.sigs.i_v(), {kWasmAnyRef},                    \
+                        {WASM_LOCAL_SET(0, WASM_SEQ(value)),                 \
+                         WASM_REF_CAST(WASM_LOCAL_GET(0), k##type##RefCode), \
+                         WASM_DROP, WASM_I32V(1), kExprEnd})
 
   uint8_t kStructCastSuccess =
-      TYPE_CAST(STRUCT, WASM_STRUCT_NEW_DEFAULT(struct_index));
-  uint8_t kStructCastFailure = TYPE_CAST(STRUCT, WASM_I31_NEW(WASM_I32V(42)));
+      TYPE_CAST(Struct, WASM_STRUCT_NEW_DEFAULT(struct_index));
+  uint8_t kStructCastFailure = TYPE_CAST(Struct, WASM_REF_I31(WASM_I32V(42)));
   uint8_t kArrayCastSuccess =
-      TYPE_CAST(ARRAY, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
-  uint8_t kArrayCastFailure = TYPE_CAST(ARRAY, WASM_I31_NEW(WASM_I32V(42)));
-  uint8_t kI31CastSuccess = TYPE_CAST(I31, WASM_I31_NEW(WASM_I32V(42)));
+      TYPE_CAST(Array, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
+  uint8_t kArrayCastFailure = TYPE_CAST(Array, WASM_REF_I31(WASM_I32V(42)));
+  uint8_t kI31CastSuccess = TYPE_CAST(I31, WASM_REF_I31(WASM_I32V(42)));
   uint8_t kI31CastFailure =
       TYPE_CAST(I31, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
 #undef TYPE_CAST
 
 // If the branch is not taken, we return 0. If it is taken, then the respective
 // type check should succeed, and we return 1.
-#define BR_ON(TYPE, type, value)                                            \
-  tester.DefineFunction(                                                    \
-      tester.sigs.i_v(), {kWasmAnyRef},                                     \
-      {WASM_LOCAL_SET(0, WASM_SEQ(value)),                                  \
-       WASM_REF_IS_##TYPE(WASM_BLOCK_R(kWasm##type##Ref, WASM_LOCAL_GET(0), \
-                                       WASM_BR_ON_##TYPE(0),                \
-                                       WASM_RETURN(WASM_I32V(0)))),         \
+#define BR_ON(type, value)                                                 \
+  tester.DefineFunction(                                                   \
+      tester.sigs.i_v(), {kWasmAnyRef},                                    \
+      {WASM_LOCAL_SET(0, WASM_SEQ(value)),                                 \
+       WASM_REF_TEST(                                                      \
+           WASM_BLOCK_R(kWasm##type##Ref, WASM_LOCAL_GET(0),               \
+                        WASM_BR_ON_CAST(0, kAnyRefCode, k##type##RefCode), \
+                        WASM_RETURN(WASM_I32V(0))),                        \
+           k##type##RefCode),                                              \
        kExprEnd})
 
   uint8_t kBrOnStructTaken =
-      BR_ON(STRUCT, Struct, WASM_STRUCT_NEW_DEFAULT(struct_index));
-  uint8_t kBrOnStructNotTaken = BR_ON(STRUCT, Struct, WASM_REF_NULL(kNoneCode));
+      BR_ON(Struct, WASM_STRUCT_NEW_DEFAULT(struct_index));
+  uint8_t kBrOnStructNotTaken = BR_ON(Struct, WASM_REF_NULL(kNoneCode));
   uint8_t kBrOnArrayTaken =
-      BR_ON(ARRAY, Array, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
-  uint8_t kBrOnArrayNotTaken = BR_ON(ARRAY, Array, WASM_I31_NEW(WASM_I32V(42)));
-  uint8_t kBrOnI31Taken = BR_ON(I31, I31, WASM_I31_NEW(WASM_I32V(42)));
+      BR_ON(Array, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
+  uint8_t kBrOnArrayNotTaken = BR_ON(Array, WASM_REF_I31(WASM_I32V(42)));
+  uint8_t kBrOnI31Taken = BR_ON(I31, WASM_REF_I31(WASM_I32V(42)));
   uint8_t kBrOnI31NotTaken =
-      BR_ON(I31, I31, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
+      BR_ON(I31, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
 #undef BR_ON
 
 // If the branch is not taken, we return 1. If it is taken, then the respective
 // type check should fail, and we return 0.
-#define BR_ON_NON(TYPE, type, value)                                   \
-  tester.DefineFunction(                                               \
-      tester.sigs.i_v(), {kWasmAnyRef},                                \
-      {WASM_LOCAL_SET(0, WASM_SEQ(value)),                             \
-       WASM_REF_IS_##TYPE(WASM_BLOCK_R(kWasmAnyRef, WASM_LOCAL_GET(0), \
-                                       WASM_BR_ON_NON_##TYPE(0),       \
-                                       WASM_RETURN(WASM_I32V(1)))),    \
+#define BR_ON_NON(type, value)                                            \
+  tester.DefineFunction(                                                  \
+      tester.sigs.i_v(), {kWasmAnyRef},                                   \
+      {WASM_LOCAL_SET(0, WASM_SEQ(value)),                                \
+       WASM_REF_TEST(WASM_BLOCK_R(kWasmAnyRef, WASM_LOCAL_GET(0),         \
+                                  WASM_BR_ON_CAST_FAIL(0, kAnyRefCode,    \
+                                                       k##type##RefCode), \
+                                  WASM_RETURN(WASM_I32V(1))),             \
+                     k##type##RefCode),                                   \
        kExprEnd})
 
   uint8_t kBrOnNonStructNotTaken =
-      BR_ON_NON(STRUCT, Struct, WASM_STRUCT_NEW_DEFAULT(struct_index));
-  uint8_t kBrOnNonStructTaken =
-      BR_ON_NON(STRUCT, Struct, WASM_REF_NULL(kNoneCode));
-  uint8_t kBrOnNonArrayNotTaken = BR_ON_NON(
-      ARRAY, Array, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
-  uint8_t kBrOnNonArrayTaken =
-      BR_ON_NON(ARRAY, Array, WASM_I31_NEW(WASM_I32V(42)));
-  uint8_t kBrOnNonI31NotTaken =
-      BR_ON_NON(I31, I31, WASM_I31_NEW(WASM_I32V(42)));
+      BR_ON_NON(Struct, WASM_STRUCT_NEW_DEFAULT(struct_index));
+  uint8_t kBrOnNonStructTaken = BR_ON_NON(Struct, WASM_REF_NULL(kNoneCode));
+  uint8_t kBrOnNonArrayNotTaken =
+      BR_ON_NON(Array, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
+  uint8_t kBrOnNonArrayTaken = BR_ON_NON(Array, WASM_REF_I31(WASM_I32V(42)));
+  uint8_t kBrOnNonI31NotTaken = BR_ON_NON(I31, WASM_REF_I31(WASM_I32V(42)));
   uint8_t kBrOnNonI31Taken =
-      BR_ON_NON(I31, I31, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
+      BR_ON_NON(I31, WASM_ARRAY_NEW_DEFAULT(array_index, WASM_I32V(10)));
 #undef BR_ON_NON
 
   tester.CompileModule();
@@ -2139,28 +2051,29 @@ WASM_COMPILED_EXEC_TEST(JsAccess) {
     CHECK(maybe_result.is_null());
     CHECK(try_catch.HasCaught());
     try_catch.Reset();
-    isolate->clear_pending_exception();
+    isolate->clear_exception();
   }
 }
 
-WASM_COMPILED_EXEC_TEST(WasmExternInternalize) {
+WASM_COMPILED_EXEC_TEST(WasmAnyConvertExtern) {
   WasmGCTester tester(execution_tier);
 
   const uint8_t kNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_GC_INTERNALIZE(WASM_REF_NULL(kNoExternCode))),
+      {WASM_REF_IS_NULL(
+           WASM_GC_ANY_CONVERT_EXTERN(WASM_REF_NULL(kNoExternCode))),
        kExprEnd});
 
   tester.CompileModule();
   tester.CheckResult(kNull, 1);
 }
 
-WASM_COMPILED_EXEC_TEST(WasmExternExternalize) {
+WASM_COMPILED_EXEC_TEST(WasmExternConvertAny) {
   WasmGCTester tester(execution_tier);
 
   const uint8_t kNull = tester.DefineFunction(
       tester.sigs.i_v(), {},
-      {WASM_REF_IS_NULL(WASM_GC_EXTERNALIZE(WASM_REF_NULL(kNoneCode))),
+      {WASM_REF_IS_NULL(WASM_GC_EXTERN_CONVERT_ANY(WASM_REF_NULL(kNoneCode))),
        kExprEnd});
 
   tester.CompileModule();

@@ -42,29 +42,29 @@ TEST_IMPL(tcp_bind6_error_addrinuse) {
   if (!can_ipv6())
     RETURN_SKIP("IPv6 not supported");
 
-  ASSERT(0 == uv_ip6_addr("::", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip6_addr("::", TEST_PORT, &addr));
 
   r = uv_tcp_init(uv_default_loop(), &server1);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_tcp_bind(&server1, (const struct sockaddr*) &addr, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_tcp_init(uv_default_loop(), &server2);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_tcp_bind(&server2, (const struct sockaddr*) &addr, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_listen((uv_stream_t*)&server1, 128, NULL);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_listen((uv_stream_t*)&server2, 128, NULL);
-  ASSERT(r == UV_EADDRINUSE);
+  ASSERT_EQ(r, UV_EADDRINUSE);
 
   uv_close((uv_handle_t*)&server1, close_cb);
   uv_close((uv_handle_t*)&server2, close_cb);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(close_cb_called == 2);
+  ASSERT_EQ(2, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -79,18 +79,18 @@ TEST_IMPL(tcp_bind6_error_addrnotavail) {
   if (!can_ipv6())
     RETURN_SKIP("IPv6 not supported");
 
-  ASSERT(0 == uv_ip6_addr("4:4:4:4:4:4:4:4", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip6_addr("4:4:4:4:4:4:4:4", TEST_PORT, &addr));
 
   r = uv_tcp_init(uv_default_loop(), &server);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_tcp_bind(&server, (const struct sockaddr*) &addr, 0);
-  ASSERT(r == UV_EADDRNOTAVAIL);
+  ASSERT_EQ(r, UV_EADDRNOTAVAIL);
 
   uv_close((uv_handle_t*)&server, close_cb);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(1, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -110,15 +110,15 @@ TEST_IMPL(tcp_bind6_error_fault) {
   garbage_addr = (struct sockaddr_in6*) &garbage;
 
   r = uv_tcp_init(uv_default_loop(), &server);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_tcp_bind(&server, (const struct sockaddr*) garbage_addr, 0);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   uv_close((uv_handle_t*)&server, close_cb);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(1, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -135,21 +135,21 @@ TEST_IMPL(tcp_bind6_error_inval) {
   if (!can_ipv6())
     RETURN_SKIP("IPv6 not supported");
 
-  ASSERT(0 == uv_ip6_addr("::", TEST_PORT, &addr1));
-  ASSERT(0 == uv_ip6_addr("::", TEST_PORT_2, &addr2));
+  ASSERT_OK(uv_ip6_addr("::", TEST_PORT, &addr1));
+  ASSERT_OK(uv_ip6_addr("::", TEST_PORT_2, &addr2));
 
   r = uv_tcp_init(uv_default_loop(), &server);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_tcp_bind(&server, (const struct sockaddr*) &addr1, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_tcp_bind(&server, (const struct sockaddr*) &addr2, 0);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
   uv_close((uv_handle_t*)&server, close_cb);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
-  ASSERT(close_cb_called == 1);
+  ASSERT_EQ(1, close_cb_called);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -164,12 +164,12 @@ TEST_IMPL(tcp_bind6_localhost_ok) {
   if (!can_ipv6())
     RETURN_SKIP("IPv6 not supported");
 
-  ASSERT(0 == uv_ip6_addr("::1", TEST_PORT, &addr));
+  ASSERT_OK(uv_ip6_addr("::1", TEST_PORT, &addr));
 
   r = uv_tcp_init(uv_default_loop(), &server);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   r = uv_tcp_bind(&server, (const struct sockaddr*) &addr, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;

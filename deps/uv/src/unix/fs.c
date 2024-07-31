@@ -41,24 +41,9 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/uio.h>
-#include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
-
-#if defined(__DragonFly__)        ||                                      \
-    defined(__FreeBSD__)          ||                                      \
-    defined(__OpenBSD__)          ||                                      \
-    defined(__NetBSD__)
-# define HAVE_PREADV 1
-#else
-# define HAVE_PREADV 0
-#endif
-
-/* preadv() and pwritev() were added in Android N (level 24) */
-#if defined(__linux__) && !(defined(__ANDROID__) && __ANDROID_API__ < 24)
-# define TRY_PREADV 1
-#endif
 
 #if defined(__linux__)
 # include <sys/sendfile.h>
@@ -95,6 +80,17 @@
 # include <sys/statvfs.h>
 #else
 # include <sys/statfs.h>
+#endif
+
+#if defined(__CYGWIN__) ||                                                    \
+    (defined(__HAIKU__) && B_HAIKU_VERSION < B_HAIKU_VERSION_1_PRE_BETA_5) || \
+    (defined(__sun) && !defined(__illumos__)) ||                              \
+    (defined(__APPLE__) && !TARGET_OS_IPHONE &&                               \
+     MAC_OS_X_VERSION_MIN_REQUIRED < 110000)
+#define preadv(fd, bufs, nbufs, off)                                          \
+  pread(fd, (bufs)->iov_base, (bufs)->iov_len, off)
+#define pwritev(fd, bufs, nbufs, off)                                         \
+  pwrite(fd, (bufs)->iov_base, (bufs)->iov_len, off)
 #endif
 
 #if defined(_AIX) && _XOPEN_SOURCE <= 600
@@ -410,123 +406,57 @@ static ssize_t uv__fs_open(uv_fs_t* req) {
 }
 
 
-#if !HAVE_PREADV
-static ssize_t uv__fs_preadv(uv_file fd,
-                             uv_buf_t* bufs,
-                             unsigned int nbufs,
-                             off_t off) {
-  uv_buf_t* buf;
-  uv_buf_t* end;
-  ssize_t result;
-  ssize_t rc;
-  size_t pos;
-
-  assert(nbufs > 0);
-
-  result = 0;
-  pos = 0;
-  buf = bufs + 0;
-  end = bufs + nbufs;
-
-  for (;;) {
-    do
-      rc = pread(fd, buf->base + pos, buf->len - pos, off + result);
-    while (rc == -1 && errno == EINTR);
-
-    if (rc == 0)
-      break;
-
-    if (rc == -1 && result == 0)
-      return UV__ERR(errno);
-
-    if (rc == -1)
-      break;  /* We read some data so return that, ignore the error. */
-
-    pos += rc;
-    result += rc;
-
-    if (pos < buf->len)
-      continue;
-
-    pos = 0;
-    buf += 1;
-
-    if (buf == end)
-      break;
-  }
-
-  return result;
-}
-#endif
-
-
 static ssize_t uv__fs_read(uv_fs_t* req) {
-#if TRY_PREADV
-  static _Atomic int no_preadv;
-#endif
+  const struct iovec* bufs;
   unsigned int iovmax;
-  ssize_t result;
+  size_t nbufs;
+  ssize_t r;
+  off_t off;
+  int fd;
+
+  fd = req->file;
+  off = req->off;
+  bufs = (const struct iovec*) req->bufs;
+  nbufs = req->nbufs;
 
   iovmax = uv__getiovmax();
-  if (req->nbufs > iovmax)
-    req->nbufs = iovmax;
+  if (nbufs > iovmax)
+    nbufs = iovmax;
 
-  if (req->off < 0) {
-    if (req->nbufs == 1)
-      result = read(req->file, req->bufs[0].base, req->bufs[0].len);
-    else
-      result = readv(req->file, (struct iovec*) req->bufs, req->nbufs);
+  r = 0;
+  if (off < 0) {
+    if (nbufs == 1)
+      r = read(fd, bufs->iov_base, bufs->iov_len);
+    else if (nbufs > 1)
+      r = readv(fd, bufs, nbufs);
   } else {
-    if (req->nbufs == 1) {
-      result = pread(req->file, req->bufs[0].base, req->bufs[0].len, req->off);
-      goto done;
-    }
-
-#if HAVE_PREADV
-    result = preadv(req->file, (struct iovec*) req->bufs, req->nbufs, req->off);
-#else
-# if TRY_PREADV
-    if (atomic_load_explicit(&no_preadv, memory_order_relaxed)) retry:
-# endif
-    {
-      result = uv__fs_preadv(req->file, req->bufs, req->nbufs, req->off);
-    }
-# if TRY_PREADV
-    else {
-      result = preadv(req->file,
-                      (struct iovec*) req->bufs,
-                      req->nbufs,
-                      req->off);
-      if (result == -1 && errno == ENOSYS) {
-        atomic_store_explicit(&no_preadv, 1, memory_order_relaxed);
-        goto retry;
-      }
-    }
-# endif
-#endif
+    if (nbufs == 1)
+      r = pread(fd, bufs->iov_base, bufs->iov_len, off);
+    else if (nbufs > 1)
+      r = preadv(fd, bufs, nbufs, off);
   }
-
-done:
-  /* Early cleanup of bufs allocation, since we're done with it. */
-  if (req->bufs != req->bufsml)
-    uv__free(req->bufs);
-
-  req->bufs = NULL;
-  req->nbufs = 0;
 
 #ifdef __PASE__
   /* PASE returns EOPNOTSUPP when reading a directory, convert to EISDIR */
-  if (result == -1 && errno == EOPNOTSUPP) {
+  if (r == -1 && errno == EOPNOTSUPP) {
     struct stat buf;
     ssize_t rc;
-    rc = uv__fstat(req->file, &buf);
+    rc = uv__fstat(fd, &buf);
     if (rc == 0 && S_ISDIR(buf.st_mode)) {
       errno = EISDIR;
     }
   }
 #endif
 
-  return result;
+  /* We don't own the buffer list in the synchronous case. */
+  if (req->cb != NULL)
+    if (req->bufs != req->bufsml)
+      uv__free(req->bufs);
+
+  req->bufs = NULL;
+  req->nbufs = 0;
+
+  return r;
 }
 
 
@@ -1161,64 +1091,33 @@ static ssize_t uv__fs_lutime(uv_fs_t* req) {
 
 
 static ssize_t uv__fs_write(uv_fs_t* req) {
-#if TRY_PREADV
-  static _Atomic int no_pwritev;
-#endif
+  const struct iovec* bufs;
+  size_t nbufs;
   ssize_t r;
+  off_t off;
+  int fd;
 
-  /* Serialize writes on OS X, concurrent write() and pwrite() calls result in
-   * data loss. We can't use a per-file descriptor lock, the descriptor may be
-   * a dup().
-   */
-#if defined(__APPLE__)
-  static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+  fd = req->file;
+  off = req->off;
+  bufs = (const struct iovec*) req->bufs;
+  nbufs = req->nbufs;
 
-  if (pthread_mutex_lock(&lock))
-    abort();
-#endif
-
-  if (req->off < 0) {
-    if (req->nbufs == 1)
-      r = write(req->file, req->bufs[0].base, req->bufs[0].len);
-    else
-      r = writev(req->file, (struct iovec*) req->bufs, req->nbufs);
+  r = 0;
+  if (off < 0) {
+    if (nbufs == 1)
+      r = write(fd, bufs->iov_base, bufs->iov_len);
+    else if (nbufs > 1)
+      r = writev(fd, bufs, nbufs);
   } else {
-    if (req->nbufs == 1) {
-      r = pwrite(req->file, req->bufs[0].base, req->bufs[0].len, req->off);
-      goto done;
-    }
-#if HAVE_PREADV
-    r = pwritev(req->file, (struct iovec*) req->bufs, req->nbufs, req->off);
-#else
-# if TRY_PREADV
-    if (atomic_load_explicit(&no_pwritev, memory_order_relaxed)) retry:
-# endif
-    {
-      r = pwrite(req->file, req->bufs[0].base, req->bufs[0].len, req->off);
-    }
-# if TRY_PREADV
-    else {
-      r = pwritev(req->file,
-                  (struct iovec*) req->bufs,
-                  req->nbufs,
-                  req->off);
-      if (r == -1 && errno == ENOSYS) {
-        atomic_store_explicit(&no_pwritev, 1, memory_order_relaxed);
-        goto retry;
-      }
-    }
-# endif
-#endif
+    if (nbufs == 1)
+      r = pwrite(fd, bufs->iov_base, bufs->iov_len, off);
+    else if (nbufs > 1)
+      r = pwritev(fd, bufs, nbufs, off);
   }
-
-done:
-#if defined(__APPLE__)
-  if (pthread_mutex_unlock(&lock))
-    abort();
-#endif
 
   return r;
 }
+
 
 static ssize_t uv__fs_copyfile(uv_fs_t* req) {
   uv_fs_t fs_req;
@@ -1731,6 +1630,16 @@ static void uv__fs_done(struct uv__work* w, int status) {
 }
 
 
+void uv__fs_post(uv_loop_t* loop, uv_fs_t* req) {
+  uv__req_register(loop, req);
+  uv__work_submit(loop,
+                  &req->work_req,
+                  UV__WORK_FAST_IO,
+                  uv__fs_work,
+                  uv__fs_done);
+}
+
+
 int uv_fs_access(uv_loop_t* loop,
                  uv_fs_t* req,
                  const char* path,
@@ -1979,9 +1888,14 @@ int uv_fs_read(uv_loop_t* loop, uv_fs_t* req,
   if (bufs == NULL || nbufs == 0)
     return UV_EINVAL;
 
+  req->off = off;
   req->file = file;
-
+  req->bufs = (uv_buf_t*) bufs;  /* Safe, doesn't mutate |bufs| */
   req->nbufs = nbufs;
+
+  if (cb == NULL)
+    goto post;
+
   req->bufs = req->bufsml;
   if (nbufs > ARRAY_SIZE(req->bufsml))
     req->bufs = uv__malloc(nbufs * sizeof(*bufs));
@@ -1991,12 +1905,10 @@ int uv_fs_read(uv_loop_t* loop, uv_fs_t* req,
 
   memcpy(req->bufs, bufs, nbufs * sizeof(*bufs));
 
-  req->off = off;
+  if (uv__iou_fs_read_or_write(loop, req, /* is_read */ 1))
+    return 0;
 
-  if (cb != NULL)
-    if (uv__iou_fs_read_or_write(loop, req, /* is_read */ 1))
-      return 0;
-
+post:
   POST;
 }
 

@@ -1473,7 +1473,7 @@ base::Optional<double> TryStringToDouble(LocalIsolate* isolate,
   const int flags = ALLOW_HEX | ALLOW_OCTAL | ALLOW_BINARY;
   auto buffer = std::make_unique<base::uc16[]>(max_length_for_conversion);
   SharedStringAccessGuardIfNeeded access_guard(isolate);
-  String::WriteToFlat(*object, buffer.get(), 0, length, isolate, access_guard);
+  String::WriteToFlat(*object, buffer.get(), 0, length, access_guard);
   base::Vector<const base::uc16> v(buffer.get(), length);
   return StringToDouble(v, flags);
 }
@@ -1490,25 +1490,33 @@ base::Optional<double> TryStringToInt(LocalIsolate* isolate,
   if (String::IsOneByteRepresentationUnderneath(*object)) {
     uint8_t buffer[kMaxLengthForConversion];
     SharedStringAccessGuardIfNeeded access_guard(isolate);
-    String::WriteToFlat(*object, buffer, 0, length, isolate, access_guard);
+    String::WriteToFlat(*object, buffer, 0, length, access_guard);
     NumberParseIntHelper helper(buffer, radix, length);
     return helper.GetResult();
   } else {
     base::uc16 buffer[kMaxLengthForConversion];
     SharedStringAccessGuardIfNeeded access_guard(isolate);
-    String::WriteToFlat(*object, buffer, 0, length, isolate, access_guard);
+    String::WriteToFlat(*object, buffer, 0, length, access_guard);
     NumberParseIntHelper helper(buffer, radix, length);
     return helper.GetResult();
   }
 }
 
 bool IsSpecialIndex(Tagged<String> string) {
+  DCHECK(!SharedStringAccessGuardIfNeeded::IsNeeded(string));
+  SharedStringAccessGuardIfNeeded access_guard =
+      SharedStringAccessGuardIfNeeded::NotNeeded();
+  return IsSpecialIndex(string, access_guard);
+}
+
+bool IsSpecialIndex(Tagged<String> string,
+                    SharedStringAccessGuardIfNeeded& access_guard) {
   // Max length of canonical double: -X.XXXXXXXXXXXXXXXXX-eXXX
   const int kBufferSize = 24;
   const int length = string->length();
   if (length == 0 || length > kBufferSize) return false;
   uint16_t buffer[kBufferSize];
-  String::WriteToFlat(string, buffer, 0, length);
+  String::WriteToFlat(string, buffer, 0, length, access_guard);
   // If the first char is not a digit or a '-' or we can't match 'NaN' or
   // '(-)Infinity', bailout immediately.
   int offset = 0;

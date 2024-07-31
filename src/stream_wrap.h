@@ -52,6 +52,7 @@ class LibuvStreamWrap : public HandleWrap, public StreamBase {
   // Resource implementation
   int DoShutdown(ShutdownWrap* req_wrap) override;
   int DoTryWrite(uv_buf_t** bufs, size_t* count) override;
+  inline bool HasDoTryWrite() const override { return true; }
   int DoWrite(WriteWrap* w,
               uv_buf_t* bufs,
               size_t count,

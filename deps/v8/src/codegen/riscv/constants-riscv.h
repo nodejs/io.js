@@ -6,6 +6,7 @@
 #define V8_CODEGEN_RISCV_CONSTANTS_RISCV_H_
 #include "src/codegen/riscv/base-constants-riscv.h"
 #include "src/codegen/riscv/constant-riscv-a.h"
+#include "src/codegen/riscv/constant-riscv-b.h"
 #include "src/codegen/riscv/constant-riscv-c.h"
 #include "src/codegen/riscv/constant-riscv-d.h"
 #include "src/codegen/riscv/constant-riscv-f.h"

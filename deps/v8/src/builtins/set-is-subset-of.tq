@@ -19,11 +19,10 @@ transitioning javascript builtin SetPrototypeIsSubsetOf(
   // 3. Let otherRec be ? GetSetRecord(other).
   let otherRec = GetSetRecord(other, methodName);
 
-  const table = Cast<OrderedHashSet>(o.table) otherwise unreachable;
+  const table = NewStableBackingTableWitness(o);
 
   // 4. Let thisSize be the number of elements in O.[[SetData]].
-  const thisSize =
-      LoadOrderedHashTableMetadata(table, kOrderedHashSetNumberOfElementsIndex);
+  const thisSize = table.LoadSize();
 
   // 5. If thisSize > otherRec.[[Size]], return false.
   if (thisSize > Convert<int32>(otherRec.size)) {
@@ -37,14 +36,14 @@ transitioning javascript builtin SetPrototypeIsSubsetOf(
       case (otherSet: JSSetWithNoCustomIteration): {
         CheckSetRecordHasJSSetMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashSet>(otherSet.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherSet);
 
-        let thisIter = collections::NewUnmodifiedOrderedHashSetIterator(table);
+        let thisIter =
+            collections::NewUnmodifiedOrderedHashSetIterator(table.GetTable());
         while (true) {
           const key = thisIter.Next() otherwise Done;
 
-          if (!TableHasKey(otherTable, key)) {
+          if (!otherTable.HasKey(key)) {
             return False;
           }
         }
@@ -52,14 +51,14 @@ transitioning javascript builtin SetPrototypeIsSubsetOf(
       case (otherMap: JSMapWithNoCustomIteration): {
         CheckSetRecordHasJSMapMethods(otherRec) otherwise SlowPath;
 
-        const otherTable =
-            Cast<OrderedHashMap>(otherMap.table) otherwise unreachable;
+        const otherTable = NewStableBackingTableWitness(otherMap);
 
-        let thisIter = collections::NewUnmodifiedOrderedHashSetIterator(table);
+        let thisIter =
+            collections::NewUnmodifiedOrderedHashSetIterator(table.GetTable());
         while (true) {
           const key = thisIter.Next() otherwise Done;
 
-          if (!TableHasKey(otherTable, key)) {
+          if (!otherTable.HasKey(key)) {
             return False;
           }
         }
@@ -70,7 +69,7 @@ transitioning javascript builtin SetPrototypeIsSubsetOf(
     }
   } label SlowPath {
     // 7. Repeat, while index < thisSize,
-    let thisIter = collections::NewOrderedHashSetIterator(table);
+    let thisIter = collections::NewOrderedHashSetIterator(table.GetTable());
     while (true) {
       // a. Let e be O.[[SetData]][index].
       const key = thisIter.Next() otherwise Done;

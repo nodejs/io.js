@@ -54,7 +54,6 @@ import itertools
 import math  # for log
 import os
 import re
-import sre_compile
 import string
 import sys
 import sysconfig
@@ -65,6 +64,16 @@ import xml.etree.ElementTree
 _valid_extensions = set([])
 
 __VERSION__ = '1.6.1'
+
+# sre_compile will be/has been removed in Python 3.13
+# use re._compiler instead
+# Refs: https://github.com/python/cpython/issues/105456
+# Refs: https://github.com/python/cpython/issues/91308
+try:
+    srecompile = re._compiler.compile
+except AttributeError:
+    import sre_compile
+    srecompile = sre_compile.compile
 
 try:
   #  -- pylint: disable=used-before-assignment
@@ -1077,7 +1086,7 @@ def Match(pattern, s):
   # performance reasons; factoring it out into a separate function turns out
   # to be noticeably expensive.
   if pattern not in _regexp_compile_cache:
-    _regexp_compile_cache[pattern] = sre_compile.compile(pattern)
+    _regexp_compile_cache[pattern] = srecompile(pattern)
   return _regexp_compile_cache[pattern].match(s)
 
 
@@ -1095,14 +1104,14 @@ def ReplaceAll(pattern, rep, s):
     string with replacements made (or original string if no replacements)
   """
   if pattern not in _regexp_compile_cache:
-    _regexp_compile_cache[pattern] = sre_compile.compile(pattern)
+    _regexp_compile_cache[pattern] = srecompile(pattern)
   return _regexp_compile_cache[pattern].sub(rep, s)
 
 
 def Search(pattern, s):
   """Searches the string for the pattern, caching the compiled regexp."""
   if pattern not in _regexp_compile_cache:
-    _regexp_compile_cache[pattern] = sre_compile.compile(pattern)
+    _regexp_compile_cache[pattern] = srecompile(pattern)
   return _regexp_compile_cache[pattern].search(s)
 
 

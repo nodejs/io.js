@@ -1,6 +1,6 @@
 const t = require('tap')
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 
 const { load: loadMockNpm } = require('../../fixtures/mock-npm')
 const tnock = require('../../fixtures/tnock.js')
@@ -11,6 +11,7 @@ const cleanCacheSha = (str) =>
   str.replace(/content-v2\/sha512\/[^"]+/g, 'content-v2/sha512/{sha}')
 
 t.cleanSnapshot = p => cleanCacheSha(cleanDate(cleanCwd(p)))
+  .replace(/^\s+(doctor\s+at\s).*$\n/gm, '')
 
 const npmManifest = (version) => {
   return {
@@ -389,15 +390,15 @@ t.test('incorrect owner', async t => {
   const { joinedOutput, logs, npm } = await loadMockNpm(t, {
     mocks: {
       ...mocks,
-      fs: {
+      'node:fs/promises': {
         ...fs,
-        lstat: (p, cb) => {
-          const stat = fs.lstatSync(p)
+        lstat: async (p) => {
+          const stat = await fs.lstat(p)
           if (p.endsWith('_cacache')) {
             stat.uid += 1
             stat.gid += 1
           }
-          return cb(null, stat)
+          return stat
         },
       },
     },
@@ -418,9 +419,9 @@ t.test('incorrect permissions', async t => {
   const { joinedOutput, logs, npm } = await loadMockNpm(t, {
     mocks: {
       ...mocks,
-      fs: {
+      'node:fs/promises': {
         ...fs,
-        access: () => {
+        access: async () => {
           throw new Error('Test Error')
         },
       },
@@ -442,9 +443,13 @@ t.test('error reading directory', async t => {
   const { joinedOutput, logs, npm } = await loadMockNpm(t, {
     mocks: {
       ...mocks,
-      fs: {
+      'node:fs/promises': {
         ...fs,
-        readdir: () => {
+        readdir: async (s, ...args) => {
+          if (s.endsWith('_logs')) {
+            return fs.readdir(s, ...args)
+          }
+          // if (s.endsWith)
           throw new Error('Test Error')
         },
       },

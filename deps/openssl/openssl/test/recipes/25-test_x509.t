@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2015-2022 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2015-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -16,7 +16,7 @@ use OpenSSL::Test qw/:DEFAULT srctop_file/;
 
 setup("test_x509");
 
-plan tests => 28;
+plan tests => 29;
 
 # Prevent MSys2 filename munging for arguments that look like file paths but
 # aren't
@@ -185,6 +185,14 @@ ok(run(app(["openssl", "x509", "-in", $a_cert, "-CA", $ca_cert,
             "-preserve_dates", "-sha256", "-text", "-out", $a2_cert])));
 # verify issuer is CA
 ok (get_issuer($a2_cert) =~ /CN = ca.example.com/);
+
+my $in_csr = srctop_file('test', 'certs', 'x509-check.csr');
+my $in_key = srctop_file('test', 'certs', 'x509-check-key.pem');
+my $invextfile = srctop_file('test', 'invalid-x509.cnf');
+# Test that invalid extensions settings fail
+ok(!run(app(["openssl", "x509", "-req", "-in", $in_csr, "-signkey", $in_key,
+            "-out", "/dev/null", "-days", "3650" , "-extensions", "ext",
+            "-extfile", $invextfile])));
 
 # Tests for issue #16080 (fixed in 1.1.1o)
 my $b_key = "b-key.pem";

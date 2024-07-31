@@ -5,6 +5,7 @@
 #ifndef V8_MAGLEV_MAGLEV_PHI_REPRESENTATION_SELECTOR_H_
 #define V8_MAGLEV_MAGLEV_PHI_REPRESENTATION_SELECTOR_H_
 
+#include "src/base/small-vector.h"
 #include "src/compiler/turboshaft/snapshot-table.h"
 #include "src/maglev/maglev-compilation-info.h"
 #include "src/maglev/maglev-graph-builder.h"
@@ -42,13 +43,16 @@ class MaglevPhiRepresentationSelector {
       StdoutStream{} << "\n";
     }
   }
-  void PreProcessBasicBlock(BasicBlock* block) {
-    MergeNewNodesInBlock(current_block_);
-    PreparePhiTaggings(current_block_, block);
-    current_block_ = block;
-  }
+  void PreProcessBasicBlock(BasicBlock* block);
 
-  ProcessResult Process(Phi* node, const ProcessingState&);
+  enum ProcessPhiResult { kNone, kRetryOnChange, kChanged };
+  ProcessPhiResult ProcessPhi(Phi* node);
+
+  // The visitor method is a no-op since phis are processed in
+  // PreProcessBasicBlock.
+  ProcessResult Process(Phi* node, const ProcessingState&) {
+    return ProcessResult::kContinue;
+  }
 
   ProcessResult Process(JumpLoop* node, const ProcessingState&) {
     FixLoopPhisBackedge(node->target());
@@ -61,9 +65,18 @@ class MaglevPhiRepresentationSelector {
   }
 
  private:
+  enum class HoistType : uint8_t {
+    kNone,
+    kLoopEntry,
+    kLoopEntryUnchecked,
+    kPrologue,
+  };
+  using HoistTypeList = base::SmallVector<HoistType, 8>;
+
   // Update the inputs of {phi} so that they all have {repr} representation, and
   // updates {phi}'s representation to {repr}.
-  void ConvertTaggedPhiTo(Phi* phi, ValueRepresentation repr);
+  void ConvertTaggedPhiTo(Phi* phi, ValueRepresentation repr,
+                          const HoistTypeList& hoist_untagging);
 
   // Since this pass changes the representation of Phis, it makes some untagging
   // operations outdated: if we've decided that a Phi should have Int32
@@ -84,7 +97,8 @@ class MaglevPhiRepresentationSelector {
         // untagged. Depending on the conversion, it might need to be replaced
         // by another untagged->untagged conversion, or it might need to be
         // removed alltogether (or rather, replaced by an identity node).
-        UpdateUntaggingOfPhi(n->template Cast<ValueNode>());
+        UpdateUntaggingOfPhi(node->input(0).node()->Cast<Phi>(),
+                             n->template Cast<ValueNode>());
       }
     } else {
       result = UpdateNonUntaggingNodeInputs(n, state);
@@ -155,7 +169,7 @@ class MaglevPhiRepresentationSelector {
 
   // Updates {old_untagging} to reflect that its Phi input has been untagged and
   // that a different conversion is now needed.
-  void UpdateUntaggingOfPhi(ValueNode* old_untagging);
+  void UpdateUntaggingOfPhi(Phi* phi, ValueNode* old_untagging);
 
   // NewNodePosition is used to represent where a new node should be inserted:
   // at the start of a block (kStart), or at the end of a block (kEnd).
@@ -194,6 +208,8 @@ class MaglevPhiRepresentationSelector {
   MaglevGraphLabeller* graph_labeller() const {
     return builder_->graph_labeller();
   }
+
+  bool CanHoistUntaggingTo(BasicBlock* block);
 
   MaglevGraphBuilder* builder_ = nullptr;
   BasicBlock* current_block_ = nullptr;

@@ -107,7 +107,7 @@ TEST(RegionAllocatorTest, AllocateRegionRandom) {
   const Address kBegin = static_cast<Address>(153 * MB);
   const Address kEnd = kBegin + kSize;
 
-  base::RandomNumberGenerator rng(::testing::FLAGS_gtest_random_seed);
+  base::RandomNumberGenerator rng(GTEST_FLAG_GET(random_seed));
   RegionAllocator ra(kBegin, kSize, kPageSize);
 
   std::set<Address> allocated_pages;
@@ -208,7 +208,7 @@ TEST(RegionAllocatorTest, MergeLeftToRightCoalecsingRegions) {
 }
 
 TEST(RegionAllocatorTest, MergeRightToLeftCoalecsingRegions) {
-  base::RandomNumberGenerator rng(::testing::FLAGS_gtest_random_seed);
+  base::RandomNumberGenerator rng(GTEST_FLAG_GET(random_seed));
   const size_t kPageSize = 4 * KB;
   const size_t kPageCountLog = 10;
   const size_t kPageCount = (size_t{1} << kPageCountLog);

@@ -126,6 +126,10 @@ _get_gm_flags() {
   find "$v8_source/test/cctest/" -type f -name 'test-*' | \
     xargs basename -a -s ".cc" | \
     while read -r item; do echo "cctest/$item/*"; done
+
+  # Find all out/* directories that have an args.gn file.
+  find out/ -maxdepth 1 -type d | \
+    while read -r dir; do [[ -f "$dir/args.gn" ]] && echo $dir; done
 }
 
 _gm_flag() {

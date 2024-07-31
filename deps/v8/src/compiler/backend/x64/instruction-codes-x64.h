@@ -377,7 +377,8 @@ namespace compiler {
   V(X64F32x8Pmin)                                    \
   V(X64F32x8Pmax)                                    \
   V(X64F64x4Pmin)                                    \
-  V(X64F64x4Pmax)
+  V(X64F64x4Pmax)                                    \
+  V(X64ExtractF128)
 // Addressing modes represent the "shape" of inputs to an instruction.
 // Many instructions support multiple addressing modes. Addressing modes
 // are encoded into the InstructionCode of the instruction and tell the

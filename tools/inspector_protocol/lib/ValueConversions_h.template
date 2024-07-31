@@ -128,6 +128,72 @@ struct ValueConversions<Binary> {
     }
 };
 
+template<typename T>
+struct ValueConversions<std::vector<std::unique_ptr<T>>> {
+    static std::unique_ptr<std::vector<std::unique_ptr<T>>> fromValue(protocol::Value* value, ErrorSupport* errors) {
+        protocol::ListValue* array = ListValue::cast(value);
+        if (!array) {
+            errors->addError("array expected");
+            return nullptr;
+        }
+        errors->push();
+        std::unique_ptr<std::vector<std::unique_ptr<T>>> result(
+            new std::vector<std::unique_ptr<T>>());
+        result->reserve(array->size());
+        for (size_t i = 0; i < array->size(); ++i) {
+            errors->setName(StringUtil::fromInteger(i));
+            auto item = ValueConversions<T>::fromValue(array->at(i), errors);
+            result->emplace_back(std::move(item));
+        }
+        errors->pop();
+        if (errors->hasErrors())
+            return nullptr;
+        return result;
+    }
+
+    static std::unique_ptr<protocol::ListValue> toValue(std::vector<std::unique_ptr<T>>* v)
+    {
+        std::unique_ptr<protocol::ListValue> result = ListValue::create();
+        result->reserve(v->size());
+        for (auto& item : *v)
+            result->pushValue(ValueConversions<T>::toValue(item.get()));
+        return result;
+    }
+
+};
+
+template<typename T>
+struct ValueConversions<std::vector<T>> {
+    static std::unique_ptr<std::vector<T>> fromValue(protocol::Value* value, ErrorSupport* errors) {
+        protocol::ListValue* array = ListValue::cast(value);
+        if (!array) {
+            errors->addError("array expected");
+            return nullptr;
+        }
+        errors->push();
+        std::unique_ptr<std::vector<T>> result(new std::vector<T>());
+        result->reserve(array->size());
+        for (size_t i = 0; i < array->size(); ++i) {
+            errors->setName(StringUtil::fromInteger(i));
+            auto item = ValueConversions<T>::fromValue(array->at(i), errors);
+            result->emplace_back(std::move(item));
+        }
+        errors->pop();
+        if (errors->hasErrors())
+            return nullptr;
+        return result;
+    }
+
+    static std::unique_ptr<protocol::ListValue> toValue(std::vector<T>* v)
+    {
+        std::unique_ptr<protocol::ListValue> result = ListValue::create();
+        result->reserve(v->size());
+        for (auto& item : *v)
+            result->pushValue(ValueConversions<T>::toValue(item));
+        return result;
+    }
+};
+
 template<>
 struct ValueConversions<Value> {
     static std::unique_ptr<Value> fromValue(protocol::Value* value, ErrorSupport* errors)

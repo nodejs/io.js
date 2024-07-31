@@ -1,10 +1,12 @@
 const nopt = require('nopt')
 
-const { Umask, validate: validateUmask } = require('./umask.js')
+const { validate: validateUmask } = require('./umask.js')
 
-const semver = require('semver')
+class Umask {}
+class Semver {}
+const semverValid = require('semver/functions/valid')
 const validateSemver = (data, k, val) => {
-  const valid = semver.valid(val)
+  const valid = semverValid(val)
   if (!valid) {
     return false
   }
@@ -23,7 +25,7 @@ const validatePath = (data, k, val) => {
 module.exports = {
   ...nopt.typeDefs,
   semver: {
-    type: semver,
+    type: Semver,
     validate: validateSemver,
     description: 'full valid SemVer string',
   },

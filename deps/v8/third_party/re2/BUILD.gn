@@ -1,0 +1,56 @@
+# Copyright 2014 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+config("re2_config") {
+  include_dirs = [ "src" ]
+}
+
+static_library("re2") {
+  sources = [
+    "src/re2/bitmap256.cc",
+    "src/re2/bitmap256.h",
+    "src/re2/bitstate.cc",
+    "src/re2/compile.cc",
+    "src/re2/dfa.cc",
+    "src/re2/filtered_re2.cc",
+    "src/re2/filtered_re2.h",
+    "src/re2/mimics_pcre.cc",
+    "src/re2/nfa.cc",
+    "src/re2/onepass.cc",
+    "src/re2/parse.cc",
+    "src/re2/perl_groups.cc",
+    "src/re2/prefilter.cc",
+    "src/re2/prefilter.h",
+    "src/re2/prefilter_tree.cc",
+    "src/re2/prefilter_tree.h",
+    "src/re2/prog.cc",
+    "src/re2/prog.h",
+    "src/re2/re2.cc",
+    "src/re2/re2.h",
+    "src/re2/regexp.cc",
+    "src/re2/regexp.h",
+    "src/re2/set.cc",
+    "src/re2/set.h",
+    "src/re2/simplify.cc",
+    "src/re2/sparse_array.h",
+    "src/re2/sparse_set.h",
+    "src/re2/stringpiece.h",
+    "src/re2/tostring.cc",
+    "src/re2/unicode_casefold.cc",
+    "src/re2/unicode_casefold.h",
+    "src/re2/unicode_groups.cc",
+    "src/re2/unicode_groups.h",
+    "src/re2/walker-inl.h",
+    "src/util/logging.h",
+    "src/util/rune.cc",
+    "src/util/strutil.cc",
+    "src/util/strutil.h",
+    "src/util/utf.h",
+  ]
+
+  configs -= [ "//build/config/compiler:chromium_code" ]
+  configs += [ "//build/config/compiler:no_chromium_code" ]
+  public_configs = [ ":re2_config" ]
+  public_deps = [ "//third_party/abseil-cpp:absl" ]
+}

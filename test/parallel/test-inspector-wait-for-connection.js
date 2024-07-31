@@ -24,7 +24,11 @@ async function runTests() {
     }
   });
   assert.ok(value.startsWith('ws://'));
-  session.send({ method: 'Runtime.runIfWaitingForDebugger' });
+  await session.send({ method: 'NodeRuntime.enable' });
+  child.write('first');
+  await session.waitForNotification('NodeRuntime.waitingForDebugger');
+  await session.send({ method: 'Runtime.runIfWaitingForDebugger' });
+  await session.send({ method: 'NodeRuntime.disable' });
   // Check that messages after first and before second waitForDebugger are
   // received
   await session.waitForConsoleOutput('log', 'after wait for debugger');
@@ -33,7 +37,11 @@ async function runTests() {
                     .some((n) => n.method === 'Runtime.consoleAPICalled'));
   const secondSession = await child.connectInspectorSession();
   // Check that inspector.waitForDebugger can be resumed from another session
-  secondSession.send({ method: 'Runtime.runIfWaitingForDebugger' });
+  await session.send({ method: 'NodeRuntime.enable' });
+  child.write('second');
+  await session.waitForNotification('NodeRuntime.waitingForDebugger');
+  await session.send({ method: 'Runtime.runIfWaitingForDebugger' });
+  await session.send({ method: 'NodeRuntime.disable' });
   await session.waitForConsoleOutput('log', 'after second wait for debugger');
   assert.ok(!session.unprocessedNotifications()
                     .some((n) => n.method === 'Runtime.consoleAPICalled'));
@@ -45,11 +53,20 @@ async function runTests() {
     inspector.open(0, undefined, false);
     process._ws = inspector.url();
     console.log('before wait for debugger');
-    inspector.waitForDebugger();
-    console.log('after wait for debugger');
-    console.log('before second wait for debugger');
-    inspector.waitForDebugger();
-    console.log('after second wait for debugger');
+    process.stdin.once('data', (data) => {
+      if (data.toString() === 'first') {
+        inspector.waitForDebugger();
+        console.log('after wait for debugger');
+        console.log('before second wait for debugger');
+        process.stdin.once('data', (data) => {
+          if (data.toString() === 'second') {
+            inspector.waitForDebugger();
+            console.log('after second wait for debugger');
+            process.exit();
+          }
+        });
+      }
+    });
   }
 
   // Check that inspector.waitForDebugger throws if there is no active

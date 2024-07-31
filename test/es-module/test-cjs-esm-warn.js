@@ -15,7 +15,7 @@ const pjson = path.resolve(
 );
 
 
-describe('CJS ↔︎ ESM interop warnings', { concurrency: true }, () => {
+describe('CJS ↔︎ ESM interop warnings', { concurrency: !process.env.TEST_PARALLEL }, () => {
 
   it(async () => {
     const required = path.resolve(

@@ -213,12 +213,12 @@ void SmallOrderedHashTable<Derived>::SetDataEntry(int entry, int relative_index,
 
 template <class Derived, class TableType>
 Tagged<Object> OrderedHashTableIterator<Derived, TableType>::CurrentKey() {
-  TableType table = TableType::cast(this->table());
+  Tagged<TableType> table = TableType::cast(this->table());
   int index = Smi::ToInt(this->index());
   DCHECK_LE(0, index);
   InternalIndex entry(index);
-  Tagged<Object> key = table.KeyAt(entry);
-  DCHECK(!IsTheHole(key));
+  Tagged<Object> key = table->KeyAt(entry);
+  DCHECK(!IsHashTableHole(key));
   return key;
 }
 

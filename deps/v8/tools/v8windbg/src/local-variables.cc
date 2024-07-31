@@ -105,10 +105,10 @@ IFACEMETHODIMP V8LocalVariables::GetValue(PCWSTR key, IModelObject* context,
   // provide the option to view the whole stack frame as tagged data. It can
   // be somewhat useful.
   WRL::ComPtr<IDebugHostType> object_type =
-      Extension::Current()->GetV8ObjectType(host_context);
+      Extension::Current()->GetV8TaggedObjectType(host_context);
   if (object_type == nullptr) {
     // There's nothing useful to do if we can't find the symbol for
-    // v8::internal::Object.
+    // v8::internal::Tagged<v8::internal::Object>.
     return original_->GetValue(key, context, value);
   }
   ULONG64 object_size{};

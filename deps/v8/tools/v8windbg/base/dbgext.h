@@ -9,6 +9,9 @@
 #error Unicode not defined
 #endif
 
+// Must be included before DbgModel.h.
+#include <new>
+
 #include <DbgEng.h>
 #include <DbgModel.h>
 #include <Windows.h>

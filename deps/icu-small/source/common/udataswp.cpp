@@ -441,7 +441,7 @@ udata_openSwapperForInputData(const void *data, int32_t length,
         pHeader->info.sizeofUChar!=2
     ) {
         *pErrorCode=U_UNSUPPORTED_ERROR;
-        return 0;
+        return nullptr;
     }
 
     inIsBigEndian=(UBool)pHeader->info.isBigEndian;
@@ -461,7 +461,7 @@ udata_openSwapperForInputData(const void *data, int32_t length,
         (length>=0 && length<headerSize)
     ) {
         *pErrorCode=U_UNSUPPORTED_ERROR;
-        return 0;
+        return nullptr;
     }
 
     return udata_openSwapper(inIsBigEndian, inCharset, outIsBigEndian, outCharset, pErrorCode);

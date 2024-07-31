@@ -69,6 +69,7 @@
 #include <unicode/utypes.h>
 #include <unicode/uvernum.h>
 #include <unicode/uversion.h>
+#include "nbytes.h"
 
 #ifdef NODE_HAVE_SMALL_ICU
 /* if this is defined, we have a 'secondary' entry point.
@@ -111,9 +112,9 @@ MaybeLocal<Object> ToBufferEndian(Environment* env, MaybeStackBuffer<T>* buf) {
 
   static_assert(sizeof(T) == 1 || sizeof(T) == 2,
                 "Currently only one- or two-byte buffers are supported");
-  if (sizeof(T) > 1 && IsBigEndian()) {
+  if constexpr (sizeof(T) > 1 && IsBigEndian()) {
     SPREAD_BUFFER_ARG(ret.ToLocalChecked(), retbuf);
-    SwapBytes16(retbuf_data, retbuf_length);
+    CHECK(nbytes::SwapBytes16(retbuf_data, retbuf_length));
   }
 
   return ret;
@@ -128,8 +129,8 @@ void CopySourceBuffer(MaybeStackBuffer<UChar>* dest,
   dest->AllocateSufficientStorage(length_in_chars);
   char* dst = reinterpret_cast<char*>(**dest);
   memcpy(dst, data, length);
-  if (IsBigEndian()) {
-    SwapBytes16(dst, length);
+  if constexpr (IsBigEndian()) {
+    CHECK(nbytes::SwapBytes16(dst, length));
   }
 }
 
@@ -527,8 +528,8 @@ void ConverterObject::Decode(const FunctionCallbackInfo<Value>& args) {
 
     char* value = reinterpret_cast<char*>(output) + beginning;
 
-    if (IsBigEndian()) {
-      SwapBytes16(value, length);
+    if constexpr (IsBigEndian()) {
+      CHECK(nbytes::SwapBytes16(value, length));
     }
 
     MaybeLocal<Value> encoded =

@@ -123,19 +123,66 @@ RBBINode::~RBBINode() {
         break;
 
     default:
-        delete        fLeftChild;
+        // Avoid using a recursive implementation because of stack overflow problems.
+        // See bug ICU-22584.
+        // delete        fLeftChild;
+        NRDeleteNode(fLeftChild);
         fLeftChild =   nullptr;
-        delete        fRightChild;
+        // delete        fRightChild;
+        NRDeleteNode(fRightChild);
         fRightChild = nullptr;
     }
-
 
     delete fFirstPosSet;
     delete fLastPosSet;
     delete fFollowPos;
-
 }
 
+/**
+ * Non-recursive delete of a node + its children. Used from the node destructor
+ * instead of the more obvious recursive implementation to avoid problems with
+ * stack overflow with some perverse test rule data (from fuzzing).
+ */
+void RBBINode::NRDeleteNode(RBBINode *node) {
+    if (node == nullptr) {
+        return;
+    }
+
+    RBBINode *stopNode = node->fParent;
+    RBBINode *nextNode = node;
+    while (nextNode != stopNode && nextNode != nullptr) {
+        RBBINode *currentNode = nextNode;
+
+        if ((currentNode->fLeftChild == nullptr && currentNode->fRightChild == nullptr) ||
+                currentNode->fType == varRef ||      // varRef and setRef nodes do not
+                currentNode->fType == setRef) {      // own their children nodes.
+            // CurrentNode is effectively a leaf node; it's safe to go ahead and delete it.
+            nextNode = currentNode->fParent;
+            if (nextNode) {
+                if (nextNode->fLeftChild == currentNode) {
+                    nextNode->fLeftChild = nullptr;
+                } else if (nextNode->fRightChild == currentNode) {
+                    nextNode->fRightChild = nullptr;
+                }
+            }
+            delete currentNode;
+        } else if (currentNode->fLeftChild) {
+            nextNode = currentNode->fLeftChild;
+            if (nextNode->fParent == nullptr) {
+                nextNode->fParent = currentNode;
+                // fParent isn't always set; do it now if not.
+            }
+            U_ASSERT(nextNode->fParent == currentNode);
+        } else if (currentNode->fRightChild) {
+            nextNode = currentNode->fRightChild;
+            if (nextNode->fParent == nullptr) {
+                nextNode->fParent = currentNode;
+                // fParent isn't always set; do it now if not.
+            }
+            U_ASSERT(nextNode->fParent == currentNode);
+        }
+    }
+}
 
 //-------------------------------------------------------------------------
 //
@@ -192,7 +239,17 @@ RBBINode *RBBINode::cloneTree() {
 //                      nested references are handled by cloneTree(), not here.
 //
 //-------------------------------------------------------------------------
-RBBINode *RBBINode::flattenVariables() {
+constexpr int kRecursiveDepthLimit = 3500;
+RBBINode *RBBINode::flattenVariables(UErrorCode& status, int depth) {
+    if (U_FAILURE(status)) {
+        return this;
+    }
+    // If the depth of the stack is too deep, we return U_INPUT_TOO_LONG_ERROR
+    // to avoid stack overflow crash.
+    if (depth > kRecursiveDepthLimit) {
+        status = U_INPUT_TOO_LONG_ERROR;
+        return this;
+    }
     if (fType == varRef) {
         RBBINode *retNode  = fLeftChild->cloneTree();
         if (retNode != nullptr) {
@@ -204,11 +261,11 @@ RBBINode *RBBINode::flattenVariables() {
     }
 
     if (fLeftChild != nullptr) {
-        fLeftChild = fLeftChild->flattenVariables();
+        fLeftChild = fLeftChild->flattenVariables(status, depth+1);
         fLeftChild->fParent  = this;
     }
     if (fRightChild != nullptr) {
-        fRightChild = fRightChild->flattenVariables();
+        fRightChild = fRightChild->flattenVariables(status, depth+1);
         fRightChild->fParent = this;
     }
     return this;

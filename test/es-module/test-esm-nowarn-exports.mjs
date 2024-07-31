@@ -5,7 +5,7 @@ import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
 
-describe('ESM: experiemental warning for import.meta.resolve', { concurrency: true }, () => {
+describe('ESM: experiemental warning for import.meta.resolve', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should not warn when caught', async () => {
     const { code, signal, stderr } = await spawnPromisified(execPath, [
       '--experimental-import-meta-resolve',

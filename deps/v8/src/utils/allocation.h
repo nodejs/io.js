@@ -299,9 +299,9 @@ class VirtualMemory final {
 // Represents a VirtualMemory reservation along with a BoundedPageAllocator that
 // can be used to allocate within the reservation.
 //
-// Virtual memory cages are used for both the pointer compression cage and code
-// ranges (on platforms that require code ranges) and are configurable via
-// ReservationParams.
+// Virtual memory cages are used for the pointer compression cage, the code
+// ranges (on platforms that require code ranges), and trusted ranges (when the
+// sandbox is enabled). They are configurable via ReservationParams.
 //
 // +-----------+------------ ~~~ --+- ~~~ -+
 // |    ...    |   ...             |  ...  |

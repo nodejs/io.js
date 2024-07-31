@@ -1,2 +1,5 @@
 adamk@chromium.org
 syg@chromium.org
+
+# Needed by the test262_import builder
+per-file test262.status=v8-ci-autoroll-builder@chops-service-accounts.iam.gserviceaccount.com

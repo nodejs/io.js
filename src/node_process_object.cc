@@ -13,7 +13,6 @@
 
 namespace node {
 using v8::Context;
-using v8::DEFAULT;
 using v8::EscapableHandleScope;
 using v8::Function;
 using v8::FunctionCallbackInfo;
@@ -78,34 +77,9 @@ static void GetParentProcessId(Local<Name> property,
   info.GetReturnValue().Set(uv_os_getppid());
 }
 
-MaybeLocal<Object> CreateProcessObject(Realm* realm) {
-  Isolate* isolate = realm->isolate();
-  EscapableHandleScope scope(isolate);
-  Local<Context> context = realm->context();
+static void SetVersions(Isolate* isolate, Local<Object> versions) {
+  Local<Context> context = isolate->GetCurrentContext();
 
-  Local<FunctionTemplate> process_template = FunctionTemplate::New(isolate);
-  process_template->SetClassName(realm->env()->process_string());
-  Local<Function> process_ctor;
-  Local<Object> process;
-  if (!process_template->GetFunction(context).ToLocal(&process_ctor) ||
-      !process_ctor->NewInstance(context).ToLocal(&process)) {
-    return MaybeLocal<Object>();
-  }
-
-  // process[exit_info_private_symbol]
-  if (process
-          ->SetPrivate(context,
-                       realm->env()->exit_info_private_symbol(),
-                       realm->env()->exit_info().GetJSArray())
-          .IsNothing()) {
-    return {};
-  }
-
-  // process.version
-  READONLY_PROPERTY(
-      process, "version", FIXED_ONE_BYTE_STRING(isolate, NODE_VERSION));
-
-  Local<Object> versions = Object::New(isolate);
   // Node.js version is always on the top
   READONLY_STRING_PROPERTY(
       versions, "node", per_process::metadata.versions.node);
@@ -138,8 +112,38 @@ MaybeLocal<Object> CreateProcessObject(Realm* realm) {
             v8::ReadOnly)
         .Check();
   }
+}
+
+MaybeLocal<Object> CreateProcessObject(Realm* realm) {
+  Isolate* isolate = realm->isolate();
+  EscapableHandleScope scope(isolate);
+  Local<Context> context = realm->context();
+
+  Local<FunctionTemplate> process_template = FunctionTemplate::New(isolate);
+  process_template->SetClassName(realm->env()->process_string());
+  Local<Function> process_ctor;
+  Local<Object> process;
+  if (!process_template->GetFunction(context).ToLocal(&process_ctor) ||
+      !process_ctor->NewInstance(context).ToLocal(&process)) {
+    return MaybeLocal<Object>();
+  }
+
+  // process[exit_info_private_symbol]
+  if (process
+          ->SetPrivate(context,
+                       realm->env()->exit_info_private_symbol(),
+                       realm->env()->exit_info().GetJSArray())
+          .IsNothing()) {
+    return {};
+  }
+
+  // process.version
+  READONLY_PROPERTY(
+      process, "version", FIXED_ONE_BYTE_STRING(isolate, NODE_VERSION));
 
   // process.versions
+  Local<Object> versions = Object::New(isolate);
+  SetVersions(isolate, versions);
   READONLY_PROPERTY(process, "versions", versions);
 
   // process.arch
@@ -183,13 +187,12 @@ void PatchProcessObject(const FunctionCallbackInfo<Value>& args) {
 
   // process.title
   CHECK(process
-            ->SetAccessor(
+            ->SetNativeDataProperty(
                 context,
                 FIXED_ONE_BYTE_STRING(isolate, "title"),
                 ProcessTitleGetter,
                 env->owns_process_state() ? ProcessTitleSetter : nullptr,
                 Local<Value>(),
-                DEFAULT,
                 None,
                 SideEffectType::kHasNoSideEffect)
             .FromJust());
@@ -208,9 +211,15 @@ void PatchProcessObject(const FunctionCallbackInfo<Value>& args) {
   READONLY_PROPERTY(process, "pid",
                     Integer::New(isolate, uv_os_getpid()));
 
-  CHECK(process->SetAccessor(context,
-                             FIXED_ONE_BYTE_STRING(isolate, "ppid"),
-                             GetParentProcessId).FromJust());
+  CHECK(process
+            ->SetNativeDataProperty(context,
+                                    FIXED_ONE_BYTE_STRING(isolate, "ppid"),
+                                    GetParentProcessId,
+                                    nullptr,
+                                    Local<Value>(),
+                                    None,
+                                    SideEffectType::kHasNoSideEffect)
+            .FromJust());
 
   // --security-revert flags
 #define V(code, _, __)                                                        \
@@ -235,12 +244,20 @@ void PatchProcessObject(const FunctionCallbackInfo<Value>& args) {
 
   // process.debugPort
   CHECK(process
-            ->SetAccessor(context,
-                          FIXED_ONE_BYTE_STRING(isolate, "debugPort"),
-                          DebugPortGetter,
-                          env->owns_process_state() ? DebugPortSetter : nullptr,
-                          Local<Value>())
+            ->SetNativeDataProperty(
+                context,
+                FIXED_ONE_BYTE_STRING(isolate, "debugPort"),
+                DebugPortGetter,
+                env->owns_process_state() ? DebugPortSetter : nullptr,
+                Local<Value>(),
+                None,
+                SideEffectType::kHasNoSideEffect)
             .FromJust());
+
+  // process.versions
+  Local<Object> versions = Object::New(isolate);
+  SetVersions(isolate, versions);
+  READONLY_PROPERTY(process, "versions", versions);
 }
 
 void RegisterProcessExternalReferences(ExternalReferenceRegistry* registry) {

@@ -99,9 +99,9 @@ class V8_EXPORT_PRIVATE CallDescriptor final
   };
   using Flags = base::Flags<Flag>;
 
-  CallDescriptor(Kind kind, MachineType target_type, LinkageLocation target_loc,
-                 LocationSignature* location_sig, size_t param_slot_count,
-                 Operator::Properties properties,
+  CallDescriptor(Kind kind, CodeEntrypointTag tag, MachineType target_type,
+                 LinkageLocation target_loc, LocationSignature* location_sig,
+                 size_t param_slot_count, Operator::Properties properties,
                  RegList callee_saved_registers,
                  DoubleRegList callee_saved_fp_registers, Flags flags,
                  const char* debug_name = "",
@@ -109,6 +109,7 @@ class V8_EXPORT_PRIVATE CallDescriptor final
                  const RegList allocatable_registers = {},
                  size_t return_slot_count = 0)
       : kind_(kind),
+        tag_(tag),
         target_type_(target_type),
         target_loc_(target_loc),
         location_sig_(location_sig),
@@ -128,6 +129,19 @@ class V8_EXPORT_PRIVATE CallDescriptor final
   // Returns the kind of this call.
   Kind kind() const { return kind_; }
 
+  // Returns the entrypoint tag for this call.
+  CodeEntrypointTag tag() const { return tag_; }
+
+  // Returns the entrypoint tag for this call, shifted to the right by
+  // kCodeEntrypointTagShift so that it fits into a 32-bit immediate.
+  uint32_t shifted_tag() const {
+    static_assert(kCodeEntrypointTagShift >= 32);
+    return tag_ >> kCodeEntrypointTagShift;
+  }
+
+  // Returns {true} if this descriptor is a call to a Code object.
+  bool IsCodeObjectCall() const { return kind_ == kCallCodeObject; }
+
   // Returns {true} if this descriptor is a call to a C function.
   bool IsCFunctionCall() const { return kind_ == kCallAddress; }
 
@@ -145,6 +159,8 @@ class V8_EXPORT_PRIVATE CallDescriptor final
   bool IsWasmCapiFunction() const { return kind_ == kCallWasmCapiFunction; }
 #endif  // V8_ENABLE_WEBASSEMBLY
 
+  bool IsBuiltinPointerCall() const { return kind_ == kCallBuiltinPointer; }
+
   bool RequiresFrameAsIncoming() const {
     if (IsCFunctionCall() || IsJSFunctionCall()) return true;
 #if V8_ENABLE_WEBASSEMBLY
@@ -153,6 +169,8 @@ class V8_EXPORT_PRIVATE CallDescriptor final
     if (CalleeSavedRegisters() != kNoCalleeSaved) return true;
     return false;
   }
+
+  bool RequiresEntrypointTagForCall() const { return IsCodeObjectCall(); }
 
   // The number of return values from this call.
   size_t ReturnCount() const { return location_sig_->return_count(); }
@@ -296,6 +314,7 @@ class V8_EXPORT_PRIVATE CallDescriptor final
   friend class Linkage;
 
   const Kind kind_;
+  const CodeEntrypointTag tag_;
   const MachineType target_type_;
   const LinkageLocation target_loc_;
   const LocationSignature* const location_sig_;

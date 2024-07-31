@@ -26,12 +26,12 @@ MSVCFILES = msvc_ver.inc buildconf.bat
 
 # adig and ahost are just sample programs and thus not mentioned with the
 # regular sources and headers
-EXTRA_DIST = AUTHORS CHANGES README.cares $(man_MANS) RELEASE-NOTES	\
- c-ares-config.cmake.in libcares.pc.cmake libcares.pc.in buildconf get_ver.awk \
- maketgz TODO README.msvc $(MSVCFILES) INSTALL.md README.md LICENSE.md \
+EXTRA_DIST = AUTHORS $(man_MANS) RELEASE-NOTES.md	\
+ c-ares-config.cmake.in libcares.pc.cmake libcares.pc.in buildconf \
+ README.msvc $(MSVCFILES) INSTALL.md README.md LICENSE.md \
  CMakeLists.txt Makefile.dj Makefile.m32 Makefile.netware Makefile.msvc \
- Makefile.Watcom AUTHORS CONTRIBUTING.md SECURITY.md TODO
-
+ Makefile.Watcom CONTRIBUTING.md SECURITY.md DEVELOPER-NOTES.md \
+ cmake/EnableWarnings.cmake
 
 CLEANFILES = $(PDFPAGES) $(HTMLPAGES)
 

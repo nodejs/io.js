@@ -27,18 +27,17 @@ static int uv__dlerror(uv_lib_t* lib, const char* filename, DWORD errorno);
 
 int uv_dlopen(const char* filename, uv_lib_t* lib) {
   WCHAR filename_w[32768];
+  ssize_t r;
 
   lib->handle = NULL;
   lib->errmsg = NULL;
 
-  if (!MultiByteToWideChar(CP_UTF8,
-                           0,
-                           filename,
-                           -1,
-                           filename_w,
-                           ARRAY_SIZE(filename_w))) {
-    return uv__dlerror(lib, filename, GetLastError());
-  }
+  r = uv_wtf8_length_as_utf16(filename);
+  if (r < 0)
+    return uv__dlerror(lib, filename, ERROR_NO_UNICODE_TRANSLATION);
+  if ((size_t) r > ARRAY_SIZE(filename_w))
+    return uv__dlerror(lib, filename, ERROR_INSUFFICIENT_BUFFER);
+  uv_wtf8_to_utf16(filename, filename_w, r);
 
   lib->handle = LoadLibraryExW(filename_w, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
   if (lib->handle == NULL) {

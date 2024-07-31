@@ -765,6 +765,8 @@ Handle<HeapObject> RegExpMacroAssemblerMIPS::GetCode(Handle<String> source) {
 
       ExternalReference stack_limit =
           ExternalReference::address_of_jslimit(masm_->isolate());
+      Operand extra_space_for_variables(num_registers_ * kPointerSize);
+
       __ li(a0, Operand(stack_limit));
       __ Ld(a0, MemOperand(a0));
       __ Dsubu(a0, sp, a0);
@@ -772,14 +774,14 @@ Handle<HeapObject> RegExpMacroAssemblerMIPS::GetCode(Handle<String> source) {
       __ Branch(&stack_limit_hit, le, a0, Operand(zero_reg));
       // Check if there is room for the variable number of registers above
       // the stack limit.
-      __ Branch(&stack_ok, hs, a0, Operand(num_registers_ * kPointerSize));
+      __ Branch(&stack_ok, hs, a0, extra_space_for_variables);
       // Exit with OutOfMemory exception. There is not enough space on the stack
       // for our working registers.
       __ li(v0, Operand(EXCEPTION));
       __ jmp(&return_v0);
 
       __ bind(&stack_limit_hit);
-      CallCheckStackGuardState(a0);
+      CallCheckStackGuardState(a0, extra_space_for_variables);
       // If returned value is non-zero, we exit with the returned value as
       // result.
       __ Branch(&return_v0, ne, v0, Operand(zero_reg));
@@ -1027,6 +1029,7 @@ Handle<HeapObject> RegExpMacroAssemblerMIPS::GetCode(Handle<String> source) {
   Handle<Code> code =
       Factory::CodeBuilder(isolate(), code_desc, CodeKind::REGEXP)
           .set_self_reference(masm_->CodeObject())
+          .set_empty_source_position_table()
           .Build();
   LOG(masm_->isolate(),
       RegExpCodeCreateEvent(Handle<AbstractCode>::cast(code), source));
@@ -1181,7 +1184,8 @@ bool RegExpMacroAssemblerMIPS::CanReadUnaligned() const { return false; }
 
 // Private methods:
 
-void RegExpMacroAssemblerMIPS::CallCheckStackGuardState(Register scratch) {
+void RegExpMacroAssemblerMIPS::CallCheckStackGuardState(Register scratch,
+                                                        Operand extra_space) {
   DCHECK(!isolate()->IsGeneratingEmbeddedBuiltins());
   DCHECK(!masm_->options().isolate_independent_code);
 
@@ -1194,6 +1198,9 @@ void RegExpMacroAssemblerMIPS::CallCheckStackGuardState(Register scratch) {
   __ And(sp, sp, Operand(-stack_alignment));
   __ Sd(scratch, MemOperand(sp));
 
+  // Extra space for variables to consider in stack check.
+  __ li(a3, extra_space);
+  // RegExp code frame pointer.
   __ mov(a2, frame_pointer());
   // InstructionStream of self.
   __ li(a1, Operand(masm_->CodeObject()), CONSTANT_SIZE);
@@ -1201,16 +1208,6 @@ void RegExpMacroAssemblerMIPS::CallCheckStackGuardState(Register scratch) {
   // We need to make room for the return address on the stack.
   DCHECK(IsAligned(stack_alignment, kPointerSize));
   __ Dsubu(sp, sp, Operand(stack_alignment));
-
-  // The stack pointer now points to cell where the return address will be
-  // written. Arguments are in registers, meaning we treat the return address as
-  // argument 5. Since DirectCEntry will handle allocating space for the C
-  // argument slots, we don't need to care about that here. This is how the
-  // stack will look (sp meaning the value of sp at this moment):
-  // [sp + 3] - empty slot if needed for alignment.
-  // [sp + 2] - saved sp.
-  // [sp + 1] - second word reserved for return value.
-  // [sp + 0] - first word reserved for return value.
 
   // a0 will point to the return address, placed by DirectCEntry.
   __ mov(a0, sp);
@@ -1225,17 +1222,6 @@ void RegExpMacroAssemblerMIPS::CallCheckStackGuardState(Register scratch) {
   __ li(kScratchReg, Operand(entry, RelocInfo::OFF_HEAP_TARGET));
   __ Call(kScratchReg);
 
-  // DirectCEntry allocated space for the C argument slots so we have to
-  // drop them with the return address from the stack with loading saved sp.
-  // At this point stack must look:
-  // [sp + 7] - empty slot if needed for alignment.
-  // [sp + 6] - saved sp.
-  // [sp + 5] - second word reserved for return value.
-  // [sp + 4] - first word reserved for return value.
-  // [sp + 3] - C argument slot.
-  // [sp + 2] - C argument slot.
-  // [sp + 1] - C argument slot.
-  // [sp + 0] - C argument slot.
   __ Ld(sp, MemOperand(sp, stack_alignment + kCArgsSlotsSize));
 
   __ li(code_pointer(), Operand(masm_->CodeObject()));
@@ -1254,8 +1240,10 @@ static T* frame_entry_address(Address re_frame, int frame_offset) {
 
 int64_t RegExpMacroAssemblerMIPS::CheckStackGuardState(Address* return_address,
                                                        Address raw_code,
-                                                       Address re_frame) {
-  InstructionStream re_code = InstructionStream::cast(Object(raw_code));
+                                                       Address re_frame,
+                                                       uintptr_t extra_space) {
+  Tagged<InstructionStream> re_code =
+      InstructionStream::cast(Tagged<Object>(raw_code));
   return NativeRegExpMacroAssembler::CheckStackGuardState(
       frame_entry<Isolate*>(re_frame, kIsolateOffset),
       static_cast<int>(frame_entry<int64_t>(re_frame, kStartIndexOffset)),
@@ -1264,7 +1252,8 @@ int64_t RegExpMacroAssemblerMIPS::CheckStackGuardState(Address* return_address,
       return_address, re_code,
       frame_entry_address<Address>(re_frame, kInputStringOffset),
       frame_entry_address<const uint8_t*>(re_frame, kInputStartOffset),
-      frame_entry_address<const uint8_t*>(re_frame, kInputEndOffset));
+      frame_entry_address<const uint8_t*>(re_frame, kInputEndOffset),
+      extra_space);
 }
 
 MemOperand RegExpMacroAssemblerMIPS::register_location(int register_index) {
@@ -1352,8 +1341,7 @@ void RegExpMacroAssemblerMIPS::CallCFunctionFromIrregexpCode(
   //    fail.
   //
   // See also: crbug.com/v8/12670#c17.
-  __ CallCFunction(function, num_arguments,
-                   MacroAssembler::SetIsolateDataSlots::kNo);
+  __ CallCFunction(function, num_arguments, SetIsolateDataSlots::kNo);
 }
 
 void RegExpMacroAssemblerMIPS::CheckPreemption() {

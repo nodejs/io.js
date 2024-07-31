@@ -9,6 +9,7 @@
 #include <uv.h>
 #include <v8.h>
 #include "data.h"
+#include "defs.h"
 
 namespace node {
 namespace quic {
@@ -74,10 +75,7 @@ class SessionTicket::AppData final {
   };
 
   explicit AppData(SSL* session);
-  AppData(const AppData&) = delete;
-  AppData(AppData&&) = delete;
-  AppData& operator=(const AppData&) = delete;
-  AppData& operator=(AppData&&) = delete;
+  DISALLOW_COPY_AND_MOVE(AppData)
 
   bool Set(const uv_buf_t& data);
   std::optional<const uv_buf_t> Get() const;

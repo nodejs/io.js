@@ -64,68 +64,64 @@ namespace internal {
 // Since string types are not consecutive, this macro is used to iterate over
 // them. The order matters for read only heap layout. The maps are placed such
 // that string types map to address ranges of maps.
-#define STRING_TYPE_LIST(V)                                                   \
-  V(SEQ_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel, seq_two_byte_string,     \
-    SeqTwoByteString)                                                         \
-  V(SEQ_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel, seq_one_byte_string,     \
-    SeqOneByteString)                                                         \
-  V(CONS_TWO_BYTE_STRING_TYPE, ConsString::kSize, cons_two_byte_string,       \
-    ConsTwoByteString)                                                        \
-  V(CONS_ONE_BYTE_STRING_TYPE, ConsString::kSize, cons_one_byte_string,       \
-    ConsOneByteString)                                                        \
-  V(SLICED_TWO_BYTE_STRING_TYPE, SlicedString::kSize, sliced_two_byte_string, \
-    SlicedTwoByteString)                                                      \
-  V(SLICED_ONE_BYTE_STRING_TYPE, SlicedString::kSize, sliced_one_byte_string, \
-    SlicedOneByteString)                                                      \
-  V(EXTERNAL_TWO_BYTE_STRING_TYPE, ExternalTwoByteString::kSize,              \
-    external_two_byte_string, ExternalTwoByteString)                          \
-  V(EXTERNAL_ONE_BYTE_STRING_TYPE, ExternalOneByteString::kSize,              \
-    external_one_byte_string, ExternalOneByteString)                          \
-  V(UNCACHED_EXTERNAL_TWO_BYTE_STRING_TYPE,                                   \
-    ExternalTwoByteString::kUncachedSize, uncached_external_two_byte_string,  \
-    UncachedExternalTwoByteString)                                            \
-  V(UNCACHED_EXTERNAL_ONE_BYTE_STRING_TYPE,                                   \
-    ExternalOneByteString::kUncachedSize, uncached_external_one_byte_string,  \
-    UncachedExternalOneByteString)                                            \
-                                                                              \
-  V(SHARED_EXTERNAL_TWO_BYTE_STRING_TYPE, ExternalTwoByteString::kSize,       \
-    shared_external_two_byte_string, SharedExternalTwoByteString)             \
-  V(SHARED_EXTERNAL_ONE_BYTE_STRING_TYPE, ExternalOneByteString::kSize,       \
-    shared_external_one_byte_string, SharedExternalOneByteString)             \
-  V(SHARED_UNCACHED_EXTERNAL_TWO_BYTE_STRING_TYPE,                            \
-    ExternalTwoByteString::kUncachedSize,                                     \
-    shared_uncached_external_two_byte_string,                                 \
-    SharedUncachedExternalTwoByteString)                                      \
-  V(SHARED_UNCACHED_EXTERNAL_ONE_BYTE_STRING_TYPE,                            \
-    ExternalOneByteString::kUncachedSize,                                     \
-    shared_uncached_external_one_byte_string,                                 \
-    SharedUncachedExternalOneByteString)                                      \
-                                                                              \
-  V(EXTERNAL_INTERNALIZED_TWO_BYTE_STRING_TYPE, ExternalTwoByteString::kSize, \
-    external_internalized_two_byte_string, ExternalInternalizedTwoByteString) \
-  V(EXTERNAL_INTERNALIZED_ONE_BYTE_STRING_TYPE, ExternalOneByteString::kSize, \
-    external_internalized_one_byte_string, ExternalInternalizedOneByteString) \
-  V(UNCACHED_EXTERNAL_INTERNALIZED_TWO_BYTE_STRING_TYPE,                      \
-    ExternalTwoByteString::kUncachedSize,                                     \
-    uncached_external_internalized_two_byte_string,                           \
-    UncachedExternalInternalizedTwoByteString)                                \
-  V(UNCACHED_EXTERNAL_INTERNALIZED_ONE_BYTE_STRING_TYPE,                      \
-    ExternalOneByteString::kUncachedSize,                                     \
-    uncached_external_internalized_one_byte_string,                           \
-    UncachedExternalInternalizedOneByteString)                                \
-                                                                              \
-  V(INTERNALIZED_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel,                 \
-    internalized_two_byte_string, InternalizedTwoByteString)                  \
-  V(INTERNALIZED_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel,                 \
-    internalized_one_byte_string, InternalizedOneByteString)                  \
-                                                                              \
-  V(THIN_TWO_BYTE_STRING_TYPE, ThinString::kSize, thin_two_byte_string,       \
-    ThinTwoByteString)                                                        \
-  V(THIN_ONE_BYTE_STRING_TYPE, ThinString::kSize, thin_one_byte_string,       \
-    ThinOneByteString)                                                        \
-  V(SHARED_SEQ_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel,                   \
-    shared_seq_two_byte_string, SharedSeqTwoByteString)                       \
-  V(SHARED_SEQ_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel,                   \
+#define STRING_TYPE_LIST(V)                                                    \
+  V(SEQ_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel, seq_two_byte_string,      \
+    SeqTwoByteString)                                                          \
+  V(SEQ_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel, seq_one_byte_string,      \
+    SeqOneByteString)                                                          \
+  V(CONS_TWO_BYTE_STRING_TYPE, sizeof(ConsString), cons_two_byte_string,       \
+    ConsTwoByteString)                                                         \
+  V(CONS_ONE_BYTE_STRING_TYPE, sizeof(ConsString), cons_one_byte_string,       \
+    ConsOneByteString)                                                         \
+  V(SLICED_TWO_BYTE_STRING_TYPE, sizeof(SlicedString), sliced_two_byte_string, \
+    SlicedTwoByteString)                                                       \
+  V(SLICED_ONE_BYTE_STRING_TYPE, sizeof(SlicedString), sliced_one_byte_string, \
+    SlicedOneByteString)                                                       \
+  V(EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(ExternalTwoByteString),              \
+    external_two_byte_string, ExternalTwoByteString)                           \
+  V(EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(ExternalOneByteString),              \
+    external_one_byte_string, ExternalOneByteString)                           \
+  V(UNCACHED_EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(UncachedExternalString),    \
+    uncached_external_two_byte_string, UncachedExternalTwoByteString)          \
+  V(UNCACHED_EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(UncachedExternalString),    \
+    uncached_external_one_byte_string, UncachedExternalOneByteString)          \
+                                                                               \
+  V(SHARED_EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(ExternalTwoByteString),       \
+    shared_external_two_byte_string, SharedExternalTwoByteString)              \
+  V(SHARED_EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(ExternalOneByteString),       \
+    shared_external_one_byte_string, SharedExternalOneByteString)              \
+  V(SHARED_UNCACHED_EXTERNAL_TWO_BYTE_STRING_TYPE,                             \
+    sizeof(UncachedExternalString), shared_uncached_external_two_byte_string,  \
+    SharedUncachedExternalTwoByteString)                                       \
+  V(SHARED_UNCACHED_EXTERNAL_ONE_BYTE_STRING_TYPE,                             \
+    sizeof(UncachedExternalString), shared_uncached_external_one_byte_string,  \
+    SharedUncachedExternalOneByteString)                                       \
+                                                                               \
+  V(EXTERNAL_INTERNALIZED_TWO_BYTE_STRING_TYPE, sizeof(ExternalTwoByteString), \
+    external_internalized_two_byte_string, ExternalInternalizedTwoByteString)  \
+  V(EXTERNAL_INTERNALIZED_ONE_BYTE_STRING_TYPE, sizeof(ExternalOneByteString), \
+    external_internalized_one_byte_string, ExternalInternalizedOneByteString)  \
+  V(UNCACHED_EXTERNAL_INTERNALIZED_TWO_BYTE_STRING_TYPE,                       \
+    sizeof(UncachedExternalString),                                            \
+    uncached_external_internalized_two_byte_string,                            \
+    UncachedExternalInternalizedTwoByteString)                                 \
+  V(UNCACHED_EXTERNAL_INTERNALIZED_ONE_BYTE_STRING_TYPE,                       \
+    sizeof(UncachedExternalString),                                            \
+    uncached_external_internalized_one_byte_string,                            \
+    UncachedExternalInternalizedOneByteString)                                 \
+                                                                               \
+  V(INTERNALIZED_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel,                  \
+    internalized_two_byte_string, InternalizedTwoByteString)                   \
+  V(INTERNALIZED_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel,                  \
+    internalized_one_byte_string, InternalizedOneByteString)                   \
+                                                                               \
+  V(THIN_TWO_BYTE_STRING_TYPE, sizeof(ThinString), thin_two_byte_string,       \
+    ThinTwoByteString)                                                         \
+  V(THIN_ONE_BYTE_STRING_TYPE, sizeof(ThinString), thin_one_byte_string,       \
+    ThinOneByteString)                                                         \
+  V(SHARED_SEQ_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel,                    \
+    shared_seq_two_byte_string, SharedSeqTwoByteString)                        \
+  V(SHARED_SEQ_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel,                    \
     shared_seq_one_byte_string, SharedSeqOneByteString)
 
 // A struct is a simple object a set of object-valued fields.  Including an
@@ -133,59 +129,56 @@ namespace internal {
 // code for the class including allocation and garbage collection routines,
 // casts and predicates.  All you need to define is the class, methods and
 // object verification routines.  Easy, no?
-#define STRUCT_LIST_GENERATOR(V, _)                                            \
-  V(_, PROMISE_FULFILL_REACTION_JOB_TASK_TYPE, PromiseFulfillReactionJobTask,  \
-    promise_fulfill_reaction_job_task)                                         \
-  V(_, PROMISE_REJECT_REACTION_JOB_TASK_TYPE, PromiseRejectReactionJobTask,    \
-    promise_reject_reaction_job_task)                                          \
-  V(_, CALLABLE_TASK_TYPE, CallableTask, callable_task)                        \
-  V(_, CALLBACK_TASK_TYPE, CallbackTask, callback_task)                        \
-  V(_, PROMISE_RESOLVE_THENABLE_JOB_TASK_TYPE, PromiseResolveThenableJobTask,  \
-    promise_resolve_thenable_job_task)                                         \
-  V(_, FUNCTION_TEMPLATE_INFO_TYPE, FunctionTemplateInfo,                      \
-    function_template_info)                                                    \
-  V(_, OBJECT_TEMPLATE_INFO_TYPE, ObjectTemplateInfo, object_template_info)    \
-  V(_, ACCESS_CHECK_INFO_TYPE, AccessCheckInfo, access_check_info)             \
-  V(_, ACCESSOR_PAIR_TYPE, AccessorPair, accessor_pair)                        \
-  V(_, ALIASED_ARGUMENTS_ENTRY_TYPE, AliasedArgumentsEntry,                    \
-    aliased_arguments_entry)                                                   \
-  V(_, ALLOCATION_MEMENTO_TYPE, AllocationMemento, allocation_memento)         \
-  V(_, ARRAY_BOILERPLATE_DESCRIPTION_TYPE, ArrayBoilerplateDescription,        \
-    array_boilerplate_description)                                             \
-  IF_WASM(V, _, ASM_WASM_DATA_TYPE, AsmWasmData, asm_wasm_data)                \
-  V(_, ASYNC_GENERATOR_REQUEST_TYPE, AsyncGeneratorRequest,                    \
-    async_generator_request)                                                   \
-  V(_, BREAK_POINT_TYPE, BreakPoint, break_point)                              \
-  V(_, BREAK_POINT_INFO_TYPE, BreakPointInfo, break_point_info)                \
-  V(_, CALL_SITE_INFO_TYPE, CallSiteInfo, call_site_info)                      \
-  V(_, CLASS_POSITIONS_TYPE, ClassPositions, class_positions)                  \
-  V(_, DEBUG_INFO_TYPE, DebugInfo, debug_info)                                 \
-  V(_, ENUM_CACHE_TYPE, EnumCache, enum_cache)                                 \
-  V(_, ERROR_STACK_DATA_TYPE, ErrorStackData, error_stack_data)                \
-  V(_, FUNCTION_TEMPLATE_RARE_DATA_TYPE, FunctionTemplateRareData,             \
-    function_template_rare_data)                                               \
-  V(_, INTERCEPTOR_INFO_TYPE, InterceptorInfo, interceptor_info)               \
-  V(_, INTERPRETER_DATA_TYPE, InterpreterData, interpreter_data)               \
-  V(_, MODULE_REQUEST_TYPE, ModuleRequest, module_request)                     \
-  V(_, PROMISE_CAPABILITY_TYPE, PromiseCapability, promise_capability)         \
-  V(_, PROMISE_ON_STACK_TYPE, PromiseOnStack, promise_on_stack)                \
-  V(_, PROMISE_REACTION_TYPE, PromiseReaction, promise_reaction)               \
-  V(_, PROPERTY_DESCRIPTOR_OBJECT_TYPE, PropertyDescriptorObject,              \
-    property_descriptor_object)                                                \
-  V(_, PROTOTYPE_INFO_TYPE, PrototypeInfo, prototype_info)                     \
-  V(_, REG_EXP_BOILERPLATE_DESCRIPTION_TYPE, RegExpBoilerplateDescription,     \
-    regexp_boilerplate_description)                                            \
-  V(_, SCRIPT_TYPE, Script, script)                                            \
-  V(_, SCRIPT_OR_MODULE_TYPE, ScriptOrModule, script_or_module)                \
-  V(_, SOURCE_TEXT_MODULE_INFO_ENTRY_TYPE, SourceTextModuleInfoEntry,          \
-    module_info_entry)                                                         \
-  V(_, STACK_FRAME_INFO_TYPE, StackFrameInfo, stack_frame_info)                \
-  V(_, TEMPLATE_OBJECT_DESCRIPTION_TYPE, TemplateObjectDescription,            \
-    template_object_description)                                               \
-  V(_, TUPLE2_TYPE, Tuple2, tuple2)                                            \
-  IF_WASM(V, _, WASM_EXCEPTION_TAG_TYPE, WasmExceptionTag, wasm_exception_tag) \
-  IF_WASM(V, _, WASM_INDIRECT_FUNCTION_TABLE_TYPE, WasmIndirectFunctionTable,  \
-          wasm_indirect_function_table)
+#define STRUCT_LIST_GENERATOR(V, _)                                           \
+  V(_, PROMISE_FULFILL_REACTION_JOB_TASK_TYPE, PromiseFulfillReactionJobTask, \
+    promise_fulfill_reaction_job_task)                                        \
+  V(_, PROMISE_REJECT_REACTION_JOB_TASK_TYPE, PromiseRejectReactionJobTask,   \
+    promise_reject_reaction_job_task)                                         \
+  V(_, CALLABLE_TASK_TYPE, CallableTask, callable_task)                       \
+  V(_, CALLBACK_TASK_TYPE, CallbackTask, callback_task)                       \
+  V(_, PROMISE_RESOLVE_THENABLE_JOB_TASK_TYPE, PromiseResolveThenableJobTask, \
+    promise_resolve_thenable_job_task)                                        \
+  V(_, ACCESS_CHECK_INFO_TYPE, AccessCheckInfo, access_check_info)            \
+  V(_, ACCESSOR_PAIR_TYPE, AccessorPair, accessor_pair)                       \
+  V(_, ALIASED_ARGUMENTS_ENTRY_TYPE, AliasedArgumentsEntry,                   \
+    aliased_arguments_entry)                                                  \
+  V(_, ALLOCATION_MEMENTO_TYPE, AllocationMemento, allocation_memento)        \
+  V(_, ARRAY_BOILERPLATE_DESCRIPTION_TYPE, ArrayBoilerplateDescription,       \
+    array_boilerplate_description)                                            \
+  IF_WASM(V, _, ASM_WASM_DATA_TYPE, AsmWasmData, asm_wasm_data)               \
+  V(_, ASYNC_GENERATOR_REQUEST_TYPE, AsyncGeneratorRequest,                   \
+    async_generator_request)                                                  \
+  V(_, BREAK_POINT_TYPE, BreakPoint, break_point)                             \
+  V(_, BREAK_POINT_INFO_TYPE, BreakPointInfo, break_point_info)               \
+  V(_, BYTECODE_WRAPPER_TYPE, BytecodeWrapper, bytecode_wrapper)              \
+  V(_, CALL_SITE_INFO_TYPE, CallSiteInfo, call_site_info)                     \
+  V(_, CLASS_BOILERPLATE_TYPE, ClassBoilerplate, class_boilerplate)           \
+  V(_, CLASS_POSITIONS_TYPE, ClassPositions, class_positions)                 \
+  V(_, CODE_WRAPPER_TYPE, CodeWrapper, code_wrapper)                          \
+  V(_, DEBUG_INFO_TYPE, DebugInfo, debug_info)                                \
+  V(_, ENUM_CACHE_TYPE, EnumCache, enum_cache)                                \
+  V(_, ERROR_STACK_DATA_TYPE, ErrorStackData, error_stack_data)               \
+  V(_, FUNCTION_TEMPLATE_RARE_DATA_TYPE, FunctionTemplateRareData,            \
+    function_template_rare_data)                                              \
+  V(_, INTERCEPTOR_INFO_TYPE, InterceptorInfo, interceptor_info)              \
+  V(_, MODULE_REQUEST_TYPE, ModuleRequest, module_request)                    \
+  V(_, PROMISE_CAPABILITY_TYPE, PromiseCapability, promise_capability)        \
+  V(_, PROMISE_ON_STACK_TYPE, PromiseOnStack, promise_on_stack)               \
+  V(_, PROMISE_REACTION_TYPE, PromiseReaction, promise_reaction)              \
+  V(_, PROPERTY_DESCRIPTOR_OBJECT_TYPE, PropertyDescriptorObject,             \
+    property_descriptor_object)                                               \
+  V(_, PROTOTYPE_INFO_TYPE, PrototypeInfo, prototype_info)                    \
+  V(_, REG_EXP_BOILERPLATE_DESCRIPTION_TYPE, RegExpBoilerplateDescription,    \
+    regexp_boilerplate_description)                                           \
+  V(_, SCRIPT_TYPE, Script, script)                                           \
+  V(_, SCRIPT_OR_MODULE_TYPE, ScriptOrModule, script_or_module)               \
+  V(_, SOURCE_TEXT_MODULE_INFO_ENTRY_TYPE, SourceTextModuleInfoEntry,         \
+    module_info_entry)                                                        \
+  V(_, STACK_FRAME_INFO_TYPE, StackFrameInfo, stack_frame_info)               \
+  V(_, TEMPLATE_OBJECT_DESCRIPTION_TYPE, TemplateObjectDescription,           \
+    template_object_description)                                              \
+  V(_, TUPLE2_TYPE, Tuple2, tuple2)                                           \
+  IF_WASM(V, _, WASM_EXCEPTION_TAG_TYPE, WasmExceptionTag, wasm_exception_tag)
 
 // Adapts one STRUCT_LIST_GENERATOR entry to the STRUCT_LIST entry
 #define STRUCT_LIST_ADAPTER(V, NAME, Name, name) V(NAME, Name, name)

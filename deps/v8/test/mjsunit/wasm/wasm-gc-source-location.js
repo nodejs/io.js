@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc
-
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
 function TestStackTrace(testFct, trap, expected) {
@@ -28,14 +26,14 @@ function TestStackTrace(testFct, trap, expected) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, otherStruct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('main', makeSig([kWasmExternRef], []))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, kStructRefCode,  // abstract cast
       kGCPrefix, kExprRefCastNull, struct,          // type cast
       kGCPrefix, kExprRefCast, struct,              // null check
@@ -58,7 +56,7 @@ function TestStackTrace(testFct, trap, expected) {
   builder.addFunction('arrayLen', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, kArrayRefCode,
       kGCPrefix, kExprArrayLen,
     ])
@@ -78,7 +76,7 @@ function TestStackTrace(testFct, trap, expected) {
   builder.addFunction('structGet', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, struct,
       kGCPrefix, kExprStructGet, struct, 0,
     ])
@@ -100,7 +98,7 @@ function TestStackTrace(testFct, trap, expected) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, structA,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
@@ -108,7 +106,7 @@ function TestStackTrace(testFct, trap, expected) {
     .addLocals(kWasmAnyRef, 1)
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, structA,
       // Convert static type to anyref.
       kExprLocalSet, 1, kExprLocalGet, 1,
@@ -138,7 +136,7 @@ function TestStackTrace(testFct, trap, expected) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
@@ -146,7 +144,7 @@ function TestStackTrace(testFct, trap, expected) {
     .addLocals(kWasmAnyRef, 1)
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, struct,
       // Convert static type to anyref.
       kExprLocalSet, 1, kExprLocalGet, 1,

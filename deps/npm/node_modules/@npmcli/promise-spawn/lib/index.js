@@ -12,54 +12,55 @@ const promiseSpawn = (cmd, args, opts = {}, extra = {}) => {
     return spawnWithShell(cmd, args, opts, extra)
   }
 
-  let proc
-
-  const p = new Promise((res, rej) => {
-    proc = spawn(cmd, args, opts)
-
-    const stdout = []
-    const stderr = []
-
-    const reject = er => rej(Object.assign(er, {
-      cmd,
-      args,
-      ...stdioResult(stdout, stderr, opts),
-      ...extra,
-    }))
-
-    proc.on('error', reject)
-
-    if (proc.stdout) {
-      proc.stdout.on('data', c => stdout.push(c)).on('error', reject)
-      proc.stdout.on('error', er => reject(er))
-    }
-
-    if (proc.stderr) {
-      proc.stderr.on('data', c => stderr.push(c)).on('error', reject)
-      proc.stderr.on('error', er => reject(er))
-    }
-
-    proc.on('close', (code, signal) => {
-      const result = {
-        cmd,
-        args,
-        code,
-        signal,
-        ...stdioResult(stdout, stderr, opts),
-        ...extra,
-      }
-
-      if (code || signal) {
-        rej(Object.assign(new Error('command failed'), result))
-      } else {
-        res(result)
-      }
-    })
+  let resolve, reject
+  const promise = new Promise((_resolve, _reject) => {
+    resolve = _resolve
+    reject = _reject
   })
 
-  p.stdin = proc.stdin
-  p.process = proc
-  return p
+  // Create error here so we have a more useful stack trace when rejecting
+  const closeError = new Error('command failed')
+
+  const stdout = []
+  const stderr = []
+
+  const getResult = (result) => ({
+    cmd,
+    args,
+    ...result,
+    ...stdioResult(stdout, stderr, opts),
+    ...extra,
+  })
+  const rejectWithOpts = (er, erOpts) => {
+    const resultError = getResult(erOpts)
+    reject(Object.assign(er, resultError))
+  }
+
+  const proc = spawn(cmd, args, opts)
+  promise.stdin = proc.stdin
+  promise.process = proc
+
+  proc.on('error', rejectWithOpts)
+
+  if (proc.stdout) {
+    proc.stdout.on('data', c => stdout.push(c))
+    proc.stdout.on('error', rejectWithOpts)
+  }
+
+  if (proc.stderr) {
+    proc.stderr.on('data', c => stderr.push(c))
+    proc.stderr.on('error', rejectWithOpts)
+  }
+
+  proc.on('close', (code, signal) => {
+    if (code || signal) {
+      rejectWithOpts(closeError, { code, signal })
+    } else {
+      resolve(getResult({ code, signal }))
+    }
+  })
+
+  return promise
 }
 
 const spawnWithShell = (cmd, args, opts, extra) => {
@@ -100,8 +101,8 @@ const spawnWithShell = (cmd, args, opts, extra) => {
     let pathToInitial
     try {
       pathToInitial = which.sync(initialCmd, {
-        path: (options.env && options.env.PATH) || process.env.PATH,
-        pathext: (options.env && options.env.PATHEXT) || process.env.PATHEXT,
+        path: (options.env && findInObject(options.env, 'PATH')) || process.env.PATH,
+        pathext: (options.env && findInObject(options.env, 'PATHEXT')) || process.env.PATHEXT,
       }).toLowerCase()
     } catch (err) {
       pathToInitial = initialCmd.toLowerCase()
@@ -190,6 +191,16 @@ const stdioResult = (stdout, stderr, { stdioString = true, stdio }) => {
   }
 
   return result
+}
+
+// case insensitive lookup in an object
+const findInObject = (obj, key) => {
+  key = key.toLowerCase()
+  for (const objKey of Object.keys(obj).sort()) {
+    if (objKey.toLowerCase() === key) {
+      return obj[objKey]
+    }
+  }
 }
 
 module.exports = promiseSpawn

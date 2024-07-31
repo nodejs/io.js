@@ -1,9 +1,9 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
-#include "node.h"
-#include "uv.h"
 #include <assert.h>
+#include "executable_wrapper.h"
+#include "node.h"
 
 #include <algorithm>
 
@@ -27,14 +27,23 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
                            const std::vector<std::string>& args,
                            const std::vector<std::string>& exec_args);
 
-int main(int argc, char** argv) {
-  argv = uv_setup_args(argc, argv);
+NODE_MAIN(int argc, node::argv_type raw_argv[]) {
+  char** argv = nullptr;
+  node::FixupMain(argc, raw_argv, &argv);
+
   std::vector<std::string> args(argv, argv + argc);
-  std::unique_ptr<node::InitializationResult> result =
+  std::shared_ptr<node::InitializationResult> result =
       node::InitializeOncePerProcess(
           args,
-          {node::ProcessInitializationFlags::kNoInitializeV8,
-           node::ProcessInitializationFlags::kNoInitializeNodeV8Platform});
+          {
+              node::ProcessInitializationFlags::kNoInitializeV8,
+              node::ProcessInitializationFlags::kNoInitializeNodeV8Platform,
+              // This is used to test NODE_REPL_EXTERNAL_MODULE is disabled with
+              // kDisableNodeOptionsEnv. If other tests need NODE_OPTIONS
+              // support in the future, split this configuration out as a
+              // command line option.
+              node::ProcessInitializationFlags::kDisableNodeOptionsEnv,
+          });
 
   for (const std::string& error : result->errors())
     fprintf(stderr, "%s: %s\n", args[0].c_str(), error.c_str());
@@ -68,6 +77,7 @@ int RunNodeInstance(MultiIsolatePlatform* platform,
   //           --embedder-snapshot-blob blob-path
   //           --embedder-snapshot-create
   //           [--embedder-snapshot-as-file]
+  //           [--without-code-cache]
   // Running snapshot:
   // embedtest --embedder-snapshot-blob blob-path
   //           [--embedder-snapshot-as-file]
@@ -80,6 +90,7 @@ int RunNodeInstance(MultiIsolatePlatform* platform,
   std::vector<std::string> filtered_args;
   bool is_building_snapshot = false;
   bool snapshot_as_file = false;
+  std::optional<node::SnapshotConfig> snapshot_config;
   std::string snapshot_blob_path;
   for (size_t i = 0; i < args.size(); ++i) {
     const std::string& arg = args[i];
@@ -87,6 +98,13 @@ int RunNodeInstance(MultiIsolatePlatform* platform,
       is_building_snapshot = true;
     } else if (arg == "--embedder-snapshot-as-file") {
       snapshot_as_file = true;
+    } else if (arg == "--without-code-cache") {
+      if (!snapshot_config.has_value()) {
+        snapshot_config = node::SnapshotConfig{};
+      }
+      snapshot_config.value().flags = static_cast<node::SnapshotFlags>(
+          static_cast<uint32_t>(snapshot_config.value().flags) |
+          static_cast<uint32_t>(node::SnapshotFlags::kWithoutCodeCache));
     } else if (arg == "--embedder-snapshot-blob") {
       assert(i + 1 < args.size());
       snapshot_blob_path = args[i + 1];
@@ -97,7 +115,7 @@ int RunNodeInstance(MultiIsolatePlatform* platform,
   }
 
   if (!snapshot_blob_path.empty() && !is_building_snapshot) {
-    FILE* fp = fopen(snapshot_blob_path.c_str(), "r");
+    FILE* fp = fopen(snapshot_blob_path.c_str(), "rb");
     assert(fp != nullptr);
     if (snapshot_as_file) {
       snapshot = node::EmbedderSnapshotData::FromFile(fp);
@@ -130,14 +148,23 @@ int RunNodeInstance(MultiIsolatePlatform* platform,
   }
 
   std::vector<std::string> errors;
-  std::unique_ptr<CommonEnvironmentSetup> setup =
-      snapshot
-          ? CommonEnvironmentSetup::CreateFromSnapshot(
-                platform, &errors, snapshot.get(), filtered_args, exec_args)
-      : is_building_snapshot ? CommonEnvironmentSetup::CreateForSnapshotting(
-                                   platform, &errors, filtered_args, exec_args)
-                             : CommonEnvironmentSetup::Create(
-                                   platform, &errors, filtered_args, exec_args);
+  std::unique_ptr<CommonEnvironmentSetup> setup;
+
+  if (snapshot) {
+    setup = CommonEnvironmentSetup::CreateFromSnapshot(
+        platform, &errors, snapshot.get(), filtered_args, exec_args);
+  } else if (is_building_snapshot) {
+    if (snapshot_config.has_value()) {
+      setup = CommonEnvironmentSetup::CreateForSnapshotting(
+          platform, &errors, filtered_args, exec_args, snapshot_config.value());
+    } else {
+      setup = CommonEnvironmentSetup::CreateForSnapshotting(
+          platform, &errors, filtered_args, exec_args);
+    }
+  } else {
+    setup = CommonEnvironmentSetup::Create(
+        platform, &errors, filtered_args, exec_args);
+  }
   if (!setup) {
     for (const std::string& err : errors)
       fprintf(stderr, "%s: %s\n", binary_path.c_str(), err.c_str());
@@ -186,7 +213,7 @@ int RunNodeInstance(MultiIsolatePlatform* platform,
     snapshot = setup->CreateSnapshot();
     assert(snapshot);
 
-    FILE* fp = fopen(snapshot_blob_path.c_str(), "w");
+    FILE* fp = fopen(snapshot_blob_path.c_str(), "wb");
     assert(fp != nullptr);
     if (snapshot_as_file) {
       snapshot->ToFile(fp);

@@ -58,8 +58,8 @@ double ParseDateTimeString(Isolate* isolate, Handle<String> str) {
   return DateCache::TimeClip(date);
 }
 
-Object SetLocalDateValue(Isolate* isolate, Handle<JSDate> date,
-                         double time_val) {
+Tagged<Object> SetLocalDateValue(Isolate* isolate, Handle<JSDate> date,
+                                 double time_val) {
   if (time_val >= -DateCache::kMaxTimeBeforeUTCInMs &&
       time_val <= DateCache::kMaxTimeBeforeUTCInMs) {
     time_val = isolate->date_cache()->ToUTC(static_cast<int64_t>(time_val));

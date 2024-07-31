@@ -16,12 +16,12 @@ const ciphers = getCiphers();
 assert.strictEqual(getCipherInfo(-1), undefined);
 assert.strictEqual(getCipherInfo('cipher that does not exist'), undefined);
 
-ciphers.forEach((cipher) => {
+for (const cipher of ciphers) {
   const info = getCipherInfo(cipher);
   assert(info);
   const info2 = getCipherInfo(info.nid);
   assert.deepStrictEqual(info, info2);
-});
+}
 
 const info = getCipherInfo('aes-128-cbc');
 assert.strictEqual(info.name, 'aes-128-cbc');

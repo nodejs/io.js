@@ -39,7 +39,7 @@ static void getnameinfo_req(uv_getnameinfo_t* handle,
                             const char* hostname,
                             const char* service) {
   ASSERT_NOT_NULL(handle);
-  ASSERT(status == 0);
+  ASSERT_OK(status);
   ASSERT_NOT_NULL(hostname);
   ASSERT_NOT_NULL(service);
 }
@@ -54,14 +54,14 @@ TEST_IMPL(getnameinfo_basic_ip4) {
   int r;
 
   r = uv_ip4_addr(address_ip4, port, &addr4);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_getnameinfo(uv_default_loop(),
                      &req,
                      &getnameinfo_req,
                      (const struct sockaddr*)&addr4,
                      0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
@@ -76,15 +76,15 @@ TEST_IMPL(getnameinfo_basic_ip4_sync) {
   RETURN_SKIP("Test does not currently work in QEMU");
 #endif
 
-  ASSERT(0 == uv_ip4_addr(address_ip4, port, &addr4));
+  ASSERT_OK(uv_ip4_addr(address_ip4, port, &addr4));
 
-  ASSERT(0 == uv_getnameinfo(uv_default_loop(),
-                             &req,
-                             NULL,
-                             (const struct sockaddr*)&addr4,
-                             0));
-  ASSERT(req.host[0] != '\0');
-  ASSERT(req.service[0] != '\0');
+  ASSERT_OK(uv_getnameinfo(uv_default_loop(),
+                           &req,
+                           NULL,
+                           (const struct sockaddr*)&addr4,
+                           0));
+  ASSERT_NE(req.host[0], '\0');
+  ASSERT_NE(req.service[0], '\0');
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
@@ -100,14 +100,14 @@ TEST_IMPL(getnameinfo_basic_ip6) {
   int r;
 
   r = uv_ip6_addr(address_ip6, port, &addr6);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   r = uv_getnameinfo(uv_default_loop(),
                      &req,
                      &getnameinfo_req,
                      (const struct sockaddr*)&addr6,
                      0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 

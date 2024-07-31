@@ -5,7 +5,6 @@
 #ifndef V8_CODEGEN_ARM64_DECODER_ARM64_INL_H_
 #define V8_CODEGEN_ARM64_DECODER_ARM64_INL_H_
 
-#include "src/base/v8-fallthrough.h"
 #include "src/codegen/arm64/decoder-arm64.h"
 
 namespace v8 {
@@ -475,7 +474,7 @@ void Decoder<V>::DecodeDataProcessing(Instruction* instr) {
             }
             break;
           }
-          V8_FALLTHROUGH;
+          [[fallthrough]];
         }
         case 1:
         case 3:

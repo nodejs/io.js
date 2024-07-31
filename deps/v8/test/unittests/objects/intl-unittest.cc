@@ -178,10 +178,10 @@ TEST_F(IntlTest, GetStringOption) {
     Maybe<bool> found =
         GetStringOption(i_isolate(), options, "foo",
                         std::vector<const char*>{"bar"}, "service", &result);
-    CHECK(i_isolate()->has_pending_exception());
+    CHECK(i_isolate()->has_exception());
     CHECK(found.IsNothing());
     CHECK_NULL(result);
-    i_isolate()->clear_pending_exception();
+    i_isolate()->clear_exception();
   }
 
   {

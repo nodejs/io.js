@@ -56,10 +56,11 @@ void BindingData::DecreaseAllocatedSize(size_t size) {
   current_ngtcp2_memory_ -= size;
 }
 
-void BindingData::Initialize(Environment* env, Local<Object> target) {
-  SetMethod(env->context(), target, "setCallbacks", SetCallbacks);
-  SetMethod(env->context(), target, "flushPacketFreelist", FlushPacketFreelist);
-  Realm::GetCurrent(env->context())->AddBindingData<BindingData>(target);
+void BindingData::InitPerContext(Realm* realm, Local<Object> target) {
+  SetMethod(realm->context(), target, "setCallbacks", SetCallbacks);
+  SetMethod(
+      realm->context(), target, "flushPacketFreelist", FlushPacketFreelist);
+  Realm::GetCurrent(realm->context())->AddBindingData<BindingData>(target);
 }
 
 void BindingData::RegisterExternalReferences(
@@ -203,8 +204,12 @@ CallbackScopeBase::CallbackScopeBase(Environment* env)
     : env(env), context_scope(env->context()), try_catch(env->isolate()) {}
 
 CallbackScopeBase::~CallbackScopeBase() {
-  if (try_catch.HasCaught() && !try_catch.HasTerminated()) {
-    errors::TriggerUncaughtException(env->isolate(), try_catch);
+  if (try_catch.HasCaught()) {
+    if (!try_catch.HasTerminated() && env->can_call_into_js()) {
+      errors::TriggerUncaughtException(env->isolate(), try_catch);
+    } else {
+      try_catch.ReThrow();
+    }
   }
 }
 

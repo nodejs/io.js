@@ -49,32 +49,25 @@ void BaselineCompiler::PrologueFillFrame() {
   const int kLoopUnrollSize = 8;
   const int new_target_index = new_target_or_generator_register.index();
   const bool has_new_target = new_target_index != kMaxInt;
-  // BaselineOutOfLinePrologue already pushed one undefined.
-  register_count -= 1;
   if (has_new_target) {
-    if (new_target_index == 0) {
-      // Oops, need to fix up that undefined that BaselineOutOfLinePrologue
-      // pushed.
-      __ masm()->Poke(kJavaScriptCallNewTargetRegister, Operand(0));
-    } else {
       DCHECK_LE(new_target_index, register_count);
-      int index = 1;
-      for (; index + 2 <= new_target_index; index += 2) {
+      int before_new_target_count = 0;
+      for (; before_new_target_count + 2 <= new_target_index;
+           before_new_target_count += 2) {
         __ masm()->Push(kInterpreterAccumulatorRegister,
                         kInterpreterAccumulatorRegister);
       }
-      if (index == new_target_index) {
+      if (before_new_target_count == new_target_index) {
         __ masm()->Push(kJavaScriptCallNewTargetRegister,
                         kInterpreterAccumulatorRegister);
       } else {
-        DCHECK_EQ(index, new_target_index - 1);
+        DCHECK_EQ(before_new_target_count + 1, new_target_index);
         __ masm()->Push(kInterpreterAccumulatorRegister,
                         kJavaScriptCallNewTargetRegister);
       }
-      // We pushed "index" registers, minus the one the prologue pushed, plus
-      // the two registers that included new_target.
-      register_count -= (index - 1 + 2);
-    }
+      // We pushed before_new_target_count registers, plus the two registers
+      // that included new_target.
+      register_count -= (before_new_target_count + 2);
   }
   if (register_count < 2 * kLoopUnrollSize) {
     // If the frame is small enough, just unroll the frame fill completely.

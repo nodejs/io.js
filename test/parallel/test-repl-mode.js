@@ -1,8 +1,10 @@
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const Stream = require('stream');
 const repl = require('repl');
+
+common.skipIfDumbTerminal();
 
 const tests = [
   testSloppyMode,

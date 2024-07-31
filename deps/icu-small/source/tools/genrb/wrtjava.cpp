@@ -330,7 +330,6 @@ string_write_java(const StringResource *res,UErrorCode *status) {
 static void
 array_write_java(const ArrayResource *res, UErrorCode *status) {
 
-    uint32_t  i         = 0;
     const char* arr ="new String[] { \n";
     struct SResource *current = nullptr;
     UBool allStrings    = true;
@@ -342,7 +341,6 @@ array_write_java(const ArrayResource *res, UErrorCode *status) {
     if (res->fCount > 0) {
 
         current = res->fFirst;
-        i = 0;
         while(current != nullptr){
             if(!current->isString()){
                 allStrings = false;
@@ -370,7 +368,6 @@ array_write_java(const ArrayResource *res, UErrorCode *status) {
             if(U_FAILURE(*status)){
                 return;
             }
-            i++;
             current = current->fNext;
         }
         T_FileStream_write(out,"\n",1);

@@ -9,13 +9,13 @@ Subject: [PATCH] Build minizip zip and unzip tools
  2 files changed, 9 insertions(+), 11 deletions(-)
 
 diff --git a/third_party/zlib/contrib/minizip/miniunz.c b/third_party/zlib/contrib/minizip/miniunz.c
-index 3d65401be5cd..08737f689a96 100644
+index 8ada038dbd4e7..5b4312e5647cd 100644
 --- a/third_party/zlib/contrib/minizip/miniunz.c
 +++ b/third_party/zlib/contrib/minizip/miniunz.c
 @@ -12,7 +12,7 @@
           Copyright (C) 2009-2010 Mathias Svensson ( http://result42.com )
  */
-
+ 
 -#if (!defined(_WIN32)) && (!defined(WIN32)) && (!defined(__APPLE__))
 +#if (!defined(_WIN32)) && (!defined(WIN32)) && (!defined(__APPLE__)) && (!defined(__ANDROID_API__))
          #ifndef __USE_FILE_OFFSET64
@@ -24,32 +24,24 @@ index 3d65401be5cd..08737f689a96 100644
 @@ -27,7 +27,7 @@
          #endif
  #endif
-
--#ifdef __APPLE__
-+#if defined(__APPLE__) || defined(__Fuchsia__) || defined(__ANDROID_API__)
+ 
+-#if defined(__APPLE__) || defined(__HAIKU__) || defined(MINIZIP_FOPEN_NO_64)
++#if defined(__APPLE__) || defined(__HAIKU__) || defined(MINIZIP_FOPEN_NO_64) || defined(__Fuchsia__) || defined(__ANDROID_API__)
  // In darwin and perhaps other BSD variants off_t is a 64 bit value, hence no need for specific 64 bit functions
  #define FOPEN_FUNC(filename, mode) fopen(filename, mode)
  #define FTELLO_FUNC(stream) ftello(stream)
-@@ -45,6 +45,7 @@
- #include <time.h>
- #include <errno.h>
- #include <fcntl.h>
-+#include <sys/stat.h>
-
- #ifdef _WIN32
- # include <direct.h>
-@@ -97,7 +98,7 @@ void change_file_date(filename,dosdate,tmu_date)
+@@ -94,7 +94,7 @@ static void change_file_date(const char *filename, uLong dosdate, tm_unz tmu_dat
    SetFileTime(hFile,&ftm,&ftLastAcc,&ftm);
    CloseHandle(hFile);
  #else
--#ifdef unix || __APPLE__
+-#if defined(unix) || defined(__APPLE__)
 +#if defined(unix) || defined(__APPLE__) || defined(__Fuchsia__) || defined(__ANDROID_API__)
+   (void)dosdate;
    struct utimbuf ut;
    struct tm newdate;
-   newdate.tm_sec = tmu_date.tm_sec;
-@@ -125,11 +126,9 @@ int mymkdir(dirname)
-     const char* dirname;
- {
+@@ -125,11 +125,9 @@ static void change_file_date(const char *filename, uLong dosdate, tm_unz tmu_dat
+ 
+ static int mymkdir(const char* dirname) {
      int ret=0;
 -#ifdef _WIN32
 +#if defined(_WIN32)
@@ -59,16 +51,16 @@ index 3d65401be5cd..08737f689a96 100644
 -#elif __APPLE__
 +#elif defined(unix) || defined(__APPLE__) || defined(__Fuchsia__) || defined(__ANDROID_API__)
      ret = mkdir (dirname,0775);
- #endif
-     return ret;
+ #else
+     (void)dirname;
 diff --git a/third_party/zlib/contrib/minizip/minizip.c b/third_party/zlib/contrib/minizip/minizip.c
-index 4288962ecef0..b794953c5c23 100644
+index 26ee8d029efe6..9eb3956a55e00 100644
 --- a/third_party/zlib/contrib/minizip/minizip.c
 +++ b/third_party/zlib/contrib/minizip/minizip.c
 @@ -12,8 +12,7 @@
           Copyright (C) 2009-2010 Mathias Svensson ( http://result42.com )
  */
-
+ 
 -
 -#if (!defined(_WIN32)) && (!defined(WIN32)) && (!defined(__APPLE__))
 +#if (!defined(_WIN32)) && (!defined(WIN32)) && (!defined(__APPLE__)) && (!defined(__ANDROID_API__))
@@ -78,21 +70,20 @@ index 4288962ecef0..b794953c5c23 100644
 @@ -28,7 +27,7 @@
          #endif
  #endif
-
--#ifdef __APPLE__
-+#if defined(__APPLE__) || defined(__Fuchsia__) || defined(__ANDROID_API__)
+ 
+-#if defined(__APPLE__) || defined(__HAIKU__) || defined(MINIZIP_FOPEN_NO_64)
++#if defined(__APPLE__) || defined(__HAIKU__) || defined(MINIZIP_FOPEN_NO_64) || defined(__Fuchsia__) || defined(__ANDROID_API__)
  // In darwin and perhaps other BSD variants off_t is a 64 bit value, hence no need for specific 64 bit functions
  #define FOPEN_FUNC(filename, mode) fopen(filename, mode)
  #define FTELLO_FUNC(stream) ftello(stream)
-@@ -94,7 +93,7 @@ uLong filetime(f, tmzip, dt)
+@@ -92,7 +91,7 @@ static int filetime(const char *f, tm_zip *tmzip, uLong *dt) {
    return ret;
  }
  #else
--#ifdef unix || __APPLE__
+-#if defined(unix) || defined(__APPLE__)
 +#if defined(unix) || defined(__APPLE__) || defined(__Fuchsia__) || defined(__ANDROID_API__)
- uLong filetime(f, tmzip, dt)
-     char *f;               /* name of file to get info on */
-     tm_zip *tmzip;         /* return value: access, modific. and creation times */
+ /* f: name of file to get info on, tmzip: return value: access,
+    modification and creation times, dt: dostime */
+ static int filetime(const char *f, tm_zip *tmzip, uLong *dt) {
 --
 2.31.1.818.g46aad6cb9e-goog
-

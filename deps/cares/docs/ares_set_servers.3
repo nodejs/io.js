@@ -1,32 +1,20 @@
 .\"
 .\" Copyright 2010 by Ben Greear <greearb@candelatech.com>
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_SET_SERVERS 3 "5 March 2010"
 .SH NAME
-ares_set_servers, ares_set_servers_ports \- Initialize an ares_channel name servers configuration
+ares_set_servers, ares_set_servers_ports \- Initialize name server configuration
+for an ares channel. (deprecated)
 .SH SYNOPSIS
 .nf
 #include <ares.h>
 
-int ares_set_servers(ares_channel \fIchannel\fP,
-                     struct ares_addr_node *\fIservers\fP)
+int ares_set_servers(ares_channel_t *\fIchannel\fP,
+                     const struct ares_addr_node *\fIservers\fP)
 
-int ares_set_servers_ports(ares_channel \fIchannel\fP,
-                           struct ares_addr_port_node *\fIservers\fP)
+int ares_set_servers_ports(ares_channel_t *\fIchannel\fP,
+                           const struct ares_addr_port_node *\fIservers\fP)
 .fi
 .SH DESCRIPTION
 The \fBares_set_servers(3)\fP function initializes name servers configuration
@@ -41,7 +29,7 @@ The name server linked list pointer argument may be the result of a previous
 call to \fBares_get_servers(3)\fP or a linked list of \fBares_addr_node\fP structs
 set up by other means.
 .PP
-The \fBares_set_servers(3)\fP function also allows the specification of UDP and
+The \fBares_set_servers_ports(3)\fP function also allows the specification of UDP and
 TCP ports to be used for communication on a per-server basis.  The provided
 linked list argument may be the result of a previous call to
 \fBares_get_servers_ports(3)\fP or a linked list of \fBares_addr_port_node\fP structs
@@ -50,7 +38,9 @@ set up by other means.
 This function replaces any potentially previously configured name servers
 with the ones given in the linked list. So, in order to configure a channel
 with more than one name server all the desired ones must be specified in a
-single list.
+single list. Though not recommended, passing NULL will clear all configured
+servers and make an inoperable channel, this may be advantageous for test
+simulation but unlikely to be useful in production.
 .PP
 The function does not take ownership of the linked list argument.
 The caller is responsible for freeing the linked list when no longer needed.
@@ -59,6 +49,10 @@ This function is capable of handling IPv4 and IPv6 name server
 addresses simultaneously, rendering \fBares_init_options(3)\fP with
 optmask \fBARES_OPT_SERVERS\fP functionally obsolete except for
 IPv4-only name server usage.
+.PP
+As of v1.22.0 this function can
+be called on an active channel with running queries, previously it would return
+ARES_ENOTIMP.
 
 .SH RETURN VALUES
 .B ares_set_servers(3)
@@ -77,24 +71,16 @@ was invalid.
 .TP 15
 .B ARES_ENOTINITIALIZED
 c-ares library initialization not yet performed.
-.TP 15
-.B ARES_ENOTIMP
-Changing name servers configuration while queries are outstanding is not implemented.
 .SH SEE ALSO
 .BR ares_set_servers_csv (3),
 .BR ares_get_servers (3),
 .BR ares_init_options (3),
-.BR ares_dup(3)
+.BR ares_dup (3)
+
+.SH NOTES
+Deprecated functions as of c-ares 1.24.0 due to inability to set all available
+server options.  Use \fBares_set_servers_csv(3)\fP.
+
 .SH AVAILABILITY
 \fBares_set_servers(3)\fP was added in c-ares 1.7.1;
 \fBares_set_servers_ports(3)\fP was added in c-ares 1.11.0.
-.SH AUTHOR
-Implementation of this function and associated library internals are based
-on code, comments and feedback provided in November and December of 2008 by
-Daniel Stenberg, Gregor Jasny, Phil Blundell and Yang Tse, December 2009
-by Cedric Bail, February 2010 by Jakub Hrozek. On March 2010 Yang Tse
-shuffled all the bits and this function popped out.
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.
-.br
-Copyright (C) 2008-2010 by Daniel Stenberg

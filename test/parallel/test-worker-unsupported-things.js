@@ -14,14 +14,16 @@ if (!process.env.HAS_STARTED_WORKER) {
 } else {
   {
     const before = process.title;
-    process.title += ' in worker';
-    assert.strictEqual(process.title, before);
+    const after = before + ' in worker';
+    process.title = after;
+    assert.strictEqual(process.title, after);
   }
 
   {
     const before = process.debugPort;
-    process.debugPort++;
-    assert.strictEqual(process.debugPort, before);
+    const after = before + 1;
+    process.debugPort = after;
+    assert.strictEqual(process.debugPort, after);
   }
 
   {

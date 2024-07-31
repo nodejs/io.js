@@ -3,6 +3,7 @@
 #include "node_external_reference.h"
 #include "node_file-inl.h"
 #include "node_process-inl.h"
+#include "path.h"
 #include "permission/permission.h"
 #include "util.h"
 
@@ -183,26 +184,24 @@ void AfterClose(uv_fs_t* req) {
 void DirHandle::Close(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
-  const int argc = args.Length();
-  CHECK_GE(argc, 1);
+  CHECK_GE(args.Length(), 0);  // [req]
 
   DirHandle* dir;
-  ASSIGN_OR_RETURN_UNWRAP(&dir, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&dir, args.This());
 
   dir->closing_ = false;
   dir->closed_ = true;
 
-  FSReqBase* req_wrap_async = GetReqWrap(args, 0);
-  if (req_wrap_async != nullptr) {  // close(req)
+  if (!args[0]->IsUndefined()) {  // close(req)
+    FSReqBase* req_wrap_async = GetReqWrap(args, 0);
+    CHECK_NOT_NULL(req_wrap_async);
     FS_DIR_ASYNC_TRACE_BEGIN0(UV_FS_CLOSEDIR, req_wrap_async)
     AsyncCall(env, req_wrap_async, args, "closedir", UTF8, AfterClose,
               uv_fs_closedir, dir->dir());
-  } else {  // close(undefined, ctx)
-    CHECK_EQ(argc, 2);
-    FSReqWrapSync req_wrap_sync;
+  } else {  // close()
+    FSReqWrapSync req_wrap_sync("closedir");
     FS_DIR_SYNC_TRACE_BEGIN(closedir);
-    SyncCall(env, args[1], &req_wrap_sync, "closedir", uv_fs_closedir,
-             dir->dir());
+    SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_closedir, dir->dir());
     FS_DIR_SYNC_TRACE_END(closedir);
   }
 }
@@ -282,13 +281,12 @@ void DirHandle::Read(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Isolate* isolate = env->isolate();
 
-  const int argc = args.Length();
-  CHECK_GE(argc, 3);
+  CHECK_GE(args.Length(), 2);  // encoding, bufferSize, [callback]
 
   const enum encoding encoding = ParseEncoding(isolate, args[0], UTF8);
 
   DirHandle* dir;
-  ASSIGN_OR_RETURN_UNWRAP(&dir, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&dir, args.This());
 
   CHECK(args[1]->IsNumber());
   uint64_t buffer_size = static_cast<uint64_t>(args[1].As<Number>()->Value());
@@ -299,27 +297,25 @@ void DirHandle::Read(const FunctionCallbackInfo<Value>& args) {
     dir->dir_->dirents = dir->dirents_.data();
   }
 
-  FSReqBase* req_wrap_async = GetReqWrap(args, 2);
-  if (req_wrap_async != nullptr) {  // dir.read(encoding, bufferSize, req)
+  if (!args[2]->IsUndefined()) {  // dir.read(encoding, bufferSize, req)
+    FSReqBase* req_wrap_async = GetReqWrap(args, 2);
+    CHECK_NOT_NULL(req_wrap_async);
     FS_DIR_ASYNC_TRACE_BEGIN0(UV_FS_READDIR, req_wrap_async)
     AsyncCall(env, req_wrap_async, args, "readdir", encoding,
               AfterDirRead, uv_fs_readdir, dir->dir());
-  } else {  // dir.read(encoding, bufferSize, undefined, ctx)
-    CHECK_EQ(argc, 4);
-    FSReqWrapSync req_wrap_sync;
+  } else {  // dir.read(encoding, bufferSize)
+    FSReqWrapSync req_wrap_sync("readdir");
     FS_DIR_SYNC_TRACE_BEGIN(readdir);
-    int err = SyncCall(env, args[3], &req_wrap_sync, "readdir", uv_fs_readdir,
-                       dir->dir());
+    int err =
+        SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_readdir, dir->dir());
     FS_DIR_SYNC_TRACE_END(readdir);
     if (err < 0) {
-      return;  // syscall failed, no need to continue, error info is in ctx
+      return;  // syscall failed, no need to continue, error is already thrown
     }
 
     if (req_wrap_sync.req.result == 0) {
       // Done
-      Local<Value> done = Null(isolate);
-      args.GetReturnValue().Set(done);
-      return;
+      return args.GetReturnValue().SetNull();
     }
 
     CHECK_GE(req_wrap_sync.req.result, 0);
@@ -332,8 +328,9 @@ void DirHandle::Read(const FunctionCallbackInfo<Value>& args) {
                            encoding,
                            &error)
              .ToLocal(&js_array)) {
-      Local<Object> ctx = args[2].As<Object>();
-      USE(ctx->Set(env->context(), env->error_string(), error));
+      // TODO(anonrig): Initializing BufferValue here is wasteful.
+      BufferValue error_payload(isolate, error);
+      env->ThrowError(error_payload.out());
       return;
     }
 
@@ -362,31 +359,36 @@ static void OpenDir(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Isolate* isolate = env->isolate();
 
-  const int argc = args.Length();
-  CHECK_GE(argc, 3);
+  CHECK_GE(args.Length(), 2);  // path, encoding, [callback]
 
   BufferValue path(isolate, args[0]);
   CHECK_NOT_NULL(*path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
+  ToNamespacedPath(env, &path);
 
   const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
 
-  FSReqBase* req_wrap_async = GetReqWrap(args, 2);
-  if (req_wrap_async != nullptr) {  // openDir(path, encoding, req)
+  if (!args[2]->IsUndefined()) {  // openDir(path, encoding, req)
+    FSReqBase* req_wrap_async = GetReqWrap(args, 2);
+    CHECK_NOT_NULL(req_wrap_async);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemRead,
+        path.ToStringView());
     FS_DIR_ASYNC_TRACE_BEGIN1(
         UV_FS_OPENDIR, req_wrap_async, "path", TRACE_STR_COPY(*path))
     AsyncCall(env, req_wrap_async, args, "opendir", encoding, AfterOpenDir,
               uv_fs_opendir, *path);
-  } else {  // openDir(path, encoding, undefined, ctx)
-    CHECK_EQ(argc, 4);
-    FSReqWrapSync req_wrap_sync;
+  } else {  // openDir(path, encoding)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
+    FSReqWrapSync req_wrap_sync("opendir", *path);
     FS_DIR_SYNC_TRACE_BEGIN(opendir);
-    int result = SyncCall(env, args[3], &req_wrap_sync, "opendir",
-                          uv_fs_opendir, *path);
+    int result =
+        SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_opendir, *path);
     FS_DIR_SYNC_TRACE_END(opendir);
     if (result < 0) {
-      return;  // syscall failed, no need to continue, error info is in ctx
+      return;  // syscall failed, no need to continue, error is already thrown
     }
 
     uv_fs_t* req = &req_wrap_sync.req;
@@ -405,6 +407,7 @@ static void OpenDirSync(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(isolate, args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
 
@@ -423,26 +426,28 @@ static void OpenDirSync(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(handle->object().As<Value>());
 }
 
-void Initialize(Local<Object> target,
-                Local<Value> unused,
-                Local<Context> context,
-                void* priv) {
-  Environment* env = Environment::GetCurrent(context);
-  Isolate* isolate = env->isolate();
+void CreatePerIsolateProperties(IsolateData* isolate_data,
+                                Local<ObjectTemplate> target) {
+  Isolate* isolate = isolate_data->isolate();
 
-  SetMethod(context, target, "opendir", OpenDir);
-  SetMethod(context, target, "opendirSync", OpenDirSync);
+  SetMethod(isolate, target, "opendir", OpenDir);
+  SetMethod(isolate, target, "opendirSync", OpenDirSync);
 
   // Create FunctionTemplate for DirHandle
   Local<FunctionTemplate> dir = NewFunctionTemplate(isolate, DirHandle::New);
-  dir->Inherit(AsyncWrap::GetConstructorTemplate(env));
+  dir->Inherit(AsyncWrap::GetConstructorTemplate(isolate_data));
   SetProtoMethod(isolate, dir, "read", DirHandle::Read);
   SetProtoMethod(isolate, dir, "close", DirHandle::Close);
   Local<ObjectTemplate> dirt = dir->InstanceTemplate();
   dirt->SetInternalFieldCount(DirHandle::kInternalFieldCount);
-  SetConstructorFunction(context, target, "DirHandle", dir);
-  env->set_dir_instance_template(dirt);
+  SetConstructorFunction(isolate, target, "DirHandle", dir);
+  isolate_data->set_dir_instance_template(dirt);
 }
+
+void CreatePerContextProperties(Local<Object> target,
+                                Local<Value> unused,
+                                Local<Context> context,
+                                void* priv) {}
 
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(OpenDir);
@@ -456,6 +461,8 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
 
 }  // end namespace node
 
-NODE_BINDING_CONTEXT_AWARE_INTERNAL(fs_dir, node::fs_dir::Initialize)
+NODE_BINDING_CONTEXT_AWARE_INTERNAL(fs_dir,
+                                    node::fs_dir::CreatePerContextProperties)
+NODE_BINDING_PER_ISOLATE_INIT(fs_dir, node::fs_dir::CreatePerIsolateProperties)
 NODE_BINDING_EXTERNAL_REFERENCE(fs_dir,
                                 node::fs_dir::RegisterExternalReferences)

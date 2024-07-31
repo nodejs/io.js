@@ -44,19 +44,23 @@ class V8_PLATFORM_EXPORT DefaultForegroundTaskRunner
   double MonotonicallyIncreasingTime();
 
   // v8::TaskRunner implementation.
-  void PostTask(std::unique_ptr<Task> task) override;
-  void PostDelayedTask(std::unique_ptr<Task> task,
-                       double delay_in_seconds) override;
-
-  void PostIdleTask(std::unique_ptr<IdleTask> task) override;
   bool IdleTasksEnabled() override;
-
-  void PostNonNestableTask(std::unique_ptr<Task> task) override;
-  void PostNonNestableDelayedTask(std::unique_ptr<Task> task,
-                                  double delay_in_seconds) override;
   bool NonNestableTasksEnabled() const override;
 
  private:
+  // v8::TaskRunner implementation.
+  void PostTaskImpl(std::unique_ptr<Task> task,
+                    const SourceLocation& location) override;
+  void PostDelayedTaskImpl(std::unique_ptr<Task> task, double delay_in_seconds,
+                           const SourceLocation& location) override;
+  void PostIdleTaskImpl(std::unique_ptr<IdleTask> task,
+                        const SourceLocation& location) override;
+  void PostNonNestableTaskImpl(std::unique_ptr<Task> task,
+                               const SourceLocation& location) override;
+  void PostNonNestableDelayedTaskImpl(std::unique_ptr<Task> task,
+                                      double delay_in_seconds,
+                                      const SourceLocation& location) override;
+
   enum Nestability { kNestable, kNonNestable };
 
   void WaitForTaskLocked(const base::MutexGuard&);

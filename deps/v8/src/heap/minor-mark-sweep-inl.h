@@ -9,8 +9,8 @@
 
 #include "src/base/build_config.h"
 #include "src/common/globals.h"
-#include "src/heap/memory-chunk.h"
 #include "src/heap/minor-mark-sweep.h"
+#include "src/heap/mutable-page.h"
 #include "src/heap/remembered-set-inl.h"
 #include "src/heap/young-generation-marking-visitor-inl.h"
 #include "src/objects/heap-object.h"
@@ -90,57 +90,13 @@ void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::Process(
   }
 }
 
-void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
-    CheckOldToNewSlotForSharedUntyped(MemoryChunk* chunk, Address slot_address,
-                                      MaybeObject object) {
-  Tagged<HeapObject> heap_object;
-  if (!object.GetHeapObject(&heap_object)) return;
-#ifdef THREAD_SANITIZER
-  BasicMemoryChunk::FromHeapObject(heap_object)->SynchronizedHeapLoad();
-#endif  // THREAD_SANITIZER
-  if (heap_object.InWritableSharedSpace()) {
-    RememberedSet<OLD_TO_SHARED>::Insert<AccessMode::ATOMIC>(chunk,
-                                                             slot_address);
-  }
-}
-
-void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
-    CheckOldToNewSlotForSharedTyped(MemoryChunk* chunk, SlotType slot_type,
-                                    Address slot_address,
-                                    MaybeObject new_target) {
-  Tagged<HeapObject> heap_object;
-  if (!new_target.GetHeapObject(&heap_object)) return;
-#ifdef THREAD_SANITIZER
-  BasicMemoryChunk::FromHeapObject(heap_object)->SynchronizedHeapLoad();
-#endif  // THREAD_SANITIZER
-  if (heap_object.InWritableSharedSpace()) {
-    const uintptr_t offset = slot_address - chunk->address();
-    DCHECK_LT(offset, static_cast<uintptr_t>(TypedSlotSet::kMaxOffset));
-    RememberedSet<OLD_TO_SHARED>::InsertTyped(chunk, slot_type,
-                                              static_cast<uint32_t>(offset));
-  }
-}
-
 template <typename Visitor>
 void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
     MarkUntypedPointers(Visitor* visitor) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.gc"),
                "MarkingItem::MarkUntypedPointers");
-  const bool record_old_to_shared_slots =
-      chunk_->heap()->isolate()->has_shared_space();
-  auto callback = [this, visitor,
-                   record_old_to_shared_slots](MaybeObjectSlot slot) {
-    SlotCallbackResult result = CheckAndMarkObject(visitor, slot);
-    if (result == REMOVE_SLOT && record_old_to_shared_slots) {
-      MaybeObject object;
-      if constexpr (Visitor::EnableConcurrentVisitation()) {
-        object = slot.Relaxed_Load(visitor->cage_base());
-      } else {
-        object = *slot;
-      }
-      CheckOldToNewSlotForSharedUntyped(chunk_, slot.address(), object);
-    }
-    return result;
+  auto callback = [this, visitor](MaybeObjectSlot slot) {
+    return CheckAndMarkObject(visitor, slot);
   };
   if (slot_set_) {
     const auto slot_count =
@@ -168,30 +124,15 @@ void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
     MarkTypedPointers(Visitor* visitor) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.gc"),
                "MarkingItem::MarkTypedPointers");
-  const bool record_old_to_shared_slots =
-      chunk_->heap()->isolate()->has_shared_space();
   DCHECK_NULL(background_slot_set_);
   DCHECK_NOT_NULL(typed_slot_set_);
   const auto slot_count = RememberedSet<OLD_TO_NEW>::IterateTyped(
-      typed_slot_set_, [this, visitor, record_old_to_shared_slots](
-                           SlotType slot_type, Address slot_address) {
-        return UpdateTypedSlotHelper::UpdateTypedSlot(
-            heap(), slot_type, slot_address,
-            [this, visitor, record_old_to_shared_slots, slot_address,
-             slot_type](FullMaybeObjectSlot slot) {
-              SlotCallbackResult result = CheckAndMarkObject(visitor, slot);
-              if (result == REMOVE_SLOT && record_old_to_shared_slots) {
-                MaybeObject object;
-                if constexpr (Visitor::EnableConcurrentVisitation()) {
-                  object = slot.Relaxed_Load(visitor->cage_base());
-                } else {
-                  object = *slot;
-                }
-                CheckOldToNewSlotForSharedTyped(chunk_, slot_type, slot_address,
-                                                object);
-              }
-              return result;
-            });
+      typed_slot_set_,
+      [this, visitor](SlotType slot_type, Address slot_address) {
+        Tagged<HeapObject> object = UpdateTypedSlotHelper::GetTargetObject(
+            heap(), slot_type, slot_address);
+        FullMaybeObjectSlot slot(&object);
+        return CheckAndMarkObject(visitor, slot);
       });
   if (slot_count == 0) {
     delete typed_slot_set_;

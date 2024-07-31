@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2012-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -72,6 +72,8 @@ static int do_tcreate(const char *value, const char *name)
         goto err;
     for (i = 0; i < sk_CONF_VALUE_num(lst); i++) {
         cnf = sk_CONF_VALUE_value(lst, i);
+        if (cnf->value == NULL)
+            goto err;
         if (strcmp(cnf->name, "min") == 0) {
             tbl_min = strtoul(cnf->value, &eptr, 0);
             if (*eptr)
@@ -98,7 +100,9 @@ static int do_tcreate(const char *value, const char *name)
     if (rv == 0) {
         if (cnf)
             ERR_raise_data(ERR_LIB_ASN1, ASN1_R_INVALID_STRING_TABLE_VALUE,
-                           "field=%s, value=%s", cnf->name, cnf->value);
+                           "field=%s, value=%s", cnf->name,
+                                                 cnf->value != NULL ? cnf->value
+                                                 : value);
         else
             ERR_raise_data(ERR_LIB_ASN1, ASN1_R_INVALID_STRING_TABLE_VALUE,
                            "name=%s, value=%s", name, value);

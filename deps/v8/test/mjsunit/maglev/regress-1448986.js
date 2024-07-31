@@ -14,4 +14,4 @@ class c_2 extends c_1 {}
 %PrepareFunctionForOptimization(c_2);
 %OptimizeMaglevOnNextCall(c_2);
 new c_2();
-assertEquals(1, count);
+assertEquals(0, count);

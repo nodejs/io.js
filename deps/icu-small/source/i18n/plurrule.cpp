@@ -12,6 +12,8 @@
 #include <math.h>
 #include <stdio.h>
 
+#include <utility>
+
 #include "unicode/utypes.h"
 #include "unicode/localpointer.h"
 #include "unicode/plurrule.h"
@@ -40,6 +42,7 @@
 #include "util.h"
 #include "pluralranges.h"
 #include "numrange_impl.h"
+#include "ulocimp.h"
 
 #if !UCONFIG_NO_FORMATTING
 
@@ -652,6 +655,11 @@ PluralRuleParser::parse(const UnicodeString& ruleData, PluralRules *prules, UErr
         case tEqual:
             {
                 U_ASSERT(curAndConstraint != nullptr);
+                if (curAndConstraint->rangeList != nullptr) {
+                    // Already get a '='.
+                    status = U_UNEXPECTED_TOKEN;
+                    break;
+                }
                 LocalPointer<UVector32> newRangeList(new UVector32(status), status);
                 if (U_FAILURE(status)) {
                     break;
@@ -669,20 +677,40 @@ PluralRuleParser::parse(const UnicodeString& ruleData, PluralRules *prules, UErr
             U_ASSERT(curAndConstraint != nullptr);
             if ( (curAndConstraint->op==AndConstraint::MOD)&&
                  (curAndConstraint->opNum == -1 ) ) {
-                curAndConstraint->opNum=getNumberValue(token);
+                int32_t num = getNumberValue(token);
+                if (num == -1) {
+                    status = U_UNEXPECTED_TOKEN;
+                    break;
+                }
+                curAndConstraint->opNum=num;
             }
             else {
                 if (curAndConstraint->rangeList == nullptr) {
                     // this is for an 'is' rule
-                    curAndConstraint->value = getNumberValue(token);
+                    int32_t num = getNumberValue(token);
+                    if (num == -1) {
+                        status = U_UNEXPECTED_TOKEN;
+                        break;
+                    }
+                    curAndConstraint->value = num;
                 } else {
                     // this is for an 'in' or 'within' rule
                     if (curAndConstraint->rangeList->elementAti(rangeLowIdx) == -1) {
-                        curAndConstraint->rangeList->setElementAt(getNumberValue(token), rangeLowIdx);
-                        curAndConstraint->rangeList->setElementAt(getNumberValue(token), rangeHiIdx);
+                        int32_t num = getNumberValue(token);
+                        if (num == -1) {
+                            status = U_UNEXPECTED_TOKEN;
+                            break;
+                        }
+                        curAndConstraint->rangeList->setElementAt(num, rangeLowIdx);
+                        curAndConstraint->rangeList->setElementAt(num, rangeHiIdx);
                     }
                     else {
-                        curAndConstraint->rangeList->setElementAt(getNumberValue(token), rangeHiIdx);
+                        int32_t num = getNumberValue(token);
+                        if (num == -1) {
+                            status = U_UNEXPECTED_TOKEN;
+                            break;
+                        }
+                        curAndConstraint->rangeList->setElementAt(num, rangeHiIdx);
                         if (curAndConstraint->rangeList->elementAti(rangeLowIdx) >
                                 curAndConstraint->rangeList->elementAti(rangeHiIdx)) {
                             // Range Lower bound > Range Upper bound.
@@ -827,14 +855,17 @@ PluralRules::getRuleFromResource(const Locale& locale, UPluralType type, UErrorC
     if (s == nullptr) {
         // Check parent locales.
         UErrorCode status = U_ZERO_ERROR;
-        char parentLocaleName[ULOC_FULLNAME_CAPACITY];
         const char *curLocaleName2=locale.getBaseName();
-        uprv_strcpy(parentLocaleName, curLocaleName2);
+        CharString parentLocaleName(curLocaleName2, status);
 
-        while (uloc_getParent(parentLocaleName, parentLocaleName,
-                                       ULOC_FULLNAME_CAPACITY, &status) > 0) {
+        for (;;) {
+            {
+                CharString tmp = ulocimp_getParent(parentLocaleName.data(), status);
+                if (tmp.isEmpty()) break;
+                parentLocaleName = std::move(tmp);
+            }
             resLen=0;
-            s = ures_getStringByKey(locRes.getAlias(), parentLocaleName, &resLen, &status);
+            s = ures_getStringByKey(locRes.getAlias(), parentLocaleName.data(), &resLen, &status);
             if (s != nullptr) {
                 errCode = U_ZERO_ERROR;
                 break;
@@ -1249,13 +1280,8 @@ PluralRuleParser::~PluralRuleParser() {
 
 int32_t
 PluralRuleParser::getNumberValue(const UnicodeString& token) {
-    int32_t i;
-    char digits[128];
-
-    i = token.extract(0, token.length(), digits, UPRV_LENGTHOF(digits), US_INV);
-    digits[i]='\0';
-
-    return((int32_t)atoi(digits));
+    int32_t pos = 0;
+    return ICU_Utility::parseNumber(token, pos, 10);
 }
 
 
@@ -1749,7 +1775,9 @@ void FixedDecimal::init(double n, int32_t v, int64_t f, int32_t e, int32_t c) {
     if (exponent == 0) {
         exponent = c;
     }
-    if (_isNaN || _isInfinite) {
+    if (_isNaN || _isInfinite ||
+        source > static_cast<double>(U_INT64_MAX) ||
+        source < static_cast<double>(U_INT64_MIN)) {
         v = 0;
         f = 0;
         intValue = 0;

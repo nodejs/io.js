@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 import { strictEqual } from 'node:assert';
 
 describe('the type flag should change the interpretation of certain files within a "type": "module" package scope',
-         { concurrency: true }, () => {
+         { concurrency: !process.env.TEST_PARALLEL }, () => {
            it('should run as ESM an extensionless JavaScript file within a "type": "module" scope', async () => {
              const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
                '--experimental-default-type=module',
@@ -60,7 +60,7 @@ describe('the type flag should change the interpretation of certain files within
          });
 
 describe(`the type flag should change the interpretation of certain files within a package scope that lacks a
-"type" field and is not under node_modules`, { concurrency: true }, () => {
+"type" field and is not under node_modules`, { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should run as ESM a .js file within package scope that has no defined "type" and is not under node_modules',
      async () => {
        const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
@@ -122,7 +122,7 @@ under node_modules`, async () => {
 });
 
 describe(`the type flag should NOT change the interpretation of certain files within a package scope that lacks a
-"type" field and is under node_modules`, { concurrency: true }, () => {
+"type" field and is under node_modules`, { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should run as CommonJS a .js file within package scope that has no defined "type" and is under node_modules',
      async () => {
        const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [

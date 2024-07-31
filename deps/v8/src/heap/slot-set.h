@@ -265,11 +265,11 @@ enum class SlotType : uint8_t {
 
 // Data structure for maintaining a list of typed slots in a page.
 // Typed slots can only appear in Code objects, so
-// the maximum possible offset is limited by the LargePage::kMaxCodePageSize.
-// The implementation is a chain of chunks, where each chunk is an array of
-// encoded (slot type, slot offset) pairs.
-// There is no duplicate detection and we do not expect many duplicates because
-// typed slots contain V8 internal pointers that are not directly exposed to JS.
+// the maximum possible offset is limited by the
+// LargePageMetadata::kMaxCodePageSize. The implementation is a chain of chunks,
+// where each chunk is an array of encoded (slot type, slot offset) pairs. There
+// is no duplicate detection and we do not expect many duplicates because typed
+// slots contain V8 internal pointers that are not directly exposed to JS.
 class V8_EXPORT_PRIVATE TypedSlots {
  public:
   static const int kMaxOffset = 1 << 29;

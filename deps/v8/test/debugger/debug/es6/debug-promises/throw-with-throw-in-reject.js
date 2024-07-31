@@ -9,7 +9,7 @@
 
 Debug = debug.Debug;
 
-var expected_events = 0;
+var expected_events = 2;
 var log = [];
 
 var p = new Promise(function(resolve, reject) {
@@ -38,7 +38,12 @@ var q = p.then(
 function listener(event, exec_state, event_data, data) {
   try {
     if (event == Debug.DebugEvent.Exception) {
-      assertUnreachable();
+      if (expected_events === 0) {
+        assertUnreachable();
+      } else {
+        expected_events--;
+        log.push("uncaught exception");
+      }
     }
   } catch (e) {
     %AbortJS(e + "\n" + e.stack);
@@ -56,7 +61,7 @@ function testDone(iteration) {
       assertTrue(iteration < 10);
       if (expected_events === 0) {
         assertEquals(["resolve", "end main",
-                      "throw caught"], log);
+                      "throw caught", "uncaught exception", "uncaught exception"], log);
       } else {
         testDone(iteration + 1);
       }

@@ -66,6 +66,17 @@ assert.throws(() => {
 }, { code: 'ERR_INVALID_ARG_TYPE' });
 assert.strictEqual(process.report.compact, true);
 
+// Verify that process.report.excludeNetwork behaves properly.
+assert.strictEqual(process.report.excludeNetwork, false);
+process.report.excludeNetwork = true;
+assert.strictEqual(process.report.excludeNetwork, true);
+process.report.excludeNetwork = false;
+assert.strictEqual(process.report.excludeNetwork, false);
+assert.throws(() => {
+  process.report.excludeNetwork = {};
+}, { code: 'ERR_INVALID_ARG_TYPE' });
+assert.strictEqual(process.report.excludeNetwork, false);
+
 if (!common.isWindows) {
   // Verify that process.report.signal behaves properly.
   assert.strictEqual(process.report.signal, 'SIGUSR2');

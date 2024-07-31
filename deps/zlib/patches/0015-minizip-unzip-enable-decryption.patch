@@ -1,0 +1,39 @@
+commit f3ace98803035b8425d127fb3d874dafe0b9475a
+Author: Che-yu Wu <cheyuw@google.com>
+Date:   Mon Aug 6 14:09:22 2018 +0000
+
+    Enable traditional PKWARE decryption in zlib/contrib/minizip.
+    
+    Remove the #define which enables NOUNCRYPT by default.
+    Correct the value of rest_read_compressed when decompressing an encrypted zip.
+    
+    Bug: crbug.com/869541
+    Change-Id: Ia86c1d234a8193f405147d35ad05c29fe86f812d
+    Reviewed-on: https://chromium-review.googlesource.com/1161109
+    Reviewed-by: Chris Blume <cblume@chromium.org>
+    Commit-Queue: Che-yu Wu <cheyuw@google.com>
+    Cr-Commit-Position: refs/heads/master@{#580862}
+
+diff --git a/third_party/zlib/contrib/minizip/unzip.c b/third_party/zlib/contrib/minizip/unzip.c
+index 82275d6c1775d..c8a01b23efd42 100644
+--- a/third_party/zlib/contrib/minizip/unzip.c
++++ b/third_party/zlib/contrib/minizip/unzip.c
+@@ -68,10 +68,6 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-#ifndef NOUNCRYPT
+-        #define NOUNCRYPT
+-#endif
+-
+ #include "zlib.h"
+ #include "unzip.h"
+ 
+@@ -1502,6 +1498,7 @@ extern int ZEXPORT unzOpenCurrentFile3(unzFile file, int* method,
+             zdecode(s->keys,s->pcrc_32_tab,source[i]);
+ 
+         s->pfile_in_zip_read->pos_in_zipfile+=12;
++        s->pfile_in_zip_read->rest_read_compressed-=12;
+         s->encrypted=1;
+     }
+ #    endif

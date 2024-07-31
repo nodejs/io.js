@@ -9,6 +9,9 @@
 #include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/reducer-traits.h"
 #include "src/compiler/turboshaft/utils.h"
+#include "src/zone/zone-allocator.h"
+#include "src/zone/zone-containers.h"
+#include "src/zone/zone.h"
 
 namespace v8::internal::compiler::turboshaft {
 
@@ -196,13 +199,13 @@ class PretenuringPropagationAnalyzer {
   // `store_graph_` contains mapping from OpIndex to vector<OpIndex>. If for an
   // entry `a` it contains a vector `v`, it means that `a` has edges to all of
   // the values in `v`.
-  ZoneUnorderedMap<OpIndex, ZoneVector<OpIndex>*> store_graph_;
+  ZoneAbslFlatHashMap<OpIndex, ZoneVector<OpIndex>*> store_graph_;
 
   // AllocateOp have an AllocationType field, which is set to kOld once they've
   // been visited, thus ensuring that recursion ends. However, PhiOp don't have
   // such a field. Thus, once we've visited a Phi, we store it in {old_phis_} to
   // prevent revisiting it.
-  ZoneUnorderedSet<OpIndex> old_phis_;
+  ZoneAbslFlatHashSet<OpIndex> old_phis_;
 
   // Used in the final phase to do DFS in the graph from each old store. It
   // could be a local variable, but we instead use an instance variable to reuse
@@ -225,7 +228,7 @@ class PretenuringPropagationReducer : public Next {
 #endif
 
  public:
-  TURBOSHAFT_REDUCER_BOILERPLATE()
+  TURBOSHAFT_REDUCER_BOILERPLATE(PretenuringPropagation)
 
   void Analyze() {
     PretenuringPropagationAnalyzer analyzer(Asm().phase_zone(),

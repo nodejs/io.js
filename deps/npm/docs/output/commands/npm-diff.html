@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-diff">npm-diff</h1>
+<h1 id="----npm-diff----1082">
+    <span>npm-diff</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">The registry diff command</span>
 </header>
 
@@ -326,10 +334,11 @@ of the current working directory.</li>
 </ul>
 <p>If you ask npm to install a package and don't tell it a specific version,
 then it will install the specified tag.</p>
-<p>Also the tag that is added to the package@version specified by the <code>npm tag</code>
-command, if no explicit tag is given.</p>
+<p>It is the tag added to the package@version specified in the <code>npm dist-tag add</code> command, if no explicit tag is given.</p>
 <p>When used by the <code>npm diff</code> command, this is the tag used to fetch the
 tarball that will be compared with the local files by default.</p>
+<p>If used in the <code>npm publish</code> command, this is the tag that will be added to
+the package submitted to the registry.</p>
 <h4 id="workspace"><code>workspace</code></h4>
 <ul>
 <li>Default:</li>

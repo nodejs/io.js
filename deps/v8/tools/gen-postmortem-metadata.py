@@ -223,24 +223,8 @@ consts_misc = [
         'value': 'Oddball::kNull'
     },
     {
-        'name': 'OddballArgumentsMarker',
-        'value': 'Oddball::kArgumentsMarker'
-    },
-    {
         'name': 'OddballUndefined',
         'value': 'Oddball::kUndefined'
-    },
-    {
-        'name': 'OddballUninitialized',
-        'value': 'Oddball::kUninitialized'
-    },
-    {
-        'name': 'OddballOther',
-        'value': 'Oddball::kOther'
-    },
-    {
-        'name': 'OddballException',
-        'value': 'Oddball::kException'
     },
     {
         'name': 'ContextRegister',
@@ -424,13 +408,11 @@ consts_misc = [
     },
     {
         'name': 'off_fp_bytecode_array',
-        'value': 'UnoptimizedFrameConstants::kBytecodeArrayFromFp'
+        'value': 'InterpreterFrameConstants::kBytecodeArrayFromFp'
     },
     {
-        'name':
-            'off_fp_bytecode_offset',
-        'value':
-            'UnoptimizedFrameConstants::kBytecodeOffsetOrFeedbackVectorFromFp'
+        'name': 'off_fp_bytecode_offset',
+        'value': 'InterpreterFrameConstants::kBytecodeOffsetFromFp'
     },
     {
         'name': 'scopeinfo_idx_nparams',
@@ -515,6 +497,7 @@ consts_misc = [
 # in this "extras_accessors" table.
 #
 extras_accessors = [
+    'JSFunction, code, Tagged<Code>, kCodeOffset',
     'JSFunction, context, Context, kContextOffset',
     'JSFunction, shared, SharedFunctionInfo, kSharedFunctionInfoOffset',
     'HeapObject, map, Map, kMapOffset',
@@ -537,11 +520,11 @@ extras_accessors = [
     'Map, bit_field2, char, kBitField2Offset',
     'Map, bit_field3, int, kBitField3Offset',
     'Map, prototype, Object, kPrototypeOffset',
-    'Oddball, kind_offset, int, kKindOffset',
-    'HeapNumber, value, double, kValueOffset',
-    'ExternalString, resource, Object, kResourceOffset',
-    'SeqOneByteString, chars, char, kHeaderSize',
-    'SeqTwoByteString, chars, char, kHeaderSize',
+    'Oddball, kind, int, offsetof(Oddball, kind_)',
+    'HeapNumber, value, double, offsetof(HeapNumber, value_)',
+    'ExternalString, resource, Object, offsetof(ExternalString, resource_)',
+    'SeqOneByteString, chars, char, OFFSET_OF_DATA_START(SeqOneByteString)',
+    'SeqTwoByteString, chars, char, OFFSET_OF_DATA_START(SeqTwoByteString)',
     'UncompiledData, inferred_name, String, kInferredNameOffset',
     'UncompiledData, start_position, int32_t, kStartPositionOffset',
     'UncompiledData, end_position, int32_t, kEndPositionOffset',
@@ -552,15 +535,19 @@ extras_accessors = [
     'SharedFunctionInfo, internal_formal_parameter_count, uint16_t, kFormalParameterCountOffset',
     'SharedFunctionInfo, flags, int, kFlagsOffset',
     'SharedFunctionInfo, length, uint16_t, kLengthOffset',
-    'SlicedString, parent, String, kParentOffset',
+    'SlicedString, parent, String, offsetof(SlicedString, parent_)',
+    'Code, flags, uint32_t, kFlagsOffset',
+    'Code, instruction_start, Address, kInstructionStartOffset',
+    'Code, instruction_stream, Tagged<InstructionStream>, kInstructionStreamOffset',
+    'Code, instruction_size, int, kInstructionSizeOffset',
     'InstructionStream, instruction_start, uintptr_t, kHeaderSize',
-    'String, length, int32_t, kLengthOffset',
+    'String, length, int32_t, offsetof(String, length_)',
     'DescriptorArray, header_size, uintptr_t, kHeaderSize',
-    'ConsString, first, String, kFirstOffset',
-    'ConsString, second, String, kSecondOffset',
-    'SlicedString, offset, SMI, kOffsetOffset',
-    'ThinString, actual, String, kActualOffset',
-    'Symbol, name, Object, kDescriptionOffset',
+    'ConsString, first, String, offsetof(ConsString, first_)',
+    'ConsString, second, String, offsetof(ConsString, second_)',
+    'SlicedString, offset, SMI, offsetof(SlicedString, offset_)',
+    'ThinString, actual, String, offsetof(ThinString, actual_)',
+    'Symbol, name, Object, offsetof(Symbol, description_)',
     'FixedArrayBase, length, SMI, kLengthOffset',
 ]
 
@@ -581,10 +568,11 @@ expected_classes = [
 # The following structures store high-level representations of the structures
 # for which we're going to emit descriptive constants.
 #
-types = {};       # set of all type names
-typeclasses = {};       # maps type names to corresponding class names
-klasses = {};     # known classes, including parents
-fields = [];      # field declarations
+types = {}  # set of all type names
+typeclasses = {}  # maps type names to corresponding class names
+klasses = {}  # known classes, including parents
+fields = []  # field declarations
+offsetof_fields = []  # field declarations using offsetof
 
 header = '''
 /*
@@ -720,10 +708,10 @@ def load_objects_from_file(objfilename, checktypes):
 
     uncommented_file += '\n' + line
 
-  for match in re.finditer(r'\nclass(?:\s+V8_EXPORT(?:_PRIVATE)?)?'
-         r'\s+(\w[^:;]*)'
-         r'(?:: public (\w[^{]*))?\s*{\s*',
-         uncommented_file):
+  for match in re.finditer(
+      r'\n(?:V8_OBJECT\s+)?class(?:\s+V8_EXPORT(?:_PRIVATE)?)?'
+      r'\s+(\w[^:;]*)'
+      r'(?:: public (\w[^{]*))?\s*{\s*', uncommented_file):
     klass = match.group(1).strip();
     pklass = match.group(2);
     if (pklass):
@@ -744,7 +732,7 @@ def load_objects_from_file(objfilename, checktypes):
   #
   entries = typestr.split(',');
   for entry in entries:
-    types[re.sub('\s*=.*', '', entry).lstrip()] = True;
+    types[re.sub(r'\s*=.*', '', entry).lstrip()] = True
   entries = torque_typestr.split('\\')
   for entry in entries:
     name = re.sub(r' *V\(|\).*', '', entry)
@@ -757,7 +745,7 @@ def load_objects_from_file(objfilename, checktypes):
     start = entry.find('(');
     end = entry.find(')', start);
     rest = entry[start + 1: end];
-    args = re.split('\s*,\s*', rest);
+    args = re.split(r'\s*,\s*', rest)
     typename = args[0]
     typeconst = args[1]
     types[typeconst] = True
@@ -840,7 +828,7 @@ def parse_field(call):
   idx = call.find('(');
   kind = call[0:idx];
   rest = call[idx + 1: len(call) - 1];
-  args = re.split('\s*,\s*', rest);
+  args = re.findall(r'[^\s,][^(),]*(?:\([^()]*\))?(?=\s*(?:,|$))', rest)
 
   klass = args[0];
   field = args[1];
@@ -856,12 +844,15 @@ def parse_field(call):
     offset = args[2];
     dtype = 'SMI'
 
+  if offset.startswith("offsetof(") or offset.startswith(
+      "OFFSET_OF_DATA_START("):
+    offsetof_fields.append((klass, field, offset))
+    value = 'OffsetsForDebug::%s_%s' % (klass, field)
+  else:
+    value = '%s::%s' % (klass, offset)
 
   assert(offset is not None and dtype is not None);
-  return ({
-      'name': 'class_%s__%s__%s' % (klass, field, dtype),
-      'value': '%s::%s' % (klass, offset)
-  });
+  return ({'name': 'class_%s__%s__%s' % (klass, field, dtype), 'value': value})
 
 #
 # Load field offset information from objects-inl.h etc.
@@ -939,7 +930,7 @@ def emit_constants(out, consts):
 
   # Fix up overzealous parses.  This could be done inside the
   # parsers but as there are several, it's easiest to do it here.
-  ws = re.compile('\s+')
+  ws = re.compile(r'\s+')
   for const in consts:
     name = ws.sub('', const['name'])
     value = ws.sub('', str(const['value']))  # Can be a number.
@@ -956,6 +947,11 @@ def emit_config():
   out = open(sys.argv[1], 'w');
 
   out.write(header);
+
+  out.write("struct OffsetsForDebug {\n")
+  for (klass, field, offset) in offsetof_fields:
+    out.write("  static const int %s_%s = %s;\n" % (klass, field, offset))
+  out.write("};\n")
 
   out.write('/* miscellaneous constants */\n');
   emit_constants(out, consts_misc);

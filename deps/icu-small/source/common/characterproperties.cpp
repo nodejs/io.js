@@ -169,7 +169,7 @@ void U_CALLCONV initInclusion(UPropertySource src, UErrorCode &errorCode) {
     case UPROPS_SRC_INPC:
     case UPROPS_SRC_INSC:
     case UPROPS_SRC_VO:
-        uprops_addPropertyStarts((UPropertySource)src, &sa, &errorCode);
+        uprops_addPropertyStarts(src, &sa, &errorCode);
         break;
     case UPROPS_SRC_EMOJI: {
         const icu::EmojiProps *ep = icu::EmojiProps::getSingleton(errorCode);
@@ -178,6 +178,14 @@ void U_CALLCONV initInclusion(UPropertySource src, UErrorCode &errorCode) {
         }
         break;
     }
+    case UPROPS_SRC_IDSU:
+        // New in Unicode 15.1 for just two characters.
+        sa.add(sa.set, 0x2FFE);
+        sa.add(sa.set, 0x2FFF + 1);
+        break;
+    case UPROPS_SRC_ID_COMPAT_MATH:
+        uprops_addPropertyStarts(src, &sa, &errorCode);
+        break;
     default:
         errorCode = U_INTERNAL_PROGRAM_ERROR;
         break;

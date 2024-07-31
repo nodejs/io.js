@@ -98,7 +98,7 @@ UMatchDegree StringMatcher::matches(const Replaceable& text,
         for (i=pattern.length()-1; i>=0; --i) {
             char16_t keyChar = pattern.charAt(i);
             UnicodeMatcher* subm = data->lookupMatcher(keyChar);
-            if (subm == 0) {
+            if (subm == nullptr) {
                 if (cursor > limit &&
                     keyChar == text.charAt(cursor)) {
                     --cursor;
@@ -129,7 +129,7 @@ UMatchDegree StringMatcher::matches(const Replaceable& text,
             }
             char16_t keyChar = pattern.charAt(i);
             UnicodeMatcher* subm = data->lookupMatcher(keyChar);
-            if (subm == 0) {
+            if (subm == nullptr) {
                 // Don't need the cursor < limit check if
                 // incremental is true (because it's done above); do need
                 // it otherwise.
@@ -170,7 +170,7 @@ UnicodeString& StringMatcher::toPattern(UnicodeString& result,
     for (int32_t i=0; i<pattern.length(); ++i) {
         char16_t keyChar = pattern.charAt(i);
         const UnicodeMatcher* m = data->lookupMatcher(keyChar);
-        if (m == 0) {
+        if (m == nullptr) {
             ICU_Utility::appendToRule(result, keyChar, false, escapeUnprintable, quoteBuf);
         } else {
             ICU_Utility::appendToRule(result, m->toPattern(str, escapeUnprintable),
@@ -195,7 +195,7 @@ UBool StringMatcher::matchesIndexValue(uint8_t v) const {
     }
     UChar32 c = pattern.char32At(0);
     const UnicodeMatcher *m = data->lookupMatcher(c);
-    return (m == 0) ? ((c & 0xFF) == v) : m->matchesIndexValue(v);
+    return (m == nullptr) ? ((c & 0xFF) == v) : m->matchesIndexValue(v);
 }
 
 /**

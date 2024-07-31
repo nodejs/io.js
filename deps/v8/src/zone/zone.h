@@ -217,6 +217,10 @@ class V8_EXPORT_PRIVATE Zone final {
   const TypeStats& type_stats() const { return type_stats_; }
 #endif
 
+#ifdef DEBUG
+  bool Contains(void* ptr);
+#endif
+
  private:
   void* AsanNew(size_t size);
 

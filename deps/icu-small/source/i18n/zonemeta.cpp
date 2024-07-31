@@ -120,6 +120,7 @@ static const char gKeyTypeData[]        = "keyTypeData";
 static const char gTypeAliasTag[]       = "typeAlias";
 static const char gTypeMapTag[]         = "typeMap";
 static const char gTimezoneTag[]        = "timezone";
+static const char gIanaMapTag[]         = "ianaMap";
 
 static const char gPrimaryZonesTag[]    = "primaryZones";
 
@@ -387,6 +388,35 @@ ZoneMeta::getCanonicalCLDRID(const TimeZone& tz) {
     UErrorCode status = U_ZERO_ERROR;
     UnicodeString tzID;
     return getCanonicalCLDRID(tz.getID(tzID), status);
+}
+
+UnicodeString& U_EXPORT2
+ZoneMeta::getIanaID(const UnicodeString& tzid, UnicodeString& ianaID, UErrorCode& status) {
+    // First, get CLDR canonical ID
+    const char16_t *canonicalID = getCanonicalCLDRID(tzid, status);
+    if (U_FAILURE(status) || canonicalID == nullptr) {
+        ianaID.setToBogus();
+        return ianaID;
+    }
+    // Find IANA mapping if any.
+    UErrorCode tmpStatus = U_ZERO_ERROR;
+    UnicodeString tmpKey(canonicalID);
+    tmpKey.findAndReplace(UnicodeString("/"), UnicodeString(":"));
+    char keyBuf[ZID_KEY_MAX + 1];
+    /* int32_t keyLen = */ tmpKey.extract(0, tmpKey.length(), keyBuf, sizeof(keyBuf), US_INV);
+
+    StackUResourceBundle r;
+    ures_openDirectFillIn(r.getAlias(), nullptr, gKeyTypeData, &tmpStatus);
+    ures_getByKey(r.getAlias(), gIanaMapTag, r.getAlias(), &tmpStatus);
+    ures_getByKey(r.getAlias(), gTimezoneTag, r.getAlias(), &tmpStatus);
+    int32_t tmpLen = 0;
+    const char16_t* tmpIana = ures_getStringByKey(r.getAlias(), keyBuf, &tmpLen, &tmpStatus);
+    if (U_SUCCESS(tmpStatus)) {
+        ianaID.setTo(true, tmpIana, -1);
+    } else {
+        ianaID.setTo(true, canonicalID, -1);
+    }
+    return ianaID;
 }
 
 static void U_CALLCONV countryInfoVectorsInit(UErrorCode &status) {

@@ -94,7 +94,14 @@ void DoubleToStringConverter::CreateExponentialRepresentation(
     StringBuilder* result_builder) const {
   DOUBLE_CONVERSION_ASSERT(length != 0);
   result_builder->AddCharacter(decimal_digits[0]);
-  if (length != 1) {
+  if (length == 1) {
+    if ((flags_ & EMIT_TRAILING_DECIMAL_POINT_IN_EXPONENTIAL) != 0) {
+      result_builder->AddCharacter('.');
+      if ((flags_ & EMIT_TRAILING_ZERO_AFTER_POINT_IN_EXPONENTIAL) != 0) {
+          result_builder->AddCharacter('0');
+      }
+    }
+  } else {
     result_builder->AddCharacter('.');
     result_builder->AddSubstring(&decimal_digits[1], length-1);
   }

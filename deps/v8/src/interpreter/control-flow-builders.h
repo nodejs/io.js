@@ -263,6 +263,81 @@ class V8_EXPORT_PRIVATE TryFinallyBuilder final : public ControlFlowBuilder {
   TryFinallyStatement* statement_;
 };
 
+class V8_EXPORT_PRIVATE ConditionalChainControlFlowBuilder final
+    : public ControlFlowBuilder {
+ public:
+  ConditionalChainControlFlowBuilder(
+      BytecodeArrayBuilder* builder,
+      BlockCoverageBuilder* block_coverage_builder, AstNode* node,
+      size_t then_count)
+      : ControlFlowBuilder(builder),
+        end_labels_(builder->zone()),
+        then_count_(then_count),
+        then_labels_list_(static_cast<int>(then_count_), builder->zone()),
+        else_labels_list_(static_cast<int>(then_count_), builder->zone()),
+        block_coverage_then_slots_(then_count_, builder->zone()),
+        block_coverage_else_slots_(then_count_, builder->zone()),
+        block_coverage_builder_(block_coverage_builder) {
+    DCHECK(node->IsConditionalChain());
+
+    Zone* zone = builder->zone();
+    for (size_t i = 0; i < then_count_; ++i) {
+      then_labels_list_.Add(zone->New<BytecodeLabels>(zone), zone);
+      else_labels_list_.Add(zone->New<BytecodeLabels>(zone), zone);
+    }
+
+    if (block_coverage_builder != nullptr) {
+      ConditionalChain* conditional_chain = node->AsConditionalChain();
+      block_coverage_then_slots_.resize(then_count_);
+      block_coverage_else_slots_.resize(then_count_);
+      for (size_t i = 0; i < then_count_; ++i) {
+        block_coverage_then_slots_[i] =
+            block_coverage_builder->AllocateConditionalChainBlockCoverageSlot(
+                conditional_chain, SourceRangeKind::kThen, i);
+        block_coverage_else_slots_[i] =
+            block_coverage_builder->AllocateConditionalChainBlockCoverageSlot(
+                conditional_chain, SourceRangeKind::kElse, i);
+      }
+    }
+  }
+  ~ConditionalChainControlFlowBuilder() override;
+
+  BytecodeLabels* then_labels_at(size_t index) {
+    DCHECK_LT(index, then_count_);
+    return then_labels_list_[static_cast<int>(index)];
+  }
+
+  BytecodeLabels* else_labels_at(size_t index) {
+    DCHECK_LT(index, then_count_);
+    return else_labels_list_[static_cast<int>(index)];
+  }
+
+  int block_coverage_then_slot_at(size_t index) const {
+    DCHECK_LT(index, then_count_);
+    return block_coverage_then_slots_[index];
+  }
+
+  int block_coverage_else_slot_at(size_t index) const {
+    DCHECK_LT(index, then_count_);
+    return block_coverage_else_slots_[index];
+  }
+
+  void ThenAt(size_t index);
+  void ElseAt(size_t index);
+
+  void JumpToEnd();
+
+ private:
+  BytecodeLabels end_labels_;
+  size_t then_count_;
+  ZonePtrList<BytecodeLabels> then_labels_list_;
+  ZonePtrList<BytecodeLabels> else_labels_list_;
+
+  ZoneVector<int> block_coverage_then_slots_;
+  ZoneVector<int> block_coverage_else_slots_;
+  BlockCoverageBuilder* block_coverage_builder_;
+};
+
 class V8_EXPORT_PRIVATE ConditionalControlFlowBuilder final
     : public ControlFlowBuilder {
  public:

@@ -77,7 +77,7 @@ class BytecodeExpectationsPrinter final {
   void PrintBytecodeSequence(std::ostream* stream,
                              i::Handle<i::BytecodeArray> bytecode_array) const;
   void PrintConstantPool(std::ostream* stream,
-                         i::Tagged<i::FixedArray> constant_pool) const;
+                         i::Tagged<i::TrustedFixedArray> constant_pool) const;
   void PrintCodeSnippet(std::ostream* stream, const std::string& body) const;
   void PrintBytecodeArray(std::ostream* stream,
                           i::Handle<i::BytecodeArray> bytecode_array) const;

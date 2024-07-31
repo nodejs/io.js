@@ -1,14 +1,15 @@
-const rpj = require('read-package-json-fast')
+const PackageJson = require('@npmcli/package-json')
 const runScriptPkg = require('./run-script-pkg.js')
 const validateOptions = require('./validate-options.js')
 const isServerPackage = require('./is-server-package.js')
 
-const runScript = options => {
+const runScript = async options => {
   validateOptions(options)
-  const { pkg, path } = options
-  return pkg ? runScriptPkg(options)
-    : rpj(path + '/package.json')
-      .then(readPackage => runScriptPkg({ ...options, pkg: readPackage }))
+  if (options.pkg) {
+    return runScriptPkg(options)
+  }
+  const { content: pkg } = await PackageJson.normalize(options.path)
+  return runScriptPkg({ ...options, pkg })
 }
 
 module.exports = Object.assign(runScript, { isServerPackage })

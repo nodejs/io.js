@@ -57,9 +57,15 @@ export grade software which could use signing only keys of arbitrary size but
 had restrictions on the permissible sizes of keys which could be used for
 encryption.
 
-If a certificate contains an I<alias> or I<keyid> then this will be
-used for the corresponding B<friendlyName> or B<localKeyID> in the
-PKCS12 structure.
+If I<name> is B<NULL> and I<cert> contains an I<alias> then this will be
+used for the corresponding B<friendlyName> in the PKCS12 structure instead.
+Similarly, if I<pkey> is NULL and I<cert> contains a I<keyid> then this will be
+used for the corresponding B<localKeyID> in the PKCS12 structure instead of the
+id calculated from the I<pkey>.
+
+For all certificates in I<ca> then if a certificate contains an I<alias> or
+I<keyid> then this will be used for the corresponding B<friendlyName> or
+B<localKeyID> in the PKCS12 structure.
 
 Either I<pkey>, I<cert> or both can be B<NULL> to indicate that no key or
 certificate is required. In previous versions both had to be present or
@@ -101,7 +107,7 @@ standards.
 
 =head1 COPYRIGHT
 
-Copyright 2002-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2002-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

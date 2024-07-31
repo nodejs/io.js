@@ -7,7 +7,6 @@
 #include "src/common/globals.h"
 #include "src/execution/local-isolate.h"
 #include "src/handles/handles.h"
-#include "src/heap/concurrent-allocator-inl.h"
 #include "src/heap/local-factory-inl.h"
 #include "src/heap/local-heap-inl.h"
 #include "src/logging/local-logger.h"
@@ -22,14 +21,9 @@
 namespace v8 {
 namespace internal {
 
-#ifdef V8_ENABLE_SANDBOX
-LocalFactory::LocalFactory(Isolate* isolate)
-    : roots_(isolate), isolate_for_sandbox_(isolate) {}
-#else
 LocalFactory::LocalFactory(Isolate* isolate) : roots_(isolate) {}
-#endif
 
-void LocalFactory::ProcessNewScript(Handle<Script> script,
+void LocalFactory::ProcessNewScript(DirectHandle<Script> script,
                                     ScriptEventType script_event_type) {
   // TODO(leszeks): Actually add the script to the main Isolate's script list,
   // in a thread-safe way.
@@ -55,7 +49,8 @@ Tagged<HeapObject> LocalFactory::AllocateRaw(int size,
                                              AllocationType allocation,
                                              AllocationAlignment alignment) {
   DCHECK(allocation == AllocationType::kOld ||
-         allocation == AllocationType::kSharedOld);
+         allocation == AllocationType::kSharedOld ||
+         allocation == AllocationType::kTrusted);
   return HeapObject::FromAddress(isolate()->heap()->AllocateRawOrFail(
       size, allocation, AllocationOrigin::kRuntime, alignment));
 }
@@ -64,8 +59,8 @@ int LocalFactory::NumberToStringCacheHash(Tagged<Smi>) { return 0; }
 
 int LocalFactory::NumberToStringCacheHash(double) { return 0; }
 
-void LocalFactory::NumberToStringCacheSet(Handle<Object>, int, Handle<String>) {
-}
+void LocalFactory::NumberToStringCacheSet(DirectHandle<Object>, int,
+                                          DirectHandle<String>) {}
 
 Handle<Object> LocalFactory::NumberToStringCacheGet(Tagged<Object>, int) {
   return undefined_value();

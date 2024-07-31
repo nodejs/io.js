@@ -4,7 +4,7 @@
 // restoring state from a snapshot
 
 require('../common');
-const { spawnSyncAndExitWithoutError } = require('../common/child_process');
+const { spawnSyncAndAssert } = require('../common/child_process');
 const tmpdir = require('../common/tmpdir');
 const fixtures = require('../common/fixtures');
 const fs = require('fs');
@@ -18,7 +18,7 @@ fs.mkdirSync(subdir);
 
 {
   // Create the snapshot.
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     '--build-snapshot',
@@ -32,7 +32,7 @@ fs.mkdirSync(subdir);
 }
 
 {
-  spawnSyncAndExitWithoutError(process.execPath, [
+  spawnSyncAndAssert(process.execPath, [
     '--snapshot-blob',
     blobPath,
     file,

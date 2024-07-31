@@ -412,7 +412,7 @@ let workerHelpers = assertTrue.toString() + assertIsWasmSharedMemory.toString();
       kExprLoop, kWasmVoid,
         ...wasmI32Const(sync_index),
         ...wasmI32Const(sync_value),
-        kAtomicPrefix, kExprI32AtomicStore, 0, 0,
+        kAtomicPrefix, kExprI32AtomicStore, 2, 0,
         kExprMemorySize, 0, kExprLocalTee, 0,
         kExprI32Const, initial_size,
         kExprI32Eq,
@@ -423,11 +423,11 @@ let workerHelpers = assertTrue.toString() + assertIsWasmSharedMemory.toString();
 
   builder.addFunction("setter", kSig_v_ii)
       .addBody([kExprLocalGet, 0, kExprLocalGet, 1,
-                kAtomicPrefix, kExprI32AtomicStore, 0, 0])
+                kAtomicPrefix, kExprI32AtomicStore, 2, 0])
       .exportFunc();
 
   builder.addFunction("getter", kSig_i_i)
-      .addBody([kExprLocalGet, 0, kAtomicPrefix, kExprI32AtomicLoad, 0, 0])
+      .addBody([kExprLocalGet, 0, kAtomicPrefix, kExprI32AtomicLoad, 2, 0])
       .exportFunc();
 
   let module = new WebAssembly.Module(builder.toBuffer());

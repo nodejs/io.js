@@ -193,6 +193,12 @@ static void SetPromiseHooks(const FunctionCallbackInfo<Value>& args) {
       args[3]->IsFunction() ? args[3].As<Function>() : Local<Function>());
 }
 
+static void GetPromiseHooks(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  args.GetReturnValue().Set(
+      env->async_hooks()->GetPromiseHooks(args.GetIsolate()));
+}
+
 class DestroyParam {
  public:
   double asyncId;
@@ -248,7 +254,7 @@ static void RegisterDestroyHook(const FunctionCallbackInfo<Value>& args) {
 void AsyncWrap::GetAsyncId(const FunctionCallbackInfo<Value>& args) {
   AsyncWrap* wrap;
   args.GetReturnValue().Set(kInvalidAsyncId);
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
   args.GetReturnValue().Set(wrap->get_async_id());
 }
 
@@ -290,7 +296,7 @@ void AsyncWrap::AsyncReset(const FunctionCallbackInfo<Value>& args) {
   CHECK(args[0]->IsObject());
 
   AsyncWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
 
   Local<Object> resource = args[0].As<Object>();
   double execution_async_id =
@@ -302,7 +308,7 @@ void AsyncWrap::AsyncReset(const FunctionCallbackInfo<Value>& args) {
 void AsyncWrap::GetProviderType(const FunctionCallbackInfo<Value>& args) {
   AsyncWrap* wrap;
   args.GetReturnValue().Set(AsyncWrap::PROVIDER_NONE);
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
   args.GetReturnValue().Set(wrap->provider_type());
 }
 
@@ -364,6 +370,7 @@ void AsyncWrap::CreatePerIsolateProperties(IsolateData* isolate_data,
   SetMethod(isolate, target, "clearAsyncIdStack", ClearAsyncIdStack);
   SetMethod(isolate, target, "queueDestroyAsyncId", QueueDestroyAsyncId);
   SetMethod(isolate, target, "setPromiseHooks", SetPromiseHooks);
+  SetMethod(isolate, target, "getPromiseHooks", GetPromiseHooks);
   SetMethod(isolate, target, "registerDestroyHook", RegisterDestroyHook);
   AsyncWrap::GetConstructorTemplate(isolate_data);
 }
@@ -372,8 +379,9 @@ void AsyncWrap::CreatePerContextProperties(Local<Object> target,
                                            Local<Value> unused,
                                            Local<Context> context,
                                            void* priv) {
-  Environment* env = Environment::GetCurrent(context);
-  Isolate* isolate = env->isolate();
+  Realm* realm = Realm::GetCurrent(context);
+  Environment* env = realm->env();
+  Isolate* isolate = realm->isolate();
   HandleScope scope(isolate);
 
   PropertyAttribute ReadOnlyDontDelete =
@@ -446,13 +454,16 @@ void AsyncWrap::CreatePerContextProperties(Local<Object> target,
 
 #undef FORCE_SET_TARGET_FIELD
 
-  env->set_async_hooks_init_function(Local<Function>());
-  env->set_async_hooks_before_function(Local<Function>());
-  env->set_async_hooks_after_function(Local<Function>());
-  env->set_async_hooks_destroy_function(Local<Function>());
-  env->set_async_hooks_promise_resolve_function(Local<Function>());
-  env->set_async_hooks_callback_trampoline(Local<Function>());
-  env->set_async_hooks_binding(target);
+  // TODO(legendecas): async hook functions are not realm-aware yet.
+  // This simply avoid overriding principal realm's functions when a
+  // ShadowRealm initializes the binding.
+  realm->set_async_hooks_init_function(Local<Function>());
+  realm->set_async_hooks_before_function(Local<Function>());
+  realm->set_async_hooks_after_function(Local<Function>());
+  realm->set_async_hooks_destroy_function(Local<Function>());
+  realm->set_async_hooks_promise_resolve_function(Local<Function>());
+  realm->set_async_hooks_callback_trampoline(Local<Function>());
+  realm->set_async_hooks_binding(target);
 }
 
 void AsyncWrap::RegisterExternalReferences(
@@ -465,6 +476,7 @@ void AsyncWrap::RegisterExternalReferences(
   registry->Register(ClearAsyncIdStack);
   registry->Register(QueueDestroyAsyncId);
   registry->Register(SetPromiseHooks);
+  registry->Register(GetPromiseHooks);
   registry->Register(RegisterDestroyHook);
   registry->Register(AsyncWrap::GetAsyncId);
   registry->Register(AsyncWrap::AsyncReset);

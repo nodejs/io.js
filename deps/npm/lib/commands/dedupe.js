@@ -1,8 +1,7 @@
-// dedupe duplicated packages, or find them in the tree
 const reifyFinish = require('../utils/reify-finish.js')
-
 const ArboristWorkspaceCmd = require('../arborist-cmd.js')
 
+// dedupe duplicated packages, or find them in the tree
 class Dedupe extends ArboristWorkspaceCmd {
   static description = 'Reduce duplication in the package tree'
   static name = 'dedupe'
@@ -22,7 +21,7 @@ class Dedupe extends ArboristWorkspaceCmd {
     ...super.params,
   ]
 
-  async exec (args) {
+  async exec () {
     if (this.npm.global) {
       const er = new Error('`npm dedupe` does not work in global mode.')
       er.code = 'EDEDUPEGLOBAL'

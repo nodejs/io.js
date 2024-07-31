@@ -105,7 +105,7 @@ var extend$1 = function extend() {
 };
 var extend$2 = getDefaultExportFromCjs(extend$1);
 
-function ok$B() {}
+function ok$1() {}
 
 function isPlainObject(value) {
 	if (typeof value !== 'object' || value === null) {
@@ -175,7 +175,7 @@ function wrap(middleware, callback) {
       return done(exception)
     }
     if (!fnExpectsCallback) {
-      if (result instanceof Promise) {
+      if (result && result.then && typeof result.then === 'function') {
         result.then(then, done);
       } else if (result instanceof Error) {
         done(result);
@@ -195,32 +195,32 @@ function wrap(middleware, callback) {
   }
 }
 
-function stringifyPosition$2(value) {
+function stringifyPosition(value) {
   if (!value || typeof value !== 'object') {
     return ''
   }
   if ('position' in value || 'type' in value) {
-    return position$2(value.position)
+    return position$1(value.position)
   }
   if ('start' in value || 'end' in value) {
-    return position$2(value)
+    return position$1(value)
   }
   if ('line' in value || 'column' in value) {
-    return point$4(value)
+    return point$2(value)
   }
   return ''
 }
-function point$4(point) {
-  return index$2(point && point.line) + ':' + index$2(point && point.column)
+function point$2(point) {
+  return index(point && point.line) + ':' + index(point && point.column)
 }
-function position$2(pos) {
-  return point$4(pos && pos.start) + '-' + point$4(pos && pos.end)
+function position$1(pos) {
+  return point$2(pos && pos.start) + '-' + point$2(pos && pos.end)
 }
-function index$2(value) {
+function index(value) {
   return value && typeof value === 'number' ? value : 1
 }
 
-let VFileMessage$1 = class VFileMessage extends Error {
+class VFileMessage extends Error {
   constructor(causeOrReason, optionsOrParentOrPlace, origin) {
     super();
     if (typeof optionsOrParentOrPlace === 'string') {
@@ -287,7 +287,7 @@ let VFileMessage$1 = class VFileMessage extends Error {
     this.file;
     this.message = reason;
     this.line = start ? start.line : undefined;
-    this.name = stringifyPosition$2(options.place) || '1:1';
+    this.name = stringifyPosition(options.place) || '1:1';
     this.place = options.place || undefined;
     this.reason = this.message;
     this.ruleId = options.ruleId || undefined;
@@ -301,22 +301,22 @@ let VFileMessage$1 = class VFileMessage extends Error {
     this.note;
     this.url;
   }
-};
-VFileMessage$1.prototype.file = '';
-VFileMessage$1.prototype.name = '';
-VFileMessage$1.prototype.reason = '';
-VFileMessage$1.prototype.message = '';
-VFileMessage$1.prototype.stack = '';
-VFileMessage$1.prototype.column = undefined;
-VFileMessage$1.prototype.line = undefined;
-VFileMessage$1.prototype.ancestors = undefined;
-VFileMessage$1.prototype.cause = undefined;
-VFileMessage$1.prototype.fatal = undefined;
-VFileMessage$1.prototype.place = undefined;
-VFileMessage$1.prototype.ruleId = undefined;
-VFileMessage$1.prototype.source = undefined;
+}
+VFileMessage.prototype.file = '';
+VFileMessage.prototype.name = '';
+VFileMessage.prototype.reason = '';
+VFileMessage.prototype.message = '';
+VFileMessage.prototype.stack = '';
+VFileMessage.prototype.column = undefined;
+VFileMessage.prototype.line = undefined;
+VFileMessage.prototype.ancestors = undefined;
+VFileMessage.prototype.cause = undefined;
+VFileMessage.prototype.fatal = undefined;
+VFileMessage.prototype.place = undefined;
+VFileMessage.prototype.ruleId = undefined;
+VFileMessage.prototype.source = undefined;
 
-function isUrl$1(fileUrlOrPath) {
+function isUrl(fileUrlOrPath) {
   return Boolean(
     fileUrlOrPath !== null &&
       typeof fileUrlOrPath === 'object' &&
@@ -328,7 +328,7 @@ function isUrl$1(fileUrlOrPath) {
   )
 }
 
-const order$1 =  ([
+const order =  ([
   'history',
   'path',
   'basename',
@@ -336,14 +336,14 @@ const order$1 =  ([
   'extname',
   'dirname'
 ]);
-let VFile$1 = class VFile {
+class VFile {
   constructor(value) {
     let options;
     if (!value) {
       options = {};
-    } else if (isUrl$1(value)) {
+    } else if (isUrl(value)) {
       options = {path: value};
-    } else if (typeof value === 'string' || isUint8Array$3(value)) {
+    } else if (typeof value === 'string' || isUint8Array$2(value)) {
       options = {value};
     } else {
       options = value;
@@ -357,8 +357,8 @@ let VFile$1 = class VFile {
     this.result;
     this.stored;
     let index = -1;
-    while (++index < order$1.length) {
-      const prop = order$1[index];
+    while (++index < order.length) {
+      const prop = order[index];
       if (
         prop in options &&
         options[prop] !== undefined &&
@@ -369,7 +369,7 @@ let VFile$1 = class VFile {
     }
     let prop;
     for (prop in options) {
-      if (!order$1.includes(prop)) {
+      if (!order.includes(prop)) {
         this[prop] = options[prop];
       }
     }
@@ -378,23 +378,23 @@ let VFile$1 = class VFile {
     return typeof this.path === 'string' ? path$1.basename(this.path) : undefined
   }
   set basename(basename) {
-    assertNonEmpty$1(basename, 'basename');
-    assertPart$1(basename, 'basename');
+    assertNonEmpty(basename, 'basename');
+    assertPart(basename, 'basename');
     this.path = path$1.join(this.dirname || '', basename);
   }
   get dirname() {
     return typeof this.path === 'string' ? path$1.dirname(this.path) : undefined
   }
   set dirname(dirname) {
-    assertPath$1(this.basename, 'dirname');
+    assertPath(this.basename, 'dirname');
     this.path = path$1.join(dirname || '', this.basename);
   }
   get extname() {
     return typeof this.path === 'string' ? path$1.extname(this.path) : undefined
   }
   set extname(extname) {
-    assertPart$1(extname, 'extname');
-    assertPath$1(this.dirname, 'extname');
+    assertPart(extname, 'extname');
+    assertPath(this.dirname, 'extname');
     if (extname) {
       if (extname.codePointAt(0) !== 46 ) {
         throw new Error('`extname` must start with `.`')
@@ -409,10 +409,10 @@ let VFile$1 = class VFile {
     return this.history[this.history.length - 1]
   }
   set path(path) {
-    if (isUrl$1(path)) {
+    if (isUrl(path)) {
       path = fileURLToPath(path);
     }
-    assertNonEmpty$1(path, 'path');
+    assertNonEmpty(path, 'path');
     if (this.path !== path) {
       this.history.push(path);
     }
@@ -423,8 +423,8 @@ let VFile$1 = class VFile {
       : undefined
   }
   set stem(stem) {
-    assertNonEmpty$1(stem, 'stem');
-    assertPart$1(stem, 'stem');
+    assertNonEmpty(stem, 'stem');
+    assertPart(stem, 'stem');
     this.path = path$1.join(this.dirname || '', stem + (this.extname || ''));
   }
   fail(causeOrReason, optionsOrParentOrPlace, origin) {
@@ -438,7 +438,7 @@ let VFile$1 = class VFile {
     return message
   }
   message(causeOrReason, optionsOrParentOrPlace, origin) {
-    const message = new VFileMessage$1(
+    const message = new VFileMessage(
       causeOrReason,
       optionsOrParentOrPlace,
       origin
@@ -461,25 +461,25 @@ let VFile$1 = class VFile {
     const decoder = new TextDecoder(encoding || undefined);
     return decoder.decode(this.value)
   }
-};
-function assertPart$1(part, name) {
+}
+function assertPart(part, name) {
   if (part && part.includes(path$1.sep)) {
     throw new Error(
       '`' + name + '` cannot be a path: did not expect `' + path$1.sep + '`'
     )
   }
 }
-function assertNonEmpty$1(part, name) {
+function assertNonEmpty(part, name) {
   if (!part) {
     throw new Error('`' + name + '` cannot be empty')
   }
 }
-function assertPath$1(path, name) {
+function assertPath(path, name) {
   if (!path) {
     throw new Error('Setting `' + name + '` requires `path` to be set too')
   }
 }
-function isUint8Array$3(value) {
+function isUint8Array$2(value) {
   return Boolean(
     value &&
       typeof value === 'object' &&
@@ -497,22 +497,17 @@ const CallableInstance =
         const proto =  (
           constr.prototype
         );
-        const func = proto[property];
+        const value = proto[property];
         const apply = function () {
-          return func.apply(apply, arguments)
+          return value.apply(apply, arguments)
         };
         Object.setPrototypeOf(apply, proto);
-        const names = Object.getOwnPropertyNames(func);
-        for (const p of names) {
-          const descriptor = Object.getOwnPropertyDescriptor(func, p);
-          if (descriptor) Object.defineProperty(apply, p, descriptor);
-        }
         return apply
       }
     )
   );
 
-const own$6 = {}.hasOwnProperty;
+const own$5 = {}.hasOwnProperty;
 class Processor extends CallableInstance {
   constructor() {
     super('copy');
@@ -546,7 +541,7 @@ class Processor extends CallableInstance {
         this.namespace[key] = value;
         return this
       }
-      return (own$6.call(this.namespace, key) && this.namespace[key]) || undefined
+      return (own$5.call(this.namespace, key) && this.namespace[key]) || undefined
     }
     if (key) {
       assertUnfrozen('data', this.frozen);
@@ -794,7 +789,7 @@ function assertDone(name, asyncName, complete) {
   }
 }
 function vfile(value) {
-  return looksLikeAVFile$1(value) ? value : new VFile$1(value)
+  return looksLikeAVFile$1(value) ? value : new VFile(value)
 }
 function looksLikeAVFile$1(value) {
   return Boolean(
@@ -805,9 +800,9 @@ function looksLikeAVFile$1(value) {
   )
 }
 function looksLikeAValue(value) {
-  return typeof value === 'string' || isUint8Array$2(value)
+  return typeof value === 'string' || isUint8Array$1(value)
 }
-function isUint8Array$2(value) {
+function isUint8Array$1(value) {
   return Boolean(
     value &&
       typeof value === 'object' &&
@@ -816,19 +811,19 @@ function isUint8Array$2(value) {
   )
 }
 
-const emptyOptions$3 = {};
-function toString$2(value, options) {
-  const settings = options || emptyOptions$3;
+const emptyOptions$2 = {};
+function toString(value, options) {
+  const settings = emptyOptions$2;
   const includeImageAlt =
     typeof settings.includeImageAlt === 'boolean'
       ? settings.includeImageAlt
       : true;
   const includeHtml =
     typeof settings.includeHtml === 'boolean' ? settings.includeHtml : true;
-  return one$2(value, includeImageAlt, includeHtml)
+  return one(value, includeImageAlt, includeHtml)
 }
-function one$2(value, includeImageAlt, includeHtml) {
-  if (node$2(value)) {
+function one(value, includeImageAlt, includeHtml) {
+  if (node(value)) {
     if ('value' in value) {
       return value.type === 'html' && !includeHtml ? '' : value.value
     }
@@ -836,23 +831,23 @@ function one$2(value, includeImageAlt, includeHtml) {
       return value.alt
     }
     if ('children' in value) {
-      return all$2(value.children, includeImageAlt, includeHtml)
+      return all(value.children, includeImageAlt, includeHtml)
     }
   }
   if (Array.isArray(value)) {
-    return all$2(value, includeImageAlt, includeHtml)
+    return all(value, includeImageAlt, includeHtml)
   }
   return ''
 }
-function all$2(values, includeImageAlt, includeHtml) {
+function all(values, includeImageAlt, includeHtml) {
   const result = [];
   let index = -1;
   while (++index < values.length) {
-    result[index] = one$2(values[index], includeImageAlt, includeHtml);
+    result[index] = one(values[index], includeImageAlt, includeHtml);
   }
   return result.join('')
 }
-function node$2(value) {
+function node(value) {
   return Boolean(value && typeof value === 'object')
 }
 
@@ -2984,9 +2979,9 @@ const characterEntities = {
   zwnj: '‌'
 };
 
-const own$5 = {}.hasOwnProperty;
+const own$4 = {}.hasOwnProperty;
 function decodeNamedCharacterReference(value) {
-  return own$5.call(characterEntities, value) ? characterEntities[value] : false
+  return own$4.call(characterEntities, value) ? characterEntities[value] : false
 }
 
 function splice(list, start, remove, items) {
@@ -3062,22 +3057,18 @@ function constructs(existing, list) {
 function decodeNumericCharacterReference(value, base) {
   const code = Number.parseInt(value, base);
   if (
-    code < 9 ||
-    code === 11 ||
-    (code > 13 && code < 32) ||
-    (code > 126 && code < 160) ||
-    (code > 55_295 && code < 57_344) ||
-    (code > 64_975 && code < 65_008)  ||
-    (code & 65_535) === 65_535 ||
-    (code & 65_535) === 65_534  ||
-    code > 1_114_111
-  ) {
-    return '\uFFFD'
+  code < 9 || code === 11 || code > 13 && code < 32 ||
+  code > 126 && code < 160 ||
+  code > 55_295 && code < 57_344 ||
+  code > 64_975 && code < 65_008 ||
+  (code & 65_535) === 65_535 || (code & 65_535) === 65_534 ||
+  code > 1_114_111) {
+    return "\uFFFD";
   }
-  return String.fromCharCode(code)
+  return String.fromCodePoint(code);
 }
 
-function normalizeIdentifier$1(value) {
+function normalizeIdentifier(value) {
   return (
     value
       .replace(/[\t\n\r ]+/g, ' ')
@@ -3087,35 +3078,32 @@ function normalizeIdentifier$1(value) {
   )
 }
 
-const unicodePunctuationInternal = regexCheck(/\p{P}/u);
 const asciiAlpha = regexCheck(/[A-Za-z]/);
 const asciiAlphanumeric = regexCheck(/[\dA-Za-z]/);
 const asciiAtext = regexCheck(/[#-'*+\--9=?A-Z^-~]/);
 function asciiControl(code) {
   return (
     code !== null && (code < 32 || code === 127)
-  )
+  );
 }
 const asciiDigit = regexCheck(/\d/);
 const asciiHexDigit = regexCheck(/[\dA-Fa-f]/);
 const asciiPunctuation = regexCheck(/[!-/:-@[-`{-~]/);
 function markdownLineEnding(code) {
-  return code !== null && code < -2
+  return code !== null && code < -2;
 }
 function markdownLineEndingOrSpace(code) {
-  return code !== null && (code < 0 || code === 32)
+  return code !== null && (code < 0 || code === 32);
 }
 function markdownSpace(code) {
-  return code === -2 || code === -1 || code === 32
+  return code === -2 || code === -1 || code === 32;
 }
-function unicodePunctuation(code) {
-  return asciiPunctuation(code) || unicodePunctuationInternal(code)
-}
+const unicodePunctuation = regexCheck(/\p{P}|\p{S}/u);
 const unicodeWhitespace = regexCheck(/\s/);
 function regexCheck(regex) {
-  return check
+  return check;
   function check(code) {
-    return code !== null && code > -1 && regex.test(String.fromCharCode(code))
+    return code !== null && code > -1 && regex.test(String.fromCharCode(code));
   }
 }
 
@@ -3446,59 +3434,36 @@ function resolveAllAttention(events, context) {
   let nextEvents;
   let offset;
   while (++index < events.length) {
-    if (
-      events[index][0] === 'enter' &&
-      events[index][1].type === 'attentionSequence' &&
-      events[index][1]._close
-    ) {
+    if (events[index][0] === 'enter' && events[index][1].type === 'attentionSequence' && events[index][1]._close) {
       open = index;
       while (open--) {
-        if (
-          events[open][0] === 'exit' &&
-          events[open][1].type === 'attentionSequence' &&
-          events[open][1]._open &&
-          context.sliceSerialize(events[open][1]).charCodeAt(0) ===
-            context.sliceSerialize(events[index][1]).charCodeAt(0)
-        ) {
-          if (
-            (events[open][1]._close || events[index][1]._open) &&
-            (events[index][1].end.offset - events[index][1].start.offset) % 3 &&
-            !(
-              (events[open][1].end.offset -
-                events[open][1].start.offset +
-                events[index][1].end.offset -
-                events[index][1].start.offset) %
-              3
-            )
-          ) {
-            continue
+        if (events[open][0] === 'exit' && events[open][1].type === 'attentionSequence' && events[open][1]._open &&
+        context.sliceSerialize(events[open][1]).charCodeAt(0) === context.sliceSerialize(events[index][1]).charCodeAt(0)) {
+          if ((events[open][1]._close || events[index][1]._open) && (events[index][1].end.offset - events[index][1].start.offset) % 3 && !((events[open][1].end.offset - events[open][1].start.offset + events[index][1].end.offset - events[index][1].start.offset) % 3)) {
+            continue;
           }
-          use =
-            events[open][1].end.offset - events[open][1].start.offset > 1 &&
-            events[index][1].end.offset - events[index][1].start.offset > 1
-              ? 2
-              : 1;
+          use = events[open][1].end.offset - events[open][1].start.offset > 1 && events[index][1].end.offset - events[index][1].start.offset > 1 ? 2 : 1;
           const start = Object.assign({}, events[open][1].end);
           const end = Object.assign({}, events[index][1].start);
           movePoint(start, -use);
           movePoint(end, use);
           openingSequence = {
-            type: use > 1 ? 'strongSequence' : 'emphasisSequence',
+            type: use > 1 ? "strongSequence" : "emphasisSequence",
             start,
             end: Object.assign({}, events[open][1].end)
           };
           closingSequence = {
-            type: use > 1 ? 'strongSequence' : 'emphasisSequence',
+            type: use > 1 ? "strongSequence" : "emphasisSequence",
             start: Object.assign({}, events[index][1].start),
             end
           };
           text = {
-            type: use > 1 ? 'strongText' : 'emphasisText',
+            type: use > 1 ? "strongText" : "emphasisText",
             start: Object.assign({}, events[open][1].end),
             end: Object.assign({}, events[index][1].start)
           };
           group = {
-            type: use > 1 ? 'strong' : 'emphasis',
+            type: use > 1 ? "strong" : "emphasis",
             start: Object.assign({}, openingSequence.start),
             end: Object.assign({}, closingSequence.end)
           };
@@ -3506,43 +3471,20 @@ function resolveAllAttention(events, context) {
           events[index][1].start = Object.assign({}, closingSequence.end);
           nextEvents = [];
           if (events[open][1].end.offset - events[open][1].start.offset) {
-            nextEvents = push(nextEvents, [
-              ['enter', events[open][1], context],
-              ['exit', events[open][1], context]
-            ]);
+            nextEvents = push(nextEvents, [['enter', events[open][1], context], ['exit', events[open][1], context]]);
           }
-          nextEvents = push(nextEvents, [
-            ['enter', group, context],
-            ['enter', openingSequence, context],
-            ['exit', openingSequence, context],
-            ['enter', text, context]
-          ]);
-          nextEvents = push(
-            nextEvents,
-            resolveAll(
-              context.parser.constructs.insideSpan.null,
-              events.slice(open + 1, index),
-              context
-            )
-          );
-          nextEvents = push(nextEvents, [
-            ['exit', text, context],
-            ['enter', closingSequence, context],
-            ['exit', closingSequence, context],
-            ['exit', group, context]
-          ]);
+          nextEvents = push(nextEvents, [['enter', group, context], ['enter', openingSequence, context], ['exit', openingSequence, context], ['enter', text, context]]);
+          nextEvents = push(nextEvents, resolveAll(context.parser.constructs.insideSpan.null, events.slice(open + 1, index), context));
+          nextEvents = push(nextEvents, [['exit', text, context], ['enter', closingSequence, context], ['exit', closingSequence, context], ['exit', group, context]]);
           if (events[index][1].end.offset - events[index][1].start.offset) {
             offset = 2;
-            nextEvents = push(nextEvents, [
-              ['enter', events[index][1], context],
-              ['exit', events[index][1], context]
-            ]);
+            nextEvents = push(nextEvents, [['enter', events[index][1], context], ['exit', events[index][1], context]]);
           } else {
             offset = 0;
           }
           splice(events, open - 1, index - open + 3, nextEvents);
           index = open + nextEvents.length - offset - 2;
-          break
+          break;
         }
       }
     }
@@ -3553,33 +3495,31 @@ function resolveAllAttention(events, context) {
       events[index][1].type = 'data';
     }
   }
-  return events
+  return events;
 }
 function tokenizeAttention(effects, ok) {
   const attentionMarkers = this.parser.constructs.attentionMarkers.null;
   const previous = this.previous;
   const before = classifyCharacter(previous);
   let marker;
-  return start
+  return start;
   function start(code) {
     marker = code;
     effects.enter('attentionSequence');
-    return inside(code)
+    return inside(code);
   }
   function inside(code) {
     if (code === marker) {
       effects.consume(code);
-      return inside
+      return inside;
     }
     const token = effects.exit('attentionSequence');
     const after = classifyCharacter(code);
-    const open =
-      !after || (after === 2 && before) || attentionMarkers.includes(code);
-    const close =
-      !before || (before === 2 && after) || attentionMarkers.includes(previous);
+    const open = !after || after === 2 && before || attentionMarkers.includes(code);
+    const close = !before || before === 2 && after || attentionMarkers.includes(previous);
     token._open = Boolean(marker === 42 ? open : open && (before || !close));
     token._close = Boolean(marker === 42 ? close : close && (after || !open));
-    return ok(code)
+    return ok(code);
   }
 }
 function movePoint(point, offset) {
@@ -3594,97 +3534,97 @@ const autolink = {
 };
 function tokenizeAutolink(effects, ok, nok) {
   let size = 0;
-  return start
+  return start;
   function start(code) {
-    effects.enter('autolink');
-    effects.enter('autolinkMarker');
+    effects.enter("autolink");
+    effects.enter("autolinkMarker");
     effects.consume(code);
-    effects.exit('autolinkMarker');
-    effects.enter('autolinkProtocol');
-    return open
+    effects.exit("autolinkMarker");
+    effects.enter("autolinkProtocol");
+    return open;
   }
   function open(code) {
     if (asciiAlpha(code)) {
       effects.consume(code);
-      return schemeOrEmailAtext
+      return schemeOrEmailAtext;
     }
-    return emailAtext(code)
+    if (code === 64) {
+      return nok(code);
+    }
+    return emailAtext(code);
   }
   function schemeOrEmailAtext(code) {
     if (code === 43 || code === 45 || code === 46 || asciiAlphanumeric(code)) {
       size = 1;
-      return schemeInsideOrEmailAtext(code)
+      return schemeInsideOrEmailAtext(code);
     }
-    return emailAtext(code)
+    return emailAtext(code);
   }
   function schemeInsideOrEmailAtext(code) {
     if (code === 58) {
       effects.consume(code);
       size = 0;
-      return urlInside
+      return urlInside;
     }
-    if (
-      (code === 43 || code === 45 || code === 46 || asciiAlphanumeric(code)) &&
-      size++ < 32
-    ) {
+    if ((code === 43 || code === 45 || code === 46 || asciiAlphanumeric(code)) && size++ < 32) {
       effects.consume(code);
-      return schemeInsideOrEmailAtext
+      return schemeInsideOrEmailAtext;
     }
     size = 0;
-    return emailAtext(code)
+    return emailAtext(code);
   }
   function urlInside(code) {
     if (code === 62) {
-      effects.exit('autolinkProtocol');
-      effects.enter('autolinkMarker');
+      effects.exit("autolinkProtocol");
+      effects.enter("autolinkMarker");
       effects.consume(code);
-      effects.exit('autolinkMarker');
-      effects.exit('autolink');
-      return ok
+      effects.exit("autolinkMarker");
+      effects.exit("autolink");
+      return ok;
     }
     if (code === null || code === 32 || code === 60 || asciiControl(code)) {
-      return nok(code)
+      return nok(code);
     }
     effects.consume(code);
-    return urlInside
+    return urlInside;
   }
   function emailAtext(code) {
     if (code === 64) {
       effects.consume(code);
-      return emailAtSignOrDot
+      return emailAtSignOrDot;
     }
     if (asciiAtext(code)) {
       effects.consume(code);
-      return emailAtext
+      return emailAtext;
     }
-    return nok(code)
+    return nok(code);
   }
   function emailAtSignOrDot(code) {
-    return asciiAlphanumeric(code) ? emailLabel(code) : nok(code)
+    return asciiAlphanumeric(code) ? emailLabel(code) : nok(code);
   }
   function emailLabel(code) {
     if (code === 46) {
       effects.consume(code);
       size = 0;
-      return emailAtSignOrDot
+      return emailAtSignOrDot;
     }
     if (code === 62) {
-      effects.exit('autolinkProtocol').type = 'autolinkEmail';
-      effects.enter('autolinkMarker');
+      effects.exit("autolinkProtocol").type = "autolinkEmail";
+      effects.enter("autolinkMarker");
       effects.consume(code);
-      effects.exit('autolinkMarker');
-      effects.exit('autolink');
-      return ok
+      effects.exit("autolinkMarker");
+      effects.exit("autolink");
+      return ok;
     }
-    return emailValue(code)
+    return emailValue(code);
   }
   function emailValue(code) {
     if ((code === 45 || asciiAlphanumeric(code)) && size++ < 63) {
       const next = code === 45 ? emailValue : emailLabel;
       effects.consume(code);
-      return next
+      return next;
     }
-    return nok(code)
+    return nok(code);
   }
 }
 
@@ -3693,14 +3633,12 @@ const blankLine = {
   partial: true
 };
 function tokenizeBlankLine(effects, ok, nok) {
-  return start
+  return start;
   function start(code) {
-    return markdownSpace(code)
-      ? factorySpace(effects, after, 'linePrefix')(code)
-      : after(code)
+    return markdownSpace(code) ? factorySpace(effects, after, "linePrefix")(code) : after(code);
   }
   function after(code) {
-    return code === null || markdownLineEnding(code) ? ok(code) : nok(code)
+    return code === null || markdownLineEnding(code) ? ok(code) : nok(code);
   }
 }
 
@@ -3714,58 +3652,51 @@ const blockQuote = {
 };
 function tokenizeBlockQuoteStart(effects, ok, nok) {
   const self = this;
-  return start
+  return start;
   function start(code) {
     if (code === 62) {
       const state = self.containerState;
       if (!state.open) {
-        effects.enter('blockQuote', {
+        effects.enter("blockQuote", {
           _container: true
         });
         state.open = true;
       }
-      effects.enter('blockQuotePrefix');
-      effects.enter('blockQuoteMarker');
+      effects.enter("blockQuotePrefix");
+      effects.enter("blockQuoteMarker");
       effects.consume(code);
-      effects.exit('blockQuoteMarker');
-      return after
+      effects.exit("blockQuoteMarker");
+      return after;
     }
-    return nok(code)
+    return nok(code);
   }
   function after(code) {
     if (markdownSpace(code)) {
-      effects.enter('blockQuotePrefixWhitespace');
+      effects.enter("blockQuotePrefixWhitespace");
       effects.consume(code);
-      effects.exit('blockQuotePrefixWhitespace');
-      effects.exit('blockQuotePrefix');
-      return ok
+      effects.exit("blockQuotePrefixWhitespace");
+      effects.exit("blockQuotePrefix");
+      return ok;
     }
-    effects.exit('blockQuotePrefix');
-    return ok(code)
+    effects.exit("blockQuotePrefix");
+    return ok(code);
   }
 }
 function tokenizeBlockQuoteContinuation(effects, ok, nok) {
   const self = this;
-  return contStart
+  return contStart;
   function contStart(code) {
     if (markdownSpace(code)) {
-      return factorySpace(
-        effects,
-        contBefore,
-        'linePrefix',
-        self.parser.constructs.disable.null.includes('codeIndented')
-          ? undefined
-          : 4
-      )(code)
+      return factorySpace(effects, contBefore, "linePrefix", self.parser.constructs.disable.null.includes('codeIndented') ? undefined : 4)(code);
     }
-    return contBefore(code)
+    return contBefore(code);
   }
   function contBefore(code) {
-    return effects.attempt(blockQuote, ok, nok)(code)
+    return effects.attempt(blockQuote, ok, nok)(code);
   }
 }
 function exit$1(effects) {
-  effects.exit('blockQuote');
+  effects.exit("blockQuote");
 }
 
 const characterEscape = {
@@ -3773,23 +3704,23 @@ const characterEscape = {
   tokenize: tokenizeCharacterEscape
 };
 function tokenizeCharacterEscape(effects, ok, nok) {
-  return start
+  return start;
   function start(code) {
-    effects.enter('characterEscape');
-    effects.enter('escapeMarker');
+    effects.enter("characterEscape");
+    effects.enter("escapeMarker");
     effects.consume(code);
-    effects.exit('escapeMarker');
-    return inside
+    effects.exit("escapeMarker");
+    return inside;
   }
   function inside(code) {
     if (asciiPunctuation(code)) {
-      effects.enter('characterEscapeValue');
+      effects.enter("characterEscapeValue");
       effects.consume(code);
-      effects.exit('characterEscapeValue');
-      effects.exit('characterEscape');
-      return ok
+      effects.exit("characterEscapeValue");
+      effects.exit("characterEscape");
+      return ok;
     }
-    return nok(code)
+    return nok(code);
   }
 }
 
@@ -3802,61 +3733,58 @@ function tokenizeCharacterReference(effects, ok, nok) {
   let size = 0;
   let max;
   let test;
-  return start
+  return start;
   function start(code) {
-    effects.enter('characterReference');
-    effects.enter('characterReferenceMarker');
+    effects.enter("characterReference");
+    effects.enter("characterReferenceMarker");
     effects.consume(code);
-    effects.exit('characterReferenceMarker');
-    return open
+    effects.exit("characterReferenceMarker");
+    return open;
   }
   function open(code) {
     if (code === 35) {
-      effects.enter('characterReferenceMarkerNumeric');
+      effects.enter("characterReferenceMarkerNumeric");
       effects.consume(code);
-      effects.exit('characterReferenceMarkerNumeric');
-      return numeric
+      effects.exit("characterReferenceMarkerNumeric");
+      return numeric;
     }
-    effects.enter('characterReferenceValue');
+    effects.enter("characterReferenceValue");
     max = 31;
     test = asciiAlphanumeric;
-    return value(code)
+    return value(code);
   }
   function numeric(code) {
     if (code === 88 || code === 120) {
-      effects.enter('characterReferenceMarkerHexadecimal');
+      effects.enter("characterReferenceMarkerHexadecimal");
       effects.consume(code);
-      effects.exit('characterReferenceMarkerHexadecimal');
-      effects.enter('characterReferenceValue');
+      effects.exit("characterReferenceMarkerHexadecimal");
+      effects.enter("characterReferenceValue");
       max = 6;
       test = asciiHexDigit;
-      return value
+      return value;
     }
-    effects.enter('characterReferenceValue');
+    effects.enter("characterReferenceValue");
     max = 7;
     test = asciiDigit;
-    return value(code)
+    return value(code);
   }
   function value(code) {
     if (code === 59 && size) {
-      const token = effects.exit('characterReferenceValue');
-      if (
-        test === asciiAlphanumeric &&
-        !decodeNamedCharacterReference(self.sliceSerialize(token))
-      ) {
-        return nok(code)
+      const token = effects.exit("characterReferenceValue");
+      if (test === asciiAlphanumeric && !decodeNamedCharacterReference(self.sliceSerialize(token))) {
+        return nok(code);
       }
-      effects.enter('characterReferenceMarker');
+      effects.enter("characterReferenceMarker");
       effects.consume(code);
-      effects.exit('characterReferenceMarker');
-      effects.exit('characterReference');
-      return ok
+      effects.exit("characterReferenceMarker");
+      effects.exit("characterReference");
+      return ok;
     }
     if (test(code) && size++ < max) {
       effects.consume(code);
-      return value
+      return value;
     }
-    return nok(code)
+    return nok(code);
   }
 }
 
@@ -3878,192 +3806,167 @@ function tokenizeCodeFenced(effects, ok, nok) {
   let initialPrefix = 0;
   let sizeOpen = 0;
   let marker;
-  return start
+  return start;
   function start(code) {
-    return beforeSequenceOpen(code)
+    return beforeSequenceOpen(code);
   }
   function beforeSequenceOpen(code) {
     const tail = self.events[self.events.length - 1];
-    initialPrefix =
-      tail && tail[1].type === 'linePrefix'
-        ? tail[2].sliceSerialize(tail[1], true).length
-        : 0;
+    initialPrefix = tail && tail[1].type === "linePrefix" ? tail[2].sliceSerialize(tail[1], true).length : 0;
     marker = code;
-    effects.enter('codeFenced');
-    effects.enter('codeFencedFence');
-    effects.enter('codeFencedFenceSequence');
-    return sequenceOpen(code)
+    effects.enter("codeFenced");
+    effects.enter("codeFencedFence");
+    effects.enter("codeFencedFenceSequence");
+    return sequenceOpen(code);
   }
   function sequenceOpen(code) {
     if (code === marker) {
       sizeOpen++;
       effects.consume(code);
-      return sequenceOpen
+      return sequenceOpen;
     }
     if (sizeOpen < 3) {
-      return nok(code)
+      return nok(code);
     }
-    effects.exit('codeFencedFenceSequence');
-    return markdownSpace(code)
-      ? factorySpace(effects, infoBefore, 'whitespace')(code)
-      : infoBefore(code)
+    effects.exit("codeFencedFenceSequence");
+    return markdownSpace(code) ? factorySpace(effects, infoBefore, "whitespace")(code) : infoBefore(code);
   }
   function infoBefore(code) {
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('codeFencedFence');
-      return self.interrupt
-        ? ok(code)
-        : effects.check(nonLazyContinuation, atNonLazyBreak, after)(code)
+      effects.exit("codeFencedFence");
+      return self.interrupt ? ok(code) : effects.check(nonLazyContinuation, atNonLazyBreak, after)(code);
     }
-    effects.enter('codeFencedFenceInfo');
-    effects.enter('chunkString', {
-      contentType: 'string'
+    effects.enter("codeFencedFenceInfo");
+    effects.enter("chunkString", {
+      contentType: "string"
     });
-    return info(code)
+    return info(code);
   }
   function info(code) {
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('chunkString');
-      effects.exit('codeFencedFenceInfo');
-      return infoBefore(code)
+      effects.exit("chunkString");
+      effects.exit("codeFencedFenceInfo");
+      return infoBefore(code);
     }
     if (markdownSpace(code)) {
-      effects.exit('chunkString');
-      effects.exit('codeFencedFenceInfo');
-      return factorySpace(effects, metaBefore, 'whitespace')(code)
+      effects.exit("chunkString");
+      effects.exit("codeFencedFenceInfo");
+      return factorySpace(effects, metaBefore, "whitespace")(code);
     }
     if (code === 96 && code === marker) {
-      return nok(code)
+      return nok(code);
     }
     effects.consume(code);
-    return info
+    return info;
   }
   function metaBefore(code) {
     if (code === null || markdownLineEnding(code)) {
-      return infoBefore(code)
+      return infoBefore(code);
     }
-    effects.enter('codeFencedFenceMeta');
-    effects.enter('chunkString', {
-      contentType: 'string'
+    effects.enter("codeFencedFenceMeta");
+    effects.enter("chunkString", {
+      contentType: "string"
     });
-    return meta(code)
+    return meta(code);
   }
   function meta(code) {
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('chunkString');
-      effects.exit('codeFencedFenceMeta');
-      return infoBefore(code)
+      effects.exit("chunkString");
+      effects.exit("codeFencedFenceMeta");
+      return infoBefore(code);
     }
     if (code === 96 && code === marker) {
-      return nok(code)
+      return nok(code);
     }
     effects.consume(code);
-    return meta
+    return meta;
   }
   function atNonLazyBreak(code) {
-    return effects.attempt(closeStart, after, contentBefore)(code)
+    return effects.attempt(closeStart, after, contentBefore)(code);
   }
   function contentBefore(code) {
-    effects.enter('lineEnding');
+    effects.enter("lineEnding");
     effects.consume(code);
-    effects.exit('lineEnding');
-    return contentStart
+    effects.exit("lineEnding");
+    return contentStart;
   }
   function contentStart(code) {
-    return initialPrefix > 0 && markdownSpace(code)
-      ? factorySpace(
-          effects,
-          beforeContentChunk,
-          'linePrefix',
-          initialPrefix + 1
-        )(code)
-      : beforeContentChunk(code)
+    return initialPrefix > 0 && markdownSpace(code) ? factorySpace(effects, beforeContentChunk, "linePrefix", initialPrefix + 1)(code) : beforeContentChunk(code);
   }
   function beforeContentChunk(code) {
     if (code === null || markdownLineEnding(code)) {
-      return effects.check(nonLazyContinuation, atNonLazyBreak, after)(code)
+      return effects.check(nonLazyContinuation, atNonLazyBreak, after)(code);
     }
-    effects.enter('codeFlowValue');
-    return contentChunk(code)
+    effects.enter("codeFlowValue");
+    return contentChunk(code);
   }
   function contentChunk(code) {
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('codeFlowValue');
-      return beforeContentChunk(code)
+      effects.exit("codeFlowValue");
+      return beforeContentChunk(code);
     }
     effects.consume(code);
-    return contentChunk
+    return contentChunk;
   }
   function after(code) {
-    effects.exit('codeFenced');
-    return ok(code)
+    effects.exit("codeFenced");
+    return ok(code);
   }
   function tokenizeCloseStart(effects, ok, nok) {
     let size = 0;
-    return startBefore
+    return startBefore;
     function startBefore(code) {
-      effects.enter('lineEnding');
+      effects.enter("lineEnding");
       effects.consume(code);
-      effects.exit('lineEnding');
-      return start
+      effects.exit("lineEnding");
+      return start;
     }
     function start(code) {
-      effects.enter('codeFencedFence');
-      return markdownSpace(code)
-        ? factorySpace(
-            effects,
-            beforeSequenceClose,
-            'linePrefix',
-            self.parser.constructs.disable.null.includes('codeIndented')
-              ? undefined
-              : 4
-          )(code)
-        : beforeSequenceClose(code)
+      effects.enter("codeFencedFence");
+      return markdownSpace(code) ? factorySpace(effects, beforeSequenceClose, "linePrefix", self.parser.constructs.disable.null.includes('codeIndented') ? undefined : 4)(code) : beforeSequenceClose(code);
     }
     function beforeSequenceClose(code) {
       if (code === marker) {
-        effects.enter('codeFencedFenceSequence');
-        return sequenceClose(code)
+        effects.enter("codeFencedFenceSequence");
+        return sequenceClose(code);
       }
-      return nok(code)
+      return nok(code);
     }
     function sequenceClose(code) {
       if (code === marker) {
         size++;
         effects.consume(code);
-        return sequenceClose
+        return sequenceClose;
       }
       if (size >= sizeOpen) {
-        effects.exit('codeFencedFenceSequence');
-        return markdownSpace(code)
-          ? factorySpace(effects, sequenceCloseAfter, 'whitespace')(code)
-          : sequenceCloseAfter(code)
+        effects.exit("codeFencedFenceSequence");
+        return markdownSpace(code) ? factorySpace(effects, sequenceCloseAfter, "whitespace")(code) : sequenceCloseAfter(code);
       }
-      return nok(code)
+      return nok(code);
     }
     function sequenceCloseAfter(code) {
       if (code === null || markdownLineEnding(code)) {
-        effects.exit('codeFencedFence');
-        return ok(code)
+        effects.exit("codeFencedFence");
+        return ok(code);
       }
-      return nok(code)
+      return nok(code);
     }
   }
 }
 function tokenizeNonLazyContinuation(effects, ok, nok) {
   const self = this;
-  return start
+  return start;
   function start(code) {
     if (code === null) {
-      return nok(code)
+      return nok(code);
     }
-    effects.enter('lineEnding');
+    effects.enter("lineEnding");
     effects.consume(code);
-    effects.exit('lineEnding');
-    return lineStart
+    effects.exit("lineEnding");
+    return lineStart;
   }
   function lineStart(code) {
-    return self.parser.lazy[self.now().line] ? nok(code) : ok(code)
+    return self.parser.lazy[self.now().line] ? nok(code) : ok(code);
   }
 }
 
@@ -4077,66 +3980,56 @@ const furtherStart = {
 };
 function tokenizeCodeIndented(effects, ok, nok) {
   const self = this;
-  return start
+  return start;
   function start(code) {
-    effects.enter('codeIndented');
-    return factorySpace(effects, afterPrefix, 'linePrefix', 4 + 1)(code)
+    effects.enter("codeIndented");
+    return factorySpace(effects, afterPrefix, "linePrefix", 4 + 1)(code);
   }
   function afterPrefix(code) {
     const tail = self.events[self.events.length - 1];
-    return tail &&
-      tail[1].type === 'linePrefix' &&
-      tail[2].sliceSerialize(tail[1], true).length >= 4
-      ? atBreak(code)
-      : nok(code)
+    return tail && tail[1].type === "linePrefix" && tail[2].sliceSerialize(tail[1], true).length >= 4 ? atBreak(code) : nok(code);
   }
   function atBreak(code) {
     if (code === null) {
-      return after(code)
+      return after(code);
     }
     if (markdownLineEnding(code)) {
-      return effects.attempt(furtherStart, atBreak, after)(code)
+      return effects.attempt(furtherStart, atBreak, after)(code);
     }
-    effects.enter('codeFlowValue');
-    return inside(code)
+    effects.enter("codeFlowValue");
+    return inside(code);
   }
   function inside(code) {
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('codeFlowValue');
-      return atBreak(code)
+      effects.exit("codeFlowValue");
+      return atBreak(code);
     }
     effects.consume(code);
-    return inside
+    return inside;
   }
   function after(code) {
-    effects.exit('codeIndented');
-    return ok(code)
+    effects.exit("codeIndented");
+    return ok(code);
   }
 }
 function tokenizeFurtherStart(effects, ok, nok) {
   const self = this;
-  return furtherStart
+  return furtherStart;
   function furtherStart(code) {
     if (self.parser.lazy[self.now().line]) {
-      return nok(code)
+      return nok(code);
     }
     if (markdownLineEnding(code)) {
-      effects.enter('lineEnding');
+      effects.enter("lineEnding");
       effects.consume(code);
-      effects.exit('lineEnding');
-      return furtherStart
+      effects.exit("lineEnding");
+      return furtherStart;
     }
-    return factorySpace(effects, afterPrefix, 'linePrefix', 4 + 1)(code)
+    return factorySpace(effects, afterPrefix, "linePrefix", 4 + 1)(code);
   }
   function afterPrefix(code) {
     const tail = self.events[self.events.length - 1];
-    return tail &&
-      tail[1].type === 'linePrefix' &&
-      tail[2].sliceSerialize(tail[1], true).length >= 4
-      ? ok(code)
-      : markdownLineEnding(code)
-      ? furtherStart(code)
-      : nok(code)
+    return tail && tail[1].type === "linePrefix" && tail[2].sliceSerialize(tail[1], true).length >= 4 ? ok(code) : markdownLineEnding(code) ? furtherStart(code) : nok(code);
   }
 }
 
@@ -4151,20 +4044,15 @@ function resolveCodeText(events) {
   let headEnterIndex = 3;
   let index;
   let enter;
-  if (
-    (events[headEnterIndex][1].type === 'lineEnding' ||
-      events[headEnterIndex][1].type === 'space') &&
-    (events[tailExitIndex][1].type === 'lineEnding' ||
-      events[tailExitIndex][1].type === 'space')
-  ) {
+  if ((events[headEnterIndex][1].type === "lineEnding" || events[headEnterIndex][1].type === 'space') && (events[tailExitIndex][1].type === "lineEnding" || events[tailExitIndex][1].type === 'space')) {
     index = headEnterIndex;
     while (++index < tailExitIndex) {
-      if (events[index][1].type === 'codeTextData') {
-        events[headEnterIndex][1].type = 'codeTextPadding';
-        events[tailExitIndex][1].type = 'codeTextPadding';
+      if (events[index][1].type === "codeTextData") {
+        events[headEnterIndex][1].type = "codeTextPadding";
+        events[tailExitIndex][1].type = "codeTextPadding";
         headEnterIndex += 2;
         tailExitIndex -= 2;
-        break
+        break;
       }
     }
   }
@@ -4172,14 +4060,11 @@ function resolveCodeText(events) {
   tailExitIndex++;
   while (++index <= tailExitIndex) {
     if (enter === undefined) {
-      if (index !== tailExitIndex && events[index][1].type !== 'lineEnding') {
+      if (index !== tailExitIndex && events[index][1].type !== "lineEnding") {
         enter = index;
       }
-    } else if (
-      index === tailExitIndex ||
-      events[index][1].type === 'lineEnding'
-    ) {
-      events[enter][1].type = 'codeTextData';
+    } else if (index === tailExitIndex || events[index][1].type === "lineEnding") {
+      events[enter][1].type = "codeTextData";
       if (index !== enter + 2) {
         events[enter][1].end = events[index - 1][1].end;
         events.splice(enter + 2, index - enter - 2);
@@ -4189,87 +4074,158 @@ function resolveCodeText(events) {
       enter = undefined;
     }
   }
-  return events
+  return events;
 }
 function previous$1(code) {
-  return (
-    code !== 96 ||
-    this.events[this.events.length - 1][1].type === 'characterEscape'
-  )
+  return code !== 96 || this.events[this.events.length - 1][1].type === "characterEscape";
 }
 function tokenizeCodeText(effects, ok, nok) {
   let sizeOpen = 0;
   let size;
   let token;
-  return start
+  return start;
   function start(code) {
-    effects.enter('codeText');
-    effects.enter('codeTextSequence');
-    return sequenceOpen(code)
+    effects.enter("codeText");
+    effects.enter("codeTextSequence");
+    return sequenceOpen(code);
   }
   function sequenceOpen(code) {
     if (code === 96) {
       effects.consume(code);
       sizeOpen++;
-      return sequenceOpen
+      return sequenceOpen;
     }
-    effects.exit('codeTextSequence');
-    return between(code)
+    effects.exit("codeTextSequence");
+    return between(code);
   }
   function between(code) {
     if (code === null) {
-      return nok(code)
+      return nok(code);
     }
     if (code === 32) {
       effects.enter('space');
       effects.consume(code);
       effects.exit('space');
-      return between
+      return between;
     }
     if (code === 96) {
-      token = effects.enter('codeTextSequence');
+      token = effects.enter("codeTextSequence");
       size = 0;
-      return sequenceClose(code)
+      return sequenceClose(code);
     }
     if (markdownLineEnding(code)) {
-      effects.enter('lineEnding');
+      effects.enter("lineEnding");
       effects.consume(code);
-      effects.exit('lineEnding');
-      return between
+      effects.exit("lineEnding");
+      return between;
     }
-    effects.enter('codeTextData');
-    return data(code)
+    effects.enter("codeTextData");
+    return data(code);
   }
   function data(code) {
-    if (
-      code === null ||
-      code === 32 ||
-      code === 96 ||
-      markdownLineEnding(code)
-    ) {
-      effects.exit('codeTextData');
-      return between(code)
+    if (code === null || code === 32 || code === 96 || markdownLineEnding(code)) {
+      effects.exit("codeTextData");
+      return between(code);
     }
     effects.consume(code);
-    return data
+    return data;
   }
   function sequenceClose(code) {
     if (code === 96) {
       effects.consume(code);
       size++;
-      return sequenceClose
+      return sequenceClose;
     }
     if (size === sizeOpen) {
-      effects.exit('codeTextSequence');
-      effects.exit('codeText');
-      return ok(code)
+      effects.exit("codeTextSequence");
+      effects.exit("codeText");
+      return ok(code);
     }
-    token.type = 'codeTextData';
-    return data(code)
+    token.type = "codeTextData";
+    return data(code);
   }
 }
 
-function subtokenize(events) {
+class SpliceBuffer {
+  constructor(initial) {
+    this.left = initial ? [...initial] : [];
+    this.right = [];
+  }
+  get(index) {
+    if (index < 0 || index >= this.left.length + this.right.length) {
+      throw new RangeError('Cannot access index `' + index + '` in a splice buffer of size `' + (this.left.length + this.right.length) + '`');
+    }
+    if (index < this.left.length) return this.left[index];
+    return this.right[this.right.length - index + this.left.length - 1];
+  }
+  get length() {
+    return this.left.length + this.right.length;
+  }
+  shift() {
+    this.setCursor(0);
+    return this.right.pop();
+  }
+  slice(start, end) {
+    const stop = end === null || end === undefined ? Number.POSITIVE_INFINITY : end;
+    if (stop < this.left.length) {
+      return this.left.slice(start, stop);
+    }
+    if (start > this.left.length) {
+      return this.right.slice(this.right.length - stop + this.left.length, this.right.length - start + this.left.length).reverse();
+    }
+    return this.left.slice(start).concat(this.right.slice(this.right.length - stop + this.left.length).reverse());
+  }
+  splice(start, deleteCount, items) {
+    const count = deleteCount || 0;
+    this.setCursor(Math.trunc(start));
+    const removed = this.right.splice(this.right.length - count, Number.POSITIVE_INFINITY);
+    if (items) chunkedPush(this.left, items);
+    return removed.reverse();
+  }
+  pop() {
+    this.setCursor(Number.POSITIVE_INFINITY);
+    return this.left.pop();
+  }
+  push(item) {
+    this.setCursor(Number.POSITIVE_INFINITY);
+    this.left.push(item);
+  }
+  pushMany(items) {
+    this.setCursor(Number.POSITIVE_INFINITY);
+    chunkedPush(this.left, items);
+  }
+  unshift(item) {
+    this.setCursor(0);
+    this.right.push(item);
+  }
+  unshiftMany(items) {
+    this.setCursor(0);
+    chunkedPush(this.right, items.reverse());
+  }
+  setCursor(n) {
+    if (n === this.left.length || n > this.left.length && this.right.length === 0 || n < 0 && this.left.length === 0) return;
+    if (n < this.left.length) {
+      const removed = this.left.splice(n, Number.POSITIVE_INFINITY);
+      chunkedPush(this.right, removed.reverse());
+    } else {
+      const removed = this.right.splice(this.left.length + this.right.length - n, Number.POSITIVE_INFINITY);
+      chunkedPush(this.left, removed.reverse());
+    }
+  }
+}
+function chunkedPush(list, right) {
+  let chunkStart = 0;
+  if (right.length < 10000) {
+    list.push(...right);
+  } else {
+    while (chunkStart < right.length) {
+      list.push(...right.slice(chunkStart, chunkStart + 10000));
+      chunkStart += 10000;
+    }
+  }
+}
+
+function subtokenize(eventsArray) {
   const jumps = {};
   let index = -1;
   let event;
@@ -4279,33 +4235,24 @@ function subtokenize(events) {
   let parameters;
   let subevents;
   let more;
+  const events = new SpliceBuffer(eventsArray);
   while (++index < events.length) {
     while (index in jumps) {
       index = jumps[index];
     }
-    event = events[index];
-    if (
-      index &&
-      event[1].type === 'chunkFlow' &&
-      events[index - 1][1].type === 'listItemPrefix'
-    ) {
+    event = events.get(index);
+    if (index && event[1].type === "chunkFlow" && events.get(index - 1)[1].type === "listItemPrefix") {
       subevents = event[1]._tokenizer.events;
       otherIndex = 0;
-      if (
-        otherIndex < subevents.length &&
-        subevents[otherIndex][1].type === 'lineEndingBlank'
-      ) {
+      if (otherIndex < subevents.length && subevents[otherIndex][1].type === "lineEndingBlank") {
         otherIndex += 2;
       }
-      if (
-        otherIndex < subevents.length &&
-        subevents[otherIndex][1].type === 'content'
-      ) {
+      if (otherIndex < subevents.length && subevents[otherIndex][1].type === "content") {
         while (++otherIndex < subevents.length) {
-          if (subevents[otherIndex][1].type === 'content') {
-            break
+          if (subevents[otherIndex][1].type === "content") {
+            break;
           }
-          if (subevents[otherIndex][1].type === 'chunkText') {
+          if (subevents[otherIndex][1].type === "chunkText") {
             subevents[otherIndex][1]._isInFirstContentOfListItem = true;
             otherIndex++;
           }
@@ -4323,39 +4270,36 @@ function subtokenize(events) {
       otherIndex = index;
       lineIndex = undefined;
       while (otherIndex--) {
-        otherEvent = events[otherIndex];
-        if (
-          otherEvent[1].type === 'lineEnding' ||
-          otherEvent[1].type === 'lineEndingBlank'
-        ) {
+        otherEvent = events.get(otherIndex);
+        if (otherEvent[1].type === "lineEnding" || otherEvent[1].type === "lineEndingBlank") {
           if (otherEvent[0] === 'enter') {
             if (lineIndex) {
-              events[lineIndex][1].type = 'lineEndingBlank';
+              events.get(lineIndex)[1].type = "lineEndingBlank";
             }
-            otherEvent[1].type = 'lineEnding';
+            otherEvent[1].type = "lineEnding";
             lineIndex = otherIndex;
           }
         } else {
-          break
+          break;
         }
       }
       if (lineIndex) {
-        event[1].end = Object.assign({}, events[lineIndex][1].start);
+        event[1].end = Object.assign({}, events.get(lineIndex)[1].start);
         parameters = events.slice(lineIndex, index);
         parameters.unshift(event);
-        splice(events, lineIndex, index - lineIndex + 1, parameters);
+        events.splice(lineIndex, index - lineIndex + 1, parameters);
       }
     }
   }
-  return !more
+  splice(eventsArray, 0, Number.POSITIVE_INFINITY, events.slice(0));
+  return !more;
 }
 function subcontent(events, eventIndex) {
-  const token = events[eventIndex][1];
-  const context = events[eventIndex][2];
+  const token = events.get(eventIndex)[1];
+  const context = events.get(eventIndex)[2];
   let startPosition = eventIndex - 1;
   const startPositions = [];
-  const tokenizer =
-    token._tokenizer || context.parser[token.contentType](token.start);
+  const tokenizer = token._tokenizer || context.parser[token.contentType](token.start);
   const childEvents = tokenizer.events;
   const jumps = [];
   const gaps = {};
@@ -4367,7 +4311,7 @@ function subcontent(events, eventIndex) {
   let start = 0;
   const breaks = [start];
   while (current) {
-    while (events[++startPosition][1] !== current) {
+    while (events.get(++startPosition)[1] !== current) {
     }
     startPositions.push(startPosition);
     if (!current._tokenizer) {
@@ -4392,11 +4336,7 @@ function subcontent(events, eventIndex) {
   current = token;
   while (++index < childEvents.length) {
     if (
-      childEvents[index][0] === 'exit' &&
-      childEvents[index - 1][0] === 'enter' &&
-      childEvents[index][1].type === childEvents[index - 1][1].type &&
-      childEvents[index][1].start.line !== childEvents[index][1].end.line
-    ) {
+    childEvents[index][0] === 'exit' && childEvents[index - 1][0] === 'enter' && childEvents[index][1].type === childEvents[index - 1][1].type && childEvents[index][1].start.line !== childEvents[index][1].end.line) {
       start = index + 1;
       breaks.push(start);
       current._tokenizer = undefined;
@@ -4415,15 +4355,16 @@ function subcontent(events, eventIndex) {
   while (index--) {
     const slice = childEvents.slice(breaks[index], breaks[index + 1]);
     const start = startPositions.pop();
-    jumps.unshift([start, start + slice.length - 1]);
-    splice(events, start, 2, slice);
+    jumps.push([start, start + slice.length - 1]);
+    events.splice(start, 2, slice);
   }
+  jumps.reverse();
   index = -1;
   while (++index < jumps.length) {
     gaps[adjust + jumps[index][0]] = adjust + jumps[index][1];
     adjust += jumps[index][1] - jumps[index][0] - 1;
   }
-  return gaps
+  return gaps;
 }
 
 const content = {
@@ -4436,72 +4377,63 @@ const continuationConstruct = {
 };
 function resolveContent(events) {
   subtokenize(events);
-  return events
+  return events;
 }
 function tokenizeContent(effects, ok) {
   let previous;
-  return chunkStart
+  return chunkStart;
   function chunkStart(code) {
-    effects.enter('content');
-    previous = effects.enter('chunkContent', {
-      contentType: 'content'
+    effects.enter("content");
+    previous = effects.enter("chunkContent", {
+      contentType: "content"
     });
-    return chunkInside(code)
+    return chunkInside(code);
   }
   function chunkInside(code) {
     if (code === null) {
-      return contentEnd(code)
+      return contentEnd(code);
     }
     if (markdownLineEnding(code)) {
-      return effects.check(
-        continuationConstruct,
-        contentContinue,
-        contentEnd
-      )(code)
+      return effects.check(continuationConstruct, contentContinue, contentEnd)(code);
     }
     effects.consume(code);
-    return chunkInside
+    return chunkInside;
   }
   function contentEnd(code) {
-    effects.exit('chunkContent');
-    effects.exit('content');
-    return ok(code)
+    effects.exit("chunkContent");
+    effects.exit("content");
+    return ok(code);
   }
   function contentContinue(code) {
     effects.consume(code);
-    effects.exit('chunkContent');
-    previous.next = effects.enter('chunkContent', {
-      contentType: 'content',
+    effects.exit("chunkContent");
+    previous.next = effects.enter("chunkContent", {
+      contentType: "content",
       previous
     });
     previous = previous.next;
-    return chunkInside
+    return chunkInside;
   }
 }
 function tokenizeContinuation(effects, ok, nok) {
   const self = this;
-  return startLookahead
+  return startLookahead;
   function startLookahead(code) {
-    effects.exit('chunkContent');
-    effects.enter('lineEnding');
+    effects.exit("chunkContent");
+    effects.enter("lineEnding");
     effects.consume(code);
-    effects.exit('lineEnding');
-    return factorySpace(effects, prefixed, 'linePrefix')
+    effects.exit("lineEnding");
+    return factorySpace(effects, prefixed, "linePrefix");
   }
   function prefixed(code) {
     if (code === null || markdownLineEnding(code)) {
-      return nok(code)
+      return nok(code);
     }
     const tail = self.events[self.events.length - 1];
-    if (
-      !self.parser.constructs.disable.null.includes('codeIndented') &&
-      tail &&
-      tail[1].type === 'linePrefix' &&
-      tail[2].sliceSerialize(tail[1], true).length >= 4
-    ) {
-      return ok(code)
+    if (!self.parser.constructs.disable.null.includes('codeIndented') && tail && tail[1].type === "linePrefix" && tail[2].sliceSerialize(tail[1], true).length >= 4) {
+      return ok(code);
     }
-    return effects.interrupt(self.parser.constructs.flow, nok, ok)(code)
+    return effects.interrupt(self.parser.constructs.flow, nok, ok)(code);
   }
 }
 
@@ -4772,92 +4704,60 @@ const titleBefore = {
 function tokenizeDefinition(effects, ok, nok) {
   const self = this;
   let identifier;
-  return start
+  return start;
   function start(code) {
-    effects.enter('definition');
-    return before(code)
+    effects.enter("definition");
+    return before(code);
   }
   function before(code) {
-    return factoryLabel.call(
-      self,
-      effects,
-      labelAfter,
-      nok,
-      'definitionLabel',
-      'definitionLabelMarker',
-      'definitionLabelString'
-    )(code)
+    return factoryLabel.call(self, effects, labelAfter,
+    nok, "definitionLabel", "definitionLabelMarker", "definitionLabelString")(code);
   }
   function labelAfter(code) {
-    identifier = normalizeIdentifier$1(
-      self.sliceSerialize(self.events[self.events.length - 1][1]).slice(1, -1)
-    );
+    identifier = normalizeIdentifier(self.sliceSerialize(self.events[self.events.length - 1][1]).slice(1, -1));
     if (code === 58) {
-      effects.enter('definitionMarker');
+      effects.enter("definitionMarker");
       effects.consume(code);
-      effects.exit('definitionMarker');
-      return markerAfter
+      effects.exit("definitionMarker");
+      return markerAfter;
     }
-    return nok(code)
+    return nok(code);
   }
   function markerAfter(code) {
-    return markdownLineEndingOrSpace(code)
-      ? factoryWhitespace(effects, destinationBefore)(code)
-      : destinationBefore(code)
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, destinationBefore)(code) : destinationBefore(code);
   }
   function destinationBefore(code) {
-    return factoryDestination(
-      effects,
-      destinationAfter,
-      nok,
-      'definitionDestination',
-      'definitionDestinationLiteral',
-      'definitionDestinationLiteralMarker',
-      'definitionDestinationRaw',
-      'definitionDestinationString'
-    )(code)
+    return factoryDestination(effects, destinationAfter,
+    nok, "definitionDestination", "definitionDestinationLiteral", "definitionDestinationLiteralMarker", "definitionDestinationRaw", "definitionDestinationString")(code);
   }
   function destinationAfter(code) {
-    return effects.attempt(titleBefore, after, after)(code)
+    return effects.attempt(titleBefore, after, after)(code);
   }
   function after(code) {
-    return markdownSpace(code)
-      ? factorySpace(effects, afterWhitespace, 'whitespace')(code)
-      : afterWhitespace(code)
+    return markdownSpace(code) ? factorySpace(effects, afterWhitespace, "whitespace")(code) : afterWhitespace(code);
   }
   function afterWhitespace(code) {
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('definition');
+      effects.exit("definition");
       self.parser.defined.push(identifier);
-      return ok(code)
+      return ok(code);
     }
-    return nok(code)
+    return nok(code);
   }
 }
 function tokenizeTitleBefore(effects, ok, nok) {
-  return titleBefore
+  return titleBefore;
   function titleBefore(code) {
-    return markdownLineEndingOrSpace(code)
-      ? factoryWhitespace(effects, beforeMarker)(code)
-      : nok(code)
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, beforeMarker)(code) : nok(code);
   }
   function beforeMarker(code) {
-    return factoryTitle(
-      effects,
-      titleAfter,
-      nok,
-      'definitionTitle',
-      'definitionTitleMarker',
-      'definitionTitleString'
-    )(code)
+    return factoryTitle(effects, titleAfter, nok, "definitionTitle", "definitionTitleMarker", "definitionTitleString")(code);
   }
   function titleAfter(code) {
-    return markdownSpace(code)
-      ? factorySpace(effects, titleAfterOptionalWhitespace, 'whitespace')(code)
-      : titleAfterOptionalWhitespace(code)
+    return markdownSpace(code) ? factorySpace(effects, titleAfterOptionalWhitespace, "whitespace")(code) : titleAfterOptionalWhitespace(code);
   }
   function titleAfterOptionalWhitespace(code) {
-    return code === null || markdownLineEnding(code) ? ok(code) : nok(code)
+    return code === null || markdownLineEnding(code) ? ok(code) : nok(code);
   }
 }
 
@@ -4866,18 +4766,18 @@ const hardBreakEscape = {
   tokenize: tokenizeHardBreakEscape
 };
 function tokenizeHardBreakEscape(effects, ok, nok) {
-  return start
+  return start;
   function start(code) {
-    effects.enter('hardBreakEscape');
+    effects.enter("hardBreakEscape");
     effects.consume(code);
-    return after
+    return after;
   }
   function after(code) {
     if (markdownLineEnding(code)) {
-      effects.exit('hardBreakEscape');
-      return ok(code)
+      effects.exit("hardBreakEscape");
+      return ok(code);
     }
-    return nok(code)
+    return nok(code);
   }
 }
 
@@ -4891,96 +4791,83 @@ function resolveHeadingAtx(events, context) {
   let contentStart = 3;
   let content;
   let text;
-  if (events[contentStart][1].type === 'whitespace') {
+  if (events[contentStart][1].type === "whitespace") {
     contentStart += 2;
   }
-  if (
-    contentEnd - 2 > contentStart &&
-    events[contentEnd][1].type === 'whitespace'
-  ) {
+  if (contentEnd - 2 > contentStart && events[contentEnd][1].type === "whitespace") {
     contentEnd -= 2;
   }
-  if (
-    events[contentEnd][1].type === 'atxHeadingSequence' &&
-    (contentStart === contentEnd - 1 ||
-      (contentEnd - 4 > contentStart &&
-        events[contentEnd - 2][1].type === 'whitespace'))
-  ) {
+  if (events[contentEnd][1].type === "atxHeadingSequence" && (contentStart === contentEnd - 1 || contentEnd - 4 > contentStart && events[contentEnd - 2][1].type === "whitespace")) {
     contentEnd -= contentStart + 1 === contentEnd ? 2 : 4;
   }
   if (contentEnd > contentStart) {
     content = {
-      type: 'atxHeadingText',
+      type: "atxHeadingText",
       start: events[contentStart][1].start,
       end: events[contentEnd][1].end
     };
     text = {
-      type: 'chunkText',
+      type: "chunkText",
       start: events[contentStart][1].start,
       end: events[contentEnd][1].end,
-      contentType: 'text'
+      contentType: "text"
     };
-    splice(events, contentStart, contentEnd - contentStart + 1, [
-      ['enter', content, context],
-      ['enter', text, context],
-      ['exit', text, context],
-      ['exit', content, context]
-    ]);
+    splice(events, contentStart, contentEnd - contentStart + 1, [['enter', content, context], ['enter', text, context], ['exit', text, context], ['exit', content, context]]);
   }
-  return events
+  return events;
 }
 function tokenizeHeadingAtx(effects, ok, nok) {
   let size = 0;
-  return start
+  return start;
   function start(code) {
-    effects.enter('atxHeading');
-    return before(code)
+    effects.enter("atxHeading");
+    return before(code);
   }
   function before(code) {
-    effects.enter('atxHeadingSequence');
-    return sequenceOpen(code)
+    effects.enter("atxHeadingSequence");
+    return sequenceOpen(code);
   }
   function sequenceOpen(code) {
     if (code === 35 && size++ < 6) {
       effects.consume(code);
-      return sequenceOpen
+      return sequenceOpen;
     }
     if (code === null || markdownLineEndingOrSpace(code)) {
-      effects.exit('atxHeadingSequence');
-      return atBreak(code)
+      effects.exit("atxHeadingSequence");
+      return atBreak(code);
     }
-    return nok(code)
+    return nok(code);
   }
   function atBreak(code) {
     if (code === 35) {
-      effects.enter('atxHeadingSequence');
-      return sequenceFurther(code)
+      effects.enter("atxHeadingSequence");
+      return sequenceFurther(code);
     }
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('atxHeading');
-      return ok(code)
+      effects.exit("atxHeading");
+      return ok(code);
     }
     if (markdownSpace(code)) {
-      return factorySpace(effects, atBreak, 'whitespace')(code)
+      return factorySpace(effects, atBreak, "whitespace")(code);
     }
-    effects.enter('atxHeadingText');
-    return data(code)
+    effects.enter("atxHeadingText");
+    return data(code);
   }
   function sequenceFurther(code) {
     if (code === 35) {
       effects.consume(code);
-      return sequenceFurther
+      return sequenceFurther;
     }
-    effects.exit('atxHeadingSequence');
-    return atBreak(code)
+    effects.exit("atxHeadingSequence");
+    return atBreak(code);
   }
   function data(code) {
     if (code === null || code === 35 || markdownLineEndingOrSpace(code)) {
-      effects.exit('atxHeadingText');
-      return atBreak(code)
+      effects.exit("atxHeadingText");
+      return atBreak(code);
     }
     effects.consume(code);
-    return data
+    return data;
   }
 }
 
@@ -5067,16 +4954,16 @@ const nonLazyContinuationStart = {
 function resolveToHtmlFlow(events) {
   let index = events.length;
   while (index--) {
-    if (events[index][0] === 'enter' && events[index][1].type === 'htmlFlow') {
-      break
+    if (events[index][0] === 'enter' && events[index][1].type === "htmlFlow") {
+      break;
     }
   }
-  if (index > 1 && events[index - 2][1].type === 'linePrefix') {
+  if (index > 1 && events[index - 2][1].type === "linePrefix") {
     events[index][1].start = events[index - 2][1].start;
     events[index + 1][1].start = events[index - 2][1].start;
     events.splice(index - 2, 2);
   }
-  return events
+  return events;
 }
 function tokenizeHtmlFlow(effects, ok, nok) {
   const self = this;
@@ -5085,385 +4972,346 @@ function tokenizeHtmlFlow(effects, ok, nok) {
   let buffer;
   let index;
   let markerB;
-  return start
+  return start;
   function start(code) {
-    return before(code)
+    return before(code);
   }
   function before(code) {
-    effects.enter('htmlFlow');
-    effects.enter('htmlFlowData');
+    effects.enter("htmlFlow");
+    effects.enter("htmlFlowData");
     effects.consume(code);
-    return open
+    return open;
   }
   function open(code) {
     if (code === 33) {
       effects.consume(code);
-      return declarationOpen
+      return declarationOpen;
     }
     if (code === 47) {
       effects.consume(code);
       closingTag = true;
-      return tagCloseStart
+      return tagCloseStart;
     }
     if (code === 63) {
       effects.consume(code);
       marker = 3;
-      return self.interrupt ? ok : continuationDeclarationInside
+      return self.interrupt ? ok : continuationDeclarationInside;
     }
     if (asciiAlpha(code)) {
       effects.consume(code);
       buffer = String.fromCharCode(code);
-      return tagName
+      return tagName;
     }
-    return nok(code)
+    return nok(code);
   }
   function declarationOpen(code) {
     if (code === 45) {
       effects.consume(code);
       marker = 2;
-      return commentOpenInside
+      return commentOpenInside;
     }
     if (code === 91) {
       effects.consume(code);
       marker = 5;
       index = 0;
-      return cdataOpenInside
+      return cdataOpenInside;
     }
     if (asciiAlpha(code)) {
       effects.consume(code);
       marker = 4;
-      return self.interrupt ? ok : continuationDeclarationInside
+      return self.interrupt ? ok : continuationDeclarationInside;
     }
-    return nok(code)
+    return nok(code);
   }
   function commentOpenInside(code) {
     if (code === 45) {
       effects.consume(code);
-      return self.interrupt ? ok : continuationDeclarationInside
+      return self.interrupt ? ok : continuationDeclarationInside;
     }
-    return nok(code)
+    return nok(code);
   }
   function cdataOpenInside(code) {
-    const value = 'CDATA[';
+    const value = "CDATA[";
     if (code === value.charCodeAt(index++)) {
       effects.consume(code);
       if (index === value.length) {
-        return self.interrupt ? ok : continuation
+        return self.interrupt ? ok : continuation;
       }
-      return cdataOpenInside
+      return cdataOpenInside;
     }
-    return nok(code)
+    return nok(code);
   }
   function tagCloseStart(code) {
     if (asciiAlpha(code)) {
       effects.consume(code);
       buffer = String.fromCharCode(code);
-      return tagName
+      return tagName;
     }
-    return nok(code)
+    return nok(code);
   }
   function tagName(code) {
-    if (
-      code === null ||
-      code === 47 ||
-      code === 62 ||
-      markdownLineEndingOrSpace(code)
-    ) {
+    if (code === null || code === 47 || code === 62 || markdownLineEndingOrSpace(code)) {
       const slash = code === 47;
       const name = buffer.toLowerCase();
       if (!slash && !closingTag && htmlRawNames.includes(name)) {
         marker = 1;
-        return self.interrupt ? ok(code) : continuation(code)
+        return self.interrupt ? ok(code) : continuation(code);
       }
       if (htmlBlockNames.includes(buffer.toLowerCase())) {
         marker = 6;
         if (slash) {
           effects.consume(code);
-          return basicSelfClosing
+          return basicSelfClosing;
         }
-        return self.interrupt ? ok(code) : continuation(code)
+        return self.interrupt ? ok(code) : continuation(code);
       }
       marker = 7;
-      return self.interrupt && !self.parser.lazy[self.now().line]
-        ? nok(code)
-        : closingTag
-        ? completeClosingTagAfter(code)
-        : completeAttributeNameBefore(code)
+      return self.interrupt && !self.parser.lazy[self.now().line] ? nok(code) : closingTag ? completeClosingTagAfter(code) : completeAttributeNameBefore(code);
     }
     if (code === 45 || asciiAlphanumeric(code)) {
       effects.consume(code);
       buffer += String.fromCharCode(code);
-      return tagName
+      return tagName;
     }
-    return nok(code)
+    return nok(code);
   }
   function basicSelfClosing(code) {
     if (code === 62) {
       effects.consume(code);
-      return self.interrupt ? ok : continuation
+      return self.interrupt ? ok : continuation;
     }
-    return nok(code)
+    return nok(code);
   }
   function completeClosingTagAfter(code) {
     if (markdownSpace(code)) {
       effects.consume(code);
-      return completeClosingTagAfter
+      return completeClosingTagAfter;
     }
-    return completeEnd(code)
+    return completeEnd(code);
   }
   function completeAttributeNameBefore(code) {
     if (code === 47) {
       effects.consume(code);
-      return completeEnd
+      return completeEnd;
     }
     if (code === 58 || code === 95 || asciiAlpha(code)) {
       effects.consume(code);
-      return completeAttributeName
+      return completeAttributeName;
     }
     if (markdownSpace(code)) {
       effects.consume(code);
-      return completeAttributeNameBefore
+      return completeAttributeNameBefore;
     }
-    return completeEnd(code)
+    return completeEnd(code);
   }
   function completeAttributeName(code) {
-    if (
-      code === 45 ||
-      code === 46 ||
-      code === 58 ||
-      code === 95 ||
-      asciiAlphanumeric(code)
-    ) {
+    if (code === 45 || code === 46 || code === 58 || code === 95 || asciiAlphanumeric(code)) {
       effects.consume(code);
-      return completeAttributeName
+      return completeAttributeName;
     }
-    return completeAttributeNameAfter(code)
+    return completeAttributeNameAfter(code);
   }
   function completeAttributeNameAfter(code) {
     if (code === 61) {
       effects.consume(code);
-      return completeAttributeValueBefore
+      return completeAttributeValueBefore;
     }
     if (markdownSpace(code)) {
       effects.consume(code);
-      return completeAttributeNameAfter
+      return completeAttributeNameAfter;
     }
-    return completeAttributeNameBefore(code)
+    return completeAttributeNameBefore(code);
   }
   function completeAttributeValueBefore(code) {
-    if (
-      code === null ||
-      code === 60 ||
-      code === 61 ||
-      code === 62 ||
-      code === 96
-    ) {
-      return nok(code)
+    if (code === null || code === 60 || code === 61 || code === 62 || code === 96) {
+      return nok(code);
     }
     if (code === 34 || code === 39) {
       effects.consume(code);
       markerB = code;
-      return completeAttributeValueQuoted
+      return completeAttributeValueQuoted;
     }
     if (markdownSpace(code)) {
       effects.consume(code);
-      return completeAttributeValueBefore
+      return completeAttributeValueBefore;
     }
-    return completeAttributeValueUnquoted(code)
+    return completeAttributeValueUnquoted(code);
   }
   function completeAttributeValueQuoted(code) {
     if (code === markerB) {
       effects.consume(code);
       markerB = null;
-      return completeAttributeValueQuotedAfter
+      return completeAttributeValueQuotedAfter;
     }
     if (code === null || markdownLineEnding(code)) {
-      return nok(code)
+      return nok(code);
     }
     effects.consume(code);
-    return completeAttributeValueQuoted
+    return completeAttributeValueQuoted;
   }
   function completeAttributeValueUnquoted(code) {
-    if (
-      code === null ||
-      code === 34 ||
-      code === 39 ||
-      code === 47 ||
-      code === 60 ||
-      code === 61 ||
-      code === 62 ||
-      code === 96 ||
-      markdownLineEndingOrSpace(code)
-    ) {
-      return completeAttributeNameAfter(code)
+    if (code === null || code === 34 || code === 39 || code === 47 || code === 60 || code === 61 || code === 62 || code === 96 || markdownLineEndingOrSpace(code)) {
+      return completeAttributeNameAfter(code);
     }
     effects.consume(code);
-    return completeAttributeValueUnquoted
+    return completeAttributeValueUnquoted;
   }
   function completeAttributeValueQuotedAfter(code) {
     if (code === 47 || code === 62 || markdownSpace(code)) {
-      return completeAttributeNameBefore(code)
+      return completeAttributeNameBefore(code);
     }
-    return nok(code)
+    return nok(code);
   }
   function completeEnd(code) {
     if (code === 62) {
       effects.consume(code);
-      return completeAfter
+      return completeAfter;
     }
-    return nok(code)
+    return nok(code);
   }
   function completeAfter(code) {
     if (code === null || markdownLineEnding(code)) {
-      return continuation(code)
+      return continuation(code);
     }
     if (markdownSpace(code)) {
       effects.consume(code);
-      return completeAfter
+      return completeAfter;
     }
-    return nok(code)
+    return nok(code);
   }
   function continuation(code) {
     if (code === 45 && marker === 2) {
       effects.consume(code);
-      return continuationCommentInside
+      return continuationCommentInside;
     }
     if (code === 60 && marker === 1) {
       effects.consume(code);
-      return continuationRawTagOpen
+      return continuationRawTagOpen;
     }
     if (code === 62 && marker === 4) {
       effects.consume(code);
-      return continuationClose
+      return continuationClose;
     }
     if (code === 63 && marker === 3) {
       effects.consume(code);
-      return continuationDeclarationInside
+      return continuationDeclarationInside;
     }
     if (code === 93 && marker === 5) {
       effects.consume(code);
-      return continuationCdataInside
+      return continuationCdataInside;
     }
     if (markdownLineEnding(code) && (marker === 6 || marker === 7)) {
-      effects.exit('htmlFlowData');
-      return effects.check(
-        blankLineBefore,
-        continuationAfter,
-        continuationStart
-      )(code)
+      effects.exit("htmlFlowData");
+      return effects.check(blankLineBefore, continuationAfter, continuationStart)(code);
     }
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('htmlFlowData');
-      return continuationStart(code)
+      effects.exit("htmlFlowData");
+      return continuationStart(code);
     }
     effects.consume(code);
-    return continuation
+    return continuation;
   }
   function continuationStart(code) {
-    return effects.check(
-      nonLazyContinuationStart,
-      continuationStartNonLazy,
-      continuationAfter
-    )(code)
+    return effects.check(nonLazyContinuationStart, continuationStartNonLazy, continuationAfter)(code);
   }
   function continuationStartNonLazy(code) {
-    effects.enter('lineEnding');
+    effects.enter("lineEnding");
     effects.consume(code);
-    effects.exit('lineEnding');
-    return continuationBefore
+    effects.exit("lineEnding");
+    return continuationBefore;
   }
   function continuationBefore(code) {
     if (code === null || markdownLineEnding(code)) {
-      return continuationStart(code)
+      return continuationStart(code);
     }
-    effects.enter('htmlFlowData');
-    return continuation(code)
+    effects.enter("htmlFlowData");
+    return continuation(code);
   }
   function continuationCommentInside(code) {
     if (code === 45) {
       effects.consume(code);
-      return continuationDeclarationInside
+      return continuationDeclarationInside;
     }
-    return continuation(code)
+    return continuation(code);
   }
   function continuationRawTagOpen(code) {
     if (code === 47) {
       effects.consume(code);
       buffer = '';
-      return continuationRawEndTag
+      return continuationRawEndTag;
     }
-    return continuation(code)
+    return continuation(code);
   }
   function continuationRawEndTag(code) {
     if (code === 62) {
       const name = buffer.toLowerCase();
       if (htmlRawNames.includes(name)) {
         effects.consume(code);
-        return continuationClose
+        return continuationClose;
       }
-      return continuation(code)
+      return continuation(code);
     }
     if (asciiAlpha(code) && buffer.length < 8) {
       effects.consume(code);
       buffer += String.fromCharCode(code);
-      return continuationRawEndTag
+      return continuationRawEndTag;
     }
-    return continuation(code)
+    return continuation(code);
   }
   function continuationCdataInside(code) {
     if (code === 93) {
       effects.consume(code);
-      return continuationDeclarationInside
+      return continuationDeclarationInside;
     }
-    return continuation(code)
+    return continuation(code);
   }
   function continuationDeclarationInside(code) {
     if (code === 62) {
       effects.consume(code);
-      return continuationClose
+      return continuationClose;
     }
     if (code === 45 && marker === 2) {
       effects.consume(code);
-      return continuationDeclarationInside
+      return continuationDeclarationInside;
     }
-    return continuation(code)
+    return continuation(code);
   }
   function continuationClose(code) {
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('htmlFlowData');
-      return continuationAfter(code)
+      effects.exit("htmlFlowData");
+      return continuationAfter(code);
     }
     effects.consume(code);
-    return continuationClose
+    return continuationClose;
   }
   function continuationAfter(code) {
-    effects.exit('htmlFlow');
-    return ok(code)
+    effects.exit("htmlFlow");
+    return ok(code);
   }
 }
 function tokenizeNonLazyContinuationStart(effects, ok, nok) {
   const self = this;
-  return start
+  return start;
   function start(code) {
     if (markdownLineEnding(code)) {
-      effects.enter('lineEnding');
+      effects.enter("lineEnding");
       effects.consume(code);
-      effects.exit('lineEnding');
-      return after
+      effects.exit("lineEnding");
+      return after;
     }
-    return nok(code)
+    return nok(code);
   }
   function after(code) {
-    return self.parser.lazy[self.now().line] ? nok(code) : ok(code)
+    return self.parser.lazy[self.now().line] ? nok(code) : ok(code);
   }
 }
 function tokenizeBlankLineBefore(effects, ok, nok) {
-  return start
+  return start;
   function start(code) {
-    effects.enter('lineEnding');
+    effects.enter("lineEnding");
     effects.consume(code);
-    effects.exit('lineEnding');
-    return effects.attempt(blankLine, ok, nok)
+    effects.exit("lineEnding");
+    return effects.attempt(blankLine, ok, nok);
   }
 }
 
@@ -5476,331 +5324,299 @@ function tokenizeHtmlText(effects, ok, nok) {
   let marker;
   let index;
   let returnState;
-  return start
+  return start;
   function start(code) {
-    effects.enter('htmlText');
-    effects.enter('htmlTextData');
+    effects.enter("htmlText");
+    effects.enter("htmlTextData");
     effects.consume(code);
-    return open
+    return open;
   }
   function open(code) {
     if (code === 33) {
       effects.consume(code);
-      return declarationOpen
+      return declarationOpen;
     }
     if (code === 47) {
       effects.consume(code);
-      return tagCloseStart
+      return tagCloseStart;
     }
     if (code === 63) {
       effects.consume(code);
-      return instruction
+      return instruction;
     }
     if (asciiAlpha(code)) {
       effects.consume(code);
-      return tagOpen
+      return tagOpen;
     }
-    return nok(code)
+    return nok(code);
   }
   function declarationOpen(code) {
     if (code === 45) {
       effects.consume(code);
-      return commentOpenInside
+      return commentOpenInside;
     }
     if (code === 91) {
       effects.consume(code);
       index = 0;
-      return cdataOpenInside
+      return cdataOpenInside;
     }
     if (asciiAlpha(code)) {
       effects.consume(code);
-      return declaration
+      return declaration;
     }
-    return nok(code)
+    return nok(code);
   }
   function commentOpenInside(code) {
     if (code === 45) {
       effects.consume(code);
-      return commentEnd
+      return commentEnd;
     }
-    return nok(code)
+    return nok(code);
   }
   function comment(code) {
     if (code === null) {
-      return nok(code)
+      return nok(code);
     }
     if (code === 45) {
       effects.consume(code);
-      return commentClose
+      return commentClose;
     }
     if (markdownLineEnding(code)) {
       returnState = comment;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     effects.consume(code);
-    return comment
+    return comment;
   }
   function commentClose(code) {
     if (code === 45) {
       effects.consume(code);
-      return commentEnd
+      return commentEnd;
     }
-    return comment(code)
+    return comment(code);
   }
   function commentEnd(code) {
-    return code === 62
-      ? end(code)
-      : code === 45
-      ? commentClose(code)
-      : comment(code)
+    return code === 62 ? end(code) : code === 45 ? commentClose(code) : comment(code);
   }
   function cdataOpenInside(code) {
-    const value = 'CDATA[';
+    const value = "CDATA[";
     if (code === value.charCodeAt(index++)) {
       effects.consume(code);
-      return index === value.length ? cdata : cdataOpenInside
+      return index === value.length ? cdata : cdataOpenInside;
     }
-    return nok(code)
+    return nok(code);
   }
   function cdata(code) {
     if (code === null) {
-      return nok(code)
+      return nok(code);
     }
     if (code === 93) {
       effects.consume(code);
-      return cdataClose
+      return cdataClose;
     }
     if (markdownLineEnding(code)) {
       returnState = cdata;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     effects.consume(code);
-    return cdata
+    return cdata;
   }
   function cdataClose(code) {
     if (code === 93) {
       effects.consume(code);
-      return cdataEnd
+      return cdataEnd;
     }
-    return cdata(code)
+    return cdata(code);
   }
   function cdataEnd(code) {
     if (code === 62) {
-      return end(code)
+      return end(code);
     }
     if (code === 93) {
       effects.consume(code);
-      return cdataEnd
+      return cdataEnd;
     }
-    return cdata(code)
+    return cdata(code);
   }
   function declaration(code) {
     if (code === null || code === 62) {
-      return end(code)
+      return end(code);
     }
     if (markdownLineEnding(code)) {
       returnState = declaration;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     effects.consume(code);
-    return declaration
+    return declaration;
   }
   function instruction(code) {
     if (code === null) {
-      return nok(code)
+      return nok(code);
     }
     if (code === 63) {
       effects.consume(code);
-      return instructionClose
+      return instructionClose;
     }
     if (markdownLineEnding(code)) {
       returnState = instruction;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     effects.consume(code);
-    return instruction
+    return instruction;
   }
   function instructionClose(code) {
-    return code === 62 ? end(code) : instruction(code)
+    return code === 62 ? end(code) : instruction(code);
   }
   function tagCloseStart(code) {
     if (asciiAlpha(code)) {
       effects.consume(code);
-      return tagClose
+      return tagClose;
     }
-    return nok(code)
+    return nok(code);
   }
   function tagClose(code) {
     if (code === 45 || asciiAlphanumeric(code)) {
       effects.consume(code);
-      return tagClose
+      return tagClose;
     }
-    return tagCloseBetween(code)
+    return tagCloseBetween(code);
   }
   function tagCloseBetween(code) {
     if (markdownLineEnding(code)) {
       returnState = tagCloseBetween;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     if (markdownSpace(code)) {
       effects.consume(code);
-      return tagCloseBetween
+      return tagCloseBetween;
     }
-    return end(code)
+    return end(code);
   }
   function tagOpen(code) {
     if (code === 45 || asciiAlphanumeric(code)) {
       effects.consume(code);
-      return tagOpen
+      return tagOpen;
     }
     if (code === 47 || code === 62 || markdownLineEndingOrSpace(code)) {
-      return tagOpenBetween(code)
+      return tagOpenBetween(code);
     }
-    return nok(code)
+    return nok(code);
   }
   function tagOpenBetween(code) {
     if (code === 47) {
       effects.consume(code);
-      return end
+      return end;
     }
     if (code === 58 || code === 95 || asciiAlpha(code)) {
       effects.consume(code);
-      return tagOpenAttributeName
+      return tagOpenAttributeName;
     }
     if (markdownLineEnding(code)) {
       returnState = tagOpenBetween;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     if (markdownSpace(code)) {
       effects.consume(code);
-      return tagOpenBetween
+      return tagOpenBetween;
     }
-    return end(code)
+    return end(code);
   }
   function tagOpenAttributeName(code) {
-    if (
-      code === 45 ||
-      code === 46 ||
-      code === 58 ||
-      code === 95 ||
-      asciiAlphanumeric(code)
-    ) {
+    if (code === 45 || code === 46 || code === 58 || code === 95 || asciiAlphanumeric(code)) {
       effects.consume(code);
-      return tagOpenAttributeName
+      return tagOpenAttributeName;
     }
-    return tagOpenAttributeNameAfter(code)
+    return tagOpenAttributeNameAfter(code);
   }
   function tagOpenAttributeNameAfter(code) {
     if (code === 61) {
       effects.consume(code);
-      return tagOpenAttributeValueBefore
+      return tagOpenAttributeValueBefore;
     }
     if (markdownLineEnding(code)) {
       returnState = tagOpenAttributeNameAfter;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     if (markdownSpace(code)) {
       effects.consume(code);
-      return tagOpenAttributeNameAfter
+      return tagOpenAttributeNameAfter;
     }
-    return tagOpenBetween(code)
+    return tagOpenBetween(code);
   }
   function tagOpenAttributeValueBefore(code) {
-    if (
-      code === null ||
-      code === 60 ||
-      code === 61 ||
-      code === 62 ||
-      code === 96
-    ) {
-      return nok(code)
+    if (code === null || code === 60 || code === 61 || code === 62 || code === 96) {
+      return nok(code);
     }
     if (code === 34 || code === 39) {
       effects.consume(code);
       marker = code;
-      return tagOpenAttributeValueQuoted
+      return tagOpenAttributeValueQuoted;
     }
     if (markdownLineEnding(code)) {
       returnState = tagOpenAttributeValueBefore;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     if (markdownSpace(code)) {
       effects.consume(code);
-      return tagOpenAttributeValueBefore
+      return tagOpenAttributeValueBefore;
     }
     effects.consume(code);
-    return tagOpenAttributeValueUnquoted
+    return tagOpenAttributeValueUnquoted;
   }
   function tagOpenAttributeValueQuoted(code) {
     if (code === marker) {
       effects.consume(code);
       marker = undefined;
-      return tagOpenAttributeValueQuotedAfter
+      return tagOpenAttributeValueQuotedAfter;
     }
     if (code === null) {
-      return nok(code)
+      return nok(code);
     }
     if (markdownLineEnding(code)) {
       returnState = tagOpenAttributeValueQuoted;
-      return lineEndingBefore(code)
+      return lineEndingBefore(code);
     }
     effects.consume(code);
-    return tagOpenAttributeValueQuoted
+    return tagOpenAttributeValueQuoted;
   }
   function tagOpenAttributeValueUnquoted(code) {
-    if (
-      code === null ||
-      code === 34 ||
-      code === 39 ||
-      code === 60 ||
-      code === 61 ||
-      code === 96
-    ) {
-      return nok(code)
+    if (code === null || code === 34 || code === 39 || code === 60 || code === 61 || code === 96) {
+      return nok(code);
     }
     if (code === 47 || code === 62 || markdownLineEndingOrSpace(code)) {
-      return tagOpenBetween(code)
+      return tagOpenBetween(code);
     }
     effects.consume(code);
-    return tagOpenAttributeValueUnquoted
+    return tagOpenAttributeValueUnquoted;
   }
   function tagOpenAttributeValueQuotedAfter(code) {
     if (code === 47 || code === 62 || markdownLineEndingOrSpace(code)) {
-      return tagOpenBetween(code)
+      return tagOpenBetween(code);
     }
-    return nok(code)
+    return nok(code);
   }
   function end(code) {
     if (code === 62) {
       effects.consume(code);
-      effects.exit('htmlTextData');
-      effects.exit('htmlText');
-      return ok
+      effects.exit("htmlTextData");
+      effects.exit("htmlText");
+      return ok;
     }
-    return nok(code)
+    return nok(code);
   }
   function lineEndingBefore(code) {
-    effects.exit('htmlTextData');
-    effects.enter('lineEnding');
+    effects.exit("htmlTextData");
+    effects.enter("lineEnding");
     effects.consume(code);
-    effects.exit('lineEnding');
-    return lineEndingAfter
+    effects.exit("lineEnding");
+    return lineEndingAfter;
   }
   function lineEndingAfter(code) {
-    return markdownSpace(code)
-      ? factorySpace(
-          effects,
-          lineEndingAfterPrefix,
-          'linePrefix',
-          self.parser.constructs.disable.null.includes('codeIndented')
-            ? undefined
-            : 4
-        )(code)
-      : lineEndingAfterPrefix(code)
+    return markdownSpace(code) ? factorySpace(effects, lineEndingAfterPrefix, "linePrefix", self.parser.constructs.disable.null.includes('codeIndented') ? undefined : 4)(code) : lineEndingAfterPrefix(code);
   }
   function lineEndingAfterPrefix(code) {
-    effects.enter('htmlTextData');
-    return returnState(code)
+    effects.enter("htmlTextData");
+    return returnState(code);
   }
 }
 
@@ -5823,17 +5639,13 @@ function resolveAllLabelEnd(events) {
   let index = -1;
   while (++index < events.length) {
     const token = events[index][1];
-    if (
-      token.type === 'labelImage' ||
-      token.type === 'labelLink' ||
-      token.type === 'labelEnd'
-    ) {
-      events.splice(index + 1, token.type === 'labelImage' ? 4 : 2);
-      token.type = 'data';
+    if (token.type === "labelImage" || token.type === "labelLink" || token.type === "labelEnd") {
+      events.splice(index + 1, token.type === "labelImage" ? 4 : 2);
+      token.type = "data";
       index++;
     }
   }
-  return events
+  return events;
 }
 function resolveToLabelEnd(events, context) {
   let index = events.length;
@@ -5845,70 +5657,48 @@ function resolveToLabelEnd(events, context) {
   while (index--) {
     token = events[index][1];
     if (open) {
-      if (
-        token.type === 'link' ||
-        (token.type === 'labelLink' && token._inactive)
-      ) {
-        break
+      if (token.type === "link" || token.type === "labelLink" && token._inactive) {
+        break;
       }
-      if (events[index][0] === 'enter' && token.type === 'labelLink') {
+      if (events[index][0] === 'enter' && token.type === "labelLink") {
         token._inactive = true;
       }
     } else if (close) {
-      if (
-        events[index][0] === 'enter' &&
-        (token.type === 'labelImage' || token.type === 'labelLink') &&
-        !token._balanced
-      ) {
+      if (events[index][0] === 'enter' && (token.type === "labelImage" || token.type === "labelLink") && !token._balanced) {
         open = index;
-        if (token.type !== 'labelLink') {
+        if (token.type !== "labelLink") {
           offset = 2;
-          break
+          break;
         }
       }
-    } else if (token.type === 'labelEnd') {
+    } else if (token.type === "labelEnd") {
       close = index;
     }
   }
   const group = {
-    type: events[open][1].type === 'labelLink' ? 'link' : 'image',
+    type: events[open][1].type === "labelLink" ? "link" : "image",
     start: Object.assign({}, events[open][1].start),
     end: Object.assign({}, events[events.length - 1][1].end)
   };
   const label = {
-    type: 'label',
+    type: "label",
     start: Object.assign({}, events[open][1].start),
     end: Object.assign({}, events[close][1].end)
   };
   const text = {
-    type: 'labelText',
+    type: "labelText",
     start: Object.assign({}, events[open + offset + 2][1].end),
     end: Object.assign({}, events[close - 2][1].start)
   };
-  media = [
-    ['enter', group, context],
-    ['enter', label, context]
-  ];
+  media = [['enter', group, context], ['enter', label, context]];
   media = push(media, events.slice(open + 1, open + offset + 3));
   media = push(media, [['enter', text, context]]);
-  media = push(
-    media,
-    resolveAll(
-      context.parser.constructs.insideSpan.null,
-      events.slice(open + offset + 4, close - 3),
-      context
-    )
-  );
-  media = push(media, [
-    ['exit', text, context],
-    events[close - 2],
-    events[close - 1],
-    ['exit', label, context]
-  ]);
+  media = push(media, resolveAll(context.parser.constructs.insideSpan.null, events.slice(open + offset + 4, close - 3), context));
+  media = push(media, [['exit', text, context], events[close - 2], events[close - 1], ['exit', label, context]]);
   media = push(media, events.slice(close + 1));
   media = push(media, [['exit', group, context]]);
   splice(events, open, events.length, media);
-  return events
+  return events;
 }
 function tokenizeLabelEnd(effects, ok, nok) {
   const self = this;
@@ -5916,182 +5706,125 @@ function tokenizeLabelEnd(effects, ok, nok) {
   let labelStart;
   let defined;
   while (index--) {
-    if (
-      (self.events[index][1].type === 'labelImage' ||
-        self.events[index][1].type === 'labelLink') &&
-      !self.events[index][1]._balanced
-    ) {
+    if ((self.events[index][1].type === "labelImage" || self.events[index][1].type === "labelLink") && !self.events[index][1]._balanced) {
       labelStart = self.events[index][1];
-      break
+      break;
     }
   }
-  return start
+  return start;
   function start(code) {
     if (!labelStart) {
-      return nok(code)
+      return nok(code);
     }
     if (labelStart._inactive) {
-      return labelEndNok(code)
+      return labelEndNok(code);
     }
-    defined = self.parser.defined.includes(
-      normalizeIdentifier$1(
-        self.sliceSerialize({
-          start: labelStart.end,
-          end: self.now()
-        })
-      )
-    );
-    effects.enter('labelEnd');
-    effects.enter('labelMarker');
+    defined = self.parser.defined.includes(normalizeIdentifier(self.sliceSerialize({
+      start: labelStart.end,
+      end: self.now()
+    })));
+    effects.enter("labelEnd");
+    effects.enter("labelMarker");
     effects.consume(code);
-    effects.exit('labelMarker');
-    effects.exit('labelEnd');
-    return after
+    effects.exit("labelMarker");
+    effects.exit("labelEnd");
+    return after;
   }
   function after(code) {
     if (code === 40) {
-      return effects.attempt(
-        resourceConstruct,
-        labelEndOk,
-        defined ? labelEndOk : labelEndNok
-      )(code)
+      return effects.attempt(resourceConstruct, labelEndOk, defined ? labelEndOk : labelEndNok)(code);
     }
     if (code === 91) {
-      return effects.attempt(
-        referenceFullConstruct,
-        labelEndOk,
-        defined ? referenceNotFull : labelEndNok
-      )(code)
+      return effects.attempt(referenceFullConstruct, labelEndOk, defined ? referenceNotFull : labelEndNok)(code);
     }
-    return defined ? labelEndOk(code) : labelEndNok(code)
+    return defined ? labelEndOk(code) : labelEndNok(code);
   }
   function referenceNotFull(code) {
-    return effects.attempt(
-      referenceCollapsedConstruct,
-      labelEndOk,
-      labelEndNok
-    )(code)
+    return effects.attempt(referenceCollapsedConstruct, labelEndOk, labelEndNok)(code);
   }
   function labelEndOk(code) {
-    return ok(code)
+    return ok(code);
   }
   function labelEndNok(code) {
     labelStart._balanced = true;
-    return nok(code)
+    return nok(code);
   }
 }
 function tokenizeResource(effects, ok, nok) {
-  return resourceStart
+  return resourceStart;
   function resourceStart(code) {
-    effects.enter('resource');
-    effects.enter('resourceMarker');
+    effects.enter("resource");
+    effects.enter("resourceMarker");
     effects.consume(code);
-    effects.exit('resourceMarker');
-    return resourceBefore
+    effects.exit("resourceMarker");
+    return resourceBefore;
   }
   function resourceBefore(code) {
-    return markdownLineEndingOrSpace(code)
-      ? factoryWhitespace(effects, resourceOpen)(code)
-      : resourceOpen(code)
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, resourceOpen)(code) : resourceOpen(code);
   }
   function resourceOpen(code) {
     if (code === 41) {
-      return resourceEnd(code)
+      return resourceEnd(code);
     }
-    return factoryDestination(
-      effects,
-      resourceDestinationAfter,
-      resourceDestinationMissing,
-      'resourceDestination',
-      'resourceDestinationLiteral',
-      'resourceDestinationLiteralMarker',
-      'resourceDestinationRaw',
-      'resourceDestinationString',
-      32
-    )(code)
+    return factoryDestination(effects, resourceDestinationAfter, resourceDestinationMissing, "resourceDestination", "resourceDestinationLiteral", "resourceDestinationLiteralMarker", "resourceDestinationRaw", "resourceDestinationString", 32)(code);
   }
   function resourceDestinationAfter(code) {
-    return markdownLineEndingOrSpace(code)
-      ? factoryWhitespace(effects, resourceBetween)(code)
-      : resourceEnd(code)
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, resourceBetween)(code) : resourceEnd(code);
   }
   function resourceDestinationMissing(code) {
-    return nok(code)
+    return nok(code);
   }
   function resourceBetween(code) {
     if (code === 34 || code === 39 || code === 40) {
-      return factoryTitle(
-        effects,
-        resourceTitleAfter,
-        nok,
-        'resourceTitle',
-        'resourceTitleMarker',
-        'resourceTitleString'
-      )(code)
+      return factoryTitle(effects, resourceTitleAfter, nok, "resourceTitle", "resourceTitleMarker", "resourceTitleString")(code);
     }
-    return resourceEnd(code)
+    return resourceEnd(code);
   }
   function resourceTitleAfter(code) {
-    return markdownLineEndingOrSpace(code)
-      ? factoryWhitespace(effects, resourceEnd)(code)
-      : resourceEnd(code)
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, resourceEnd)(code) : resourceEnd(code);
   }
   function resourceEnd(code) {
     if (code === 41) {
-      effects.enter('resourceMarker');
+      effects.enter("resourceMarker");
       effects.consume(code);
-      effects.exit('resourceMarker');
-      effects.exit('resource');
-      return ok
+      effects.exit("resourceMarker");
+      effects.exit("resource");
+      return ok;
     }
-    return nok(code)
+    return nok(code);
   }
 }
 function tokenizeReferenceFull(effects, ok, nok) {
   const self = this;
-  return referenceFull
+  return referenceFull;
   function referenceFull(code) {
-    return factoryLabel.call(
-      self,
-      effects,
-      referenceFullAfter,
-      referenceFullMissing,
-      'reference',
-      'referenceMarker',
-      'referenceString'
-    )(code)
+    return factoryLabel.call(self, effects, referenceFullAfter, referenceFullMissing, "reference", "referenceMarker", "referenceString")(code);
   }
   function referenceFullAfter(code) {
-    return self.parser.defined.includes(
-      normalizeIdentifier$1(
-        self.sliceSerialize(self.events[self.events.length - 1][1]).slice(1, -1)
-      )
-    )
-      ? ok(code)
-      : nok(code)
+    return self.parser.defined.includes(normalizeIdentifier(self.sliceSerialize(self.events[self.events.length - 1][1]).slice(1, -1))) ? ok(code) : nok(code);
   }
   function referenceFullMissing(code) {
-    return nok(code)
+    return nok(code);
   }
 }
 function tokenizeReferenceCollapsed(effects, ok, nok) {
-  return referenceCollapsedStart
+  return referenceCollapsedStart;
   function referenceCollapsedStart(code) {
-    effects.enter('reference');
-    effects.enter('referenceMarker');
+    effects.enter("reference");
+    effects.enter("referenceMarker");
     effects.consume(code);
-    effects.exit('referenceMarker');
-    return referenceCollapsedOpen
+    effects.exit("referenceMarker");
+    return referenceCollapsedOpen;
   }
   function referenceCollapsedOpen(code) {
     if (code === 93) {
-      effects.enter('referenceMarker');
+      effects.enter("referenceMarker");
       effects.consume(code);
-      effects.exit('referenceMarker');
-      effects.exit('reference');
-      return ok
+      effects.exit("referenceMarker");
+      effects.exit("reference");
+      return ok;
     }
-    return nok(code)
+    return nok(code);
   }
 }
 
@@ -6102,28 +5835,26 @@ const labelStartImage = {
 };
 function tokenizeLabelStartImage(effects, ok, nok) {
   const self = this;
-  return start
+  return start;
   function start(code) {
-    effects.enter('labelImage');
-    effects.enter('labelImageMarker');
+    effects.enter("labelImage");
+    effects.enter("labelImageMarker");
     effects.consume(code);
-    effects.exit('labelImageMarker');
-    return open
+    effects.exit("labelImageMarker");
+    return open;
   }
   function open(code) {
     if (code === 91) {
-      effects.enter('labelMarker');
+      effects.enter("labelMarker");
       effects.consume(code);
-      effects.exit('labelMarker');
-      effects.exit('labelImage');
-      return after
+      effects.exit("labelMarker");
+      effects.exit("labelImage");
+      return after;
     }
-    return nok(code)
+    return nok(code);
   }
   function after(code) {
-    return code === 94 && '_hiddenFootnoteSupport' in self.parser.constructs
-      ? nok(code)
-      : ok(code)
+    return code === 94 && '_hiddenFootnoteSupport' in self.parser.constructs ? nok(code) : ok(code);
   }
 }
 
@@ -6134,19 +5865,17 @@ const labelStartLink = {
 };
 function tokenizeLabelStartLink(effects, ok, nok) {
   const self = this;
-  return start
+  return start;
   function start(code) {
-    effects.enter('labelLink');
-    effects.enter('labelMarker');
+    effects.enter("labelLink");
+    effects.enter("labelMarker");
     effects.consume(code);
-    effects.exit('labelMarker');
-    effects.exit('labelLink');
-    return after
+    effects.exit("labelMarker");
+    effects.exit("labelLink");
+    return after;
   }
   function after(code) {
-    return code === 94 && '_hiddenFootnoteSupport' in self.parser.constructs
-      ? nok(code)
-      : ok(code)
+    return code === 94 && '_hiddenFootnoteSupport' in self.parser.constructs ? nok(code) : ok(code);
   }
 }
 
@@ -6155,12 +5884,12 @@ const lineEnding = {
   tokenize: tokenizeLineEnding
 };
 function tokenizeLineEnding(effects, ok) {
-  return start
+  return start;
   function start(code) {
-    effects.enter('lineEnding');
+    effects.enter("lineEnding");
     effects.consume(code);
-    effects.exit('lineEnding');
-    return factorySpace(effects, ok, 'linePrefix')
+    effects.exit("lineEnding");
+    return factorySpace(effects, ok, "linePrefix");
   }
 }
 
@@ -6171,36 +5900,34 @@ const thematicBreak$1 = {
 function tokenizeThematicBreak(effects, ok, nok) {
   let size = 0;
   let marker;
-  return start
+  return start;
   function start(code) {
-    effects.enter('thematicBreak');
-    return before(code)
+    effects.enter("thematicBreak");
+    return before(code);
   }
   function before(code) {
     marker = code;
-    return atBreak(code)
+    return atBreak(code);
   }
   function atBreak(code) {
     if (code === marker) {
-      effects.enter('thematicBreakSequence');
-      return sequence(code)
+      effects.enter("thematicBreakSequence");
+      return sequence(code);
     }
     if (size >= 3 && (code === null || markdownLineEnding(code))) {
-      effects.exit('thematicBreak');
-      return ok(code)
+      effects.exit("thematicBreak");
+      return ok(code);
     }
-    return nok(code)
+    return nok(code);
   }
   function sequence(code) {
     if (code === marker) {
       effects.consume(code);
       size++;
-      return sequence
+      return sequence;
     }
-    effects.exit('thematicBreakSequence');
-    return markdownSpace(code)
-      ? factorySpace(effects, atBreak, 'whitespace')(code)
-      : atBreak(code)
+    effects.exit("thematicBreakSequence");
+    return markdownSpace(code) ? factorySpace(effects, atBreak, "whitespace")(code) : atBreak(code);
   }
 }
 
@@ -6223,148 +5950,98 @@ const indentConstruct = {
 function tokenizeListStart(effects, ok, nok) {
   const self = this;
   const tail = self.events[self.events.length - 1];
-  let initialSize =
-    tail && tail[1].type === 'linePrefix'
-      ? tail[2].sliceSerialize(tail[1], true).length
-      : 0;
+  let initialSize = tail && tail[1].type === "linePrefix" ? tail[2].sliceSerialize(tail[1], true).length : 0;
   let size = 0;
-  return start
+  return start;
   function start(code) {
-    const kind =
-      self.containerState.type ||
-      (code === 42 || code === 43 || code === 45
-        ? 'listUnordered'
-        : 'listOrdered');
-    if (
-      kind === 'listUnordered'
-        ? !self.containerState.marker || code === self.containerState.marker
-        : asciiDigit(code)
-    ) {
+    const kind = self.containerState.type || (code === 42 || code === 43 || code === 45 ? "listUnordered" : "listOrdered");
+    if (kind === "listUnordered" ? !self.containerState.marker || code === self.containerState.marker : asciiDigit(code)) {
       if (!self.containerState.type) {
         self.containerState.type = kind;
         effects.enter(kind, {
           _container: true
         });
       }
-      if (kind === 'listUnordered') {
-        effects.enter('listItemPrefix');
-        return code === 42 || code === 45
-          ? effects.check(thematicBreak$1, nok, atMarker)(code)
-          : atMarker(code)
+      if (kind === "listUnordered") {
+        effects.enter("listItemPrefix");
+        return code === 42 || code === 45 ? effects.check(thematicBreak$1, nok, atMarker)(code) : atMarker(code);
       }
       if (!self.interrupt || code === 49) {
-        effects.enter('listItemPrefix');
-        effects.enter('listItemValue');
-        return inside(code)
+        effects.enter("listItemPrefix");
+        effects.enter("listItemValue");
+        return inside(code);
       }
     }
-    return nok(code)
+    return nok(code);
   }
   function inside(code) {
     if (asciiDigit(code) && ++size < 10) {
       effects.consume(code);
-      return inside
+      return inside;
     }
-    if (
-      (!self.interrupt || size < 2) &&
-      (self.containerState.marker
-        ? code === self.containerState.marker
-        : code === 41 || code === 46)
-    ) {
-      effects.exit('listItemValue');
-      return atMarker(code)
+    if ((!self.interrupt || size < 2) && (self.containerState.marker ? code === self.containerState.marker : code === 41 || code === 46)) {
+      effects.exit("listItemValue");
+      return atMarker(code);
     }
-    return nok(code)
+    return nok(code);
   }
   function atMarker(code) {
-    effects.enter('listItemMarker');
+    effects.enter("listItemMarker");
     effects.consume(code);
-    effects.exit('listItemMarker');
+    effects.exit("listItemMarker");
     self.containerState.marker = self.containerState.marker || code;
-    return effects.check(
-      blankLine,
-      self.interrupt ? nok : onBlank,
-      effects.attempt(
-        listItemPrefixWhitespaceConstruct,
-        endOfPrefix,
-        otherPrefix
-      )
-    )
+    return effects.check(blankLine,
+    self.interrupt ? nok : onBlank, effects.attempt(listItemPrefixWhitespaceConstruct, endOfPrefix, otherPrefix));
   }
   function onBlank(code) {
     self.containerState.initialBlankLine = true;
     initialSize++;
-    return endOfPrefix(code)
+    return endOfPrefix(code);
   }
   function otherPrefix(code) {
     if (markdownSpace(code)) {
-      effects.enter('listItemPrefixWhitespace');
+      effects.enter("listItemPrefixWhitespace");
       effects.consume(code);
-      effects.exit('listItemPrefixWhitespace');
-      return endOfPrefix
+      effects.exit("listItemPrefixWhitespace");
+      return endOfPrefix;
     }
-    return nok(code)
+    return nok(code);
   }
   function endOfPrefix(code) {
-    self.containerState.size =
-      initialSize +
-      self.sliceSerialize(effects.exit('listItemPrefix'), true).length;
-    return ok(code)
+    self.containerState.size = initialSize + self.sliceSerialize(effects.exit("listItemPrefix"), true).length;
+    return ok(code);
   }
 }
 function tokenizeListContinuation(effects, ok, nok) {
   const self = this;
   self.containerState._closeFlow = undefined;
-  return effects.check(blankLine, onBlank, notBlank)
+  return effects.check(blankLine, onBlank, notBlank);
   function onBlank(code) {
-    self.containerState.furtherBlankLines =
-      self.containerState.furtherBlankLines ||
-      self.containerState.initialBlankLine;
-    return factorySpace(
-      effects,
-      ok,
-      'listItemIndent',
-      self.containerState.size + 1
-    )(code)
+    self.containerState.furtherBlankLines = self.containerState.furtherBlankLines || self.containerState.initialBlankLine;
+    return factorySpace(effects, ok, "listItemIndent", self.containerState.size + 1)(code);
   }
   function notBlank(code) {
     if (self.containerState.furtherBlankLines || !markdownSpace(code)) {
       self.containerState.furtherBlankLines = undefined;
       self.containerState.initialBlankLine = undefined;
-      return notInCurrentItem(code)
+      return notInCurrentItem(code);
     }
     self.containerState.furtherBlankLines = undefined;
     self.containerState.initialBlankLine = undefined;
-    return effects.attempt(indentConstruct, ok, notInCurrentItem)(code)
+    return effects.attempt(indentConstruct, ok, notInCurrentItem)(code);
   }
   function notInCurrentItem(code) {
     self.containerState._closeFlow = true;
     self.interrupt = undefined;
-    return factorySpace(
-      effects,
-      effects.attempt(list$2, ok, nok),
-      'linePrefix',
-      self.parser.constructs.disable.null.includes('codeIndented')
-        ? undefined
-        : 4
-    )(code)
+    return factorySpace(effects, effects.attempt(list$2, ok, nok), "linePrefix", self.parser.constructs.disable.null.includes('codeIndented') ? undefined : 4)(code);
   }
 }
 function tokenizeIndent$1(effects, ok, nok) {
   const self = this;
-  return factorySpace(
-    effects,
-    afterPrefix,
-    'listItemIndent',
-    self.containerState.size + 1
-  )
+  return factorySpace(effects, afterPrefix, "listItemIndent", self.containerState.size + 1);
   function afterPrefix(code) {
     const tail = self.events[self.events.length - 1];
-    return tail &&
-      tail[1].type === 'listItemIndent' &&
-      tail[2].sliceSerialize(tail[1], true).length === self.containerState.size
-      ? ok(code)
-      : nok(code)
+    return tail && tail[1].type === "listItemIndent" && tail[2].sliceSerialize(tail[1], true).length === self.containerState.size ? ok(code) : nok(code);
   }
 }
 function tokenizeListEnd(effects) {
@@ -6372,21 +6049,10 @@ function tokenizeListEnd(effects) {
 }
 function tokenizeListItemPrefixWhitespace(effects, ok, nok) {
   const self = this;
-  return factorySpace(
-    effects,
-    afterPrefix,
-    'listItemPrefixWhitespace',
-    self.parser.constructs.disable.null.includes('codeIndented')
-      ? undefined
-      : 4 + 1
-  )
+  return factorySpace(effects, afterPrefix, "listItemPrefixWhitespace", self.parser.constructs.disable.null.includes('codeIndented') ? undefined : 4 + 1);
   function afterPrefix(code) {
     const tail = self.events[self.events.length - 1];
-    return !markdownSpace(code) &&
-      tail &&
-      tail[1].type === 'listItemPrefixWhitespace'
-      ? ok(code)
-      : nok(code)
+    return !markdownSpace(code) && tail && tail[1].type === "listItemPrefixWhitespace" ? ok(code) : nok(code);
   }
 }
 
@@ -6402,29 +6068,29 @@ function resolveToSetextUnderline(events, context) {
   let definition;
   while (index--) {
     if (events[index][0] === 'enter') {
-      if (events[index][1].type === 'content') {
+      if (events[index][1].type === "content") {
         content = index;
-        break
+        break;
       }
-      if (events[index][1].type === 'paragraph') {
+      if (events[index][1].type === "paragraph") {
         text = index;
       }
     }
     else {
-      if (events[index][1].type === 'content') {
+      if (events[index][1].type === "content") {
         events.splice(index, 1);
       }
-      if (!definition && events[index][1].type === 'definition') {
+      if (!definition && events[index][1].type === "definition") {
         definition = index;
       }
     }
   }
   const heading = {
-    type: 'setextHeading',
+    type: "setextHeading",
     start: Object.assign({}, events[text][1].start),
     end: Object.assign({}, events[events.length - 1][1].end)
   };
-  events[text][1].type = 'setextHeadingText';
+  events[text][1].type = "setextHeadingText";
   if (definition) {
     events.splice(text, 0, ['enter', heading, context]);
     events.splice(definition + 1, 0, ['exit', events[content][1], context]);
@@ -6433,52 +6099,46 @@ function resolveToSetextUnderline(events, context) {
     events[content][1] = heading;
   }
   events.push(['exit', heading, context]);
-  return events
+  return events;
 }
 function tokenizeSetextUnderline(effects, ok, nok) {
   const self = this;
   let marker;
-  return start
+  return start;
   function start(code) {
     let index = self.events.length;
     let paragraph;
     while (index--) {
-      if (
-        self.events[index][1].type !== 'lineEnding' &&
-        self.events[index][1].type !== 'linePrefix' &&
-        self.events[index][1].type !== 'content'
-      ) {
-        paragraph = self.events[index][1].type === 'paragraph';
-        break
+      if (self.events[index][1].type !== "lineEnding" && self.events[index][1].type !== "linePrefix" && self.events[index][1].type !== "content") {
+        paragraph = self.events[index][1].type === "paragraph";
+        break;
       }
     }
     if (!self.parser.lazy[self.now().line] && (self.interrupt || paragraph)) {
-      effects.enter('setextHeadingLine');
+      effects.enter("setextHeadingLine");
       marker = code;
-      return before(code)
+      return before(code);
     }
-    return nok(code)
+    return nok(code);
   }
   function before(code) {
-    effects.enter('setextHeadingLineSequence');
-    return inside(code)
+    effects.enter("setextHeadingLineSequence");
+    return inside(code);
   }
   function inside(code) {
     if (code === marker) {
       effects.consume(code);
-      return inside
+      return inside;
     }
-    effects.exit('setextHeadingLineSequence');
-    return markdownSpace(code)
-      ? factorySpace(effects, after, 'lineSuffix')(code)
-      : after(code)
+    effects.exit("setextHeadingLineSequence");
+    return markdownSpace(code) ? factorySpace(effects, after, "lineSuffix")(code) : after(code);
   }
   function after(code) {
     if (code === null || markdownLineEnding(code)) {
-      effects.exit('setextHeadingLine');
-      return ok(code)
+      effects.exit("setextHeadingLine");
+      return ok(code);
     }
-    return nok(code)
+    return nok(code);
   }
 }
 
@@ -7066,7 +6726,7 @@ var defaultConstructs = /*#__PURE__*/Object.freeze({
   text: text$2
 });
 
-function parse$1(options) {
+function parse$2(options) {
   const settings = options || {};
   const constructs =
     combineExtensions([defaultConstructs, ...(settings.extensions || [])]);
@@ -7095,7 +6755,7 @@ function postprocess(events) {
   return events
 }
 
-const search = /[\0\t\n\r]/g;
+const search$1 = /[\0\t\n\r]/g;
 function preprocess() {
   let column = 1;
   let buffer = '';
@@ -7123,8 +6783,8 @@ function preprocess() {
       start = undefined;
     }
     while (startPosition < value.length) {
-      search.lastIndex = startPosition;
-      match = search.exec(value);
+      search$1.lastIndex = startPosition;
+      match = search$1.exec(value);
       endPosition =
         match && match.index !== undefined ? match.index : value.length;
       code = value.charCodeAt(endPosition);
@@ -7196,17 +6856,13 @@ function decode($0, $1, $2) {
   return decodeNamedCharacterReference($2) || $0
 }
 
-const own$4 = {}.hasOwnProperty;
+const own$3 = {}.hasOwnProperty;
 function fromMarkdown(value, encoding, options) {
   if (typeof encoding !== 'string') {
     options = encoding;
     encoding = undefined;
   }
-  return compiler(options)(
-    postprocess(
-      parse$1(options).document().write(preprocess()(value, encoding, true))
-    )
-  )
+  return compiler(options)(postprocess(parse$2(options).document().write(preprocess()(value, encoding, true))));
 }
 function compiler(options) {
   const config = {
@@ -7266,6 +6922,7 @@ function compiler(options) {
       characterReferenceMarkerHexadecimal: onexitcharacterreferencemarker,
       characterReferenceMarkerNumeric: onexitcharacterreferencemarker,
       characterReferenceValue: onexitcharacterreferencevalue,
+      characterReference: onexitcharacterreference,
       codeFenced: closer(onexitcodefenced),
       codeFencedFence: onexitcodefencedfence,
       codeFencedFenceInfo: onexitcodefencedfenceinfo,
@@ -7308,7 +6965,7 @@ function compiler(options) {
   };
   configure$1(config, (options || {}).mdastExtensions || []);
   const data = {};
-  return compile
+  return compile;
   function compile(events) {
     let tree = {
       type: 'root',
@@ -7327,10 +6984,7 @@ function compiler(options) {
     const listStack = [];
     let index = -1;
     while (++index < events.length) {
-      if (
-        events[index][1].type === 'listOrdered' ||
-        events[index][1].type === 'listUnordered'
-      ) {
+      if (events[index][1].type === "listOrdered" || events[index][1].type === "listUnordered") {
         if (events[index][0] === 'enter') {
           listStack.push(index);
         } else {
@@ -7342,16 +6996,10 @@ function compiler(options) {
     index = -1;
     while (++index < events.length) {
       const handler = config[events[index][0]];
-      if (own$4.call(handler, events[index][1].type)) {
-        handler[events[index][1].type].call(
-          Object.assign(
-            {
-              sliceSerialize: events[index][2].sliceSerialize
-            },
-            context
-          ),
-          events[index][1]
-        );
+      if (own$3.call(handler, events[index][1].type)) {
+        handler[events[index][1].type].call(Object.assign({
+          sliceSerialize: events[index][2].sliceSerialize
+        }, context), events[index][1]);
       }
     }
     if (context.tokenStack.length > 0) {
@@ -7360,30 +7008,22 @@ function compiler(options) {
       handler.call(context, undefined, tail[0]);
     }
     tree.position = {
-      start: point$3(
-        events.length > 0
-          ? events[0][1].start
-          : {
-              line: 1,
-              column: 1,
-              offset: 0
-            }
-      ),
-      end: point$3(
-        events.length > 0
-          ? events[events.length - 2][1].end
-          : {
-              line: 1,
-              column: 1,
-              offset: 0
-            }
-      )
+      start: point$1(events.length > 0 ? events[0][1].start : {
+        line: 1,
+        column: 1,
+        offset: 0
+      }),
+      end: point$1(events.length > 0 ? events[events.length - 2][1].end : {
+        line: 1,
+        column: 1,
+        offset: 0
+      })
     };
     index = -1;
     while (++index < config.transforms.length) {
       tree = config.transforms[index](tree) || tree;
     }
-    return tree
+    return tree;
   }
   function prepareList(events, start, length) {
     let index = start - 1;
@@ -7396,92 +7036,68 @@ function compiler(options) {
     while (++index <= length) {
       const event = events[index];
       switch (event[1].type) {
-        case 'listUnordered':
-        case 'listOrdered':
-        case 'blockQuote': {
-          if (event[0] === 'enter') {
-            containerBalance++;
-          } else {
-            containerBalance--;
-          }
-          atMarker = undefined;
-          break
-        }
-        case 'lineEndingBlank': {
-          if (event[0] === 'enter') {
-            if (
-              listItem &&
-              !atMarker &&
-              !containerBalance &&
-              !firstBlankLineIndex
-            ) {
-              firstBlankLineIndex = index;
+        case "listUnordered":
+        case "listOrdered":
+        case "blockQuote":
+          {
+            if (event[0] === 'enter') {
+              containerBalance++;
+            } else {
+              containerBalance--;
             }
             atMarker = undefined;
+            break;
           }
-          break
-        }
-        case 'linePrefix':
-        case 'listItemValue':
-        case 'listItemMarker':
-        case 'listItemPrefix':
-        case 'listItemPrefixWhitespace': {
-          break
-        }
-        default: {
-          atMarker = undefined;
-        }
+        case "lineEndingBlank":
+          {
+            if (event[0] === 'enter') {
+              if (listItem && !atMarker && !containerBalance && !firstBlankLineIndex) {
+                firstBlankLineIndex = index;
+              }
+              atMarker = undefined;
+            }
+            break;
+          }
+        case "linePrefix":
+        case "listItemValue":
+        case "listItemMarker":
+        case "listItemPrefix":
+        case "listItemPrefixWhitespace":
+          {
+            break;
+          }
+        default:
+          {
+            atMarker = undefined;
+          }
       }
-      if (
-        (!containerBalance &&
-          event[0] === 'enter' &&
-          event[1].type === 'listItemPrefix') ||
-        (containerBalance === -1 &&
-          event[0] === 'exit' &&
-          (event[1].type === 'listUnordered' ||
-            event[1].type === 'listOrdered'))
-      ) {
+      if (!containerBalance && event[0] === 'enter' && event[1].type === "listItemPrefix" || containerBalance === -1 && event[0] === 'exit' && (event[1].type === "listUnordered" || event[1].type === "listOrdered")) {
         if (listItem) {
           let tailIndex = index;
           lineIndex = undefined;
           while (tailIndex--) {
             const tailEvent = events[tailIndex];
-            if (
-              tailEvent[1].type === 'lineEnding' ||
-              tailEvent[1].type === 'lineEndingBlank'
-            ) {
-              if (tailEvent[0] === 'exit') continue
+            if (tailEvent[1].type === "lineEnding" || tailEvent[1].type === "lineEndingBlank") {
+              if (tailEvent[0] === 'exit') continue;
               if (lineIndex) {
-                events[lineIndex][1].type = 'lineEndingBlank';
+                events[lineIndex][1].type = "lineEndingBlank";
                 listSpread = true;
               }
-              tailEvent[1].type = 'lineEnding';
+              tailEvent[1].type = "lineEnding";
               lineIndex = tailIndex;
-            } else if (
-              tailEvent[1].type === 'linePrefix' ||
-              tailEvent[1].type === 'blockQuotePrefix' ||
-              tailEvent[1].type === 'blockQuotePrefixWhitespace' ||
-              tailEvent[1].type === 'blockQuoteMarker' ||
-              tailEvent[1].type === 'listItemIndent'
-            ) ; else {
-              break
+            } else if (tailEvent[1].type === "linePrefix" || tailEvent[1].type === "blockQuotePrefix" || tailEvent[1].type === "blockQuotePrefixWhitespace" || tailEvent[1].type === "blockQuoteMarker" || tailEvent[1].type === "listItemIndent") ; else {
+              break;
             }
           }
-          if (
-            firstBlankLineIndex &&
-            (!lineIndex || firstBlankLineIndex < lineIndex)
-          ) {
+          if (firstBlankLineIndex && (!lineIndex || firstBlankLineIndex < lineIndex)) {
             listItem._spread = true;
           }
-          listItem.end = Object.assign(
-            {},
-            lineIndex ? events[lineIndex][1].start : event[1].end
-          );
+          listItem.end = Object.assign({}, lineIndex ? events[lineIndex][1].start : event[1].end);
           events.splice(lineIndex || index, 0, ['exit', listItem, event[2]]);
           index++;
           length++;
         }
-        if (event[1].type === 'listItemPrefix') {
+        if (event[1].type === "listItemPrefix") {
           const item = {
             type: 'listItem',
             _spread: false,
@@ -7498,10 +7114,10 @@ function compiler(options) {
       }
     }
     events[start][1]._spread = listSpread;
-    return length
+    return length;
   }
   function opener(create, and) {
-    return open
+    return open;
     function open(token) {
       enter.call(this, create(token), token);
       if (and) and.call(this, token);
@@ -7520,12 +7136,12 @@ function compiler(options) {
     this.stack.push(node);
     this.tokenStack.push([token, errorHandler]);
     node.position = {
-      start: point$3(token.start),
+      start: point$1(token.start),
       end: undefined
     };
   }
   function closer(and) {
-    return close
+    return close;
     function close(token) {
       if (and) and.call(this, token);
       exit.call(this, token);
@@ -7535,16 +7151,10 @@ function compiler(options) {
     const node = this.stack.pop();
     const open = this.tokenStack.pop();
     if (!open) {
-      throw new Error(
-        'Cannot close `' +
-          token.type +
-          '` (' +
-          stringifyPosition$2({
-            start: token.start,
-            end: token.end
-          }) +
-          '): it’s not open'
-      )
+      throw new Error('Cannot close `' + token.type + '` (' + stringifyPosition({
+        start: token.start,
+        end: token.end
+      }) + '): it’s not open');
     } else if (open[0].type !== token.type) {
       if (onExitError) {
         onExitError.call(this, token, open[0]);
@@ -7553,10 +7163,10 @@ function compiler(options) {
         handler.call(this, token, open[0]);
       }
     }
-    node.position.end = point$3(token.end);
+    node.position.end = point$1(token.end);
   }
   function resume() {
-    return toString$2(this.stack.pop())
+    return toString(this.stack.pop());
   }
   function onenterlistordered() {
     this.data.expectingFirstListItemValue = true;
@@ -7579,7 +7189,7 @@ function compiler(options) {
     node.meta = data;
   }
   function onexitcodefencedfence() {
-    if (this.data.flowCodeInside) return
+    if (this.data.flowCodeInside) return;
     this.buffer();
     this.data.flowCodeInside = true;
   }
@@ -7598,9 +7208,7 @@ function compiler(options) {
     const label = this.resume();
     const node = this.stack[this.stack.length - 1];
     node.label = label;
-    node.identifier = normalizeIdentifier$1(
-      this.sliceSerialize(token)
-    ).toLowerCase();
+    node.identifier = normalizeIdentifier(this.sliceSerialize(token)).toLowerCase();
   }
   function onexitdefinitiontitlestring() {
     const data = this.resume();
@@ -7636,7 +7244,7 @@ function compiler(options) {
     if (!tail || tail.type !== 'text') {
       tail = text();
       tail.position = {
-        start: point$3(token.start),
+        start: point$1(token.start),
         end: undefined
       };
       siblings.push(tail);
@@ -7646,20 +7254,17 @@ function compiler(options) {
   function onexitdata(token) {
     const tail = this.stack.pop();
     tail.value += this.sliceSerialize(token);
-    tail.position.end = point$3(token.end);
+    tail.position.end = point$1(token.end);
   }
   function onexitlineending(token) {
     const context = this.stack[this.stack.length - 1];
     if (this.data.atHardBreak) {
       const tail = context.children[context.children.length - 1];
-      tail.position.end = point$3(token.end);
+      tail.position.end = point$1(token.end);
       this.data.atHardBreak = undefined;
-      return
+      return;
     }
-    if (
-      !this.data.setextHeadingSlurpLineEnding &&
-      config.canContainEols.includes(context.type)
-    ) {
+    if (!this.data.setextHeadingSlurpLineEnding && config.canContainEols.includes(context.type)) {
       onenterdata.call(this, token);
       onexitdata.call(this, token);
     }
@@ -7714,7 +7319,7 @@ function compiler(options) {
     const string = this.sliceSerialize(token);
     const ancestor = this.stack[this.stack.length - 2];
     ancestor.label = decodeString(string);
-    ancestor.identifier = normalizeIdentifier$1(string).toLowerCase();
+    ancestor.identifier = normalizeIdentifier(string).toLowerCase();
   }
   function onexitlabel() {
     const fragment = this.stack[this.stack.length - 1];
@@ -7748,9 +7353,7 @@ function compiler(options) {
     const label = this.resume();
     const node = this.stack[this.stack.length - 1];
     node.label = label;
-    node.identifier = normalizeIdentifier$1(
-      this.sliceSerialize(token)
-    ).toLowerCase();
+    node.identifier = normalizeIdentifier(this.sliceSerialize(token)).toLowerCase();
     this.data.referenceType = 'full';
   }
   function onexitcharacterreferencemarker(token) {
@@ -7761,18 +7364,18 @@ function compiler(options) {
     const type = this.data.characterReferenceType;
     let value;
     if (type) {
-      value = decodeNumericCharacterReference(
-        data,
-        type === 'characterReferenceMarkerNumeric' ? 10 : 16
-      );
+      value = decodeNumericCharacterReference(data, type === "characterReferenceMarkerNumeric" ? 10 : 16);
       this.data.characterReferenceType = undefined;
     } else {
       const result = decodeNamedCharacterReference(data);
       value = result;
     }
-    const tail = this.stack.pop();
+    const tail = this.stack[this.stack.length - 1];
     tail.value += value;
-    tail.position.end = point$3(token.end);
+  }
+  function onexitcharacterreference(token) {
+    const tail = this.stack.pop();
+    tail.position.end = point$1(token.end);
   }
   function onexitautolinkprotocol(token) {
     onexitdata.call(this, token);
@@ -7788,7 +7391,7 @@ function compiler(options) {
     return {
       type: 'blockquote',
       children: []
-    }
+    };
   }
   function codeFlow() {
     return {
@@ -7796,13 +7399,13 @@ function compiler(options) {
       lang: null,
       meta: null,
       value: ''
-    }
+    };
   }
   function codeText() {
     return {
       type: 'inlineCode',
       value: ''
-    }
+    };
   }
   function definition() {
     return {
@@ -7811,31 +7414,31 @@ function compiler(options) {
       label: null,
       title: null,
       url: ''
-    }
+    };
   }
   function emphasis() {
     return {
       type: 'emphasis',
       children: []
-    }
+    };
   }
   function heading() {
     return {
       type: 'heading',
       depth: 0,
       children: []
-    }
+    };
   }
   function hardBreak() {
     return {
       type: 'break'
-    }
+    };
   }
   function html() {
     return {
       type: 'html',
       value: ''
-    }
+    };
   }
   function image() {
     return {
@@ -7843,7 +7446,7 @@ function compiler(options) {
       title: null,
       url: '',
       alt: null
-    }
+    };
   }
   function link() {
     return {
@@ -7851,7 +7454,7 @@ function compiler(options) {
       title: null,
       url: '',
       children: []
-    }
+    };
   }
   function list(token) {
     return {
@@ -7860,7 +7463,7 @@ function compiler(options) {
       start: null,
       spread: token._spread,
       children: []
-    }
+    };
   }
   function listItem(token) {
     return {
@@ -7868,38 +7471,38 @@ function compiler(options) {
       spread: token._spread,
       checked: null,
       children: []
-    }
+    };
   }
   function paragraph() {
     return {
       type: 'paragraph',
       children: []
-    }
+    };
   }
   function strong() {
     return {
       type: 'strong',
       children: []
-    }
+    };
   }
   function text() {
     return {
       type: 'text',
       value: ''
-    }
+    };
   }
   function thematicBreak() {
     return {
       type: 'thematicBreak'
-    }
+    };
   }
 }
-function point$3(d) {
+function point$1(d) {
   return {
     line: d.line,
     column: d.column,
     offset: d.offset
-  }
+  };
 }
 function configure$1(combined, extensions) {
   let index = -1;
@@ -7915,64 +7518,51 @@ function configure$1(combined, extensions) {
 function extension(combined, extension) {
   let key;
   for (key in extension) {
-    if (own$4.call(extension, key)) {
+    if (own$3.call(extension, key)) {
       switch (key) {
-        case 'canContainEols': {
-          const right = extension[key];
-          if (right) {
-            combined[key].push(...right);
+        case 'canContainEols':
+          {
+            const right = extension[key];
+            if (right) {
+              combined[key].push(...right);
+            }
+            break;
           }
-          break
-        }
-        case 'transforms': {
-          const right = extension[key];
-          if (right) {
-            combined[key].push(...right);
+        case 'transforms':
+          {
+            const right = extension[key];
+            if (right) {
+              combined[key].push(...right);
+            }
+            break;
           }
-          break
-        }
         case 'enter':
-        case 'exit': {
-          const right = extension[key];
-          if (right) {
-            Object.assign(combined[key], right);
+        case 'exit':
+          {
+            const right = extension[key];
+            if (right) {
+              Object.assign(combined[key], right);
+            }
+            break;
           }
-          break
-        }
       }
     }
   }
 }
 function defaultOnError(left, right) {
   if (left) {
-    throw new Error(
-      'Cannot close `' +
-        left.type +
-        '` (' +
-        stringifyPosition$2({
-          start: left.start,
-          end: left.end
-        }) +
-        '): a different token (`' +
-        right.type +
-        '`, ' +
-        stringifyPosition$2({
-          start: right.start,
-          end: right.end
-        }) +
-        ') is open'
-    )
+    throw new Error('Cannot close `' + left.type + '` (' + stringifyPosition({
+      start: left.start,
+      end: left.end
+    }) + '): a different token (`' + right.type + '`, ' + stringifyPosition({
+      start: right.start,
+      end: right.end
+    }) + ') is open');
   } else {
-    throw new Error(
-      'Cannot close document, a token (`' +
-        right.type +
-        '`, ' +
-        stringifyPosition$2({
-          start: right.start,
-          end: right.end
-        }) +
-        ') is still open'
-    )
+    throw new Error('Cannot close document, a token (`' + right.type + '`, ' + stringifyPosition({
+      start: right.start,
+      end: right.end
+    }) + ') is still open');
   }
 }
 
@@ -7989,15 +7579,15 @@ function remarkParse(options) {
   }
 }
 
-const own$3 = {}.hasOwnProperty;
+const own$2 = {}.hasOwnProperty;
 function zwitch(key, options) {
   const settings = options || {};
   function one(value, ...parameters) {
     let fn = one.invalid;
     const handlers = one.handlers;
-    if (value && own$3.call(value, key)) {
+    if (value && own$2.call(value, key)) {
       const id = String(value[key]);
-      fn = own$3.call(handlers, id) ? handlers[id] : one.unknown;
+      fn = own$2.call(handlers, id) ? handlers[id] : one.unknown;
     }
     if (fn) {
       return fn.call(this, value, ...parameters)
@@ -8009,7 +7599,7 @@ function zwitch(key, options) {
   return one
 }
 
-const own$2 = {}.hasOwnProperty;
+const own$1 = {}.hasOwnProperty;
 function configure(base, extension) {
   let index = -1;
   let key;
@@ -8019,7 +7609,7 @@ function configure(base, extension) {
     }
   }
   for (key in extension) {
-    if (own$2.call(extension, key)) {
+    if (own$1.call(extension, key)) {
       switch (key) {
         case 'extensions': {
           break
@@ -8301,31 +7891,31 @@ function emphasisPeek(_, _1, state) {
   return state.options.emphasis || '*'
 }
 
-const convert$A =
+const convert =
   (
     function (test) {
       if (test === null || test === undefined) {
-        return ok$A
+        return ok
       }
       if (typeof test === 'function') {
-        return castFactory$A(test)
+        return castFactory(test)
       }
       if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$A(test) : propsFactory$A(test)
+        return Array.isArray(test) ? anyFactory(test) : propsFactory(test)
       }
       if (typeof test === 'string') {
-        return typeFactory$A(test)
+        return typeFactory(test)
       }
       throw new Error('Expected function, string, or object as test')
     }
   );
-function anyFactory$A(tests) {
+function anyFactory(tests) {
   const checks = [];
   let index = -1;
   while (++index < tests.length) {
-    checks[index] = convert$A(tests[index]);
+    checks[index] = convert(tests[index]);
   }
-  return castFactory$A(any)
+  return castFactory(any)
   function any(...parameters) {
     let index = -1;
     while (++index < checks.length) {
@@ -8334,9 +7924,9 @@ function anyFactory$A(tests) {
     return false
   }
 }
-function propsFactory$A(check) {
+function propsFactory(check) {
   const checkAsRecord =  (check);
-  return castFactory$A(all)
+  return castFactory(all)
   function all(node) {
     const nodeAsRecord =  (
        (node)
@@ -8348,13 +7938,13 @@ function propsFactory$A(check) {
     return true
   }
 }
-function typeFactory$A(check) {
-  return castFactory$A(type)
+function typeFactory(check) {
+  return castFactory(type)
   function type(node) {
     return node && node.type === check
   }
 }
-function castFactory$A(testFunction) {
+function castFactory(testFunction) {
   return check
   function check(value, index, parent) {
     return Boolean(
@@ -8368,22 +7958,22 @@ function castFactory$A(testFunction) {
     )
   }
 }
-function ok$A() {
+function ok() {
   return true
 }
 function looksLikeANode(value) {
   return value !== null && typeof value === 'object' && 'type' in value
 }
 
-function color$B(d) {
+function color$1(d) {
   return '\u001B[33m' + d + '\u001B[39m'
 }
 
-const empty = [];
-const CONTINUE$A = true;
-const EXIT$A = false;
-const SKIP$A = 'skip';
-function visitParents$A(tree, test, visitor, reverse) {
+const empty$1 = [];
+const CONTINUE = true;
+const EXIT = false;
+const SKIP = 'skip';
+function visitParents(tree, test, visitor, reverse) {
   let check;
   if (typeof test === 'function' && typeof visitor !== 'function') {
     reverse = visitor;
@@ -8391,7 +7981,7 @@ function visitParents$A(tree, test, visitor, reverse) {
   } else {
     check = test;
   }
-  const is = convert$A(check);
+  const is = convert(check);
   const step = reverse ? -1 : 1;
   factory(tree, undefined, [])();
   function factory(node, index, parents) {
@@ -8408,30 +7998,30 @@ function visitParents$A(tree, test, visitor, reverse) {
           : undefined;
       Object.defineProperty(visit, 'name', {
         value:
-          'node (' + color$B(node.type + (name ? '<' + name + '>' : '')) + ')'
+          'node (' + color$1(node.type + (name ? '<' + name + '>' : '')) + ')'
       });
     }
     return visit
     function visit() {
-      let result = empty;
+      let result = empty$1;
       let subresult;
       let offset;
       let grandparents;
       if (!test || is(node, index, parents[parents.length - 1] || undefined)) {
-        result = toResult$A(visitor(node, parents));
-        if (result[0] === EXIT$A) {
+        result = toResult(visitor(node, parents));
+        if (result[0] === EXIT) {
           return result
         }
       }
       if ('children' in node && node.children) {
         const nodeAsParent =  (node);
-        if (nodeAsParent.children && result[0] !== SKIP$A) {
+        if (nodeAsParent.children && result[0] !== SKIP) {
           offset = (reverse ? nodeAsParent.children.length : -1) + step;
           grandparents = parents.concat(nodeAsParent);
           while (offset > -1 && offset < nodeAsParent.children.length) {
             const child = nodeAsParent.children[offset];
             subresult = factory(child, offset, grandparents)();
-            if (subresult[0] === EXIT$A) {
+            if (subresult[0] === EXIT) {
               return subresult
             }
             offset =
@@ -8443,17 +8033,17 @@ function visitParents$A(tree, test, visitor, reverse) {
     }
   }
 }
-function toResult$A(value) {
+function toResult(value) {
   if (Array.isArray(value)) {
     return value
   }
   if (typeof value === 'number') {
-    return [CONTINUE$A, value]
+    return [CONTINUE, value]
   }
-  return value === null || value === undefined ? empty : [value]
+  return value === null || value === undefined ? empty$1 : [value]
 }
 
-function visit$A(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
+function visit(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
   let reverse;
   let test;
   let visitor;
@@ -8469,7 +8059,7 @@ function visit$A(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
     visitor = visitorOrReverse;
     reverse = maybeReverse;
   }
-  visitParents$A(tree, test, overload, reverse);
+  visitParents(tree, test, overload, reverse);
   function overload(node, parents) {
     const parent = parents[parents.length - 1];
     const index = parent ? parent.children.indexOf(node) : undefined;
@@ -8479,18 +8069,18 @@ function visit$A(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
 
 function formatHeadingAsSetext(node, state) {
   let literalWithBreak = false;
-  visit$A(node, function (node) {
+  visit(node, function (node) {
     if (
       ('value' in node && /\r?\n|\r/.test(node.value)) ||
       node.type === 'break'
     ) {
       literalWithBreak = true;
-      return EXIT$A
+      return EXIT
     }
   });
   return Boolean(
     (!node.depth || node.depth < 3) &&
-      toString$2(node) &&
+      toString(node) &&
       (state.options.setext || literalWithBreak)
   )
 }
@@ -8542,8 +8132,8 @@ function heading(node, _, state, info) {
   return value
 }
 
-html.peek = htmlPeek;
-function html(node) {
+html$1.peek = htmlPeek;
+function html$1(node) {
   return node.value || ''
 }
 function htmlPeek() {
@@ -8680,7 +8270,7 @@ function inlineCodePeek() {
 }
 
 function formatLinkAsAutolink(node, state) {
-  const raw = toString$2(node);
+  const raw = toString(node);
   return Boolean(
     !state.options.resourceLink &&
       node.url &&
@@ -8988,7 +8578,7 @@ function paragraph(node, _, state, info) {
 
 const phrasing =
   (
-    convert$A([
+    convert([
       'break',
       'delete',
       'emphasis',
@@ -8997,10 +8587,14 @@ const phrasing =
       'image',
       'imageReference',
       'inlineCode',
+      'inlineMath',
       'link',
       'linkReference',
+      'mdxJsxTextElement',
+      'mdxTextExpression',
       'strong',
-      'text'
+      'text',
+      'textDirective'
     ])
   );
 
@@ -9076,7 +8670,7 @@ const handle = {
   emphasis,
   hardBreak,
   heading,
-  html,
+  html: html$1,
   image,
   imageReference,
   inlineCode,
@@ -9580,11 +9174,11 @@ function escapeStringRegexp(string) {
 
 function findAndReplace(tree, list, options) {
   const settings = options || {};
-  const ignored = convert$A(settings.ignore || []);
+  const ignored = convert(settings.ignore || []);
   const pairs = toPairs(list);
   let pairIndex = -1;
   while (++pairIndex < pairs.length) {
-    visitParents$A(tree, 'text', visitor);
+    visitParents(tree, 'text', visitor);
   }
   function visitor(node, parents) {
     let index = -1;
@@ -9747,7 +9341,7 @@ function exitLiteralAutolinkHttp(token) {
 function exitLiteralAutolinkWww(token) {
   this.config.exit.data.call(this, token);
   const node = this.stack[this.stack.length - 1];
-  ok$B(node.type === 'link');
+  ok$1(node.type === 'link');
   node.url = 'http://' + this.sliceSerialize(token);
 }
 function exitLiteralAutolinkEmail(token) {
@@ -9884,9 +9478,9 @@ function enterFootnoteDefinitionLabelString() {
 function exitFootnoteDefinitionLabelString(token) {
   const label = this.resume();
   const node = this.stack[this.stack.length - 1];
-  ok$B(node.type === 'footnoteDefinition');
+  ok$1(node.type === 'footnoteDefinition');
   node.label = label;
-  node.identifier = normalizeIdentifier$1(
+  node.identifier = normalizeIdentifier(
     this.sliceSerialize(token)
   ).toLowerCase();
 }
@@ -9902,9 +9496,9 @@ function enterFootnoteCallString() {
 function exitFootnoteCallString(token) {
   const label = this.resume();
   const node = this.stack[this.stack.length - 1];
-  ok$B(node.type === 'footnoteReference');
+  ok$1(node.type === 'footnoteReference');
   node.label = label;
-  node.identifier = normalizeIdentifier$1(
+  node.identifier = normalizeIdentifier(
     this.sliceSerialize(token)
   ).toLowerCase();
 }
@@ -10221,7 +9815,7 @@ function exitCodeText(token) {
     value = value.replace(/\\([\\|])/g, replace);
   }
   const node = this.stack[this.stack.length - 1];
-  ok$B(node.type === 'inlineCode');
+  ok$1(node.type === 'inlineCode');
   node.value = value;
   this.exit(token);
 }
@@ -10326,7 +9920,7 @@ function gfmTaskListItemToMarkdown() {
 }
 function exitCheck(token) {
   const node = this.stack[this.stack.length - 2];
-  ok$B(node.type === 'listItem');
+  ok$1(node.type === 'listItem');
   node.checked = token.type === 'taskListCheckValueChecked';
 }
 function exitParagraphWithTaskListItem(token) {
@@ -10337,7 +9931,7 @@ function exitParagraphWithTaskListItem(token) {
     typeof parent.checked === 'boolean'
   ) {
     const node = this.stack[this.stack.length - 1];
-    ok$B(node.type === 'paragraph');
+    ok$1(node.type === 'paragraph');
     const head = node.children[0];
     if (head && head.type === 'text') {
       const siblings = parent.children;
@@ -10432,14 +10026,17 @@ const emailDomainDotTrail = {
   partial: true
 };
 const wwwAutolink = {
+  name: 'wwwAutolink',
   tokenize: tokenizeWwwAutolink,
   previous: previousWww
 };
 const protocolAutolink = {
+  name: 'protocolAutolink',
   tokenize: tokenizeProtocolAutolink,
   previous: previousProtocol
 };
 const emailAutolink = {
+  name: 'emailAutolink',
   tokenize: tokenizeEmailAutolink,
   previous: previousEmail
 };
@@ -10447,14 +10044,13 @@ const text = {};
 function gfmAutolinkLiteral() {
   return {
     text
-  }
+  };
 }
 let code = 48;
 while (code < 123) {
   text[code] = emailAutolink;
   code++;
-  if (code === 58) code = 65;
-  else if (code === 91) code = 97;
+  if (code === 58) code = 65;else if (code === 91) code = 97;
 }
 text[43] = emailAutolink;
 text[45] = emailAutolink;
@@ -10468,183 +10064,152 @@ function tokenizeEmailAutolink(effects, ok, nok) {
   const self = this;
   let dot;
   let data;
-  return start
+  return start;
   function start(code) {
-    if (
-      !gfmAtext(code) ||
-      !previousEmail.call(self, self.previous) ||
-      previousUnbalanced(self.events)
-    ) {
-      return nok(code)
+    if (!gfmAtext(code) || !previousEmail.call(self, self.previous) || previousUnbalanced(self.events)) {
+      return nok(code);
     }
     effects.enter('literalAutolink');
     effects.enter('literalAutolinkEmail');
-    return atext(code)
+    return atext(code);
   }
   function atext(code) {
     if (gfmAtext(code)) {
       effects.consume(code);
-      return atext
+      return atext;
     }
     if (code === 64) {
       effects.consume(code);
-      return emailDomain
+      return emailDomain;
     }
-    return nok(code)
+    return nok(code);
   }
   function emailDomain(code) {
     if (code === 46) {
-      return effects.check(
-        emailDomainDotTrail,
-        emailDomainAfter,
-        emailDomainDot
-      )(code)
+      return effects.check(emailDomainDotTrail, emailDomainAfter, emailDomainDot)(code);
     }
     if (code === 45 || code === 95 || asciiAlphanumeric(code)) {
       data = true;
       effects.consume(code);
-      return emailDomain
+      return emailDomain;
     }
-    return emailDomainAfter(code)
+    return emailDomainAfter(code);
   }
   function emailDomainDot(code) {
     effects.consume(code);
     dot = true;
-    return emailDomain
+    return emailDomain;
   }
   function emailDomainAfter(code) {
     if (data && dot && asciiAlpha(self.previous)) {
       effects.exit('literalAutolinkEmail');
       effects.exit('literalAutolink');
-      return ok(code)
+      return ok(code);
     }
-    return nok(code)
+    return nok(code);
   }
 }
 function tokenizeWwwAutolink(effects, ok, nok) {
   const self = this;
-  return wwwStart
+  return wwwStart;
   function wwwStart(code) {
-    if (
-      (code !== 87 && code !== 119) ||
-      !previousWww.call(self, self.previous) ||
-      previousUnbalanced(self.events)
-    ) {
-      return nok(code)
+    if (code !== 87 && code !== 119 || !previousWww.call(self, self.previous) || previousUnbalanced(self.events)) {
+      return nok(code);
     }
     effects.enter('literalAutolink');
     effects.enter('literalAutolinkWww');
-    return effects.check(
-      wwwPrefix,
-      effects.attempt(domain, effects.attempt(path, wwwAfter), nok),
-      nok
-    )(code)
+    return effects.check(wwwPrefix, effects.attempt(domain, effects.attempt(path, wwwAfter), nok), nok)(code);
   }
   function wwwAfter(code) {
     effects.exit('literalAutolinkWww');
     effects.exit('literalAutolink');
-    return ok(code)
+    return ok(code);
   }
 }
 function tokenizeProtocolAutolink(effects, ok, nok) {
   const self = this;
   let buffer = '';
   let seen = false;
-  return protocolStart
+  return protocolStart;
   function protocolStart(code) {
-    if (
-      (code === 72 || code === 104) &&
-      previousProtocol.call(self, self.previous) &&
-      !previousUnbalanced(self.events)
-    ) {
+    if ((code === 72 || code === 104) && previousProtocol.call(self, self.previous) && !previousUnbalanced(self.events)) {
       effects.enter('literalAutolink');
       effects.enter('literalAutolinkHttp');
       buffer += String.fromCodePoint(code);
       effects.consume(code);
-      return protocolPrefixInside
+      return protocolPrefixInside;
     }
-    return nok(code)
+    return nok(code);
   }
   function protocolPrefixInside(code) {
     if (asciiAlpha(code) && buffer.length < 5) {
       buffer += String.fromCodePoint(code);
       effects.consume(code);
-      return protocolPrefixInside
+      return protocolPrefixInside;
     }
     if (code === 58) {
       const protocol = buffer.toLowerCase();
       if (protocol === 'http' || protocol === 'https') {
         effects.consume(code);
-        return protocolSlashesInside
+        return protocolSlashesInside;
       }
     }
-    return nok(code)
+    return nok(code);
   }
   function protocolSlashesInside(code) {
     if (code === 47) {
       effects.consume(code);
       if (seen) {
-        return afterProtocol
+        return afterProtocol;
       }
       seen = true;
-      return protocolSlashesInside
+      return protocolSlashesInside;
     }
-    return nok(code)
+    return nok(code);
   }
   function afterProtocol(code) {
-    return code === null ||
-      asciiControl(code) ||
-      markdownLineEndingOrSpace(code) ||
-      unicodeWhitespace(code) ||
-      unicodePunctuation(code)
-      ? nok(code)
-      : effects.attempt(domain, effects.attempt(path, protocolAfter), nok)(code)
+    return code === null || asciiControl(code) || markdownLineEndingOrSpace(code) || unicodeWhitespace(code) || unicodePunctuation(code) ? nok(code) : effects.attempt(domain, effects.attempt(path, protocolAfter), nok)(code);
   }
   function protocolAfter(code) {
     effects.exit('literalAutolinkHttp');
     effects.exit('literalAutolink');
-    return ok(code)
+    return ok(code);
   }
 }
 function tokenizeWwwPrefix(effects, ok, nok) {
   let size = 0;
-  return wwwPrefixInside
+  return wwwPrefixInside;
   function wwwPrefixInside(code) {
     if ((code === 87 || code === 119) && size < 3) {
       size++;
       effects.consume(code);
-      return wwwPrefixInside
+      return wwwPrefixInside;
     }
     if (code === 46 && size === 3) {
       effects.consume(code);
-      return wwwPrefixAfter
+      return wwwPrefixAfter;
     }
-    return nok(code)
+    return nok(code);
   }
   function wwwPrefixAfter(code) {
-    return code === null ? nok(code) : ok(code)
+    return code === null ? nok(code) : ok(code);
   }
 }
 function tokenizeDomain(effects, ok, nok) {
   let underscoreInLastSegment;
   let underscoreInLastLastSegment;
   let seen;
-  return domainInside
+  return domainInside;
   function domainInside(code) {
     if (code === 46 || code === 95) {
-      return effects.check(trail, domainAfter, domainAtPunctuation)(code)
+      return effects.check(trail, domainAfter, domainAtPunctuation)(code);
     }
-    if (
-      code === null ||
-      markdownLineEndingOrSpace(code) ||
-      unicodeWhitespace(code) ||
-      (code !== 45 && unicodePunctuation(code))
-    ) {
-      return domainAfter(code)
+    if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code) || code !== 45 && unicodePunctuation(code)) {
+      return domainAfter(code);
     }
     seen = true;
     effects.consume(code);
-    return domainInside
+    return domainInside;
   }
   function domainAtPunctuation(code) {
     if (code === 95) {
@@ -10655,188 +10220,128 @@ function tokenizeDomain(effects, ok, nok) {
       underscoreInLastSegment = undefined;
     }
     effects.consume(code);
-    return domainInside
+    return domainInside;
   }
   function domainAfter(code) {
     if (underscoreInLastLastSegment || underscoreInLastSegment || !seen) {
-      return nok(code)
+      return nok(code);
     }
-    return ok(code)
+    return ok(code);
   }
 }
 function tokenizePath(effects, ok) {
   let sizeOpen = 0;
   let sizeClose = 0;
-  return pathInside
+  return pathInside;
   function pathInside(code) {
     if (code === 40) {
       sizeOpen++;
       effects.consume(code);
-      return pathInside
+      return pathInside;
     }
     if (code === 41 && sizeClose < sizeOpen) {
-      return pathAtPunctuation(code)
+      return pathAtPunctuation(code);
     }
-    if (
-      code === 33 ||
-      code === 34 ||
-      code === 38 ||
-      code === 39 ||
-      code === 41 ||
-      code === 42 ||
-      code === 44 ||
-      code === 46 ||
-      code === 58 ||
-      code === 59 ||
-      code === 60 ||
-      code === 63 ||
-      code === 93 ||
-      code === 95 ||
-      code === 126
-    ) {
-      return effects.check(trail, ok, pathAtPunctuation)(code)
+    if (code === 33 || code === 34 || code === 38 || code === 39 || code === 41 || code === 42 || code === 44 || code === 46 || code === 58 || code === 59 || code === 60 || code === 63 || code === 93 || code === 95 || code === 126) {
+      return effects.check(trail, ok, pathAtPunctuation)(code);
     }
-    if (
-      code === null ||
-      markdownLineEndingOrSpace(code) ||
-      unicodeWhitespace(code)
-    ) {
-      return ok(code)
+    if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
     }
     effects.consume(code);
-    return pathInside
+    return pathInside;
   }
   function pathAtPunctuation(code) {
     if (code === 41) {
       sizeClose++;
     }
     effects.consume(code);
-    return pathInside
+    return pathInside;
   }
 }
 function tokenizeTrail(effects, ok, nok) {
-  return trail
+  return trail;
   function trail(code) {
-    if (
-      code === 33 ||
-      code === 34 ||
-      code === 39 ||
-      code === 41 ||
-      code === 42 ||
-      code === 44 ||
-      code === 46 ||
-      code === 58 ||
-      code === 59 ||
-      code === 63 ||
-      code === 95 ||
-      code === 126
-    ) {
+    if (code === 33 || code === 34 || code === 39 || code === 41 || code === 42 || code === 44 || code === 46 || code === 58 || code === 59 || code === 63 || code === 95 || code === 126) {
       effects.consume(code);
-      return trail
+      return trail;
     }
     if (code === 38) {
       effects.consume(code);
-      return trailCharRefStart
+      return trailCharacterReferenceStart;
     }
     if (code === 93) {
       effects.consume(code);
-      return trailBracketAfter
+      return trailBracketAfter;
     }
     if (
-      code === 60 ||
-      code === null ||
-      markdownLineEndingOrSpace(code) ||
-      unicodeWhitespace(code)
-    ) {
-      return ok(code)
+    code === 60 ||
+    code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
     }
-    return nok(code)
+    return nok(code);
   }
   function trailBracketAfter(code) {
-    if (
-      code === null ||
-      code === 40 ||
-      code === 91 ||
-      markdownLineEndingOrSpace(code) ||
-      unicodeWhitespace(code)
-    ) {
-      return ok(code)
+    if (code === null || code === 40 || code === 91 || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
     }
-    return trail(code)
+    return trail(code);
   }
-  function trailCharRefStart(code) {
-    return asciiAlpha(code) ? trailCharRefInside(code) : nok(code)
+  function trailCharacterReferenceStart(code) {
+    return asciiAlpha(code) ? trailCharacterReferenceInside(code) : nok(code);
   }
-  function trailCharRefInside(code) {
+  function trailCharacterReferenceInside(code) {
     if (code === 59) {
       effects.consume(code);
-      return trail
+      return trail;
     }
     if (asciiAlpha(code)) {
       effects.consume(code);
-      return trailCharRefInside
+      return trailCharacterReferenceInside;
     }
-    return nok(code)
+    return nok(code);
   }
 }
 function tokenizeEmailDomainDotTrail(effects, ok, nok) {
-  return start
+  return start;
   function start(code) {
     effects.consume(code);
-    return after
+    return after;
   }
   function after(code) {
-    return asciiAlphanumeric(code) ? nok(code) : ok(code)
+    return asciiAlphanumeric(code) ? nok(code) : ok(code);
   }
 }
 function previousWww(code) {
-  return (
-    code === null ||
-    code === 40 ||
-    code === 42 ||
-    code === 95 ||
-    code === 91 ||
-    code === 93 ||
-    code === 126 ||
-    markdownLineEndingOrSpace(code)
-  )
+  return code === null || code === 40 || code === 42 || code === 95 || code === 91 || code === 93 || code === 126 || markdownLineEndingOrSpace(code);
 }
 function previousProtocol(code) {
-  return !asciiAlpha(code)
+  return !asciiAlpha(code);
 }
 function previousEmail(code) {
-  return !(code === 47 || gfmAtext(code))
+  return !(code === 47 || gfmAtext(code));
 }
 function gfmAtext(code) {
-  return (
-    code === 43 ||
-    code === 45 ||
-    code === 46 ||
-    code === 95 ||
-    asciiAlphanumeric(code)
-  )
+  return code === 43 || code === 45 || code === 46 || code === 95 || asciiAlphanumeric(code);
 }
 function previousUnbalanced(events) {
   let index = events.length;
   let result = false;
   while (index--) {
     const token = events[index][1];
-    if (
-      (token.type === 'labelLink' || token.type === 'labelImage') &&
-      !token._balanced
-    ) {
+    if ((token.type === 'labelLink' || token.type === 'labelImage') && !token._balanced) {
       result = true;
-      break
+      break;
     }
     if (token._gfmAutolinkLiteralWalkedInto) {
       result = false;
-      break
+      break;
     }
   }
   if (events.length > 0 && !result) {
     events[events.length - 1][1]._gfmAutolinkLiteralWalkedInto = true;
   }
-  return result
+  return result;
 }
 
 const indent = {
@@ -10847,6 +10352,7 @@ function gfmFootnote() {
   return {
     document: {
       [91]: {
+        name: 'gfmFootnoteDefinition',
         tokenize: tokenizeDefinitionStart,
         continuation: {
           tokenize: tokenizeDefinitionContinuation
@@ -10856,15 +10362,17 @@ function gfmFootnote() {
     },
     text: {
       [91]: {
+        name: 'gfmFootnoteCall',
         tokenize: tokenizeGfmFootnoteCall
       },
       [93]: {
+        name: 'gfmPotentialFootnoteCall',
         add: 'after',
         tokenize: tokenizePotentialGfmFootnoteCall,
         resolveTo: resolveToPotentialGfmFootnoteCall
       }
     }
-  }
+  };
 }
 function tokenizePotentialGfmFootnoteCall(effects, ok, nok) {
   const self = this;
@@ -10873,52 +10381,41 @@ function tokenizePotentialGfmFootnoteCall(effects, ok, nok) {
   let labelStart;
   while (index--) {
     const token = self.events[index][1];
-    if (token.type === 'labelImage') {
+    if (token.type === "labelImage") {
       labelStart = token;
-      break
+      break;
     }
-    if (
-      token.type === 'gfmFootnoteCall' ||
-      token.type === 'labelLink' ||
-      token.type === 'label' ||
-      token.type === 'image' ||
-      token.type === 'link'
-    ) {
-      break
+    if (token.type === 'gfmFootnoteCall' || token.type === "labelLink" || token.type === "label" || token.type === "image" || token.type === "link") {
+      break;
     }
   }
-  return start
+  return start;
   function start(code) {
     if (!labelStart || !labelStart._balanced) {
-      return nok(code)
+      return nok(code);
     }
-    const id = normalizeIdentifier$1(
-      self.sliceSerialize({
-        start: labelStart.end,
-        end: self.now()
-      })
-    );
+    const id = normalizeIdentifier(self.sliceSerialize({
+      start: labelStart.end,
+      end: self.now()
+    }));
     if (id.codePointAt(0) !== 94 || !defined.includes(id.slice(1))) {
-      return nok(code)
+      return nok(code);
     }
     effects.enter('gfmFootnoteCallLabelMarker');
     effects.consume(code);
     effects.exit('gfmFootnoteCallLabelMarker');
-    return ok(code)
+    return ok(code);
   }
 }
 function resolveToPotentialGfmFootnoteCall(events, context) {
   let index = events.length;
   while (index--) {
-    if (
-      events[index][1].type === 'labelImage' &&
-      events[index][0] === 'enter'
-    ) {
+    if (events[index][1].type === "labelImage" && events[index][0] === 'enter') {
       events[index][1];
-      break
+      break;
     }
   }
-  events[index + 1][1].type = 'data';
+  events[index + 1][1].type = "data";
   events[index + 3][1].type = 'gfmFootnoteCallLabelMarker';
   const call = {
     type: 'gfmFootnoteCall',
@@ -10939,88 +10436,75 @@ function resolveToPotentialGfmFootnoteCall(events, context) {
     end: Object.assign({}, events[events.length - 1][1].start)
   };
   const chunk = {
-    type: 'chunkString',
+    type: "chunkString",
     contentType: 'string',
     start: Object.assign({}, string.start),
     end: Object.assign({}, string.end)
   };
   const replacement = [
-    events[index + 1],
-    events[index + 2],
-    ['enter', call, context],
-    events[index + 3],
-    events[index + 4],
-    ['enter', marker, context],
-    ['exit', marker, context],
-    ['enter', string, context],
-    ['enter', chunk, context],
-    ['exit', chunk, context],
-    ['exit', string, context],
-    events[events.length - 2],
-    events[events.length - 1],
-    ['exit', call, context]
-  ];
+  events[index + 1], events[index + 2], ['enter', call, context],
+  events[index + 3], events[index + 4],
+  ['enter', marker, context], ['exit', marker, context],
+  ['enter', string, context], ['enter', chunk, context], ['exit', chunk, context], ['exit', string, context],
+  events[events.length - 2], events[events.length - 1], ['exit', call, context]];
   events.splice(index, events.length - index + 1, ...replacement);
-  return events
+  return events;
 }
 function tokenizeGfmFootnoteCall(effects, ok, nok) {
   const self = this;
   const defined = self.parser.gfmFootnotes || (self.parser.gfmFootnotes = []);
   let size = 0;
   let data;
-  return start
+  return start;
   function start(code) {
     effects.enter('gfmFootnoteCall');
     effects.enter('gfmFootnoteCallLabelMarker');
     effects.consume(code);
     effects.exit('gfmFootnoteCallLabelMarker');
-    return callStart
+    return callStart;
   }
   function callStart(code) {
-    if (code !== 94) return nok(code)
+    if (code !== 94) return nok(code);
     effects.enter('gfmFootnoteCallMarker');
     effects.consume(code);
     effects.exit('gfmFootnoteCallMarker');
     effects.enter('gfmFootnoteCallString');
     effects.enter('chunkString').contentType = 'string';
-    return callData
+    return callData;
   }
   function callData(code) {
     if (
-      size > 999 ||
-      (code === 93 && !data) ||
-      code === null ||
-      code === 91 ||
-      markdownLineEndingOrSpace(code)
-    ) {
-      return nok(code)
+    size > 999 ||
+    code === 93 && !data ||
+    code === null || code === 91 || markdownLineEndingOrSpace(code)) {
+      return nok(code);
     }
     if (code === 93) {
       effects.exit('chunkString');
       const token = effects.exit('gfmFootnoteCallString');
-      if (!defined.includes(normalizeIdentifier$1(self.sliceSerialize(token)))) {
-        return nok(code)
+      if (!defined.includes(normalizeIdentifier(self.sliceSerialize(token)))) {
+        return nok(code);
       }
       effects.enter('gfmFootnoteCallLabelMarker');
       effects.consume(code);
       effects.exit('gfmFootnoteCallLabelMarker');
       effects.exit('gfmFootnoteCall');
-      return ok
+      return ok;
     }
     if (!markdownLineEndingOrSpace(code)) {
       data = true;
     }
     size++;
     effects.consume(code);
-    return code === 92 ? callEscape : callData
+    return code === 92 ? callEscape : callData;
   }
   function callEscape(code) {
     if (code === 91 || code === 92 || code === 93) {
       effects.consume(code);
       size++;
-      return callData
+      return callData;
     }
-    return callData(code)
+    return callData(code);
   }
 }
 function tokenizeDefinitionStart(effects, ok, nok) {
@@ -11029,14 +10513,14 @@ function tokenizeDefinitionStart(effects, ok, nok) {
   let identifier;
   let size = 0;
   let data;
-  return start
+  return start;
   function start(code) {
     effects.enter('gfmFootnoteDefinition')._container = true;
     effects.enter('gfmFootnoteDefinitionLabel');
     effects.enter('gfmFootnoteDefinitionLabelMarker');
     effects.consume(code);
     effects.exit('gfmFootnoteDefinitionLabelMarker');
-    return labelAtMarker
+    return labelAtMarker;
   }
   function labelAtMarker(code) {
     if (code === 94) {
@@ -11045,44 +10529,41 @@ function tokenizeDefinitionStart(effects, ok, nok) {
       effects.exit('gfmFootnoteDefinitionMarker');
       effects.enter('gfmFootnoteDefinitionLabelString');
       effects.enter('chunkString').contentType = 'string';
-      return labelInside
+      return labelInside;
     }
-    return nok(code)
+    return nok(code);
   }
   function labelInside(code) {
     if (
-      size > 999 ||
-      (code === 93 && !data) ||
-      code === null ||
-      code === 91 ||
-      markdownLineEndingOrSpace(code)
-    ) {
-      return nok(code)
+    size > 999 ||
+    code === 93 && !data ||
+    code === null || code === 91 || markdownLineEndingOrSpace(code)) {
+      return nok(code);
     }
     if (code === 93) {
       effects.exit('chunkString');
       const token = effects.exit('gfmFootnoteDefinitionLabelString');
-      identifier = normalizeIdentifier$1(self.sliceSerialize(token));
+      identifier = normalizeIdentifier(self.sliceSerialize(token));
       effects.enter('gfmFootnoteDefinitionLabelMarker');
       effects.consume(code);
       effects.exit('gfmFootnoteDefinitionLabelMarker');
       effects.exit('gfmFootnoteDefinitionLabel');
-      return labelAfter
+      return labelAfter;
     }
     if (!markdownLineEndingOrSpace(code)) {
       data = true;
     }
     size++;
     effects.consume(code);
-    return code === 92 ? labelEscape : labelInside
+    return code === 92 ? labelEscape : labelInside;
   }
   function labelEscape(code) {
     if (code === 91 || code === 92 || code === 93) {
       effects.consume(code);
       size++;
-      return labelInside
+      return labelInside;
     }
-    return labelInside(code)
+    return labelInside(code);
   }
   function labelAfter(code) {
     if (code === 58) {
@@ -11092,39 +10573,26 @@ function tokenizeDefinitionStart(effects, ok, nok) {
       if (!defined.includes(identifier)) {
         defined.push(identifier);
       }
-      return factorySpace(
-        effects,
-        whitespaceAfter,
-        'gfmFootnoteDefinitionWhitespace'
-      )
+      return factorySpace(effects, whitespaceAfter, 'gfmFootnoteDefinitionWhitespace');
     }
-    return nok(code)
+    return nok(code);
   }
   function whitespaceAfter(code) {
-    return ok(code)
+    return ok(code);
   }
 }
 function tokenizeDefinitionContinuation(effects, ok, nok) {
-  return effects.check(blankLine, ok, effects.attempt(indent, ok, nok))
+  return effects.check(blankLine, ok, effects.attempt(indent, ok, nok));
 }
 function gfmFootnoteDefinitionEnd(effects) {
   effects.exit('gfmFootnoteDefinition');
 }
 function tokenizeIndent(effects, ok, nok) {
   const self = this;
-  return factorySpace(
-    effects,
-    afterPrefix,
-    'gfmFootnoteDefinitionIndent',
-    4 + 1
-  )
+  return factorySpace(effects, afterPrefix, 'gfmFootnoteDefinitionIndent', 4 + 1);
   function afterPrefix(code) {
     const tail = self.events[self.events.length - 1];
-    return tail &&
-      tail[1].type === 'gfmFootnoteDefinitionIndent' &&
-      tail[2].sliceSerialize(tail[1], true).length === 4
-      ? ok(code)
-      : nok(code)
+    return tail && tail[1].type === 'gfmFootnoteDefinitionIndent' && tail[2].sliceSerialize(tail[1], true).length === 4 ? ok(code) : nok(code);
   }
 }
 
@@ -11132,6 +10600,7 @@ function gfmStrikethrough(options) {
   const options_ = options || {};
   let single = options_.singleTilde;
   const tokenizer = {
+    name: 'strikethrough',
     tokenize: tokenizeStrikethrough,
     resolveAll: resolveAllStrikethrough
   };
@@ -11148,24 +10617,15 @@ function gfmStrikethrough(options) {
     attentionMarkers: {
       null: [126]
     }
-  }
+  };
   function resolveAllStrikethrough(events, context) {
     let index = -1;
     while (++index < events.length) {
-      if (
-        events[index][0] === 'enter' &&
-        events[index][1].type === 'strikethroughSequenceTemporary' &&
-        events[index][1]._close
-      ) {
+      if (events[index][0] === 'enter' && events[index][1].type === 'strikethroughSequenceTemporary' && events[index][1]._close) {
         let open = index;
         while (open--) {
-          if (
-            events[open][0] === 'exit' &&
-            events[open][1].type === 'strikethroughSequenceTemporary' &&
-            events[open][1]._open &&
-            events[index][1].end.offset - events[index][1].start.offset ===
-              events[open][1].end.offset - events[open][1].start.offset
-          ) {
+          if (events[open][0] === 'exit' && events[open][1].type === 'strikethroughSequenceTemporary' && events[open][1]._open &&
+          events[index][1].end.offset - events[index][1].start.offset === events[open][1].end.offset - events[open][1].start.offset) {
             events[index][1].type = 'strikethroughSequence';
             events[open][1].type = 'strikethroughSequence';
             const strikethrough = {
@@ -11178,30 +10638,15 @@ function gfmStrikethrough(options) {
               start: Object.assign({}, events[open][1].end),
               end: Object.assign({}, events[index][1].start)
             };
-            const nextEvents = [
-              ['enter', strikethrough, context],
-              ['enter', events[open][1], context],
-              ['exit', events[open][1], context],
-              ['enter', text, context]
-            ];
+            const nextEvents = [['enter', strikethrough, context], ['enter', events[open][1], context], ['exit', events[open][1], context], ['enter', text, context]];
             const insideSpan = context.parser.constructs.insideSpan.null;
             if (insideSpan) {
-              splice(
-                nextEvents,
-                nextEvents.length,
-                0,
-                resolveAll(insideSpan, events.slice(open + 1, index), context)
-              );
+              splice(nextEvents, nextEvents.length, 0, resolveAll(insideSpan, events.slice(open + 1, index), context));
             }
-            splice(nextEvents, nextEvents.length, 0, [
-              ['exit', text, context],
-              ['enter', events[index][1], context],
-              ['exit', events[index][1], context],
-              ['exit', strikethrough, context]
-            ]);
+            splice(nextEvents, nextEvents.length, 0, [['exit', text, context], ['enter', events[index][1], context], ['exit', events[index][1], context], ['exit', strikethrough, context]]);
             splice(events, open - 1, index - open + 3, nextEvents);
             index = open + nextEvents.length - 2;
-            break
+            break;
           }
         }
       }
@@ -11209,40 +10654,37 @@ function gfmStrikethrough(options) {
     index = -1;
     while (++index < events.length) {
       if (events[index][1].type === 'strikethroughSequenceTemporary') {
-        events[index][1].type = 'data';
+        events[index][1].type = "data";
       }
     }
-    return events
+    return events;
   }
   function tokenizeStrikethrough(effects, ok, nok) {
     const previous = this.previous;
     const events = this.events;
     let size = 0;
-    return start
+    return start;
     function start(code) {
-      if (
-        previous === 126 &&
-        events[events.length - 1][1].type !== 'characterEscape'
-      ) {
-        return nok(code)
+      if (previous === 126 && events[events.length - 1][1].type !== "characterEscape") {
+        return nok(code);
       }
       effects.enter('strikethroughSequenceTemporary');
-      return more(code)
+      return more(code);
     }
     function more(code) {
       const before = classifyCharacter(previous);
       if (code === 126) {
-        if (size > 1) return nok(code)
+        if (size > 1) return nok(code);
         effects.consume(code);
         size++;
-        return more
+        return more;
       }
-      if (size < 2 && !single) return nok(code)
+      if (size < 2 && !single) return nok(code);
       const token = effects.exit('strikethroughSequenceTemporary');
       const after = classifyCharacter(code);
-      token._open = !after || (after === 2 && Boolean(before));
-      token._close = !before || (before === 2 && Boolean(after));
-      return ok(code)
+      token._open = !after || after === 2 && Boolean(before);
+      token._close = !before || before === 2 && Boolean(after);
+      return ok(code);
     }
   }
 }
@@ -11252,23 +10694,20 @@ class EditMap {
     this.map = [];
   }
   add(index, remove, add) {
-    addImpl(this, index, remove, add);
+    addImplementation(this, index, remove, add);
   }
   consume(events) {
     this.map.sort(function (a, b) {
-      return a[0] - b[0]
+      return a[0] - b[0];
     });
     if (this.map.length === 0) {
-      return
+      return;
     }
     let index = this.map.length;
     const vecs = [];
     while (index > 0) {
       index -= 1;
-      vecs.push(
-        events.slice(this.map[index][0] + this.map[index][1]),
-        this.map[index][2]
-      );
+      vecs.push(events.slice(this.map[index][0] + this.map[index][1]), this.map[index][2]);
       events.length = this.map[index][0];
     }
     vecs.push([...events]);
@@ -11281,16 +10720,16 @@ class EditMap {
     this.map.length = 0;
   }
 }
-function addImpl(editMap, at, remove, add) {
+function addImplementation(editMap, at, remove, add) {
   let index = 0;
   if (remove === 0 && add.length === 0) {
-    return
+    return;
   }
   while (index < editMap.map.length) {
     if (editMap.map[index][0] === at) {
       editMap.map[index][1] += remove;
       editMap.map[index][2].push(...add);
-      return
+      return;
     }
     index += 1;
   }
@@ -11305,11 +10744,7 @@ function gfmTableAlign(events, index) {
     if (inDelimiterRow) {
       if (event[0] === 'enter') {
         if (event[1].type === 'tableContent') {
-          align.push(
-            events[index + 1][1].type === 'tableDelimiterMarker'
-              ? 'left'
-              : 'none'
-          );
+          align.push(events[index + 1][1].type === 'tableDelimiterMarker' ? 'left' : 'none');
         }
       }
       else if (event[1].type === 'tableContent') {
@@ -11319,82 +10754,78 @@ function gfmTableAlign(events, index) {
         }
       }
       else if (event[1].type === 'tableDelimiterRow') {
-        break
+        break;
       }
     } else if (event[0] === 'enter' && event[1].type === 'tableDelimiterRow') {
       inDelimiterRow = true;
     }
     index += 1;
   }
-  return align
+  return align;
 }
 
 function gfmTable() {
   return {
     flow: {
       null: {
+        name: 'table',
         tokenize: tokenizeTable,
         resolveAll: resolveTable
       }
     }
-  }
+  };
 }
 function tokenizeTable(effects, ok, nok) {
   const self = this;
   let size = 0;
   let sizeB = 0;
   let seen;
-  return start
+  return start;
   function start(code) {
     let index = self.events.length - 1;
     while (index > -1) {
       const type = self.events[index][1].type;
-      if (
-        type === 'lineEnding' ||
-        type === 'linePrefix'
-      )
-        index--;
-      else break
+      if (type === "lineEnding" ||
+      type === "linePrefix") index--;else break;
     }
     const tail = index > -1 ? self.events[index][1].type : null;
-    const next =
-      tail === 'tableHead' || tail === 'tableRow' ? bodyRowStart : headRowBefore;
+    const next = tail === 'tableHead' || tail === 'tableRow' ? bodyRowStart : headRowBefore;
     if (next === bodyRowStart && self.parser.lazy[self.now().line]) {
-      return nok(code)
+      return nok(code);
     }
-    return next(code)
+    return next(code);
   }
   function headRowBefore(code) {
     effects.enter('tableHead');
     effects.enter('tableRow');
-    return headRowStart(code)
+    return headRowStart(code);
   }
   function headRowStart(code) {
     if (code === 124) {
-      return headRowBreak(code)
+      return headRowBreak(code);
     }
     seen = true;
     sizeB += 1;
-    return headRowBreak(code)
+    return headRowBreak(code);
   }
   function headRowBreak(code) {
     if (code === null) {
-      return nok(code)
+      return nok(code);
     }
     if (markdownLineEnding(code)) {
       if (sizeB > 1) {
         sizeB = 0;
         self.interrupt = true;
         effects.exit('tableRow');
-        effects.enter('lineEnding');
+        effects.enter("lineEnding");
         effects.consume(code);
-        effects.exit('lineEnding');
-        return headDelimiterStart
+        effects.exit("lineEnding");
+        return headDelimiterStart;
       }
-      return nok(code)
+      return nok(code);
     }
     if (markdownSpace(code)) {
-      return factorySpace(effects, headRowBreak, 'whitespace')(code)
+      return factorySpace(effects, headRowBreak, "whitespace")(code);
     }
     sizeB += 1;
     if (seen) {
@@ -11406,63 +10837,56 @@ function tokenizeTable(effects, ok, nok) {
       effects.consume(code);
       effects.exit('tableCellDivider');
       seen = true;
-      return headRowBreak
+      return headRowBreak;
     }
-    effects.enter('data');
-    return headRowData(code)
+    effects.enter("data");
+    return headRowData(code);
   }
   function headRowData(code) {
     if (code === null || code === 124 || markdownLineEndingOrSpace(code)) {
-      effects.exit('data');
-      return headRowBreak(code)
+      effects.exit("data");
+      return headRowBreak(code);
     }
     effects.consume(code);
-    return code === 92 ? headRowEscape : headRowData
+    return code === 92 ? headRowEscape : headRowData;
   }
   function headRowEscape(code) {
     if (code === 92 || code === 124) {
       effects.consume(code);
-      return headRowData
+      return headRowData;
     }
-    return headRowData(code)
+    return headRowData(code);
   }
   function headDelimiterStart(code) {
     self.interrupt = false;
     if (self.parser.lazy[self.now().line]) {
-      return nok(code)
+      return nok(code);
     }
     effects.enter('tableDelimiterRow');
     seen = false;
     if (markdownSpace(code)) {
-      return factorySpace(
-        effects,
-        headDelimiterBefore,
-        'linePrefix',
-        self.parser.constructs.disable.null.includes('codeIndented')
-          ? undefined
-          : 4
-      )(code)
+      return factorySpace(effects, headDelimiterBefore, "linePrefix", self.parser.constructs.disable.null.includes('codeIndented') ? undefined : 4)(code);
     }
-    return headDelimiterBefore(code)
+    return headDelimiterBefore(code);
   }
   function headDelimiterBefore(code) {
     if (code === 45 || code === 58) {
-      return headDelimiterValueBefore(code)
+      return headDelimiterValueBefore(code);
     }
     if (code === 124) {
       seen = true;
       effects.enter('tableCellDivider');
       effects.consume(code);
       effects.exit('tableCellDivider');
-      return headDelimiterCellBefore
+      return headDelimiterCellBefore;
     }
-    return headDelimiterNok(code)
+    return headDelimiterNok(code);
   }
   function headDelimiterCellBefore(code) {
     if (markdownSpace(code)) {
-      return factorySpace(effects, headDelimiterValueBefore, 'whitespace')(code)
+      return factorySpace(effects, headDelimiterValueBefore, "whitespace")(code);
     }
-    return headDelimiterValueBefore(code)
+    return headDelimiterValueBefore(code);
   }
   function headDelimiterValueBefore(code) {
     if (code === 58) {
@@ -11471,28 +10895,28 @@ function tokenizeTable(effects, ok, nok) {
       effects.enter('tableDelimiterMarker');
       effects.consume(code);
       effects.exit('tableDelimiterMarker');
-      return headDelimiterLeftAlignmentAfter
+      return headDelimiterLeftAlignmentAfter;
     }
     if (code === 45) {
       sizeB += 1;
-      return headDelimiterLeftAlignmentAfter(code)
+      return headDelimiterLeftAlignmentAfter(code);
     }
     if (code === null || markdownLineEnding(code)) {
-      return headDelimiterCellAfter(code)
+      return headDelimiterCellAfter(code);
     }
-    return headDelimiterNok(code)
+    return headDelimiterNok(code);
   }
   function headDelimiterLeftAlignmentAfter(code) {
     if (code === 45) {
       effects.enter('tableDelimiterFiller');
-      return headDelimiterFiller(code)
+      return headDelimiterFiller(code);
     }
-    return headDelimiterNok(code)
+    return headDelimiterNok(code);
   }
   function headDelimiterFiller(code) {
     if (code === 45) {
       effects.consume(code);
-      return headDelimiterFiller
+      return headDelimiterFiller;
     }
     if (code === 58) {
       seen = true;
@@ -11500,69 +10924,69 @@ function tokenizeTable(effects, ok, nok) {
       effects.enter('tableDelimiterMarker');
       effects.consume(code);
       effects.exit('tableDelimiterMarker');
-      return headDelimiterRightAlignmentAfter
+      return headDelimiterRightAlignmentAfter;
     }
     effects.exit('tableDelimiterFiller');
-    return headDelimiterRightAlignmentAfter(code)
+    return headDelimiterRightAlignmentAfter(code);
   }
   function headDelimiterRightAlignmentAfter(code) {
     if (markdownSpace(code)) {
-      return factorySpace(effects, headDelimiterCellAfter, 'whitespace')(code)
+      return factorySpace(effects, headDelimiterCellAfter, "whitespace")(code);
     }
-    return headDelimiterCellAfter(code)
+    return headDelimiterCellAfter(code);
   }
   function headDelimiterCellAfter(code) {
     if (code === 124) {
-      return headDelimiterBefore(code)
+      return headDelimiterBefore(code);
     }
     if (code === null || markdownLineEnding(code)) {
       if (!seen || size !== sizeB) {
-        return headDelimiterNok(code)
+        return headDelimiterNok(code);
       }
       effects.exit('tableDelimiterRow');
       effects.exit('tableHead');
-      return ok(code)
+      return ok(code);
     }
-    return headDelimiterNok(code)
+    return headDelimiterNok(code);
   }
   function headDelimiterNok(code) {
-    return nok(code)
+    return nok(code);
   }
   function bodyRowStart(code) {
     effects.enter('tableRow');
-    return bodyRowBreak(code)
+    return bodyRowBreak(code);
   }
   function bodyRowBreak(code) {
     if (code === 124) {
       effects.enter('tableCellDivider');
       effects.consume(code);
       effects.exit('tableCellDivider');
-      return bodyRowBreak
+      return bodyRowBreak;
     }
     if (code === null || markdownLineEnding(code)) {
       effects.exit('tableRow');
-      return ok(code)
+      return ok(code);
     }
     if (markdownSpace(code)) {
-      return factorySpace(effects, bodyRowBreak, 'whitespace')(code)
+      return factorySpace(effects, bodyRowBreak, "whitespace")(code);
     }
-    effects.enter('data');
-    return bodyRowData(code)
+    effects.enter("data");
+    return bodyRowData(code);
   }
   function bodyRowData(code) {
     if (code === null || code === 124 || markdownLineEndingOrSpace(code)) {
-      effects.exit('data');
-      return bodyRowBreak(code)
+      effects.exit("data");
+      return bodyRowBreak(code);
     }
     effects.consume(code);
-    return code === 92 ? bodyRowEscape : bodyRowData
+    return code === 92 ? bodyRowEscape : bodyRowData;
   }
   function bodyRowEscape(code) {
     if (code === 92 || code === 124) {
       effects.consume(code);
-      return bodyRowData
+      return bodyRowData;
     }
-    return bodyRowData(code)
+    return bodyRowData(code);
   }
 }
 function resolveTable(events, context) {
@@ -11594,10 +11018,7 @@ function resolveTable(events, context) {
           end: Object.assign({}, token.end)
         };
         map.add(index, 0, [['enter', currentTable, context]]);
-      } else if (
-        token.type === 'tableRow' ||
-        token.type === 'tableDelimiterRow'
-      ) {
+      } else if (token.type === 'tableRow' || token.type === 'tableDelimiterRow') {
         inFirstCellAwaitingPipe = true;
         currentCell = undefined;
         lastCell = [0, 0, 0, 0];
@@ -11613,24 +11034,12 @@ function resolveTable(events, context) {
         }
         rowKind = token.type === 'tableDelimiterRow' ? 2 : currentBody ? 3 : 1;
       }
-      else if (
-        rowKind &&
-        (token.type === 'data' ||
-          token.type === 'tableDelimiterMarker' ||
-          token.type === 'tableDelimiterFiller')
-      ) {
+      else if (rowKind && (token.type === "data" || token.type === 'tableDelimiterMarker' || token.type === 'tableDelimiterFiller')) {
         inFirstCellAwaitingPipe = false;
         if (cell[2] === 0) {
           if (lastCell[1] !== 0) {
             cell[0] = cell[1];
-            currentCell = flushCell(
-              map,
-              context,
-              lastCell,
-              rowKind,
-              undefined,
-              currentCell
-            );
+            currentCell = flushCell(map, context, lastCell, rowKind, undefined, currentCell);
             lastCell = [0, 0, 0, 0];
           }
           cell[2] = index;
@@ -11641,14 +11050,7 @@ function resolveTable(events, context) {
         } else {
           if (lastCell[1] !== 0) {
             cell[0] = cell[1];
-            currentCell = flushCell(
-              map,
-              context,
-              lastCell,
-              rowKind,
-              undefined,
-              currentCell
-            );
+            currentCell = flushCell(map, context, lastCell, rowKind, undefined, currentCell);
           }
           lastCell = cell;
           cell = [lastCell[1], index, 0, 0];
@@ -11658,31 +11060,16 @@ function resolveTable(events, context) {
     else if (token.type === 'tableHead') {
       afterHeadAwaitingFirstBodyRow = true;
       lastTableEnd = index;
-    } else if (
-      token.type === 'tableRow' ||
-      token.type === 'tableDelimiterRow'
-    ) {
+    } else if (token.type === 'tableRow' || token.type === 'tableDelimiterRow') {
       lastTableEnd = index;
       if (lastCell[1] !== 0) {
         cell[0] = cell[1];
-        currentCell = flushCell(
-          map,
-          context,
-          lastCell,
-          rowKind,
-          index,
-          currentCell
-        );
+        currentCell = flushCell(map, context, lastCell, rowKind, index, currentCell);
       } else if (cell[1] !== 0) {
         currentCell = flushCell(map, context, cell, rowKind, index, currentCell);
       }
       rowKind = 0;
-    } else if (
-      rowKind &&
-      (token.type === 'data' ||
-        token.type === 'tableDelimiterMarker' ||
-        token.type === 'tableDelimiterFiller')
-    ) {
+    } else if (rowKind && (token.type === "data" || token.type === 'tableDelimiterMarker' || token.type === 'tableDelimiterFiller')) {
       cell[3] = index;
     }
   }
@@ -11697,15 +11084,10 @@ function resolveTable(events, context) {
       event[1]._align = gfmTableAlign(context.events, index);
     }
   }
-  return events
+  return events;
 }
 function flushCell(map, context, range, rowKind, rowEnd, previousCell) {
-  const groupName =
-    rowKind === 1
-      ? 'tableHeader'
-      : rowKind === 2
-      ? 'tableDelimiter'
-      : 'tableData';
+  const groupName = rowKind === 1 ? 'tableHeader' : rowKind === 2 ? 'tableDelimiter' : 'tableData';
   const valueName = 'tableContent';
   if (range[0] !== 0) {
     previousCell.end = Object.assign({}, getPoint(context.events, range[0]));
@@ -11731,8 +11113,8 @@ function flushCell(map, context, range, rowKind, rowEnd, previousCell) {
       const start = context.events[range[2]];
       const end = context.events[range[3]];
       start[1].end = Object.assign({}, end[1].end);
-      start[1].type = 'chunkText';
-      start[1].contentType = 'text';
+      start[1].type = "chunkText";
+      start[1].contentType = "text";
       if (range[3] > range[2] + 1) {
         const a = range[2] + 1;
         const b = range[3] - range[2] - 1;
@@ -11746,7 +11128,7 @@ function flushCell(map, context, range, rowKind, rowEnd, previousCell) {
     map.add(rowEnd, 0, [['exit', previousCell, context]]);
     previousCell = undefined;
   }
-  return previousCell
+  return previousCell;
 }
 function flushTableEnd(map, context, index, table, tableBody) {
   const exits = [];
@@ -11762,10 +11144,11 @@ function flushTableEnd(map, context, index, table, tableBody) {
 function getPoint(events, index) {
   const event = events[index];
   const side = event[0] === 'enter' ? 'start' : 'end';
-  return event[1][side]
+  return event[1][side];
 }
 
 const tasklistCheck = {
+  name: 'tasklistCheck',
   tokenize: tokenizeTasklistCheck
 };
 function gfmTaskListItem() {
@@ -11773,38 +11156,37 @@ function gfmTaskListItem() {
     text: {
       [91]: tasklistCheck
     }
-  }
+  };
 }
 function tokenizeTasklistCheck(effects, ok, nok) {
   const self = this;
-  return open
+  return open;
   function open(code) {
     if (
-      self.previous !== null ||
-      !self._gfmTasklistFirstContentOfListItem
-    ) {
-      return nok(code)
+    self.previous !== null ||
+    !self._gfmTasklistFirstContentOfListItem) {
+      return nok(code);
     }
     effects.enter('taskListCheck');
     effects.enter('taskListCheckMarker');
     effects.consume(code);
     effects.exit('taskListCheckMarker');
-    return inside
+    return inside;
   }
   function inside(code) {
     if (markdownLineEndingOrSpace(code)) {
       effects.enter('taskListCheckValueUnchecked');
       effects.consume(code);
       effects.exit('taskListCheckValueUnchecked');
-      return close
+      return close;
     }
     if (code === 88 || code === 120) {
       effects.enter('taskListCheckValueChecked');
       effects.consume(code);
       effects.exit('taskListCheckValueChecked');
-      return close
+      return close;
     }
-    return nok(code)
+    return nok(code);
   }
   function close(code) {
     if (code === 93) {
@@ -11812,30 +11194,26 @@ function tokenizeTasklistCheck(effects, ok, nok) {
       effects.consume(code);
       effects.exit('taskListCheckMarker');
       effects.exit('taskListCheck');
-      return after
+      return after;
     }
-    return nok(code)
+    return nok(code);
   }
   function after(code) {
     if (markdownLineEnding(code)) {
-      return ok(code)
+      return ok(code);
     }
     if (markdownSpace(code)) {
-      return effects.check(
-        {
-          tokenize: spaceThenNonSpace
-        },
-        ok,
-        nok
-      )(code)
+      return effects.check({
+        tokenize: spaceThenNonSpace
+      }, ok, nok)(code);
     }
-    return nok(code)
+    return nok(code);
   }
 }
 function spaceThenNonSpace(effects, ok, nok) {
-  return factorySpace(effects, after, 'whitespace')
+  return factorySpace(effects, after, "whitespace");
   function after(code) {
-    return code === null ? nok(code) : ok(code)
+    return code === null ? nok(code) : ok(code);
   }
 }
 
@@ -11849,10 +11227,10 @@ function gfm(options) {
   ])
 }
 
-const emptyOptions$2 = {};
+const emptyOptions$1 = {};
 function remarkGfm(options) {
   const self =  (this);
-  const settings = options || emptyOptions$2;
+  const settings = options || emptyOptions$1;
   const data = self.data();
   const micromarkExtensions =
     data.micromarkExtensions || (data.micromarkExtensions = []);
@@ -11865,10 +11243,74 @@ function remarkGfm(options) {
   toMarkdownExtensions.push(gfmToMarkdown(settings));
 }
 
+const commentExpression = /\s*([a-zA-Z\d-]+)(\s+([\s\S]*))?\s*/;
+const esCommentExpression = new RegExp(
+  '(\\s*\\/\\*' + commentExpression.source + '\\*\\/\\s*)'
+);
+const markerExpression = new RegExp(
+  '(\\s*<!--' + commentExpression.source + '-->\\s*)'
+);
+function commentMarker(value) {
+  if (
+    isNode(value) &&
+    (value.type === 'html' ||
+      value.type === 'mdxFlowExpression' ||
+      value.type === 'mdxTextExpression')
+  ) {
+    const match = value.value.match(
+      value.type === 'html' ? markerExpression : esCommentExpression
+    );
+    if (match && match[0].length === value.value.length) {
+      const parameters = parseParameters(match[3] || '');
+      if (parameters) {
+        return {
+          name: match[2],
+          attributes: (match[4] || '').trim(),
+          parameters,
+          node: value
+        }
+      }
+    }
+  }
+}
+function parseParameters(value) {
+  const parameters = {};
+  return value
+    .replace(
+      /\s+([-\w]+)(?:=(?:"((?:\\[\s\S]|[^"])*)"|'((?:\\[\s\S]|[^'])*)'|((?:\\[\s\S]|[^"'\s])+)))?/gi,
+      replacer
+    )
+    .replace(/\s+/g, '')
+    ? undefined
+    : parameters
+  function replacer(_, $1, $2, $3, $4) {
+    let value = $2 === undefined ? ($3 === undefined ? $4 : $3) : $2;
+    const number = Number(value);
+    if (value === 'true' || value === undefined) {
+      value = true;
+    } else if (value === 'false') {
+      value = false;
+    } else if (value.trim() && !Number.isNaN(number)) {
+      value = number;
+    }
+    parameters[$1] = value;
+    return ''
+  }
+}
+function isNode(value) {
+  return Boolean(value && typeof value === 'object' && 'type' in value)
+}
+
+function parse$1(value) {
+  const input = String(value || '').trim();
+  return input ? input.split(/[ \t\n\r\f]+/g) : []
+}
+
+const search = /\r?\n|\r/g;
 function location(file) {
   const value = String(file);
   const indices = [];
-  const search = /\r?\n|\r/g;
+  search.lastIndex = 0;
   while (search.test(value)) {
     indices.push(search.lastIndex);
   }
@@ -11891,7 +11333,6 @@ function location(file) {
         }
       }
     }
-    return {line: undefined, column: undefined, offset: undefined}
   }
   function toOffset(point) {
     const line = point && point.line;
@@ -11908,345 +11349,181 @@ function location(file) {
         return offset
       }
     }
-    return -1
   }
 }
 
-const convert$z =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$z
-      }
-      if (typeof test === 'string') {
-        return typeFactory$z(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$z(test) : propsFactory$z(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$z(test)
-      }
-      throw new Error('Expected function, string, or object as test')
+const own = {}.hasOwnProperty;
+function messageControl(tree, options) {
+  if (!options || typeof options !== 'object') {
+    throw new Error('Expected `options`')
+  }
+  const {file, marker, name, test} = options;
+  let {enable, disable, known, reset, source} = options;
+  if (!enable) enable = [];
+  if (!disable) disable = [];
+  if (!file) {
+    throw new Error('Expected `file` in `options`')
+  }
+  if (!marker) {
+    throw new Error('Expected `marker` in `options`')
+  }
+  if (!name) {
+    throw new Error('Expected `name` in `options`')
+  }
+  const sources = typeof source === 'string' ? [source] : source || [name];
+  const toOffset = location(file).toOffset;
+  const initial = !reset;
+  const gaps = detectGaps(tree);
+  const scope = {};
+  const globals = [];
+  visit(tree, test, visitor);
+  file.messages = file.messages.filter(function (m) {
+    return filter(m)
+  });
+  function visitor(node, position, parent) {
+    const point = node.position && node.position.start;
+    const mark = marker(node);
+    if (!point || !mark || mark.name !== name) {
+      return
     }
-  );
-function anyFactory$z(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$z(tests[index]);
-  }
-  return castFactory$z(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
+    const ruleIds = parse$1(mark.attributes);
+    const verb = ruleIds.shift();
+    const fn =
+      verb === 'enable'
+        ? doEnable
+        : verb === 'disable'
+        ? doDisable
+        : verb === 'ignore'
+        ? doIgnore
+        : undefined;
+    if (!fn) {
+      file.fail(
+        'Unknown keyword `' +
+          verb +
+          '`: expected ' +
+          "`'enable'`, `'disable'`, or `'ignore'`",
+        node
+      );
     }
-    return false
-  }
-}
-function propsFactory$z(check) {
-  return castFactory$z(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$z(check) {
-  return castFactory$z(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$z(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$z() {
-  return true
-}
-
-function color$A(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$z = true;
-const SKIP$z = 'skip';
-const EXIT$z = false;
-const visitParents$z =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      var is = convert$z(test);
-      var step = reverse ? -1 : 1;
-      factory(tree, null, [])();
-      function factory(node, index, parents) {
-        var value = typeof node === 'object' && node !== null ? node : {};
-        var name;
-        if (typeof value.type === 'string') {
-          name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              : typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' +
-              color$A(value.type + (name ? '<' + name + '>' : '')) +
-              ')'
-          });
-        }
-        return visit
-        function visit() {
-          var result = [];
-          var subresult;
-          var offset;
-          var grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$z(visitor(node, parents));
-            if (result[0] === EXIT$z) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$z) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$z) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$z(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$z, value]
-  }
-  return [value]
-}
-
-const visit$z =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$z(tree, test, overload, reverse);
-      function overload(node, parents) {
-        var parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-const own$1 = {}.hasOwnProperty;
-function messageControl(options) {
-  if (!options || typeof options !== 'object' || !options.name) {
-    throw new Error(
-      'Expected `name` in `options`, got `' + (options || {}).name + '`'
-    )
-  }
-  if (!options.marker) {
-    throw new Error(
-      'Expected `marker` in `options`, got `' + options.marker + '`'
-    )
-  }
-  const enable = 'enable' in options && options.enable ? options.enable : [];
-  const disable = 'disable' in options && options.disable ? options.disable : [];
-  let reset = options.reset;
-  const sources =
-    typeof options.source === 'string'
-      ? [options.source]
-      : options.source || [options.name];
-  return transformer
-  function transformer(tree, file) {
-    const toOffset = location(file).toOffset;
-    const initial = !reset;
-    const gaps = detectGaps(tree, file);
-    const scope = {};
-    const globals = [];
-    visit$z(tree, options.test, visitor);
-    file.messages = file.messages.filter((m) => filter(m));
-    function visitor(node, position, parent) {
-      const mark = options.marker(node);
-      if (!mark || mark.name !== options.name) {
-        return
-      }
-      const ruleIds = mark.attributes.split(/\s/g);
-      const point = mark.node.position && mark.node.position.start;
-      const next =
-        (parent && position !== null && parent.children[position + 1]) ||
-        undefined;
-      const tail = (next && next.position && next.position.end) || undefined;
+    const next =
+      (parent && position !== undefined && parent.children[position + 1]) ||
+      undefined;
+    const tail = next && next.position && next.position.end;
+    if (ruleIds.length === 0) {
+      fn(point, undefined, tail);
+    } else {
       let index = -1;
-      const verb = ruleIds.shift();
-      if (verb !== 'enable' && verb !== 'disable' && verb !== 'ignore') {
-        file.fail(
-          'Unknown keyword `' +
-            verb +
-            '`: expected ' +
-            "`'enable'`, `'disable'`, or `'ignore'`",
-          mark.node
-        );
-      }
-      if (ruleIds.length > 0) {
-        while (++index < ruleIds.length) {
-          const ruleId = ruleIds[index];
-          if (isKnown(ruleId, verb, mark.node)) {
-            toggle(point, verb === 'enable', ruleId);
-            if (verb === 'ignore') {
-              toggle(tail, true, ruleId);
-            }
-          }
-        }
-      } else if (verb === 'ignore') {
-        toggle(point, false);
-        toggle(tail, true);
-      } else {
-        toggle(point, verb === 'enable');
-        reset = verb !== 'enable';
-      }
-    }
-    function filter(message) {
-      let gapIndex = gaps.length;
-      if (!message.source || !sources.includes(message.source)) {
-        return true
-      }
-      if (!message.line) {
-        message.line = 1;
-      }
-      if (!message.column) {
-        message.column = 1;
-      }
-      const offset = toOffset(message);
-      while (gapIndex--) {
-        if (gaps[gapIndex][0] <= offset && gaps[gapIndex][1] > offset) {
-          return false
+      while (++index < ruleIds.length) {
+        const ruleId = ruleIds[index];
+        if (isKnown(ruleId, verb, node)) {
+          fn(point, ruleId, tail);
         }
       }
-      return (
-        (!message.ruleId ||
-          check(message, scope[message.ruleId], message.ruleId)) &&
-        check(message, globals)
-      )
-    }
-    function isKnown(ruleId, verb, node) {
-      const result = options.known ? options.known.includes(ruleId) : true;
-      if (!result) {
-        file.message(
-          'Unknown rule: cannot ' + verb + " `'" + ruleId + "'`",
-          node
-        );
-      }
-      return result
-    }
-    function getState(ruleId) {
-      const ranges = ruleId ? scope[ruleId] : globals;
-      if (ranges && ranges.length > 0) {
-        return ranges[ranges.length - 1].state
-      }
-      if (!ruleId) {
-        return !reset
-      }
-      return reset ? enable.includes(ruleId) : !disable.includes(ruleId)
-    }
-    function toggle(point, state, ruleId) {
-      let markers = ruleId ? scope[ruleId] : globals;
-      if (!markers) {
-        markers = [];
-        scope[String(ruleId)] = markers;
-      }
-      const previousState = getState(ruleId);
-      if (state !== previousState) {
-        markers.push({state, point});
-      }
-      if (!ruleId) {
-        for (ruleId in scope) {
-          if (own$1.call(scope, ruleId)) {
-            toggle(point, state, ruleId);
-          }
-        }
-      }
-    }
-    function check(message, ranges, ruleId) {
-      if (ranges && ranges.length > 0) {
-        let index = ranges.length;
-        while (index--) {
-          const range = ranges[index];
-          if (
-            message.line &&
-            message.column &&
-            range.point &&
-            range.point.line &&
-            range.point.column &&
-            (range.point.line < message.line ||
-              (range.point.line === message.line &&
-                range.point.column <= message.column))
-          ) {
-            return range.state === true
-          }
-        }
-      }
-      if (!ruleId) {
-        return Boolean(initial || reset)
-      }
-      return reset ? enable.includes(ruleId) : !disable.includes(ruleId)
     }
   }
+  function doIgnore(point, ruleId, tail) {
+    if (tail) {
+      toggle(point, false, ruleId);
+      toggle(tail, true, ruleId);
+    }
+  }
+  function doDisable(point, ruleId) {
+    toggle(point, false, ruleId);
+    if (!ruleId) reset = true;
+  }
+  function doEnable(point, ruleId) {
+    toggle(point, true, ruleId);
+    if (!ruleId) reset = false;
+  }
+  function filter(message) {
+    let gapIndex = gaps.length;
+    if (!message.source || !sources.includes(message.source)) {
+      return true
+    }
+    if (!message.line) message.line = 1;
+    if (!message.column) message.column = 1;
+    const offset = toOffset(message);
+    while (gapIndex--) {
+      if (gaps[gapIndex][0] <= offset && gaps[gapIndex][1] > offset) {
+        return false
+      }
+    }
+    return (
+      (!message.ruleId || check(message, scope[message.ruleId], true)) &&
+      check(message, globals, false)
+    )
+  }
+  function isKnown(ruleId, verb, node) {
+    const result = known ? known.includes(ruleId) : true;
+    if (!result) {
+      file.message('Cannot ' + verb + " `'" + ruleId + "'`, it’s not known", {
+        ancestors: [node],
+        place: node.position,
+        ruleId: 'known',
+        source: 'unified-message-control'
+      });
+    }
+    return result
+  }
+  function getState(ruleId) {
+    const ranges = ruleId ? scope[ruleId] : globals;
+    if (ranges && ranges.length > 0) {
+      return ranges[ranges.length - 1].state
+    }
+    return ruleId
+      ? reset
+        ? enable.includes(ruleId)
+        : !disable.includes(ruleId)
+      : !reset
+  }
+  function toggle(point, state, ruleId) {
+    const markers = ruleId ? scope[ruleId] || (scope[ruleId] = []) : globals;
+    const current = getState(ruleId);
+    if (current !== state) {
+      markers.push({state, point});
+    }
+    if (!ruleId) {
+      for (ruleId in scope) {
+        if (own.call(scope, ruleId)) {
+          toggle(point, state, ruleId);
+        }
+      }
+    }
+  }
+  function check(message, marks, local) {
+    if (message.line && message.column && marks && marks.length > 0) {
+      let index = marks.length;
+      while (index--) {
+        const mark = marks[index];
+        if (
+          mark.point &&
+          (mark.point.line < message.line ||
+            (mark.point.line === message.line &&
+              mark.point.column <= message.column))
+        ) {
+          return mark.state === true
+        }
+      }
+    }
+    if (local) {
+      ok$1(message.ruleId);
+      return reset
+        ? enable.includes(message.ruleId)
+        : !disable.includes(message.ruleId)
+    }
+    return Boolean(initial || reset)
+  }
 }
-function detectGaps(tree, file) {
-  const children = tree.children || [];
-  const lastNode = children[children.length - 1];
-  const gaps = [];
+function detectGaps(tree) {
+  const end =
+    tree && tree.position && tree.position.end && tree.position.end.offset;
   let offset = 0;
-  let gap;
-  visit$z(tree, one);
-  if (
-    lastNode &&
-    lastNode.position &&
-    lastNode.position.end &&
-    offset === lastNode.position.end.offset &&
-    file.toString().slice(offset).trim() !== ''
-  ) {
+  let gap = false;
+  const gaps = [];
+  visit(tree, one);
+  if (typeof end === 'number' && offset !== end) {
     update();
-    update(
-      tree &&
-        tree.position &&
-        tree.position.end &&
-        tree.position.end.offset &&
-        tree.position.end.offset - 1
-    );
+    update(end);
   }
   return gaps
   function one(node) {
@@ -12261,93 +11538,23 @@ function detectGaps(tree, file) {
     } else if (offset < latest) {
       if (gap) {
         gaps.push([offset, latest]);
-        gap = undefined;
+        gap = false;
       }
       offset = latest;
     }
   }
 }
 
-const commentExpression = /\s*([a-zA-Z\d-]+)(\s+([\s\S]*))?\s*/;
-const esCommentExpression = new RegExp(
-  '(\\s*\\/\\*' + commentExpression.source + '\\*\\/\\s*)'
-);
-const markerExpression = new RegExp(
-  '(\\s*<!--' + commentExpression.source + '-->\\s*)'
-);
-function commentMarker(value) {
-  if (
-    isNode(value) &&
-    (value.type === 'html' ||
-      value.type === 'comment' ||
-      value.type === 'mdxFlowExpression' ||
-      value.type === 'mdxTextExpression')
-  ) {
-    let offset = 2;
-    let match;
-    if (value.type === 'comment') {
-      match = value.value.match(commentExpression);
-      offset = 1;
-    } else if (value.type === 'html') {
-      match = value.value.match(markerExpression);
-    } else if (
-      value.type === 'mdxFlowExpression' ||
-      value.type === 'mdxTextExpression'
-    ) {
-      match = value.value.match(esCommentExpression);
-    }
-    if (match && match[0].length === value.value.length) {
-      const parameters = parseParameters(match[offset + 1] || '');
-      if (parameters) {
-        return {
-          name: match[offset],
-          attributes: (match[offset + 2] || '').trim(),
-          parameters,
-          node: value
-        }
-      }
-    }
-  }
-  return null
-}
-function parseParameters(value) {
-  const parameters = {};
-  return value
-    .replace(
-      /\s+([-\w]+)(?:=(?:"((?:\\[\s\S]|[^"])*)"|'((?:\\[\s\S]|[^'])*)'|((?:\\[\s\S]|[^"'\s])+)))?/gi,
-      replacer
-    )
-    .replace(/\s+/g, '')
-    ? null
-    : parameters
-  function replacer(_, $1, $2, $3, $4) {
-    let value = $2 === undefined ? ($3 === undefined ? $4 : $3) : $2;
-    const number = Number(value);
-    if (value === 'true' || value === undefined) {
-      value = true;
-    } else if (value === 'false') {
-      value = false;
-    } else if (value.trim() && !Number.isNaN(number)) {
-      value = number;
-    }
-    parameters[$1] = value;
-    return ''
-  }
-}
-function isNode(value) {
-  return Boolean(value && typeof value === 'object' && 'type' in value)
-}
-
 const test = [
-  'html',
   'comment',
+  'html',
   'mdxFlowExpression',
   'mdxTextExpression'
 ];
 function remarkMessageControl(options) {
-  return messageControl(
-    Object.assign({marker: commentMarker, test}, options)
-  )
+  return function (tree, file) {
+    messageControl(tree, {...options, file, marker: commentMarker, test});
+  }
 }
 
 function remarkLint() {
@@ -12357,7 +11564,7 @@ function lintMessageControl() {
   return remarkMessageControl({name: 'lint', source: 'remark-lint'})
 }
 
-function lintRule(meta, rule) {
+function lintRule$1(meta, rule) {
   const id = typeof meta === 'string' ? meta : meta.origin;
   const url = typeof meta === 'string' ? undefined : meta.url;
   const parts = id.split(':');
@@ -12366,12 +11573,12 @@ function lintRule(meta, rule) {
   Object.defineProperty(plugin, 'name', {value: id});
   return plugin
   function plugin(config) {
-    const [severity, options] = coerce$1(ruleId, config);
-    if (!severity) return
+    const [severity, options] = coerce$2(ruleId, config);
     const fatal = severity === 2;
-    return (tree, file, next) => {
+    if (!severity) return
+    return function (tree, file, next) {
       let index = file.messages.length - 1;
-      wrap(rule, (error) => {
+      wrap(rule, function (error) {
         const messages = file.messages;
         if (error && !messages.includes(error)) {
           try {
@@ -12379,34 +11586,38 @@ function lintRule(meta, rule) {
           } catch {}
         }
         while (++index < messages.length) {
-          Object.assign(messages[index], {ruleId, source, fatal, url});
+          Object.assign(messages[index], {fatal, ruleId, source, url});
         }
         next();
       })(tree, file, options);
     }
   }
 }
-function coerce$1(name, config) {
-  if (!Array.isArray(config)) return [1, config]
+function coerce$2(name, config) {
+  if (!Array.isArray(config)) {
+    return [1, config]
+  }
   const [severity, ...options] = config;
   switch (severity) {
     case false:
-    case 'off':
-    case 0: {
+    case 0:
+    case 'off': {
       return [0, ...options]
     }
     case true:
+    case 1:
     case 'on':
-    case 'warn':
-    case 1: {
+    case 'warn': {
       return [1, ...options]
     }
-    case 'error':
-    case 2: {
+    case 2:
+    case 'error': {
       return [2, ...options]
     }
     default: {
-      if (typeof severity !== 'number') return [1, config]
+      if (typeof severity !== 'number') {
+        return [1, config]
+      }
       throw new Error(
         'Incorrect severity `' +
           severity +
@@ -12420,35 +11631,53 @@ function coerce$1(name, config) {
 }
 
 /**
+ * remark-lint rule to warn when a final line ending is missing.
+ *
+ * ## What is this?
+ *
+ * This package checks the final line ending.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that fenced code markers are consistent.
+ * You can use this package to check final line endings.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintFinalNewline)`
+ *
+ * Warn when a final line ending is missing.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
  * Turn this rule on.
- * See [StackExchange](https://unix.stackexchange.com/questions/18743) for more
- * info.
+ * See [StackExchange][] for more info.
  *
  * ## Fix
  *
  * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
  * always adds final line endings.
  *
- * ## Example
+ * [api-remark-lint-final-newline]: #unifieduseremarklintfinalnewline
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ * [stackexchange]: https://unix.stackexchange.com/questions/18743
+ *
+ * ## Examples
  *
  * ##### `ok.md`
  *
  * ###### In
  *
- * > 👉 **Note**: `␊` represents a line feed (`\n`).
- *
  * ```markdown
- * Alpha␊
+ * Mercury␊
  * ```
  *
  * ###### Out
@@ -12459,45 +11688,177 @@ function coerce$1(name, config) {
  *
  * ###### In
  *
- * > 👉 **Note**: `␀` represents the end of the file.
- *
  * ```markdown
- * Bravo␀
+ * Mercury␀
  * ```
  *
  * ###### Out
  *
  * ```text
- * 1:1: Missing newline character at end of file
+ * 1:8: Unexpected missing final newline character, expected line feed (`\n`) at end of file
  * ```
  *
  * @module final-newline
- * @summary
- *   remark-lint rule to warn when files don’t end in a newline.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
  */
-const remarkLintFinalNewline = lintRule(
+const remarkLintFinalNewline = lintRule$1(
   {
     origin: 'remark-lint:final-newline',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-final-newline#readme'
   },
-  (_, file) => {
+  function (_, file) {
     const value = String(file);
+    const end = location(file).toPoint(value.length);
     const last = value.length - 1;
-    if (last > -1 && value.charAt(last) !== '\n') {
-      file.message('Missing newline character at end of file');
+    if (
+      last !== -1 &&
+      value.charAt(last) !== '\n'
+    ) {
+      file.message(
+        'Unexpected missing final newline character, expected line feed (`\\n`) at end of file',
+        end
+      );
     }
   }
 );
-var remarkLintFinalNewline$1 = remarkLintFinalNewline;
+
+const pointEnd = point('end');
+const pointStart = point('start');
+function point(type) {
+  return point
+  function point(node) {
+    const point = (node && node.position && node.position[type]) || {};
+    if (
+      typeof point.line === 'number' &&
+      point.line > 0 &&
+      typeof point.column === 'number' &&
+      point.column > 0
+    ) {
+      return {
+        line: point.line,
+        column: point.column,
+        offset:
+          typeof point.offset === 'number' && point.offset > -1
+            ? point.offset
+            : undefined
+      }
+    }
+  }
+}
+function position(node) {
+  const start = pointStart(node);
+  const end = pointEnd(node);
+  if (start && end) {
+    return {start, end}
+  }
+}
+
+/**
+ * remark-lint rule to warn when more spaces are used than needed
+ * for hard breaks.
+ *
+ * ## What is this?
+ *
+ * This package checks the whitespace of hard breaks.
+ *
+ * ## When should I use this?
+ *
+ * You can use this package to check that the number of spaces in hard breaks
+ * are consistent.
+ *
+ * ## API
+ *
+ * ### `unified().use(remarkLintHardBreakSpaces)`
+ *
+ * Warn when more spaces are used than needed for hard breaks.
+ *
+ * ###### Parameters
+ *
+ * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ## Recommendation
+ *
+ * Less than two spaces do not create a hard breaks and more than two spaces
+ * have no effect.
+ * Due to this, it’s recommended to turn this rule on.
+ *
+ * [api-remark-lint-hard-break-spaces]: #unifieduseremarklinthardbreakspaces
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
+ * @module hard-break-spaces
+ * @author Titus Wormer
+ * @copyright 2015 Titus Wormer
+ * @license MIT
+ * @example
+ *   {"name": "ok.md"}
+ *
+ *   **Mercury** is the first planet from the Sun␠␠
+ *   and the smallest in the Solar System.
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok.md"}
+ *
+ *   **Mercury** is the first planet from the Sun␠␠␠
+ *   and the smallest in the Solar System.
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   1:45-2:1: Unexpected `3` spaces for hard break, expected `2` spaces
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "containers.md"}
+ *
+ *   [^mercury]:
+ *       > * > * **Mercury** is the first planet from the Sun␠␠␠
+ *       >   >   and the smallest in the Solar System.
+ * @example
+ *   {"gfm": true, "label": "output", "name": "containers.md"}
+ *
+ *   2:57-3:1: Unexpected `3` spaces for hard break, expected `2` spaces
+ */
+const remarkLintHardBreakSpaces = lintRule$1(
+  {
+    origin: 'remark-lint:hard-break-spaces',
+    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-hard-break-spaces#readme'
+  },
+  function (tree, file) {
+    const value = String(file);
+    visit(tree, 'break', function (node) {
+      const end = pointEnd(node);
+      const start = pointStart(node);
+      if (
+        end &&
+        start &&
+        typeof end.offset === 'number' &&
+        typeof start.offset === 'number'
+      ) {
+        const slice = value.slice(start.offset, end.offset);
+        let actual = 0;
+        while (slice.charCodeAt(actual) === 32) actual++;
+        if (actual > 2) {
+          file.message(
+            'Unexpected `' +
+              actual +
+              '` spaces for hard break, expected `2` spaces',
+            node
+          );
+        }
+      }
+    });
+  }
+);
 
 function commonjsRequire(path) {
 	throw new Error('Could not dynamically require "' + path + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
 }
 
-var pluralize = {exports: {}};
+var pluralize$1 = {exports: {}};
 
 (function (module, exports) {
 	(function (root, pluralize) {
@@ -12822,252 +12183,500 @@ var pluralize = {exports: {}};
 	  ].forEach(pluralize.addUncountableRule);
 	  return pluralize;
 	});
-} (pluralize));
-var pluralizeExports = pluralize.exports;
-var plural = getDefaultExportFromCjs(pluralizeExports);
-
-const convert$y =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$y
-      }
-      if (typeof test === 'string') {
-        return typeFactory$y(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$y(test) : propsFactory$y(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$y(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$y(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$y(tests[index]);
-  }
-  return castFactory$y(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$y(check) {
-  return castFactory$y(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$y(check) {
-  return castFactory$y(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$y(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$y() {
-  return true
-}
-
-function color$z(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$y = true;
-const EXIT$y = false;
-const SKIP$y = 'skip';
-const visitParents$y =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$y(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$z(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$y(visitor(node, parents));
-            if (result[0] === EXIT$y) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$y) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$y) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$y(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$y, value]
-  }
-  return [value]
-}
-
-const visit$y =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$y(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
+} (pluralize$1));
+var pluralizeExports = pluralize$1.exports;
+var pluralize = getDefaultExportFromCjs(pluralizeExports);
 
 /**
+ * remark-lint rule to warn when list item markers are indented.
+ *
+ * ## What is this?
+ *
+ * This package checks indentation before list item markers.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that list items are not indented.
+ * You can use this package to check that the style of list items is
+ * consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintListItemBulletIndent)`
+ *
+ * Warn when list item markers are indented.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
- * There is no specific handling of indented list items (or anything else) in
- * markdown.
+ * There is no specific handling of indented list items in markdown.
  * While it is possible to use an indent to align ordered lists on their marker:
  *
  * ```markdown
- *   1. One
- *  10. Ten
- * 100. Hundred
+ *   1. Mercury
+ *  10. Venus
+ * 100. Earth
  * ```
  *
- * …such a style is uncommon and a bit hard to maintain: adding a 10th item
- * means 9 other items have to change (more arduous, while unlikely, would be
+ * …such a style is uncommon and hard to maintain as adding a 10th item
+ * means 9 other items have to change (more arduous while unlikely would be
  * the 100th item).
- * Hence, it’s recommended to not indent items and to turn this rule on.
+ * So it is recommended to not indent items and to turn this rule on.
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats all items without indent.
+ * [`remark-stringify`][github-remark-stringify] formats all items without
+ * indent.
+ *
+ * [api-remark-lint-list-item-bullet-indent]: #unifieduseremarklintlistitembulletindent
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module list-item-bullet-indent
- * @summary
- *   remark-lint rule to warn when list items are indented.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
  * @example
  *   {"name": "ok.md"}
  *
- *   Paragraph.
+ *   Mercury.
  *
- *   * List item
- *   * List item
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   Paragraph.
- *
- *   ·* List item
- *   ·* List item
+ *   * Venus.
+ *   * Earth.
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   3:2: Incorrect indentation before bullet: remove 1 space
- *   4:2: Incorrect indentation before bullet: remove 1 space
+ *   Mercury.
+ *
+ *   ␠* Venus.
+ *   ␠* Earth.
+ *
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   3:2: Unexpected `1` space before list item, expected `0` spaces, remove them
+ *   4:2: Unexpected `1` space before list item, expected `0` spaces, remove them
  */
-const remarkLintListItemBulletIndent = lintRule(
+const remarkLintListItemBulletIndent = lintRule$1(
   {
     origin: 'remark-lint:list-item-bullet-indent',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-list-item-bullet-indent#readme'
   },
-  (tree, file) => {
-    visit$y(tree, 'list', (list, _, grandparent) => {
-      let index = -1;
-      while (++index < list.children.length) {
-        const item = list.children[index];
+  function (tree, file) {
+    const treeStart = pointStart(tree);
+    if (!tree || tree.type !== 'root' || !treeStart) return
+    for (const child of tree.children) {
+      if (child.type !== 'list') continue
+      const list = child;
+      for (const item of list.children) {
+        const place = pointStart(item);
+        if (!place) continue
+        const actual = place.column - treeStart.column;
+        if (actual) {
+          file.message(
+            'Unexpected `' +
+              actual +
+              '` ' +
+              pluralize('space', actual) +
+              ' before list item, expected `0` spaces, remove them',
+            {ancestors: [tree, list, item], place}
+          );
+        }
+      }
+    }
+  }
+);
+
+/**
+ * remark-lint rule to warn when the whitespace after list item markers violate
+ * a given style.
+ *
+ * ## What is this?
+ *
+ * This package checks the style of whitespace after list item markers.
+ *
+ * ## When should I use this?
+ *
+ * You can use this package to check that the style of whitespace after list
+ * item markers and before content is consistent.
+ *
+ * ## API
+ *
+ * ### `unified().use(remarkLintListItemIndent[, options])`
+ *
+ * Warn when the whitespace after list item markers violate a given style.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'one'`)
+ *   — preferred style
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * * `'mixed'`
+ *   — prefer `'one'` for tight lists and `'tab'` for loose lists
+ * * `'one'`
+ *   — prefer the size of the bullet and a single space
+ * * `'tab'`
+ *   — prefer the size of the bullet and a single space to the next tab stop
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = 'mixed' | 'one' | 'tab'
+ * ```
+ *
+ * ## Recommendation
+ *
+ * First some background.
+ * The number of spaces that occur after list markers (`*`, `-`, and `+` for
+ * unordered lists and `.` and `)` for unordered lists) and before the content
+ * on the first line,
+ * defines how much indentation can be used for further lines.
+ * At least one space is required and up to 4 spaces are allowed.
+ * If there is no further content after the marker then it’s a blank line which
+ * is handled as if there was one space.
+ * If there are 5 or more spaces and then content then it’s also seen as one
+ * space and the rest is seen as indented code.
+ *
+ * Regardless of ordered and unordered,
+ * there are two kinds of lists in markdown,
+ * tight and loose.
+ * Lists are tight by default but if there is a blank line between two list
+ * items or between two blocks inside an item,
+ * that turns the whole list into a loose list.
+ * When turning markdown into HTML,
+ * paragraphs in tight lists are not wrapped in `<p>` tags.
+ *
+ * How indentation of lists works in markdown has historically been a mess,
+ * especially with how they interact with indented code.
+ * CommonMark made that a *lot* better,
+ * but there remain (documented but complex) edge cases and some behavior
+ * intuitive.
+ * Due to this, `'tab'` works the best in most markdown parsers *and* in
+ * CommonMark.
+ * Currently the situation between markdown parsers is better,
+ * so the default `'one'`,
+ * which seems to be the most common style used by authors,
+ * is okay.
+ *
+ * ## Fix
+ *
+ * [`remark-stringify`][github-remark-stringify] uses `listItemIndent: 'one'`
+ * by default.
+ * `listItemIndent: 'mixed'` or `listItemIndent: 'tab'` is also supported.
+ *
+ * [api-options]: #options
+ * [api-remark-lint-list-item-indent]: #unifieduseremarklintlistitemindent-options
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
+ * @module list-item-indent
+ * @author Titus Wormer
+ * @copyright 2015 Titus Wormer
+ * @license MIT
+ *
+ * @example
+ *   {"name": "ok.md"}
+ *
+ *   *␠Mercury.
+ *   *␠Venus.
+ *
+ *   111.␠Earth
+ *   ␠␠␠␠␠and Mars.
+ *
+ *   *␠**Jupiter**.
+ *
+ *   ␠␠Jupiter is the fifth planet from the Sun and the largest in the Solar
+ *   ␠␠System.
+ *
+ *   *␠Saturn.
+ *
+ *   ␠␠Saturn is the sixth planet from the Sun and the second-largest in the Solar System, after Jupiter.
+ *
+ * @example
+ *   {"config": "mixed", "name": "ok.md"}
+ *
+ *   *␠Mercury.
+ *   *␠Venus.
+ *
+ *   111.␠Earth
+ *   ␠␠␠␠␠and Mars.
+ *
+ *   *␠␠␠**Jupiter**.
+ *
+ *   ␠␠␠␠Jupiter is the fifth planet from the Sun and the largest in the Solar
+ *   ␠␠␠␠System.
+ *
+ *   *␠␠␠Saturn.
+ *
+ *   ␠␠␠␠Saturn is the sixth planet from the Sun and the second-largest in the Solar System, after Jupiter.
+ *
+ * @example
+ *   {"config": "mixed", "label": "input", "name": "not-ok.md"}
+ *
+ *   *␠␠␠Mercury.
+ *   *␠␠␠Venus.
+ *
+ *   111.␠␠␠␠Earth
+ *   ␠␠␠␠␠␠␠␠and Mars.
+ *
+ *   *␠**Jupiter**.
+ *
+ *   ␠␠Jupiter is the fifth planet from the Sun and the largest in the Solar
+ *   ␠␠System.
+ *
+ *   *␠Saturn.
+ *
+ *   ␠␠Saturn is the sixth planet from the Sun and the second-largest in the Solar System, after Jupiter.
+ * @example
+ *   {"config": "mixed", "label": "output", "name": "not-ok.md"}
+ *
+ *   1:5: Unexpected `3` spaces between list item marker and content in tight list, expected `1` space, remove `2` spaces
+ *   2:5: Unexpected `3` spaces between list item marker and content in tight list, expected `1` space, remove `2` spaces
+ *   4:9: Unexpected `4` spaces between list item marker and content in tight list, expected `1` space, remove `3` spaces
+ *   7:3: Unexpected `1` space between list item marker and content in loose list, expected `3` spaces, add `2` spaces
+ *   12:3: Unexpected `1` space between list item marker and content in loose list, expected `3` spaces, add `2` spaces
+ *
+ * @example
+ *   {"config": "one", "name": "ok.md"}
+ *
+ *   *␠Mercury.
+ *   *␠Venus.
+ *
+ *   111.␠Earth
+ *   ␠␠␠␠␠and Mars.
+ *
+ *   *␠**Jupiter**.
+ *
+ *   ␠␠Jupiter is the fifth planet from the Sun and the largest in the Solar
+ *   ␠␠System.
+ *
+ *   *␠Saturn.
+ *
+ *   ␠␠Saturn is the sixth planet from the Sun and the second-largest in the Solar System, after Jupiter.
+ *
+ * @example
+ *   {"config": "one", "label": "input", "name": "not-ok.md"}
+ *
+ *   *␠␠␠Mercury.
+ *   *␠␠␠Venus.
+ *
+ *   111.␠␠␠␠Earth
+ *   ␠␠␠␠␠␠␠␠and Mars.
+ *
+ *   *␠␠␠**Jupiter**.
+ *
+ *   ␠␠␠␠Jupiter is the fifth planet from the Sun and the largest in the Solar
+ *   ␠␠␠␠System.
+ *
+ *   *␠␠␠Saturn.
+ *
+ *   ␠␠␠␠Saturn is the sixth planet from the Sun and the second-largest in the Solar System, after Jupiter.
+ * @example
+ *   {"config": "one", "label": "output", "name": "not-ok.md"}
+ *
+ *   1:5: Unexpected `3` spaces between list item marker and content, expected `1` space, remove `2` spaces
+ *   2:5: Unexpected `3` spaces between list item marker and content, expected `1` space, remove `2` spaces
+ *   4:9: Unexpected `4` spaces between list item marker and content, expected `1` space, remove `3` spaces
+ *   7:5: Unexpected `3` spaces between list item marker and content, expected `1` space, remove `2` spaces
+ *   12:5: Unexpected `3` spaces between list item marker and content, expected `1` space, remove `2` spaces
+ *
+ * @example
+ *   {"config": "tab", "name": "ok.md"}
+ *
+ *   *␠␠␠Mercury.
+ *   *␠␠␠Venus.
+ *
+ *   111.␠␠␠␠Earth
+ *   ␠␠␠␠␠␠␠␠and Mars.
+ *
+ *   *␠␠␠**Jupiter**.
+ *
+ *   ␠␠␠␠Jupiter is the fifth planet from the Sun and the largest in the Solar
+ *   ␠␠␠␠System.
+ *
+ *   *␠␠␠Saturn.
+ *
+ *   ␠␠␠␠Saturn is the sixth planet from the Sun and the second-largest in the Solar System, after Jupiter.
+ *
+ * @example
+ *   {"config": "tab", "label": "input", "name": "not-ok.md"}
+ *
+ *   *␠Mercury.
+ *   *␠Venus.
+ *
+ *   111.␠Earth
+ *   ␠␠␠␠␠and Mars.
+ *
+ *   *␠**Jupiter**.
+ *
+ *   ␠␠Jupiter is the fifth planet from the Sun and the largest in the Solar
+ *   ␠␠System.
+ *
+ *   *␠Saturn.
+ *
+ *   ␠␠Saturn is the sixth planet from the Sun and the second-largest in the Solar System, after Jupiter.
+ * @example
+ *   {"config": "tab", "label": "output", "name": "not-ok.md"}
+ *
+ *   1:3: Unexpected `1` space between list item marker and content, expected `3` spaces, add `2` spaces
+ *   2:3: Unexpected `1` space between list item marker and content, expected `3` spaces, add `2` spaces
+ *   4:6: Unexpected `1` space between list item marker and content, expected `4` spaces, add `3` spaces
+ *   7:3: Unexpected `1` space between list item marker and content, expected `3` spaces, add `2` spaces
+ *   12:3: Unexpected `1` space between list item marker and content, expected `3` spaces, add `2` spaces
+ *
+ * @example
+ *   {"config": "🌍", "label": "output", "name": "not-ok.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected `'mixed'`, `'one'`, or `'tab'`
+ *
+ * @example
+ *   {"config": "mixed", "gfm": true, "label": "input", "name": "gfm.md"}
+ *
+ *   *␠[x] Mercury.
+ *
+ *   1.␠␠[ ] Venus.
+ *
+ *   2.␠␠[ ] Earth.
+ *
+ * @example
+ *   {"config": "one", "gfm": true, "name": "gfm.md"}
+ *
+ *   *␠[x] Mercury.
+ *
+ *   1.␠[ ] Venus.
+ *
+ *   2.␠[ ] Earth.
+ *
+ * @example
+ *   {"config": "tab", "gfm": true, "name": "gfm.md"}
+ *
+ *   *␠␠␠[x] Mercury.
+ *
+ *   1.␠␠[ ] Venus.
+ *
+ *   2.␠␠[ ] Earth.
+ *
+ * @example
+ *   {"config": "mixed", "name": "loose-tight.md"}
+ *
+ *   Loose lists have blank lines between items:
+ *
+ *   *␠␠␠Mercury.
+ *
+ *   *␠␠␠Venus.
+ *
+ *   …or between children of items:
+ *
+ *   1.␠␠Earth.
+ *
+ *   ␠␠␠␠Earth is the third planet from the Sun and the only astronomical
+ *   ␠␠␠␠object known to harbor life.
+ */
+const remarkLintListItemIndent = lintRule$1(
+  {
+    origin: 'remark-lint:list-item-indent',
+    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-list-item-indent#readme'
+  },
+  function (tree, file, options) {
+    const value = String(file);
+    let expected;
+    if (options === null || options === undefined) {
+      expected = 'one';
+    } else if (options === 'space') {
+      file.fail(
+        'Unexpected value `' + options + "` for `options`, expected `'one'`"
+      );
+    } else if (options === 'tab-size') {
+      file.fail(
+        'Unexpected value `' + options + "` for `options`, expected `'tab'`"
+      );
+    } else if (options === 'mixed' || options === 'one' || options === 'tab') {
+      expected = options;
+    } else {
+      file.fail(
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected `'mixed'`, `'one'`, or `'tab'`"
+      );
+    }
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'list') return
+      let loose = node.spread;
+      if (!loose) {
+        for (const child of node.children) {
+          if (child.spread) {
+            loose = true;
+            break
+          }
+        }
+      }
+      for (const child of node.children) {
+        const head = child.children[0];
+        const itemStart = pointStart(child);
+        const headStart = pointStart(head);
         if (
-          grandparent &&
-          grandparent.type === 'root' &&
-          grandparent.position &&
-          typeof grandparent.position.start.column === 'number' &&
-          item.position &&
-          typeof item.position.start.column === 'number'
+          itemStart &&
+          headStart &&
+          typeof itemStart.offset === 'number' &&
+          typeof headStart.offset === 'number'
         ) {
-          const indent =
-            item.position.start.column - grandparent.position.start.column;
-          if (indent) {
+          let slice = value.slice(itemStart.offset, headStart.offset);
+          const checkboxIndex = slice.indexOf('[');
+          if (checkboxIndex !== -1) slice = slice.slice(0, checkboxIndex);
+          const actualIndent = slice.length;
+          let end = actualIndent;
+          let previous = slice.charCodeAt(end - 1);
+          while (previous === 9 || previous === 32) {
+            end--;
+            previous = slice.charCodeAt(end - 1);
+          }
+          let expectedIndent = end + 1;
+          if (expected === 'tab' || (expected === 'mixed' && loose)) {
+            expectedIndent = Math.ceil(expectedIndent / 4) * 4;
+          }
+          const expectedSpaces = expectedIndent - end;
+          const actualSpaces = actualIndent - end;
+          if (actualSpaces !== expectedSpaces) {
+            const difference = expectedSpaces - actualSpaces;
+            const differenceAbsolute = Math.abs(difference);
             file.message(
-              'Incorrect indentation before bullet: remove ' +
-                indent +
-                ' ' +
-                plural('space', indent),
-              item.position.start
+              'Unexpected `' +
+                actualSpaces +
+                '` ' +
+                pluralize('space', actualSpaces) +
+                ' between list item marker and content' +
+                (expected === 'mixed'
+                  ? ' in ' + (loose ? 'loose' : 'tight') + ' list'
+                  : '') +
+                ', expected `' +
+                expectedSpaces +
+                '` ' +
+                pluralize('space', expectedSpaces) +
+                ', ' +
+                (difference > 0 ? 'add' : 'remove') +
+                ' `' +
+                differenceAbsolute +
+                '` ' +
+                pluralize('space', differenceAbsolute),
+              {ancestors: [...parents, node, child], place: headStart}
             );
           }
         }
@@ -13075,1840 +12684,331 @@ const remarkLintListItemBulletIndent = lintRule(
     });
   }
 );
-var remarkLintListItemBulletIndent$1 = remarkLintListItemBulletIndent;
-
-const convert$x =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$x
-      }
-      if (typeof test === 'string') {
-        return typeFactory$x(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$x(test) : propsFactory$x(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$x(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$x(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$x(tests[index]);
-  }
-  return castFactory$x(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$x(check) {
-  return castFactory$x(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$x(check) {
-  return castFactory$x(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$x(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$x() {
-  return true
-}
-
-function color$y(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$x = true;
-const EXIT$x = false;
-const SKIP$x = 'skip';
-const visitParents$x =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$x(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$y(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$x(visitor(node, parents));
-            if (result[0] === EXIT$x) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$x) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$x) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$x(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$x, value]
-  }
-  return [value]
-}
-
-const visit$x =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$x(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-const pointStart = point$2('start');
-const pointEnd = point$2('end');
-function point$2(type) {
-  return point
-  function point(node) {
-    const point = (node && node.position && node.position[type]) || {};
-    return {
-      line: point.line || null,
-      column: point.column || null,
-      offset: point.offset > -1 ? point.offset : null
-    }
-  }
-}
-
-function generated(node) {
-  return (
-    !node ||
-    !node.position ||
-    !node.position.start ||
-    !node.position.start.line ||
-    !node.position.start.column ||
-    !node.position.end ||
-    !node.position.end.line ||
-    !node.position.end.column
-  )
-}
 
 /**
+ * remark-lint rule to warn for lazy lines in block quotes.
+ *
+ * ## What is this?
+ *
+ * This package checks the style of block quotes.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that the spacing between list item markers
- * and content is inconsistent.
+ * You can use this package to check that the style of block quotes is
+ * consistent.
  *
  * ## API
  *
- * The following options (default: `'tab-size'`) are accepted:
+ * ### `unified().use(remarkLintNoBlockquoteWithoutMarker)`
  *
- * *   `'space'`
- *     — prefer a single space
- * *   `'tab-size'`
- *     — prefer spaces the size of the next tab stop
- * *   `'mixed'`
- *     — prefer `'space'` for tight lists and `'tab-size'` for loose lists
+ * Warn for lazy lines in block quotes.
  *
- * ## Recommendation
- *
- * First, some background.
- * The number of spaces that occur after list markers (`*`, `-`, and `+` for
- * unordered lists, or `.` and `)` for unordered lists) and before the content
- * on the first line, defines how much indentation can be used for further
- * lines.
- * At least one space is required and up to 4 spaces are allowed (if there is no
- * further content after the marker then it’s a blank line which is handled as
- * if there was one space; if there are 5 or more spaces and then content, it’s
- * also seen as one space and the rest is seen as indented code).
- *
- * There are two types of lists in markdown (other than ordered and unordered):
- * tight and loose lists.
- * Lists are tight by default but if there is a blank line between two list
- * items or between two blocks inside an item, that turns the whole list into a
- * loose list.
- * When turning markdown into HTML, paragraphs in tight lists are not wrapped
- * in `<p>` tags.
- *
- * Historically, how indentation of lists works in markdown has been a mess,
- * especially with how they interact with indented code.
- * CommonMark made that a *lot* better, but there remain (documented but
- * complex) edge cases and some behavior intuitive.
- * Due to this, the default of this list is `'tab-size'`, which worked the best
- * in most markdown parsers.
- * Currently, the situation between markdown parsers is better, so choosing
- * `'space'` (which seems to be the most common style used by authors) should
- * be okay.
- *
- * ## Fix
- *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * uses `'tab-size'` (named `'tab'` there) by default.
- * [`listItemIndent: '1'` (for `'space'`) or `listItemIndent: 'mixed'`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionslistitemindent)
- * is supported.
- *
- * @module list-item-indent
- * @summary
- *   remark-lint rule to warn when spacing between list item markers and
- *   content is inconsistent.
- * @author Titus Wormer
- * @copyright 2015 Titus Wormer
- * @license MIT
- * @example
- *   {"name": "ok.md"}
- *
- *   *···List
- *   ····item.
- *
- *   Paragraph.
- *
- *   11.·List
- *   ····item.
- *
- *   Paragraph.
- *
- *   *···List
- *   ····item.
- *
- *   *···List
- *   ····item.
- *
- * @example
- *   {"name": "ok.md", "config": "mixed"}
- *
- *   *·List item.
- *
- *   Paragraph.
- *
- *   11.·List item
- *
- *   Paragraph.
- *
- *   *···List
- *   ····item.
- *
- *   *···List
- *   ····item.
- *
- * @example
- *   {"name": "ok.md", "config": "space"}
- *
- *   *·List item.
- *
- *   Paragraph.
- *
- *   11.·List item
- *
- *   Paragraph.
- *
- *   *·List
- *   ··item.
- *
- *   *·List
- *   ··item.
- *
- * @example
- *   {"name": "not-ok.md", "config": "space", "label": "input"}
- *
- *   *···List
- *   ····item.
- *
- * @example
- *   {"name": "not-ok.md", "config": "space", "label": "output"}
- *
- *    1:5: Incorrect list-item indent: remove 2 spaces
- *
- * @example
- *   {"name": "not-ok.md", "config": "tab-size", "label": "input"}
- *
- *   *·List
- *   ··item.
- *
- * @example
- *   {"name": "not-ok.md", "config": "tab-size", "label": "output"}
- *
- *    1:3: Incorrect list-item indent: add 2 spaces
- *
- * @example
- *   {"name": "not-ok.md", "config": "mixed", "label": "input"}
- *
- *   *···List item.
- *
- * @example
- *   {"name": "not-ok.md", "config": "mixed", "label": "output"}
- *
- *    1:5: Incorrect list-item indent: remove 2 spaces
- *
- * @example
- *   {"name": "not-ok.md", "config": "💩", "label": "output", "positionless": true}
- *
- *    1:1: Incorrect list-item indent style `💩`: use either `'tab-size'`, `'space'`, or `'mixed'`
- */
-const remarkLintListItemIndent = lintRule(
-  {
-    origin: 'remark-lint:list-item-indent',
-    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-list-item-indent#readme'
-  },
-  (tree, file, option = 'tab-size') => {
-    const value = String(file);
-    if (option !== 'tab-size' && option !== 'space' && option !== 'mixed') {
-      file.fail(
-        'Incorrect list-item indent style `' +
-          option +
-          "`: use either `'tab-size'`, `'space'`, or `'mixed'`"
-      );
-    }
-    visit$x(tree, 'list', (node) => {
-      if (generated(node)) return
-      const spread = node.spread;
-      let index = -1;
-      while (++index < node.children.length) {
-        const item = node.children[index];
-        const head = item.children[0];
-        const final = pointStart(head);
-        const marker = value
-          .slice(pointStart(item).offset, final.offset)
-          .replace(/\[[x ]?]\s*$/i, '');
-        const bulletSize = marker.replace(/\s+$/, '').length;
-        const style =
-          option === 'tab-size' || (option === 'mixed' && spread)
-            ? Math.ceil(bulletSize / 4) * 4
-            : bulletSize + 1;
-        if (marker.length !== style) {
-          const diff = style - marker.length;
-          const abs = Math.abs(diff);
-          file.message(
-            'Incorrect list-item indent: ' +
-              (diff > 0 ? 'add' : 'remove') +
-              ' ' +
-              abs +
-              ' ' +
-              plural('space', abs),
-            final
-          );
-        }
-      }
-    });
-  }
-);
-var remarkLintListItemIndent$1 = remarkLintListItemIndent;
-
-const convert$w =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$w
-      }
-      if (typeof test === 'string') {
-        return typeFactory$w(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$w(test) : propsFactory$w(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$w(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$w(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$w(tests[index]);
-  }
-  return castFactory$w(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$w(check) {
-  return castFactory$w(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$w(check) {
-  return castFactory$w(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$w(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$w() {
-  return true
-}
-
-function color$x(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$w = true;
-const EXIT$w = false;
-const SKIP$w = 'skip';
-const visitParents$w =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$w(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$x(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$w(visitor(node, parents));
-            if (result[0] === EXIT$w) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$w) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$w) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$w(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$w, value]
-  }
-  return [value]
-}
-
-const visit$w =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$w(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-/**
- * ## When should I use this?
- *
- * You can use this package to check that lines in block quotes start with `>`.
- *
- * ## API
+ * ###### Parameters
  *
  * There are no options.
  *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
  * ## Recommendation
  *
- * Rules around “lazy” lines are not straightforward and visually confusing,
+ * Rules around lazy lines are not straightforward and visually confusing,
  * so it’s recommended to start each line with a `>`.
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * adds `>` markers to every line in a block quote.
+ * [`remark-stringify`][github-remark-stringify] adds `>` markers to every line
+ * in a block quote.
+ *
+ * [api-remark-lint-no-blockquote-without-marker]: #unifieduseremarklintnoblockquotewithoutmarker
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-blockquote-without-marker
- * @summary
- *   remark-lint rule to warn when lines in block quotes start without `>`.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
  * @example
  *   {"name": "ok.md"}
  *
- *   > Foo…
- *   > …bar…
- *   > …baz.
+ *   > Mercury,
+ *   > Venus,
+ *   > and Earth.
+ *
+ *   Mars.
  *
  * @example
  *   {"name": "ok-tabs.md"}
  *
- *   >»Foo…
- *   >»…bar…
- *   >»…baz.
+ *   >␉Mercury,
+ *   >␉Venus,
+ *   >␉and Earth.
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   > Foo…
- *   …bar…
- *   > …baz.
+ *   > Mercury,
+ *   Venus,
+ *   > and Earth.
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   2:1: Unexpected `0` block quote markers before paragraph line, expected `1` marker, add `1` marker
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "input", "name": "not-ok-tabs.md"}
  *
- *   2:1: Missing marker in block quote
+ *   >␉Mercury,
+ *   ␉Venus,
+ *   and Earth.
+ * @example
+ *   {"label": "output", "name": "not-ok-tabs.md"}
+ *
+ *   2:2: Unexpected `0` block quote markers before paragraph line, expected `1` marker, add `1` marker
+ *   3:1: Unexpected `0` block quote markers before paragraph line, expected `1` marker, add `1` marker
  *
  * @example
- *   {"name": "not-ok-tabs.md", "label": "input"}
+ *   {"label": "input", "name": "containers.md"}
  *
- *   >»Foo…
- *   »…bar…
- *   …baz.
+ *   * > Mercury and
+ *   Venus.
  *
+ *   > * Mercury and
+ *     Venus.
+ *
+ *   * > * Mercury and
+ *       Venus.
+ *
+ *   > * > Mercury and
+ *         Venus.
+ *
+ *   ***
+ *
+ *   > * > Mercury and
+ *   >     Venus.
  * @example
- *   {"name": "not-ok-tabs.md", "label": "output"}
+ *   {"label": "output", "name": "containers.md"}
  *
- *   2:1: Missing marker in block quote
- *   3:1: Missing marker in block quote
+ *   2:1: Unexpected `0` block quote markers before paragraph line, expected `1` marker, add `1` marker
+ *   5:3: Unexpected `0` block quote markers before paragraph line, expected `1` marker, add `1` marker
+ *   8:5: Unexpected `0` block quote markers before paragraph line, expected `1` marker, add `1` marker
+ *   11:7: Unexpected `0` block quote markers before paragraph line, expected `2` markers, add `2` markers
+ *   16:7: Unexpected `1` block quote marker before paragraph line, expected `2` markers, add `1` marker
  */
-const remarkLintNoBlockquoteWithoutMarker = lintRule(
+const remarkLintNoBlockquoteWithoutMarker = lintRule$1(
   {
     origin: 'remark-lint:no-blockquote-without-marker',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-blockquote-without-marker#readme'
   },
-  (tree, file) => {
+  function (tree, file) {
     const value = String(file);
     const loc = location(file);
-    visit$w(tree, 'blockquote', (node) => {
-      let index = -1;
-      while (++index < node.children.length) {
-        const child = node.children[index];
-        if (child.type === 'paragraph' && !generated(child)) {
-          const end = pointEnd(child).line;
-          const column = pointStart(child).column;
-          let line = pointStart(child).line;
-          while (++line <= end) {
-            const offset = loc.toOffset({line, column});
-            if (/>[\t ]+$/.test(value.slice(offset - 5, offset))) {
-              continue
-            }
-            file.message('Missing marker in block quote', {
-              line,
-              column: column - 2
-            });
-          }
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'paragraph') return
+      let expected = 0;
+      for (const parent of parents) {
+        if (parent.type === 'blockquote') {
+          expected++;
+        }
+        else if (
+          parent.type === 'containerDirective' ||
+          parent.type === 'footnoteDefinition' ||
+          parent.type === 'list' ||
+          parent.type === 'listItem' ||
+          parent.type === 'root'
+        ) ; else {
+          return SKIP
         }
       }
-    });
-  }
-);
-var remarkLintNoBlockquoteWithoutMarker$1 = remarkLintNoBlockquoteWithoutMarker;
-
-const convert$v =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$v
-      }
-      if (typeof test === 'string') {
-        return typeFactory$v(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$v(test) : propsFactory$v(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$v(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$v(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$v(tests[index]);
-  }
-  return castFactory$v(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$v(check) {
-  return castFactory$v(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$v(check) {
-  return castFactory$v(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$v(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$v() {
-  return true
-}
-
-function color$w(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$v = true;
-const EXIT$v = false;
-const SKIP$v = 'skip';
-const visitParents$v =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$v(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$w(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$v(visitor(node, parents));
-            if (result[0] === EXIT$v) {
-              return result
-            }
+      if (!expected) return SKIP
+      const end = pointEnd(node);
+      const start = pointStart(node);
+      if (!end || !start) return SKIP
+      let line = start.line;
+      while (++line <= end.line) {
+        const lineStart = loc.toOffset({line, column: 1});
+        let actual = 0;
+        let index = lineStart;
+        while (index < value.length) {
+          const code = value.charCodeAt(index);
+          if (code === 9 || code === 32) ; else if (code === 62 ) {
+            actual++;
+          } else {
+            break
           }
-          if (node.children && result[0] !== SKIP$v) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$v) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
+          index++;
         }
-      }
-    }
-  );
-function toResult$v(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$v, value]
-  }
-  return [value]
-}
-
-const visit$v =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$v(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-const emptyOptions$1 = {};
-function toString$1(value, options) {
-  const settings = options || emptyOptions$1;
-  const includeImageAlt =
-    typeof settings.includeImageAlt === 'boolean'
-      ? settings.includeImageAlt
-      : true;
-  const includeHtml =
-    typeof settings.includeHtml === 'boolean' ? settings.includeHtml : true;
-  return one$1(value, includeImageAlt, includeHtml)
-}
-function one$1(value, includeImageAlt, includeHtml) {
-  if (node$1(value)) {
-    if ('value' in value) {
-      return value.type === 'html' && !includeHtml ? '' : value.value
-    }
-    if (includeImageAlt && 'alt' in value && value.alt) {
-      return value.alt
-    }
-    if ('children' in value) {
-      return all$1(value.children, includeImageAlt, includeHtml)
-    }
-  }
-  if (Array.isArray(value)) {
-    return all$1(value, includeImageAlt, includeHtml)
-  }
-  return ''
-}
-function all$1(values, includeImageAlt, includeHtml) {
-  const result = [];
-  let index = -1;
-  while (++index < values.length) {
-    result[index] = one$1(values[index], includeImageAlt, includeHtml);
-  }
-  return result.join('')
-}
-function node$1(value) {
-  return Boolean(value && typeof value === 'object')
-}
-
-/**
- * ## When should I use this?
- *
- * You can use this package to check that autolink literal URLs are not used.
- *
- * ## API
- *
- * There are no options.
- *
- * ## Recommendation
- *
- * Autolink literal URLs (just a URL) are a feature enabled by GFM.
- * They don’t work everywhere.
- * Due to this, it’s recommended to instead use normal autolinks
- * (`<https://url>`) or links (`[text](url)`).
- *
- * ## Fix
- *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * never creates autolink literals and always uses normal autolinks (`<url>`).
- *
- * @module no-literal-urls
- * @summary
- *   remark-lint rule to warn for autolink literals.
- * @author Titus Wormer
- * @copyright 2015 Titus Wormer
- * @license MIT
- * @example
- *   {"name": "ok.md"}
- *
- *   <http://foo.bar/baz>
- *
- * @example
- *   {"name": "not-ok.md", "label": "input", "gfm": true}
- *
- *   http://foo.bar/baz
- *
- * @example
- *   {"name": "not-ok.md", "label": "output", "gfm": true}
- *
- *   1:1-1:19: Don’t use literal URLs without angle brackets
- */
-const remarkLintNoLiteralUrls = lintRule(
-  {
-    origin: 'remark-lint:no-literal-urls',
-    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-literal-urls#readme'
-  },
-  (tree, file) => {
-    visit$v(tree, 'link', (node) => {
-      const value = toString$1(node);
-      if (
-        !generated(node) &&
-        pointStart(node).column === pointStart(node.children[0]).column &&
-        pointEnd(node).column ===
-          pointEnd(node.children[node.children.length - 1]).column &&
-        (node.url === 'mailto:' + value || node.url === value)
-      ) {
-        file.message('Don’t use literal URLs without angle brackets', node);
-      }
-    });
-  }
-);
-var remarkLintNoLiteralUrls$1 = remarkLintNoLiteralUrls;
-
-const convert$u =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$u
-      }
-      if (typeof test === 'string') {
-        return typeFactory$u(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$u(test) : propsFactory$u(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$u(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$u(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$u(tests[index]);
-  }
-  return castFactory$u(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$u(check) {
-  return castFactory$u(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$u(check) {
-  return castFactory$u(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$u(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$u() {
-  return true
-}
-
-function color$v(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$u = true;
-const EXIT$u = false;
-const SKIP$u = 'skip';
-const visitParents$u =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$u(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$v(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$u(visitor(node, parents));
-            if (result[0] === EXIT$u) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$u) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$u) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$u(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$u, value]
-  }
-  return [value]
-}
-
-const visit$u =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$u(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-/**
- * ## When should I use this?
- *
- * You can use this package to check that ordered list markers are consistent.
- *
- * ## API
- *
- * The following options (default: `'consistent'`) are accepted:
- *
- * *   `'.'`
- *     — prefer dots
- * *   `')'`
- *     — prefer parens
- * *   `'consistent'`
- *     — detect the first used style and warn when further markers differ
- *
- * ## Recommendation
- *
- * Parens for list markers were not supported in markdown before CommonMark.
- * While they should work in most places now, not all markdown parsers follow
- * CommonMark.
- * Due to this, it’s recommended to prefer dots.
- *
- * ## Fix
- *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats ordered lists with dots by default.
- * Pass
- * [`bulletOrdered: ')'`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionsbulletordered)
- * to always use parens.
- *
- * @module ordered-list-marker-style
- * @summary
- *   remark-lint rule to warn when ordered list markers are inconsistent.
- * @author Titus Wormer
- * @copyright 2015 Titus Wormer
- * @license MIT
- * @example
- *   {"name": "ok.md"}
- *
- *   1.  Foo
- *
- *
- *   1.  Bar
- *
- *   Unordered lists are not affected by this rule.
- *
- *   * Foo
- *
- * @example
- *   {"name": "ok.md", "config": "."}
- *
- *   1.  Foo
- *
- *   2.  Bar
- *
- * @example
- *   {"name": "ok.md", "config": ")"}
- *
- *   1)  Foo
- *
- *   2)  Bar
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   1.  Foo
- *
- *   2)  Bar
- *
- * @example
- *   {"name": "not-ok.md", "label": "output"}
- *
- *   3:1-3:8: Marker style should be `.`
- *
- * @example
- *   {"name": "not-ok.md", "label": "output", "config": "💩", "positionless": true}
- *
- *   1:1: Incorrect ordered list item marker style `💩`: use either `'.'` or `')'`
- */
-const remarkLintOrderedListMarkerStyle = lintRule(
-  {
-    origin: 'remark-lint:ordered-list-marker-style',
-    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-ordered-list-marker-style#readme'
-  },
-  (tree, file, option = 'consistent') => {
-    const value = String(file);
-    if (option !== 'consistent' && option !== '.' && option !== ')') {
-      file.fail(
-        'Incorrect ordered list item marker style `' +
-          option +
-          "`: use either `'.'` or `')'`"
-      );
-    }
-    visit$u(tree, 'list', (node) => {
-      let index = -1;
-      if (!node.ordered) return
-      while (++index < node.children.length) {
-        const child = node.children[index];
-        if (!generated(child)) {
-          const marker =  (
-            value
-              .slice(
-                pointStart(child).offset,
-                pointStart(child.children[0]).offset
-              )
-              .replace(/\s|\d/g, '')
-              .replace(/\[[x ]?]\s*$/i, '')
+        const point = loc.toPoint(index);
+        const difference = expected - actual;
+        if (difference) {
+          file.message(
+            'Unexpected `' +
+              actual +
+              '` block quote ' +
+              pluralize('marker', actual) +
+              ' before paragraph line, expected `' +
+              expected +
+              '` ' +
+              pluralize('marker', expected) +
+              ', add `' +
+              difference +
+              '` ' +
+              pluralize('marker', difference),
+            {ancestors: [...parents, node], place: point}
           );
-          if (option === 'consistent') {
-            option = marker;
-          } else if (marker !== option) {
-            file.message('Marker style should be `' + option + '`', child);
-          }
         }
       }
     });
   }
 );
-var remarkLintOrderedListMarkerStyle$1 = remarkLintOrderedListMarkerStyle;
-
-const convert$t =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$t
-      }
-      if (typeof test === 'string') {
-        return typeFactory$t(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$t(test) : propsFactory$t(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$t(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$t(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$t(tests[index]);
-  }
-  return castFactory$t(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$t(check) {
-  return castFactory$t(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$t(check) {
-  return castFactory$t(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$t(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$t() {
-  return true
-}
-
-function color$u(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$t = true;
-const EXIT$t = false;
-const SKIP$t = 'skip';
-const visitParents$t =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$t(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$u(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$t(visitor(node, parents));
-            if (result[0] === EXIT$t) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$t) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$t) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$t(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$t, value]
-  }
-  return [value]
-}
-
-const visit$t =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$t(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when identifiers are defined multiple times.
+ *
+ * ## What is this?
+ *
+ * This package checks that defined identifiers are unique.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that hard breaks use two spaces and
- * not more.
+ * You can use this package to check that definitions are useful.
  *
  * ## API
  *
- * There are no options.
+ * ### `unified().use(remarkLintNoDuplicateDefinitions)`
  *
- * ## Recommendation
+ * Warn when identifiers are defined multiple times.
  *
- * Less than two spaces do not create a hard breaks and more than two spaces
- * have no effect.
- * Due to this, it’s recommended to turn this rule on.
- *
- * @module hard-break-spaces
- * @summary
- *   remark-lint rule to warn when more spaces are used than needed
- *   for hard breaks.
- * @author Titus Wormer
- * @copyright 2015 Titus Wormer
- * @license MIT
- * @example
- *   {"name": "ok.md"}
- *
- *   Lorem ipsum··
- *   dolor sit amet
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   Lorem ipsum···
- *   dolor sit amet.
- *
- * @example
- *   {"name": "not-ok.md", "label": "output"}
- *
- *   1:12-2:1: Use two spaces for hard line breaks
- */
-const remarkLintHardBreakSpaces = lintRule(
-  {
-    origin: 'remark-lint:hard-break-spaces',
-    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-hard-break-spaces#readme'
-  },
-  (tree, file) => {
-    const value = String(file);
-    visit$t(tree, 'break', (node) => {
-      if (!generated(node)) {
-        const slice = value
-          .slice(pointStart(node).offset, pointEnd(node).offset)
-          .split('\n', 1)[0]
-          .replace(/\r$/, '');
-        if (slice.length > 2) {
-          file.message('Use two spaces for hard line breaks', node);
-        }
-      }
-    });
-  }
-);
-var remarkLintHardBreakSpaces$1 = remarkLintHardBreakSpaces;
-
-function stringifyPosition$1(value) {
-  if (!value || typeof value !== 'object') {
-    return ''
-  }
-  if ('position' in value || 'type' in value) {
-    return position$1(value.position)
-  }
-  if ('start' in value || 'end' in value) {
-    return position$1(value)
-  }
-  if ('line' in value || 'column' in value) {
-    return point$1(value)
-  }
-  return ''
-}
-function point$1(point) {
-  return index$1(point && point.line) + ':' + index$1(point && point.column)
-}
-function position$1(pos) {
-  return point$1(pos && pos.start) + '-' + point$1(pos && pos.end)
-}
-function index$1(value) {
-  return value && typeof value === 'number' ? value : 1
-}
-
-const convert$s =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$s
-      }
-      if (typeof test === 'string') {
-        return typeFactory$s(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$s(test) : propsFactory$s(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$s(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$s(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$s(tests[index]);
-  }
-  return castFactory$s(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$s(check) {
-  return castFactory$s(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$s(check) {
-  return castFactory$s(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$s(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$s() {
-  return true
-}
-
-function color$t(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$s = true;
-const EXIT$s = false;
-const SKIP$s = 'skip';
-const visitParents$s =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$s(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$t(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$s(visitor(node, parents));
-            if (result[0] === EXIT$s) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$s) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$s) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$s(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$s, value]
-  }
-  return [value]
-}
-
-const visit$s =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$s(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-/**
- * ## When should I use this?
- *
- * You can use this package to check that identifiers are defined once.
- *
- * ## API
+ * ###### Parameters
  *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
  * It’s a mistake when the same identifier is defined multiple times.
  *
+ * [api-remark-lint-no-duplicate-definitions]: #unifieduseremarklintnoduplicatedefinitions
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module no-duplicate-definitions
- * @summary
- *   remark-lint rule to warn when identifiers are defined multiple times.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   [foo]: bar
- *   [baz]: qux
+ *   [mercury]: https://example.com/mercury/
+ *   [venus]: https://example.com/venus/
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   [foo]: bar
- *   [foo]: qux
+ *   [mercury]: https://example.com/mercury/
+ *   [mercury]: https://example.com/venus/
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   2:1-2:38: Unexpected definition with an already defined identifier (`mercury`), expected unique identifiers
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"gfm": true, "label": "input", "name": "gfm.md"}
  *
- *   2:1-2:11: Do not use definitions with the same identifier (1:1)
+ *   Mercury[^mercury].
+ *
+ *   [^mercury]:
+ *     Mercury is the first planet from the Sun and the smallest in the Solar
+ *     System.
+ *
+ *   [^mercury]:
+ *     Venus is the second planet from the Sun.
+ *
+ * @example
+ *   {"gfm": true, "label": "output", "name": "gfm.md"}
+ *
+ *   7:1-7:12: Unexpected footnote definition with an already defined identifier (`mercury`), expected unique identifiers
  */
-const remarkLintNoDuplicateDefinitions = lintRule(
+const empty = [];
+const remarkLintNoDuplicateDefinitions = lintRule$1(
   {
     origin: 'remark-lint:no-duplicate-definitions',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-duplicate-definitions#readme'
   },
-  (tree, file) => {
-    const map = Object.create(null);
-    visit$s(tree, (node) => {
-      if (
-        (node.type === 'definition' || node.type === 'footnoteDefinition') &&
-        !generated(node)
-      ) {
-        const identifier = node.identifier;
-        const duplicate = map[identifier];
-        if (duplicate) {
+  function (tree, file) {
+    const definitions = new Map();
+    const footnoteDefinitions = new Map();
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      const [map, identifier] =
+        node.type === 'definition'
+          ? [definitions, node.identifier]
+          : node.type === 'footnoteDefinition'
+            ? [footnoteDefinitions, node.identifier]
+            : empty;
+      if (map && identifier && node.position) {
+        const ancestors = [...parents, node];
+        const duplicateAncestors = map.get(identifier);
+        if (duplicateAncestors) {
+          const duplicate = duplicateAncestors.at(-1);
           file.message(
-            'Do not use definitions with the same identifier (' +
-              duplicate +
-              ')',
-            node
+            'Unexpected ' +
+              (node.type === 'footnoteDefinition' ? 'footnote ' : '') +
+              'definition with an already defined identifier (`' +
+              identifier +
+              '`), expected unique identifiers',
+            {
+              ancestors,
+              cause: new VFileMessage('Identifier already defined here', {
+                ancestors: duplicateAncestors,
+                place: duplicate.position,
+                source: 'remark-lint',
+                ruleId: 'no-duplicate-definitions'
+              }),
+              place: node.position
+            }
           );
         }
-        map[identifier] = stringifyPosition$1(pointStart(node));
+        map.set(identifier, ancestors);
       }
     });
   }
 );
-var remarkLintNoDuplicateDefinitions$1 = remarkLintNoDuplicateDefinitions;
-
-const convert$r =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$r
-      }
-      if (typeof test === 'string') {
-        return typeFactory$r(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$r(test) : propsFactory$r(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$r(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$r(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$r(tests[index]);
-  }
-  return castFactory$r(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$r(check) {
-  return castFactory$r(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$r(check) {
-  return castFactory$r(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$r(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$r() {
-  return true
-}
-
-function color$s(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$r = true;
-const EXIT$r = false;
-const SKIP$r = 'skip';
-const visitParents$r =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$r(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$s(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$r(visitor(node, parents));
-            if (result[0] === EXIT$r) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$r) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$r) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$r(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$r, value]
-  }
-  return [value]
-}
-
-const visit$r =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$r(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-function headingStyle(node, relative) {
-  const last = node.children[node.children.length - 1];
-  const depth = node.depth;
-  const pos = node.position && node.position.end;
-  const final = last && last.position && last.position.end;
-  if (!pos) {
-    return null
-  }
-  if (!last) {
-    if (pos.column - 1 <= depth * 2) {
-      return consolidate(depth, relative)
-    }
-    return 'atx-closed'
-  }
-  if (final && final.line + 1 === pos.line) {
-    return 'setext'
-  }
-  if (final && final.column + depth < pos.column) {
-    return 'atx-closed'
-  }
-  return consolidate(depth, relative)
-}
-function consolidate(depth, relative) {
-  return depth < 3
-    ? 'atx'
-    : relative === 'atx' || relative === 'setext'
-    ? relative
-    : null
-}
 
 /**
+ * remark-lint rule to warn when extra whitespace is used between hashes and
+ * content in headings.
+ *
+ * ## What is this?
+ *
+ * This package checks whitespace between hashes and content.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that there is on space between `#`
- * characters and the content in headings.
+ * You can use this package to check that headings are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoHeadingContentIndent)`
+ *
+ * Warn when extra whitespace is used between hashes and content in headings.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
@@ -14917,1647 +13017,1158 @@ function consolidate(depth, relative) {
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats headings with exactly one space.
+ * [`remark-stringify`][github-remark-stringify] formats headings with one space.
+ *
+ * [api-remark-lint-no-heading-content-indent]: #unifieduseremarklintnoheadingcontentindent
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-heading-content-indent
- * @summary
- *   remark-lint rule to warn when there are too many spaces between
- *   hashes and content in headings.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   #·Foo
+ *   #␠Mercury
  *
- *   ## Bar·##
+ *   ##␠Venus␠##
  *
- *     ##·Baz
+ *   ␠␠##␠Earth
  *
- *   Setext headings are not affected.
+ *   Setext headings are not affected:
  *
- *   Baz
- *   ===
+ *   ␠Mars
+ *   =====
  *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   #··Foo
- *
- *   ## Bar··##
- *
- *     ##··Baz
+ *   ␠Jupiter
+ *   --------
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   1:4: Remove 1 space before this heading’s content
- *   3:7: Remove 1 space after this heading’s content
- *   5:7: Remove 1 space before this heading’s content
+ *   #␠␠Mercury
+ *
+ *   ##␠Venus␠␠##
+ *
+ *   ␠␠##␠␠␠Earth
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   1:4: Unexpected `2` spaces between hashes and content, expected `1` space, remove `1` space
+ *   3:11: Unexpected `2` spaces between content and hashes, expected `1` space, remove `1` space
+ *   5:8: Unexpected `3` spaces between hashes and content, expected `1` space, remove `2` spaces
  *
  * @example
- *   {"name": "empty-heading.md"}
+ *   {"label": "input", "name": "empty-heading.md"}
  *
- *   #··
+ *   #␠␠
+ * @example
+ *   {"label": "output", "name": "empty-heading.md"}
+ *
+ *   1:4: Unexpected `2` spaces between hashes and content, expected `1` space, remove `1` space
  */
-const remarkLintNoHeadingContentIndent = lintRule(
+const remarkLintNoHeadingContentIndent = lintRule$1(
   {
     origin: 'remark-lint:no-heading-content-indent',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-heading-content-indent#readme'
   },
-  (tree, file) => {
-    visit$r(tree, 'heading', (node) => {
-      if (generated(node)) {
+  function (tree, file) {
+    const value = String(file);
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'heading') return
+      const start = pointStart(node);
+      const end = pointEnd(node);
+      if (
+        !end ||
+        !start ||
+        typeof end.offset !== 'number' ||
+        typeof start.offset !== 'number'
+      ) {
         return
       }
-      const type = headingStyle(node, 'atx');
-      if (type === 'atx' || type === 'atx-closed') {
-        const head = pointStart(node.children[0]).column;
-        if (!head) {
-          return
-        }
-        const diff = head - pointStart(node).column - 1 - node.depth;
-        if (diff) {
-          file.message(
-            'Remove ' +
-              Math.abs(diff) +
-              ' ' +
-              plural('space', Math.abs(diff)) +
-              ' before this heading’s content',
-            pointStart(node.children[0])
-          );
-        }
+      let index = start.offset;
+      let code = value.charCodeAt(index);
+      let found = false;
+      while (value.charCodeAt(index) === 35 ) {
+        index++;
+        found = true;
+        continue
       }
-      if (type === 'atx-closed') {
-        const final = pointEnd(node.children[node.children.length - 1]);
-        const diff = pointEnd(node).column - final.column - 1 - node.depth;
-        if (diff) {
-          file.message(
-            'Remove ' +
-              diff +
-              ' ' +
-              plural('space', diff) +
-              ' after this heading’s content',
-            final
-          );
-        }
+      const from = index;
+      code = value.charCodeAt(index);
+      while (code === 9  || code === 32 ) {
+        code = value.charCodeAt(++index);
+        continue
+      }
+      const size = index - from;
+      if (found && size > 1) {
+        file.message(
+          'Unexpected `' +
+            size +
+            '` ' +
+            pluralize('space', size) +
+            ' between hashes and content, expected `1` space, remove `' +
+            (size - 1) +
+            '` ' +
+            pluralize('space', size - 1),
+          {
+            ancestors: [...parents, node],
+            place: {
+              line: start.line,
+              column: start.column + (index - start.offset),
+              offset: start.offset + (index - start.offset)
+            }
+          }
+        );
+      }
+      const contentStart = index;
+      index = end.offset;
+      code = value.charCodeAt(index - 1);
+      while (code === 9  || code === 32 ) {
+        index--;
+        code = value.charCodeAt(index - 1);
+        continue
+      }
+      let endFound = false;
+      while (value.charCodeAt(index - 1) === 35 ) {
+        index--;
+        endFound = true;
+        continue
+      }
+      const endFrom = index;
+      code = value.charCodeAt(index - 1);
+      while (code === 9  || code === 32 ) {
+        index--;
+        code = value.charCodeAt(index - 1);
+        continue
+      }
+      const endSize = endFrom - index;
+      if (endFound && index > contentStart && endSize > 1) {
+        file.message(
+          'Unexpected `' +
+            endSize +
+            '` ' +
+            pluralize('space', endSize) +
+            ' between content and hashes, expected `1` space, remove `' +
+            (endSize - 1) +
+            '` ' +
+            pluralize('space', endSize - 1),
+          {
+            ancestors: [...parents, node],
+            place: {
+              line: end.line,
+              column: end.column - (end.offset - endFrom),
+              offset: end.offset - (end.offset - endFrom)
+            }
+          }
+        );
       }
     });
   }
 );
-var remarkLintNoHeadingContentIndent$1 = remarkLintNoHeadingContentIndent;
-
-const convert$q =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$q
-      }
-      if (typeof test === 'string') {
-        return typeFactory$q(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$q(test) : propsFactory$q(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$q(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$q(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$q(tests[index]);
-  }
-  return castFactory$q(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$q(check) {
-  return castFactory$q(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$q(check) {
-  return castFactory$q(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$q(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$q() {
-  return true
-}
-
-function color$r(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$q = true;
-const EXIT$q = false;
-const SKIP$q = 'skip';
-const visitParents$q =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$q(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$r(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$q(visitor(node, parents));
-            if (result[0] === EXIT$q) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$q) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$q) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$q(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$q, value]
-  }
-  return [value]
-}
-
-const visit$q =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$q(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-const emptyOptions = {};
-function toString(value, options) {
-  const settings = options || emptyOptions;
-  const includeImageAlt =
-    typeof settings.includeImageAlt === 'boolean'
-      ? settings.includeImageAlt
-      : true;
-  const includeHtml =
-    typeof settings.includeHtml === 'boolean' ? settings.includeHtml : true;
-  return one(value, includeImageAlt, includeHtml)
-}
-function one(value, includeImageAlt, includeHtml) {
-  if (node(value)) {
-    if ('value' in value) {
-      return value.type === 'html' && !includeHtml ? '' : value.value
-    }
-    if (includeImageAlt && 'alt' in value && value.alt) {
-      return value.alt
-    }
-    if ('children' in value) {
-      return all(value.children, includeImageAlt, includeHtml)
-    }
-  }
-  if (Array.isArray(value)) {
-    return all(value, includeImageAlt, includeHtml)
-  }
-  return ''
-}
-function all(values, includeImageAlt, includeHtml) {
-  const result = [];
-  let index = -1;
-  while (++index < values.length) {
-    result[index] = one(values[index], includeImageAlt, includeHtml);
-  }
-  return result.join('')
-}
-function node(value) {
-  return Boolean(value && typeof value === 'object')
-}
 
 /**
+ * remark-lint rule to warn when GFM autolink literals are used.
+ *
+ * ## What is this?
+ *
+ * This package checks that regular autolinks or full links are used.
+ * Literal autolinks is a GFM feature enabled with
+ * [`remark-gfm`][github-remark-gfm].
+ *
  * ## When should I use this?
  *
- * You can use this package to check that inline constructs (links) are
- * not padded.
- * Historically, it was possible to pad emphasis, strong, and strikethrough
- * too, but this was removed in CommonMark, making this rule much less useful.
+ * You can use this package to check that links are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoLiteralUrls)`
+ *
+ * Warn when GFM autolink literals are used.
+ *
+ * ###### Parameters
+ *
  * There are no options.
  *
- * @module no-inline-padding
- * @summary
- *   remark-lint rule to warn when inline constructs are padded.
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ## Recommendation
+ *
+ * GFM autolink literals (just a raw URL) are a feature enabled by GFM.
+ * They don’t work everywhere.
+ * So,
+ * it’s recommended to instead use regular autolinks (`<https://url>`) or full
+ * links (`[text](url)`).
+ *
+ * ## Fix
+ *
+ * [`remark-stringify`][github-remark-stringify] never generates GFM autolink
+ * literals.
+ * It always generates regular autolinks or full links.
+ *
+ * [api-remark-lint-no-literal-urls]: #unifieduseremarklintnoliteralurls
+ * [github-remark-gfm]: https://github.com/remarkjs/remark-gfm
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
+ * @module no-literal-urls
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md"}
- *
- *   Alpha [bravo](http://echo.fox/trot)
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"name": "ok.md", "gfm": true}
  *
- *   Alpha [ bravo ](http://echo.fox/trot)
+ *   <https://example.com/mercury/>
+ *
+ *   ![Venus](http://example.com/venus/).
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"name": "not-ok.md", "label": "input", "gfm": true}
  *
- *   1:7-1:38: Don’t pad `link` with inner spaces
+ *   https://example.com/mercury/
+ *
+ *   www.example.com/venus/
+ *
+ *   earth@mars.planets
+ *
+ * @example
+ *   {"name": "not-ok.md", "label": "output", "gfm": true}
+ *
+ *   1:1-1:29: Unexpected GFM autolink literal, expected regular autolink, add `<` before and `>` after
+ *   3:1-3:23: Unexpected GFM autolink literal, expected regular autolink, add `<http://` before and `>` after
+ *   5:1-5:19: Unexpected GFM autolink literal, expected regular autolink, add `<mailto:` before and `>` after
  */
-const remarkLintNoInlinePadding = lintRule(
+const defaultHttp = 'http://';
+const defaultMailto = 'mailto:';
+const remarkLintNoLiteralUrls = lintRule$1(
   {
-    origin: 'remark-lint:no-inline-padding',
-    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-inline-padding#readme'
+    origin: 'remark-lint:no-literal-urls',
+    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-literal-urls#readme'
   },
-  (tree, file) => {
-    visit$q(tree, (node) => {
+  function (tree, file) {
+    const value = String(file);
+    visitParents(tree, 'link', function (node, parents) {
+      const start = pointStart(node);
+      if (!start || typeof start.offset !== 'number') return
+      const raw = toString(node);
+      let protocol;
+      let otherwiseFine = false;
+      if (raw === node.url) {
+        otherwiseFine = true;
+      } else if (defaultHttp + raw === node.url) {
+        protocol = defaultHttp;
+      } else if (defaultMailto + raw === node.url) {
+        protocol = defaultMailto;
+      }
       if (
-        (node.type === 'link' || node.type === 'linkReference') &&
-        !generated(node)
+        (protocol || otherwiseFine) &&
+        !asciiPunctuation(value.charCodeAt(start.offset))
       ) {
-        const value = toString(node);
-        if (value.charAt(0) === ' ' || value.charAt(value.length - 1) === ' ') {
-          file.message('Don’t pad `' + node.type + '` with inner spaces', node);
-        }
+        file.message(
+          'Unexpected GFM autolink literal, expected regular autolink, add ' +
+            (protocol ? '`<' + protocol + '`' : '`<`') +
+            ' before and `>` after',
+          {ancestors: [...parents, node], place: node.position}
+        );
       }
     });
   }
 );
-var remarkLintNoInlinePadding$1 = remarkLintNoInlinePadding;
-
-const convert$p =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$p
-      }
-      if (typeof test === 'string') {
-        return typeFactory$p(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$p(test) : propsFactory$p(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$p(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$p(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$p(tests[index]);
-  }
-  return castFactory$p(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$p(check) {
-  return castFactory$p(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$p(check) {
-  return castFactory$p(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$p(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$p() {
-  return true
-}
-
-function color$q(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$p = true;
-const EXIT$p = false;
-const SKIP$p = 'skip';
-const visitParents$p =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$p(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$q(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$p(visitor(node, parents));
-            if (result[0] === EXIT$p) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$p) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$p) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$p(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$p, value]
-  }
-  return [value]
-}
-
-const visit$p =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$p(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when shortcut reference images are used.
+ *
+ * ## What is this?
+ *
+ * This package checks that collapsed or full reference images are used.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that collapsed or full reference images
- * are used.
+ * You can use this package to check that references are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoShortcutReferenceImage)`
+ *
+ * Warn when shortcut reference images are used.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
  * Shortcut references use an implicit style that looks a lot like something
  * that could occur as plain text instead of syntax.
- * In some cases, plain text is intended instead of an image.
- * Due to this, it’s recommended to use collapsed (or full) references
- * instead.
+ * In some cases,
+ * plain text is intended instead of an image.
+ * So it’s recommended to use collapsed or full references instead.
+ *
+ * [api-remark-lint-no-shortcut-reference-image]: #unifieduseremarklintnoshortcutreferenceimage
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-shortcut-reference-image
- * @summary
- *   remark-lint rule to warn when shortcut reference images are used.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   ![foo][]
+ *   ![Mercury][]
  *
- *   [foo]: http://foo.bar/baz.png
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   ![foo]
- *
- *   [foo]: http://foo.bar/baz.png
+ *   [mercury]: /mercury.png
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   1:1-1:7: Use the trailing [] on reference images
+ *   ![Mercury]
+ *
+ *   [mercury]: /mercury.png
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   1:1-1:11: Unexpected shortcut reference image (`![text]`), expected collapsed reference (`![text][]`)
  */
-const remarkLintNoShortcutReferenceImage = lintRule(
+const remarkLintNoShortcutReferenceImage = lintRule$1(
   {
     origin: 'remark-lint:no-shortcut-reference-image',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-shortcut-reference-image#readme'
   },
-  (tree, file) => {
-    visit$p(tree, 'imageReference', (node) => {
-      if (!generated(node) && node.referenceType === 'shortcut') {
-        file.message('Use the trailing [] on reference images', node);
+  function (tree, file) {
+    visitParents(tree, 'imageReference', function (node, parents) {
+      if (node.position && node.referenceType === 'shortcut') {
+        file.message(
+          'Unexpected shortcut reference image (`![text]`), expected collapsed reference (`![text][]`)',
+          {ancestors: [...parents, node], place: node.position}
+        );
       }
     });
   }
 );
-var remarkLintNoShortcutReferenceImage$1 = remarkLintNoShortcutReferenceImage;
-
-const convert$o =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$o
-      }
-      if (typeof test === 'string') {
-        return typeFactory$o(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$o(test) : propsFactory$o(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$o(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$o(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$o(tests[index]);
-  }
-  return castFactory$o(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$o(check) {
-  return castFactory$o(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$o(check) {
-  return castFactory$o(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$o(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$o() {
-  return true
-}
-
-function color$p(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$o = true;
-const EXIT$o = false;
-const SKIP$o = 'skip';
-const visitParents$o =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$o(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$p(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$o(visitor(node, parents));
-            if (result[0] === EXIT$o) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$o) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$o) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$o(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$o, value]
-  }
-  return [value]
-}
-
-const visit$o =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$o(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when shortcut reference links are used.
+ *
+ * ## What is this?
+ *
+ * This package checks that collapsed or full reference links are used.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that collapsed or full reference links
- * are used.
+ * You can use this package to check that references are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoShortcutReferenceLink)`
+ *
+ * Warn when shortcut reference links are used.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
  * Shortcut references use an implicit style that looks a lot like something
  * that could occur as plain text instead of syntax.
- * In some cases, plain text is intended instead of a link.
- * Due to this, it’s recommended to use collapsed (or full) references
- * instead.
+ * In some cases,
+ * plain text is intended instead of a link.
+ * So it’s recommended to use collapsed or full references instead.
+ *
+ * [api-remark-lint-no-shortcut-reference-link]: #unifieduseremarklintnoshortcutreferencelink
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-shortcut-reference-link
- * @summary
- *   remark-lint rule to warn when shortcut reference links are used.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   [foo][]
+ *   [Mercury][]
  *
- *   [foo]: http://foo.bar/baz
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   [foo]
- *
- *   [foo]: http://foo.bar/baz
+ *   [mercury]: http://example.com/mercury/
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   1:1-1:6: Use the trailing `[]` on reference links
+ *   [Mercury]
+ *
+ *   [mercury]: http://example.com/mercury/
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   1:1-1:10: Unexpected shortcut reference link (`[text]`), expected collapsed reference (`[text][]`)
  */
-const remarkLintNoShortcutReferenceLink = lintRule(
+const remarkLintNoShortcutReferenceLink = lintRule$1(
   {
     origin: 'remark-lint:no-shortcut-reference-link',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-shortcut-reference-link#readme'
   },
-  (tree, file) => {
-    visit$o(tree, 'linkReference', (node) => {
-      if (!generated(node) && node.referenceType === 'shortcut') {
-        file.message('Use the trailing `[]` on reference links', node);
+  function (tree, file) {
+    visitParents(tree, 'linkReference', function (node, parents) {
+      if (node.position && node.referenceType === 'shortcut') {
+        file.message(
+          'Unexpected shortcut reference link (`[text]`), expected collapsed reference (`[text][]`)',
+          {ancestors: [...parents, node], place: node.position}
+        );
       }
     });
   }
 );
-var remarkLintNoShortcutReferenceLink$1 = remarkLintNoShortcutReferenceLink;
 
-function normalizeIdentifier(value) {
-  return (
-    value
-      .replace(/[\t\n\r ]+/g, ' ')
-      .replace(/^ | $/g, '')
-      .toLowerCase()
-      .toUpperCase()
+const js = /\s+/g;
+const html = /[\t\n\v\f\r ]+/g;
+function collapseWhiteSpace(value, options) {
+  if (!options) {
+    options = {};
+  } else if (typeof options === 'string') {
+    options = {style: options};
+  }
+  const replace = options.preserveLineEndings ? replaceLineEnding : replaceSpace;
+  return String(value).replace(
+    options.style === 'html' ? html : js,
+    options.trim ? trimFactory(replace) : replace
   )
 }
-
-const convert$n =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$n
-      }
-      if (typeof test === 'string') {
-        return typeFactory$n(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$n(test) : propsFactory$n(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$n(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$n(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$n(tests[index]);
-  }
-  return castFactory$n(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
+function replaceLineEnding(value) {
+  const match = /\r?\n|\r/.exec(value);
+  return match ? match[0] : ' '
+}
+function replaceSpace() {
+  return ' '
+}
+function trimFactory(replace) {
+  return dropOrReplace
+  function dropOrReplace(value, index, all) {
+    return index === 0 || index + value.length === all.length
+      ? ''
+      : replace(value)
   }
 }
-function propsFactory$n(check) {
-  return castFactory$n(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$n(check) {
-  return castFactory$n(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$n(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$n() {
-  return true
-}
-
-function color$o(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$n = true;
-const EXIT$n = false;
-const SKIP$n = 'skip';
-const visitParents$n =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$n(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$o(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$n(visitor(node, parents));
-            if (result[0] === EXIT$n) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$n) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$n) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$n(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$n, value]
-  }
-  return [value]
-}
-
-const visit$n =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$n(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when undefined definitions are referenced.
+ *
+ * ## What is this?
+ *
+ * This package checks that referenced definitions are defined.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that referenced definitions are defined.
+ * You can use this package to check for broken references.
  *
  * ## API
  *
- * The following options (default: `undefined`) are accepted:
+ * ### `unified().use(remarkLintNoUndefinedReferences[, options])`
  *
- * *   `Object` with the following fields:
- *     *   `allow` (`Array<string | RegExp | { source: string }>`,
- *         default: `[]`)
- *         — text or regex that you want to be allowed between `[` and `]`
- *         even though it’s undefined; regex is provided via a `RegExp` object
- *         or via a `{source: string}` object where `source` is the source
- *         text of a case-insensitive regex
+ * Warn when undefined definitions are referenced.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], optional)
+ *   — configuration
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Fields
+ *
+ * * `allow` (`Array<RegExp | string>`, optional)
+ *   — list of values to allow between `[` and `]`
+ * * `allowShortcutLink` (`boolean`, default: `false`)
+ *   — allow shortcut references, which are just brackets such as `[text]`
  *
  * ## Recommendation
  *
  * Shortcut references use an implicit syntax that could also occur as plain
  * text.
- * For example, it is reasonable to expect an author adding `[…]` to abbreviate
- * some text somewhere in a document:
+ * To illustrate,
+ * it is reasonable to expect an author adding `[…]` to abbreviate some text
+ * somewhere in a document:
  *
  * ```markdown
  * > Some […] quote.
  * ```
  *
- * This isn’t a problem, but it might become one when an author later adds a
- * definition:
+ * This isn’t a problem,
+ * but it might become one when an author later adds a definition:
  *
  * ```markdown
- * Some text. […][]
+ * Some new text […][].
  *
- * […] #read-more "Read more"
+ * […]: #read-more
  * ```
  *
  * The second author might expect only their newly added text to form a link,
- * but their changes also result in a link for the first author’s text.
+ * but their changes also result in a link for the text by the first author.
+ *
+ * [api-options]: #options
+ * [api-remark-lint-no-undefined-references]: #unifieduseremarklintnoundefinedreferences-options
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-undefined-references
- * @summary
- *   remark-lint rule to warn when undefined definitions are referenced.
  * @author Titus Wormer
  * @copyright 2016 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   [foo][]
+ *   [Mercury][] is the first planet from the Sun and the smallest in the Solar
+ *   System.
  *
- *   Just a [ bracket.
+ *   Venus is the second planet from the [Sun.
  *
- *   Typically, you’d want to use escapes (with a backslash: \\) to escape what
- *   could turn into a \[reference otherwise].
+ *   Earth is the third planet from the \[Sun] and the only astronomical object
+ *   known to harbor life\.
  *
- *   Just two braces can’t link: [].
+ *   Mars is the fourth planet from the Sun: [].
  *
- *   [foo]: https://example.com
- *
- * @example
- *   {"name": "ok-allow.md", "config": {"allow": ["...", "…"]}}
- *
- *   > Eliding a portion of a quoted passage […] is acceptable.
+ *   [mercury]: https://example.com/mercury/
  *
  * @example
- *   {"name": "ok-allow.md", "config": {"allow": ["a", {"source": "^b\\."}]}}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   [foo][b.c]
+ *   [Mercury] is the first planet from the Sun and the smallest in the Solar
+ *   System.
  *
- *   [bar][a]
+ *   [Venus][] is the second planet from the Sun.
  *
- *   Matching is case-insensitive: [bar][B.C]
+ *   [Earth][earth] is the third planet from the Sun and the only astronomical
+ *   object known to harbor life.
+ *
+ *   ![Mars] is the fourth planet from the Sun in the [Solar
+ *   System].
+ *
+ *   > Jupiter is the fifth planet from the Sun and the largest in the [Solar
+ *   > System][].
+ *
+ *   [Saturn][ is the sixth planet from the Sun and the second-largest
+ *   in the Solar System, after Jupiter.
+ *
+ *   [*Uranus*][] is the seventh planet from the Sun.
+ *
+ *   [Neptune][neptune][more] is the eighth and farthest planet from the Sun.
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   1:1-1:10: Unexpected reference to undefined definition, expected corresponding definition (`mercury`) for a link or escaped opening bracket (`\[`) for regular text
+ *   4:1-4:10: Unexpected reference to undefined definition, expected corresponding definition (`venus`) for a link or escaped opening bracket (`\[`) for regular text
+ *   6:1-6:15: Unexpected reference to undefined definition, expected corresponding definition (`earth`) for a link or escaped opening bracket (`\[`) for regular text
+ *   9:2-9:8: Unexpected reference to undefined definition, expected corresponding definition (`mars`) for an image or escaped opening bracket (`\[`) for regular text
+ *   9:50-10:8: Unexpected reference to undefined definition, expected corresponding definition (`solar system`) for a link or escaped opening bracket (`\[`) for regular text
+ *   12:67-13:12: Unexpected reference to undefined definition, expected corresponding definition (`solar > system`) for a link or escaped opening bracket (`\[`) for regular text
+ *   15:1-15:9: Unexpected reference to undefined definition, expected corresponding definition (`saturn`) for a link or escaped opening bracket (`\[`) for regular text
+ *   18:1-18:13: Unexpected reference to undefined definition, expected corresponding definition (`*uranus*`) for a link or escaped opening bracket (`\[`) for regular text
+ *   20:1-20:19: Unexpected reference to undefined definition, expected corresponding definition (`neptune`) for a link or escaped opening bracket (`\[`) for regular text
+ *   20:19-20:25: Unexpected reference to undefined definition, expected corresponding definition (`more`) for a link or escaped opening bracket (`\[`) for regular text
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"config": {"allow": ["…"]}, "name": "ok-allow.md"}
  *
- *   [bar]
- *
- *   [baz][]
- *
- *   [text][qux]
- *
- *   Spread [over
- *   lines][]
- *
- *   > in [a
- *   > block quote][]
- *
- *   [asd][a
- *
- *   Can include [*emphasis*].
- *
- *   Multiple pairs: [a][b][c].
+ *   Mercury is the first planet from the Sun and the smallest in the Solar
+ *   System. […]
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"config": {"allow": [{"source": "^mer"}, "venus"]}, "name": "source.md"}
  *
- *   1:1-1:6: Found reference to undefined definition
- *   3:1-3:8: Found reference to undefined definition
- *   5:1-5:12: Found reference to undefined definition
- *   7:8-8:9: Found reference to undefined definition
- *   10:6-11:17: Found reference to undefined definition
- *   13:1-13:6: Found reference to undefined definition
- *   15:13-15:25: Found reference to undefined definition
- *   17:17-17:23: Found reference to undefined definition
- *   17:23-17:26: Found reference to undefined definition
+ *   [Mercury][] is the first planet from the Sun and the smallest in the Solar
+ *   System.
+ *
+ *   [Venus][] is the second planet from the Sun.
  *
  * @example
- *   {"name": "not-ok.md", "label": "input", "config": {"allow": ["a", {"source": "^b\\."}]}}
+ *   {"gfm": true, "label": "input", "name": "gfm.md"}
  *
- *   [foo][a.c]
+ *   Mercury[^mercury] is the first planet from the Sun and the smallest in the
+ *   Solar System.
  *
- *   [bar][b]
+ *   [^venus]:
+ *       **Venus** is the second planet from the Sun.
+ * @example
+ *   {"gfm": true, "label": "output", "name": "gfm.md"}
+ *
+ *   1:8-1:18: Unexpected reference to undefined definition, expected corresponding definition (`mercury`) for a footnote or escaped opening bracket (`\[`) for regular text
  *
  * @example
- *   {"name": "not-ok.md", "label": "output", "config": {"allow": ["a", {"source": "^b\\."}]}}
+ *   {"config": {"allowShortcutLink": true}, "label": "input", "name": "allow-shortcut-link.md"}
  *
- *   1:1-1:11: Found reference to undefined definition
- *   3:1-3:9: Found reference to undefined definition
+ *   [Mercury] is the first planet from the Sun and the smallest in the Solar
+ *   System.
+ *
+ *   [Venus][] is the second planet from the Sun.
+ *
+ *   [Earth][earth] is the third planet from the Sun and the only astronomical object
+ *   known to harbor life.
+ * @example
+ *   {"config": {"allowShortcutLink": true}, "label": "output", "name": "allow-shortcut-link.md"}
+ *
+ *   4:1-4:10: Unexpected reference to undefined definition, expected corresponding definition (`venus`) for a link or escaped opening bracket (`\[`) for regular text
+ *   6:1-6:15: Unexpected reference to undefined definition, expected corresponding definition (`earth`) for a link or escaped opening bracket (`\[`) for regular text
  */
-const remarkLintNoUndefinedReferences = lintRule(
+const emptyOptions = {};
+const emptyAllow = [];
+const lineEndingExpression = /(\r?\n|\r)[\t ]*(>[\t ]*)*/g;
+const remarkLintNoUndefinedReferences = lintRule$1(
   {
     origin: 'remark-lint:no-undefined-references',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-undefined-references#readme'
   },
-  (tree, file, option = {}) => {
-    const contents = String(file);
-    const loc = location(file);
-    const lineEnding = /(\r?\n|\r)[\t ]*(>[\t ]*)*/g;
-    const map = Object.create(null);
-    const allow = option.allow || [];
+  function (tree, file, options) {
+    const settings = options || emptyOptions;
+    const allow = settings.allow || emptyAllow;
+    const allowShortcutLink = settings.allowShortcutLink || false;
+    const value = String(file);
+    const toPoint = location(file).toPoint;
+    const definitionIdentifiers = new Set();
+    const footnoteDefinitionIdentifiers = new Set();
     const regexes = [];
     const strings = new Set();
+    const phrasingStacks = [];
     let index = -1;
     while (++index < allow.length) {
       const value = allow[index];
       if (typeof value === 'string') {
         strings.add(normalizeIdentifier(value));
-      } else if (value instanceof RegExp) {
-        regexes.push(value);
-      } else {
-        regexes.push(new RegExp(value.source, 'i'));
+      } else if (typeof value === 'object' && 'source' in value) {
+        regexes.push(new RegExp(value.source, value.flags ?? 'i'));
       }
     }
-    visit$n(tree, (node) => {
-      if (
-        (node.type === 'definition' || node.type === 'footnoteDefinition') &&
-        !generated(node)
-      ) {
-        map[normalizeIdentifier(node.identifier)] = true;
+    visitParents(tree, function (node, parents) {
+      if (node.type === 'definition') {
+        definitionIdentifiers.add(normalizeIdentifier(node.identifier));
+      }
+      if (node.type === 'footnoteDefinition') {
+        footnoteDefinitionIdentifiers.add(normalizeIdentifier(node.identifier));
+      }
+      if (node.type === 'heading' || node.type === 'paragraph') {
+        phrasingStacks.push([...parents, node]);
       }
     });
-    visit$n(tree, (node) => {
+    for (const ancestors of phrasingStacks) {
+      findInPhrasingContainer(ancestors);
+    }
+    function findInPhrasingContainer(ancestors) {
+      const bracketRanges = [];
+      const node = ancestors.at(-1);
+      for (const child of node.children) {
+        if (child.type === 'text') {
+          findRangesInText(bracketRanges, [...ancestors, child]);
+        } else if ('children' in child) {
+          findInPhrasingContainer([...ancestors, child]);
+        }
+      }
+      for (const range of bracketRanges) {
+        handleRange(range);
+      }
+    }
+    function findRangesInText(ranges, ancestors) {
+      const node = ancestors.at(-1);
+      const end = pointEnd(node);
+      const start = pointStart(node);
       if (
-        (node.type === 'imageReference' ||
-          node.type === 'linkReference' ||
-          node.type === 'footnoteReference') &&
-        !generated(node) &&
-        !(normalizeIdentifier(node.identifier) in map) &&
-        !isAllowed(node.identifier)
+        !end ||
+        !start ||
+        typeof start.offset !== 'number' ||
+        typeof end.offset !== 'number'
       ) {
-        file.message('Found reference to undefined definition', node);
+        return
       }
-      if (node.type === 'paragraph' || node.type === 'heading') {
-        findInPhrasing(node);
+      const source = value.slice(start.offset, end.offset);
+      const lines = [[start.offset, '']];
+      let last = 0;
+      lineEndingExpression.lastIndex = 0;
+      let match = lineEndingExpression.exec(source);
+      while (match) {
+        const index = match.index;
+        const lineTuple = lines.at(-1);
+        lineTuple[1] = source.slice(last, index);
+        last = index + match[0].length;
+        lines.push([start.offset + last, '']);
+        match = lineEndingExpression.exec(source);
       }
-    });
-    function findInPhrasing(node) {
-      let ranges = [];
-      visit$n(node, (child) => {
-        if (child === node) return
-        if (child.type === 'link' || child.type === 'linkReference') {
-          ranges = [];
-          return SKIP$n
-        }
-        if (child.type !== 'text') return
-        const start = pointStart(child).offset;
-        const end = pointEnd(child).offset;
-        if (typeof start !== 'number' || typeof end !== 'number') {
-          return EXIT$n
-        }
-        const source = contents.slice(start, end);
-        const lines = [[start, '']];
-        let last = 0;
-        lineEnding.lastIndex = 0;
-        let match = lineEnding.exec(source);
-        while (match) {
-          const index = match.index;
-          lines[lines.length - 1][1] = source.slice(last, index);
-          last = index + match[0].length;
-          lines.push([start + last, '']);
-          match = lineEnding.exec(source);
-        }
-        lines[lines.length - 1][1] = source.slice(last);
-        let lineIndex = -1;
-        while (++lineIndex < lines.length) {
-          const line = lines[lineIndex][1];
-          let index = 0;
-          while (index < line.length) {
-            const code = line.charCodeAt(index);
-            if (code === 92) {
-              const next = line.charCodeAt(index + 1);
-              index++;
-              if (next === 91 || next === 93) {
-                index++;
-              }
-            }
-            else if (code === 91) {
-              ranges.push([lines[lineIndex][0] + index]);
+      const lineTuple = lines.at(-1);
+      lineTuple[1] = source.slice(last);
+      for (const lineTuple of lines) {
+        const [lineStart, line] = lineTuple;
+        let index = 0;
+        while (index < line.length) {
+          const code = line.charCodeAt(index);
+          if (code === 91 ) {
+            ranges.push([ancestors, [lineStart + index]]);
+            index++;
+          }
+          else if (code === 92 ) {
+            const next = line.charCodeAt(index + 1);
+            index++;
+            if (next === 91  || next === 93 ) {
               index++;
             }
-            else if (code === 93) {
-              if (ranges.length === 0) {
-                index++;
-              } else if (line.charCodeAt(index + 1) === 91) {
-                index++;
-                let range = ranges.pop();
-                if (range) {
-                  range.push(lines[lineIndex][0] + index);
-                  if (range.length === 4) {
-                    handleRange(range);
-                    range = [];
-                  }
-                  range.push(lines[lineIndex][0] + index);
-                  ranges.push(range);
-                  index++;
-                }
-              } else {
-                index++;
-                const range = ranges.pop();
-                if (range) {
-                  range.push(lines[lineIndex][0] + index);
-                  handleRange(range);
-                }
-              }
+          }
+          else if (code === 93 ) {
+            const bracketInfo = ranges.at(-1);
+            if (!bracketInfo) {
+              index++;
+            }
+            else if (
+              line.charCodeAt(index + 1) === 91  &&
+              bracketInfo[1].length !== 3
+            ) {
+              index++;
+              bracketInfo[1].push(lineStart + index, lineStart + index);
+              index++;
             }
             else {
               index++;
+              bracketInfo[1].push(lineStart + index);
+              handleRange(bracketInfo);
+              ranges.pop();
             }
           }
-        }
-      });
-      let index = -1;
-      while (++index < ranges.length) {
-        handleRange(ranges[index]);
-      }
-      return SKIP$n
-      function handleRange(range) {
-        if (range.length === 1) return
-        if (range.length === 3) range.length = 2;
-        if (range.length === 2 && range[0] + 2 === range[1]) return
-        const offset = range.length === 4 && range[2] + 2 !== range[3] ? 2 : 0;
-        const id = contents
-          .slice(range[0 + offset] + 1, range[1 + offset] - 1)
-          .replace(lineEnding, ' ');
-        const pos = {
-          start: loc.toPoint(range[0]),
-          end: loc.toPoint(range[range.length - 1])
-        };
-        if (
-          !generated({position: pos}) &&
-          !(normalizeIdentifier(id) in map) &&
-          !isAllowed(id)
-        ) {
-          file.message('Found reference to undefined definition', pos);
+          else {
+            index++;
+          }
         }
       }
     }
-    function isAllowed(id) {
-      const normalized = normalizeIdentifier(id);
-      return (
-        strings.has(normalized) ||
-        regexes.some((regex) => regex.test(normalized))
-      )
+    function handleRange(bracketRange) {
+      const [ancestors, range] = bracketRange;
+      if (range.length === 1) return
+      if (range.length === 3) range.length = 2;
+      if (range.length === 2 && range[0] + 2 === range[1]) return
+      const label =
+        value.charCodeAt(range[0] - 1) === 33
+          ? 'image'
+          : value.charCodeAt(range[0] + 1) === 94
+            ? 'footnote'
+            : 'link';
+      const offset = range.length === 4 && range[2] + 2 !== range[3] ? 2 : 0;
+      let id = normalizeIdentifier(
+        collapseWhiteSpace(
+          value.slice(range[0 + offset] + 1, range[1 + offset] - 1),
+          {style: 'html', trim: true}
+        )
+      );
+      let defined = definitionIdentifiers;
+      if (label === 'footnote') {
+        if (id.includes(' ')) return
+        defined = footnoteDefinitionIdentifiers;
+        id = id.slice(1);
+      }
+      if (
+        (allowShortcutLink && range.length === 2) ||
+        defined.has(id) ||
+        strings.has(id) ||
+        regexes.some(function (regex) {
+          return regex.test(id)
+        })
+      ) {
+        return
+      }
+      const start = toPoint(range[0]);
+      const end = toPoint(range[range.length - 1]);
+      if (end && start) {
+        file.message(
+          'Unexpected reference to undefined definition, expected corresponding definition (`' +
+            id.toLowerCase() +
+            '`) for ' +
+            (label === 'image' ? 'an' : 'a') +
+            ' ' +
+            label +
+            ' or escaped opening bracket (`\\[`) for regular text',
+          {
+            ancestors,
+            place: {start, end}
+          }
+        );
+      }
     }
   }
 );
-var remarkLintNoUndefinedReferences$1 = remarkLintNoUndefinedReferences;
-
-const convert$m =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$m
-      }
-      if (typeof test === 'string') {
-        return typeFactory$m(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$m(test) : propsFactory$m(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$m(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$m(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$m(tests[index]);
-  }
-  return castFactory$m(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$m(check) {
-  return castFactory$m(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$m(check) {
-  return castFactory$m(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$m(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$m() {
-  return true
-}
-
-function color$n(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$m = true;
-const EXIT$m = false;
-const SKIP$m = 'skip';
-const visitParents$m =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$m(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$n(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$m(visitor(node, parents));
-            if (result[0] === EXIT$m) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$m) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$m) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$m(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$m, value]
-  }
-  return [value]
-}
-
-const visit$m =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$m(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when unreferenced definitions are used.
+ *
+ * ## What is this?
+ *
+ * This package checks that definitions are referenced.
+ *
  * ## When should I use this?
  *
- * You can use this package to check definitions are referenced.
+ * You can use this package to check definitions.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoUnusedDefinitions)`
+ *
+ * Warn when unreferenced definitions are used.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
  * Unused definitions do not contribute anything, so they can be removed.
  *
+ * [api-remark-lint-no-unused-definitions]: #unifieduseremarklintnounuseddefinitions
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module no-unused-definitions
- * @summary
- *   remark-lint rule to warn when unreferenced definitions are used.
  * @author Titus Wormer
  * @copyright 2016 Titus Wormer
  * @license MIT
  * @example
  *   {"name": "ok.md"}
  *
- *   [foo][]
+ *   [Mercury][]
  *
- *   [foo]: https://example.com
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   [bar]: https://example.com
+ *   [mercury]: https://example.com/mercury/
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   1:1-1:27: Found unused definition
+ *   [mercury]: https://example.com/mercury/
+ *
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   1:1-1:40: Unexpected unused definition, expected no definition or one or more references to `mercury`
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "gfm.md"}
+ *
+ *   Mercury[^mercury] is a planet.
+ *
+ *   [^Mercury]:
+ *       **Mercury** is the first planet from the Sun and the smallest
+ *       in the Solar System.
+ *   [^Venus]:
+ *       **Venus** is the second planet from
+ *       the Sun.
+ * @example
+ *   {"gfm": true, "label": "output", "name": "gfm.md"}
+ *
+ *   6:1-8:13: Unexpected unused footnote definition, expected no definition or one or more footnote references to `venus`
  */
-const own = {}.hasOwnProperty;
-const remarkLintNoUnusedDefinitions = lintRule(
+const remarkLintNoUnusedDefinitions = lintRule$1(
   {
     origin: 'remark-lint:no-unused-definitions',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-unused-definitions#readme'
   },
-  (tree, file) => {
-    const map = Object.create(null);
-    visit$m(tree, (node) => {
-      if (
-        (node.type === 'definition' || node.type === 'footnoteDefinition') &&
-        !generated(node)
-      ) {
-        map[node.identifier.toUpperCase()] = {node, used: false};
-      }
-    });
-    visit$m(tree, (node) => {
-      if (
-        node.type === 'imageReference' ||
-        node.type === 'linkReference' ||
-        node.type === 'footnoteReference'
-      ) {
-        const info = map[node.identifier.toUpperCase()];
-        if (!generated(node) && info) {
-          info.used = true;
+  function (tree, file) {
+    const footnoteDefinitions = new Map();
+    const definitions = new Map();
+    visitParents(tree, function (node, parents) {
+      if ('identifier' in node) {
+        const map =
+          node.type === 'footnoteDefinition' ||
+          node.type === 'footnoteReference'
+            ? footnoteDefinitions
+            : definitions;
+        let entry = map.get(node.identifier);
+        if (!entry) {
+          entry = {ancestors: undefined, used: false};
+          map.set(node.identifier, entry);
+        }
+        if (node.type === 'definition' || node.type === 'footnoteDefinition') {
+          entry.ancestors = [...parents, node];
+        } else if (
+          node.type === 'imageReference' ||
+          node.type === 'linkReference' ||
+          node.type === 'footnoteReference'
+        ) {
+          entry.used = true;
         }
       }
     });
-    let identifier;
-    for (identifier in map) {
-      if (own.call(map, identifier)) {
-        const entry = map[identifier];
-        if (!entry.used) {
-          file.message('Found unused definition', entry.node);
+    const entries = [...footnoteDefinitions.values(), ...definitions.values()];
+    for (const entry of entries) {
+      if (!entry.used) {
+        ok$1(entry.ancestors);
+        const node = entry.ancestors.at(-1);
+        ok$1(node.type === 'footnoteDefinition' || node.type === 'definition');
+        if (node.position) {
+          const prefix = node.type === 'footnoteDefinition' ? 'footnote ' : '';
+          file.message(
+            'Unexpected unused ' +
+              prefix +
+              'definition, expected no definition or one or more ' +
+              prefix +
+              'references to `' +
+              node.identifier +
+              '`',
+            {ancestors: entry.ancestors, place: node.position}
+          );
         }
       }
     }
   }
 );
-var remarkLintNoUnusedDefinitions$1 = remarkLintNoUnusedDefinitions;
+
+/**
+ * remark-lint rule to warn when ordered list markers are inconsistent.
+ *
+ * ## What is this?
+ *
+ * This package checks ordered list markers.
+ *
+ * ## When should I use this?
+ *
+ * You can use this package to check ordered lists.
+ *
+ * ## API
+ *
+ * ### `unified().use(remarkLintOrderedListMarkerStyle[, options])`
+ *
+ * Warn when ordered list markers are inconsistent.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — preferred style or whether to detect the first style and warn for
+ *   further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Style | 'consistent'
+ * ```
+ *
+ * ### `Style`
+ *
+ * Style (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Style = '.' | ')'
+ * ```
+ *
+ * ## Recommendation
+ *
+ * Parens for list markers were not supported in markdown before CommonMark.
+ * While they should work in most places now,
+ * not all markdown parsers follow CommonMark.
+ * So it’s recommended to prefer dots.
+ *
+ * ## Fix
+ *
+ * [`remark-stringify`][github-remark-stringify] formats ordered lists with
+ * dots by default.
+ * Pass `bulletOrdered: ')'` to always use parens.
+ *
+ * [api-style]: #style
+ * [api-options]: #options
+ * [api-remark-lint-ordered-list-marker-style]: #unifieduseremarklintorderedlistmarkerstyle-options
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
+ * @module ordered-list-marker-style
+ * @author Titus Wormer
+ * @copyright 2015 Titus Wormer
+ * @license MIT
+ *
+ * @example
+ *   {"name": "ok.md"}
+ *
+ *   1. Mercury
+ *
+ *   * Venus
+ *
+ *   1. Earth
+ *
+ * @example
+ *   {"name": "ok.md", "config": "."}
+ *
+ *   1. Mercury
+ *
+ * @example
+ *   {"name": "ok.md", "config": ")"}
+ *
+ *   1) Mercury
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok.md"}
+ *
+ *   1. Mercury
+ *
+ *   1) Venus
+ *
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   3:2: Unexpected ordered list marker `)`, expected `.`
+ *
+ * @example
+ *   {"name": "not-ok.md", "label": "output", "config": "🌍", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected `'.'`, `')'`, or `'consistent'`
+ */
+const remarkLintOrderedListMarkerStyle = lintRule$1(
+  {
+    origin: 'remark-lint:ordered-list-marker-style',
+    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-ordered-list-marker-style#readme'
+  },
+  function (tree, file, options) {
+    const value = String(file);
+    let expected;
+    let cause;
+    if (options === null || options === undefined || options === 'consistent') ; else if (options === '.' || options === ')') {
+      expected = options;
+    } else {
+      file.fail(
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected `'.'`, `')'`, or `'consistent'`"
+      );
+    }
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'listItem') return
+      const parent = parents.at(-1);
+      if (!parent || parent.type !== 'list' || !parent.ordered) return
+      const start = pointStart(node);
+      if (start && typeof start.offset === 'number') {
+        let index = start.offset;
+        let code = value.charCodeAt(index);
+        while (asciiDigit(code)) {
+          index++;
+          code = value.charCodeAt(index);
+        }
+        const actual =
+          code === 41  ? ')' : code === 46  ? '.' : undefined;
+        if (!actual) return
+        const place = {
+          line: start.line,
+          column: start.column + (index - start.offset),
+          offset: start.offset + (index - start.offset)
+        };
+        if (expected) {
+          if (actual !== expected) {
+            file.message(
+              'Unexpected ordered list marker `' +
+                actual +
+                '`, expected `' +
+                expected +
+                '`',
+              {ancestors: [...parents, node], cause, place}
+            );
+          }
+        } else {
+          expected = actual;
+          cause = new VFileMessage(
+            'Ordered list marker style `' +
+              expected +
+              "` first defined for `'consistent'` here",
+            {
+              ancestors: [...parents, node],
+              place,
+              ruleId: 'ordered-list-marker-style',
+              source: 'remark-lint'
+            }
+          );
+        }
+      }
+    });
+  }
+);
 
 const remarkPresetLintRecommended = {
   plugins: [
     remarkLint,
-    remarkLintFinalNewline$1,
-    remarkLintListItemBulletIndent$1,
-    [remarkLintListItemIndent$1, 'tab-size'],
-    remarkLintNoBlockquoteWithoutMarker$1,
-    remarkLintNoLiteralUrls$1,
-    [remarkLintOrderedListMarkerStyle$1, '.'],
-    remarkLintHardBreakSpaces$1,
-    remarkLintNoDuplicateDefinitions$1,
-    remarkLintNoHeadingContentIndent$1,
-    remarkLintNoInlinePadding$1,
-    remarkLintNoShortcutReferenceImage$1,
-    remarkLintNoShortcutReferenceLink$1,
-    remarkLintNoUndefinedReferences$1,
-    remarkLintNoUnusedDefinitions$1
+    remarkLintFinalNewline,
+    remarkLintListItemBulletIndent,
+    [remarkLintListItemIndent, 'one'],
+    remarkLintNoBlockquoteWithoutMarker,
+    remarkLintNoLiteralUrls,
+    [remarkLintOrderedListMarkerStyle, '.'],
+    remarkLintHardBreakSpaces,
+    remarkLintNoDuplicateDefinitions,
+    remarkLintNoHeadingContentIndent,
+    remarkLintNoShortcutReferenceImage,
+    remarkLintNoShortcutReferenceLink,
+    remarkLintNoUndefinedReferences,
+    remarkLintNoUnusedDefinitions
   ]
 };
-var remarkPresetLintRecommended$1 = remarkPresetLintRecommended;
-
-const convert$l =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$l
-      }
-      if (typeof test === 'string') {
-        return typeFactory$l(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$l(test) : propsFactory$l(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$l(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$l(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$l(tests[index]);
-  }
-  return castFactory$l(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$l(check) {
-  return castFactory$l(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$l(check) {
-  return castFactory$l(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$l(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$l() {
-  return true
-}
-
-function color$m(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$l = true;
-const EXIT$l = false;
-const SKIP$l = 'skip';
-const visitParents$l =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$l(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$m(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$l(visitor(node, parents));
-            if (result[0] === EXIT$l) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$l) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$l) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$l(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$l, value]
-  }
-  return [value]
-}
-
-const visit$l =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$l(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when block quotes are indented too much or
+ * too little.
+ *
+ * ## What is this?
+ *
+ * This package checks the “indent” of block quotes: the `>` (greater than)
+ * marker *and* the spaces before content.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that the “indent” of block quotes is
- * consistent.
- * Indent here is the `>` (greater than) marker and the spaces before content.
+ * You can use this rule to check markdown code style.
  *
  * ## API
  *
- * The following options (default: `'consistent'`) are accepted:
+ * ### `unified().use(remarkLintBlockquoteIndentation[, options])`
  *
- * *   `number` (example: `2`)
- *     — preferred indent of `>` and spaces before content
- * *   `'consistent'`
- *     — detect the first used style and warn when further block quotes differ
+ * Warn when block quotes are indented too much or too little.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — either a preferred indent or whether to detect the first style
+ *   and warn for further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = number | 'consistent'
+ * ```
  *
  * ## Recommendation
  *
@@ -16579,557 +14190,376 @@ const visit$l =
  *
  * Due to this, it’s recommended to configure this rule with `2`.
  *
+ * [api-options]: #options
+ * [api-remark-lint-blockquote-indentation]: #unifieduseremarklintblockquoteindentation-options
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module blockquote-indentation
- * @summary
- *   remark-lint rule to warn when block quotes are indented too much or
- *   too little.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md", "config": 4}
- *
- *   >   Hello
- *
- *   Paragraph.
- *
- *   >   World
- * @example
- *   {"name": "ok.md", "config": 2}
- *
- *   > Hello
- *
- *   Paragraph.
- *
- *   > World
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"config": 2, "name": "ok-2.md"}
  *
- *   >  Hello
+ *   > Mercury.
  *
- *   Paragraph.
+ *   Venus.
  *
- *   >   World
- *
- *   Paragraph.
- *
- *   > World
+ *   > Earth.
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"config": 4, "name": "ok-4.md"}
  *
- *   5:5: Remove 1 space between block quote and content
- *   9:3: Add 1 space between block quote and content
+ *   >   Mercury.
+ *
+ *   Venus.
+ *
+ *   >   Earth.
+ *
+ * @example
+ *   { "name": "ok-tab.md"}
+ *
+ *   >␉Mercury.
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok.md"}
+ *
+ *   >  Mercury.
+ *
+ *   Venus.
+ *
+ *   >   Earth.
+ *
+ *   Mars.
+ *
+ *   > Jupiter
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   5:5: Unexpected `4` spaces between block quote marker and content, expected `3` spaces, remove `1` space
+ *   9:3: Unexpected `2` spaces between block quote marker and content, expected `3` spaces, add `1` space
+ *
+ * @example
+ *   {"config": "🌍", "label": "output", "name": "not-ok-options.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected `number` or `'consistent'`
  */
-const remarkLintBlockquoteIndentation = lintRule(
+const remarkLintBlockquoteIndentation = lintRule$1(
   {
     origin: 'remark-lint:blockquote-indentation',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-blockquote-indentation#readme'
   },
-  (tree, file, option = 'consistent') => {
-    visit$l(tree, 'blockquote', (node) => {
-      if (generated(node) || node.children.length === 0) {
-        return
+  function (tree, file, options) {
+    let expected;
+    if (options === null || options === undefined || options === 'consistent') ; else if (typeof options === 'number') {
+      expected = options;
+    } else {
+      file.fail(
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected `number` or `'consistent'`"
+      );
+    }
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
       }
-      if (option === 'consistent') {
-        option = check(node);
-      } else {
-        const diff = option - check(node);
-        if (diff !== 0) {
-          const abs = Math.abs(diff);
-          file.message(
-            (diff > 0 ? 'Add' : 'Remove') +
-              ' ' +
-              abs +
-              ' ' +
-              plural('space', abs) +
-              ' between block quote and content',
-            pointStart(node.children[0])
-          );
+      if (node.type !== 'blockquote') return
+      const start = pointStart(node);
+      const headStart = pointStart(node.children[0]);
+      if (headStart && start) {
+        const actual = headStart.column - start.column;
+        if (expected) {
+          const difference = expected - actual;
+          const differenceAbsolute = Math.abs(difference);
+          if (difference !== 0) {
+            file.message(
+              'Unexpected `' +
+                actual +
+                '` ' +
+                pluralize('space', actual) +
+                ' between block quote marker and content, expected `' +
+                expected +
+                '` ' +
+                pluralize('space', expected) +
+                ', ' +
+                (difference > 0 ? 'add' : 'remove') +
+                ' `' +
+                differenceAbsolute +
+                '` ' +
+                pluralize('space', differenceAbsolute),
+              {ancestors: [...parents, node], place: headStart}
+            );
+          }
+        } else {
+          expected = actual;
         }
       }
     });
   }
 );
-var remarkLintBlockquoteIndentation$1 = remarkLintBlockquoteIndentation;
-function check(node) {
-  return pointStart(node.children[0]).column - pointStart(node).column
-}
-
-const convert$k =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$k
-      }
-      if (typeof test === 'string') {
-        return typeFactory$k(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$k(test) : propsFactory$k(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$k(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$k(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$k(tests[index]);
-  }
-  return castFactory$k(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$k(check) {
-  return castFactory$k(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$k(check) {
-  return castFactory$k(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$k(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$k() {
-  return true
-}
-
-function color$l(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$k = true;
-const EXIT$k = false;
-const SKIP$k = 'skip';
-const visitParents$k =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$k(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$l(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$k(visitor(node, parents));
-            if (result[0] === EXIT$k) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$k) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$k) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$k(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$k, value]
-  }
-  return [value]
-}
-
-const visit$k =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$k(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when list item checkboxes violate a given
+ * style.
+ *
+ * ## What is this?
+ *
+ * This package checks the character used in checkboxes.
+ *
  * ## When should I use this?
  *
  * You can use this package to check that the style of GFM tasklists is
  * consistent.
+ * Task lists are a GFM feature enabled with
+ * [`remark-gfm`][github-remark-gfm].
  *
  * ## API
  *
- * The following options (default: `'consistent'`) are accepted:
+ * ### `unified().use(remarkLintCheckboxCharacterStyle[, options])`
  *
- * *   `Object` with the following fields:
- *     *   `checked` (`'x'`, `'X'`, or `'consistent'`, default: `'consistent'`)
- *         — preferred character to use for checked checkboxes
- *     *   `unchecked` (`'·'` (a space), `'»'` (a tab), or `'consistent'`,
- *         default: `'consistent'`)
- *         — preferred character to use for unchecked checkboxes
- * *   `'consistent'`
- *     — detect the first used styles and warn when further checkboxes differ
+ * Warn when list item checkboxes violate a given style.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — either preferred values or whether to detect the first styles
+ *   and warn for further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Styles | 'consistent'
+ * ```
+ *
+ * ### `Styles`
+ *
+ * Styles (TypeScript type).
+ *
+ * ###### Fields
+ *
+ * * `checked` (`'X'`, `'x'`, or `'consistent'`, default: `'consistent'`)
+ *   — preferred style to use for checked checkboxes
+ * * `unchecked` (`'␉'` (a tab), `'␠'` (a space), or `'consistent'`, default:
+ *   `'consistent'`)
+ *   — preferred style to use for unchecked checkboxes
  *
  * ## Recommendation
  *
  * It’s recommended to set `options.checked` to `'x'` (a lowercase X) as it
- * prevents an extra keyboard press and `options.unchecked` to `'·'` (a space)
+ * prevents an extra keyboard press and `options.unchecked` to `'␠'` (a space)
  * to make all checkboxes align.
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats checked checkboxes using `'x'` (lowercase X) and unchecked checkboxes
- * using `'·'` (a space).
+ * [`remark-stringify`][github-remark-stringify] formats checked checkboxes
+ * using `'x'` (lowercase X) and unchecked checkboxes using `'␠'` (a space).
+ *
+ * [api-options]: #options
+ * [api-remark-lint-checkbox-character-style]: #unifieduseremarklintcheckboxcharacterstyle-options
+ * [api-styles]: #styles
+ * [github-remark-gfm]: https://github.com/remarkjs/remark-gfm
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module checkbox-character-style
- * @summary
- *   remark-lint rule to warn when list item checkboxes violate a given
- *   style.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md", "config": {"checked": "x"}, "gfm": true}
- *
- *   - [x] List item
- *   - [x] List item
  *
  * @example
- *   {"name": "ok.md", "config": {"checked": "X"}, "gfm": true}
+ *   {"config": {"checked": "x"}, "gfm": true, "name": "ok-x.md"}
  *
- *   - [X] List item
- *   - [X] List item
+ *   - [x] Mercury.
+ *   - [x] Venus.
  *
  * @example
- *   {"name": "ok.md", "config": {"unchecked": " "}, "gfm": true}
+ *   {"config": {"checked": "X"}, "gfm": true, "name": "ok-x-upper.md"}
  *
- *   - [ ] List item
- *   - [ ] List item
- *   - [ ]··
+ *   - [X] Mercury.
+ *   - [X] Venus.
+ *
+ * @example
+ *   {"config": {"unchecked": " "}, "gfm": true, "name": "ok-space.md"}
+ *
+ *   - [ ] Mercury.
+ *   - [ ] Venus.
+ *   - [ ]␠␠
  *   - [ ]
  *
  * @example
- *   {"name": "ok.md", "config": {"unchecked": "\t"}, "gfm": true}
+ *   {"config": {"unchecked": "\t"}, "gfm": true, "name": "ok-tab.md"}
  *
- *   - [»] List item
- *   - [»] List item
- *
- * @example
- *   {"name": "not-ok.md", "label": "input", "gfm": true}
- *
- *   - [x] List item
- *   - [X] List item
- *   - [ ] List item
- *   - [»] List item
+ *   - [␉] Mercury.
+ *   - [␉] Venus.
  *
  * @example
- *   {"name": "not-ok.md", "label": "output", "gfm": true}
+ *   {"label": "input", "gfm": true, "name": "not-ok-default.md"}
  *
- *   2:5: Checked checkboxes should use `x` as a marker
- *   4:5: Unchecked checkboxes should use ` ` as a marker
+ *   - [x] Mercury.
+ *   - [X] Venus.
+ *   - [ ] Earth.
+ *   - [␉] Mars.
+ * @example
+ *   {"label": "output", "gfm": true, "name": "not-ok-default.md"}
+ *
+ *   2:5: Unexpected checked checkbox value `X`, expected `x`
+ *   4:5: Unexpected unchecked checkbox value `\t`, expected ` `
  *
  * @example
- *   {"config": {"unchecked": "💩"}, "name": "not-ok.md", "label": "output", "positionless": true, "gfm": true}
+ *   {"config": "🌍", "label": "output", "name": "not-ok-option.md", "positionless": true}
  *
- *   1:1: Incorrect unchecked checkbox marker `💩`: use either `'\t'`, or `' '`
+ *   1:1: Unexpected value `🌍` for `options`, expected an object or `'consistent'`
  *
  * @example
- *   {"config": {"checked": "💩"}, "name": "not-ok.md", "label": "output", "positionless": true, "gfm": true}
+ *   {"config": {"unchecked": "🌍"}, "label": "output", "name": "not-ok-option-unchecked.md", "positionless": true}
  *
- *   1:1: Incorrect checked checkbox marker `💩`: use either `'x'`, or `'X'`
+ *   1:1: Unexpected value `🌍` for `options.unchecked`, expected `'\t'`, `' '`, or `'consistent'`
+ *
+ * @example
+ *   {"config": {"checked": "🌍"}, "label": "output", "name": "not-ok-option-checked.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options.checked`, expected `'X'`, `'x'`, or `'consistent'`
  */
-const remarkLintCheckboxCharacterStyle = lintRule(
+const remarkLintCheckboxCharacterStyle = lintRule$1(
   {
     origin: 'remark-lint:checkbox-character-style',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-checkbox-character-style#readme'
   },
-  (tree, file, option = 'consistent') => {
+  function (tree, file, options) {
     const value = String(file);
-    let checked = 'consistent';
-    let unchecked = 'consistent';
-    if (typeof option === 'object') {
-      checked = option.checked || 'consistent';
-      unchecked = option.unchecked || 'consistent';
-    }
-    if (unchecked !== 'consistent' && unchecked !== ' ' && unchecked !== '\t') {
+    let checkedExpected;
+    let checkedConsistentCause;
+    let uncheckedExpected;
+    let uncheckedConsistentCause;
+    if (options === null || options === undefined || options === 'consistent') ; else if (typeof options === 'object') {
+      if (options.checked === 'X' || options.checked === 'x') {
+        checkedExpected = options.checked;
+      } else if (options.checked && options.checked !== 'consistent') {
+        file.fail(
+          'Unexpected value `' +
+            options.checked +
+            "` for `options.checked`, expected `'X'`, `'x'`, or `'consistent'`"
+        );
+      }
+      if (options.unchecked === '\t' || options.unchecked === ' ') {
+        uncheckedExpected = options.unchecked;
+      } else if (options.unchecked && options.unchecked !== 'consistent') {
+        file.fail(
+          'Unexpected value `' +
+            options.unchecked +
+            "` for `options.unchecked`, expected `'\\t'`, `' '`, or `'consistent'`"
+        );
+      }
+    } else {
       file.fail(
-        'Incorrect unchecked checkbox marker `' +
-          unchecked +
-          "`: use either `'\\t'`, or `' '`"
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected an object or `'consistent'`"
       );
     }
-    if (checked !== 'consistent' && checked !== 'x' && checked !== 'X') {
-      file.fail(
-        'Incorrect checked checkbox marker `' +
-          checked +
-          "`: use either `'x'`, or `'X'`"
-      );
-    }
-    visit$k(tree, 'listItem', (node) => {
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'listItem') return
       const head = node.children[0];
-      const point = pointStart(head);
+      const headStart = pointStart(head);
       if (
-        typeof node.checked !== 'boolean' ||
         !head ||
-        typeof point.offset !== 'number'
+        !headStart ||
+        typeof node.checked !== 'boolean' ||
+        typeof headStart.offset !== 'number'
       ) {
         return
       }
-      point.offset -= 2;
-      point.column -= 2;
+      headStart.offset -= 2;
+      headStart.column -= 2;
       const match = /\[([\t Xx])]/.exec(
-        value.slice(point.offset - 2, point.offset + 1)
+        value.slice(headStart.offset - 2, headStart.offset + 1)
       );
       if (!match) return
-      const style = node.checked ? checked : unchecked;
-      if (style === 'consistent') {
+      const actual = match[1];
+      const actualDisplay = actual === '\t' ? '\\t' : actual;
+      const expected = node.checked ? checkedExpected : uncheckedExpected;
+      const expectedDisplay = expected === '\t' ? '\\t' : expected;
+      if (!expected) {
+        const cause = new VFileMessage(
+          (node.checked ? 'C' : 'Unc') +
+            "hecked checkbox style `'" +
+            actualDisplay +
+            "'` first defined for `'consistent'` here",
+          {
+            ancestors: [...parents, node],
+            place: headStart,
+            ruleId: 'checkbox-character-style',
+            source: 'remark-lint'
+          }
+        );
         if (node.checked) {
-          checked = match[1];
+          checkedExpected =  (actual);
+          checkedConsistentCause = cause;
         } else {
-          unchecked = match[1];
+          uncheckedExpected =  (actual);
+          uncheckedConsistentCause = cause;
         }
-      } else if (match[1] !== style) {
+      } else if (actual !== expected) {
         file.message(
-          (node.checked ? 'Checked' : 'Unchecked') +
-            ' checkboxes should use `' +
-            style +
-            '` as a marker',
-          point
+          'Unexpected ' +
+            (node.checked ? '' : 'un') +
+            'checked checkbox value `' +
+            actualDisplay +
+            '`, expected `' +
+            expectedDisplay +
+            '`',
+          {
+            ancestors: [...parents, node],
+            cause: node.checked
+              ? checkedConsistentCause
+              : uncheckedConsistentCause,
+            place: headStart
+          }
         );
       }
     });
   }
 );
-var remarkLintCheckboxCharacterStyle$1 = remarkLintCheckboxCharacterStyle;
-
-const convert$j =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$j
-      }
-      if (typeof test === 'string') {
-        return typeFactory$j(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$j(test) : propsFactory$j(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$j(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$j(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$j(tests[index]);
-  }
-  return castFactory$j(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$j(check) {
-  return castFactory$j(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$j(check) {
-  return castFactory$j(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$j(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$j() {
-  return true
-}
-
-function color$k(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$j = true;
-const EXIT$j = false;
-const SKIP$j = 'skip';
-const visitParents$j =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$j(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$k(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$j(visitor(node, parents));
-            if (result[0] === EXIT$j) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$j) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$j) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$j(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$j, value]
-  }
-  return [value]
-}
-
-const visit$j =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$j(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when GFM tasklist checkboxes are followed by
+ * more than one space.
+ *
+ * ## What is this?
+ *
+ * This package checks the space after checkboxes.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that the “indent” after a GFM tasklist
- * checkbox is a single space.
+ * You can use this package to check that the style of GFM tasklists is
+ * a single space.
  *
  * ## API
  *
- * There are no accepted options.
+ * ### `unified().use(remarkLintCheckboxContentIndent)`
+ *
+ * Warn when GFM tasklist checkboxes are followed by more than one space.
+ *
+ * ###### Parameters
+ *
+ * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
@@ -17150,803 +14580,510 @@ const visit$j =
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats checkboxes and the content after them with a single space between.
+ * [`remark-stringify`][github-remark-stringify] formats checkboxes and the
+ * content after them with a single space between.
+ *
+ * [api-remark-lint-checkbox-content-indent]: #unifieduseremarklintcheckboxcontentindent
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module checkbox-content-indent
- * @summary
- *   remark-lint rule to warn when GFM tasklist checkboxes are followed by
- *   more than one space.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md", "gfm": true}
- *
- *   - [ ] List item
- *   +  [x] List Item
- *   *   [X] List item
- *   -    [ ] List item
  *
  * @example
- *   {"name": "not-ok.md", "label": "input", "gfm": true}
+ *   {"gfm": true, "name": "ok.md"}
  *
- *   - [ ] List item
- *   + [x]  List item
- *   * [X]   List item
- *   - [ ]    List item
+ *   - [ ] Mercury.
+ *   +  [x] Venus.
+ *   *   [X] Earth.
+ *   -    [ ] Mars.
  *
  * @example
- *   {"name": "not-ok.md", "label": "output", "gfm": true}
+ *   {"gfm": true, "label": "input", "name": "not-ok.md"}
  *
- *   2:7-2:8: Checkboxes should be followed by a single character
- *   3:7-3:9: Checkboxes should be followed by a single character
- *   4:7-4:10: Checkboxes should be followed by a single character
+ *   - [ ] Mercury.
+ *   + [x]  Venus.
+ *   * [X]   Earth.
+ *   - [ ]    Mars.
+ * @example
+ *   {"gfm": true, "label": "output", "name": "not-ok.md"}
+ *
+ *   2:8: Unexpected `2` spaces between checkbox and content, expected `1` space, remove `1` space
+ *   3:9: Unexpected `3` spaces between checkbox and content, expected `1` space, remove `2` spaces
+ *   4:10: Unexpected `4` spaces between checkbox and content, expected `1` space, remove `3` spaces
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "tab.md"}
+ *
+ *   - [ ]␉Mercury.
+ *   + [x]␉␉Venus.
+ * @example
+ *   {"gfm": true, "label": "output", "name": "tab.md"}
+ *
+ *   2:8: Unexpected `2` spaces between checkbox and content, expected `1` space, remove `1` space
  */
-const remarkLintCheckboxContentIndent = lintRule(
+const remarkLintCheckboxContentIndent = lintRule$1(
   {
     origin: 'remark-lint:checkbox-content-indent',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-checkbox-content-indent#readme'
   },
-  (tree, file) => {
+  function (tree, file) {
     const value = String(file);
-    const loc = location(file);
-    visit$j(tree, 'listItem', (node) => {
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'listItem') return
       const head = node.children[0];
-      const point = pointStart(head);
+      const headStart = pointStart(head);
       if (
-        typeof node.checked !== 'boolean' ||
         !head ||
-        typeof point.offset !== 'number'
+        !headStart ||
+        typeof node.checked !== 'boolean' ||
+        typeof headStart.offset !== 'number'
       ) {
         return
       }
       const match = /\[([\t xX])]/.exec(
-        value.slice(point.offset - 4, point.offset + 1)
+        value.slice(headStart.offset - 4, headStart.offset + 1)
       );
       if (!match) return
-      const initial = point.offset;
-      let final = initial;
-      while (/[\t ]/.test(value.charAt(final))) final++;
-      if (final - initial > 0) {
-        file.message('Checkboxes should be followed by a single character', {
-          start: loc.toPoint(initial),
-          end: loc.toPoint(final)
-        });
+      let final = headStart.offset;
+      let code = value.charCodeAt(final);
+      while (code === 9 || code === 32) {
+        final++;
+        code = value.charCodeAt(final);
+      }
+      const size = final - headStart.offset;
+      if (size) {
+        file.message(
+          'Unexpected `' +
+            (size + 1) +
+            '` ' +
+            pluralize('space', size + 1) +
+            ' between checkbox and content, expected `1` space, remove `' +
+            size +
+            '` ' +
+            pluralize('space', size),
+          {
+            ancestors: [...parents, node],
+            place: {
+              line: headStart.line,
+              column: headStart.column + size,
+              offset: headStart.offset + size
+            }
+          }
+        );
       }
     });
   }
 );
-var remarkLintCheckboxContentIndent$1 = remarkLintCheckboxContentIndent;
-
-const convert$i =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$i
-      }
-      if (typeof test === 'string') {
-        return typeFactory$i(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$i(test) : propsFactory$i(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$i(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$i(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$i(tests[index]);
-  }
-  return castFactory$i(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$i(check) {
-  return castFactory$i(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$i(check) {
-  return castFactory$i(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$i(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$i() {
-  return true
-}
-
-function color$j(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$i = true;
-const EXIT$i = false;
-const SKIP$i = 'skip';
-const visitParents$i =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$i(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$j(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$i(visitor(node, parents));
-            if (result[0] === EXIT$i) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$i) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$i) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$i(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$i, value]
-  }
-  return [value]
-}
-
-const visit$i =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$i(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when code blocks violate a given style.
+ *
+ * ## What is this?
+ *
+ * This package checks the style of code blocks.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that code blocks are consistent.
+ * You can use this package to check that the style of code blocks is
+ * consistent.
  *
  * ## API
  *
- * The following options (default: `'consistent'`) are accepted:
+ * ### `unified().use(remarkLintCodeBlockStyle[, options])`
  *
- * *   `'fenced'`
- *     — prefer fenced code blocks:
- *     ````markdown
- *     ```js
- *     code()
- *     ```
- *     ````
- * *   `'indented'`
- *     — prefer indented code blocks:
- *     ```markdown
- *         code()
- *     ```
- * *   `'consistent'`
- *     — detect the first used style and warn when further code blocks differ
+ * Warn when code blocks violate a given style.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — preferred style or whether to detect the first style and warn for
+ *   further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Style | 'consistent'
+ * ```
+ *
+ * ### `Style`
+ *
+ * Style (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Style = 'indented' | 'fenced'
+ * ```
  *
  * ## Recommendation
  *
- * Indentation in markdown is complex, especially because lists and indented
- * code can interfere in unexpected ways.
- * Fenced code has more features than indented code: importantly, specifying a
+ * Indentation in markdown is complex as lists and indented code interfere in
+ * unexpected ways.
+ * Fenced code has more features than indented code: it can specify a
  * programming language.
- * Since CommonMark took the idea of fenced code from GFM, fenced code became
- * widely supported.
+ * Since CommonMark took the idea of fenced code from GFM,
+ * fenced code became widely supported.
  * Due to this, it’s recommended to configure this rule with `'fenced'`.
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats code blocks as fenced code when they have a language flag and as
- * indented code otherwise.
- * Pass
- * [`fences: true`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionsfences)
- * to always use fenced code.
+ * [`remark-stringify`][github-remark-stringify] always formats code blocks as
+ * fenced.
+ * Pass `fences: false` to only use fenced code blocks when they have a
+ * language and as indented code otherwise.
+ *
+ * [api-options]: #options
+ * [api-remark-lint-code-block-style]: #unifieduseremarklintcodeblockstyle-options
+ * [api-style]: #style
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module code-block-style
- * @summary
- *   remark-lint rule to warn when code blocks violate a given style.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
  *
  * @example
- *   {"config": "indented", "name": "ok.md"}
+ *   {"config": "indented", "name": "ok-indented.md"}
  *
- *       alpha()
+ *       venus()
  *
- *   Paragraph.
+ *   Mercury.
  *
- *       bravo()
- *
- * @example
- *   {"config": "indented", "name": "not-ok.md", "label": "input"}
- *
- *   ```
- *   alpha()
- *   ```
- *
- *   Paragraph.
- *
- *   ```
- *   bravo()
- *   ```
+ *       earth()
  *
  * @example
- *   {"config": "indented", "name": "not-ok.md", "label": "output"}
- *
- *   1:1-3:4: Code blocks should be indented
- *   7:1-9:4: Code blocks should be indented
- *
- * @example
- *   {"config": "fenced", "name": "ok.md"}
+ *   {"config": "fenced", "name": "ok-fenced.md"}
  *
  *   ```
- *   alpha()
+ *   venus()
  *   ```
  *
- *   Paragraph.
+ *   Mercury.
  *
  *   ```
- *   bravo()
+ *   earth()
  *   ```
  *
  * @example
- *   {"config": "fenced", "name": "not-ok-fenced.md", "label": "input"}
+ *   {"label": "input", "name": "not-ok-consistent.md"}
  *
- *       alpha()
+ *       venus()
  *
- *   Paragraph.
- *
- *       bravo()
- *
- * @example
- *   {"config": "fenced", "name": "not-ok-fenced.md", "label": "output"}
- *
- *   1:1-1:12: Code blocks should be fenced
- *   5:1-5:12: Code blocks should be fenced
- *
- * @example
- *   {"name": "not-ok-consistent.md", "label": "input"}
- *
- *       alpha()
- *
- *   Paragraph.
+ *   Mercury.
  *
  *   ```
- *   bravo()
+ *   earth()
+ *   ```
+ * @example
+ *   {"label": "output", "name": "not-ok-consistent.md"}
+ *
+ *   5:1-7:4: Unexpected fenced code block, expected indented code blocks
+ *
+ * @example
+ *   {"config": "indented", "label": "input", "name": "not-ok-indented.md"}
+ *
+ *   ```
+ *   venus()
  *   ```
  *
+ *   Mercury.
+ *
+ *   ```
+ *   earth()
+ *   ```
  * @example
- *   {"name": "not-ok-consistent.md", "label": "output"}
+ *   {"config": "indented", "label": "output", "name": "not-ok-indented.md"}
  *
- *   5:1-7:4: Code blocks should be indented
+ *   1:1-3:4: Unexpected fenced code block, expected indented code blocks
+ *   7:1-9:4: Unexpected fenced code block, expected indented code blocks
  *
  * @example
- *   {"config": "💩", "name": "not-ok-incorrect.md", "label": "output", "positionless": true}
+ *   {"config": "fenced", "label": "input", "name": "not-ok-fenced.md"}
  *
- *   1:1: Incorrect code block style `💩`: use either `'consistent'`, `'fenced'`, or `'indented'`
+ *       venus()
+ *
+ *   Mercury.
+ *
+ *       earth()
+ *
+ * @example
+ *   {"config": "fenced", "label": "output", "name": "not-ok-fenced.md"}
+ *
+ *   1:1-1:12: Unexpected indented code block, expected fenced code blocks
+ *   5:1-5:12: Unexpected indented code block, expected fenced code blocks
+ *
+ * @example
+ *   {"config": "🌍", "label": "output", "name": "not-ok-options.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected `'fenced'`, `'indented'`, or `'consistent'`
  */
-const remarkLintCodeBlockStyle = lintRule(
+const remarkLintCodeBlockStyle = lintRule$1(
   {
     origin: 'remark-lint:code-block-style',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-code-block-style#readme'
   },
-  (tree, file, option = 'consistent') => {
+  function (tree, file, options) {
     const value = String(file);
-    if (
-      option !== 'consistent' &&
-      option !== 'fenced' &&
-      option !== 'indented'
-    ) {
+    let cause;
+    let expected;
+    if (options === null || options === undefined || options === 'consistent') ; else if (options === 'indented' || options === 'fenced') {
+      expected = options;
+    } else {
       file.fail(
-        'Incorrect code block style `' +
-          option +
-          "`: use either `'consistent'`, `'fenced'`, or `'indented'`"
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected `'fenced'`, `'indented'`, or `'consistent'`"
       );
     }
-    visit$i(tree, 'code', (node) => {
-      if (generated(node)) {
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'code') return
+      const end = pointEnd(node);
+      const start = pointStart(node);
+      if (
+        !start ||
+        !end ||
+        typeof start.offset !== 'number' ||
+        typeof end.offset !== 'number'
+      ) {
         return
       }
-      const initial = pointStart(node).offset;
-      const final = pointEnd(node).offset;
-      const current =
-        node.lang || /^\s*([~`])\1{2,}/.test(value.slice(initial, final))
+      const actual =
+        node.lang || /^ {0,3}([`~])/.test(value.slice(start.offset, end.offset))
           ? 'fenced'
           : 'indented';
-      if (option === 'consistent') {
-        option = current;
-      } else if (option !== current) {
-        file.message('Code blocks should be ' + option, node);
+      if (expected) {
+        if (expected !== actual) {
+          file.message(
+            'Unexpected ' +
+              actual +
+              ' code block, expected ' +
+              expected +
+              ' code blocks',
+            {ancestors: [...parents, node], cause, place: {start, end}}
+          );
+        }
+      } else {
+        expected = actual;
+        cause = new VFileMessage(
+          "Code block style `'" +
+            actual +
+            "'` first defined for `'consistent'` here",
+          {
+            ancestors: [...parents, node],
+            place: {start, end},
+            source: 'remark-lint',
+            ruleId: 'code-block-style'
+          }
+        );
       }
     });
   }
 );
-var remarkLintCodeBlockStyle$1 = remarkLintCodeBlockStyle;
-
-const convert$h =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$h
-      }
-      if (typeof test === 'string') {
-        return typeFactory$h(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$h(test) : propsFactory$h(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$h(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$h(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$h(tests[index]);
-  }
-  return castFactory$h(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$h(check) {
-  return castFactory$h(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$h(check) {
-  return castFactory$h(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$h(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$h() {
-  return true
-}
-
-function color$i(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$h = true;
-const EXIT$h = false;
-const SKIP$h = 'skip';
-const visitParents$h =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$h(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$i(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$h(visitor(node, parents));
-            if (result[0] === EXIT$h) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$h) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$h) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$h(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$h, value]
-  }
-  return [value]
-}
-
-const visit$h =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$h(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when consecutive whitespace is used in
+ * a definition label.
+ *
+ * ## What is this?
+ *
+ * This package checks the whitepsace in definition labels.
+ *
+ * GFM footnotes are not affected by this rule as footnote labels cannot
+ * contain whitespace.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that the labels used in definitions
- * do not use meaningless white space.
+ * You can use this package to check that definition labels are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintDefinitionSpacing)`
+ *
+ * Warn when consecutive whitespace is used in a definition label.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
- * Definitions and references are matched together by collapsing white space.
- * Using more white space in labels might incorrectly indicate that they are of
+ * Definitions and references are matched together by collapsing whitespace.
+ * Using more whitespace in labels might incorrectly indicate that they are of
  * importance.
- * Due to this, it’s recommended to use one space (or a line ending if needed)
- * and turn this rule on.
+ * Due to this, it’s recommended to use one space and turn this rule on.
+ *
+ * [api-remark-lint-definition-spacing]: #unifieduseremarklintdefinitionspacing
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module definition-spacing
- * @summary
- *   remark-lint rule to warn when consecutive whitespace is used in
- *   a definition label.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   [example domain]: http://example.com "Example Domain"
+ *   The first planet is [planet mercury][].
+ *
+ *   [planet mercury]: http://example.com
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"label": "input", "name": "not-ok-consecutive.md"}
  *
- *   [example····domain]: http://example.com "Example Domain"
+ *   [planet␠␠␠␠mercury]: http://example.com
+ * @example
+ *   {"label": "output", "name": "not-ok-consecutive.md"}
+ *
+ *   1:1-1:40: Unexpected `4` consecutive spaces in definition label, expected `1` space, remove `3` spaces
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "input", "name": "not-ok-non-space.md"}
  *
- *   1:1-1:57: Do not use consecutive whitespace in definition labels
+ *   [pla␉net␊mer␍cury]: http://e.com
+ * @example
+ *   {"label": "output", "name": "not-ok-non-space.md"}
+ *
+ *   1:1-3:20: Unexpected non-space whitespace character `\t` in definition label, expected `1` space, replace it
+ *   1:1-3:20: Unexpected non-space whitespace character `\n` in definition label, expected `1` space, replace it
+ *   1:1-3:20: Unexpected non-space whitespace character `\r` in definition label, expected `1` space, replace it
  */
-const label = /^\s*\[((?:\\[\s\S]|[^[\]])+)]/;
-const remarkLintDefinitionSpacing = lintRule(
+const remarkLintDefinitionSpacing = lintRule$1(
   {
     origin: 'remark-lint:definition-spacing',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-definition-spacing#readme'
   },
-  (tree, file) => {
-    const value = String(file);
-    visit$h(tree, (node) => {
-      if (node.type === 'definition' || node.type === 'footnoteDefinition') {
-        const start = pointStart(node).offset;
-        const end = pointEnd(node).offset;
-        if (typeof start === 'number' && typeof end === 'number') {
-          const match = value.slice(start, end).match(label);
-          if (match && /[ \t\n]{2,}/.test(match[1])) {
-            file.message(
-              'Do not use consecutive whitespace in definition labels',
-              node
-            );
-          }
+  function (tree, file) {
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type === 'definition' && node.position && node.label) {
+        const size = longestStreak(node.label, ' ');
+        if (size > 1) {
+          file.message(
+            'Unexpected `' +
+              size +
+              '` consecutive spaces in definition label, expected `1` space, remove `' +
+              (size - 1) +
+              '` ' +
+              pluralize('space', size - 1),
+            {ancestors: [...parents, node], place: node.position}
+          );
+        }
+        const disallowed = [];
+        if (node.label.includes('\t')) disallowed.push('\\t');
+        if (node.label.includes('\n')) disallowed.push('\\n');
+        if (node.label.includes('\r')) disallowed.push('\\r');
+        for (const disallow of disallowed) {
+          file.message(
+            'Unexpected non-space whitespace character `' +
+              disallow +
+              '` in definition label, expected `1` space, replace it',
+            {ancestors: [...parents, node], place: node.position}
+          );
         }
       }
     });
   }
 );
-var remarkLintDefinitionSpacing$1 = remarkLintDefinitionSpacing;
 
-const convert$g =
+const quotation =
   (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$g
-      }
-      if (typeof test === 'string') {
-        return typeFactory$g(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$g(test) : propsFactory$g(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$g(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$g(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$g(tests[index]);
-  }
-  return castFactory$g(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$g(check) {
-  return castFactory$g(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$g(check) {
-  return castFactory$g(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$g(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$g() {
-  return true
-}
-
-function color$h(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$g = true;
-const EXIT$g = false;
-const SKIP$g = 'skip';
-const visitParents$g =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$g(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$h(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
+    function (value, open, close) {
+      const start = open ;
+      const end = start;
+      let index = -1;
+      if (Array.isArray(value)) {
+        const list =  (value);
+        const result = [];
+        while (++index < list.length) {
+          result[index] = start + list[index] + end;
         }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$g(visitor(node, parents));
-            if (result[0] === EXIT$g) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$g) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$g) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
+        return result
       }
-    }
-  );
-function toResult$g(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$g, value]
-  }
-  return [value]
-}
-
-const visit$g =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
+      if (typeof value === 'string') {
+        return start + value + end
       }
-      visitParents$g(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
+      throw new TypeError('Expected string or array of strings')
     }
   );
 
 /**
+ * remark-lint rule to warn when language flags of fenced code
+ * are not used.
+ *
+ * ## What is this?
+ *
+ * This package checks the language flags of fenced code blocks,
+ * whether they exist,
+ * and optionally what values they hold.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that language flags of fenced code
- * are used and consistent.
+ * You can use this package to check that the style of language flags of fenced
+ * code blocks is consistent.
  *
  * ## API
  *
- * The following options (default: `undefined`) are accepted:
+ * ### `unified().use(remarkLintFencedCodeFlag[, options])`
  *
- * *   `Array<string>`
- *     — as if passing `{flags: options}`
- * *   `Object` with the following fields:
- *     *   `allowEmpty` (`boolean`, default: `false`)
- *         — allow language flags to be omitted
- *     *   `flags` (`Array<string>` default: `[]`)
- *         — specific flags to allow (other flags will result in a warning)
+ * Warn when language flags of fenced code are not used.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options] or `Array<string>`, optional)
+ *   — configuration or flags to allow
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Fields
+ *
+ * * `allowEmpty` (`boolean`, default: `false`)
+ *   — allow language flags to be omitted
+ * * `flags` (`Array<string>`, optional)
+ *   — flags to allow,
+ *   other flags will result in a warning
  *
  * ## Recommendation
  *
- * While omitting the language flag is perfectly fine to signal that the code is
- * plain text, it *could* point to a mistake.
- * It’s recommended to instead use a certain flag for plain text (such as `txt`)
- * and to turn this rule on.
+ * While omitting language flags is fine to signal that code is plain text,
+ * it *could* point to a mistake.
+ * It’s recommended to instead use a certain flag for plain text (such as
+ * `txt`) and to turn this rule on.
+ *
+ * [api-options]: #options
+ * [api-remark-lint-fenced-code-flag]: #unifieduseremarklintfencedcodeflag-options
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module fenced-code-flag
- * @summary
- *   remark-lint rule to check that language flags of fenced code are used.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
@@ -17954,395 +15091,151 @@ const visit$g =
  * @example
  *   {"name": "ok.md"}
  *
- *   ```alpha
- *   bravo()
+ *   Some markdown:
+ *
+ *   ```markdown
+ *   # Mercury
  *   ```
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
  *   ```
- *   alpha()
+ *   mercury()
+ *   ```
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   1:1-3:4: Unexpected missing fenced code language flag in info string, expected keyword
+ *
+ * @example
+ *   {"config": {"allowEmpty": true}, "name": "ok-allow-empty.md"}
+ *
+ *   ```
+ *   mercury()
  *   ```
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
- *
- *   1:1-3:4: Missing code language flag
- *
- * @example
- *   {"name": "ok.md", "config": {"allowEmpty": true}}
+ *   {"config": {"allowEmpty": false}, "label": "input", "name": "not-ok-allow-empty.md"}
  *
  *   ```
- *   alpha()
+ *   mercury()
  *   ```
+ * @example
+ *   {"config": {"allowEmpty": false}, "label": "output", "name": "not-ok-allow-empty.md"}
+ *
+ *   1:1-3:4: Unexpected missing fenced code language flag in info string, expected keyword
  *
  * @example
- *   {"name": "not-ok.md", "config": {"allowEmpty": false}, "label": "input"}
+ *   {"config": ["markdown"], "name": "ok-array.md"}
  *
- *   ```
- *   alpha()
- *   ```
- *
- * @example
- *   {"name": "not-ok.md", "config": {"allowEmpty": false}, "label": "output"}
- *
- *   1:1-3:4: Missing code language flag
- *
- * @example
- *   {"name": "ok.md", "config": ["alpha"]}
- *
- *   ```alpha
- *   bravo()
+ *   ```markdown
+ *   # Mercury
  *   ```
  *
  * @example
- *   {"name": "ok.md", "config": {"flags":["alpha"]}}
+ *   {"config": {"flags":["markdown"]}, "name": "ok-options.md"}
  *
- *   ```alpha
- *   bravo()
+ *   ```markdown
+ *   # Mercury
  *   ```
  *
  * @example
- *   {"name": "not-ok.md", "config": ["charlie"], "label": "input"}
+ *   {"config": ["markdown"], "label": "input", "name": "not-ok-array.md"}
  *
- *   ```alpha
- *   bravo()
+ *   ```javascript
+ *   mercury()
  *   ```
+ * @example
+ *   {"config": ["markdown"], "label": "output", "name": "not-ok-array.md"}
+ *
+ *   1:1-3:4: Unexpected fenced code language flag `javascript` in info string, expected `markdown`
  *
  * @example
- *   {"name": "not-ok.md", "config": ["charlie"], "label": "output"}
+ *   {"config": ["javascript", "markdown", "mdx", "typescript"], "label": "input", "name": "not-ok-long-array.md"}
  *
- *   1:1-3:4: Incorrect code language flag
+ *   ```html
+ *   <h1>Mercury</h1>
+ *   ```
+ * @example
+ *   {"config": ["javascript", "markdown", "mdx", "typescript"], "label": "output", "name": "not-ok-long-array.md"}
+ *
+ *   1:1-3:4: Unexpected fenced code language flag `html` in info string, expected `javascript`, `markdown`, `mdx`, …
+ *
+ * @example
+ *   {"config": "🌍", "label": "output", "name": "not-ok-options.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected array or object
  */
 const fence = /^ {0,3}([~`])\1{2,}/;
-const remarkLintFencedCodeFlag = lintRule(
+const listFormat$1 = new Intl.ListFormat('en', {type: 'disjunction'});
+const listFormatUnit$1 = new Intl.ListFormat('en', {type: 'unit'});
+const remarkLintFencedCodeFlag = lintRule$1(
   {
     origin: 'remark-lint:fenced-code-flag',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-fenced-code-flag#readme'
   },
-  (tree, file, option) => {
+  function (tree, file, options) {
     const value = String(file);
     let allowEmpty = false;
-    let allowed = [];
-    if (typeof option === 'object') {
-      if (Array.isArray(option)) {
-        allowed = option;
+    let allowed;
+    if (options === null || options === undefined) ; else if (typeof options === 'object') {
+      if (Array.isArray(options)) {
+        const flags =  (options);
+        allowed = flags;
       } else {
-        allowEmpty = Boolean(option.allowEmpty);
-        if (option.flags) {
-          allowed = option.flags;
+        const settings =  (options);
+        allowEmpty = settings.allowEmpty === true;
+        if (settings.flags) {
+          allowed = settings.flags;
         }
       }
-    }
-    visit$g(tree, 'code', (node) => {
-      if (!generated(node)) {
-        if (node.lang) {
-          if (allowed.length > 0 && !allowed.includes(node.lang)) {
-            file.message('Incorrect code language flag', node);
-          }
-        } else {
-          const slice = value.slice(
-            pointStart(node).offset,
-            pointEnd(node).offset
-          );
-          if (!allowEmpty && fence.test(slice)) {
-            file.message('Missing code language flag', node);
-          }
-        }
-      }
-    });
-  }
-);
-var remarkLintFencedCodeFlag$1 = remarkLintFencedCodeFlag;
-
-const convert$f =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$f
-      }
-      if (typeof test === 'string') {
-        return typeFactory$f(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$f(test) : propsFactory$f(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$f(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$f(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$f(tests[index]);
-  }
-  return castFactory$f(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$f(check) {
-  return castFactory$f(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$f(check) {
-  return castFactory$f(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$f(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$f() {
-  return true
-}
-
-function color$g(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$f = true;
-const EXIT$f = false;
-const SKIP$f = 'skip';
-const visitParents$f =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$f(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$g(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$f(visitor(node, parents));
-            if (result[0] === EXIT$f) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$f) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$f) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$f(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$f, value]
-  }
-  return [value]
-}
-
-const visit$f =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$f(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-/**
- * ## When should I use this?
- *
- * You can use this package to check that fenced code markers are consistent.
- *
- * ## API
- *
- * The following options (default: `'consistent'`) are accepted:
- *
- * *   ``'`'``
- *     — prefer grave accents
- * *   `'~'`
- *     — prefer tildes
- * *   `'consistent'`
- *     — detect the first used style and warn when further fenced code differs
- *
- * ## Recommendation
- *
- * Tildes are extremely uncommon.
- * Due to this, it’s recommended to configure this rule with ``'`'``.
- *
- * ## Fix
- *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats fenced code with grave accents by default.
- * Pass
- * [`fence: '~'`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionsfence)
- * to always use tildes.
- *
- * @module fenced-code-marker
- * @summary
- *   remark-lint rule to warn when fenced code markers are inconsistent.
- * @author Titus Wormer
- * @copyright 2015 Titus Wormer
- * @license MIT
- * @example
- *   {"name": "ok.md"}
- *
- *   Indented code blocks are not affected by this rule:
- *
- *       bravo()
- *
- * @example
- *   {"name": "ok.md", "config": "`"}
- *
- *   ```alpha
- *   bravo()
- *   ```
- *
- *   ```
- *   charlie()
- *   ```
- *
- * @example
- *   {"name": "ok.md", "config": "~"}
- *
- *   ~~~alpha
- *   bravo()
- *   ~~~
- *
- *   ~~~
- *   charlie()
- *   ~~~
- *
- * @example
- *   {"name": "not-ok-consistent-tick.md", "label": "input"}
- *
- *   ```alpha
- *   bravo()
- *   ```
- *
- *   ~~~
- *   charlie()
- *   ~~~
- *
- * @example
- *   {"name": "not-ok-consistent-tick.md", "label": "output"}
- *
- *   5:1-7:4: Fenced code should use `` ` `` as a marker
- *
- * @example
- *   {"name": "not-ok-consistent-tilde.md", "label": "input"}
- *
- *   ~~~alpha
- *   bravo()
- *   ~~~
- *
- *   ```
- *   charlie()
- *   ```
- *
- * @example
- *   {"name": "not-ok-consistent-tilde.md", "label": "output"}
- *
- *   5:1-7:4: Fenced code should use `~` as a marker
- *
- * @example
- *   {"name": "not-ok-incorrect.md", "config": "💩", "label": "output", "positionless": true}
- *
- *   1:1: Incorrect fenced code marker `💩`: use either `'consistent'`, `` '`' ``, or `'~'`
- */
-const remarkLintFencedCodeMarker = lintRule(
-  {
-    origin: 'remark-lint:fenced-code-marker',
-    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-fenced-code-marker#readme'
-  },
-  (tree, file, option = 'consistent') => {
-    const contents = String(file);
-    if (option !== 'consistent' && option !== '~' && option !== '`') {
+    } else {
       file.fail(
-        'Incorrect fenced code marker `' +
-          option +
-          "`: use either `'consistent'`, `` '`' ``, or `'~'`"
+        'Unexpected value `' +
+          options +
+          '` for `options`, expected array or object'
       );
     }
-    visit$f(tree, 'code', (node) => {
-      const start = pointStart(node).offset;
-      if (typeof start === 'number') {
-        const marker = contents
-          .slice(start, start + 4)
-          .replace(/^\s+/, '')
-          .charAt(0);
-        if (marker === '~' || marker === '`') {
-          if (option === 'consistent') {
-            option = marker;
-          } else if (marker !== option) {
+    let allowedDisplay;
+    if (allowed) {
+      allowedDisplay =
+        allowed.length > 3
+          ? listFormatUnit$1.format([...quotation(allowed.slice(0, 3), '`'), '…'])
+          : listFormat$1.format(quotation(allowed, '`'));
+    } else {
+      allowedDisplay = 'keyword';
+    }
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'code') return
+      const end = pointEnd(node);
+      const start = pointStart(node);
+      if (
+        end &&
+        start &&
+        typeof end.offset === 'number' &&
+        typeof start.offset === 'number'
+      ) {
+        if (node.lang) {
+          if (allowed && !allowed.includes(node.lang)) {
             file.message(
-              'Fenced code should use `' +
-                (option === '~' ? option : '` ` `') +
-                '` as a marker',
-              node
+              'Unexpected fenced code language flag `' +
+                node.lang +
+                '` in info string, expected ' +
+                allowedDisplay,
+              {ancestors: [...parents, node], place: node.position}
+            );
+          }
+        } else if (!allowEmpty) {
+          const slice = value.slice(start.offset, end.offset);
+          if (fence.test(slice)) {
+            file.message(
+              'Unexpected missing fenced code language flag in info string, expected ' +
+                allowedDisplay,
+              {ancestors: [...parents, node], place: node.position}
             );
           }
         }
@@ -18350,22 +15243,248 @@ const remarkLintFencedCodeMarker = lintRule(
     });
   }
 );
-var remarkLintFencedCodeMarker$1 = remarkLintFencedCodeMarker;
 
 /**
+ * remark-lint rule to warn when fenced code markers are
+ * inconsistent.
+ *
+ * ## What is this?
+ *
+ * This package checks fenced code block markers.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that file extensions are `md`.
+ * You can use this package to check that fenced code block markers are
+ * consistent.
  *
  * ## API
  *
- * The following options (default: `'md'`) are accepted:
+ * ### `unified().use(remarkLintFencedCodeMarker[, options])`
  *
- * *   `string` (example `'markdown'`)
- *     — preferred file extension (no dot)
+ * Warn when fenced code markers are inconsistent.
  *
- * > 👉 **Note**: does not warn when files have no file extensions (such as
- * > `AUTHORS` or `LICENSE`).
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — preferred style or whether to detect the first style and warn for
+ *   further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Marker`
+ *
+ * Marker (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Marker = '`' | '~'
+ * ```
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Marker | 'consistent'
+ * ```
+ *
+ * ## Recommendation
+ *
+ * Tildes are uncommon.
+ * So it’s recommended to configure this rule with ``'`'``.
+ *
+ * ## Fix
+ *
+ * [`remark-stringify`][github-remark-stringify] formats fenced code with grave
+ * accents by default.
+ * Pass `fence: '~'` to always use tildes.
+ *
+ * [api-marker]: #marker
+ * [api-options]: #options
+ * [api-remark-lint-fenced-code-marker]: #unifieduseremarklintfencedcodemarker-options
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
+ * @module fenced-code-marker
+ * @author Titus Wormer
+ * @copyright 2015 Titus Wormer
+ * @license MIT
+ *
+ * @example
+ *   {"name": "ok-indented.md"}
+ *
+ *   Indented code blocks are not affected by this rule:
+ *
+ *       mercury()
+ *
+ * @example
+ *   {"config": "`", "name": "ok-tick.md"}
+ *
+ *   ```javascript
+ *   mercury()
+ *   ```
+ *
+ *   ```
+ *   venus()
+ *   ```
+ *
+ * @example
+ *   {"config": "~", "name": "ok-tilde.md"}
+ *
+ *   ~~~javascript
+ *   mercury()
+ *   ~~~
+ *
+ *   ~~~
+ *   venus()
+ *   ~~~
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok-consistent-tick.md"}
+ *
+ *   ```javascript
+ *   mercury()
+ *   ```
+ *
+ *   ~~~
+ *   venus()
+ *   ~~~
+ * @example
+ *   {"label": "output", "name": "not-ok-consistent-tick.md"}
+ *
+ *   5:1-7:4: Unexpected fenced code marker `~`, expected `` ` ``
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok-consistent-tilde.md"}
+ *
+ *   ~~~javascript
+ *   mercury()
+ *   ~~~
+ *
+ *   ```
+ *   venus()
+ *   ```
+ * @example
+ *   {"label": "output", "name": "not-ok-consistent-tilde.md"}
+ *
+ *   5:1-7:4: Unexpected fenced code marker `` ` ``, expected `~`
+ *
+ * @example
+ *   {"config": "🌍", "label": "output", "name": "not-ok-incorrect.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected ``'`'``, `'~'`, or `'consistent'`
+ */
+const remarkLintFencedCodeMarker = lintRule$1(
+  {
+    origin: 'remark-lint:fenced-code-marker',
+    url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-fenced-code-marker#readme'
+  },
+  function (tree, file, options) {
+    const value = String(file);
+    let cause;
+    let expected;
+    if (options === null || options === undefined || options === 'consistent') ; else if (options === '`' || options === '~') {
+      expected = options;
+    } else {
+      file.fail(
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected ``'`'``, `'~'`, or `'consistent'`"
+      );
+    }
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'code') return
+      const start = pointStart(node);
+      if (start && typeof start.offset === 'number') {
+        const actual = value
+          .slice(start.offset, start.offset + 4)
+          .replace(/^\s+/, '')
+          .charAt(0);
+        if (actual !== '`' && actual !== '~') return
+        if (expected) {
+          if (actual !== expected) {
+            file.message(
+              'Unexpected fenced code marker ' +
+                (actual === '~' ? '`~`' : '`` ` ``') +
+                ', expected ' +
+                (expected === '~' ? '`~`' : '`` ` ``'),
+              {ancestors: [...parents, node], cause, place: node.position}
+            );
+          }
+        } else {
+          expected = actual;
+          cause = new VFileMessage(
+            'Fenced code marker style ' +
+              (actual === '~' ? "`'~'`" : "``'`'``") +
+              " first defined for `'consistent'` here",
+            {
+              ancestors: [...parents, node],
+              place: node.position,
+              ruleId: 'fenced-code-marker',
+              source: 'remark-lint'
+            }
+          );
+        }
+      }
+    });
+  }
+);
+
+/**
+ * remark-lint rule to warn for unexpected file extensions.
+ *
+ * ## What is this?
+ *
+ * This package checks the file extension.
+ *
+ * ## When should I use this?
+ *
+ * You can use this package to check that file extensions are consistent.
+ *
+ * ## API
+ *
+ * ### `unified().use(remarkLintFileExtension[, options])`
+ *
+ * Warn for unexpected extensions.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Extensions`][api-extensions] or [`Options`][api-options],
+ *   optional)
+ *   — configuration
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Extensions`
+ *
+ * File extension(s) (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Extensions = Array<string> | string
+ * ```
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Fields
+ *
+ * * `allowExtensionless` (`boolean`, default: `true`)
+ *   — allow no file extension such as `AUTHORS` or `LICENSE`
+ * * `extensions` ([`Extensions`][api-extensions], default: `['mdx', 'md']`)
+ *   — allowed file extension(s)
  *
  * ## Recommendation
  *
@@ -18374,205 +15493,118 @@ var remarkLintFencedCodeMarker$1 = remarkLintFencedCodeMarker;
  * GFM, frontmatter, or math).
  * Do not use `md` for MDX: use `mdx` instead.
  *
+ * [api-extensions]: #extensions
+ * [api-options]: #options
+ * [api-remark-lint-file-extension]: #unifieduseremarklintfileextension-options
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module file-extension
- * @summary
- *   remark-lint rule to check the file extension.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "readme.md"}
+ *
+ * @example
+ *   {"name": "readme.mdx"}
  *
  * @example
  *   {"name": "readme"}
  *
  * @example
- *   {"name": "readme.mkd", "label": "output", "positionless": true}
+ *   {"config": {"allowExtensionless": false}, "label": "output", "name": "readme", "positionless": true}
  *
- *   1:1: Incorrect extension: use `md`
+ *   1:1: Unexpected missing file extension, expected `mdx` or `md`
  *
  * @example
- *   {"name": "readme.mkd", "config": "mkd"}
+ *   {"label": "output", "name": "readme.mkd", "positionless": true}
+ *
+ *   1:1: Unexpected file extension `mkd`, expected `mdx` or `md`
+ *
+ * @example
+ *   {"config": "mkd", "name": "readme.mkd"}
+ *
+ * @example
+ *   {"config": ["markdown", "md", "mdown", "mdwn", "mdx", "mkd", "mkdn", "mkdown", "ron"], "label": "input", "name": "readme.css", "positionless": true}
+ *
+ * @example
+ *   {"config": ["markdown", "md", "mdown", "mdwn", "mdx", "mkd", "mkdn", "mkdown", "ron"], "label": "output", "name": "readme.css"}
+ *
+ *   1:1: Unexpected file extension `css`, expected `markdown`, `md`, `mdown`, …
  */
-const remarkLintFileExtension = lintRule(
+const defaultExtensions = ['mdx', 'md'];
+const listFormat = new Intl.ListFormat('en', {type: 'disjunction'});
+const listFormatUnit = new Intl.ListFormat('en', {type: 'unit'});
+const remarkLintFileExtension = lintRule$1(
   {
     origin: 'remark-lint:file-extension',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-file-extension#readme'
   },
-  (_, file, option = 'md') => {
-    const ext = file.extname;
-    if (ext && ext.slice(1) !== option) {
-      file.message('Incorrect extension: use `' + option + '`');
+  function (_, file, options) {
+    let expected = defaultExtensions;
+    let allowExtensionless = true;
+    let extensionsValue;
+    if (Array.isArray(options)) {
+      extensionsValue =  (options);
+    } else if (typeof options === 'string') {
+      extensionsValue = options;
+    } else if (options) {
+      const settings =  (options);
+      extensionsValue = settings.extensions;
+      if (settings.allowExtensionless === false) {
+        allowExtensionless = false;
+      }
+    }
+    if (Array.isArray(extensionsValue)) {
+      expected =  (extensionsValue);
+    } else if (typeof extensionsValue === 'string') {
+      expected = [extensionsValue];
+    }
+    const extname = file.extname;
+    const actual = extname ? extname.slice(1) : undefined;
+    const expectedDisplay =
+      expected.length > 3
+        ? listFormatUnit.format([...quotation(expected.slice(0, 3), '`'), '…'])
+        : listFormat.format(quotation(expected, '`'));
+    if (actual ? !expected.includes(actual) : !allowExtensionless) {
+      file.message(
+        (actual
+          ? 'Unexpected file extension `' + actual + '`'
+          : 'Unexpected missing file extension') +
+          ', expected ' +
+          expectedDisplay
+      );
     }
   }
 );
-var remarkLintFileExtension$1 = remarkLintFileExtension;
-
-const convert$e =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$e
-      }
-      if (typeof test === 'string') {
-        return typeFactory$e(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$e(test) : propsFactory$e(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$e(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$e(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$e(tests[index]);
-  }
-  return castFactory$e(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$e(check) {
-  return castFactory$e(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$e(check) {
-  return castFactory$e(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$e(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$e() {
-  return true
-}
-
-function color$f(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$e = true;
-const EXIT$e = false;
-const SKIP$e = 'skip';
-const visitParents$e =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$e(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$f(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$e(visitor(node, parents));
-            if (result[0] === EXIT$e) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$e) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$e) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$e(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$e, value]
-  }
-  return [value]
-}
-
-const visit$e =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$e(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when definitions are used *in* the
+ * document instead of at the end.
+ *
+ * ## What is this?
+ *
+ * This package checks where definitions are placed.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that definitions are placed at the end of
- * the document.
+ * You can use this package to check that definitions are consistently at the
+ * end of the document.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintFinalDefinition)`
+ *
+ * Warn when definitions are used *in* the document instead of at the end.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
@@ -18580,1177 +15612,849 @@ const visit$e =
  * The simplest is perhaps to place them all at the bottem of documents.
  * If you prefer that, turn on this rule.
  *
+ * [api-remark-lint-final-definition]: #unifieduseremarklintfinaldefinition
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module final-definition
- * @summary
- *   remark-lint rule to warn when definitions are used *in* the document
- *   instead of at the end.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   Paragraph.
+ *   Mercury.
  *
- *   [example]: http://example.com "Example Domain"
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   Paragraph.
- *
- *   [example]: http://example.com "Example Domain"
- *
- *   Another paragraph.
+ *   [venus]: http://example.com
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"name": "ok.md"}
  *
- *   3:1-3:47: Move definitions to the end of the file (after the node at line `5`)
+ *   [mercury]: http://example.com/mercury/
+ *   [venus]: http://example.com/venus/
  *
  * @example
- *   {"name": "ok-comments.md"}
+ *   {"name": "ok-html-comments.md"}
  *
- *   Paragraph.
+ *   Mercury.
  *
- *   [example-1]: http://example.com/one/
+ *   [venus]: http://example.com/venus/
  *
- *   <!-- Comments are fine between and after definitions -->
+ *   <!-- HTML comments in markdown are ignored. -->
  *
- *   [example-2]: http://example.com/two/
+ *   [earth]: http://example.com/earth/
+ *
+ * @example
+ *   {"name": "ok-mdx-comments.mdx", "mdx": true}
+ *
+ *   Mercury.
+ *
+ *   [venus]: http://example.com/venus/
+ *
+ *   {/* Comments in expressions in MDX are ignored. *␀/}
+ *
+ *   [earth]: http://example.com/earth/
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok.md"}
+ *
+ *   Mercury.
+ *
+ *   [venus]: https://example.com/venus/
+ *
+ *   Earth.
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   3:1-3:36: Unexpected definition before last content, expected definitions after line `5`
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "gfm-nok.md"}
+ *
+ *   Mercury.
+ *
+ *   [^venus]:
+ *       **Venus** is the second planet from
+ *       the Sun.
+ *
+ *   Earth.
+ * @example
+ *   {"gfm": true, "label": "output", "name": "gfm-nok.md"}
+ *
+ *   3:1-5:13: Unexpected footnote definition before last content, expected definitions after line `7`
+ *
+ * @example
+ *   {"gfm": true, "name": "gfm-ok.md"}
+ *
+ *   Mercury.
+ *
+ *   Earth.
+ *
+ *   [^venus]:
+ *       **Venus** is the second planet from
+ *       the Sun.
  */
-const remarkLintFinalDefinition = lintRule(
+const remarkLintFinalDefinition = lintRule$1(
   {
     origin: 'remark-lint:final-definition',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-final-definition#readme'
   },
-  (tree, file) => {
-    let last = 0;
-    visit$e(
-      tree,
-      (node) => {
-        if (
-          node.type === 'root' ||
-          generated(node) ||
-          (node.type === 'html' && /^\s*<!--/.test(node.value))
-        ) {
-          return
+  function (tree, file) {
+    const definitionStacks = [];
+    let contentAncestors;
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type === 'definition' || node.type === 'footnoteDefinition') {
+        definitionStacks.push([...parents, node]);
+        return SKIP
+      }
+      if (
+        node.type === 'root' ||
+        (node.type === 'html' && /^[\t ]*<!--/.test(node.value)) ||
+        (node.type === 'mdxFlowExpression' && /^\s*\/\*/.test(node.value))
+      ) {
+        return
+      }
+      contentAncestors = [...parents, node];
+    });
+    const content = contentAncestors ? contentAncestors.at(-1) : undefined;
+    const contentEnd = pointEnd(content);
+    if (contentEnd) {
+      for (const definitionAncestors of definitionStacks) {
+        const definition = definitionAncestors.at(-1);
+        const definitionStart = pointStart(definition);
+        if (definitionStart && definitionStart.line < contentEnd.line) {
+          file.message(
+            'Unexpected ' +
+              (definition.type === 'footnoteDefinition' ? 'footnote ' : '') +
+              'definition before last content, expected definitions after line `' +
+              contentEnd.line +
+              '`',
+            {
+              ancestors: definitionAncestors,
+              cause: new VFileMessage('Last content defined here', {
+                ancestors: contentAncestors,
+                place: content.position,
+                ruleId: 'final-definition',
+                source: 'remark-lint'
+              }),
+              place: definition.position
+            }
+          );
         }
-        const line = pointStart(node).line;
-        if (node.type === 'definition') {
-          if (last && last > line) {
-            file.message(
-              'Move definitions to the end of the file (after the node at line `' +
-                last +
-                '`)',
-              node
-            );
-          }
-        } else if (last === 0) {
-          last = line;
-        }
-      },
-      true
-    );
+      }
+    }
   }
 );
-var remarkLintFinalDefinition$1 = remarkLintFinalDefinition;
-
-const convert$d =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$d
-      }
-      if (typeof test === 'string') {
-        return typeFactory$d(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$d(test) : propsFactory$d(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$d(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$d(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$d(tests[index]);
-  }
-  return castFactory$d(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$d(check) {
-  return castFactory$d(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$d(check) {
-  return castFactory$d(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$d(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$d() {
-  return true
-}
-
-function color$e(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$d = true;
-const EXIT$d = false;
-const SKIP$d = 'skip';
-const visitParents$d =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$d(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$e(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$d(visitor(node, parents));
-            if (result[0] === EXIT$d) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$d) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$d) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$d(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$d, value]
-  }
-  return [value]
-}
-
-const visit$d =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$d(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when the first heading has an unexpected rank.
+ *
+ * ## What is this?
+ *
+ * This package checks the rank of the first heading.
+ *
  * ## When should I use this?
  *
- * You can use this package to check the heading rank of the first heading.
+ * You can use this package to check that the rank of first headings is
+ * consistent.
  *
  * ## API
  *
- * The following options (default: `1`) are accepted:
+ * ### `unified().use(remarkLintFirstHeadingLevel[, options])`
  *
- * *   `number` (example `1`)
- *     — expected rank of first heading
+ * Warn when the first heading has an unexpected rank.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `1`)
+ *   — configuration
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = 1 | 2 | 3 | 4 | 5 | 6
+ * ```
  *
  * ## Recommendation
  *
  * In most cases you’d want to first heading in a markdown document to start at
- * rank 1.
- * In some cases a different rank makes more sense, such as when building a blog
- * and generating the primary heading from frontmatter metadata, in which case
- * a value of `2` can be defined here.
+ * rank `1`.
+ * In some cases a different rank makes more sense,
+ * such as when building a blog and generating the primary heading from
+ * frontmatter metadata,
+ * in which case a value of `2` can be defined here or the rule can be turned
+ * off.
+ *
+ * [api-options]: #options
+ * [api-remark-lint-first-heading-level]: #unifieduseremarklintfirstheadinglevel-options
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module first-heading-level
- * @summary
- *   remark-lint rule to warn when the first heading has an unexpected rank.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   # The default is to expect a level one heading
+ *   # Mercury
+ *
+ * @example
+ *   {"name": "ok-delay.md"}
+ *
+ *   Mercury.
+ *
+ *   # Venus
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok.md"}
+ *
+ *   ## Mercury
+ *
+ *   Venus.
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   1:1-1:11: Unexpected first heading rank `2`, expected rank `1`
+ *
+ * @example
+ *   {"config": 2, "name": "ok.md"}
+ *
+ *   ## Mercury
+ *
+ *   Venus.
  *
  * @example
  *   {"name": "ok-html.md"}
  *
- *   <h1>An HTML heading is also seen by this rule.</h1>
+ *   <div>Mercury.</div>
+ *
+ *   <h1>Venus</h1>
  *
  * @example
- *   {"name": "ok-delayed.md"}
+ *   {"mdx": true, "name": "ok-mdx.mdx"}
  *
- *   You can use markdown content before the heading.
+ *   <div>Mercury.</div>
  *
- *   <div>Or non-heading HTML</div>
- *
- *   <h1>So the first heading, be it HTML or markdown, is checked</h1>
+ *   <h1>Venus</h1>
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"config": "🌍", "label": "output", "name": "not-ok-options.md", "positionless": true}
  *
- *   ## Bravo
- *
- *   Paragraph.
- *
- * @example
- *   {"name": "not-ok.md", "label": "output"}
- *
- *   1:1-1:9: First heading level should be `1`
- *
- * @example
- *   {"name": "not-ok-html.md", "label": "input"}
- *
- *   <h2>Charlie</h2>
- *
- *   Paragraph.
- *
- * @example
- *   {"name": "not-ok-html.md", "label": "output"}
- *
- *   1:1-1:17: First heading level should be `1`
- *
- * @example
- *   {"name": "ok.md", "config": 2}
- *
- *   ## Delta
- *
- *   Paragraph.
- *
- * @example
- *   {"name": "ok-html.md", "config": 2}
- *
- *   <h2>Echo</h2>
- *
- *   Paragraph.
- *
- * @example
- *   {"name": "not-ok.md", "config": 2, "label": "input"}
- *
- *   # Foxtrot
- *
- *   Paragraph.
- *
- * @example
- *   {"name": "not-ok.md", "config": 2, "label": "output"}
- *
- *   1:1-1:10: First heading level should be `2`
- *
- * @example
- *   {"name": "not-ok-html.md", "config": 2, "label": "input"}
- *
- *   <h1>Golf</h1>
- *
- *   Paragraph.
- *
- * @example
- *   {"name": "not-ok-html.md", "config": 2, "label": "output"}
- *
- *   1:1-1:14: First heading level should be `2`
+ *   1:1: Unexpected value `🌍` for `options`, expected `1`, `2`, `3`, `4`, `5`, or `6`
  */
-const re$2 = /<h([1-6])/;
-const remarkLintFirstHeadingLevel = lintRule(
+const htmlRe$1 = /<h([1-6])/;
+const jsxNameRe$1 = /^h([1-6])$/;
+const remarkLintFirstHeadingLevel = lintRule$1(
   {
     origin: 'remark-lint:first-heading-level',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-first-heading-level#readme'
   },
-  (tree, file, option = 1) => {
-    visit$d(tree, (node) => {
-      if (!generated(node)) {
-        let rank;
-        if (node.type === 'heading') {
-          rank = node.depth;
-        } else if (node.type === 'html') {
-          rank = infer(node);
+  function (tree, file, options) {
+    let expected;
+    if (options === null || options === undefined) {
+      expected = 1;
+    } else if (
+      options === 1 ||
+      options === 2 ||
+      options === 3 ||
+      options === 4 ||
+      options === 5 ||
+      options === 6
+    ) {
+      expected = options;
+    } else {
+      file.fail(
+        'Unexpected value `' +
+          options +
+          '` for `options`, expected `1`, `2`, `3`, `4`, `5`, or `6`'
+      );
+    }
+    visitParents(tree, function (node, parents) {
+      let actual;
+      if (node.type === 'heading') {
+        actual = node.depth;
+      } else if (node.type === 'html') {
+        const results = node.value.match(htmlRe$1);
+        actual = results
+          ?  (Number(results[1]))
+          : undefined;
+      } else if (
+        (node.type === 'mdxJsxFlowElement' ||
+          node.type === 'mdxJsxTextElement') &&
+        node.name
+      ) {
+        const results = node.name.match(jsxNameRe$1);
+        actual = results
+          ?  (Number(results[1]))
+          : undefined;
+      }
+      if (actual && node.position) {
+        if (node.position && actual !== expected) {
+          file.message(
+            'Unexpected first heading rank `' +
+              actual +
+              '`, expected rank `' +
+              expected +
+              '`',
+            {ancestors: [...parents, node], place: node.position}
+          );
         }
-        if (rank !== undefined) {
-          if (rank !== option) {
-            file.message('First heading level should be `' + option + '`', node);
-          }
-          return EXIT$d
-        }
+        return EXIT
       }
     });
   }
 );
-var remarkLintFirstHeadingLevel$1 = remarkLintFirstHeadingLevel;
-function infer(node) {
-  const results = node.value.match(re$2);
-  return results ? Number(results[1]) : undefined
-}
 
-const convert$c =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$c
-      }
-      if (typeof test === 'string') {
-        return typeFactory$c(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$c(test) : propsFactory$c(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$c(test)
-      }
-      throw new Error('Expected function, string, or object as test')
+function headingStyle(node, relative) {
+  const last = node.children[node.children.length - 1];
+  const depth = node.depth;
+  const pos = node.position && node.position.end;
+  const final = last && last.position && last.position.end;
+  if (!pos) {
+    return undefined
+  }
+  if (!last) {
+    if (pos.column - 1 <= depth * 2) {
+      return consolidate(depth, relative)
     }
-  );
-function anyFactory$c(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$c(tests[index]);
+    return 'atx-closed'
   }
-  return castFactory$c(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
+  if (final && final.line + 1 === pos.line) {
+    return 'setext'
   }
-}
-function propsFactory$c(check) {
-  return castFactory$c(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
+  if (final && final.column + depth < pos.column) {
+    return 'atx-closed'
   }
+  return consolidate(depth, relative)
 }
-function typeFactory$c(check) {
-  return castFactory$c(type)
-  function type(node) {
-    return node && node.type === check
-  }
+function consolidate(depth, relative) {
+  return depth < 3
+    ? 'atx'
+    : relative === 'atx' || relative === 'setext'
+    ? relative
+    : undefined
 }
-function castFactory$c(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$c() {
-  return true
-}
-
-function color$d(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$c = true;
-const EXIT$c = false;
-const SKIP$c = 'skip';
-const visitParents$c =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$c(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$d(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$c(visitor(node, parents));
-            if (result[0] === EXIT$c) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$c) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$c) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$c(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$c, value]
-  }
-  return [value]
-}
-
-const visit$c =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$c(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when headings violate a given style.
+ *
+ * ## What is this?
+ *
+ * This package checks the style of headings.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that headings are consistent.
+ * You can use this package to check that the style of headings is consistent.
  *
  * ## API
  *
- * The following options (default: `'consistent'`) are accepted:
+ * ### `unified().use(remarkLintHeadingStyle[, options])`
  *
- * *   `'atx'`
- *     — prefer ATX headings:
- *     ```markdown
- *     ## Hello
- *     ```
- * *   `'atx-closed'`
- *     — prefer ATX headings with a closing sequence:
- *     ```markdown
- *     ## Hello ##
- *     ```
- * *   `'setext'`
- *     — prefer setext headings:
- *     ```markdown
- *     Hello
- *     -----
- *     ```
- * *   `'consistent'`
- *     — detect the first used style and warn when further headings differ
+ * Warn when headings violate a given style.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — preferred style or whether to detect the first style and warn for
+ *   further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Style | 'consistent'
+ * ```
+ *
+ * ### `Style`
+ *
+ * Style (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Style = 'atx' | 'atx-closed' | 'setext'
+ * ```
  *
  * ## Recommendation
  *
  * Setext headings are limited in that they can only construct headings with a
  * rank of one and two.
- * On the other hand, they do allow multiple lines of content whereas ATX only
- * allows one line.
- * The number of used markers in their underline does not matter, leading to
- * either:
+ * They do allow multiple lines of content where ATX only allows one line.
+ * The number of used markers in their underline does not matter,
+ * leading to either:
  *
- * *   1 marker (`Hello\n-`), which is the bare minimum, and for rank 2 headings
- *     looks suspiciously like an empty list item
- * *   using as many markers as the content (`Hello\n-----`), which is hard to
- *     maintain
- * *   an arbitrary number (`Hello\n---`), which for rank 2 headings looks
- *     suspiciously like a thematic break
+ * * 1 marker (`Hello\n-`),
+ *   which is the bare minimum,
+ *   and for rank 2 headings looks suspiciously like an empty list item
+ * * using as many markers as the content (`Hello\n-----`),
+ *   which is hard to maintain and diff
+ * * an arbitrary number (`Hello\n---`), which for rank 2 headings looks
+ *   suspiciously like a thematic break
  *
- * Setext headings are also rather uncommon.
+ * Setext headings are also uncommon.
  * Using a sequence of hashes at the end of ATX headings is even more uncommon.
- * Due to this, it’s recommended to prefer ATX headings.
+ * Due to this,
+ * it’s recommended to use ATX headings, without closing hashes.
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats headings as ATX by default.
- * The other styles can be configured with
- * [`setext: true`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionssetext)
- * or
- * [`closeAtx: true`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionscloseatx).
+ * [`remark-stringify`][github-remark-stringify] formats headings as ATX by default.
+ * The other styles can be configured with `setext: true` or `closeAtx: true`.
+ *
+ * [api-options]: #options
+ * [api-remark-lint-heading-style]: #unifieduseremarklintheadingstyle-options
+ * [api-style]: #style
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module heading-style
- * @summary
- *   remark-lint rule to warn when headings violate a given style.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md", "config": "atx"}
- *
- *   # Alpha
- *
- *   ## Bravo
- *
- *   ### Charlie
  *
  * @example
- *   {"name": "ok.md", "config": "atx-closed"}
+ *   {"config": "atx", "name": "ok.md"}
  *
- *   # Delta ##
+ *   # Mercury
  *
- *   ## Echo ##
+ *   ## Venus
  *
- *   ### Foxtrot ###
- *
- * @example
- *   {"name": "ok.md", "config": "setext"}
- *
- *   Golf
- *   ====
- *
- *   Hotel
- *   -----
- *
- *   ### India
+ *   ### Earth
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"config": "atx-closed", "name": "ok.md"}
  *
- *   Juliett
+ *   # Mercury ##
+ *
+ *   ## Venus ##
+ *
+ *   ### Earth ###
+ *
+ * @example
+ *   {"config": "setext", "name": "ok.md"}
+ *
+ *   Mercury
  *   =======
  *
- *   ## Kilo
+ *   Venus
+ *   -----
  *
- *   ### Lima ###
- *
- * @example
- *   {"name": "not-ok.md", "label": "output"}
- *
- *   4:1-4:8: Headings should use setext
- *   6:1-6:13: Headings should use setext
+ *   ### Earth
  *
  * @example
- *   {"name": "not-ok.md", "config": "💩", "label": "output", "positionless": true}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   1:1: Incorrect heading style type `💩`: use either `'consistent'`, `'atx'`, `'atx-closed'`, or `'setext'`
+ *   Mercury
+ *   =======
+ *
+ *   ## Venus
+ *
+ *   ### Earth ###
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   4:1-4:9: Unexpected ATX heading, expected setext
+ *   6:1-6:14: Unexpected ATX (closed) heading, expected setext
+ *
+ * @example
+ *   {"config": "🌍", "label": "output", "name": "not-ok.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected `'atx'`, `'atx-closed'`, `'setext'`, or `'consistent'`
  */
-const remarkLintHeadingStyle = lintRule(
+const remarkLintHeadingStyle = lintRule$1(
   {
     origin: 'remark-lint:heading-style',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-heading-style#readme'
   },
-  (tree, file, option = 'consistent') => {
-    if (
-      option !== 'consistent' &&
-      option !== 'atx' &&
-      option !== 'atx-closed' &&
-      option !== 'setext'
+  function (tree, file, options) {
+    let cause;
+    let expected;
+    if (options === null || options === undefined || options === 'consistent') ; else if (
+      options === 'atx' ||
+      options === 'atx-closed' ||
+      options === 'setext'
     ) {
+      expected = options;
+    } else {
       file.fail(
-        'Incorrect heading style type `' +
-          option +
-          "`: use either `'consistent'`, `'atx'`, `'atx-closed'`, or `'setext'`"
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected `'atx'`, `'atx-closed'`, `'setext'`, or `'consistent'`"
       );
     }
-    visit$c(tree, 'heading', (node) => {
-      if (!generated(node)) {
-        if (option === 'consistent') {
-          option = headingStyle(node) || 'consistent';
-        } else if (headingStyle(node, option) !== option) {
-          file.message('Headings should use ' + option, node);
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'heading') return
+      const place = position(node);
+      const actual = headingStyle(node, expected);
+      if (actual) {
+        if (expected) {
+          if (place && actual !== expected) {
+            file.message(
+              'Unexpected ' +
+                displayStyle(actual) +
+                ' heading, expected ' +
+                displayStyle(expected),
+              {ancestors: [...parents, node], cause, place}
+            );
+          }
+        } else {
+          expected = actual;
+          cause = new VFileMessage(
+            'Heading style ' +
+              displayStyle(expected) +
+              " first defined for `'consistent'` here",
+            {
+              ancestors: [...parents, node],
+              place,
+              ruleId: 'heading-style',
+              source: 'remark-lint'
+            }
+          );
         }
       }
     });
   }
 );
-var remarkLintHeadingStyle$1 = remarkLintHeadingStyle;
-
-const convert$b =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$b
-      }
-      if (typeof test === 'string') {
-        return typeFactory$b(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$b(test) : propsFactory$b(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$b(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$b(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$b(tests[index]);
-  }
-  return castFactory$b(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
+function displayStyle(style) {
+  return style === 'atx'
+    ? 'ATX'
+    : style === 'atx-closed'
+      ? 'ATX (closed)'
+      : 'setext'
 }
-function propsFactory$b(check) {
-  return castFactory$b(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$b(check) {
-  return castFactory$b(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$b(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$b() {
-  return true
-}
-
-function color$c(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$b = true;
-const EXIT$b = false;
-const SKIP$b = 'skip';
-const visitParents$b =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$b(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$c(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$b(visitor(node, parents));
-            if (result[0] === EXIT$b) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$b) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$b) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$b(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$b, value]
-  }
-  return [value]
-}
-
-const visit$b =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$b(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when lines are too long.
+ *
+ * ## What is this?
+ *
+ * This package checks the length of lines.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that lines do not exceed a certain size.
+ * You can use this package to check that lines are within reason.
  *
  * ## API
  *
- * The following options (default: `80`) are accepted:
+ * ### `unified().use(remarkLintMaximumLineLength[, options])`
  *
- * *   `number` (example: `72`)
- *     — max number of characters to accept in heading text
+ * Warn when lines are too long.
  *
- * Ignores nodes that cannot be wrapped, such as headings, tables, code,
- * definitions, HTML, and JSX.
- * Ignores images, links, and code (inline) if they start before the wrap, end
- * after the wrap, and there’s no white space after them.
+ * Nodes that cannot be wrapped are ignored, such as JSX, HTML, code (flow),
+ * definitions, headings, and tables.
+ *
+ * When code (phrasing), images, and links start before the wrap,
+ * end after the wrap,
+ * and contain no whitespace,
+ * they are also ignored.
+ *
+ * ###### Parameters
+ *
+ * * `options` (`number`, default: `80`)
+ *   — preferred max size
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
  * Whether to wrap prose or not is a stylistic choice.
  *
+ * [api-remark-lint-maximum-line-length]: #unifieduseremarklintmaximumlinelength-options
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module maximum-line-length
- * @summary
- *   remark-lint rule to warn when lines are too long.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md", "positionless": true, "gfm": true}
- *
- *   This line is simply not toooooooooooooooooooooooooooooooooooooooooooo
- *   long.
- *
- *   This is also fine: <http://this-long-url-with-a-long-domain.co.uk/a-long-path?query=variables>
- *
- *   <http://this-link-is-fine.com>
- *
- *   `alphaBravoCharlieDeltaEchoFoxtrotGolfHotelIndiaJuliettKiloLimaMikeNovemberOscarPapaQuebec.romeo()`
- *
- *   [foo](http://this-long-url-with-a-long-domain-is-ok.co.uk/a-long-path?query=variables)
- *
- *   <http://this-long-url-with-a-long-domain-is-ok.co.uk/a-long-path?query=variables>
- *
- *   ![foo](http://this-long-url-with-a-long-domain-is-ok.co.uk/a-long-path?query=variables)
- *
- *   | An | exception | is | line | length | in | long | tables | because | those | can’t | just |
- *   | -- | --------- | -- | ---- | ------ | -- | ---- | ------ | ------- | ----- | ----- | ---- |
- *   | be | helped    |    |      |        |    |      |        |         |       |       | .    |
- *
- *   <a><b><i><p><q><s><u>alpha bravo charlie delta echo foxtrot golf</u></s></q></p></i></b></a>
- *
- *   The following is also fine (note the `.`), because there is no whitespace.
- *
- *   <http://this-long-url-with-a-long-domain-is-ok.co.uk/a-long-path?query=variables>.
- *
- *   In addition, definitions are also fine:
- *
- *   [foo]: <http://this-long-url-with-a-long-domain-is-ok.co.uk/a-long-path?query=variables>
  *
  * @example
- *   {"name": "not-ok.md", "config": 80, "label": "input", "positionless": true}
+ *   {"name": "ok.md", "positionless": true}
  *
- *   This line is simply not tooooooooooooooooooooooooooooooooooooooooooooooooooooooo
- *   long.
+ *   Mercury mercury mercury mercury mercury mercury mercury mercury mercury mercury
+ *   mercury.
  *
- *   Just like thiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiis one.
+ *   Mercury mercury mercury mercury mercury mercury mercury mercury mercury `mercury()`.
  *
- *   And this one is also very wrong: because the link starts aaaaaaafter the column: <http://line.com>
+ *   Mercury mercury mercury mercury mercury mercury mercury mercury mercury <http://localhost>.
  *
- *   <http://this-long-url-with-a-long-domain-is-not-ok.co.uk/a-long-path?query=variables> and such.
+ *   Mercury mercury mercury mercury mercury mercury mercury mercury mercury [mercury](http://localhost).
  *
- *   And this one is also very wrong: because the code starts aaaaaaafter the column: `alpha.bravo()`
+ *   Mercury mercury mercury mercury mercury mercury mercury mercury mercury ![mercury](http://localhost).
  *
- *   `alphaBravoCharlieDeltaEchoFoxtrotGolfHotelIndiaJuliettKiloLimaMikeNovemberOscar.papa()` and such.
+ *   <div>Mercury mercury mercury mercury mercury mercury mercury mercury mercury</div>
  *
- * @example
- *   {"name": "not-ok.md", "config": 80, "label": "output", "positionless": true}
- *
- *   4:86: Line must be at most 80 characters
- *   6:99: Line must be at most 80 characters
- *   8:96: Line must be at most 80 characters
- *   10:97: Line must be at most 80 characters
- *   12:99: Line must be at most 80 characters
+ *   [foo]: http://localhost/mercury/mercury/mercury/mercury/mercury/mercury/mercury/mercury
  *
  * @example
- *   {"name": "ok-mixed-line-endings.md", "config": 10, "positionless": true}
+ *   {"config": 20, "label": "input", "name": "not-ok.md", "positionless": true}
  *
- *   0123456789␍␊
- *   0123456789␊
- *   01234␍␊
- *   01234␊
+ *   Mercury mercury mercury
+ *   mercury.
+ *
+ *   Mercury mercury mercury `mercury()`.
+ *
+ *   Mercury mercury mercury <http://localhost>.
+ *
+ *   Mercury mercury mercury [m](example.com).
+ *
+ *   Mercury mercury mercury ![m](example.com).
+ *
+ *   `mercury()` mercury mercury mercury.
+ *
+ *   <http://localhost> mercury.
+ *
+ *   [m](example.com) mercury.
+ *
+ *   ![m](example.com) mercury.
+ *
+ *   Mercury mercury ![m](example.com) mercury.
  *
  * @example
- *   {"name": "not-ok-mixed-line-endings.md", "config": 10, "label": "input", "positionless": true}
+ *   {"config": 20, "label": "output", "name": "not-ok.md", "positionless": true}
  *
- *   012345678901␍␊
- *   012345678901␊
- *   01234567890␍␊
- *   01234567890␊
+ *   1:24: Unexpected `23` character line, expected at most `20` characters, remove `3` characters
+ *   4:37: Unexpected `36` character line, expected at most `20` characters, remove `16` characters
+ *   6:44: Unexpected `43` character line, expected at most `20` characters, remove `23` characters
+ *   8:42: Unexpected `41` character line, expected at most `20` characters, remove `21` characters
+ *   10:43: Unexpected `42` character line, expected at most `20` characters, remove `22` characters
+ *   12:37: Unexpected `36` character line, expected at most `20` characters, remove `16` characters
+ *   14:28: Unexpected `27` character line, expected at most `20` characters, remove `7` characters
+ *   16:26: Unexpected `25` character line, expected at most `20` characters, remove `5` characters
+ *   18:27: Unexpected `26` character line, expected at most `20` characters, remove `6` characters
+ *   20:43: Unexpected `42` character line, expected at most `20` characters, remove `22` characters
  *
  * @example
- *   {"name": "not-ok-mixed-line-endings.md", "config": 10, "label": "output", "positionless": true}
+ *   {"config": 20, "name": "long-autolinks-ok.md", "positionless": true}
  *
- *   1:13: Line must be at most 10 characters
- *   2:13: Line must be at most 10 characters
- *   3:12: Line must be at most 10 characters
- *   4:12: Line must be at most 10 characters
+ *   <http://localhost/mercury/>
+ *
+ *   <http://localhost/mercury/>
+ *   mercury.
+ *
+ *   Mercury
+ *   <http://localhost/mercury/>.
+ *
+ *   Mercury
+ *   <http://localhost/mercury/>
+ *   mercury.
+ *
+ *   Mercury
+ *   <http://localhost/mercury/>
+ *   mercury mercury.
+ *
+ *   Mercury mercury
+ *   <http://localhost/mercury/>
+ *   mercury mercury.
+ *
+ * @example
+ *   {"config": 20, "label": "input", "name": "long-autolinks-nok.md", "positionless": true}
+ *
+ *   <http://localhost/mercury/> mercury.
+ *
+ *   Mercury <http://localhost/mercury/>.
+ *
+ *   Mercury
+ *   <http://localhost/mercury/> mercury.
+ *
+ *   Mercury <http://localhost/mercury/>
+ *   mercury.
+ * @example
+ *   {"config": 20, "label": "output", "name": "long-autolinks-nok.md"}
+ *
+ *   1:37: Unexpected `36` character line, expected at most `20` characters, remove `16` characters
+ *   6:37: Unexpected `36` character line, expected at most `20` characters, remove `16` characters
+ *
+ * @example
+ *   {"config": 20, "frontmatter": true, "name": "ok.md", "positionless": true}
+ *
+ *   ---
+ *   description: Mercury mercury mercury mercury.
+ *   ---
+ *
+ * @example
+ *   {"config": 20, "gfm": true, "name": "ok.md", "positionless": true}
+ *
+ *   | Mercury | Mercury | Mercury |
+ *   | ------- | ------- | ------- |
+ *
+ * @example
+ *   {"config": 20, "math": true, "name": "ok.md", "positionless": true}
+ *
+ *   $$
+ *   L = \frac{1}{2} \rho v^2 S C_L
+ *   $$
+ *
+ * @example
+ *   {"config": 20, "mdx": true, "name": "ok.md", "positionless": true}
+ *
+ *   export const description = 'Mercury mercury mercury mercury.'
+ *
+ *   {description}
+ *
+ * @example
+ *   {"config": 10, "name": "ok-mixed-line-endings.md", "positionless": true}
+ *
+ *   0123456789␍␊0123456789␊01234␍␊01234␊
+ *
+ * @example
+ *   {"config": 10, "label": "input", "name": "not-ok-mixed-line-endings.md", "positionless": true}
+ *
+ *   012345678901␍␊012345678901␊01234567890␍␊01234567890␊
+ *
+ * @example
+ *   {"config": 10, "label": "output", "name": "not-ok-mixed-line-endings.md", "positionless": true}
+ *
+ *   1:13: Unexpected `12` character line, expected at most `10` characters, remove `2` characters
+ *   2:13: Unexpected `12` character line, expected at most `10` characters, remove `2` characters
+ *   3:12: Unexpected `11` character line, expected at most `10` characters, remove `1` character
+ *   4:12: Unexpected `11` character line, expected at most `10` characters, remove `1` character
+ *
+ * @example
+ *   {"config": "🌍", "label": "output", "name": "not-ok.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected `number`
  */
-const remarkLintMaximumLineLength = lintRule(
+const remarkLintMaximumLineLength = lintRule$1(
   {
     origin: 'remark-lint:maximum-line-length',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-maximum-line-length#readme'
   },
-  (tree, file, option = 80) => {
+  function (tree, file, options) {
     const value = String(file);
     const lines = value.split(/\r?\n/);
-    visit$b(tree, (node) => {
+    let expected = 80;
+    if (options === null || options === undefined) ; else if (typeof options === 'number') {
+      expected = options;
+    } else {
+      file.fail(
+        'Unexpected value `' + options + '` for `options`, expected `number`'
+      );
+    }
+    visit(tree, function (node, index, parent) {
       if (
-        (node.type === 'heading' ||
-          node.type === 'table' ||
-          node.type === 'code' ||
-          node.type === 'definition' ||
-          node.type === 'html' ||
-          node.type === 'jsx' ||
-          node.type === 'mdxFlowExpression' ||
-          node.type === 'mdxJsxFlowElement' ||
-          node.type === 'mdxJsxTextElement' ||
-          node.type === 'mdxTextExpression' ||
-          node.type === 'mdxjsEsm' ||
-          node.type === 'yaml' ||
-          node.type === 'toml') &&
-        !generated(node)
+        node.type === 'code' ||
+        node.type === 'definition' ||
+        node.type === 'heading' ||
+        node.type === 'html' ||
+        node.type === 'math' ||
+        node.type === 'mdxjsEsm' ||
+        node.type === 'mdxFlowExpression' ||
+        node.type === 'mdxTextExpression' ||
+        node.type === 'table' ||
+        node.type === 'toml' ||
+        node.type === 'yaml'
       ) {
-        allowList(pointStart(node).line - 1, pointEnd(node).line);
+        const end = pointEnd(node);
+        const start = pointStart(node);
+        if (end && start) {
+          let line = start.line - 1;
+          while (line < end.line) {
+            lines[line++] = '';
+          }
+        }
+        return SKIP
       }
-    });
-    visit$b(tree, (node, pos, parent) => {
       if (
-        (node.type === 'link' ||
-          node.type === 'image' ||
-          node.type === 'inlineCode') &&
-        !generated(node) &&
-        parent &&
-        typeof pos === 'number'
+        node.type === 'image' ||
+        node.type === 'inlineCode' ||
+        node.type === 'link'
       ) {
-        const initial = pointStart(node);
-        const final = pointEnd(node);
-        if (initial.column > option || final.column < option) {
-          return
+        const end = pointEnd(node);
+        const start = pointStart(node);
+        if (end && start && parent && typeof index === 'number') {
+          if (start.column > expected) return
+          if (end.column < expected) return
+          const next = parent.children[index + 1];
+          const nextStart = pointStart(next);
+          if (
+            next &&
+            nextStart &&
+            nextStart.line === start.line &&
+            (!('value' in next) ||
+              /^([^\r\n]*)[ \t]/.test(next.value))
+          ) {
+            return
+          }
+          let line = start.line - 1;
+          while (line < end.line) {
+            lines[line++] = '';
+          }
         }
-        const next = parent.children[pos + 1];
-        if (
-          next &&
-          pointStart(next).line === initial.line &&
-          (!('value' in next) || /^(.+?[ \t].+?)/.test(next.value))
-        ) {
-          return
-        }
-        allowList(initial.line - 1, final.line);
       }
     });
     let index = -1;
     while (++index < lines.length) {
-      const lineLength = lines[index].length;
-      if (lineLength > option) {
-        file.message('Line must be at most ' + option + ' characters', {
-          line: index + 1,
-          column: lineLength + 1
-        });
-      }
-    }
-    function allowList(initial, final) {
-      while (initial < final) {
-        lines[initial++] = '';
+      const actualBytes = lines[index].length;
+      const actualCharacters = Array.from(lines[index]).length;
+      const difference = actualCharacters - expected;
+      if (difference > 0) {
+        file.message(
+          'Unexpected `' +
+            actualCharacters +
+            '` character line, expected at most `' +
+            expected +
+            '` characters, remove `' +
+            difference +
+            '` ' +
+            pluralize('character', difference),
+          {
+            line: index + 1,
+            column: actualBytes + 1
+          }
+        );
       }
     }
   }
 );
-var remarkLintMaximumLineLength$1 = remarkLintMaximumLineLength;
-
-const convert$a =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$a
-      }
-      if (typeof test === 'string') {
-        return typeFactory$a(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$a(test) : propsFactory$a(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$a(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$a(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$a(tests[index]);
-  }
-  return castFactory$a(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$a(check) {
-  return castFactory$a(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$a(check) {
-  return castFactory$a(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$a(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$a() {
-  return true
-}
-
-function color$b(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$a = true;
-const EXIT$a = false;
-const SKIP$a = 'skip';
-const visitParents$a =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$a(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$b(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$a(visitor(node, parents));
-            if (result[0] === EXIT$a) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$a) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$a) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$a(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$a, value]
-  }
-  return [value]
-}
-
-const visit$a =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$a(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when multiple blank lines are used.
+ *
+ * ## What is this?
+ *
+ * This package checks the number of blank lines.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that no more blank lines than needed
- * are used between blocks.
+ * You can use this package to check that there are no unneeded blank lines.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoConsecutiveBlankLines)`
+ *
+ * Warn when multiple blank lines are used.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
@@ -19758,391 +16462,497 @@ const visit$a =
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * adds exactly one blank line between any block.
+ * [`remark-stringify`][github-remark-stringify] adds exactly one blank line
+ * between any block.
+ * It has a `join` option to configure more complex cases.
+ *
+ * [api-remark-lint-no-consecutive-blank-lines]: #unifieduseremarklintnoconsecutiveblanklines
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-consecutive-blank-lines
- * @summary
- *   remark-lint rule to warn when more blank lines that needed are used
- *   between blocks.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   Foo…
- *   ␊
- *   …Bar.
+ *   # Planets
+ *
+ *   Mercury.
+ *
+ *   Venus.
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok.md"}
+ *
+ *   # Planets
+ *
+ *
+ *   Mercury.
+ *
+ *
+ *
+ *   Venus.
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   4:1: Unexpected `2` blank lines before node, expected up to `1` blank line, remove `1` blank line
+ *   8:1: Unexpected `3` blank lines before node, expected up to `1` blank line, remove `2` blank lines
+ *
+ * @example
+ *   {"label": "input", "name": "initial.md"}
+ *
+ *   ␊Mercury.
+ * @example
+ *   {"label": "output", "name": "initial.md"}
+ *
+ *   2:1: Unexpected `1` blank line before node, expected `0` blank lines, remove `1` blank line
+ *
+ * @example
+ *   {"name": "final-one.md"}
+ *
+ *   Mercury.␊
+ *
+ * @example
+ *   {"label": "input", "name": "final-more.md"}
+ *
+ *   Mercury.␊␊
+ * @example
+ *   {"label": "output", "name": "final-more.md"}
+ *
+ *   1:9: Unexpected `1` blank line after node, expected `0` blank lines, remove `1` blank line
  *
  * @example
  *   {"name": "empty-document.md"}
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"label": "input", "name": "block-quote.md"}
  *
- *   Foo…
- *   ␊
- *   ␊
- *   …Bar
- *   ␊
- *   ␊
+ *   > Mercury.
+ *
+ *   Venus.
+ *
+ *   >
+ *   > Earth.
+ *   >
+ * @example
+ *   {"label": "output", "name": "block-quote.md"}
+ *
+ *   6:3: Unexpected `1` blank line before node, expected `0` blank lines, remove `1` blank line
+ *   6:9: Unexpected `1` blank line after node, expected `0` blank lines, remove `1` blank line
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"directive": true, "label": "input", "name": "directive.md"}
  *
- *   4:1: Remove 1 line before node
- *   4:5: Remove 2 lines after node
+ *   :::mercury
+ *   Venus.
+ *
+ *
+ *   Earth.
+ *   :::
+ * @example
+ *   {"directive": true, "label": "output", "name": "directive.md"}
+ *
+ *   5:1: Unexpected `2` blank lines before node, expected up to `1` blank line, remove `1` blank line
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "footnote.md"}
+ *
+ *   [^x]:
+ *       Mercury.
+ *
+ *   Venus.
+ *
+ *   [^y]:
+ *
+ *       Earth.
+ *
+ *
+ *       Mars.
+ * @example
+ *   {"gfm": true, "label": "output", "name": "footnote.md"}
+ *
+ *   8:5: Unexpected `1` blank line before node, expected `0` blank lines, remove `1` blank line
+ *   11:5: Unexpected `2` blank lines before node, expected up to `1` blank line, remove `1` blank line
+ *
+ * @example
+ *   {"label": "input", "mdx": true, "name": "jsx.md"}
+ *
+ *   <Mercury>
+ *     Venus.
+ *
+ *
+ *     Earth.
+ *   </Mercury>
+ * @example
+ *   {"label": "output", "mdx": true, "name": "jsx.md"}
+ *
+ *   5:3: Unexpected `2` blank lines before node, expected up to `1` blank line, remove `1` blank line
+ *
+ * @example
+ *   {"label": "input", "name": "list.md"}
+ *
+ *   * Mercury.
+ *   * Venus.
+ *
+ *   ***
+ *
+ *   * Mercury.
+ *
+ *   * Venus.
+ *
+ *   ***
+ *
+ *   * Mercury.
+ *
+ *
+ *   * Venus.
+ * @example
+ *   {"label": "output", "name": "list.md"}
+ *
+ *   15:1: Unexpected `2` blank lines before node, expected up to `1` blank line, remove `1` blank line
+ *
+ * @example
+ *   {"label": "input", "name": "list-item.md"}
+ *
+ *   * Mercury.
+ *     Venus.
+ *
+ *   ***
+ *
+ *   * Mercury.
+ *
+ *     Venus.
+ *
+ *   ***
+ *
+ *   * Mercury.
+ *
+ *
+ *     Venus.
+ *
+ *   ***
+ *
+ *   *
+ *     Mercury.
+ * @example
+ *   {"label": "output", "name": "list-item.md"}
+ *
+ *   15:3: Unexpected `2` blank lines before node, expected up to `1` blank line, remove `1` blank line
+ *   20:3: Unexpected `1` blank line before node, expected `0` blank lines, remove `1` blank line
+ *
+ * @example
+ *   {"label": "input", "name": "deep-block-quote.md"}
+ *
+ *   * > * > # Venus␊␊
+ * @example
+ *   {"label": "output", "name": "deep-block-quote.md"}
+ *
+ *   1:16: Unexpected `1` blank line after node, expected `0` blank lines, remove `1` blank line
+ *
+ * @example
+ *   {"label": "input", "name": "deep-list-item.md"}
+ *
+ *   > * > * # Venus␊␊
+ * @example
+ *   {"label": "output", "name": "deep-list-item.md"}
+ *
+ *   1:16: Unexpected `1` blank line after node, expected `0` blank lines, remove `1` blank line
  */
-const unknownContainerSize = new Set(['mdxJsxFlowElement', 'mdxJsxTextElement']);
-const remarkLintNoConsecutiveBlankLines = lintRule(
+const remarkLintNoConsecutiveBlankLines = lintRule$1(
   {
     origin: 'remark-lint:no-consecutive-blank-lines',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-consecutive-blank-lines#readme'
   },
-  (tree, file) => {
-    visit$a(tree, (node) => {
-      if (!generated(node) && 'children' in node) {
-        const head = node.children[0];
-        if (head && !generated(head)) {
-          if (!unknownContainerSize.has(node.type)) {
-            compare(pointStart(node), pointStart(head), 0);
-          }
-          let index = -1;
-          while (++index < node.children.length) {
-            const previous = node.children[index - 1];
-            const child = node.children[index];
-            if (previous && !generated(previous) && !generated(child)) {
-              compare(pointEnd(previous), pointStart(child), 2);
-            }
-          }
-          const tail = node.children[node.children.length - 1];
-          if (
-            tail !== head &&
-            !generated(tail) &&
-            !unknownContainerSize.has(node.type)
-          ) {
-            compare(pointEnd(node), pointEnd(tail), 1);
+  function (tree, file) {
+    visitParents(tree, function (node, parents) {
+      const parent = parents.at(-1);
+      if (!parent) return
+      if (phrasing(node)) {
+        return SKIP
+      }
+      const siblings =  (parent.children);
+      const index = siblings.indexOf(node);
+      if (
+        index === 0 &&
+        parent.type !== 'containerDirective' &&
+        parent.type !== 'mdxJsxFlowElement'
+      ) {
+        const parentStart = pointStart(parent);
+        const start = pointStart(node);
+        if (parentStart && start) {
+          const difference =
+            start.line -
+            parentStart.line -
+            (parent.type === 'footnoteDefinition' ? 1 : 0);
+          if (difference > 0) {
+            file.message(
+              'Unexpected `' +
+                difference +
+                '` blank ' +
+                pluralize('line', difference) +
+                ' before node, expected `0` blank lines, remove `' +
+                difference +
+                '` blank ' +
+                pluralize('line', difference),
+              {ancestors: [...parents, node], place: start}
+            );
           }
         }
       }
-    });
-    function compare(start, end, max) {
-      const diff = end.line - start.line;
-      const lines = Math.abs(diff) - max;
-      if (lines > 0) {
-        file.message(
-          'Remove ' +
-            lines +
-            ' ' +
-            plural('line', Math.abs(lines)) +
-            ' ' +
-            (diff > 0 ? 'before' : 'after') +
-            ' node',
-          end
-        );
+      const next = siblings[index + 1];
+      const end = pointEnd(node);
+      const nextStart = pointStart(next);
+      if (end && nextStart) {
+        const difference = nextStart.line - end.line - 2;
+        if (difference > 0) {
+          const actual = difference + 1;
+          file.message(
+            'Unexpected `' +
+              actual +
+              '` blank ' +
+              pluralize('line', actual) +
+              ' before node, expected up to `1` blank line, remove `' +
+              difference +
+              '` blank ' +
+              pluralize('line', difference),
+            {ancestors: [...parents, next], place: nextStart}
+          );
+        }
       }
-    }
+      const parentEnd = pointEnd(parent);
+      if (
+        !next &&
+        parentEnd &&
+        end &&
+        parent.type !== 'containerDirective' &&
+        parent.type !== 'mdxJsxFlowElement'
+      ) {
+        const difference =
+          parentEnd.line - end.line - (parent.type === 'blockquote' ? 0 : 1);
+        if (difference > 0) {
+          file.message(
+            'Unexpected `' +
+              difference +
+              '` blank ' +
+              pluralize('line', difference) +
+              ' after node, expected `0` blank lines, remove `' +
+              difference +
+              '` blank ' +
+              pluralize('line', difference),
+            {ancestors: [...parents, node], place: end}
+          );
+        }
+      }
+    });
   }
 );
-var remarkLintNoConsecutiveBlankLines$1 = remarkLintNoConsecutiveBlankLines;
 
 /**
+ * remark-lint rule to warn when file names start with `a`, `the`, and such.
+ *
+ * ## What is this?
+ *
+ * This package checks file names.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that file names do not start with
- *  articles (`a`, `the`, etc).
+ * You can use this package to check that file names are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoFileNameArticles)`
+ *
+ * Warn when file names start with `a`, `the`, and such.
+ *
+ * ###### Parameters
+ *
  * There are no options.
  *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * [api-remark-lint-no-file-name-articles]: #unifieduseremarklintnofilenamearticles
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module no-file-name-articles
- * @summary
- *   remark-lint rule to warn when file names start with articles.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "title.md"}
  *
  * @example
- *   {"name": "a-title.md", "label": "output", "positionless": true}
+ *   {"label": "output", "name": "a-title.md", "positionless": true}
  *
- *   1:1: Do not start file names with `a`
- *
- * @example
- *   {"name": "the-title.md", "label": "output", "positionless": true}
- *
- *   1:1: Do not start file names with `the`
+ *   1:1: Unexpected file name starting with `a`, remove it
  *
  * @example
- *   {"name": "teh-title.md", "label": "output", "positionless": true}
+ *   {"label": "output", "name": "the-title.md", "positionless": true}
  *
- *   1:1: Do not start file names with `teh`
+ *   1:1: Unexpected file name starting with `the`, remove it
  *
  * @example
- *   {"name": "an-article.md", "label": "output", "positionless": true}
+ *   {"label": "output", "name": "an-article.md", "positionless": true}
  *
- *   1:1: Do not start file names with `an`
+ *   1:1: Unexpected file name starting with `an`, remove it
  */
-const remarkLintNoFileNameArticles = lintRule(
+const remarkLintNoFileNameArticles = lintRule$1(
   {
     origin: 'remark-lint:no-file-name-articles',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-file-name-articles#readme'
   },
-  (_, file) => {
-    const match = file.stem && file.stem.match(/^(the|teh|an?)\b/i);
+  function (_, file) {
+    const match = file.stem && file.stem.match(/^(?:the|teh|an?)\b/i);
     if (match) {
-      file.message('Do not start file names with `' + match[0] + '`');
+      file.message(
+        'Unexpected file name starting with `' + match[0] + '`, remove it'
+      );
     }
   }
 );
-var remarkLintNoFileNameArticles$1 = remarkLintNoFileNameArticles;
 
 /**
+ * remark-lint rule to warn when file names contain consecutive dashes.
+ *
+ * ## What is this?
+ *
+ * This package checks file names.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that no consecutive dashes appear in
- * file names.
+ * You can use this package to check that file names are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoFileNameConsecutiveDashes)`
+ *
+ * Warn when file names contain consecutive dashes.
+ *
+ * ###### Parameters
+ *
  * There are no options.
  *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * [api-remark-lint-no-file-name-consecutive-dashes]: #unifieduseremarklintnofilenameconsecutivedashes
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module no-file-name-consecutive-dashes
- * @summary
- *   remark-lint rule to warn when consecutive dashes appear in file names.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "plug-ins.md"}
  *
  * @example
  *   {"name": "plug--ins.md", "label": "output", "positionless": true}
  *
- *   1:1: Do not use consecutive dashes in a file name
+ *   1:1: Unexpected consecutive dashes in a file name, expected `-`
  */
-const remarkLintNoFileNameConsecutiveDashes = lintRule(
+const remarkLintNoFileNameConsecutiveDashes = lintRule$1(
   {
     origin: 'remark-lint:no-file-name-consecutive-dashes',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-file-name-consecutive-dashes#readme'
   },
-  (_, file) => {
+  function (_, file) {
     if (file.stem && /-{2,}/.test(file.stem)) {
-      file.message('Do not use consecutive dashes in a file name');
+      file.message('Unexpected consecutive dashes in a file name, expected `-`');
     }
   }
 );
-var remarkLintNoFileNameConsecutiveDashes$1 = remarkLintNoFileNameConsecutiveDashes;
 
 /**
+ * remark-lint rule to warn when file names start or end with dashes.
+ *
+ * ## What is this?
+ *
+ * This package checks file names.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that no initial or final dashes appear in
- * file names.
+ * You can use this package to check that file names are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoFileNameOuterDashes)`
+ *
+ * Warn when file names start or end with dashes.
+ *
+ * ###### Parameters
+ *
  * There are no options.
  *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * [api-remark-lint-no-file-name-outer-dashes]: #unifieduseremarklintnofilenameouterdashes
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module no-file-name-outer-dashes
- * @summary
- *   remark-lint rule to warn when initial or final dashes appear in file names.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "readme.md"}
  *
  * @example
- *   {"name": "-readme.md", "label": "output", "positionless": true}
- *
- *   1:1: Do not use initial or final dashes in a file name
+ *   {"name": "mercury-and-venus.md"}
  *
  * @example
- *   {"name": "readme-.md", "label": "output", "positionless": true}
+ *   {"label": "output", "name": "-mercury.md", "positionless": true}
  *
- *   1:1: Do not use initial or final dashes in a file name
+ *   1:1: Unexpected initial or final dashes in file name, expected dashes to join words
+ *
+ * @example
+ *   {"label": "output", "name": "venus-.md", "positionless": true}
+ *
+ *   1:1: Unexpected initial or final dashes in file name, expected dashes to join words
  */
-const remarkLintNofileNameOuterDashes = lintRule(
+const remarkLintNofileNameOuterDashes = lintRule$1(
   {
     origin: 'remark-lint:no-file-name-outer-dashes',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-file-name-outer-dashes#readme'
   },
-  (_, file) => {
+  function (_, file) {
     if (file.stem && /^-|-$/.test(file.stem)) {
-      file.message('Do not use initial or final dashes in a file name');
+      file.message(
+        'Unexpected initial or final dashes in file name, expected dashes to join words'
+      );
     }
   }
 );
-var remarkLintNofileNameOuterDashes$1 = remarkLintNofileNameOuterDashes;
-
-const convert$9 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$9
-      }
-      if (typeof test === 'string') {
-        return typeFactory$9(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$9(test) : propsFactory$9(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$9(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$9(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$9(tests[index]);
-  }
-  return castFactory$9(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$9(check) {
-  return castFactory$9(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$9(check) {
-  return castFactory$9(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$9(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$9() {
-  return true
-}
-
-function color$a(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$9 = true;
-const EXIT$9 = false;
-const SKIP$9 = 'skip';
-const visitParents$9 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$9(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$a(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$9(visitor(node, parents));
-            if (result[0] === EXIT$9) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$9) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$9) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$9(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$9, value]
-  }
-  return [value]
-}
-
-const visit$9 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$9(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when headings are indented.
+ *
+ * ## What is this?
+ *
+ * This package checks the spaces before headings.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that headings are not indented.
+ * You can use this rule to check markdown code style.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoHeadingIndent)`
+ *
+ * Warn when headings are indented.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
@@ -20151,899 +16961,639 @@ const visit$9 =
  * While it is possible to use an indent to headings on their text:
  *
  * ```markdown
- *    # One
- *   ## Two
- *  ### Three
- * #### Four
+ *    # Mercury
+ *   ## Venus
+ *  ### Earth
+ * #### Mars
  * ```
  *
- * …such style is uncommon, a bit hard to maintain, and it’s impossible to add a
- * heading with a rank of 5 as it would form indented code instead.
- * Hence, it’s recommended to not indent headings and to turn this rule on.
+ * …such style is uncommon,
+ * a bit hard to maintain,
+ * and it’s impossible to add a heading with a rank of 5 as it would form
+ * indented code instead.
+ * So it’s recommended to not indent headings and to turn this rule on.
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats all headings without indent.
+ * [`remark-stringify`][github-remark-stringify] formats headings without indent.
+ *
+ * [api-remark-lint-no-heading-indent]: #unifieduseremarklintnoheadingindent
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-heading-indent
- * @summary
- *   remark-lint rule to warn when headings are indented.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   #·Hello world
+ *   #␠Mercury
  *
- *   Foo
+ *   Venus
  *   -----
  *
- *   #·Hello world·#
+ *   #␠Earth␠#
  *
- *   Bar
- *   =====
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   ···# Hello world
- *
- *   ·Foo
- *   -----
- *
- *   ·# Hello world #
- *
- *   ···Bar
- *   =====
+ *   Mars
+ *   ====
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   1:4: Remove 3 spaces before this heading
- *   3:2: Remove 1 space before this heading
- *   6:2: Remove 1 space before this heading
- *   8:4: Remove 3 spaces before this heading
+ *   ␠␠␠# Mercury
+ *
+ *   ␠Venus
+ *   ------
+ *
+ *   ␠# Earth #
+ *
+ *   ␠␠␠Mars
+ *   ======
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *    1:4: Unexpected `3` spaces before heading, expected `0` spaces, remove `3` spaces
+ *    3:2: Unexpected `1` space before heading, expected `0` spaces, remove `1` space
+ *    6:2: Unexpected `1` space before heading, expected `0` spaces, remove `1` space
+ *    8:4: Unexpected `3` spaces before heading, expected `0` spaces, remove `3` spaces
  */
-const remarkLintNoHeadingIndent = lintRule(
+const remarkLintNoHeadingIndent = lintRule$1(
   {
     origin: 'remark-lint:no-heading-indent',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-heading-indent#readme'
   },
-  (tree, file) => {
-    visit$9(tree, 'heading', (node, _, parent) => {
-      if (generated(node) || (parent && parent.type !== 'root')) {
+  function (tree, file) {
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      const parent = parents[parents.length - 1];
+      const start = pointStart(node);
+      if (
+        !start ||
+        !parent ||
+        node.type !== 'heading' ||
+        parent.type !== 'root'
+      ) {
         return
       }
-      const diff = pointStart(node).column - 1;
-      if (diff) {
+      const actual = start.column - 1;
+      if (actual) {
         file.message(
-          'Remove ' +
-            diff +
-            ' ' +
-            plural('space', diff) +
-            ' before this heading',
-          pointStart(node)
+          'Unexpected `' +
+            actual +
+            '` ' +
+            pluralize('space', actual) +
+            ' before heading, expected `0` spaces, remove' +
+            ' `' +
+            actual +
+            '` ' +
+            pluralize('space', actual),
+          {ancestors: [...parents, node], place: start}
         );
       }
     });
   }
 );
-var remarkLintNoHeadingIndent$1 = remarkLintNoHeadingIndent;
-
-const convert$8 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$8
-      }
-      if (typeof test === 'string') {
-        return typeFactory$8(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$8(test) : propsFactory$8(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$8(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$8(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$8(tests[index]);
-  }
-  return castFactory$8(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$8(check) {
-  return castFactory$8(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$8(check) {
-  return castFactory$8(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$8(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$8() {
-  return true
-}
-
-function color$9(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$8 = true;
-const EXIT$8 = false;
-const SKIP$8 = 'skip';
-const visitParents$8 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$8(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$9(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$8(visitor(node, parents));
-            if (result[0] === EXIT$8) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$8) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$8) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$8(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$8, value]
-  }
-  return [value]
-}
-
-const visit$8 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$8(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
-function stringifyPosition(value) {
-  if (!value || typeof value !== 'object') {
-    return ''
-  }
-  if ('position' in value || 'type' in value) {
-    return position(value.position)
-  }
-  if ('start' in value || 'end' in value) {
-    return position(value)
-  }
-  if ('line' in value || 'column' in value) {
-    return point(value)
-  }
-  return ''
-}
-function point(point) {
-  return index(point && point.line) + ':' + index(point && point.column)
-}
-function position(pos) {
-  return point(pos && pos.start) + '-' + point(pos && pos.end)
-}
-function index(value) {
-  return value && typeof value === 'number' ? value : 1
-}
 
 /**
+ * remark-lint rule to warn when top-level headings are used multiple times.
+ *
+ * ## What is this?
+ *
+ * This package checks that top-level headings are unique.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that no more than one top level heading
- * is used.
+ * You can use this package to check heading structure.
  *
  * ## API
  *
- * The following options (default: `1`) are accepted:
+ * ### `unified().use(remarkLintNoMultipleToplevelHeadings[, options])`
  *
- * *   `number` (example: `1`)
- *     — assumed top level heading rank
+ * Warn when top-level headings are used multiple times.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `1`)
+ *   — configuration
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Depth`
+ *
+ * Depth (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Depth = 1 | 2 | 3 | 4 | 5 | 6
+ * ```
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Depth
+ * ```
  *
  * ## Recommendation
  *
- * Documents should almost always have one main heading, which is typically a
- * heading with a rank of `1`.
+ * Documents should almost always have one main heading,
+ * which is typically a heading with a rank of `1`.
+ *
+ * [api-depth]: #depth
+ * [api-options]: #options
+ * [api-remark-lint-no-multiple-toplevel-headings]: #unifieduseremarklintnomultipletoplevelheadings-options
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-multiple-toplevel-headings
- * @summary
- *   remark-lint rule to warn when more than one top level heading is used.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md", "config": 1}
- *
- *   # Foo
- *
- *   ## Bar
  *
  * @example
- *   {"name": "not-ok.md", "config": 1, "label": "input"}
+ *   {"name": "ok.md"}
  *
- *   # Foo
+ *   # Mercury
  *
- *   # Bar
+ *   ## Venus
  *
  * @example
- *   {"name": "not-ok.md", "config": 1, "label": "output"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
- *   3:1-3:6: Don’t use multiple top level headings (1:1)
+ *   # Venus
+ *
+ *   # Mercury
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   3:1-3:10: Unexpected duplicate toplevel heading, exected a single heading with rank `1`
+ *
+ * @example
+ *   {"config": 2, "label": "input", "name": "not-ok.md"}
+ *
+ *   ## Venus
+ *
+ *   ## Mercury
+ * @example
+ *   {"config": 2, "label": "output", "name": "not-ok.md"}
+ *
+ *   3:1-3:11: Unexpected duplicate toplevel heading, exected a single heading with rank `2`
+ *
+ * @example
+ *   {"label": "input", "name": "html.md"}
+ *
+ *   Venus <b>and</b> mercury.
+ *
+ *   <h1>Earth</h1>
+ *
+ *   <h1>Mars</h1>
+ * @example
+ *   {"label": "output", "name": "html.md"}
+ *
+ *   5:1-5:14: Unexpected duplicate toplevel heading, exected a single heading with rank `1`
+ *
+ * @example
+ *   {"label": "input", "mdx": true, "name": "mdx.mdx"}
+ *
+ *   Venus <b>and</b> mercury.
+ *
+ *   <h1>Earth</h1>
+ *   <h1>Mars</h1>
+ * @example
+ *   {"label": "output", "mdx": true, "name": "mdx.mdx"}
+ *
+ *   4:1-4:14: Unexpected duplicate toplevel heading, exected a single heading with rank `1`
  */
-const remarkLintNoMultipleToplevelHeadings = lintRule(
+const htmlRe = /<h([1-6])/;
+const jsxNameRe = /^h([1-6])$/;
+const remarkLintNoMultipleToplevelHeadings = lintRule$1(
   {
     origin: 'remark-lint:no-multiple-toplevel-headings',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-multiple-toplevel-headings#readme'
   },
-  (tree, file, option = 1) => {
-    let duplicate;
-    visit$8(tree, 'heading', (node) => {
-      if (!generated(node) && node.depth === option) {
-        if (duplicate) {
-          file.message(
-            'Don’t use multiple top level headings (' + duplicate + ')',
-            node
-          );
-        } else {
-          duplicate = stringifyPosition(pointStart(node));
+  function (tree, file, options) {
+    const option = options || 1;
+    let duplicateAncestors;
+    visitParents(tree, function (node, parents) {
+      let rank;
+      if (node.type === 'heading') {
+        rank = node.depth;
+      } else if (node.type === 'html') {
+        const results = node.value.match(htmlRe);
+        rank = results ?  (Number(results[1])) : undefined;
+      } else if (
+        (node.type === 'mdxJsxFlowElement' ||
+          node.type === 'mdxJsxTextElement') &&
+        node.name
+      ) {
+        const results = node.name.match(jsxNameRe);
+        rank = results ?  (Number(results[1])) : undefined;
+      }
+      if (rank) {
+        const ancestors = [...parents, node];
+        if (node.position && rank === option) {
+          if (duplicateAncestors) {
+            const duplicate = duplicateAncestors.at(-1);
+            file.message(
+              'Unexpected duplicate toplevel heading, exected a single heading with rank `' +
+                rank +
+                '`',
+              {
+                ancestors,
+                cause: new VFileMessage(
+                  'Toplevel heading already defined here',
+                  {
+                    ancestors: duplicateAncestors,
+                    place: duplicate.position,
+                    source: 'remark-lint',
+                    ruleId: 'no-multiple-toplevel-headings'
+                  }
+                ),
+                place: node.position
+              }
+            );
+          } else {
+            duplicateAncestors = ancestors;
+          }
         }
       }
     });
   }
 );
-var remarkLintNoMultipleToplevelHeadings$1 = remarkLintNoMultipleToplevelHeadings;
-
-const convert$7 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$7
-      }
-      if (typeof test === 'string') {
-        return typeFactory$7(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$7(test) : propsFactory$7(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$7(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$7(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$7(tests[index]);
-  }
-  return castFactory$7(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$7(check) {
-  return castFactory$7(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$7(check) {
-  return castFactory$7(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$7(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$7() {
-  return true
-}
-
-function color$8(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$7 = true;
-const EXIT$7 = false;
-const SKIP$7 = 'skip';
-const visitParents$7 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$7(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$8(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$7(visitor(node, parents));
-            if (result[0] === EXIT$7) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$7) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$7) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$7(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$7, value]
-  }
-  return [value]
-}
-
-const visit$7 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$7(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when every line in shell code is preceded by `$`s.
+ *
+ * ## What is this?
+ *
+ * This package checks for `$` markers prefixing shell code,
+ * which are hard to copy/paste.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that not all lines in shell code are
- * preceded by dollars (`$`).
+ * You can use this package to check shell code blocks.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoShellDollars)`
+ *
+ * Warn when every line in shell code is preceded by `$`s.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
  * Dollars make copy/pasting hard.
- * Either put both dollars in front of some lines (to indicate shell commands)
- * and don’t put them in front of other lines, or use fenced code to indicate
- * shell commands on their own, followed by another fenced code that contains
- * just the output.
+ * Either put dollars in front of some lines (commands) and don’t put them in
+ * front of other lines (output),
+ * or use different code blocks for commands and output.
+ *
+ * [api-remark-lint-no-shell-dollars]: #unifieduseremarklintnoshelldollars
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-shell-dollars
- * @summary
- *   remark-lint rule to warn every line in shell code is preceded by `$`s.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
  *   ```bash
- *   echo a
+ *   echo "Mercury and Venus"
  *   ```
  *
  *   ```sh
- *   echo a
- *   echo a > file
+ *   echo "Mercury and Venus"
+ *   echo "Earth and Mars" > file
  *   ```
+ *
+ *   Mixed dollars for input lines and without for output is also OK:
  *
  *   ```zsh
- *   $ echo a
- *   a
- *   $ echo a > file
+ *   $ echo "Mercury and Venus"
+ *   Mercury and Venus
+ *   $ echo "Earth and Mars" > file
  *   ```
- *
- *   Some empty code:
  *
  *   ```command
  *   ```
- *
- *   It’s fine to use dollars in non-shell code.
  *
  *   ```js
  *   $('div').remove()
  *   ```
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
  *   ```sh
- *   $ echo a
+ *   $ echo "Mercury and Venus"
  *   ```
  *
  *   ```bash
- *   $ echo a
- *   $ echo a > file
+ *   $ echo "Mercury and Venus"
+ *   $ echo "Earth and Mars" > file
  *   ```
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "output", "name": "not-ok.md"}
  *
- *   1:1-3:4: Do not use dollar signs before shell commands
- *   5:1-8:4: Do not use dollar signs before shell commands
+ *   1:1-3:4: Unexpected shell code with every line prefixed by `$`, expected different code for input and output
+ *   5:1-8:4: Unexpected shell code with every line prefixed by `$`, expected different code for input and output
  */
 const flags = new Set([
-  'sh',
   'bash',
   'bats',
-  'cgi',
   'command',
-  'fcgi',
+  'csh',
+  'ebuild',
+  'eclass',
   'ksh',
+  'sh',
+  'sh.in',
+  'tcsh',
   'tmux',
   'tool',
-  'zsh'
+  'zsh',
+  'zsh-theme',
+  'abuild',
+  'alpine-abuild',
+  'apkbuild',
+  'gentoo-ebuild',
+  'gentoo-eclass',
+  'openrc',
+  'openrc-runscript',
+  'shell',
+  'shell-script'
 ]);
-const remarkLintNoShellDollars = lintRule(
+const remarkLintNoShellDollars = lintRule$1(
   {
     origin: 'remark-lint:no-shell-dollars',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-shell-dollars#readme'
   },
-  (tree, file) => {
-    visit$7(tree, 'code', (node) => {
-      if (!generated(node) && node.lang && flags.has(node.lang)) {
-        const lines = node.value
-          .split('\n')
-          .filter((line) => line.trim().length > 0);
+  function (tree, file) {
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (
+        node.type === 'code' &&
+        node.position &&
+        node.lang &&
+        flags.has(node.lang)
+      ) {
+        const lines = node.value.split('\n');
         let index = -1;
-        if (lines.length === 0) {
-          return
-        }
+        let some = false;
         while (++index < lines.length) {
-          const line = lines[index];
-          if (line.trim() && !/^\s*\$\s*/.test(line)) {
-            return
-          }
+          const line = collapseWhiteSpace(lines[index], {
+            style: 'html',
+            trim: true
+          });
+          if (!line) continue
+          if (line.charCodeAt(0) !== 36 ) return
+          some = true;
         }
-        file.message('Do not use dollar signs before shell commands', node);
+        if (!some) return
+        file.message(
+          'Unexpected shell code with every line prefixed by `$`, expected different code for input and output',
+          {ancestors: [...parents, node], place: node.position}
+        );
       }
     });
   }
 );
-var remarkLintNoShellDollars$1 = remarkLintNoShellDollars;
-
-const convert$6 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$6
-      }
-      if (typeof test === 'string') {
-        return typeFactory$6(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$6(test) : propsFactory$6(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$6(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$6(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$6(tests[index]);
-  }
-  return castFactory$6(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$6(check) {
-  return castFactory$6(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$6(check) {
-  return castFactory$6(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$6(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$6() {
-  return true
-}
-
-function color$7(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$6 = true;
-const EXIT$6 = false;
-const SKIP$6 = 'skip';
-const visitParents$6 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$6(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$7(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$6(visitor(node, parents));
-            if (result[0] === EXIT$6) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$6) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$6) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$6(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$6, value]
-  }
-  return [value]
-}
-
-const visit$6 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$6(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when GFM tables are indented.
+ *
+ * ## What is this?
+ *
+ * This package checks the indent of GFM tables.
+ * Tables are a GFM feature enabled with
+ * [`remark-gfm`][github-remark-gfm].
+ *
  * ## When should I use this?
  *
- * You can use this package to check that tables are not indented.
- * Tables are a GFM feature enabled with
- * [`remark-gfm`](https://github.com/remarkjs/remark-gfm).
+ * You can use this package to check that tables are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoTableIndentation)`
+ *
+ * Warn when GFM tables are indented.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
  * There is no specific handling of indented tables (or anything else) in
  * markdown.
- * Hence, it’s recommended to not indent tables and to turn this rule on.
+ * So it’s recommended to not indent tables and to turn this rule on.
  *
  * ## Fix
  *
- * [`remark-gfm`](https://github.com/remarkjs/remark-gfm)
- * formats all tables without indent.
+ * [`remark-stringify`][github-remark-stringify] with
+ * [`remark-gfm`][github-remark-gfm] formats all tables without indent.
+ *
+ * [api-remark-lint-no-table-indentation]: #unifieduseremarklintnotableindentation
+ * [github-remark-gfm]: https://github.com/remarkjs/remark-gfm
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module no-table-indentation
- * @summary
- *   remark-lint rule to warn when tables are indented.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md", "gfm": true}
  *
- *   Paragraph.
- *
- *   | A     | B     |
- *   | ----- | ----- |
- *   | Alpha | Bravo |
+ *   | Planet  | Mean anomaly (°) |
+ *   | ------- | ---------------: |
+ *   | Mercury |          174 796 |
  *
  * @example
- *   {"name": "not-ok.md", "label": "input", "gfm": true}
+ *   {"gfm": true, "label": "input", "name": "not-ok.md"}
  *
- *   Paragraph.
- *
- *   ···| A     | B     |
- *   ···| ----- | ----- |
- *   ···| Alpha | Bravo |
+ *   ␠| Planet  | Mean anomaly (°) |
+ *   ␠␠| ------- | ---------------: |
+ *   ␠␠␠| Mercury |          174 796 |
  *
  * @example
- *   {"name": "not-ok.md", "label": "output", "gfm": true}
+ *   {"gfm": true, "label": "output", "name": "not-ok.md"}
  *
- *   3:4: Do not indent table rows
- *   4:4: Do not indent table rows
- *   5:4: Do not indent table rows
- *
- * @example
- *   {"name": "not-ok-blockquote.md", "label": "input", "gfm": true}
- *
- *   >··| A |
- *   >·| - |
+ *   1:2: Unexpected `1` extra space before table row, remove `1` space
+ *   2:3: Unexpected `2` extra spaces before table row, remove `2` spaces
+ *   3:4: Unexpected `3` extra spaces before table row, remove `3` spaces
  *
  * @example
- *   {"name": "not-ok-blockquote.md", "label": "output", "gfm": true}
+ *   {"gfm": true, "label": "input", "name": "blockquote.md"}
  *
- *   1:4: Do not indent table rows
- *
- * @example
- *   {"name": "not-ok-list.md", "label": "input", "gfm": true}
- *
- *   -···paragraph
- *
- *   ·····| A |
- *   ····| - |
+ *   >␠| Planet  |
+ *   >␠␠| ------- |
  *
  * @example
- *   {"name": "not-ok-list.md", "label": "output", "gfm": true}
+ *   {"gfm": true, "label": "output", "name": "blockquote.md"}
  *
- *   3:6: Do not indent table rows
+ *   2:4: Unexpected `1` extra space before table row, remove `1` space
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "list.md"}
+ *
+ *   *␠| Planet  |
+ *   ␠␠␠| ------- |
+ *
+ * @example
+ *   {"gfm": true, "label": "output", "name": "list.md"}
+ *
+ *   2:4: Unexpected `1` extra space before table row, remove `1` space
  */
-const remarkLintNoTableIndentation = lintRule(
+const remarkLintNoTableIndentation = lintRule$1(
   {
     origin: 'remark-lint:no-table-indentation',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-table-indentation#readme'
   },
-  (tree, file) => {
+  function (tree, file) {
     const value = String(file);
-    const loc = location(value);
-    visit$6(tree, 'table', (node, _, parent) => {
-      const end = pointEnd(node).line;
-      let line = pointStart(node).line;
-      let column = 0;
-      if (parent && parent.type === 'root') {
+    const locations = location(value);
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'table') return
+      const parent = parents.at(-1);
+      const end = pointEnd(node);
+      const start = pointStart(node);
+      if (!parent || !end || !start) return
+      const parentHead = parent.children[0];
+      let line = start.line;
+      let column;
+      if (parent.type === 'root') {
         column = 1;
-      } else if (parent && parent.type === 'blockquote') {
-        column = pointStart(parent).column + 2;
-      } else if (parent && parent.type === 'listItem') {
-        column = pointStart(parent.children[0]).column;
-        if (parent.children[0] === node) {
-          line++;
+      } else if (parent.type === 'blockquote') {
+        const parentStart = pointStart(parent);
+        if (parentStart) {
+          column = parentStart.column + 2;
         }
-      }
-      if (!column || !line) {
-        return
-      }
-      while (line <= end) {
-        let offset = loc.toOffset({line, column});
-        const lineColumn = offset;
-        while (/[ \t]/.test(value.charAt(offset - 1))) {
-          offset--;
-        }
-        if (!offset || /[\r\n>]/.test(value.charAt(offset - 1))) {
-          offset = lineColumn;
-          while (/[ \t]/.test(value.charAt(offset))) {
-            offset++;
+      } else if (parent.type === 'listItem') {
+        const headStart = pointStart(parentHead);
+        if (headStart) {
+          column = headStart.column;
+          if (parentHead === node) {
+            line++;
           }
-          if (lineColumn !== offset) {
-            file.message('Do not indent table rows', loc.toPoint(offset));
+        }
+      }
+      if (!column) return
+      while (line <= end.line) {
+        let index = locations.toOffset({line, column});
+        if (typeof index !== 'number') continue
+        const expected = index;
+        let code = value.charCodeAt(index - 1);
+        while (code === 9  || code === 32 ) {
+          index--;
+          code = value.charCodeAt(index - 1);
+        }
+        if (
+          code === 10  ||
+          code === 13  ||
+          code === 62  ||
+          Number.isNaN(code)
+        ) {
+          let actual = expected;
+          code = value.charCodeAt(actual);
+          while (code === 9  || code === 32 ) {
+            code = value.charCodeAt(++actual);
+          }
+          const difference = actual - expected;
+          if (difference !== 0) {
+            file.message(
+              'Unexpected `' +
+                difference +
+                '` extra ' +
+                pluralize('space', difference) +
+                ' before table row, remove `' +
+                difference +
+                '` ' +
+                pluralize('space', difference),
+              {
+                ancestors: [...parents, node],
+                place: {
+                  line,
+                  column: column + difference,
+                  offset: actual
+                }
+              }
+            );
           }
         }
         line++;
       }
-      return SKIP$6
+      return SKIP
     });
   }
 );
-var remarkLintNoTableIndentation$1 = remarkLintNoTableIndentation;
 
 /**
+ * remark-lint rule to warn when tabs are used.
+ *
+ * ## What is this?
+ *
+ * This package checks for tabs.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that tabs are not used.
+ * You can use this package to check tabs.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintNoTabs)`
+ *
+ * Warn when tabs are used.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
- * Regardless of the debate in other languages of whether to use tabs vs.
- * spaces, when it comes to markdown, tabs do not work as expected.
- * Largely around contains such as block quotes and lists.
+ * Regardless of the debate in other languages of whether to use tabs versus
+ * spaces,
+ * when it comes to markdown,
+ * tabs do not work as expected.
+ * Largely around things such as block quotes, lists, and indented code.
+ *
  * Take for example block quotes: `>\ta` gives a paragraph with the text `a`
- * in a blockquote, so one might expect that `>\t\ta` results in indented code
- * with the text `a` in a block quote.
+ * in a blockquote,
+ * so one might expect that `>\t\ta` results in indented code with the text `a`
+ * in a block quote.
  *
  * ```markdown
  * >\ta
@@ -21063,11 +17613,14 @@ var remarkLintNoTableIndentation$1 = remarkLintNoTableIndentation;
  * </blockquote>
  * ```
  *
- * Because markdown uses a hardcoded tab size of 4, the first tab could be
- * represented as 3 spaces (because there’s a `>` before).
+ * Because markdown uses a hardcoded tab size of 4,
+ * the first tab could be represented as 3 spaces (because there’s a `>`
+ * before).
  * One of those “spaces” is taken because block quotes allow the `>` to be
- * followed by one space, leaving 2 spaces.
- * The next tab can be represented as 4 spaces, so together we have 6 spaces.
+ * followed by one space,
+ * leaving 2 spaces.
+ * The next tab can be represented as 4 spaces,
+ * so together we have 6 spaces.
  * The indented code uses 4 spaces, so there are two spaces left, which are
  * shown in the indented code.
  *
@@ -21076,65 +17629,48 @@ var remarkLintNoTableIndentation$1 = remarkLintNoTableIndentation;
  * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
  * uses spaces exclusively for indentation.
  *
+ * [api-remark-lint-no-tabs]: #unifieduseremarklintnotabs
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
+ *
  * @module no-tabs
- * @summary
- *   remark-lint rule to warn when tabs are used.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md"}
  *
- *   Foo Bar
- *
- *   ····Foo
+ *   ␠␠␠␠mercury()
  *
  * @example
- *   {"name": "not-ok.md", "label": "input", "positionless": true}
+ *   {"label": "input", "name": "not-ok.md", "positionless": true}
  *
- *   »Here's one before a code block.
+ *   ␉mercury()
  *
- *   Here's a tab:», and here is another:».
- *
- *   And this is in `inline»code`.
- *
- *   >»This is in a block quote.
- *
- *   *»And…
- *
- *   »1.»in a list.
- *
- *   And this is a tab as the last character.»
- *
+ *   Venus␉and Earth.
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"label": "output", "name": "not-ok.md"}
  *
- *   1:1: Use spaces instead of tabs
- *   3:14: Use spaces instead of tabs
- *   3:37: Use spaces instead of tabs
- *   5:23: Use spaces instead of tabs
- *   7:2: Use spaces instead of tabs
- *   9:2: Use spaces instead of tabs
- *   11:1: Use spaces instead of tabs
- *   11:4: Use spaces instead of tabs
- *   13:41: Use spaces instead of tabs
+ *   1:1: Unexpected tab (`\t`), expected spaces
+ *   3:6: Unexpected tab (`\t`), expected spaces
  */
-const remarkLintNoTabs = lintRule(
+const remarkLintNoTabs = lintRule$1(
   {
     origin: 'remark-lint:no-tabs',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-tabs#readme'
   },
-  (_, file) => {
+  function (_, file) {
     const value = String(file);
     const toPoint = location(file).toPoint;
     let index = value.indexOf('\t');
     while (index !== -1) {
-      file.message('Use spaces instead of tabs', toPoint(index));
+      file.message('Unexpected tab (`\\t`), expected spaces', {
+        place: toPoint(index)
+      });
       index = value.indexOf('\t', index + 1);
     }
   }
 );
-var remarkLintNoTabs$1 = remarkLintNoTabs;
 
 var sliced$1 = function (args, slice, sliceEnd) {
   var ret = [];
@@ -21376,7 +17912,7 @@ function factory(id, rule) {
   attacher.displayName = id;
   return attacher
   function attacher(raw) {
-    var config = coerce(ruleId, raw);
+    var config = coerce$1(ruleId, raw);
     var severity = config[0];
     var options = config[1];
     var fatal = severity === 2;
@@ -21404,7 +17940,7 @@ function factory(id, rule) {
     }
   }
 }
-function coerce(name, value) {
+function coerce$1(name, value) {
   var def = 1;
   var result;
   var level;
@@ -21508,7 +18044,7 @@ function validateLinks(tree, vfile) {
     }
   }
 }
-const remarkLintNodejsLinks = lintRule(
+const remarkLintNodejsLinks = lintRule$1(
   "remark-lint:nodejs-links",
   validateLinks,
 );
@@ -24444,12 +20980,17 @@ var re$1 = {exports: {}};
 	                        `)?)?`);
 	createToken('XRANGE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`);
 	createToken('XRANGELOOSE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`);
-	createToken('COERCE', `${'(^|[^\\d])' +
+	createToken('COERCEPLAIN', `${'(^|[^\\d])' +
 	              '(\\d{1,'}${MAX_SAFE_COMPONENT_LENGTH}})` +
 	              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
-	              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
+	              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`);
+	createToken('COERCE', `${src[t.COERCEPLAIN]}(?:$|[^\\d])`);
+	createToken('COERCEFULL', src[t.COERCEPLAIN] +
+	              `(?:${src[t.PRERELEASE]})?` +
+	              `(?:${src[t.BUILD]})?` +
 	              `(?:$|[^\\d])`);
 	createToken('COERCERTL', src[t.COERCE], true);
+	createToken('COERCERTLFULL', src[t.COERCEFULL], true);
 	createToken('LONETILDE', '(?:~>?)');
 	createToken('TILDETRIM', `(\\s*)${src[t.LONETILDE]}\\s+`, true);
 	exports.tildeTrimReplace = '$1~';
@@ -24645,7 +21186,7 @@ let SemVer$2 = class SemVer {
     do {
       const a = this.build[i];
       const b = other.build[i];
-      debug('prerelease compare', i, a, b);
+      debug('build compare', i, a, b);
       if (a === undefined && b === undefined) {
         return 0
       } else if (b === undefined) {
@@ -24975,7 +21516,7 @@ function validateMeta(node, file, meta) {
   }
 }
 function validateYAMLComments(tree, file) {
-  visit$A(tree, "html", function visitor(node) {
+  visit(tree, "html", function visitor(node) {
     if (node.value.startsWith("<!--YAML\n"))
       file.message(
         "Expected `<!-- YAML`, found `<!--YAML`. Please add a space",
@@ -24990,166 +21531,72 @@ function validateYAMLComments(tree, file) {
     }
   });
 }
-const remarkLintNodejsYamlComments = lintRule(
+const remarkLintNodejsYamlComments = lintRule$1(
   "remark-lint:nodejs-yaml-comments",
   validateYAMLComments,
 );
 
-const convert$5 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$5
-      }
-      if (typeof test === 'string') {
-        return typeFactory$5(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$5(test) : propsFactory$5(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$5(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$5(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$5(tests[index]);
-  }
-  return castFactory$5(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$5(check) {
-  return castFactory$5(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$5(check) {
-  return castFactory$5(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$5(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$5() {
-  return true
-}
-
-function color$6(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$5 = true;
-const EXIT$5 = false;
-const SKIP$5 = 'skip';
-const visitParents$5 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$5(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$6(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
+function lintRule(meta, rule) {
+  const id = meta ;
+  const url = undefined ;
+  const parts = id.split(':');
+  const source = parts[1] ? parts[0] : undefined;
+  const ruleId = parts[1];
+  Object.defineProperty(plugin, 'name', {value: id});
+  return plugin
+  function plugin(config) {
+    const [severity, options] = coerce(ruleId, config);
+    if (!severity) return
+    const fatal = severity === 2;
+    return (tree, file, next) => {
+      let index = file.messages.length - 1;
+      wrap(rule, (error) => {
+        const messages = file.messages;
+        if (error && !messages.includes(error)) {
+          try {
+            file.fail(error);
+          } catch {}
         }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$5(visitor(node, parents));
-            if (result[0] === EXIT$5) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$5) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$5) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
+        while (++index < messages.length) {
+          Object.assign(messages[index], {ruleId, source, fatal, url});
         }
-      }
+        next();
+      })(tree, file, options);
     }
-  );
-function toResult$5(value) {
-  if (Array.isArray(value)) {
-    return value
   }
-  if (typeof value === 'number') {
-    return [CONTINUE$5, value]
-  }
-  return [value]
 }
-
-const visit$5 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$5(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
+function coerce(name, config) {
+  if (!Array.isArray(config)) return [1, config]
+  const [severity, ...options] = config;
+  switch (severity) {
+    case false:
+    case 'off':
+    case 0: {
+      return [0, ...options]
     }
-  );
+    case true:
+    case 'on':
+    case 'warn':
+    case 1: {
+      return [1, ...options]
+    }
+    case 'error':
+    case 2: {
+      return [2, ...options]
+    }
+    default: {
+      if (typeof severity !== 'number') return [1, config]
+      throw new Error(
+        'Incorrect severity `' +
+          severity +
+          '` for `' +
+          name +
+          '`, ' +
+          'expected 0, 1, or 2'
+      )
+    }
+  }
+}
 
 const remarkLintProhibitedStrings = lintRule('remark-lint:prohibited-strings', prohibitedStrings);
 function testProhibited (val, content) {
@@ -25195,7 +21642,7 @@ function testProhibited (val, content) {
       if (replaceCaptureGroups) {
         yes = result[1].replace(new RegExp(no), yes);
       }
-      results.push({ result: result[1], index: result.index, yes: yes });
+      results.push({ result: result[1], index: result.index, yes });
     }
     result = re.exec(content);
   }
@@ -25203,7 +21650,7 @@ function testProhibited (val, content) {
 }
 function prohibitedStrings (ast, file, strings) {
   const myLocation = location(file);
-  visit$5(ast, 'text', checkText);
+  visit(ast, 'text', checkText);
   function checkText (node) {
     const content = node.value;
     const initial = pointStart(node).offset;
@@ -25222,699 +21669,406 @@ function prohibitedStrings (ast, file, strings) {
   }
 }
 
-const convert$4 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$4
-      }
-      if (typeof test === 'string') {
-        return typeFactory$4(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$4(test) : propsFactory$4(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$4(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$4(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$4(tests[index]);
-  }
-  return castFactory$4(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$4(check) {
-  return castFactory$4(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$4(check) {
-  return castFactory$4(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$4(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$4() {
-  return true
-}
-
-function color$5(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$4 = true;
-const EXIT$4 = false;
-const SKIP$4 = 'skip';
-const visitParents$4 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$4(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$5(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$4(visitor(node, parents));
-            if (result[0] === EXIT$4) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$4) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$4) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$4(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$4, value]
-  }
-  return [value]
-}
-
-const visit$4 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$4(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
-
 /**
+ * remark-lint rule to warn when thematic breaks (horizontal rules) are
+ * inconsistent.
+ *
+ * ## What is this?
+ *
+ * This package checks markers and whitespace of thematic rules.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that rules (thematic breaks, horizontal
- * rules) are consistent.
+ * You can use this package to check that thematic breaks are consistent.
  *
  * ## API
  *
- * The following options (default: `'consistent'`) are accepted:
+ * ### `unified().use(remarkLintRuleStyle[, options])`
  *
- * *   `string` (example: `'** * **'`, `'___'`)
- *     — thematic break to prefer
- * *   `'consistent'`
- *     — detect the first used style and warn when further rules differ
+ * Warn when thematic breaks (horizontal rules) are inconsistent.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — preferred style or whether to detect the first style and warn for
+ *   further differences
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * * `'consistent'`
+ *   — detect the first used style and warn when further rules differ
+ * * `string` (example: `'** * **'`, `'___'`)
+ *   — thematic break to prefer
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = string | 'consistent'
+ * ```
  *
  * ## Recommendation
  *
- * Rules consist of a `*`, `-`, or `_` character, which occurs at least three
- * times with nothing else except for arbitrary spaces or tabs on a single line.
- * Using spaces, tabs, and more than three markers seems unnecessary work to
- * type out.
- * Because asterisks can be used as a marker for more markdown constructs,
+ * Rules consist of a `*`, `-`, or `_` character,
+ * which occurs at least three times with nothing else except for arbitrary
+ * spaces or tabs on a single line.
+ * Using spaces, tabs, or more than three markers is unnecessary work to type
+ * out.
+ * As asterisks can be used as a marker for more markdown constructs,
  * it’s recommended to use that for rules (and lists, emphasis, strong) too.
- * Due to this, it’s recommended to pass `'***'`.
+ * So it’s recommended to pass `'***'`.
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats rules with `***` by default.
+ * [`remark-stringify`][github-remark-stringify] formats rules with `***` by
+ * default.
  * There are three settings to control rules:
  *
- * *   [`rule`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionsrule)
- *     (default: `'*'`) — marker
- * *   [`ruleRepetition`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionsrulerepetition)
- *     (default: `3`) — repetitions
- * *   [`ruleSpaces`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionsrulespaces)
- *     (default: `false`) — use spaces between markers
+ * * `rule` (default: `'*'`) — marker
+ * * `ruleRepetition` (default: `3`) — repetitions
+ * * `ruleSpaces` (default: `false`) — use spaces between markers
+ *
+ * [api-options]: #options
+ * [api-remark-lint-rule-style]: #unifieduseremarklintrulestyle-options
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module rule-style
- * @summary
- *   remark-lint rule to warn when rule markers are inconsistent.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
- *   {"name": "ok.md", "config": "* * *"}
+ *   {"name": "ok.md"}
+ *
+ *   Two rules:
  *
  *   * * *
  *
  *   * * *
  *
  * @example
- *   {"name": "ok.md", "config": "_______"}
+ *   {"config": "_______", "name": "ok.md"}
  *
  *   _______
  *
  *   _______
  *
  * @example
- *   {"name": "not-ok.md", "label": "input"}
+ *   {"label": "input", "name": "not-ok.md"}
  *
  *   ***
  *
  *   * * *
+ * @example
+ *   {"label": "output", "name": "not-ok.md"}
+ *
+ *   3:1-3:6: Unexpected thematic rule `* * *`, expected `***`
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"config": "🌍", "label": "output", "name": "not-ok.md", "positionless": true}
  *
- *   3:1-3:6: Rules should use `***`
- *
- * @example
- *   {"name": "not-ok.md", "label": "output", "config": "💩", "positionless": true}
- *
- *   1:1: Incorrect preferred rule style: provide a correct markdown rule or `'consistent'`
+ *   1:1: Unexpected value `🌍` for `options`, expected thematic rule or `'consistent'`
  */
-const remarkLintRuleStyle = lintRule(
+const remarkLintRuleStyle = lintRule$1(
   {
     origin: 'remark-lint:rule-style',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-rule-style#readme'
   },
-  (tree, file, option = 'consistent') => {
+  function (tree, file, options) {
     const value = String(file);
-    if (option !== 'consistent' && /[^-_* ]/.test(option)) {
+    let expected;
+    let cause;
+    if (options === null || options === undefined || options === 'consistent') ; else if (
+      /[^-_* ]/.test(options) ||
+      options.at(0) === ' ' ||
+      options.at(-1) === ' ' ||
+      options.replaceAll(' ', '').length < 3
+    ) {
       file.fail(
-        "Incorrect preferred rule style: provide a correct markdown rule or `'consistent'`"
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected thematic rule or `'consistent'`"
       );
+    } else {
+      expected = options;
     }
-    visit$4(tree, 'thematicBreak', (node) => {
-      const initial = pointStart(node).offset;
-      const final = pointEnd(node).offset;
-      if (typeof initial === 'number' && typeof final === 'number') {
-        const rule = value.slice(initial, final);
-        if (option === 'consistent') {
-          option = rule;
-        } else if (rule !== option) {
-          file.message('Rules should use `' + option + '`', node);
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'thematicBreak') return
+      const end = pointEnd(node);
+      const start = pointStart(node);
+      if (
+        start &&
+        end &&
+        typeof start.offset === 'number' &&
+        typeof end.offset === 'number'
+      ) {
+        const place = {start, end};
+        const actual = value.slice(start.offset, end.offset);
+        if (expected) {
+          if (actual !== expected) {
+            file.message(
+              'Unexpected thematic rule `' +
+                actual +
+                '`, expected `' +
+                expected +
+                '`',
+              {ancestors: [...parents, node], cause, place}
+            );
+          }
+        } else {
+          expected = actual;
+          cause = new VFileMessage(
+            'Thematic rule style `' +
+              expected +
+              "` first defined for `'consistent'` here",
+            {
+              ancestors: [...parents, node],
+              place,
+              ruleId: 'rule-style',
+              source: 'remark-lint'
+            }
+          );
         }
       }
     });
   }
 );
-var remarkLintRuleStyle$1 = remarkLintRuleStyle;
-
-const convert$3 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$3
-      }
-      if (typeof test === 'string') {
-        return typeFactory$3(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$3(test) : propsFactory$3(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$3(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$3(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$3(tests[index]);
-  }
-  return castFactory$3(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$3(check) {
-  return castFactory$3(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$3(check) {
-  return castFactory$3(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$3(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$3() {
-  return true
-}
-
-function color$4(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$3 = true;
-const EXIT$3 = false;
-const SKIP$3 = 'skip';
-const visitParents$3 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$3(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$4(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$3(visitor(node, parents));
-            if (result[0] === EXIT$3) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$3) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$3) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$3(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$3, value]
-  }
-  return [value]
-}
-
-const visit$3 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$3(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when strong markers are inconsistent.
+ *
+ * ## What is this?
+ *
+ * This package checks the style of strong markers.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that strong markers are consistent.
+ * You can use this package to check that strong is consistent.
  *
  * ## API
  *
- * The following options (default: `'consistent'`) are accepted:
+ * ### `unified().use(remarkLintStrongMarker[, options])`
  *
- * *   `'*'`
- *     — prefer asterisks
- * *   `'_'`
- *     — prefer underscores
- * *   `'consistent'`
- *     — detect the first used style and warn when further strong differs
+ * Warn when strong markers are inconsistent.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — preferred style or whether to detect the first style and warn for
+ *   further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Marker`
+ *
+ * Marker (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Marker = '*' | '_'
+ * ```
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Marker | 'consistent'
+ * ```
  *
  * ## Recommendation
  *
- * Underscores and asterisks work slightly different: asterisks can form strong
- * in more cases than underscores.
- * Because underscores are sometimes used to represent normal underscores inside
- * words, there are extra rules supporting that.
+ * Whether asterisks or underscores are used affects how and whether strong
+ * works.
+ * Underscores are sometimes used to represent normal underscores inside words,
+ * so there are extra rules in markdown to support that.
+ * Asterisks are not used in natural language,
+ * so they don’t need these rules,
+ * and thus can form strong in more cases.
  * Asterisks can also be used as the marker of more constructs than underscores:
  * lists.
- * Due to having simpler parsing rules, looking more like syntax, and that they
- * can be used for more constructs, it’s recommended to prefer asterisks.
+ * Due to having simpler parsing rules,
+ * looking more like syntax,
+ * and that they can be used for more constructs,
+ * it’s recommended to prefer asterisks.
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats strong with asterisks by default.
- * Pass
- * [`strong: '_'`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionsstrong)
- * to always use underscores.
+ * [`remark-stringify`][github-remark-stringify] formats strong with asterisks
+ * by default.
+ * Pass `strong: '_'` to always use underscores.
+ *
+ * [api-marker]: #marker
+ * [api-options]: #options
+ * [api-remark-lint-strong-marker]: #unifieduseremarklintstrongmarker-options
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module strong-marker
- * @summary
- *   remark-lint rule to warn when strong markers are inconsistent.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md"}
- *
- *   **foo** and **bar**.
  *
  * @example
- *   {"name": "also-ok.md"}
+ *   {"config": "*", "name": "ok-asterisk.md"}
  *
- *   __foo__ and __bar__.
- *
- * @example
- *   {"name": "ok.md", "config": "*"}
- *
- *   **foo**.
+ *   **Mercury**.
  *
  * @example
- *   {"name": "ok.md", "config": "_"}
+ *   {"config": "*", "label": "input", "name": "not-ok-asterisk.md"}
  *
- *   __foo__.
- *
- * @example
- *   {"name": "not-ok.md", "label": "input"}
- *
- *   **foo** and __bar__.
+ *   __Mercury__.
  *
  * @example
- *   {"name": "not-ok.md", "label": "output"}
+ *   {"config": "*", "label": "output", "name": "not-ok-asterisk.md"}
  *
- *   1:13-1:20: Strong should use `*` as a marker
+ *   1:1-1:12: Unexpected strong marker `_`, expected `*`
  *
  * @example
- *   {"name": "not-ok.md", "label": "output", "config": "💩", "positionless": true}
+ *   {"config": "_", "name": "ok-underscore.md"}
  *
- *   1:1: Incorrect strong marker `💩`: use either `'consistent'`, `'*'`, or `'_'`
+ *   __Mercury__.
+ *
+ * @example
+ *   {"config": "_", "label": "input", "name": "not-ok-underscore.md"}
+ *
+ *   **Mercury**.
+ *
+ * @example
+ *   {"config": "_", "label": "output", "name": "not-ok-underscore.md"}
+ *
+ *   1:1-1:12: Unexpected strong marker `*`, expected `_`
+ *
+ * @example
+ *   {"label": "input", "name": "not-ok-consistent.md"}
+ *
+ *   **Mercury** and __Venus__.
+ *
+ * @example
+ *   {"label": "output", "name": "not-ok-consistent.md"}
+ *
+ *   1:17-1:26: Unexpected strong marker `_`, expected `*`
+ *
+ * @example
+ *   {"config": "🌍", "label": "output", "name": "not-ok.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected `'*'`, `'_'`, or `'consistent'`
  */
-const remarkLintStrongMarker = lintRule(
+const remarkLintStrongMarker = lintRule$1(
   {
     origin: 'remark-lint:strong-marker',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-strong-marker#readme'
   },
-  (tree, file, option = 'consistent') => {
+  function (tree, file, options) {
     const value = String(file);
-    if (option !== '*' && option !== '_' && option !== 'consistent') {
+    let cause;
+    let expected;
+    if (options === null || options === undefined || options === 'consistent') ; else if (options === '*' || options === '_') {
+      expected = options;
+    } else {
       file.fail(
-        'Incorrect strong marker `' +
-          option +
-          "`: use either `'consistent'`, `'*'`, or `'_'`"
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected `'*'`, `'_'`, or `'consistent'`"
       );
     }
-    visit$3(tree, 'strong', (node) => {
-      const start = pointStart(node).offset;
-      if (typeof start === 'number') {
-        const marker =  (value.charAt(start));
-        if (option === 'consistent') {
-          option = marker;
-        } else if (marker !== option) {
-          file.message('Strong should use `' + option + '` as a marker', node);
+    visitParents(tree, 'strong', function (node, parents) {
+      const start = pointStart(node);
+      if (start && typeof start.offset === 'number') {
+        const actual = value.charAt(start.offset);
+        if (actual !== '*' && actual !== '_') return
+        if (expected) {
+          if (actual !== expected) {
+            file.message(
+              'Unexpected strong marker `' +
+                actual +
+                '`, expected `' +
+                expected +
+                '`',
+              {ancestors: [...parents, node], cause, place: node.position}
+            );
+          }
+        } else {
+          expected = actual;
+          cause = new VFileMessage(
+            "Strong marker style `'" +
+              actual +
+              "'` first defined for `'consistent'` here",
+            {
+              ancestors: [...parents, node],
+              place: node.position,
+              ruleId: 'strong-marker',
+              source: 'remark-lint'
+            }
+          );
         }
       }
     });
   }
 );
-var remarkLintStrongMarker$1 = remarkLintStrongMarker;
-
-const convert$2 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$2
-      }
-      if (typeof test === 'string') {
-        return typeFactory$2(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$2(test) : propsFactory$2(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$2(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$2(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$2(tests[index]);
-  }
-  return castFactory$2(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$2(check) {
-  return castFactory$2(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$2(check) {
-  return castFactory$2(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$2(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$2() {
-  return true
-}
-
-function color$3(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$2 = true;
-const EXIT$2 = false;
-const SKIP$2 = 'skip';
-const visitParents$2 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$2(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$3(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$2(visitor(node, parents));
-            if (result[0] === EXIT$2) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$2) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$2) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$2(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$2, value]
-  }
-  return [value]
-}
-
-const visit$2 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$2(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when GFM table cells are padded inconsistently.
+ *
+ * ## What is this?
+ *
+ * This package checks table cell padding.
+ * Tables are a GFM feature enabled with [`remark-gfm`][github-remark-gfm].
+ *
  * ## When should I use this?
  *
- * You can use this package to check that table cells are padded consistently.
- * Tables are a GFM feature enabled with
- * [`remark-gfm`](https://github.com/remarkjs/remark-gfm).
+ * You can use this package to check that tables are consistent.
  *
  * ## API
  *
- * The following options (default: `'consistent'`) are accepted:
+ * ### `unified().use(remarkLintTableCellPadding[, options])`
  *
- * *   `'padded'`
- *     — prefer at least one space between pipes and content
- * *   `'compact'`
- *     — prefer zero spaces between pipes and content
- * *   `'consistent'`
- *     — detect the first used style and warn when further tables differ
+ * Warn when GFM table cells are padded inconsistently.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], optional)
+ *   — preferred style or whether to detect the first style and warn for
+ *   further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Style`
+ *
+ * Style (TypeScript type).
+ *
+ * * `'compact'`
+ *   — prefer zero spaces between pipes and content
+ * * `'padded'`
+ *   — prefer at least one space between pipes and content
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Style = 'compact' | 'padded'
+ * ```
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Style | 'consistent'
+ * ```
  *
  * ## Recommendation
  *
@@ -25923,694 +22077,889 @@ const visit$2 =
  *
  * ## Fix
  *
- * [`remark-gfm`](https://github.com/remarkjs/remark-gfm)
- * formats all table cells as padded by default.
- * Pass
- * [`tableCellPadding: false`](https://github.com/remarkjs/remark-gfm#optionstablecellpadding)
- * to use a more compact style.
+ * [`remark-stringify`][github-remark-stringify] with
+ * [`remark-gfm`][github-remark-gfm] formats all table cells as padded by
+ * default.
+ * Pass `tableCellPadding: false` to use a more compact style.
+ *
+ * [api-options]: #options
+ * [api-style]: #style
+ * [api-remark-lint-table-cell-padding]: #unifieduseremarklinttablecellpadding-options
+ * [github-remark-gfm]: https://github.com/remarkjs/remark-gfm
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module table-cell-padding
- * @summary
- *   remark-lint rule to warn when table cells are inconsistently padded.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
- * @example
- *   {"name": "ok.md", "config": "padded", "gfm": true}
- *
- *   | A     | B     |
- *   | ----- | ----- |
- *   | Alpha | Bravo |
  *
  * @example
- *   {"name": "not-ok.md", "label": "input", "config": "padded", "gfm": true}
+ *   {"config": "padded", "gfm": true, "name": "ok.md"}
  *
- *   | A    |    B |
- *   | :----|----: |
- *   | Alpha|Bravo |
+ *   | Planet  | Symbol | Satellites | Mean anomaly (°) |
+ *   | ------- | :----- | :--------: | ---------------: |
+ *   | Mercury | ☿      |    None    |          174 796 |
  *
- *   | C      |    D |
- *   | :----- | ---: |
- *   |Charlie | Delta|
- *
- *   Too much padding isn’t good either:
- *
- *   | E     | F        |   G    |      H |
- *   | :---- | -------- | :----: | -----: |
- *   | Echo  | Foxtrot  |  Golf  |  Hotel |
+ *   | Planet | Symbol | Satellites | Mean anomaly (°) |
+ *   | - | :- | :-: | -: |
+ *   | Venus | ♀ | None | 50 115 |
  *
  * @example
- *   {"name": "not-ok.md", "label": "output", "config": "padded", "gfm": true}
+ *   {"config": "padded", "gfm": true, "label": "input", "name": "not-ok.md"}
  *
- *   3:8: Cell should be padded
- *   3:9: Cell should be padded
- *   7:2: Cell should be padded
- *   7:17: Cell should be padded
- *   13:7: Cell should be padded with 1 space, not 2
- *   13:18: Cell should be padded with 1 space, not 2
- *   13:23: Cell should be padded with 1 space, not 2
- *   13:27: Cell should be padded with 1 space, not 2
- *   13:32: Cell should be padded with 1 space, not 2
+ *   | Planet |
+ *   | -------|
+ *   | Mercury|
+ *
+ *   |Planet |
+ *   |------ |
+ *   |Venus  |
+ *
+ *   |  Planet  |
+ *   |  ------  |
+ *   |  Venus   |
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "output", "name": "not-ok.md"}
+ *
+ *   2:10: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   3:10: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   5:2: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   6:2: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   7:2: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   9:4: Unexpected `2` spaces between cell edge and content, expected `1` space, remove `1` space
+ *   9:12: Unexpected `2` spaces between cell content and edge, expected `1` space, remove `1` space
+ *   10:4: Unexpected `2` spaces between cell edge and content, expected `1` space, remove `1` space
+ *   10:12: Unexpected `2` spaces between cell content and edge, expected `1` space, remove `1` space
+ *   11:4: Unexpected `2` spaces between cell edge and content, expected `1` space, remove `1` space
+ *   11:12: Unexpected `3` spaces between cell content and edge, expected between `1` (unaligned) and `2` (aligned) spaces, remove between `1` and `2` spaces
  *
  * @example
- *   {"name": "ok.md", "config": "compact", "gfm": true}
+ *   {"config": "compact", "gfm": true, "name": "ok.md"}
  *
- *   |A    |B    |
- *   |-----|-----|
- *   |Alpha|Bravo|
+ *   |Planet |Symbol|Satellites|Mean anomaly (°)|
+ *   |-------|:-----|:--------:|---------------:|
+ *   |Mercury|☿     |   None   |         174 796|
  *
- * @example
- *   {"name": "not-ok.md", "label": "input", "config": "compact", "gfm": true}
- *
- *   |   A    | B    |
- *   |   -----| -----|
- *   |   Alpha| Bravo|
- *
- *   |C      |     D|
- *   |:------|-----:|
- *   |Charlie|Delta |
+ *   |Planet|Symbol|Satellites|Mean anomaly (°)|
+ *   |-|:-|:-:|-:|
+ *   |Venus|♀|None|50 115|
  *
  * @example
- *   {"name": "not-ok.md", "label": "output", "config": "compact", "gfm": true}
+ *   {"config": "compact", "gfm": true, "label": "input", "name": "not-ok.md"}
  *
- *   3:5: Cell should be compact
- *   3:12: Cell should be compact
- *   7:15: Cell should be compact
+ *   | Planet |
+ *   | -------|
+ *   | Mercury|
+ *
+ *   |Planet |
+ *   |------ |
+ *   |Venus  |
+ *
+ *   |  Planet  |
+ *   |  ------  |
+ *   |  Venus   |
+ * @example
+ *   {"config": "compact", "gfm": true, "label": "output", "name": "not-ok.md"}
+ *
+ *   1:3: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   2:3: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   3:3: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   5:9: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   6:9: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   7:9: Unexpected `2` spaces between cell content and edge, expected between `0` (unaligned) and `1` (aligned) space, remove between `1` and `2` spaces
+ *   9:4: Unexpected `2` spaces between cell edge and content, expected `0` spaces, remove `2` spaces
+ *   9:12: Unexpected `2` spaces between cell content and edge, expected `0` spaces, remove `2` spaces
+ *   10:4: Unexpected `2` spaces between cell edge and content, expected `0` spaces, remove `2` spaces
+ *   10:12: Unexpected `2` spaces between cell content and edge, expected `0` spaces, remove `2` spaces
+ *   11:4: Unexpected `2` spaces between cell edge and content, expected `0` spaces, remove `2` spaces
+ *   11:12: Unexpected `3` spaces between cell content and edge, expected between `0` (unaligned) and `1` (aligned) space, remove between `2` and `3` spaces
  *
  * @example
- *   {"name": "ok-padded.md", "config": "consistent", "gfm": true}
+ *   {"gfm": true, "name": "consistent-padded-ok.md"}
  *
- *   | A     | B     |
- *   | ----- | ----- |
- *   | Alpha | Bravo |
- *
- *   | C       | D     |
- *   | ------- | ----- |
- *   | Charlie | Delta |
+ *   | Planet |
+ *   | - |
  *
  * @example
- *   {"name": "not-ok-padded.md", "label": "input", "config": "consistent", "gfm": true}
+ *   {"gfm": true, "label": "input", "name": "consistent-padded-nok.md"}
  *
- *   | A     | B     |
- *   | ----- | ----- |
- *   | Alpha | Bravo |
+ *   | Planet|
+ *   | - |
+ * @example
+ *   {"gfm": true, "label": "output", "name": "consistent-padded-nok.md"}
  *
- *   | C      |     D |
- *   | :----- | ----: |
- *   |Charlie | Delta |
+ *   1:9: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
  *
  * @example
- *   {"name": "not-ok-padded.md", "label": "output", "config": "consistent", "gfm": true}
+ *   {"gfm": true, "name": "consistent-compact-ok.md"}
  *
- *   7:2: Cell should be padded
- *
- * @example
- *   {"name": "ok-compact.md", "config": "consistent", "gfm": true}
- *
- *   |A    |B    |
- *   |-----|-----|
- *   |Alpha|Bravo|
- *
- *   |C      |D    |
- *   |-------|-----|
- *   |Charlie|Delta|
+ *   |Planet|
+ *   |-|
  *
  * @example
- *   {"name": "not-ok-compact.md", "label": "input", "config": "consistent", "gfm": true}
+ *   {"gfm": true, "label": "input", "name": "consistent-compact-nok.md"}
  *
- *   |A    |B    |
- *   |-----|-----|
- *   |Alpha|Bravo|
+ *   |Planet |
+ *   |-|
+ * @example
+ *   {"gfm": true, "label": "output", "name": "consistent-compact-nok.md"}
  *
- *   |C      |     D|
- *   |:------|-----:|
- *   |Charlie|Delta |
+ *   1:9: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
  *
  * @example
- *   {"name": "not-ok-compact.md", "label": "output", "config": "consistent", "gfm": true}
+ *   {"gfm": true, "name": "empty.md"}
  *
- *   7:15: Cell should be compact
- *
- * @example
- *   {"name": "not-ok.md", "label": "output", "config": "💩", "positionless": true, "gfm": true}
- *
- *   1:1: Incorrect table cell padding style `💩`, expected `'padded'`, `'compact'`, or `'consistent'`
+ *   | | Satellites |
+ *   | - | - |
+ *   | Mercury | |
  *
  * @example
- *   {"name": "empty.md", "label": "input", "config": "padded", "gfm": true}
+ *   {"gfm": true, "name": "missing-cells.md"}
  *
- *   <!-- Empty cells are OK, but those surrounding them may not be. -->
- *
- *   |        | Alpha | Bravo|
- *   | ------ | ----- | ---: |
- *   | Charlie|       |  Echo|
- *
- * @example
- *   {"name": "empty.md", "label": "output", "config": "padded", "gfm": true}
- *
- *   3:25: Cell should be padded
- *   5:10: Cell should be padded
- *   5:25: Cell should be padded
+ *   | Planet | Symbol | Satellites |
+ *   | - | - | - |
+ *   | Mercury |
+ *   | Venus | ♀ |
+ *   | Earth | 🜨 and ♁ | 1 |
+ *   | Mars | ♂ | 2 | 19 412 |
  *
  * @example
- *   {"name": "missing-body.md", "config": "padded", "gfm": true}
+ *   {"config": "padded", "gfm": true, "label": "input", "name": "missing-fences.md"}
  *
- *   <!-- Missing cells are fine as well. -->
+ *   ␠Planet|Symbol|Satellites
+ *   ------:|:-----|----------
+ *   Mercury|☿     |0
  *
- *   | Alpha | Bravo   | Charlie |
- *   | ----- | ------- | ------- |
- *   | Delta |
- *   | Echo  | Foxtrot |
+ *   Planet|Symbol
+ *   -----:|------
+ *   ␠Venus|♀
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "output", "name": "missing-fences.md"}
+ *
+ *   1:8: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   1:9: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   1:15: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   1:16: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   2:8: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   2:9: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   2:15: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   2:16: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   3:8: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   3:9: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   3:16: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   5:7: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   5:8: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   6:7: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   6:8: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   7:7: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   7:8: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *
+ * @example
+ *   {"config": "compact", "gfm": true, "label": "input", "name": "missing-fences.md"}
+ *
+ *   Planet | Symbol | Satellites
+ *   -: | - | -
+ *   Mercury | ☿ | 0
+ *
+ *   Planet | Symbol
+ *   -----: | ------
+ *   ␠Venus | ♀
+ * @example
+ *   {"config": "compact", "gfm": true, "label": "output", "name": "missing-fences.md"}
+ *
+ *   1:8: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   1:10: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   1:17: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   1:19: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   2:4: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   2:6: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   2:10: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   3:9: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   3:11: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   3:15: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   5:8: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   5:10: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   6:8: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   6:10: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   7:8: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   7:10: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *
+ * @example
+ *   {"config": "compact", "gfm": true, "label": "input", "name": "trailing-spaces.md"}
+ *
+ *   Planet | Symbol␠
+ *   -: | -␠
+ *   Mercury | ☿␠␠
+ *
+ *   | Planet | Symbol |␠
+ *   | ------ | ------ |␠
+ *   | Venus  | ♀      |␠␠
+ * @example
+ *   {"config": "compact", "gfm": true, "label": "output", "name": "trailing-spaces.md"}
+ *
+ *   1:8: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   1:10: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   2:4: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   2:6: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   3:9: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   3:11: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   5:3: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   5:10: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   5:12: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   5:19: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   6:3: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   6:10: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   6:12: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   6:19: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   7:3: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   7:10: Unexpected `2` spaces between cell content and edge, expected between `0` (unaligned) and `1` (aligned) space, remove between `1` and `2` spaces
+ *   7:12: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   7:19: Unexpected `6` spaces between cell content and edge, expected between `0` (unaligned) and `5` (aligned) spaces, remove between `1` and `6` spaces
+ *
+ * @example
+ *   {"config": "compact", "gfm": true, "label": "input", "name": "nothing.md"}
+ *
+ *   |   |   |   |
+ *   | - | - | - |
+ *   |   |   |   |
+ * @example
+ *   {"config": "compact", "gfm": true, "label": "output", "name": "nothing.md"}
+ *
+ *   1:5: Unexpected `3` spaces between cell edge and content, expected between `0` (unaligned) and `1` (aligned) space, remove between `2` and `3` spaces
+ *   1:9: Unexpected `3` spaces between cell edge and content, expected between `0` (unaligned) and `1` (aligned) space, remove between `2` and `3` spaces
+ *   1:13: Unexpected `3` spaces between cell edge and content, expected between `0` (unaligned) and `1` (aligned) space, remove between `2` and `3` spaces
+ *   2:3: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   2:5: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   2:7: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   2:9: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   2:11: Unexpected `1` space between cell edge and content, expected `0` spaces, remove `1` space
+ *   2:13: Unexpected `1` space between cell content and edge, expected `0` spaces, remove `1` space
+ *   3:5: Unexpected `3` spaces between cell edge and content, expected between `0` (unaligned) and `1` (aligned) space, remove between `2` and `3` spaces
+ *   3:9: Unexpected `3` spaces between cell edge and content, expected between `0` (unaligned) and `1` (aligned) space, remove between `2` and `3` spaces
+ *   3:13: Unexpected `3` spaces between cell edge and content, expected between `0` (unaligned) and `1` (aligned) space, remove between `2` and `3` spaces
+ *
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "input", "name": "nothing.md"}
+ *
+ *   ||||
+ *   |-|-|-|
+ *   ||||
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "output", "name": "nothing.md"}
+ *
+ *   1:2: Unexpected `0` spaces between cell edge and content, expected between `1` (unaligned) and `3` (aligned) spaces, add between `3` and `1` space
+ *   1:3: Unexpected `0` spaces between cell edge and content, expected between `1` (unaligned) and `3` (aligned) spaces, add between `3` and `1` space
+ *   1:4: Unexpected `0` spaces between cell edge and content, expected between `1` (unaligned) and `3` (aligned) spaces, add between `3` and `1` space
+ *   2:2: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   2:3: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   2:4: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   2:5: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   2:6: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   2:7: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   3:2: Unexpected `0` spaces between cell edge and content, expected between `1` (unaligned) and `3` (aligned) spaces, add between `3` and `1` space
+ *   3:3: Unexpected `0` spaces between cell edge and content, expected between `1` (unaligned) and `3` (aligned) spaces, add between `3` and `1` space
+ *   3:4: Unexpected `0` spaces between cell edge and content, expected between `1` (unaligned) and `3` (aligned) spaces, add between `3` and `1` space
+ *
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "input", "name": "more-weirdness.md"}
+ *
+ *   Mercury
+ *   |-
+ *
+ *   Venus
+ *   -|
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "output", "name": "more-weirdness.md"}
+ *
+ *   2:2: Unexpected `0` spaces between cell edge and content, expected `1` space, add `1` space
+ *   5:2: Unexpected `0` spaces between cell content and edge, expected between `1` (unaligned) and `5` (aligned) spaces, add between `5` and `1` space
+ *
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "input", "name": "containers.md"}
+ *
+ *   > | Mercury|
+ *   > | - |
+ *
+ *   * | Venus|
+ *     | - |
+ *
+ *   > * > | Earth|
+ *   >   > | - |
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "output", "name": "containers.md"}
+ *
+ *   1:12: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   4:10: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *   7:14: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "input", "name": "windows.md"}
+ *
+ *   | Mercury|␍␊| --- |␍␊| None |
+ * @example
+ *   {"config": "padded", "gfm": true, "label": "output", "name": "windows.md"}
+ *
+ *   1:10: Unexpected `0` spaces between cell content and edge, expected `1` space, add `1` space
+ *
+ * @example
+ *   {"config": "🌍", "gfm": true, "label": "output", "name": "not-ok.md", "positionless": true}
+ *
+ *   1:1: Unexpected value `🌍` for `options`, expected `'compact'`, `'padded'`, or `'consistent'`
  */
-const remarkLintTableCellPadding = lintRule(
+const remarkLintTableCellPadding = lintRule$1(
   {
     origin: 'remark-lint:table-cell-padding',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-table-cell-padding#readme'
   },
-  (tree, file, option = 'consistent') => {
-    if (
-      option !== 'padded' &&
-      option !== 'compact' &&
-      option !== 'consistent'
-    ) {
+  function (tree, file, options) {
+    const value = String(file);
+    let expected;
+    let cause;
+    if (options === null || options === undefined || options === 'consistent') ; else if (options === 'compact' || options === 'padded') {
+      expected = options;
+    } else {
       file.fail(
-        'Incorrect table cell padding style `' +
-          option +
-          "`, expected `'padded'`, `'compact'`, or `'consistent'`"
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected `'compact'`, `'padded'`, or `'consistent'`"
       );
     }
-    visit$2(tree, 'table', (node) => {
-      const rows = node.children;
-      const align = node.align || [];
-      const sizes = [];
-      const entries = [];
-      let index = -1;
-      while (++index < align.length) {
-        const alignment = align[index];
-        sizes[index] = alignment === 'center' ? 3 : alignment ? 2 : 1;
+    visitParents(tree, function (table, parents) {
+      if (phrasing(table)) {
+        return SKIP
       }
-      index = -1;
-      while (++index < rows.length) {
-        const row = rows[index];
-        let column = -1;
-        while (++column < row.children.length) {
-          const cell = row.children[column];
-          const cellStart = pointStart(cell).offset;
-          const cellEnd = pointEnd(cell).offset;
-          const contentStart = pointStart(cell.children[0]).offset;
-          const contentEnd = pointEnd(
-            cell.children[cell.children.length - 1]
-          ).offset;
-          if (
-            typeof cellStart !== 'number' ||
-            typeof cellEnd !== 'number' ||
-            typeof contentStart !== 'number' ||
-            typeof contentEnd !== 'number'
-          ) {
-            continue
-          }
-          entries.push({
-            node: cell,
-            start: contentStart - cellStart - 1,
-            end:
-              cellEnd -
-              contentEnd -
-              (column === row.children.length - 1 ? 1 : 0),
-            column
-          });
-          sizes[column] = Math.max(
-            sizes[column] || 0,
-            contentEnd - contentStart
-          );
+      if (table.type !== 'table') return
+      const entries = inferTable([...parents, table]);
+      const sizes = [];
+      for (const entry of entries) {
+        if (
+          entry.size &&
+          (sizes[entry.column] === undefined ||
+            entry.size.middle > sizes[entry.column])
+        ) {
+          sizes[entry.column] = entry.size.middle;
         }
       }
-      const style =
-        option === 'consistent'
-          ? entries[0] && (!entries[0].start || !entries[0].end)
-            ? 0
-            : 1
-          : option === 'padded'
-          ? 1
-          : 0;
-      index = -1;
-      while (++index < entries.length) {
-        checkSide('start', entries[index], style, sizes);
-        checkSide('end', entries[index], style, sizes);
+      if (!expected) {
+        for (const info of entries) {
+          if (
+            info.size &&
+            info.size.middle &&
+            info.size.middle === sizes[info.column]
+          ) {
+            const node = info.ancestors.at(-1);
+            expected = info.size.left ? 'padded' : 'compact';
+            cause = new VFileMessage(
+              "Cell padding style `'" +
+                expected +
+                "'` first defined for `'consistent'` here",
+              {
+                ancestors: info.ancestors,
+                place: node.position,
+                ruleId: 'table-cell-padding',
+                source: 'remark-lint'
+              }
+            );
+          }
+        }
       }
-      return SKIP$2
+      if (!expected) return
+      for (const info of entries) {
+        checkSide('left', info, sizes);
+        checkSide('right', info, sizes);
+      }
+      return SKIP
     });
-    function checkSide(side, entry, style, sizes) {
-      const cell = entry.node;
-      const column = entry.column;
-      const spacing = entry[side];
-      if (spacing === undefined || spacing === style) {
+    function checkSide(side, info, sizes) {
+      if (!info.size) {
         return
       }
-      let reason = 'Cell should be ';
-      if (style === 0) {
-        if (size(cell) < sizes[column]) {
-          return
-        }
-        reason += 'compact';
-      } else {
-        reason += 'padded';
-        if (spacing > style) {
-          if (size(cell) < sizes[column]) {
-            return
+      const actual = info.size[side];
+      if (actual === undefined) {
+        return
+      }
+      const alignSpaces = sizes[info.column] - info.size.middle;
+      const min = expected === 'compact' ? 0 : 1;
+      let max = min;
+      if (info.align === 'center') {
+        max += Math.ceil(alignSpaces / 2);
+      } else if (info.align === 'right' ? side === 'left' : side === 'right') {
+        max += alignSpaces;
+      }
+      if (info.size.middle === 0) {
+        if (side === 'right') return
+        max = Math.max(max, sizes[info.column] + 2 * min);
+      }
+      if (actual < min || actual > max) {
+        const differenceMin = min - actual;
+        const differenceMinAbsolute = Math.abs(differenceMin);
+        const differenceMax = max - actual;
+        const differenceMaxAbsolute = Math.abs(differenceMax);
+        file.message(
+          'Unexpected `' +
+            actual +
+            '` ' +
+            pluralize('space', actual) +
+            ' between cell ' +
+            (side === 'left' ? 'edge' : 'content') +
+            ' and ' +
+            (side === 'left' ? 'content' : 'edge') +
+            ', expected ' +
+            (min === max ? '' : 'between `' + min + '` (unaligned) and ') +
+            '`' +
+            max +
+            '` ' +
+            (min === max ? '' : '(aligned) ') +
+            pluralize('space', max) +
+            ', ' +
+            (differenceMin < 0 ? 'remove' : 'add') +
+            (differenceMin === differenceMax
+              ? ''
+              : ' between `' + differenceMaxAbsolute + '` and') +
+            ' `' +
+            differenceMinAbsolute +
+            '` ' +
+            pluralize('space', differenceMinAbsolute),
+          {
+            ancestors: info.ancestors,
+            cause,
+            place: side === 'left' ? info.size.leftPoint : info.size.rightPoint
           }
-          reason += ' with 1 space, not ' + spacing;
+        );
+      }
+    }
+    function inferTable(ancestors) {
+      const node = ancestors.at(-1);
+      ok$1(node.type === 'table');
+      const align = node.align || [];
+      const result = [];
+      let rowIndex = -1;
+      while (++rowIndex < node.children.length) {
+        const row = node.children[rowIndex];
+        let column = -1;
+        while (++column < row.children.length) {
+          const node = row.children[column];
+          result.push({
+            align: align[column],
+            ancestors: [...ancestors, row, node],
+            column,
+            size: inferSize(
+              pointStart(node),
+              pointEnd(node),
+              column === row.children.length - 1
+            )
+          });
+        }
+        if (rowIndex === 0) {
+          const alignRow = inferAlignRow(ancestors, align);
+          if (alignRow) result.push(...alignRow);
         }
       }
-      file.message(
-        reason,
-        side === 'start'
-          ? pointStart(cell.children[0])
-          : pointEnd(cell.children[cell.children.length - 1])
-      );
+      return result
+    }
+    function inferAlignRow(ancestors, align) {
+      const node = ancestors.at(-1);
+      ok$1(node.type === 'table');
+      const headEnd = pointEnd(node.children[0]);
+      if (!headEnd || typeof headEnd.offset !== 'number') return
+      let index = headEnd.offset;
+      if (value.charCodeAt(index) === 13 ) index++;
+      if (value.charCodeAt(index) !== 10 ) return
+      index++;
+      const result = [];
+      const line = headEnd.line + 1;
+      let code = value.charCodeAt(index);
+      while (
+        code === 9  ||
+        code === 32  ||
+        code === 62
+      ) {
+        index++;
+        code = value.charCodeAt(index);
+      }
+      if (
+        code !== 45  &&
+        code !== 58  &&
+        code !== 124
+      ) {
+        return
+      }
+      let lineEndOffset = value.indexOf('\n', index);
+      if (lineEndOffset === -1) lineEndOffset = value.length;
+      if (value.charCodeAt(lineEndOffset - 1) === 13 ) lineEndOffset--;
+      let column = 0;
+      let cellStart = index;
+      let cellEnd = value.indexOf('|', index + (code === 124 ? 1 : 0));
+      if (cellEnd === -1 || cellEnd > lineEndOffset) {
+        cellEnd = lineEndOffset;
+      }
+      while (cellStart !== cellEnd) {
+        let nextCellEnd = value.indexOf('|', cellEnd + 1);
+        if (nextCellEnd === -1 || nextCellEnd > lineEndOffset) {
+          nextCellEnd = lineEndOffset;
+        }
+        if (nextCellEnd === lineEndOffset) {
+          let maybeEnd = lineEndOffset;
+          let code = value.charCodeAt(maybeEnd - 1);
+          while (code === 9  || code === 32 ) {
+            maybeEnd--;
+            code = value.charCodeAt(maybeEnd - 1);
+          }
+          if (cellEnd + 1 === maybeEnd) {
+            cellEnd = lineEndOffset;
+          }
+        }
+        result.push({
+          align: align[column],
+          ancestors,
+          column,
+          size: inferSize(
+            {
+              line,
+              column: cellStart - index + 1,
+              offset: cellStart
+            },
+            {line, column: cellEnd - index + 1, offset: cellEnd},
+            cellEnd === lineEndOffset
+          )
+        });
+        cellStart = cellEnd;
+        cellEnd = nextCellEnd;
+        column++;
+      }
+      return result
+    }
+    function inferSize(start, end, tailCell) {
+      if (
+        end &&
+        start &&
+        typeof end.offset === 'number' &&
+        typeof start.offset === 'number'
+      ) {
+        let leftIndex = start.offset;
+        let left;
+        let right;
+        if (value.charCodeAt(leftIndex) === 124 ) {
+          left = 0;
+          leftIndex++;
+          while (value.charCodeAt(leftIndex) === 32) {
+            left++;
+            leftIndex++;
+          }
+        }
+        let rightIndex = end.offset;
+        if (tailCell) {
+          while (value.charCodeAt(rightIndex - 1) === 32) {
+            rightIndex--;
+          }
+          if (
+            rightIndex > leftIndex &&
+            value.charCodeAt(rightIndex - 1) === 124
+          ) {
+            rightIndex--;
+          }
+          else {
+            rightIndex = end.offset;
+          }
+        }
+        const rightEdgeIndex = rightIndex;
+        if (value.charCodeAt(rightIndex) === 124 ) {
+          right = 0;
+          while (
+            rightIndex - 1 > leftIndex &&
+            value.charCodeAt(rightIndex - 1) === 32
+          ) {
+            right++;
+            rightIndex--;
+          }
+        }
+        return {
+          left,
+          leftPoint: {
+            line: start.line,
+            column: start.column + (leftIndex - start.offset),
+            offset: leftIndex
+          },
+          middle: rightIndex - leftIndex,
+          right,
+          rightPoint: {
+            line: end.line,
+            column: end.column - (end.offset - rightEdgeIndex),
+            offset: rightEdgeIndex
+          }
+        }
+      }
     }
   }
 );
-var remarkLintTableCellPadding$1 = remarkLintTableCellPadding;
-function size(node) {
-  const head = pointStart(node.children[0]).offset;
-  const tail = pointEnd(node.children[node.children.length - 1]).offset;
-  return typeof head === 'number' && typeof tail === 'number' ? tail - head : 0
-}
-
-const convert$1 =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok$1
-      }
-      if (typeof test === 'string') {
-        return typeFactory$1(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory$1(test) : propsFactory$1(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory$1(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory$1(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert$1(tests[index]);
-  }
-  return castFactory$1(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory$1(check) {
-  return castFactory$1(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory$1(check) {
-  return castFactory$1(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory$1(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok$1() {
-  return true
-}
-
-function color$2(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE$1 = true;
-const EXIT$1 = false;
-const SKIP$1 = 'skip';
-const visitParents$1 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert$1(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$2(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult$1(visitor(node, parents));
-            if (result[0] === EXIT$1) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP$1) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT$1) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult$1(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE$1, value]
-  }
-  return [value]
-}
-
-const visit$1 =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents$1(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when GFM table rows have no initial or
+ * final cell delimiter.
+ *
+ * ## What is this?
+ *
+ * This package checks that table rows have initial and final delimiters.
+ * Tables are a GFM feature enabled with [`remark-gfm`][github-remark-gfm].
+ *
  * ## When should I use this?
  *
- * You can use this package to check that tables have initial and final
- * delimiters.
- * Tables are a GFM feature enabled with
- * [`remark-gfm`](https://github.com/remarkjs/remark-gfm).
+ * You can use this package to check that tables are consistent.
  *
  * ## API
  *
+ * ### `unified().use(remarkLintTablePipes)`
+ *
+ * Warn when GFM table rows have no initial or final cell delimiter.
+ *
+ * ###### Parameters
+ *
  * There are no options.
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
  *
  * ## Recommendation
  *
- * While tables don’t require initial or final delimiters (pipes before the
- * first and after the last cells in a row), it arguably does look weird.
+ * While tables don’t require initial or final delimiters (the pipes before the
+ * first and after the last cells in a row),
+ * it arguably does look weird without.
  *
  * ## Fix
  *
- * [`remark-gfm`](https://github.com/remarkjs/remark-gfm)
- * formats all tables with initial and final delimiters.
+ * [`remark-stringify`][github-remark-stringify] with
+ * [`remark-gfm`][github-remark-gfm] formats all tables with initial and final
+ * delimiters.
+ *
+ * [api-remark-lint-table-pipes]: #unifieduseremarklinttablepipes
+ * [github-remark-gfm]: https://github.com/remarkjs/remark-gfm
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module table-pipes
- * @summary
- *   remark-lint rule to warn when tables are missing initial and final
- *   delimiters.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
+ *
  * @example
  *   {"name": "ok.md", "gfm": true}
  *
- *   | A     | B     |
- *   | ----- | ----- |
- *   | Alpha | Bravo |
+ *   Small table:
+ *
+ *   | Planet | Mean anomaly (°) |
+ *   | :- | -: |
+ *   | Mercury | 174 796 |
  *
  * @example
  *   {"name": "not-ok.md", "label": "input", "gfm": true}
  *
- *   A     | B
- *   ----- | -----
- *   Alpha | Bravo
- *
+ *   Planet | Mean anomaly (°)
+ *   :- | -:
+ *   Mercury | 174 796
  * @example
  *   {"name": "not-ok.md", "label": "output", "gfm": true}
  *
- *   1:1: Missing initial pipe in table fence
- *   1:10: Missing final pipe in table fence
- *   3:1: Missing initial pipe in table fence
- *   3:14: Missing final pipe in table fence
+ *   1:1: Unexpected missing closing pipe in row, expected `|`
+ *   1:26: Unexpected missing opening pipe in row, expected `|`
+ *   2:1: Unexpected missing closing pipe in row, expected `|`
+ *   2:8: Unexpected missing opening pipe in row, expected `|`
+ *   3:1: Unexpected missing closing pipe in row, expected `|`
+ *   3:18: Unexpected missing opening pipe in row, expected `|`
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "missing-cells.md"}
+ *
+ *   Planet | Symbol | Satellites
+ *   :- | - | -
+ *   Mercury
+ *   Venus | ♀
+ *   Earth | ♁ | 1
+ *   Mars | ♂ | 2 | 19 412
+ * @example
+ *   {"gfm": true, "label": "output", "name": "missing-cells.md"}
+ *
+ *   1:1: Unexpected missing closing pipe in row, expected `|`
+ *   1:29: Unexpected missing opening pipe in row, expected `|`
+ *   2:1: Unexpected missing closing pipe in row, expected `|`
+ *   2:11: Unexpected missing opening pipe in row, expected `|`
+ *   3:1: Unexpected missing closing pipe in row, expected `|`
+ *   3:8: Unexpected missing opening pipe in row, expected `|`
+ *   4:1: Unexpected missing closing pipe in row, expected `|`
+ *   4:10: Unexpected missing opening pipe in row, expected `|`
+ *   5:1: Unexpected missing closing pipe in row, expected `|`
+ *   5:14: Unexpected missing opening pipe in row, expected `|`
+ *   6:1: Unexpected missing closing pipe in row, expected `|`
+ *   6:22: Unexpected missing opening pipe in row, expected `|`
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "trailing-spaces.md"}
+ *
+ *   ␠␠Planet␠␠
+ *   ␠-:␠
+ *
+ *   ␠␠| Planet |␠␠
+ *   ␠| -: |␠
+ * @example
+ *   {"gfm": true, "label": "output", "name": "trailing-spaces.md"}
+ *
+ *   1:3: Unexpected missing closing pipe in row, expected `|`
+ *   1:11: Unexpected missing opening pipe in row, expected `|`
+ *   2:2: Unexpected missing closing pipe in row, expected `|`
+ *   2:5: Unexpected missing opening pipe in row, expected `|`
+ *
+ * @example
+ *   {"gfm": true, "label": "input", "name": "windows.md"}
+ *
+ *   Mercury␍␊:-␍␊None
+ * @example
+ *   {"gfm": true, "label": "output", "name": "windows.md"}
+ *
+ *   1:1: Unexpected missing closing pipe in row, expected `|`
+ *   1:8: Unexpected missing opening pipe in row, expected `|`
+ *   2:1: Unexpected missing closing pipe in row, expected `|`
+ *   2:3: Unexpected missing opening pipe in row, expected `|`
+ *   3:1: Unexpected missing closing pipe in row, expected `|`
+ *   3:5: Unexpected missing opening pipe in row, expected `|`
  */
-const reasonStart = 'Missing initial pipe in table fence';
-const reasonEnd = 'Missing final pipe in table fence';
-const remarkLintTablePipes = lintRule(
+const remarkLintTablePipes = lintRule$1(
   {
     origin: 'remark-lint:table-pipes',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-table-pipes#readme'
   },
-  (tree, file) => {
+  function (tree, file) {
     const value = String(file);
-    visit$1(tree, 'table', (node) => {
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'table') return
       let index = -1;
       while (++index < node.children.length) {
         const row = node.children[index];
         const start = pointStart(row);
         const end = pointEnd(row);
-        if (
-          typeof start.offset === 'number' &&
-          value.charCodeAt(start.offset) !== 124
-        ) {
-          file.message(reasonStart, start);
+        if (start && typeof start.offset === 'number') {
+          checkStart(start.offset, start, [...parents, node, row]);
         }
-        if (
-          typeof end.offset === 'number' &&
-          value.charCodeAt(end.offset - 1) !== 124
-        ) {
-          file.message(reasonEnd, end);
+        if (end && typeof end.offset === 'number') {
+          checkEnd(end.offset, end, [...parents, node, row]);
+          if (index === 0) {
+            let index = end.offset;
+            if (value.charCodeAt(index) === 13 ) index++;
+            if (value.charCodeAt(index) !== 10 ) continue
+            index++;
+            const lineStart = index;
+            let code = value.charCodeAt(index);
+            while (
+              code === 9  ||
+              code === 32  ||
+              code === 62
+            ) {
+              index++;
+              code = value.charCodeAt(index);
+            }
+            checkStart(
+              index,
+              {
+                line: end.line + 1,
+                column: index - lineStart + 1,
+                offset: index
+              },
+              [...parents, node]
+            );
+            index = value.indexOf('\n', index);
+            if (index === -1) index = value.length;
+            if (value.charCodeAt(index - 1) === 13 ) index--;
+            checkEnd(
+              index,
+              {
+                line: end.line + 1,
+                column: index - lineStart + 1,
+                offset: index
+              },
+              [...parents, node]
+            );
+          }
         }
       }
+      return SKIP
     });
+    function checkStart(index, place, ancestors) {
+      let code = value.charCodeAt(index);
+      while (code === 9  || code === 32 ) {
+        code = value.charCodeAt(++index);
+      }
+      if (code !== 124 ) {
+        file.message('Unexpected missing closing pipe in row, expected `|`', {
+          ancestors,
+          place
+        });
+      }
+    }
+    function checkEnd(index, place, ancestors) {
+      let code = value.charCodeAt(index - 1);
+      while (code === 9  || code === 32 ) {
+        index--;
+        code = value.charCodeAt(index - 1);
+      }
+      if (code !== 124 ) {
+        file.message('Unexpected missing opening pipe in row, expected `|`', {
+          ancestors,
+          place
+        });
+      }
+    }
   }
 );
-var remarkLintTablePipes$1 = remarkLintTablePipes;
-
-const convert =
-  (
-    function (test) {
-      if (test === undefined || test === null) {
-        return ok
-      }
-      if (typeof test === 'string') {
-        return typeFactory(test)
-      }
-      if (typeof test === 'object') {
-        return Array.isArray(test) ? anyFactory(test) : propsFactory(test)
-      }
-      if (typeof test === 'function') {
-        return castFactory(test)
-      }
-      throw new Error('Expected function, string, or object as test')
-    }
-  );
-function anyFactory(tests) {
-  const checks = [];
-  let index = -1;
-  while (++index < tests.length) {
-    checks[index] = convert(tests[index]);
-  }
-  return castFactory(any)
-  function any(...parameters) {
-    let index = -1;
-    while (++index < checks.length) {
-      if (checks[index].call(this, ...parameters)) return true
-    }
-    return false
-  }
-}
-function propsFactory(check) {
-  return castFactory(all)
-  function all(node) {
-    let key;
-    for (key in check) {
-      if (node[key] !== check[key]) return false
-    }
-    return true
-  }
-}
-function typeFactory(check) {
-  return castFactory(type)
-  function type(node) {
-    return node && node.type === check
-  }
-}
-function castFactory(check) {
-  return assertion
-  function assertion(node, ...parameters) {
-    return Boolean(
-      node &&
-        typeof node === 'object' &&
-        'type' in node &&
-        Boolean(check.call(this, node, ...parameters))
-    )
-  }
-}
-function ok() {
-  return true
-}
-
-function color$1(d) {
-  return '\u001B[33m' + d + '\u001B[39m'
-}
-
-const CONTINUE = true;
-const EXIT = false;
-const SKIP = 'skip';
-const visitParents =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      const is = convert(test);
-      const step = reverse ? -1 : 1;
-      factory(tree, undefined, [])();
-      function factory(node, index, parents) {
-        const value = node && typeof node === 'object' ? node : {};
-        if (typeof value.type === 'string') {
-          const name =
-            typeof value.tagName === 'string'
-              ? value.tagName
-              :
-              typeof value.name === 'string'
-              ? value.name
-              : undefined;
-          Object.defineProperty(visit, 'name', {
-            value:
-              'node (' + color$1(node.type + (name ? '<' + name + '>' : '')) + ')'
-          });
-        }
-        return visit
-        function visit() {
-          let result = [];
-          let subresult;
-          let offset;
-          let grandparents;
-          if (!test || is(node, index, parents[parents.length - 1] || null)) {
-            result = toResult(visitor(node, parents));
-            if (result[0] === EXIT) {
-              return result
-            }
-          }
-          if (node.children && result[0] !== SKIP) {
-            offset = (reverse ? node.children.length : -1) + step;
-            grandparents = parents.concat(node);
-            while (offset > -1 && offset < node.children.length) {
-              subresult = factory(node.children[offset], offset, grandparents)();
-              if (subresult[0] === EXIT) {
-                return subresult
-              }
-              offset =
-                typeof subresult[1] === 'number' ? subresult[1] : offset + step;
-            }
-          }
-          return result
-        }
-      }
-    }
-  );
-function toResult(value) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  if (typeof value === 'number') {
-    return [CONTINUE, value]
-  }
-  return [value]
-}
-
-const visit =
-  (
-    function (tree, test, visitor, reverse) {
-      if (typeof test === 'function' && typeof visitor !== 'function') {
-        reverse = visitor;
-        visitor = test;
-        test = null;
-      }
-      visitParents(tree, test, overload, reverse);
-      function overload(node, parents) {
-        const parent = parents[parents.length - 1];
-        return visitor(
-          node,
-          parent ? parent.children.indexOf(node) : null,
-          parent
-        )
-      }
-    }
-  );
 
 /**
+ * remark-lint rule to warn when unordered list markers are inconsistent.
+ *
+ * ## What is this?
+ *
+ * This package checks unordered list markers.
+ *
  * ## When should I use this?
  *
- * You can use this package to check that unordered list markers (bullets)
- * are consistent.
+ * You can use this package to check unordered lists.
  *
  * ## API
  *
- * The following options (default: `'consistent'`) are accepted:
+ * ### `unified().use(remarkLintUnorderedListMarkerStyle[, options])`
  *
- * *   `'*'`
- *     — prefer asterisks
- * *   `'+'`
- *     — prefer plusses
- * *   `'-'`
- *     — prefer dashes
- * *   `'consistent'`
- *     — detect the first used style and warn when further markers differ
+ * Warn when unordered list markers are inconsistent.
+ *
+ * ###### Parameters
+ *
+ * * `options` ([`Options`][api-options], default: `'consistent'`)
+ *   — preferred style or whether to detect the first style and warn for
+ *   further differences
+ *
+ * ###### Returns
+ *
+ * Transform ([`Transformer` from `unified`][github-unified-transformer]).
+ *
+ * ### `Options`
+ *
+ * Configuration (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Options = Style | 'consistent'
+ * ```
+ *
+ * ### `Style`
+ *
+ * Style (TypeScript type).
+ *
+ * ###### Type
+ *
+ * ```ts
+ * type Style = '*' | '+' | '-'
+ * ```
  *
  * ## Recommendation
  *
@@ -26620,119 +22969,140 @@ const visit =
  *
  * ## Fix
  *
- * [`remark-stringify`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify)
- * formats ordered lists with asterisks by default.
- * Pass
- * [`bullet: '+'` or `bullet: '-'`](https://github.com/remarkjs/remark/tree/main/packages/remark-stringify#optionsbullet)
- * to always use plusses or dashes.
+ * [`remark-stringify`][github-remark-stringify] formats unordered lists with
+ * asterisks by default.
+ * Pass `bullet: '+'` or `bullet: '-'` to use a different marker.
+ *
+ * [api-options]: #options
+ * [api-style]: #style
+ * [api-remark-lint-unordered-list-marker-style]: #unifieduseremarklintunorderedlistmarkerstyle-options
+ * [github-remark-stringify]: https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+ * [github-unified-transformer]: https://github.com/unifiedjs/unified#transformer
  *
  * @module unordered-list-marker-style
- * @summary
- *   remark-lint rule to warn when unordered list markers are inconsistent.
  * @author Titus Wormer
  * @copyright 2015 Titus Wormer
  * @license MIT
  * @example
  *   {"name": "ok.md"}
  *
- *   By default (`'consistent'`), if the file uses only one marker,
- *   that’s OK.
+ *   * Mercury
  *
- *   * Foo
- *   * Bar
- *   * Baz
+ *   1. Venus
  *
- *   Ordered lists are not affected.
- *
- *   1. Foo
- *   2. Bar
- *   3. Baz
+ *   * Earth
  *
  * @example
  *   {"name": "ok.md", "config": "*"}
  *
- *   * Foo
+ *   * Mercury
  *
  * @example
  *   {"name": "ok.md", "config": "-"}
  *
- *   - Foo
+ *   - Mercury
  *
  * @example
  *   {"name": "ok.md", "config": "+"}
  *
- *   + Foo
+ *   + Mercury
  *
  * @example
  *   {"name": "not-ok.md", "label": "input"}
  *
- *   * Foo
- *   - Bar
- *   + Baz
+ *   * Mercury
  *
+ *   - Venus
+ *
+ *   + Earth
  * @example
  *   {"name": "not-ok.md", "label": "output"}
  *
- *   2:1-2:6: Marker style should be `*`
- *   3:1-3:6: Marker style should be `*`
+ *   3:1: Unexpected unordered list marker `-`, expected `*`
+ *   5:1: Unexpected unordered list marker `+`, expected `*`
  *
  * @example
- *   {"name": "not-ok.md", "label": "output", "config": "💩", "positionless": true}
+ *   {"name": "not-ok.md", "label": "output", "config": "🌍", "positionless": true}
  *
- *   1:1: Incorrect unordered list item marker style `💩`: use either `'-'`, `'*'`, or `'+'`
+ *   1:1: Unexpected value `🌍` for `options`, expected `'*'`, `'+'`, `'-'`, or `'consistent'`
  */
-const markers = new Set(['-', '*', '+']);
-const remarkLintUnorderedListMarkerStyle = lintRule(
+const remarkLintUnorderedListMarkerStyle = lintRule$1(
   {
     origin: 'remark-lint:unordered-list-marker-style',
     url: 'https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-unordered-list-marker-style#readme'
   },
-  (tree, file, option = 'consistent') => {
+  function (tree, file, options) {
     const value = String(file);
-    if (option !== 'consistent' && !markers.has(option)) {
+    let expected;
+    let cause;
+    if (options === null || options === undefined || options === 'consistent') ; else if (options === '*' || options === '+' || options === '-') {
+      expected = options;
+    } else {
       file.fail(
-        'Incorrect unordered list item marker style `' +
-          option +
-          "`: use either `'-'`, `'*'`, or `'+'`"
+        'Unexpected value `' +
+          options +
+          "` for `options`, expected `'*'`, `'+'`, `'-'`, or `'consistent'`"
       );
     }
-    visit(tree, 'list', (node) => {
-      if (node.ordered) return
-      let index = -1;
-      while (++index < node.children.length) {
-        const child = node.children[index];
-        if (!generated(child)) {
-          const marker =  (
-            value
-              .slice(
-                pointStart(child).offset,
-                pointStart(child.children[0]).offset
-              )
-              .replace(/\[[x ]?]\s*$/i, '')
-              .replace(/\s/g, '')
+    visitParents(tree, function (node, parents) {
+      if (phrasing(node)) {
+        return SKIP
+      }
+      if (node.type !== 'listItem') return
+      const parent = parents.at(-1);
+      if (!parent || parent.type !== 'list' || parent.ordered) return
+      const place = pointStart(node);
+      if (!place || typeof place.offset !== 'number') return
+      const code = value.charCodeAt(place.offset);
+      const actual =
+        code === 42
+          ? '*'
+          : code === 43
+            ? '+'
+            : code === 45
+              ? '-'
+              :
+                undefined;
+      if (!actual) return
+      if (expected) {
+        if (actual !== expected) {
+          file.message(
+            'Unexpected unordered list marker `' +
+              actual +
+              '`, expected `' +
+              expected +
+              '`',
+            {ancestors: [...parents, node], cause, place}
           );
-          if (option === 'consistent') {
-            option = marker;
-          } else if (marker !== option) {
-            file.message('Marker style should be `' + option + '`', child);
-          }
         }
+      } else {
+        expected = actual;
+        cause = new VFileMessage(
+          'Unordered list marker style `' +
+            expected +
+            "` first defined for `'consistent'` here",
+          {
+            ancestors: [...parents, node],
+            place,
+            ruleId: 'unordered-list-marker-style',
+            source: 'remark-lint'
+          }
+        );
       }
     });
   }
 );
-var remarkLintUnorderedListMarkerStyle$1 = remarkLintUnorderedListMarkerStyle;
 
 const plugins = [
   remarkGfm,
-  remarkPresetLintRecommended$1,
-  [remarkLintBlockquoteIndentation$1, 2],
-  [remarkLintCheckboxCharacterStyle$1, { checked: "x", unchecked: " " }],
-  remarkLintCheckboxContentIndent$1,
-  [remarkLintCodeBlockStyle$1, "fenced"],
-  remarkLintDefinitionSpacing$1,
+  remarkPresetLintRecommended,
+  [remarkLintBlockquoteIndentation, 2],
+  [remarkLintCheckboxCharacterStyle, { checked: "x", unchecked: " " }],
+  remarkLintCheckboxContentIndent,
+  [remarkLintCodeBlockStyle, "fenced"],
+  remarkLintDefinitionSpacing,
   [
-    remarkLintFencedCodeFlag$1,
+    remarkLintFencedCodeFlag,
     {
       flags: [
         "bash",
@@ -26754,22 +23124,21 @@ const plugins = [
       ],
     },
   ],
-  [remarkLintFencedCodeMarker$1, "`"],
-  [remarkLintFileExtension$1, "md"],
-  remarkLintFinalDefinition$1,
-  [remarkLintFirstHeadingLevel$1, 1],
-  [remarkLintHeadingStyle$1, "atx"],
-  [remarkLintListItemIndent$1, "space"],
-  remarkLintMaximumLineLength$1,
-  remarkLintNoConsecutiveBlankLines$1,
-  remarkLintNoFileNameArticles$1,
-  remarkLintNoFileNameConsecutiveDashes$1,
-  remarkLintNofileNameOuterDashes$1,
-  remarkLintNoHeadingIndent$1,
-  remarkLintNoMultipleToplevelHeadings$1,
-  remarkLintNoShellDollars$1,
-  remarkLintNoTableIndentation$1,
-  remarkLintNoTabs$1,
+  [remarkLintFencedCodeMarker, "`"],
+  [remarkLintFileExtension, "md"],
+  remarkLintFinalDefinition,
+  [remarkLintFirstHeadingLevel, 1],
+  [remarkLintHeadingStyle, "atx"],
+  [remarkLintMaximumLineLength, 120],
+  remarkLintNoConsecutiveBlankLines,
+  remarkLintNoFileNameArticles,
+  remarkLintNoFileNameConsecutiveDashes,
+  remarkLintNofileNameOuterDashes,
+  remarkLintNoHeadingIndent,
+  remarkLintNoMultipleToplevelHeadings,
+  remarkLintNoShellDollars,
+  remarkLintNoTableIndentation,
+  remarkLintNoTabs,
   remarkLintNoTrailingSpaces$1,
   remarkLintNodejsLinks,
   remarkLintNodejsYamlComments,
@@ -26789,304 +23158,28 @@ const plugins = [
       { no: "[Nn]ote that", yes: "<nothing>" },
       { yes: "RFC" },
       { no: "[Rr][Ff][Cc]\\d+", yes: "RFC <number>" },
+      { yes: "TypeScript" },
       { yes: "Unix" },
       { yes: "Valgrind" },
       { yes: "V8" },
     ],
   ],
-  remarkLintRuleStyle$1,
-  [remarkLintStrongMarker$1, "*"],
-  [remarkLintTableCellPadding$1, "padded"],
-  remarkLintTablePipes$1,
-  [remarkLintUnorderedListMarkerStyle$1, "*"],
+  remarkLintRuleStyle,
+  [remarkLintStrongMarker, "*"],
+  [remarkLintTableCellPadding, "padded"],
+  remarkLintTablePipes,
+  [remarkLintUnorderedListMarkerStyle, "*"],
 ];
 const settings = {
   emphasis: "_",
-  listItemIndent: "one",
   tightDefinitions: true,
 };
 const remarkPresetLintNode = { plugins, settings };
 
-class VFileMessage extends Error {
-  constructor(causeOrReason, optionsOrParentOrPlace, origin) {
-    super();
-    if (typeof optionsOrParentOrPlace === 'string') {
-      origin = optionsOrParentOrPlace;
-      optionsOrParentOrPlace = undefined;
-    }
-    let reason = '';
-    let options = {};
-    let legacyCause = false;
-    if (optionsOrParentOrPlace) {
-      if (
-        'line' in optionsOrParentOrPlace &&
-        'column' in optionsOrParentOrPlace
-      ) {
-        options = {place: optionsOrParentOrPlace};
-      }
-      else if (
-        'start' in optionsOrParentOrPlace &&
-        'end' in optionsOrParentOrPlace
-      ) {
-        options = {place: optionsOrParentOrPlace};
-      }
-      else if ('type' in optionsOrParentOrPlace) {
-        options = {
-          ancestors: [optionsOrParentOrPlace],
-          place: optionsOrParentOrPlace.position
-        };
-      }
-      else {
-        options = {...optionsOrParentOrPlace};
-      }
-    }
-    if (typeof causeOrReason === 'string') {
-      reason = causeOrReason;
-    }
-    else if (!options.cause && causeOrReason) {
-      legacyCause = true;
-      reason = causeOrReason.message;
-      options.cause = causeOrReason;
-    }
-    if (!options.ruleId && !options.source && typeof origin === 'string') {
-      const index = origin.indexOf(':');
-      if (index === -1) {
-        options.ruleId = origin;
-      } else {
-        options.source = origin.slice(0, index);
-        options.ruleId = origin.slice(index + 1);
-      }
-    }
-    if (!options.place && options.ancestors && options.ancestors) {
-      const parent = options.ancestors[options.ancestors.length - 1];
-      if (parent) {
-        options.place = parent.position;
-      }
-    }
-    const start =
-      options.place && 'start' in options.place
-        ? options.place.start
-        : options.place;
-    this.ancestors = options.ancestors || undefined;
-    this.cause = options.cause || undefined;
-    this.column = start ? start.column : undefined;
-    this.fatal = undefined;
-    this.file;
-    this.message = reason;
-    this.line = start ? start.line : undefined;
-    this.name = stringifyPosition$2(options.place) || '1:1';
-    this.place = options.place || undefined;
-    this.reason = this.message;
-    this.ruleId = options.ruleId || undefined;
-    this.source = options.source || undefined;
-    this.stack =
-      legacyCause && options.cause && typeof options.cause.stack === 'string'
-        ? options.cause.stack
-        : '';
-    this.actual;
-    this.expected;
-    this.note;
-    this.url;
-  }
-}
-VFileMessage.prototype.file = '';
-VFileMessage.prototype.name = '';
-VFileMessage.prototype.reason = '';
-VFileMessage.prototype.message = '';
-VFileMessage.prototype.stack = '';
-VFileMessage.prototype.column = undefined;
-VFileMessage.prototype.line = undefined;
-VFileMessage.prototype.ancestors = undefined;
-VFileMessage.prototype.cause = undefined;
-VFileMessage.prototype.fatal = undefined;
-VFileMessage.prototype.place = undefined;
-VFileMessage.prototype.ruleId = undefined;
-VFileMessage.prototype.source = undefined;
-
-function isUrl(fileUrlOrPath) {
-  return Boolean(
-    fileUrlOrPath !== null &&
-      typeof fileUrlOrPath === 'object' &&
-      'href' in fileUrlOrPath &&
-      fileUrlOrPath.href &&
-      'protocol' in fileUrlOrPath &&
-      fileUrlOrPath.protocol &&
-      fileUrlOrPath.auth === undefined
-  )
-}
-
-const order =  ([
-  'history',
-  'path',
-  'basename',
-  'stem',
-  'extname',
-  'dirname'
-]);
-class VFile {
-  constructor(value) {
-    let options;
-    if (!value) {
-      options = {};
-    } else if (isUrl(value)) {
-      options = {path: value};
-    } else if (typeof value === 'string' || isUint8Array$1(value)) {
-      options = {value};
-    } else {
-      options = value;
-    }
-    this.cwd = process$1.cwd();
-    this.data = {};
-    this.history = [];
-    this.messages = [];
-    this.value;
-    this.map;
-    this.result;
-    this.stored;
-    let index = -1;
-    while (++index < order.length) {
-      const prop = order[index];
-      if (
-        prop in options &&
-        options[prop] !== undefined &&
-        options[prop] !== null
-      ) {
-        this[prop] = prop === 'history' ? [...options[prop]] : options[prop];
-      }
-    }
-    let prop;
-    for (prop in options) {
-      if (!order.includes(prop)) {
-        this[prop] = options[prop];
-      }
-    }
-  }
-  get basename() {
-    return typeof this.path === 'string' ? path$1.basename(this.path) : undefined
-  }
-  set basename(basename) {
-    assertNonEmpty(basename, 'basename');
-    assertPart(basename, 'basename');
-    this.path = path$1.join(this.dirname || '', basename);
-  }
-  get dirname() {
-    return typeof this.path === 'string' ? path$1.dirname(this.path) : undefined
-  }
-  set dirname(dirname) {
-    assertPath(this.basename, 'dirname');
-    this.path = path$1.join(dirname || '', this.basename);
-  }
-  get extname() {
-    return typeof this.path === 'string' ? path$1.extname(this.path) : undefined
-  }
-  set extname(extname) {
-    assertPart(extname, 'extname');
-    assertPath(this.dirname, 'extname');
-    if (extname) {
-      if (extname.codePointAt(0) !== 46 ) {
-        throw new Error('`extname` must start with `.`')
-      }
-      if (extname.includes('.', 1)) {
-        throw new Error('`extname` cannot contain multiple dots')
-      }
-    }
-    this.path = path$1.join(this.dirname, this.stem + (extname || ''));
-  }
-  get path() {
-    return this.history[this.history.length - 1]
-  }
-  set path(path) {
-    if (isUrl(path)) {
-      path = fileURLToPath(path);
-    }
-    assertNonEmpty(path, 'path');
-    if (this.path !== path) {
-      this.history.push(path);
-    }
-  }
-  get stem() {
-    return typeof this.path === 'string'
-      ? path$1.basename(this.path, this.extname)
-      : undefined
-  }
-  set stem(stem) {
-    assertNonEmpty(stem, 'stem');
-    assertPart(stem, 'stem');
-    this.path = path$1.join(this.dirname || '', stem + (this.extname || ''));
-  }
-  fail(causeOrReason, optionsOrParentOrPlace, origin) {
-    const message = this.message(causeOrReason, optionsOrParentOrPlace, origin);
-    message.fatal = true;
-    throw message
-  }
-  info(causeOrReason, optionsOrParentOrPlace, origin) {
-    const message = this.message(causeOrReason, optionsOrParentOrPlace, origin);
-    message.fatal = undefined;
-    return message
-  }
-  message(causeOrReason, optionsOrParentOrPlace, origin) {
-    const message = new VFileMessage(
-      causeOrReason,
-      optionsOrParentOrPlace,
-      origin
-    );
-    if (this.path) {
-      message.name = this.path + ':' + message.name;
-      message.file = this.path;
-    }
-    message.fatal = false;
-    this.messages.push(message);
-    return message
-  }
-  toString(encoding) {
-    if (this.value === undefined) {
-      return ''
-    }
-    if (typeof this.value === 'string') {
-      return this.value
-    }
-    const decoder = new TextDecoder(encoding || undefined);
-    return decoder.decode(this.value)
-  }
-}
-function assertPart(part, name) {
-  if (part && part.includes(path$1.sep)) {
-    throw new Error(
-      '`' + name + '` cannot be a path: did not expect `' + path$1.sep + '`'
-    )
-  }
-}
-function assertNonEmpty(part, name) {
-  if (!part) {
-    throw new Error('`' + name + '` cannot be empty')
-  }
-}
-function assertPath(path, name) {
-  if (!path) {
-    throw new Error('Setting `' + name + '` requires `path` to be set too')
-  }
-}
-function isUint8Array$1(value) {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      'byteLength' in value &&
-      'byteOffset' in value
-  )
-}
-
 function read(description, options, callback) {
   const file = toVFile(description);
-  if (!callback && typeof options === 'function') {
-    callback = options;
-    options = undefined;
-  }
-  if (!callback) {
+  {
     return new Promise(executor)
-  }
-  executor(resolve, callback);
-  function resolve(result) {
-    callback(undefined, result);
   }
   function executor(resolve, reject) {
     let fp;
@@ -27712,7 +23805,7 @@ function reporter(files, options) {
       'Unexpected value for `files`, expected one or more `VFile`s'
     )
   }
-  const settings = options || {};
+  const settings = {};
   const colorEnabled =
     typeof settings.color === 'boolean' ? settings.color : color;
   let oneFileMode = false;
@@ -27761,10 +23854,10 @@ function createAncestorsLines(state, ancestors) {
       typeof value.tagName === 'string'
         ? value.tagName
         :
-        typeof value.name === 'string'
-        ? value.name
-        : undefined;
-    const position = stringifyPosition$2(node.position);
+          typeof value.name === 'string'
+          ? value.name
+          : undefined;
+    const position = stringifyPosition(node.position);
     lines.push(
       '    at ' +
         state.yellow +
@@ -27811,12 +23904,26 @@ function createCauseLines(state, cause) {
       ('message' in cause ? String(cause.message) : undefined);
     if (typeof stackValue === 'string') {
       foundReasonableCause = true;
-      const stackLines = stackValue.split(eol);
-      stackLines[0] = '    ' + stackLines[0];
-      lines.push(...stackLines);
-      if ('cause' in cause && cause.cause) {
-        lines.push(...createCauseLines(state, cause.cause));
+      let causeLines;
+      if ('file' in cause && 'fatal' in cause) {
+        causeLines = createMessageLine(
+          state,
+           (cause)
+        );
       }
+      else {
+        causeLines = stackValue.split(eol);
+        if ('cause' in cause && cause.cause) {
+          causeLines.push(...createCauseLines(state, cause.cause));
+        }
+      }
+      const head = causeLines[0];
+      if (typeof head === 'string') {
+        causeLines[0] = '    ' + head;
+      } else {
+        head[0] = '    ' + head[0];
+      }
+      lines.push(...causeLines);
     }
   }
   if (!foundReasonableCause) {
@@ -27869,7 +23976,7 @@ function createMessageLine(state, message) {
   }
   const place = message.place || message.position;
   const row = [
-    stringifyPosition$2(place),
+    stringifyPosition(place),
     (label === 'error' ? state.red : state.yellow) + label + state.defaultColor,
     formatReason(state, reason),
     message.ruleId || '',

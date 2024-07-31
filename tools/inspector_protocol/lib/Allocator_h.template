@@ -11,8 +11,6 @@
 namespace {{namespace}} {
 {% endfor %}
 
-enum NotNullTagEnum { NotNullLiteral };
-
 #define PROTOCOL_DISALLOW_COPY(ClassName) \
     private: \
         ClassName(const ClassName&) = delete; \

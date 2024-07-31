@@ -18,8 +18,8 @@
 #include "number_microprops.h"
 #include "number_utypes.h"
 
-U_NAMESPACE_BEGIN namespace number {
-namespace impl {
+U_NAMESPACE_BEGIN
+namespace number::impl {
 
 /**
  * This is the "brain" of the number formatting pipeline. It ties all the pieces together, taking in a MacroProps and a
@@ -170,8 +170,7 @@ class NumberFormatterImpl : public UMemory {
         UErrorCode &status);
 };
 
-}  // namespace impl
-}  // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 

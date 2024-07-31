@@ -5,7 +5,7 @@ const common = require('../common.js');
 const PORT = common.PORT;
 
 const bench = common.createBenchmark(main, {
-  sendchunklen: [256, 32 * 1024, 128 * 1024, 16 * 1024 * 1024],
+  sendchunklen: [256, 32 * 1024, 128 * 1024, 16 * 64 * 1024],
   type: ['utf', 'asc', 'buf'],
   recvbuflen: [0, 64 * 1024, 1024 * 1024],
   recvbufgenfn: ['true', 'false'],

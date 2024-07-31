@@ -52,10 +52,8 @@ assert.strictEqual(process.env.INLINE_COMMENTS_DOUBLE_QUOTES, 'inline comments o
 assert.strictEqual(process.env.INLINE_COMMENTS_BACKTICKS, 'inline comments outside of #backticks');
 // Treats # character as start of comment
 assert.strictEqual(process.env.INLINE_COMMENTS_SPACE, 'inline comments start with a');
-// Respects equals signs in values
-assert.strictEqual(process.env.EQUAL_SIGNS, 'equals==');
-// Retains inner quotes
-assert.strictEqual(process.env.RETAIN_INNER_QUOTES, '{"foo": "bar"}');
+// ignore comment
+assert.strictEqual(process.env.COMMENTS, undefined);
 // Respects equals signs in values
 assert.strictEqual(process.env.EQUAL_SIGNS, 'equals==');
 // Retains inner quotes
@@ -68,3 +66,19 @@ assert.strictEqual(process.env.TRIM_SPACE_FROM_UNQUOTED, 'some spaced out string
 assert.strictEqual(process.env.EMAIL, 'therealnerdybeast@example.tld');
 // Parses keys and values surrounded by spaces
 assert.strictEqual(process.env.SPACED_KEY, 'parsed');
+// Parse inline comments correctly when multiple quotes
+assert.strictEqual(process.env.EDGE_CASE_INLINE_COMMENTS, 'VALUE1');
+// Test multi-line values with line breaks
+assert.strictEqual(process.env.MULTI_DOUBLE_QUOTED, 'THIS\nIS\nA\nMULTILINE\nSTRING');
+assert.strictEqual(process.env.MULTI_SINGLE_QUOTED, 'THIS\nIS\nA\nMULTILINE\nSTRING');
+assert.strictEqual(process.env.MULTI_BACKTICKED, 'THIS\nIS\nA\n"MULTILINE\'S"\nSTRING');
+assert.strictEqual(process.env.MULTI_NOT_VALID_QUOTE, '"');
+assert.strictEqual(process.env.MULTI_NOT_VALID, 'THIS');
+// Test that \n is expanded to a newline in double-quoted string
+assert.strictEqual(process.env.EXPAND_NEWLINES, 'expand\nnew\nlines');
+assert.strictEqual(process.env.DONT_EXPAND_UNQUOTED, 'dontexpand\\nnewlines');
+assert.strictEqual(process.env.DONT_EXPAND_SQUOTED, 'dontexpand\\nnewlines');
+// Ignore export before key
+assert.strictEqual(process.env.EXPORT_EXAMPLE, 'ignore export');
+// Ignore spaces before double quotes to avoid quoted strings as value
+assert.strictEqual(process.env.SPACE_BEFORE_DOUBLE_QUOTES, 'space before double quotes');

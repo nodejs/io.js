@@ -175,7 +175,7 @@ assertFalse(WebAssembly.validate(bytes(88, 88, 88, 88, 88, 88, 88, 88)));
 (function GlobalsArePrivateToTheInstance() {
   print('GlobalsArePrivateToTheInstance...');
   var builder = new WasmModuleBuilder();
-  builder.addGlobal(kWasmI32, true);
+  builder.addGlobal(kWasmI32, true, false);
   builder.addFunction('read', kSig_i_v)
       .addBody([kExprGlobalGet, 0])
       .exportFunc();
@@ -243,7 +243,7 @@ assertFalse(WebAssembly.validate(bytes(88, 88, 88, 88, 88, 88, 88, 88)));
   builder.addExport('b', builder.addFunction('', kSig_v_v).addBody([]));
   builder.addExport('c', builder.addFunction('', kSig_v_v).addBody([]));
   builder.addExport('d', builder.addFunction('', kSig_v_v).addBody([]));
-  builder.addExport('e', builder.addGlobal(kWasmI32, false));
+  builder.addExport('e', builder.addGlobal(kWasmI32, false, false));
 
   let module = new WebAssembly.Module(builder.toBuffer());
   let instance = new WebAssembly.Instance(module);

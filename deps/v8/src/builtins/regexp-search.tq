@@ -28,8 +28,7 @@ transitioning macro RegExpPrototypeSearchBodyFast(
     FastStoreLastIndex(regexp, previousLastIndex);
 
     // Return the index of the match.
-    return UnsafeCast<Smi>(
-        matchIndices.objects[kRegExpMatchInfoFirstCaptureIndex]);
+    return matchIndices.GetStartOfCapture(0);
   } label DidNotMatch {
     // Reset last index and return -1.
     FastStoreLastIndex(regexp, previousLastIndex);

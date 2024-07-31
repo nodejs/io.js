@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="package-lockjson">package-lock.json</h1>
+<h1 id="----package-lockjson----1082">
+    <span>package-lock.json</span>
+    <span class="version">@10.8.2</span>
+</h1>
 <span class="description">A manifestation of the manifest</span>
 </header>
 
@@ -176,6 +184,7 @@ picture of the package tree, reducing the need to read <code>package.json</code>
 files, and allowing for significant performance improvements.</p>
 </li>
 </ul>
+<p>When <code>npm</code> creates or updates <code>package-lock.json</code>, it will infer line endings and indentation from <code>package.json</code> so that the formatting of both files matches.</p>
 <h3 id="package-lockjson-vs-npm-shrinkwrapjson"><code>package-lock.json</code> vs <code>npm-shrinkwrap.json</code></h3>
 <p>Both of these files have the same format, and perform similar functions in
 the root of a project.</p>
@@ -241,7 +250,7 @@ prior to npm v5.</li>
 <li><code>1</code>: The lockfile version used by npm v5 and v6.</li>
 <li><code>2</code>: The lockfile version used by npm v7 and v8. Backwards compatible to v1
 lockfiles.</li>
-<li><code>3</code>: The lockfile version used by npm v9. Backwards compatible to npm v7.</li>
+<li><code>3</code>: The lockfile version used by npm v9 and above. Backwards compatible to npm v7.</li>
 </ul>
 <p>npm will always attempt to get whatever data it can out of a lockfile, even
 if it is not a version that it was designed to support.</p>

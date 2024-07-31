@@ -1,18 +1,5 @@
 .\"
 .\" Copyright 2010 by Ben Greear <greearb@candelatech.com>
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_SET_LOCAL_IP4 3 "30 June 2010"
@@ -22,7 +9,7 @@ ares_set_local_ip4 \- Set local IPv4 address outgoing requests.
 .nf
 #include <ares.h>
 
-void ares_set_local_ip4(ares_channel \fIchannel\fP, unsigned int \fIlocal_ip\fP)
+void ares_set_local_ip4(ares_channel_t *\fIchannel\fP, unsigned int \fIlocal_ip\fP)
 .fi
 .SH DESCRIPTION
 The \fBares_set_local_ip4\fP function sets the IP address for outbound
@@ -32,5 +19,3 @@ allows users to specify outbound interfaces when used on multi-homed systems.
 .BR ares_set_local_ip6 (3)
 .SH NOTES
 This function was added in c-ares 1.7.4
-.SH AUTHOR
-Ben Greear

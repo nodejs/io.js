@@ -80,7 +80,7 @@ class ReferenceSummarizerMarkingState final {
   }
 
   ReferenceSummary references_;
-  HeapObject primary_object_;
+  Tagged<HeapObject> primary_object_;
   MarkingWorklists marking_worklists_;
   MarkingWorklists::Local local_marking_worklists_;
   WeakObjects weak_objects_;
@@ -125,6 +125,9 @@ class ReferenceSummarizerMarkingVisitor
   // Standard marking visitor functions:
   bool TryMark(Tagged<HeapObject> obj) { return true; }
   bool IsMarked(Tagged<HeapObject> obj) const { return false; }
+
+  void MarkPointerTableEntry(Tagged<HeapObject> host,
+                             IndirectPointerSlot slot) {}
 
  private:
   ReferenceSummarizerMarkingState* marking_state_;

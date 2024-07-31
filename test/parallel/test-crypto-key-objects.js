@@ -169,16 +169,16 @@ const privateDsa = fixtures.readKey('dsa_private_encrypted_1025.pem',
   assert.strictEqual(derivedPublicKey.symmetricKeySize, undefined);
 
   const publicKeyFromJwk = createPublicKey({ key: publicJwk, format: 'jwk' });
-  assert.strictEqual(publicKey.type, 'public');
-  assert.strictEqual(publicKey.toString(), '[object KeyObject]');
-  assert.strictEqual(publicKey.asymmetricKeyType, 'rsa');
-  assert.strictEqual(publicKey.symmetricKeySize, undefined);
+  assert.strictEqual(publicKeyFromJwk.type, 'public');
+  assert.strictEqual(publicKeyFromJwk.toString(), '[object KeyObject]');
+  assert.strictEqual(publicKeyFromJwk.asymmetricKeyType, 'rsa');
+  assert.strictEqual(publicKeyFromJwk.symmetricKeySize, undefined);
 
   const privateKeyFromJwk = createPrivateKey({ key: jwk, format: 'jwk' });
-  assert.strictEqual(privateKey.type, 'private');
-  assert.strictEqual(privateKey.toString(), '[object KeyObject]');
-  assert.strictEqual(privateKey.asymmetricKeyType, 'rsa');
-  assert.strictEqual(privateKey.symmetricKeySize, undefined);
+  assert.strictEqual(privateKeyFromJwk.type, 'private');
+  assert.strictEqual(privateKeyFromJwk.toString(), '[object KeyObject]');
+  assert.strictEqual(privateKeyFromJwk.asymmetricKeyType, 'rsa');
+  assert.strictEqual(privateKeyFromJwk.symmetricKeySize, undefined);
 
   // It should also be possible to import an encrypted private key as a public
   // key.

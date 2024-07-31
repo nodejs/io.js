@@ -38,7 +38,7 @@ cp.exec(cmd, {
   // At least starting with Darwin Kernel Version 16.4.0, sending a SIGTERM to a
   // process that is still starting up kills it with SIGKILL instead of SIGTERM.
   // See: https://github.com/libuv/libuv/issues/1226
-  if (common.isOSX)
+  if (common.isMacOS)
     assert.ok(err.signal === 'SIGTERM' || err.signal === 'SIGKILL');
   else
     assert.strictEqual(err.signal, sigterm);

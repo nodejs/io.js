@@ -170,8 +170,7 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
 
   Label* GetLabel(RpoNumber rpo) { return &labels_[rpo.ToSize()]; }
 
-  void AddProtectedInstructionLanding(uint32_t instr_offset,
-                                      uint32_t landing_offset);
+  void RecordProtectedInstruction(uint32_t instr_offset);
 
   SourcePosition start_source_position() const {
     return start_source_position_;
@@ -180,8 +179,10 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   void AssembleSourcePosition(Instruction* instr);
   void AssembleSourcePosition(SourcePosition source_position);
 
-  // Record a safepoint with the given pointer map.
-  void RecordSafepoint(ReferenceMap* references);
+  // Record a safepoint with the given pointer map. When pc_offset is 0, then
+  // the current pc is used to define the safepoint. Otherwise the provided
+  // pc_offset is used.
+  void RecordSafepoint(ReferenceMap* references, int pc_offset = 0);
 
   Zone* zone() const { return zone_; }
   MacroAssembler* masm() { return &masm_; }

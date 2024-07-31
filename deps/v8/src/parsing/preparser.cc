@@ -31,11 +31,11 @@ PreParserIdentifier GetIdentifierHelper(Scanner* scanner,
   // - 'contextual' keywords (and may contain escaped; treated in 2nd switch.)
   // - 'contextual' keywords, but may not be escaped (3rd switch).
   switch (scanner->current_token()) {
-    case Token::AWAIT:
+    case Token::kAwait:
       return PreParserIdentifier::Await();
-    case Token::ASYNC:
+    case Token::kAsync:
       return PreParserIdentifier::Async();
-    case Token::PRIVATE_NAME:
+    case Token::kPrivateName:
       return PreParserIdentifier::PrivateName();
     default:
       break;
@@ -85,7 +85,7 @@ PreParser::PreParseResult PreParser::PreParseProgram() {
   original_scope_ = scope_;
   int start_position = peek_position();
   PreParserScopedStatementList body(pointer_buffer());
-  ParseStatementList(&body, Token::EOS);
+  ParseStatementList(&body, Token::kEos);
   CheckConflictingVarDeclarations(scope);
   original_scope_ = nullptr;
   if (stack_overflow()) return kPreParseStackOverflow;
@@ -147,7 +147,7 @@ PreParser::PreParseResult PreParser::PreParseFunction(
       BuildParameterInitializationBlock(formals);
     }
 
-    Expect(Token::RPAREN);
+    Expect(Token::kRightParen);
     int formals_end_position = scanner()->location().end_pos;
 
     CheckArityRestrictions(formals.arity, kind, formals.has_rest,
@@ -155,7 +155,7 @@ PreParser::PreParseResult PreParser::PreParseFunction(
                            formals_end_position);
   }
 
-  Expect(Token::LBRACE);
+  Expect(Token::kLeftBrace);
   DeclarationScope* inner_scope = function_scope;
 
   if (!formals.is_simple) {
@@ -204,7 +204,7 @@ PreParser::PreParseResult PreParser::PreParseFunction(
   } else if (has_error()) {
     DCHECK(pending_error_handler()->has_pending_error());
   } else {
-    DCHECK_EQ(Token::RBRACE, scanner()->peek());
+    DCHECK_EQ(Token::kRightBrace, scanner()->peek());
 
     if (!IsArrowFunction(kind)) {
       // Validate parameter names. We can do this only after parsing the
@@ -297,7 +297,7 @@ PreParser::Expression PreParser::ParseFunctionLiteral(
 
     FunctionState function_state(&function_state_, &scope_, function_scope);
 
-    Expect(Token::LPAREN);
+    Expect(Token::kLeftParen);
     int start_position = position();
     function_scope->set_start_position(start_position);
     PreParserFormalParameters formals(function_scope);
@@ -306,13 +306,13 @@ PreParser::Expression PreParser::ParseFunctionLiteral(
       ParseFormalParameterList(&formals);
       if (formals_scope.has_duplicate()) formals.set_has_duplicate();
     }
-    Expect(Token::RPAREN);
+    Expect(Token::kRightParen);
     int formals_end_position = scanner()->location().end_pos;
 
     CheckArityRestrictions(formals.arity, kind, formals.has_rest,
                            start_position, formals_end_position);
 
-    Expect(Token::LBRACE);
+    Expect(Token::kLeftBrace);
 
     // Parse function body.
     PreParserScopedStatementList body(pointer_buffer());
@@ -365,10 +365,10 @@ PreParser::Expression PreParser::ParseFunctionLiteral(
 void PreParser::ParseStatementListAndLogFunction(
     PreParserFormalParameters* formals) {
   PreParserScopedStatementList body(pointer_buffer());
-  ParseStatementList(&body, Token::RBRACE);
+  ParseStatementList(&body, Token::kRightBrace);
 
   // Position right after terminal '}'.
-  DCHECK_IMPLIES(!has_error(), scanner()->peek() == Token::RBRACE);
+  DCHECK_IMPLIES(!has_error(), scanner()->peek() == Token::kRightBrace);
   int body_end = scanner()->peek_location().end_pos;
   DCHECK_EQ(this->scope()->is_function_scope(), formals->is_simple);
   log_.LogFunction(body_end, formals->num_parameters(),

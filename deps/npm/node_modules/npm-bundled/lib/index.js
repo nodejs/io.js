@@ -154,7 +154,7 @@ class BundleWalker extends EE {
       path: p,
       parent: this,
     })
-    child.on('done', _ => {
+    child.on('done', () => {
       if (--this.children === 0) {
         this.done()
       }

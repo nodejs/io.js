@@ -246,14 +246,14 @@ bool ZipReader::OpenEntry() {
 
   // Construct the last modified time. The timezone info is not present in ZIP
   // archives, so we construct the time as UTC.
-  base::Time::Exploded exploded_time = {};
-  exploded_time.year = info.tmu_date.tm_year;
-  exploded_time.month = info.tmu_date.tm_mon + 1;  // 0-based vs 1-based
-  exploded_time.day_of_month = info.tmu_date.tm_mday;
-  exploded_time.hour = info.tmu_date.tm_hour;
-  exploded_time.minute = info.tmu_date.tm_min;
-  exploded_time.second = info.tmu_date.tm_sec;
-  exploded_time.millisecond = 0;
+  const base::Time::Exploded exploded_time = {
+      .year = static_cast<int>(info.tmu_date.tm_year),
+      .month =
+          static_cast<int>(info.tmu_date.tm_mon + 1),  // 0-based vs 1-based
+      .day_of_month = static_cast<int>(info.tmu_date.tm_mday),
+      .hour = static_cast<int>(info.tmu_date.tm_hour),
+      .minute = static_cast<int>(info.tmu_date.tm_min),
+      .second = static_cast<int>(info.tmu_date.tm_sec)};
 
   if (!base::Time::FromUTCExploded(exploded_time, &entry_.last_modified))
     entry_.last_modified = base::Time::UnixEpoch();

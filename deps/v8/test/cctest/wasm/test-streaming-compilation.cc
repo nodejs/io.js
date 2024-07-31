@@ -34,17 +34,9 @@ class MockPlatform final : public TestPlatform {
     for (auto* job_handle : job_handles_) job_handle->ResetPlatform();
   }
 
-  std::unique_ptr<v8::JobHandle> PostJob(
-      v8::TaskPriority priority,
-      std::unique_ptr<v8::JobTask> job_task) override {
-    auto job_handle = CreateJob(priority, std::move(job_task));
-    job_handle->NotifyConcurrencyIncrease();
-    return job_handle;
-  }
-
-  std::unique_ptr<v8::JobHandle> CreateJob(
-      v8::TaskPriority priority,
-      std::unique_ptr<v8::JobTask> job_task) override {
+  std::unique_ptr<v8::JobHandle> CreateJobImpl(
+      v8::TaskPriority priority, std::unique_ptr<v8::JobTask> job_task,
+      const v8::SourceLocation& location) override {
     auto orig_job_handle = v8::platform::NewDefaultJobHandle(
         this, priority, std::move(job_task), 1);
     auto job_handle =
@@ -58,7 +50,9 @@ class MockPlatform final : public TestPlatform {
     return task_runner_;
   }
 
-  void CallOnWorkerThread(std::unique_ptr<v8::Task> task) override {
+  void PostTaskOnWorkerThreadImpl(v8::TaskPriority priority,
+                                  std::unique_ptr<v8::Task> task,
+                                  const v8::SourceLocation& location) override {
     task_runner_->PostTask(std::move(task));
   }
 
@@ -69,26 +63,34 @@ class MockPlatform final : public TestPlatform {
  private:
   class MockTaskRunner final : public TaskRunner {
    public:
-    void PostTask(std::unique_ptr<v8::Task> task) override {
+    void PostTaskImpl(std::unique_ptr<v8::Task> task,
+                      const SourceLocation& location) override {
       base::MutexGuard lock_scope(&tasks_lock_);
       tasks_.push(std::move(task));
     }
 
-    void PostNonNestableTask(std::unique_ptr<Task> task) override {
+    void PostNonNestableTaskImpl(std::unique_ptr<Task> task,
+                                 const SourceLocation& location) override {
       PostTask(std::move(task));
     }
 
-    void PostDelayedTask(std::unique_ptr<Task> task,
-                         double delay_in_seconds) override {
-      PostTask(std::move(task));
+    void PostDelayedTaskImpl(std::unique_ptr<Task> task,
+                             double delay_in_seconds,
+                             const SourceLocation& location) override {
+      base::MutexGuard lock_scope(&tasks_lock_);
+      delayed_tasks_.emplace_back(
+          std::move(task), base::TimeTicks::Now() +
+                               base::TimeDelta::FromSecondsD(delay_in_seconds));
     }
 
-    void PostNonNestableDelayedTask(std::unique_ptr<Task> task,
-                                    double delay_in_seconds) override {
-      PostTask(std::move(task));
+    void PostNonNestableDelayedTaskImpl(
+        std::unique_ptr<Task> task, double delay_in_seconds,
+        const SourceLocation& location) override {
+      PostDelayedTask(std::move(task), delay_in_seconds);
     }
 
-    void PostIdleTask(std::unique_ptr<IdleTask> task) override {
+    void PostIdleTaskImpl(std::unique_ptr<IdleTask> task,
+                          const SourceLocation& location) override {
       UNREACHABLE();
     }
 
@@ -96,13 +98,28 @@ class MockPlatform final : public TestPlatform {
     bool NonNestableTasksEnabled() const override { return true; }
     bool NonNestableDelayedTasksEnabled() const override { return true; }
 
+    // The test must call this repeatedly if delayed tasks were posted, until
+    // all such tasks have been executed.
     void ExecuteTasks() {
       std::queue<std::unique_ptr<v8::Task>> tasks;
       while (true) {
         {
           base::MutexGuard lock_scope(&tasks_lock_);
           tasks.swap(tasks_);
+          // Move all delayed tasks which are ready for execution to {tasks_}.
+          base::TimeTicks now = base::TimeTicks::Now();
+          for (auto it = delayed_tasks_.begin(), end = delayed_tasks_.end();
+               it != end;) {
+            if (it->second > now) {
+              ++it;
+              continue;
+            }
+            tasks.push(std::move(it->first));
+            it = delayed_tasks_.erase(it);
+          }
         }
+        // Stop if there are no tasks to execute. Otherwise execute the tasks,
+        // then check again.
         if (tasks.empty()) break;
         while (!tasks.empty()) {
           std::unique_ptr<Task> task = std::move(tasks.front());
@@ -116,6 +133,8 @@ class MockPlatform final : public TestPlatform {
     base::Mutex tasks_lock_;
     // We do not execute tasks concurrently, so we only need one list of tasks.
     std::queue<std::unique_ptr<v8::Task>> tasks_;
+    std::list<std::pair<std::unique_ptr<v8::Task>, base::TimeTicks>>
+        delayed_tasks_;
   };
 
   class MockJobHandle : public JobHandle {
@@ -197,8 +216,8 @@ class StreamTester {
 
     WasmFeatures features = WasmFeatures::FromIsolate(i_isolate);
     stream_ = GetWasmEngine()->StartStreamingCompilation(
-        i_isolate, features, v8::Utils::OpenHandle(*context),
-        "WebAssembly.compileStreaming()",
+        i_isolate, features, CompileTimeImports{},
+        v8::Utils::OpenHandle(*context), "WebAssembly.compileStreaming()",
         std::make_shared<TestResolver>(i_isolate, &state_, &error_message_,
                                        &module_object_));
   }
@@ -261,14 +280,18 @@ class StreamTester {
   v8::Context::Scope context_scope(context);                                 \
   /* Reduce tiering budget so we do not need to execute too long. */         \
   i::FlagScope<int> reduced_tiering_budget(&i::v8_flags.wasm_tiering_budget, \
-                                           10);                              \
+                                           1);                               \
   RunStream_##name(&platform, isolate);
 
 #define STREAM_TEST(name)                                                  \
   void RunStream_##name(MockPlatform*, v8::Isolate*);                      \
-  TEST_WITH_PLATFORM(Async##name, MockPlatform) { RUN_STREAM(name); }      \
+  TEST_WITH_PLATFORM(Async##name, MockPlatform) {                          \
+    if (i::v8_flags.memory_balancer) return;                               \
+    RUN_STREAM(name);                                                      \
+  }                                                                        \
                                                                            \
   TEST_WITH_PLATFORM(SingleThreaded##name, MockPlatform) {                 \
+    if (i::v8_flags.memory_balancer) return;                               \
     i::FlagScope<bool> single_threaded_scope(&i::v8_flags.single_threaded, \
                                              true);                        \
     RUN_STREAM(name);                                                      \
@@ -1202,8 +1225,8 @@ STREAM_TEST(TestModuleWithImportedFunction) {
 
 STREAM_TEST(TestIncrementalCaching) {
   FLAG_VALUE_SCOPE(wasm_tier_up, false);
-  constexpr int threshold = 10;
-  FlagScope<int> caching_treshold(&v8_flags.wasm_caching_threshold, threshold);
+  constexpr int threshold = 10;  // 10 bytes
+  FlagScope<int> caching_threshold(&v8_flags.wasm_caching_threshold, threshold);
   StreamTester tester(isolate);
   int call_cache_counter = 0;
   tester.stream()->SetMoreFunctionsCanBeSerializedCallback(
@@ -1266,7 +1289,7 @@ STREAM_TEST(TestIncrementalCaching) {
   CHECK(module->GetCode(2) == nullptr || module->GetCode(2)->is_liftoff());
   // No TurboFan compilation happened yet, and therefore no call to the cache.
   CHECK_EQ(0, call_cache_counter);
-  i::wasm::TriggerTierUp(*instance, 0);
+  i::wasm::TriggerTierUp(i_isolate, instance->trusted_data(i_isolate), 0);
   tester.RunCompilerTasks();
   CHECK(!module->GetCode(0)->is_liftoff());
   CHECK(module->GetCode(1) == nullptr || module->GetCode(1)->is_liftoff());
@@ -1277,7 +1300,7 @@ STREAM_TEST(TestIncrementalCaching) {
     i::wasm::WasmSerializer serializer(tester.native_module());
     serialized_size = serializer.GetSerializedNativeModuleSize();
   }
-  i::wasm::TriggerTierUp(*instance, 1);
+  i::wasm::TriggerTierUp(i_isolate, instance->trusted_data(i_isolate), 1);
   tester.RunCompilerTasks();
   CHECK(!module->GetCode(0)->is_liftoff());
   CHECK(!module->GetCode(1)->is_liftoff());
@@ -1383,14 +1406,13 @@ STREAM_TEST(TestFunctionSectionWithoutCodeSection) {
 }
 
 STREAM_TEST(TestMoreFunctionsCanBeSerializedCallback) {
-  // The "module compiled" callback (to be renamed to "top tier chunk finished"
-  // or similar) will only be triggered with dynamic tiering, so skip this test
-  // if dynamic tiering is disabled.
+  // The "more functions can be serialized" callback will only be triggered with
+  // dynamic tiering, so skip this test if dynamic tiering is disabled.
   if (!v8_flags.wasm_dynamic_tiering) return;
 
-  // Reduce the caching threshold so that our three small functions trigger
-  // caching.
-  FlagScope<int> caching_treshold(&v8_flags.wasm_caching_threshold, 10);
+  // Reduce the caching threshold to 10 bytes so that our three small functions
+  // trigger caching.
+  FlagScope<int> caching_threshold(&v8_flags.wasm_caching_threshold, 10);
   StreamTester tester(isolate);
   bool callback_called = false;
   tester.stream()->SetMoreFunctionsCanBeSerializedCallback(
@@ -1455,6 +1477,204 @@ STREAM_TEST(TestMoreFunctionsCanBeSerializedCallback) {
     }
     tester.RunCompilerTasks();
   }
+}
+
+STREAM_TEST(TestMoreFunctionsCanBeSerializedCallbackWithTimeout) {
+  // The "more functions can be serialized" callback will only be triggered with
+  // dynamic tiering, so skip this test if dynamic tiering is disabled.
+  if (!v8_flags.wasm_dynamic_tiering) return;
+
+  // Reduce the caching threshold to 10 bytes so that our three small functions
+  // trigger caching.
+  FlagScope<int> caching_threshold(&v8_flags.wasm_caching_threshold, 10);
+  // Set the caching timeout to 10ms.
+  constexpr int kCachingTimeoutMs = 10;
+  FlagScope<int> caching_timeout(&v8_flags.wasm_caching_timeout_ms,
+                                 kCachingTimeoutMs);
+  // Timeouts used in the test below.
+  // 1) A very generous timeout during which we expect the caching callback to
+  // be called. Some bots are really slow here, especially when executing other
+  // tests in parallel, so choose a really large timeout. As we do not expect to
+  // run into this timeout, this does not increase test execution time.
+  constexpr int caching_expected_timeout_ms = 10'000;
+  // 2) A smaller timeout during which we *do not* expect another caching event.
+  // We expect to run into this timeout, so do not choose it too long. Also,
+  // running into this timeout because it was chosen too small will only make
+  // the test pass (flakily), so it is not too critical.
+  constexpr int no_caching_expected_timeout_ms = 2 * kCachingTimeoutMs;
+
+  // Use a semaphore to wait for the caching event on the main thread.
+  base::Semaphore caching_was_triggered{0};
+  StreamTester tester(isolate);
+  base::TimeTicks last_time_callback_was_called;
+  tester.stream()->SetMoreFunctionsCanBeSerializedCallback(
+      [&](const std::shared_ptr<NativeModule> module) {
+        base::TimeTicks now = base::TimeTicks::Now();
+        int64_t ms_since_last_time =
+            (now - last_time_callback_was_called).InMilliseconds();
+        // The timeout should have been respected.
+        CHECK_LE(kCachingTimeoutMs, ms_since_last_time);
+        last_time_callback_was_called = now;
+        caching_was_triggered.Signal();
+      });
+
+  // This is used when waiting for the semaphore to be signalled. We need to
+  // continue running compiler tasks while waiting.
+  auto WaitForCaching = [&caching_was_triggered, &tester](int ms) {
+    constexpr base::TimeDelta oneMs = base::TimeDelta::FromMilliseconds(1);
+    for (int waited_ms = 0; waited_ms < ms; ++waited_ms) {
+      if (caching_was_triggered.WaitFor(oneMs)) return true;
+      tester.RunCompilerTasks();
+    }
+    return false;
+  };
+
+  uint8_t code[] = {
+      ADD_COUNT(U32V_1(0),                   // locals count
+                kExprLocalGet, 0, kExprEnd)  // body
+  };
+
+  const uint8_t bytes[] = {
+      WASM_MODULE_HEADER,  // module header
+      SECTION(Type,
+              ENTRY_COUNT(1),                      // type count
+              SIG_ENTRY_x_x(kI32Code, kI32Code)),  // signature entry
+      SECTION(Function, ENTRY_COUNT(3), SIG_INDEX(0), SIG_INDEX(0),
+              SIG_INDEX(0)),
+      SECTION(Export, ENTRY_COUNT(3),                             // 3 exports
+              ADD_COUNT('a'), kExternalFunction, FUNC_INDEX(0),   // "a" (0)
+              ADD_COUNT('b'), kExternalFunction, FUNC_INDEX(1),   // "b" (1)
+              ADD_COUNT('c'), kExternalFunction, FUNC_INDEX(2)),  // "c" (2)
+      kCodeSectionCode,                 // section code
+      U32V_1(1 + arraysize(code) * 3),  // section size
+      U32V_1(3),                        // functions count
+  };
+
+  tester.OnBytesReceived(bytes, arraysize(bytes));
+  tester.OnBytesReceived(code, arraysize(code));
+  tester.OnBytesReceived(code, arraysize(code));
+  tester.OnBytesReceived(code, arraysize(code));
+
+  tester.FinishStream();
+  tester.RunCompilerTasks();
+  CHECK(tester.IsPromiseFulfilled());
+
+  // Create an instance.
+  auto* i_isolate = CcTest::i_isolate();
+  ErrorThrower thrower{i_isolate, "TestMoreFunctionsCanBeSerializedCallback"};
+  Handle<WasmInstanceObject> instance =
+      GetWasmEngine()
+          ->SyncInstantiate(i_isolate, &thrower, tester.module_object(), {}, {})
+          .ToHandleChecked();
+  CHECK(!thrower.error());
+
+  // Execute the first function 100 times (which triggers tier-up and hence
+  // caching).
+  Handle<WasmExportedFunction> func_a =
+      testing::GetExportedFunction(i_isolate, instance, "a").ToHandleChecked();
+  Handle<Object> receiver = ReadOnlyRoots{i_isolate}.undefined_value_handle();
+  for (int i = 0; i < 100; ++i) {
+    Execution::Call(i_isolate, func_a, receiver, 0, nullptr).Check();
+  }
+
+  // Ensure that background compilation is being executed.
+  tester.RunCompilerTasks();
+
+  // The caching callback should be called within the next second (be generous).
+  CHECK(WaitForCaching(caching_expected_timeout_ms));
+
+  // There should be no other caching happening within the next 20ms.
+  CHECK(!WaitForCaching(no_caching_expected_timeout_ms));
+
+  // Now execute the other two functions 100 times and validate that this
+  // triggers another event (but not two).
+  Handle<WasmExportedFunction> func_b_and_c[]{
+      testing::GetExportedFunction(i_isolate, instance, "b").ToHandleChecked(),
+      testing::GetExportedFunction(i_isolate, instance, "c").ToHandleChecked()};
+  for (int i = 0; i < 100; ++i) {
+    for (auto func : func_b_and_c) {
+      Execution::Call(i_isolate, func, receiver, 0, nullptr).Check();
+    }
+  }
+
+  // Ensure that background compilation is being executed.
+  tester.RunCompilerTasks();
+
+  // The caching callback should be called within the next second (be generous).
+  CHECK(WaitForCaching(caching_expected_timeout_ms));
+
+  // There should be no other caching happening within the next 20ms.
+  CHECK(!WaitForCaching(no_caching_expected_timeout_ms));
+}
+
+STREAM_TEST(TestHardCachingThreshold) {
+  // The "more functions can be serialized" callback will only be triggered with
+  // dynamic tiering, so skip this test if dynamic tiering is disabled.
+  if (!v8_flags.wasm_dynamic_tiering) return;
+
+  // Reduce the caching threshold to 1 byte and set the hard threshold to 10
+  // bytes so that one small function hits both thresholds.
+  FlagScope<int> caching_threshold(&v8_flags.wasm_caching_threshold, 1);
+  FlagScope<int> hard_caching_threshold(&v8_flags.wasm_caching_hard_threshold,
+                                        10);
+  // Set a caching timeout such that the hard threshold has any meaning. This
+  // timeout should never be reached.
+  constexpr int kCachingTimeoutMs = 1000;
+  FlagScope<int> caching_timeout(&v8_flags.wasm_caching_timeout_ms,
+                                 kCachingTimeoutMs);
+
+  // Use a semaphore to wait for the caching event on the main thread.
+  std::atomic<bool> caching_was_triggered{false};
+  StreamTester tester(isolate);
+  tester.stream()->SetMoreFunctionsCanBeSerializedCallback(
+      [&](const std::shared_ptr<NativeModule>& module) {
+        caching_was_triggered = true;
+      });
+
+  const uint8_t bytes[] = {
+      WASM_MODULE_HEADER,  // module header
+      SECTION(Type,
+              ENTRY_COUNT(1),                      // type count
+              SIG_ENTRY_x_x(kI32Code, kI32Code)),  // signature entry
+      SECTION(Function, ENTRY_COUNT(1), SIG_INDEX(0)),
+      SECTION(Export, ENTRY_COUNT(1),                             // 1 export
+              ADD_COUNT('a'), kExternalFunction, FUNC_INDEX(0)),  // "a" (0)
+      SECTION(Code,
+              U32V_1(1),                              // functions count
+              ADD_COUNT(U32V_1(0),                    // locals count
+                        kExprLocalGet, 0, kExprEnd))  // body
+  };
+
+  tester.OnBytesReceived(bytes, arraysize(bytes));
+  tester.FinishStream();
+  tester.RunCompilerTasks();
+  CHECK(tester.IsPromiseFulfilled());
+
+  CHECK(!caching_was_triggered);
+
+  // Create an instance.
+  auto* i_isolate = CcTest::i_isolate();
+  ErrorThrower thrower{i_isolate, "TestMoreFunctionsCanBeSerializedCallback"};
+  Handle<WasmInstanceObject> instance =
+      GetWasmEngine()
+          ->SyncInstantiate(i_isolate, &thrower, tester.module_object(), {}, {})
+          .ToHandleChecked();
+  CHECK(!thrower.error());
+  CHECK(!caching_was_triggered);
+
+  // Execute the function 100 times (which triggers tier-up and hence caching).
+  Handle<WasmExportedFunction> func_a =
+      testing::GetExportedFunction(i_isolate, instance, "a").ToHandleChecked();
+  Handle<Object> receiver = ReadOnlyRoots{i_isolate}.undefined_value_handle();
+  for (int i = 0; i < 100; ++i) {
+    Execution::Call(i_isolate, func_a, receiver, 0, nullptr).Check();
+  }
+
+  // Ensure that background compilation is being executed.
+  tester.RunCompilerTasks();
+
+  // Caching should have been triggered now.
+  CHECK(caching_was_triggered);
 }
 
 // Test that a compile error contains the name of the function, even if the name

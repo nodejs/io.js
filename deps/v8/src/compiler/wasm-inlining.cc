@@ -39,7 +39,9 @@ void WasmInliner::Trace(Node* call, int inlinee, const char* decision) {
 }
 
 int WasmInliner::GetCallCount(Node* call) {
-  if (!env_->enabled_features.has_inlining()) return 0;
+  if (!env_->enabled_features.has_inlining() && !env_->module->is_wasm_gc) {
+    return 0;
+  }
   return mcgraph()->GetCallCount(call->id());
 }
 
@@ -95,11 +97,13 @@ Reduction WasmInliner::ReduceCall(Node* call) {
   int call_count = GetCallCount(call);
 
   int wire_byte_size = static_cast<int>(function_bytes.size());
-  int min_count_for_inlining = wire_byte_size / 2;
+  int min_count_for_inlining =
+      v8_flags.wasm_inlining_ignore_call_counts ? 0 : wire_byte_size / 2;
 
   // If liftoff ran and collected call counts, only inline calls that have been
   // invoked often, except for truly tiny functions.
-  if (v8_flags.liftoff && env_->enabled_features.has_inlining() &&
+  if (v8_flags.liftoff &&
+      (env_->enabled_features.has_inlining() || env_->module->is_wasm_gc) &&
       wire_byte_size >= 12 && call_count < min_count_for_inlining) {
     Trace(call, inlinee_index, "not called often enough");
     return NoChange();
@@ -114,19 +118,52 @@ Reduction WasmInliner::ReduceCall(Node* call) {
   return NoChange();
 }
 
-bool SmallEnoughToInline(size_t current_graph_size, uint32_t candidate_size,
+bool SmallEnoughToInline(const wasm::WasmModule* module,
+                         size_t current_graph_size, uint32_t candidate_size,
                          size_t initial_graph_size) {
   if (candidate_size > v8_flags.wasm_inlining_max_size) {
     return false;
   }
   if (WasmInliner::graph_size_allows_inlining(
-          current_graph_size + candidate_size, initial_graph_size)) {
+          module, current_graph_size + candidate_size, initial_graph_size)) {
     return true;
   }
   // For truly tiny functions, let's be a bit more generous.
   return candidate_size <= 12 &&
-         WasmInliner::graph_size_allows_inlining(current_graph_size - 100,
-                                                 initial_graph_size);
+         WasmInliner::graph_size_allows_inlining(
+             module, current_graph_size - 100, initial_graph_size);
+}
+
+bool WasmInliner::graph_size_allows_inlining(const wasm::WasmModule* module,
+                                             size_t graph_size,
+                                             size_t initial_graph_size) {
+  size_t budget =
+      std::max<size_t>(v8_flags.wasm_inlining_min_budget,
+                       v8_flags.wasm_inlining_factor * initial_graph_size);
+  // For large-ish functions, the inlining budget is mainly defined by the
+  // wasm_inlining_budget.
+  size_t upper_budget = v8_flags.wasm_inlining_budget;
+  double small_function_percentage =
+      module->num_small_functions * 100.0 / module->num_declared_functions;
+  if (small_function_percentage < 50) {
+    // If there are few small functions, it indicates that the toolchain already
+    // performed significant inlining. Reduce the budget significantly as
+    // inlining has a diminishing ROI.
+
+    // We also apply a linear progression of the budget in the interval [25, 50]
+    // for the small_function_percentage. This progression is just added to
+    // prevent performance cliffs (e.g. when just performing a sharp cutoff at
+    // the 50% point) and not based on actual data.
+    double smallishness = std::max(25.0, small_function_percentage) - 25.0;
+    size_t lower_budget = upper_budget / 10;
+    double step = (upper_budget - lower_budget) / 25.0;
+    upper_budget = lower_budget + smallishness * step;
+  }
+  // Independent of the wasm_inlining_budget, for large functions we should
+  // still allow some inlining.
+  size_t full_budget = std::max<size_t>(upper_budget, initial_graph_size * 1.1);
+  budget = std::min<size_t>(full_budget, budget);
+  return graph_size < budget;
 }
 
 void WasmInliner::Trace(const CandidateInfo& candidate, const char* decision) {
@@ -154,8 +191,8 @@ void WasmInliner::Finalize() {
     // We could build the candidate's graph first and consider its node count,
     // but it turns out that wire byte size and node count are quite strongly
     // correlated, at about 1.16 nodes per wire byte (measured for J2Wasm).
-    if (!SmallEnoughToInline(current_graph_size_, candidate.wire_byte_size,
-                             initial_graph_size_)) {
+    if (!SmallEnoughToInline(module(), current_graph_size_,
+                             candidate.wire_byte_size, initial_graph_size_)) {
       Trace(candidate, "not enough inlining budget");
       continue;
     }
@@ -179,15 +216,17 @@ void WasmInliner::Finalize() {
     base::Vector<const uint8_t> function_bytes =
         data_.wire_bytes_storage->GetCode(inlinee->code);
 
+    bool is_shared = module()->types[inlinee->sig_index].is_shared;
+
     const wasm::FunctionBody inlinee_body{inlinee->sig, inlinee->code.offset(),
                                           function_bytes.begin(),
-                                          function_bytes.end()};
+                                          function_bytes.end(), is_shared};
 
     // If the inlinee was not validated before, do that now.
     if (V8_UNLIKELY(
             !module()->function_was_validated(candidate.inlinee_index))) {
-      if (ValidateFunctionBody(env_->enabled_features, module(), detected_,
-                               inlinee_body)
+      if (ValidateFunctionBody(zone(), env_->enabled_features, module(),
+                               detected_, inlinee_body)
               .failed()) {
         Trace(candidate, "function is invalid");
         // At this point we cannot easily raise a compilation error any more.
@@ -207,12 +246,15 @@ void WasmInliner::Finalize() {
     Node* inlinee_end;
     SourcePosition caller_pos =
         data_.source_positions->GetSourcePosition(candidate.node);
-    inlining_positions_->push_back(
-        {static_cast<int>(candidate.inlinee_index), caller_pos});
+    inlining_positions_->push_back({static_cast<int>(candidate.inlinee_index),
+                                    call->opcode() == IrOpcode::kTailCall,
+                                    caller_pos});
     int inlining_position_id =
         static_cast<int>(inlining_positions_->size()) - 1;
     WasmGraphBuilder builder(env_, zone(), mcgraph_, inlinee_body.sig,
-                             data_.source_positions);
+                             data_.source_positions,
+                             WasmGraphBuilder::kInstanceParameterMode,
+                             nullptr /* isolate */, env_->enabled_features);
     builder.set_inlining_id(inlining_position_id);
     {
       Graph::SubgraphScope scope(graph());
@@ -234,7 +276,7 @@ void WasmInliner::Finalize() {
     function_inlining_count_[candidate.inlinee_index]++;
 
     if (call->opcode() == IrOpcode::kCall) {
-      InlineCall(call, inlinee_start, inlinee_end, inlinee->sig,
+      InlineCall(call, inlinee_start, inlinee_end, inlinee->sig, caller_pos,
                  &dangling_exceptions);
     } else {
       InlineTailCall(call, inlinee_start, inlinee_end);
@@ -306,6 +348,7 @@ void WasmInliner::InlineTailCall(Node* call, Node* callee_start,
 
 void WasmInliner::InlineCall(Node* call, Node* callee_start, Node* callee_end,
                              const wasm::FunctionSig* inlinee_sig,
+                             SourcePosition parent_pos,
                              wasm::DanglingExceptions* dangling_exceptions) {
   DCHECK_EQ(call->opcode(), IrOpcode::kCall);
 
@@ -335,6 +378,11 @@ void WasmInliner::InlineCall(Node* call, Node* callee_start, Node* callee_end,
         // inlinee. It will then be handled like any other return.
         auto descriptor = CallDescriptorOf(input->op());
         NodeProperties::ChangeOp(input, common()->Call(descriptor));
+        // Consider a function f which calls g which tail calls h. If h traps,
+        // we need the stack trace to include h and f (g's frame is gone due to
+        // the tail call). The way to achieve this is to set this call's
+        // position to the position of g's call in f.
+        data_.source_positions->SetSourcePosition(input, parent_pos);
 
         DCHECK_GT(input->op()->EffectOutputCount(), 0);
         DCHECK_GT(input->op()->ControlOutputCount(), 0);
@@ -414,7 +462,7 @@ void WasmInliner::InlineCall(Node* call, Node* callee_start, Node* callee_end,
     }
   }
 
-  if (return_nodes.size() > 0) {
+  if (!return_nodes.empty()) {
     /* 4) Collect all return site value, effect, and control inputs into phis
      * and merges. */
     int const return_count = static_cast<int>(return_nodes.size());

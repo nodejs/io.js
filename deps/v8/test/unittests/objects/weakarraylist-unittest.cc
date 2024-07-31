@@ -15,11 +15,10 @@ TEST_F(WeakArrayListTest, Compact) {
   EXPECT_EQ(list->length(), 0);
   EXPECT_EQ(list->capacity(), 10);
 
-  MaybeObject some_object =
-      MaybeObject::FromObject(*isolate()->factory()->empty_fixed_array());
-  MaybeObject weak_ref = MaybeObject::MakeWeak(some_object);
-  MaybeObject smi = MaybeObject::FromSmi(Smi::FromInt(0));
-  MaybeObject cleared_ref = HeapObjectReference::ClearedValue(isolate());
+  Tagged<MaybeObject> some_object = *isolate()->factory()->empty_fixed_array();
+  Tagged<MaybeObject> weak_ref = MakeWeak(some_object);
+  Tagged<MaybeObject> smi = Smi::FromInt(0);
+  Tagged<MaybeObject> cleared_ref = ClearedValue(isolate());
   list->Set(0, weak_ref);
   list->Set(1, smi);
   list->Set(2, cleared_ref);
@@ -36,11 +35,10 @@ TEST_F(WeakArrayListTest, OutOfPlaceCompact) {
   EXPECT_EQ(list->length(), 0);
   EXPECT_EQ(list->capacity(), 20);
 
-  MaybeObject some_object =
-      MaybeObject::FromObject(*isolate()->factory()->empty_fixed_array());
-  MaybeObject weak_ref = MaybeObject::MakeWeak(some_object);
-  MaybeObject smi = MaybeObject::FromSmi(Smi::FromInt(0));
-  MaybeObject cleared_ref = HeapObjectReference::ClearedValue(isolate());
+  Tagged<MaybeObject> some_object = *isolate()->factory()->empty_fixed_array();
+  Tagged<MaybeObject> weak_ref = MakeWeak(some_object);
+  Tagged<MaybeObject> smi = Smi::FromInt(0);
+  Tagged<MaybeObject> cleared_ref = ClearedValue(isolate());
   list->Set(0, weak_ref);
   list->Set(1, smi);
   list->Set(2, cleared_ref);

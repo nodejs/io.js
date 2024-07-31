@@ -95,20 +95,9 @@
   %OptimizeFunctionOnNextCall(foo);
   assertTrue(sum_js_got_interpreted);
 
-  // This is expected to deoptimize
+  // We optimize in the next call and  sum_js stays inlined.
   assertEquals(45.31, foo(16.11, 26.06));
-  assertTrue(sum_js_got_interpreted);
-  assertUnoptimized(foo);
-
-  // Optimize again
-  %PrepareFunctionForOptimization(foo);
-  assertEquals(45.31, foo(16.11, 26.06));
-  %OptimizeFunctionOnNextCall(foo);
-  assertTrue(sum_js_got_interpreted);
-
-  // This should stay optimized, but with the call not inlined.
-  assertEquals(45.31, foo(16.11, 26.06));
-  assertTrue(sum_js_got_interpreted);
+  assertFalse(sum_js_got_interpreted);
   assertOptimized(foo);
 })();
 

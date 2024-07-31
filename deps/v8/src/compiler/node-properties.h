@@ -117,9 +117,11 @@ class V8_EXPORT_PRIVATE NodeProperties {
   static bool IsPhi(Node* node) {
     return IrOpcode::IsPhiOpcode(node->opcode());
   }
+#if V8_ENABLE_WEBASSEMBLY
   static bool IsSimd128Operation(Node* node) {
     return IrOpcode::IsSimd128Opcode(node->opcode());
   }
+#endif  // V8_ENABLE_WEBASSEMBLY
 
   // Determines whether exceptions thrown by the given node are handled locally
   // within the graph (i.e. an IfException projection is present). Optionally

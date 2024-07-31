@@ -27,6 +27,9 @@
 #include <assert.h>
 
 #include "ngtcp2_macro.h"
+#include "ngtcp2_tstamp.h"
+
+ngtcp2_objalloc_def(acktr_entry, ngtcp2_acktr_entry, oplent);
 
 static void acktr_entry_init(ngtcp2_acktr_entry *ent, int64_t pkt_num,
                              ngtcp2_tstamp tstamp) {
@@ -66,7 +69,7 @@ int ngtcp2_acktr_init(ngtcp2_acktr *acktr, ngtcp2_log *log,
   rv = ngtcp2_ringbuf_init(&acktr->acks, 32, sizeof(ngtcp2_acktr_ack_entry),
                            mem);
   if (rv != 0) {
-    return rv;
+    goto fail_acks_init;
   }
 
   ngtcp2_ksl_init(&acktr->ents, greater, sizeof(int64_t), mem);
@@ -78,6 +81,10 @@ int ngtcp2_acktr_init(ngtcp2_acktr *acktr, ngtcp2_log *log,
   acktr->rx_npkt = 0;
 
   return 0;
+
+fail_acks_init:
+  ngtcp2_objalloc_free(&acktr->objalloc);
+  return rv;
 }
 
 void ngtcp2_acktr_free(ngtcp2_acktr *acktr) {
@@ -286,16 +293,16 @@ void ngtcp2_acktr_recv_ack(ngtcp2_acktr *acktr, const ngtcp2_ack *fr) {
     return;
   }
 
-  min_ack = largest_ack - (int64_t)fr->first_ack_blklen;
+  min_ack = largest_ack - (int64_t)fr->first_ack_range;
 
   if (min_ack <= ent->pkt_num && ent->pkt_num <= largest_ack) {
     acktr_on_ack(acktr, rb, j);
     return;
   }
 
-  for (i = 0; i < fr->num_blks && j < nacks; ++i) {
-    largest_ack = min_ack - (int64_t)fr->blks[i].gap - 2;
-    min_ack = largest_ack - (int64_t)fr->blks[i].blklen;
+  for (i = 0; i < fr->rangecnt && j < nacks; ++i) {
+    largest_ack = min_ack - (int64_t)fr->ranges[i].gap - 2;
+    min_ack = largest_ack - (int64_t)fr->ranges[i].len;
 
     for (;;) {
       if (ent->pkt_num > largest_ack) {
@@ -326,8 +333,7 @@ void ngtcp2_acktr_commit_ack(ngtcp2_acktr *acktr) {
 int ngtcp2_acktr_require_active_ack(ngtcp2_acktr *acktr,
                                     ngtcp2_duration max_ack_delay,
                                     ngtcp2_tstamp ts) {
-  return acktr->first_unacked_ts != UINT64_MAX &&
-         acktr->first_unacked_ts + max_ack_delay <= ts;
+  return ngtcp2_tstamp_elapsed(acktr->first_unacked_ts, max_ack_delay, ts);
 }
 
 void ngtcp2_acktr_immediate_ack(ngtcp2_acktr *acktr) {

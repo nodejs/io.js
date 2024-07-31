@@ -47,7 +47,7 @@ TEST_F(IteratorsTest, CombinedHeapObjectIteratorNullPastEnd) {
 namespace {
 // An arbitrary object guaranteed to live on the non-read-only heap.
 Tagged<Object> CreateWritableObject(v8::Isolate* isolate) {
-  return *v8::Utils::OpenHandle(*v8::Object::New(isolate));
+  return *v8::Utils::OpenDirectHandle(*v8::Object::New(isolate));
 }
 }  // namespace
 
@@ -98,6 +98,7 @@ TEST_F(IteratorsTest, PagedSpaceIterator) {
   PagedSpaceIterator iterator(heap);
   CHECK_EQ(heap->old_space(), iterator.Next());
   CHECK_EQ(heap->code_space(), iterator.Next());
+  CHECK_EQ(heap->trusted_space(), iterator.Next());
   for (int i = 0; i < 20; i++) {
     CHECK_NULL(iterator.Next());
   }

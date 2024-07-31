@@ -6,7 +6,7 @@ require('../common');
 const { strictEqual, throws } = require('assert');
 const { createModuleLoader } = require('internal/modules/esm/loader');
 const { LoadCache, ResolveCache } = require('internal/modules/esm/module_map');
-const ModuleJob = require('internal/modules/esm/module_job');
+const { ModuleJob } = require('internal/modules/esm/module_job');
 const createDynamicModule = require(
   'internal/modules/esm/create_dynamic_module');
 

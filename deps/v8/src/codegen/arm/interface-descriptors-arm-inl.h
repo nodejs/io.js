@@ -93,6 +93,21 @@ constexpr Register KeyedLoadWithVectorDescriptor::VectorRegister() {
 }
 
 // static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::EnumIndexRegister() {
+  return r4;
+}
+
+// static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::CacheTypeRegister() {
+  return r5;
+}
+
+// static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::SlotRegister() {
+  return r2;
+}
+
+// static
 constexpr Register KeyedHasICBaselineDescriptor::ReceiverRegister() {
   return kInterpreterAccumulatorRegister;
 }
@@ -164,6 +179,11 @@ constexpr Register MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor::
     FeedbackVectorRegister() {
   return r5;
 }
+// static
+constexpr Register
+MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor::TemporaryRegister() {
+  return r4;
+}
 
 // static
 constexpr auto CallTrampolineDescriptor::registers() {
@@ -210,6 +230,14 @@ constexpr auto CallFunctionTemplateDescriptor::registers() {
   // r1 : function template info
   // r2 : number of arguments (on the stack)
   return RegisterArray(r1, r2);
+}
+
+// static
+constexpr auto CallFunctionTemplateGenericDescriptor::registers() {
+  // r1 : function template info
+  // r2 : number of arguments (on the stack)
+  // r3 : topmost script-having context
+  return RegisterArray(r1, r2, r3);
 }
 
 // static
@@ -329,7 +357,13 @@ CallApiCallbackGenericDescriptor::ActualArgumentsCountRegister() {
   return r2;
 }
 // static
-constexpr Register CallApiCallbackGenericDescriptor::CallHandlerInfoRegister() {
+constexpr Register
+CallApiCallbackGenericDescriptor::TopmostScriptHavingContextRegister() {
+  return r1;
+}
+// static
+constexpr Register
+CallApiCallbackGenericDescriptor::FunctionTemplateInfoRegister() {
   return r3;
 }
 // static
@@ -359,6 +393,12 @@ constexpr auto InterpreterPushArgsThenConstructDescriptor::registers() {
       r1,   // constructor to call
       r3,   // new target
       r2);  // allocation site feedback if available, undefined otherwise
+}
+
+// static
+constexpr auto ConstructForwardAllArgsDescriptor::registers() {
+  return RegisterArray(r1,   // constructor to call
+                       r3);  // new target
 }
 
 // static

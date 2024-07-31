@@ -357,9 +357,10 @@ void nghttp2_hd_inflate_free(nghttp2_hd_inflater *inflater);
  * that return values and semantics are the same as
  * nghttp2_hd_inflate_hd().
  */
-ssize_t nghttp2_hd_inflate_hd_nv(nghttp2_hd_inflater *inflater,
-                                 nghttp2_hd_nv *nv_out, int *inflate_flags,
-                                 const uint8_t *in, size_t inlen, int in_final);
+nghttp2_ssize nghttp2_hd_inflate_hd_nv(nghttp2_hd_inflater *inflater,
+                                       nghttp2_hd_nv *nv_out,
+                                       int *inflate_flags, const uint8_t *in,
+                                       size_t inlen, int in_final);
 
 /* For unittesting purpose */
 int nghttp2_hd_emit_indname_block(nghttp2_bufs *bufs, size_t index,
@@ -376,9 +377,10 @@ int nghttp2_hd_emit_table_size(nghttp2_bufs *bufs, size_t table_size);
 nghttp2_hd_nv nghttp2_hd_table_get(nghttp2_hd_context *context, size_t index);
 
 /* For unittesting purpose */
-ssize_t nghttp2_hd_decode_length(uint32_t *res, size_t *shift_ptr, int *fin,
-                                 uint32_t initial, size_t shift, uint8_t *in,
-                                 uint8_t *last, size_t prefix);
+nghttp2_ssize nghttp2_hd_decode_length(uint32_t *res, size_t *shift_ptr,
+                                       int *fin, uint32_t initial, size_t shift,
+                                       uint8_t *in, uint8_t *last,
+                                       size_t prefix);
 
 /* Huffman encoding/decoding functions */
 
@@ -427,9 +429,9 @@ void nghttp2_hd_huff_decode_context_init(nghttp2_hd_huff_decode_context *ctx);
  * NGHTTP2_ERR_HEADER_COMP
  *     Decoding process has failed.
  */
-ssize_t nghttp2_hd_huff_decode(nghttp2_hd_huff_decode_context *ctx,
-                               nghttp2_buf *buf, const uint8_t *src,
-                               size_t srclen, int fin);
+nghttp2_ssize nghttp2_hd_huff_decode(nghttp2_hd_huff_decode_context *ctx,
+                                     nghttp2_buf *buf, const uint8_t *src,
+                                     size_t srclen, int fin);
 
 /*
  * nghttp2_hd_huff_decode_failure_state returns nonzero if |ctx|

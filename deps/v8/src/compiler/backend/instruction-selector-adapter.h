@@ -18,22 +18,6 @@
 #include "src/compiler/turboshaft/operations.h"
 #include "src/compiler/turboshaft/use-map.h"
 
-// TODO(nicohartmann@):
-// During the transition period to a generic instruction selector, some
-// instantiations with TurboshaftAdapter will still call functions with
-// Node* arguments. Use `DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK` to define
-// a temporary fallback for these functions such that compilation is possible
-// while transitioning the instruction selector incrementally. Once all uses
-// of Node*, BasicBlock*, ... have been replaced, remove those fallbacks.
-#define DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(ret, name)                     \
-  template <typename... Args>                                                  \
-  std::enable_if_t<Adapter::IsTurboshaft &&                                    \
-                       v8::internal::compiler::detail::AnyTurbofanNodeOrBlock< \
-                           Args...>::value,                                    \
-                   ret>                                                        \
-  name(Args...) {                                                              \
-    UNREACHABLE();                                                             \
-  }
 
 namespace v8::internal::compiler {
 namespace detail {
@@ -59,9 +43,11 @@ struct TurbofanAdapter {
   using block_t = BasicBlock*;
   using block_range_t = ZoneVector<block_t>;
   using node_t = Node*;
+  using optional_node_t = Node*;
   using inputs_t = Node::Inputs;
   using opcode_t = IrOpcode::Value;
   using id_t = uint32_t;
+  static_assert(std::is_same_v<NodeId, id_t>);
   using source_position_table_t = SourcePositionTable;
 
   explicit TurbofanAdapter(Schedule*) {}
@@ -75,7 +61,9 @@ struct TurbofanAdapter {
              node_->opcode() == IrOpcode::kRelocatableInt64Constant ||
              node_->opcode() == IrOpcode::kHeapConstant ||
              node_->opcode() == IrOpcode::kCompressedHeapConstant ||
-             node_->opcode() == IrOpcode::kNumberConstant);
+             node_->opcode() == IrOpcode::kNumberConstant ||
+             node_->opcode() == IrOpcode::kFloat32Constant ||
+             node_->opcode() == IrOpcode::kFloat64Constant);
     }
 
     bool is_int32() const {
@@ -114,6 +102,18 @@ struct TurbofanAdapter {
     double number_value() const {
       DCHECK(is_number());
       return OpParameter<double>(node_->op());
+    }
+    bool is_float() const {
+      return node_->opcode() == IrOpcode::kFloat32Constant ||
+             node_->opcode() == IrOpcode::kFloat64Constant;
+    }
+    double float_value() const {
+      DCHECK(is_float());
+      if (node_->opcode() == IrOpcode::kFloat32Constant) {
+        return OpParameter<float>(node_->op());
+      } else {
+        return OpParameter<double>(node_->op());
+      }
     }
 
     operator node_t() const { return node_; }
@@ -182,15 +182,31 @@ struct TurbofanAdapter {
 
   class LoadView {
    public:
-    explicit LoadView(node_t node) : node_(node) {
-      DCHECK(node_->opcode() == IrOpcode::kLoad ||
-             node_->opcode() == IrOpcode::kLoadImmutable ||
-             node_->opcode() == IrOpcode::kProtectedLoad ||
-             node_->opcode() == IrOpcode::kLoadTrapOnNull);
-    }
+    explicit LoadView(node_t node) : node_(node) {}
 
     LoadRepresentation loaded_rep() const {
+      if (is_atomic()) {
+        return AtomicLoadParametersOf(node_->op()).representation();
+#if V8_ENABLE_WEBASSEMBLY
+      } else if (node_->opcode() == IrOpcode::kF64x2PromoteLowF32x4) {
+        return LoadRepresentation::Simd128();
+#endif  // V8_ENABLE_WEBASSEMBLY
+      }
       return LoadRepresentationOf(node_->op());
+    }
+    bool is_protected(bool* traps_on_null) const {
+      if (node_->opcode() == IrOpcode::kLoadTrapOnNull) {
+        *traps_on_null = true;
+        return true;
+      }
+      *traps_on_null = false;
+      return node_->opcode() == IrOpcode::kProtectedLoad ||
+             (is_atomic() && AtomicLoadParametersOf(node_->op()).kind() ==
+                                 MemoryAccessKind::kProtected);
+    }
+    bool is_atomic() const {
+      return node_->opcode() == IrOpcode::kWord32AtomicLoad ||
+             node_->opcode() == IrOpcode::kWord64AtomicLoad;
     }
 
     node_t base() const { return node_->InputAt(0); }
@@ -210,6 +226,8 @@ struct TurbofanAdapter {
       DCHECK(node->opcode() == IrOpcode::kStore ||
              node->opcode() == IrOpcode::kProtectedStore ||
              node->opcode() == IrOpcode::kStoreTrapOnNull ||
+             node->opcode() == IrOpcode::kStoreIndirectPointer ||
+             node->opcode() == IrOpcode::kUnalignedStore ||
              node->opcode() == IrOpcode::kWord32AtomicStore ||
              node->opcode() == IrOpcode::kWord64AtomicStore);
     }
@@ -219,7 +237,11 @@ struct TurbofanAdapter {
         case IrOpcode::kStore:
         case IrOpcode::kProtectedStore:
         case IrOpcode::kStoreTrapOnNull:
+        case IrOpcode::kStoreIndirectPointer:
           return StoreRepresentationOf(node_->op());
+        case IrOpcode::kUnalignedStore:
+          return {UnalignedStoreRepresentationOf(node_->op()),
+                  WriteBarrierKind::kNoWriteBarrier};
         case IrOpcode::kWord32AtomicStore:
         case IrOpcode::kWord64AtomicStore:
           return AtomicStoreParametersOf(node_->op()).store_representation();
@@ -232,6 +254,8 @@ struct TurbofanAdapter {
         case IrOpcode::kStore:
         case IrOpcode::kProtectedStore:
         case IrOpcode::kStoreTrapOnNull:
+        case IrOpcode::kStoreIndirectPointer:
+        case IrOpcode::kUnalignedStore:
           return base::nullopt;
         case IrOpcode::kWord32AtomicStore:
         case IrOpcode::kWord64AtomicStore:
@@ -243,6 +267,8 @@ struct TurbofanAdapter {
     MemoryAccessKind access_kind() const {
       switch (node_->opcode()) {
         case IrOpcode::kStore:
+        case IrOpcode::kStoreIndirectPointer:
+        case IrOpcode::kUnalignedStore:
           return MemoryAccessKind::kNormal;
         case IrOpcode::kProtectedStore:
         case IrOpcode::kStoreTrapOnNull:
@@ -254,10 +280,21 @@ struct TurbofanAdapter {
           UNREACHABLE();
       }
     }
+    bool is_atomic() const {
+      return node_->opcode() == IrOpcode::kWord32AtomicStore ||
+             node_->opcode() == IrOpcode::kWord64AtomicStore;
+    }
 
     node_t base() const { return node_->InputAt(0); }
-    node_t index() const { return node_->InputAt(1); }
+    optional_node_t index() const { return node_->InputAt(1); }
     node_t value() const { return node_->InputAt(2); }
+    // TODO(saelo): once we have turboshaft everywhere, we should convert this
+    // to an operation parameter instead of an addition input (which is
+    // currently required for turbofan, since all store opcodes are cached).
+    node_t indirect_pointer_tag() const {
+      DCHECK_EQ(node_->opcode(), IrOpcode::kStoreIndirectPointer);
+      return node_->InputAt(3);
+    }
     int32_t displacement() const { return 0; }
     uint8_t element_size_log2() const { return 0; }
 
@@ -316,6 +353,99 @@ struct TurbofanAdapter {
     node_t node_;
   };
 
+  class AtomicRMWView {
+   public:
+    explicit AtomicRMWView(node_t node) : node_(node) {
+      DCHECK(node_->opcode() == IrOpcode::kWord32AtomicAdd ||
+             node_->opcode() == IrOpcode::kWord32AtomicSub ||
+             node_->opcode() == IrOpcode::kWord32AtomicAnd ||
+             node_->opcode() == IrOpcode::kWord32AtomicOr ||
+             node_->opcode() == IrOpcode::kWord32AtomicXor ||
+             node_->opcode() == IrOpcode::kWord32AtomicExchange ||
+             node_->opcode() == IrOpcode::kWord32AtomicCompareExchange ||
+             node_->opcode() == IrOpcode::kWord64AtomicAdd ||
+             node_->opcode() == IrOpcode::kWord64AtomicSub ||
+             node_->opcode() == IrOpcode::kWord64AtomicAnd ||
+             node_->opcode() == IrOpcode::kWord64AtomicOr ||
+             node_->opcode() == IrOpcode::kWord64AtomicXor ||
+             node_->opcode() == IrOpcode::kWord64AtomicExchange ||
+             node_->opcode() == IrOpcode::kWord64AtomicCompareExchange);
+    }
+
+    node_t base() const { return node_->InputAt(0); }
+    node_t index() const { return node_->InputAt(1); }
+    node_t value() const {
+      if (node_->opcode() == IrOpcode::kWord32AtomicCompareExchange ||
+          node_->opcode() == IrOpcode::kWord64AtomicCompareExchange) {
+        return node_->InputAt(3);
+      }
+      return node_->InputAt(2);
+    }
+    node_t expected() const {
+      DCHECK(node_->opcode() == IrOpcode::kWord32AtomicCompareExchange ||
+             node_->opcode() == IrOpcode::kWord64AtomicCompareExchange);
+      return node_->InputAt(2);
+    }
+
+    operator node_t() const { return node_; }
+
+   private:
+    node_t node_;
+  };
+
+  class Word32AtomicPairStoreView {
+   public:
+    explicit Word32AtomicPairStoreView(node_t node) : node_(node) {
+      DCHECK(node_->opcode() == IrOpcode::kWord32AtomicPairStore);
+    }
+
+    node_t base() const { return node_->InputAt(0); }
+    node_t index() const { return node_->InputAt(1); }
+    node_t value_low() const { return node_->InputAt(2); }
+    node_t value_high() const { return node_->InputAt(3); }
+
+   private:
+    node_t node_;
+  };
+
+#if V8_ENABLE_WEBASSEMBLY
+  class SimdShuffleView {
+   public:
+    explicit SimdShuffleView(node_t node) : node_(node) {
+      DCHECK(node_->opcode() == IrOpcode::kI8x16Shuffle ||
+             node_->opcode() == IrOpcode::kI8x32Shuffle);
+    }
+
+    bool isSimd128() const {
+      return node_->opcode() == IrOpcode::kI8x16Shuffle;
+    }
+
+    const uint8_t* data() const {
+      return isSimd128() ? S128ImmediateParameterOf(node_->op()).data()
+                         : S256ImmediateParameterOf(node_->op()).data();
+    }
+
+    node_t input(int index) const {
+      DCHECK_LT(index, node_->InputCount());
+      return node_->InputAt(index);
+    }
+
+    void SwapInputs() {
+      Node* input0 = node_->InputAt(0);
+      Node* input1 = node_->InputAt(1);
+      node_->ReplaceInput(0, input1);
+      node_->ReplaceInput(1, input0);
+    }
+
+    void DuplicateFirstInput() { node_->ReplaceInput(1, node_->InputAt(0)); }
+
+    operator node_t() const { return node_; }
+
+   private:
+    node_t node_;
+  };
+#endif
+
   bool is_constant(node_t node) const {
     switch (node->opcode()) {
       case IrOpcode::kInt32Constant:
@@ -325,6 +455,8 @@ struct TurbofanAdapter {
       case IrOpcode::kHeapConstant:
       case IrOpcode::kCompressedHeapConstant:
       case IrOpcode::kNumberConstant:
+      case IrOpcode::kFloat32Constant:
+      case IrOpcode::kFloat64Constant:
         // For those, a view must be constructible.
         DCHECK_EQ(constant_view(node), node);
         return true;
@@ -333,10 +465,25 @@ struct TurbofanAdapter {
     }
   }
   bool is_load(node_t node) const {
-    return node->opcode() == IrOpcode::kLoad ||
-           node->opcode() == IrOpcode::kLoadImmutable ||
-           node->opcode() == IrOpcode::kProtectedLoad ||
-           node->opcode() == IrOpcode::kLoadTrapOnNull;
+    switch (node->opcode()) {
+      case IrOpcode::kLoad:
+      case IrOpcode::kLoadImmutable:
+      case IrOpcode::kProtectedLoad:
+      case IrOpcode::kLoadTrapOnNull:
+      case IrOpcode::kWord32AtomicLoad:
+      case IrOpcode::kWord64AtomicLoad:
+      case IrOpcode::kUnalignedLoad:
+#if V8_ENABLE_WEBASSEMBLY
+      case IrOpcode::kLoadTransform:
+      case IrOpcode::kF64x2PromoteLowF32x4:
+#endif  // V8_ENABLE_WEBASSEMBLY
+        return true;
+      default:
+        return false;
+    }
+  }
+  bool is_load_root_register(node_t node) const {
+    return node->opcode() == IrOpcode::kLoadRootRegister;
   }
   ConstantView constant_view(node_t node) const { return ConstantView{node}; }
   CallView call_view(node_t node) { return CallView{node}; }
@@ -348,6 +495,15 @@ struct TurbofanAdapter {
   }
   StoreView store_view(node_t node) { return StoreView(node); }
   DeoptimizeView deoptimize_view(node_t node) { return DeoptimizeView(node); }
+  AtomicRMWView atomic_rmw_view(node_t node) { return AtomicRMWView(node); }
+  Word32AtomicPairStoreView word32_atomic_pair_store_view(node_t node) {
+    return Word32AtomicPairStoreView(node);
+  }
+#if V8_ENABLE_WEBASSEMBLY
+  SimdShuffleView simd_shuffle_view(node_t node) {
+    return SimdShuffleView(node);
+  }
+#endif
 
   block_t block(schedule_t schedule, node_t node) const {
     return schedule->block(node);
@@ -416,6 +572,10 @@ struct TurbofanAdapter {
 
   id_t id(node_t node) const { return node->id(); }
   static bool valid(node_t node) { return node != nullptr; }
+  static node_t value(optional_node_t node) {
+    DCHECK(valid(node));
+    return node;
+  }
 
   node_t block_terminator(block_t block) const {
     return block->control_input();
@@ -482,10 +642,12 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
   using block_t = turboshaft::Block*;
   using block_range_t = ZoneVector<block_t>;
   using node_t = turboshaft::OpIndex;
+  using optional_node_t = turboshaft::OptionalOpIndex;
   using inputs_t = base::Vector<const node_t>;
   using opcode_t = turboshaft::Opcode;
   using id_t = uint32_t;
-  using source_position_table_t = turboshaft::GrowingSidetable<SourcePosition>;
+  using source_position_table_t =
+      turboshaft::GrowingOpIndexSidetable<SourcePosition>;
 
   explicit TurboshaftAdapter(turboshaft::Graph* graph)
       : turboshaft::OperationMatcher(*graph), graph_(graph) {}
@@ -498,24 +660,40 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       op_ = &graph->Get(node_).Cast<turboshaft::ConstantOp>();
     }
 
-    bool is_int32() const { return op_->kind == Kind::kWord32; }
+    bool is_int32() const {
+      return op_->kind == Kind::kWord32 || (op_->kind == Kind::kSmi && !Is64());
+    }
     bool is_relocatable_int32() const {
       // We don't have this in turboshaft currently.
       return false;
     }
     int32_t int32_value() const {
       DCHECK(is_int32() || is_relocatable_int32());
-      return op_->word32();
+      if (op_->kind == Kind::kWord32) {
+        return op_->word32();
+      } else {
+        DCHECK_EQ(op_->kind, Kind::kSmi);
+        DCHECK(!Is64());
+        return static_cast<int32_t>(op_->smi().ptr());
+      }
     }
-    bool is_int64() const { return op_->kind == Kind::kWord64; }
+    bool is_int64() const {
+      return op_->kind == Kind::kWord64 || (op_->kind == Kind::kSmi && Is64());
+    }
     bool is_relocatable_int64() const {
       return op_->kind == Kind::kRelocatableWasmCall ||
              op_->kind == Kind::kRelocatableWasmStubCall;
     }
     int64_t int64_value() const {
-      if (is_int64()) return op_->word64();
-      DCHECK(is_relocatable_int64());
-      return static_cast<int64_t>(op_->integral());
+      if (op_->kind == Kind::kWord64) {
+        return op_->word64();
+      } else if (op_->kind == Kind::kSmi) {
+        DCHECK(Is64());
+        return static_cast<int64_t>(op_->smi().ptr());
+      } else {
+        DCHECK(is_relocatable_int64());
+        return static_cast<int64_t>(op_->integral());
+      }
     }
     bool is_heap_object() const { return op_->kind == Kind::kHeapObject; }
     bool is_compressed_heap_object() const {
@@ -529,6 +707,17 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
     double number_value() const {
       DCHECK(is_number());
       return op_->number();
+    }
+    bool is_float() const {
+      return op_->kind == Kind::kFloat32 || op_->kind == Kind::kFloat64;
+    }
+    double float_value() const {
+      DCHECK(is_float());
+      if (op_->kind == Kind::kFloat32) {
+        return op_->float32();
+      } else {
+        return op_->float64();
+      }
     }
 
     operator node_t() const { return node_; }
@@ -563,7 +752,7 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       UNREACHABLE();
     }
     node_t frame_state() const {
-      if (call_op_) return call_op_->frame_state();
+      if (call_op_) return call_op_->frame_state().value();
       UNREACHABLE();
     }
     base::Vector<const node_t> arguments() const {
@@ -636,37 +825,134 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
   class LoadView {
    public:
     LoadView(turboshaft::Graph* graph, node_t node) : node_(node) {
-      op_ = &graph->Get(node_).Cast<turboshaft::LoadOp>();
+      switch (graph->Get(node_).opcode) {
+        case opcode_t::kLoad:
+          load_ = &graph->Get(node_).Cast<turboshaft::LoadOp>();
+          break;
+#if V8_ENABLE_WEBASSEMBLY
+        case opcode_t::kSimd128LoadTransform:
+          load_transform_ =
+              &graph->Get(node_).Cast<turboshaft::Simd128LoadTransformOp>();
+          break;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+        case opcode_t::kSimd256LoadTransform:
+          load_transform256_ =
+              &graph->Get(node_).Cast<turboshaft::Simd256LoadTransformOp>();
+          break;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif  // V8_ENABLE_WEBASSEMBLY
+        default:
+          UNREACHABLE();
+      }
     }
-
     LoadRepresentation loaded_rep() const {
-      return op_->loaded_rep.ToMachineType();
+      DCHECK_NOT_NULL(load_);
+      return load_->machine_type();
     }
+    bool is_protected(bool* traps_on_null) const {
+      if (kind().with_trap_handler) {
+        if (load_) {
+          *traps_on_null = load_->kind.trap_on_null;
+#if V8_ENABLE_WEBASSEMBLY
+        } else {
+#if V8_ENABLE_WASM_SIMD256_REVEC
+          DCHECK((load_transform_ && !load_transform_->load_kind.trap_on_null)
+                 || (load_transform256_ &&
+                     !load_transform256_->load_kind.trap_on_null));
+#else
+          DCHECK((load_transform_ && !load_transform_->load_kind.trap_on_null));
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+          *traps_on_null = false;
+#endif  // V8_ENABLE_WEBASSEMBLY
+        }
+        return true;
+      }
+      return false;
+    }
+    bool is_atomic() const { return kind().is_atomic; }
 
-    node_t base() const { return op_->base(); }
-    node_t index() const { return op_->index(); }
+    node_t base() const {
+      if (load_) return load_->base();
+#if V8_ENABLE_WEBASSEMBLY
+      if (load_transform_) return load_transform_->base();
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      if (load_transform256_) return load_transform256_->base();
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif
+      UNREACHABLE();
+    }
+    node_t index() const {
+      if (load_) return load_->index().value_or_invalid();
+#if V8_ENABLE_WEBASSEMBLY
+      if (load_transform_) return load_transform_->index();
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      if (load_transform256_) return load_transform256_->index();
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif
+      UNREACHABLE();
+    }
     int32_t displacement() const {
       static_assert(
           std::is_same_v<decltype(turboshaft::StoreOp::offset), int32_t>);
-      int32_t offset = op_->offset;
-      if (op_->kind.tagged_base) {
-        CHECK_GE(offset, std::numeric_limits<int32_t>::min() + kHeapObjectTag);
-        offset -= kHeapObjectTag;
+      if (load_) {
+        int32_t offset = load_->offset;
+        if (load_->kind.tagged_base) {
+          CHECK_GE(offset,
+                   std::numeric_limits<int32_t>::min() + kHeapObjectTag);
+          offset -= kHeapObjectTag;
+        }
+        return offset;
+#if V8_ENABLE_WEBASSEMBLY
+      } else if (load_transform_) {
+        int32_t offset = load_transform_->offset;
+        DCHECK(!load_transform_->load_kind.tagged_base);
+        return offset;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      } else if (load_transform256_) {
+        int32_t offset = load_transform256_->offset;
+        DCHECK(!load_transform256_->load_kind.tagged_base);
+        return offset;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif
       }
-      return offset;
+      UNREACHABLE();
     }
     uint8_t element_size_log2() const {
       static_assert(
           std::is_same_v<decltype(turboshaft::StoreOp::element_size_log2),
                          uint8_t>);
-      return op_->element_size_log2;
+      if (load_) return load_->element_size_log2;
+#if V8_ENABLE_WEBASSEMBLY
+      if (load_transform_) return 0;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      if (load_transform256_) return 0;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif
+      UNREACHABLE();
     }
 
     operator node_t() const { return node_; }
 
    private:
+    turboshaft::LoadOp::Kind kind() const {
+      if (load_) return load_->kind;
+#if V8_ENABLE_WEBASSEMBLY
+      if (load_transform_) return load_transform_->load_kind;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      if (load_transform256_) return load_transform256_->load_kind;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif
+      UNREACHABLE();
+    }
+
     node_t node_;
-    const turboshaft::LoadOp* op_;
+    const turboshaft::LoadOp* load_ = nullptr;
+#if V8_ENABLE_WEBASSEMBLY
+    const turboshaft::Simd128LoadTransformOp* load_transform_ = nullptr;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+    const turboshaft::Simd256LoadTransformOp* load_transform256_ = nullptr;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif
   };
 
   class StoreView {
@@ -680,17 +966,20 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
               op_->write_barrier};
     }
     base::Optional<AtomicMemoryOrder> memory_order() const {
-      // TODO(nicohartmann@): Currently we only have non-atomic stores.
+      // TODO(nicohartmann@): Currently we don't support memory orders.
+      if (op_->kind.is_atomic) return AtomicMemoryOrder::kSeqCst;
       return base::nullopt;
     }
     MemoryAccessKind access_kind() const {
-      // TODO(nicohartmann@): Currently we only have non-atomic stores.
-      return MemoryAccessKind::kNormal;
+      return op_->kind.with_trap_handler ? MemoryAccessKind::kProtected
+                                         : MemoryAccessKind::kNormal;
     }
+    bool is_atomic() const { return op_->kind.is_atomic; }
 
     node_t base() const { return op_->base(); }
-    node_t index() const { return op_->index(); }
+    optional_node_t index() const { return op_->index(); }
     node_t value() const { return op_->value(); }
+    node_t indirect_pointer_tag() const { UNREACHABLE(); }
     int32_t displacement() const {
       static_assert(
           std::is_same_v<decltype(turboshaft::StoreOp::offset), int32_t>);
@@ -708,7 +997,9 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       return op_->element_size_log2;
     }
 
-    bool is_store_trap_on_null() const { return false; }
+    bool is_store_trap_on_null() const {
+      return op_->kind.with_trap_handler && op_->kind.trap_on_null;
+    }
 
     operator node_t() const { return node_; }
 
@@ -719,8 +1010,7 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
 
   class DeoptimizeView {
    public:
-    explicit DeoptimizeView(const turboshaft::Graph* graph, node_t node)
-        : node_(node) {
+    DeoptimizeView(const turboshaft::Graph* graph, node_t node) : node_(node) {
       const auto& op = graph->Get(node);
       if (op.Is<turboshaft::DeoptimizeOp>()) {
         deoptimize_op_ = &op.Cast<turboshaft::DeoptimizeOp>();
@@ -761,11 +1051,97 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
     const DeoptimizeParameters* parameters_;
   };
 
+  class AtomicRMWView {
+   public:
+    AtomicRMWView(const turboshaft::Graph* graph, node_t node) : node_(node) {
+      op_ = &graph->Get(node).Cast<turboshaft::AtomicRMWOp>();
+    }
+
+    node_t base() const { return op_->base(); }
+    node_t index() const { return op_->index(); }
+    node_t value() const { return op_->value(); }
+    node_t expected() const {
+      DCHECK_EQ(op_->bin_op, turboshaft::AtomicRMWOp::BinOp::kCompareExchange);
+      return op_->expected().value_or_invalid();
+    }
+
+    operator node_t() const { return node_; }
+
+   private:
+    node_t node_;
+    const turboshaft::AtomicRMWOp* op_;
+  };
+
+  class Word32AtomicPairStoreView {
+   public:
+    explicit Word32AtomicPairStoreView(const turboshaft::Graph* graph,
+                                       node_t node)
+        : store_(graph->Get(node).Cast<turboshaft::AtomicWord32PairOp>()) {}
+
+    node_t base() const { return store_.base(); }
+    node_t index() const { return store_.index().value(); }
+    node_t value_low() const { return store_.value_low().value(); }
+    node_t value_high() const { return store_.value_high().value(); }
+
+   private:
+    const turboshaft::AtomicWord32PairOp& store_;
+  };
+
+#if V8_ENABLE_WEBASSEMBLY
+  class SimdShuffleView {
+   public:
+    explicit SimdShuffleView(const turboshaft::Graph* graph, node_t node)
+        : node_(node) {
+      op128_ = &graph->Get(node).Cast<turboshaft::Simd128ShuffleOp>();
+      // Initialize input mapping.
+      for (int i = 0; i < op128_->input_count; ++i) {
+        input_mapping_.push_back(i);
+      }
+    }
+
+    bool isSimd128() const {
+      // TODO(nicohartmann@): Extend when we add support for Simd256.
+      return true;
+    }
+
+    const uint8_t* data() const { return op128_->shuffle; }
+
+    node_t input(int index) const {
+      DCHECK_LT(index, op128_->input_count);
+      return op128_->input(input_mapping_[index]);
+    }
+
+    void SwapInputs() { std::swap(input_mapping_[0], input_mapping_[1]); }
+
+    void DuplicateFirstInput() {
+      DCHECK_LE(2, input_mapping_.size());
+      input_mapping_[1] = input_mapping_[0];
+    }
+
+    operator node_t() const { return node_; }
+
+   private:
+    node_t node_;
+    base::SmallVector<int, 2> input_mapping_;
+    const turboshaft::Simd128ShuffleOp* op128_;
+  };
+#endif
+
   bool is_constant(node_t node) const {
     return graph_->Get(node).Is<turboshaft::ConstantOp>();
   }
   bool is_load(node_t node) const {
-    return graph_->Get(node).Is<turboshaft::LoadOp>();
+    return graph_->Get(node).Is<turboshaft::LoadOp>()
+#if V8_ENABLE_WEBASSEMBLY
+           || graph_->Get(node).Is<turboshaft::Simd128LoadTransformOp>()
+#if V8_ENABLE_WASM_SIMD256_REVEC
+           || graph_->Get(node).Is<turboshaft::Simd256LoadTransformOp>()
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif
+        ;
+  }
+  bool is_load_root_register(node_t node) const {
+    return graph_->Get(node).Is<turboshaft::LoadRootRegisterOp>();
   }
   ConstantView constant_view(node_t node) { return ConstantView{graph_, node}; }
   CallView call_view(node_t node) { return CallView{graph_, node}; }
@@ -781,6 +1157,17 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
   DeoptimizeView deoptimize_view(node_t node) {
     return DeoptimizeView(graph_, node);
   }
+  AtomicRMWView atomic_rmw_view(node_t node) {
+    return AtomicRMWView(graph_, node);
+  }
+  Word32AtomicPairStoreView word32_atomic_pair_store_view(node_t node) {
+    return Word32AtomicPairStoreView(graph_, node);
+  }
+#if V8_ENABLE_WEBASSEMBLY
+  SimdShuffleView simd_shuffle_view(node_t node) {
+    return SimdShuffleView(graph_, node);
+  }
+#endif
 
   turboshaft::Graph* turboshaft_graph() const { return graph_; }
 
@@ -859,18 +1246,60 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
   bool is_exclusive_user_of(node_t user, node_t value) const {
     DCHECK(valid(user));
     DCHECK(valid(value));
-    const size_t use_count = base::count_if(
-        graph_->Get(user).inputs(),
-        [value](turboshaft::OpIndex input) { return input == value; });
-    DCHECK_LT(0, use_count);
-    DCHECK_LE(use_count, graph_->Get(value).saturated_use_count.Get());
     const turboshaft::Operation& value_op = graph_->Get(value);
+    const turboshaft::Operation& user_op = graph_->Get(user);
+    size_t use_count = base::count_if(
+        user_op.inputs(),
+        [value](turboshaft::OpIndex input) { return input == value; });
+    if (V8_UNLIKELY(use_count == 0)) {
+      // We have a special case here:
+      //
+      //         value
+      //           |
+      // TruncateWord64ToWord32
+      //           |
+      //         user
+      //
+      // If emitting user performs the truncation implicitly, we end up calling
+      // CanCover with value and user such that user might have no (direct) uses
+      // of value. There are cases of other unnecessary operations that can lead
+      // to the same situation (e.g. bitwise and, ...). In this case, we still
+      // cover if value has only a single use and this is one of the direct
+      // inputs of user, which also only has a single use (in user).
+      // TODO(nicohartmann@): We might generalize this further if we see use
+      // cases.
+      if (!value_op.saturated_use_count.IsOne()) return false;
+      for (auto input : user_op.inputs()) {
+        const turboshaft::Operation& input_op = graph_->Get(input);
+        const size_t indirect_use_count = base::count_if(
+            input_op.inputs(),
+            [value](turboshaft::OpIndex input) { return input == value; });
+        if (indirect_use_count > 0) {
+          return input_op.saturated_use_count.IsOne();
+        }
+      }
+      return false;
+    }
+    if (value_op.Is<turboshaft::ProjectionOp>()) {
+      // Projections always have a Tuple use, but it shouldn't count as a use as
+      // far as is_exclusive_user_of is concerned, since no instructions are
+      // emitted for the TupleOp, which is just a Turboshaft "meta operation".
+      // We thus increase the use_count by 1, to attribute the TupleOp use to
+      // the current operation.
+      use_count++;
+    }
+    DCHECK_LE(use_count, graph_->Get(value).saturated_use_count.Get());
     return (value_op.saturated_use_count.Get() == use_count) &&
            !value_op.saturated_use_count.IsSaturated();
   }
 
   id_t id(node_t node) const { return node.id(); }
   static bool valid(node_t node) { return node.valid(); }
+  static bool valid(optional_node_t node) { return node.valid(); }
+  static node_t value(optional_node_t node) {
+    DCHECK(valid(node));
+    return node.value();
+  }
 
   node_t block_terminator(block_t block) const {
     return graph_->PreviousIndex(block->end());
@@ -919,7 +1348,8 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
     DCHECK(is_stack_slot(node));
     const turboshaft::StackSlotOp& stack_slot =
         graph_->Get(node).Cast<turboshaft::StackSlotOp>();
-    return StackSlotRepresentation(stack_slot.size, stack_slot.alignment);
+    return StackSlotRepresentation(stack_slot.size, stack_slot.alignment,
+                                   stack_slot.is_tagged);
   }
   bool is_integer_constant(node_t node) const {
     if (const auto constant =
@@ -948,8 +1378,8 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       return turboshaft::OverflowCheckedBinopOp::IsCommutative(binop->kind);
     } else if (const auto binop = op.TryCast<turboshaft::FloatBinopOp>()) {
       return turboshaft::FloatBinopOp::IsCommutative(binop->kind);
-    } else if (op.Is<turboshaft::EqualOp>()) {
-      return turboshaft::EqualOp::IsCommutative();
+    } else if (const auto comparison = op.TryCast<turboshaft::ComparisonOp>()) {
+      return turboshaft::ComparisonOp::IsCommutative(comparison->kind);
     }
     return false;
   }

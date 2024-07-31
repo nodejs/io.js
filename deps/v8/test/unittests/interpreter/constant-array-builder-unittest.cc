@@ -54,7 +54,7 @@ TEST_F(ConstantArrayBuilderTest, ToFixedArray) {
   for (int i = 0; i < kNumberOfElements; i++) {
     builder.Insert(i + 0.5);
   }
-  Handle<FixedArray> constant_array = builder.ToFixedArray(isolate());
+  Handle<TrustedFixedArray> constant_array = builder.ToFixedArray(isolate());
   ASSERT_EQ(kNumberOfElements, constant_array->length());
   for (int i = 0; i < kNumberOfElements; i++) {
     Handle<Object> actual(constant_array->get(i), isolate());
@@ -70,7 +70,7 @@ TEST_F(ConstantArrayBuilderTest, ToLargeFixedArray) {
   for (int i = 0; i < kNumberOfElements; i++) {
     builder.Insert(i + 0.5);
   }
-  Handle<FixedArray> constant_array = builder.ToFixedArray(isolate());
+  Handle<TrustedFixedArray> constant_array = builder.ToFixedArray(isolate());
   ASSERT_EQ(kNumberOfElements, constant_array->length());
   for (int i = 0; i < kNumberOfElements; i++) {
     Handle<Object> actual(constant_array->get(i), isolate());
@@ -89,7 +89,7 @@ TEST_F(ConstantArrayBuilderTest, ToLargeFixedArrayWithReservations) {
     builder.CommitReservedEntry(builder.CreateReservedEntry(), Smi::FromInt(i));
   }
   ast_factory.Internalize(isolate());
-  Handle<FixedArray> constant_array = builder.ToFixedArray(isolate());
+  Handle<TrustedFixedArray> constant_array = builder.ToFixedArray(isolate());
   ASSERT_EQ(kNumberOfElements, constant_array->length());
   for (int i = 0; i < kNumberOfElements; i++) {
     Handle<Object> actual(constant_array->get(i), isolate());
@@ -148,7 +148,7 @@ TEST_F(ConstantArrayBuilderTest, AllocateEntriesWithIdx8Reservations) {
     }
 
     ast_factory.Internalize(isolate());
-    Handle<FixedArray> constant_array = builder.ToFixedArray(isolate());
+    Handle<TrustedFixedArray> constant_array = builder.ToFixedArray(isolate());
     CHECK_EQ(constant_array->length(),
              static_cast<int>(2 * k8BitCapacity + reserved));
 
@@ -201,7 +201,7 @@ TEST_F(ConstantArrayBuilderTest, AllocateEntriesWithWideReservations) {
     }
 
     ast_factory.Internalize(isolate());
-    Handle<FixedArray> constant_array = builder.ToFixedArray(isolate());
+    Handle<TrustedFixedArray> constant_array = builder.ToFixedArray(isolate());
     CHECK_EQ(constant_array->length(),
              static_cast<int>(k8BitCapacity + reserved));
     for (size_t i = 0; i < k8BitCapacity + reserved; i++) {
@@ -232,7 +232,7 @@ TEST_F(ConstantArrayBuilderTest, GapFilledWhenLowReservationCommitted) {
     CHECK_EQ(builder.size(), 2 * k8BitCapacity);
   }
   ast_factory.Internalize(isolate());
-  Handle<FixedArray> constant_array = builder.ToFixedArray(isolate());
+  Handle<TrustedFixedArray> constant_array = builder.ToFixedArray(isolate());
   CHECK_EQ(constant_array->length(), static_cast<int>(2 * k8BitCapacity));
   for (size_t i = 0; i < k8BitCapacity; i++) {
     Tagged<Object> original =
@@ -297,7 +297,7 @@ TEST_F(ConstantArrayBuilderTest, HolesWithUnusedReservations) {
   }
 
   ast_factory.Internalize(isolate());
-  Handle<FixedArray> constant_array = builder.ToFixedArray(isolate());
+  Handle<TrustedFixedArray> constant_array = builder.ToFixedArray(isolate());
   CHECK_EQ(constant_array->length(), k8BitCapacity + 1);
   for (int i = kNumberOfHoles; i < k8BitCapacity; i++) {
     CHECK(Object::SameValue(constant_array->get(i),
@@ -339,7 +339,7 @@ TEST_F(ConstantArrayBuilderTest, ReservationsAtAllScales) {
   }
 
   ast_factory.Internalize(isolate());
-  Handle<FixedArray> constant_array = builder.ToFixedArray(isolate());
+  Handle<TrustedFixedArray> constant_array = builder.ToFixedArray(isolate());
   CHECK_EQ(constant_array->length(), 65537);
   int count = 1;
   for (int i = 0; i < constant_array->length(); ++i) {

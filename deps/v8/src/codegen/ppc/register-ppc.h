@@ -160,10 +160,8 @@ constexpr Register kPtrComprCageBaseRegister = no_reg;
 #endif
 
 // PPC64 calling convention
-constexpr Register arg_reg_1 = r3;
-constexpr Register arg_reg_2 = r4;
-constexpr Register arg_reg_3 = r5;
-constexpr Register arg_reg_4 = r6;
+constexpr Register kCArgRegs[] = {r3, r4, r5, r6, r7, r8, r9, r10};
+static const int kRegisterPassedArguments = arraysize(kCArgRegs);
 
 // Returns the number of padding slots needed for stack pointer alignment.
 constexpr int ArgumentPaddingSlots(int argument_count) {

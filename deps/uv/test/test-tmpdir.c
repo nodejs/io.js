@@ -36,46 +36,46 @@ TEST_IMPL(tmpdir) {
   len = sizeof tmpdir;
   tmpdir[0] = '\0';
 
-  ASSERT(strlen(tmpdir) == 0);
+  ASSERT_OK(strlen(tmpdir));
   r = uv_os_tmpdir(tmpdir, &len);
-  ASSERT(r == 0);
-  ASSERT(strlen(tmpdir) == len);
-  ASSERT(len > 0);
-  ASSERT(tmpdir[len] == '\0');
+  ASSERT_OK(r);
+  ASSERT_EQ(strlen(tmpdir), len);
+  ASSERT_GT(len, 0);
+  ASSERT_EQ(tmpdir[len], '\0');
 
   if (len > 1) {
     last = tmpdir[len - 1];
 #ifdef _WIN32
-    ASSERT(last != '\\');
+    ASSERT_NE(last, '\\');
 #else
-    ASSERT(last != '/');
+    ASSERT_NE(last, '/');
 #endif
   }
 
   /* Test the case where the buffer is too small */
   len = SMALLPATH;
   r = uv_os_tmpdir(tmpdir, &len);
-  ASSERT(r == UV_ENOBUFS);
-  ASSERT(len > SMALLPATH);
+  ASSERT_EQ(r, UV_ENOBUFS);
+  ASSERT_GT(len, SMALLPATH);
 
   /* Test invalid inputs */
   r = uv_os_tmpdir(NULL, &len);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
   r = uv_os_tmpdir(tmpdir, NULL);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
   len = 0;
   r = uv_os_tmpdir(tmpdir, &len);
-  ASSERT(r == UV_EINVAL);
+  ASSERT_EQ(r, UV_EINVAL);
 
 #ifdef _WIN32
   const char *name = "TMP";
   char tmpdir_win[] = "C:\\xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
   r = uv_os_setenv(name, tmpdir_win);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
   char tmpdirx[PATHMAX];
   size_t lenx = sizeof tmpdirx;
   r = uv_os_tmpdir(tmpdirx, &lenx);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 #endif
 
   return 0;

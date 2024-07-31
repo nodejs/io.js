@@ -5,7 +5,7 @@
 #include "src/base/macros.h"
 #include "src/base/numbers/fast-dtoa.h"
 #include "src/base/vector.h"
-#include "third_party/google_benchmark/src/include/benchmark/benchmark.h"
+#include "third_party/google_benchmark_chrome/src/include/benchmark/benchmark.h"
 
 using v8::base::FAST_DTOA_PRECISION;
 using v8::base::FAST_DTOA_SHORTEST;

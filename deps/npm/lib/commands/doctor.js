@@ -1,19 +1,14 @@
 const cacache = require('cacache')
-const fs = require('fs')
+const { access, lstat, readdir, constants: { R_OK, W_OK, X_OK } } = require('node:fs/promises')
 const fetch = require('make-fetch-happen')
-const Table = require('cli-table3')
 const which = require('which')
 const pacote = require('pacote')
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 const semver = require('semver')
-const { promisify } = require('util')
-const log = require('../utils/log-shim.js')
+const { log, output } = require('proc-log')
 const ping = require('../utils/ping.js')
 const { defaults } = require('@npmcli/config/lib/definitions')
-const lstat = promisify(fs.lstat)
-const readdir = promisify(fs.readdir)
-const access = promisify(fs.access)
-const { R_OK, W_OK, X_OK } = fs.constants
+const BaseCommand = require('../base-cmd.js')
 
 const maskLabel = mask => {
   const label = []
@@ -34,57 +29,59 @@ const maskLabel = mask => {
 
 const subcommands = [
   {
-    groups: ['ping', 'registry'],
-    title: 'npm ping',
+    // Ping is left in as a legacy command but is listed as "connection" to
+    // make more sense to more people
+    groups: ['connection', 'ping', 'registry'],
+    title: 'Connecting to the registry',
     cmd: 'checkPing',
   }, {
     groups: ['versions'],
-    title: 'npm -v',
+    title: 'Checking npm version',
     cmd: 'getLatestNpmVersion',
   }, {
     groups: ['versions'],
-    title: 'node -v',
+    title: 'Checking node version',
     cmd: 'getLatestNodejsVersion',
   }, {
     groups: ['registry'],
-    title: 'npm config get registry',
+    title: 'Checking configured npm registry',
     cmd: 'checkNpmRegistry',
   }, {
     groups: ['environment'],
-    title: 'git executable in PATH',
+    title: 'Checking for git executable in PATH',
     cmd: 'getGitPath',
   }, {
     groups: ['environment'],
-    title: 'global bin folder in PATH',
+    title: 'Checking for global bin folder in PATH',
     cmd: 'getBinPath',
   }, {
     groups: ['permissions', 'cache'],
-    title: 'Perms check on cached files',
+    title: 'Checking permissions on cached files (this may take awhile)',
     cmd: 'checkCachePermission',
     windows: false,
   }, {
     groups: ['permissions'],
-    title: 'Perms check on local node_modules',
+    title: 'Checking permissions on local node_modules (this may take awhile)',
     cmd: 'checkLocalModulesPermission',
     windows: false,
   }, {
     groups: ['permissions'],
-    title: 'Perms check on global node_modules',
+    title: 'Checking permissions on global node_modules (this may take awhile)',
     cmd: 'checkGlobalModulesPermission',
     windows: false,
   }, {
     groups: ['permissions'],
-    title: 'Perms check on local bin folder',
+    title: 'Checking permissions on local bin folder',
     cmd: 'checkLocalBinPermission',
     windows: false,
   }, {
     groups: ['permissions'],
-    title: 'Perms check on global bin folder',
+    title: 'Checking permissions on global bin folder',
     cmd: 'checkGlobalBinPermission',
     windows: false,
   }, {
     groups: ['cache'],
-    title: 'Verify cache contents',
+    title: 'Verifying cache contents (this may take awhile)',
     cmd: 'verifyCachedFiles',
     windows: false,
   },
@@ -97,50 +94,35 @@ const subcommands = [
   //   - verify all local packages have bins linked
   // What is the fix for these?
 ]
-const BaseCommand = require('../base-command.js')
+
 class Doctor extends BaseCommand {
   static description = 'Check the health of your npm environment'
   static name = 'doctor'
   static params = ['registry']
   static ignoreImplicitWorkspace = false
   static usage = [`[${subcommands.flatMap(s => s.groups)
-    .filter((value, index, self) => self.indexOf(value) === index)
+    .filter((value, index, self) => self.indexOf(value) === index && value !== 'ping')
     .join('] [')}]`]
 
   static subcommands = subcommands
 
-  // minimum width of check column, enough for the word `Check`
-  #checkWidth = 5
-
   async exec (args) {
-    log.info('Running checkup')
+    log.info('doctor', 'Running checkup')
     let allOk = true
 
     const actions = this.actions(args)
-    this.#checkWidth = actions.reduce((length, item) =>
-      Math.max(item.title.length, length), this.#checkWidth)
 
-    if (!this.npm.silent) {
-      this.output(['Check', 'Value', 'Recommendation/Notes'].map(h => this.npm.chalk.underline(h)))
-    }
-    // Do the actual work
+    const chalk = this.npm.chalk
     for (const { title, cmd } of actions) {
-      const item = [title]
+      this.output(title)
+      // TODO when we have an in progress indicator that could go here
+      let result
       try {
-        item.push(true, await this[cmd]())
+        result = await this[cmd]()
+        this.output(`${chalk.green('Ok')}${result ? `\n${result}` : ''}\n`)
       } catch (err) {
-        item.push(false, err)
-      }
-      if (!item[1]) {
         allOk = false
-        item[0] = this.npm.chalk.red(item[0])
-        item[1] = this.npm.chalk.red('not ok')
-        item[2] = this.npm.chalk.magenta(String(item[2]))
-      } else {
-        item[1] = this.npm.chalk.green('ok')
-      }
-      if (!this.npm.silent) {
-        this.output(item)
+        this.output(`${chalk.red('Not ok')}\n${chalk.cyan(err)}\n`)
       }
     }
 
@@ -155,8 +137,7 @@ class Doctor extends BaseCommand {
   }
 
   async checkPing () {
-    const tracker = log.newItem('checkPing', 1)
-    tracker.info('checkPing', 'Pinging registry')
+    log.info('doctor', 'Pinging registry')
     try {
       await ping({ ...this.npm.flatOptions, retry: false })
       return ''
@@ -166,23 +147,16 @@ class Doctor extends BaseCommand {
       } else {
         throw er.message
       }
-    } finally {
-      tracker.finish()
     }
   }
 
   async getLatestNpmVersion () {
-    const tracker = log.newItem('getLatestNpmVersion', 1)
-    tracker.info('getLatestNpmVersion', 'Getting npm package information')
-    try {
-      const latest = (await pacote.manifest('npm@latest', this.npm.flatOptions)).version
-      if (semver.gte(this.npm.version, latest)) {
-        return `current: v${this.npm.version}, latest: v${latest}`
-      } else {
-        throw `Use npm v${latest}`
-      }
-    } finally {
-      tracker.finish()
+    log.info('doctor', 'Getting npm package information')
+    const latest = (await pacote.manifest('npm@latest', this.npm.flatOptions)).version
+    if (semver.gte(this.npm.version, latest)) {
+      return `current: v${this.npm.version}, latest: v${latest}`
+    } else {
+      throw `Use npm v${latest}`
     }
   }
 
@@ -191,36 +165,30 @@ class Doctor extends BaseCommand {
     const current = process.version
     const currentRange = `^${current}`
     const url = 'https://nodejs.org/dist/index.json'
-    const tracker = log.newItem('getLatestNodejsVersion', 1)
-    tracker.info('getLatestNodejsVersion', 'Getting Node.js release information')
-    try {
-      const res = await fetch(url, { method: 'GET', ...this.npm.flatOptions })
-      const data = await res.json()
-      let maxCurrent = '0.0.0'
-      let maxLTS = '0.0.0'
-      for (const { lts, version } of data) {
-        if (lts && semver.gt(version, maxLTS)) {
-          maxLTS = version
-        }
+    log.info('doctor', 'Getting Node.js release information')
+    const res = await fetch(url, { method: 'GET', ...this.npm.flatOptions })
+    const data = await res.json()
+    let maxCurrent = '0.0.0'
+    let maxLTS = '0.0.0'
+    for (const { lts, version } of data) {
+      if (lts && semver.gt(version, maxLTS)) {
+        maxLTS = version
+      }
 
-        if (semver.satisfies(version, currentRange) && semver.gt(version, maxCurrent)) {
-          maxCurrent = version
-        }
+      if (semver.satisfies(version, currentRange) && semver.gt(version, maxCurrent)) {
+        maxCurrent = version
       }
-      const recommended = semver.gt(maxCurrent, maxLTS) ? maxCurrent : maxLTS
-      if (semver.gte(process.version, recommended)) {
-        return `current: ${current}, recommended: ${recommended}`
-      } else {
-        throw `Use node ${recommended} (current: ${current})`
-      }
-    } finally {
-      tracker.finish()
+    }
+    const recommended = semver.gt(maxCurrent, maxLTS) ? maxCurrent : maxLTS
+    if (semver.gte(process.version, recommended)) {
+      return `current: ${current}, recommended: ${recommended}`
+    } else {
+      throw `Use node ${recommended} (current: ${current})`
     }
   }
 
-  async getBinPath (dir) {
-    const tracker = log.newItem('getBinPath', 1)
-    tracker.info('getBinPath', 'Finding npm global bin in your PATH')
+  async getBinPath () {
+    log.info('doctor', 'getBinPath', 'Finding npm global bin in your PATH')
     if (!process.env.PATH.includes(this.npm.globalBin)) {
       throw new Error(`Add ${this.npm.globalBin} to your $PATH`)
     }
@@ -250,30 +218,25 @@ class Doctor extends BaseCommand {
   async checkFilesPermission (root, shouldOwn, mask, missingOk) {
     let ok = true
 
-    const tracker = log.newItem(root, 1)
-
     try {
       const uid = process.getuid()
       const gid = process.getgid()
       const files = new Set([root])
       for (const f of files) {
-        tracker.silly('checkFilesPermission', f.slice(root.length + 1))
         const st = await lstat(f).catch(er => {
           // if it can't be missing, or if it can and the error wasn't that it was missing
           if (!missingOk || er.code !== 'ENOENT') {
             ok = false
-            tracker.warn('checkFilesPermission', 'error getting info for ' + f)
+            log.warn('doctor', 'checkFilesPermission', 'error getting info for ' + f)
           }
         })
-
-        tracker.completeWork(1)
 
         if (!st) {
           continue
         }
 
         if (shouldOwn && (uid !== st.uid || gid !== st.gid)) {
-          tracker.warn('checkFilesPermission', 'should be owner of ' + f)
+          log.warn('doctor', 'checkFilesPermission', 'should be owner of ' + f)
           ok = false
         }
 
@@ -286,14 +249,14 @@ class Doctor extends BaseCommand {
         } catch (er) {
           ok = false
           const msg = `Missing permissions on ${f} (expect: ${maskLabel(mask)})`
-          tracker.error('checkFilesPermission', msg)
+          log.error('doctor', 'checkFilesPermission', msg)
           continue
         }
 
         if (st.isDirectory()) {
-          const entries = await readdir(f).catch(er => {
+          const entries = await readdir(f).catch(() => {
             ok = false
-            tracker.warn('checkFilesPermission', 'error reading directory ' + f)
+            log.warn('doctor', 'checkFilesPermission', 'error reading directory ' + f)
             return []
           })
           for (const entry of entries) {
@@ -302,7 +265,6 @@ class Doctor extends BaseCommand {
         }
       }
     } finally {
-      tracker.finish()
       if (!ok) {
         throw (
           `Check the permissions of files in ${root}` +
@@ -315,50 +277,43 @@ class Doctor extends BaseCommand {
   }
 
   async getGitPath () {
-    const tracker = log.newItem('getGitPath', 1)
-    tracker.info('getGitPath', 'Finding git in your PATH')
-    try {
-      return await which('git').catch(er => {
-        tracker.warn(er)
-        throw new Error("Install git and ensure it's in your PATH.")
-      })
-    } finally {
-      tracker.finish()
-    }
+    log.info('doctor', 'Finding git in your PATH')
+    return await which('git').catch(er => {
+      log.warn('doctor', 'getGitPath', er)
+      throw new Error("Install git and ensure it's in your PATH.")
+    })
   }
 
   async verifyCachedFiles () {
-    const tracker = log.newItem('verifyCachedFiles', 1)
-    tracker.info('verifyCachedFiles', 'Verifying the npm cache')
-    try {
-      const stats = await cacache.verify(this.npm.flatOptions.cache)
-      const { badContentCount, reclaimedCount, missingContent, reclaimedSize } = stats
-      if (badContentCount || reclaimedCount || missingContent) {
-        if (badContentCount) {
-          tracker.warn('verifyCachedFiles', `Corrupted content removed: ${badContentCount}`)
-        }
+    log.info('doctor', 'verifyCachedFiles', 'Verifying the npm cache')
 
-        if (reclaimedCount) {
-          tracker.warn(
-            'verifyCachedFiles',
-            `Content garbage-collected: ${reclaimedCount} (${reclaimedSize} bytes)`
-          )
-        }
-
-        if (missingContent) {
-          tracker.warn('verifyCachedFiles', `Missing content: ${missingContent}`)
-        }
-
-        tracker.warn('verifyCachedFiles', 'Cache issues have been fixed')
+    const stats = await cacache.verify(this.npm.flatOptions.cache)
+    const { badContentCount, reclaimedCount, missingContent, reclaimedSize } = stats
+    if (badContentCount || reclaimedCount || missingContent) {
+      if (badContentCount) {
+        log.warn('doctor', 'verifyCachedFiles', `Corrupted content removed: ${badContentCount}`)
       }
-      tracker.info(
-        'verifyCachedFiles',
-        `Verification complete. Stats: ${JSON.stringify(stats, null, 2)}`
-      )
-      return `verified ${stats.verifiedContent} tarballs`
-    } finally {
-      tracker.finish()
+
+      if (reclaimedCount) {
+        log.warn(
+          'doctor',
+          'verifyCachedFiles',
+          `Content garbage-collected: ${reclaimedCount} (${reclaimedSize} bytes)`
+        )
+      }
+
+      if (missingContent) {
+        log.warn('doctor', 'verifyCachedFiles', `Missing content: ${missingContent}`)
+      }
+
+      log.warn('doctor', 'verifyCachedFiles', 'Cache issues have been fixed')
     }
+    log.info(
+      'doctor',
+      'verifyCachedFiles',
+        `Verification complete. Stats: ${JSON.stringify(stats, null, 2)}`
+    )
+    return `verified ${stats.verifiedContent} tarballs`
   }
 
   async checkNpmRegistry () {
@@ -369,38 +324,11 @@ class Doctor extends BaseCommand {
     }
   }
 
-  output (row) {
-    const t = new Table({
-      chars: {
-        top: '',
-        'top-mid': '',
-        'top-left': '',
-        'top-right': '',
-        bottom: '',
-        'bottom-mid': '',
-        'bottom-left': '',
-        'bottom-right': '',
-        left: '',
-        'left-mid': '',
-        mid: '',
-        'mid-mid': '',
-        right: '',
-        'right-mid': '',
-        middle: '  ',
-      },
-      style: {
-        'padding-left': 0,
-        'padding-right': 0,
-        // setting border here is not necessary visually since we've already
-        // zeroed out all the chars above, but without it cli-table3 will wrap
-        // some of the separator spaces with ansi codes which show up in
-        // snapshots.
-        border: 0,
-      },
-      colWidths: [this.#checkWidth, 6],
-    })
-    t.push(row)
-    this.npm.output(t.toString())
+  output (...args) {
+    // TODO display layer should do this
+    if (!this.npm.silent) {
+      output.standard(...args)
+    }
   }
 
   actions (params) {

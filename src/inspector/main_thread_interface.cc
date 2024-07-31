@@ -225,9 +225,18 @@ bool MainThreadInterface::WaitForFrontendEvent() {
   dispatching_messages_ = false;
   if (dispatching_message_queue_.empty()) {
     Mutex::ScopedLock scoped_lock(requests_lock_);
-    while (requests_.empty()) incoming_message_cond_.Wait(scoped_lock);
+    while (!stop_waiting_for_frontend_event_requested_ && requests_.empty()) {
+      incoming_message_cond_.Wait(scoped_lock);
+    }
+    stop_waiting_for_frontend_event_requested_ = false;
   }
   return true;
+}
+
+void MainThreadInterface::StopWaitingForFrontendEvent() {
+  Mutex::ScopedLock scoped_lock(requests_lock_);
+  stop_waiting_for_frontend_event_requested_ = true;
+  incoming_message_cond_.Broadcast(scoped_lock);
 }
 
 void MainThreadInterface::DispatchMessages() {

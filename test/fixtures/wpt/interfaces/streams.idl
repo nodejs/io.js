@@ -7,6 +7,8 @@
 interface ReadableStream {
   constructor(optional object underlyingSource, optional QueuingStrategy strategy = {});
 
+  static ReadableStream from(any asyncIterable);
+
   readonly attribute boolean locked;
 
   Promise<undefined> cancel(optional any reason);
@@ -82,10 +84,14 @@ dictionary ReadableStreamReadResult {
 interface ReadableStreamBYOBReader {
   constructor(ReadableStream stream);
 
-  Promise<ReadableStreamReadResult> read(ArrayBufferView view);
+  Promise<ReadableStreamReadResult> read(ArrayBufferView view, optional ReadableStreamBYOBReaderReadOptions options = {});
   undefined releaseLock();
 };
 ReadableStreamBYOBReader includes ReadableStreamGenericReader;
+
+dictionary ReadableStreamBYOBReaderReadOptions {
+  [EnforceRange] unsigned long long min = 1;
+};
 
 [Exposed=*]
 interface ReadableStreamDefaultController {
@@ -172,6 +178,7 @@ dictionary Transformer {
   TransformerStartCallback start;
   TransformerTransformCallback transform;
   TransformerFlushCallback flush;
+  TransformerCancelCallback cancel;
   any readableType;
   any writableType;
 };
@@ -179,6 +186,7 @@ dictionary Transformer {
 callback TransformerStartCallback = any (TransformStreamDefaultController controller);
 callback TransformerFlushCallback = Promise<undefined> (TransformStreamDefaultController controller);
 callback TransformerTransformCallback = Promise<undefined> (any chunk, TransformStreamDefaultController controller);
+callback TransformerCancelCallback = Promise<undefined> (any reason);
 
 [Exposed=*]
 interface TransformStreamDefaultController {

@@ -75,20 +75,21 @@ class SwitchInfoT {
   block_t default_branch_;
 };
 
-#define OPERAND_GENERATOR_T_BOILERPLATE(adapter)           \
-  using super = OperandGeneratorT<adapter>;                \
-  using node_t = typename adapter::node_t;                 \
-  using RegisterMode = typename super::RegisterMode;       \
-  using RegisterUseKind = typename super::RegisterUseKind; \
-  using super::selector;                                   \
-  using super::DefineAsRegister;                           \
-  using super::TempImmediate;                              \
-  using super::UseFixed;                                   \
-  using super::UseImmediate;                               \
-  using super::UseImmediate64;                             \
-  using super::UseNegatedImmediate;                        \
-  using super::UseRegister;                                \
-  using super::UseRegisterWithMode;                        \
+#define OPERAND_GENERATOR_T_BOILERPLATE(adapter)             \
+  using super = OperandGeneratorT<adapter>;                  \
+  using node_t = typename adapter::node_t;                   \
+  using optional_node_t = typename adapter::optional_node_t; \
+  using RegisterMode = typename super::RegisterMode;         \
+  using RegisterUseKind = typename super::RegisterUseKind;   \
+  using super::selector;                                     \
+  using super::DefineAsRegister;                             \
+  using super::TempImmediate;                                \
+  using super::UseFixed;                                     \
+  using super::UseImmediate;                                 \
+  using super::UseImmediate64;                               \
+  using super::UseNegatedImmediate;                          \
+  using super::UseRegister;                                  \
+  using super::UseRegisterWithMode;                          \
   using super::UseUniqueRegister;
 
 // A helper class for the instruction selector that simplifies construction of
@@ -98,6 +99,7 @@ class OperandGeneratorT : public Adapter {
  public:
   using block_t = typename Adapter::block_t;
   using node_t = typename Adapter::node_t;
+  using optional_node_t = typename Adapter::optional_node_t;
 
   explicit OperandGeneratorT(InstructionSelectorT<Adapter>* selector)
       : Adapter(selector->schedule()), selector_(selector) {}
@@ -106,24 +108,20 @@ class OperandGeneratorT : public Adapter {
     return InstructionOperand();  // Generates an invalid operand.
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, DefineAsRegister)
   InstructionOperand DefineAsRegister(node_t node) {
     return Define(node,
                   UnallocatedOperand(UnallocatedOperand::MUST_HAVE_REGISTER,
                                      GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, DefineSameAsInput)
   InstructionOperand DefineSameAsInput(node_t node, int input_index) {
     return Define(node, UnallocatedOperand(GetVReg(node), input_index));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, DefineSameAsFirst)
   InstructionOperand DefineSameAsFirst(node_t node) {
     return DefineSameAsInput(node, 0);
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, DefineAsFixed)
   InstructionOperand DefineAsFixed(node_t node, Register reg) {
     return Define(node, UnallocatedOperand(UnallocatedOperand::FIXED_REGISTER,
                                            reg.code(), GetVReg(node)));
@@ -136,7 +134,6 @@ class OperandGeneratorT : public Adapter {
                                      reg.code(), GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, DefineAsConstant)
   InstructionOperand DefineAsConstant(node_t node) {
     selector()->MarkAsDefined(node);
     int virtual_register = GetVReg(node);
@@ -144,13 +141,10 @@ class OperandGeneratorT : public Adapter {
     return ConstantOperand(virtual_register);
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, DefineAsLocation)
   InstructionOperand DefineAsLocation(node_t node, LinkageLocation location) {
     return Define(node, ToUnallocatedOperand(location, GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand,
-                                          DefineAsDualLocation)
   InstructionOperand DefineAsDualLocation(node_t node,
                                           LinkageLocation primary_location,
                                           LinkageLocation secondary_location) {
@@ -159,58 +153,48 @@ class OperandGeneratorT : public Adapter {
                       primary_location, secondary_location, GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, Use)
   InstructionOperand Use(node_t node) {
     return Use(node, UnallocatedOperand(UnallocatedOperand::NONE,
                                         UnallocatedOperand::USED_AT_START,
                                         GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseAnyAtEnd)
   InstructionOperand UseAnyAtEnd(node_t node) {
     return Use(node, UnallocatedOperand(UnallocatedOperand::REGISTER_OR_SLOT,
                                         UnallocatedOperand::USED_AT_END,
                                         GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseAny)
   InstructionOperand UseAny(node_t node) {
     return Use(node, UnallocatedOperand(UnallocatedOperand::REGISTER_OR_SLOT,
                                         UnallocatedOperand::USED_AT_START,
                                         GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand,
-                                          UseRegisterOrSlotOrConstant)
   InstructionOperand UseRegisterOrSlotOrConstant(node_t node) {
     return Use(node, UnallocatedOperand(
                          UnallocatedOperand::REGISTER_OR_SLOT_OR_CONSTANT,
                          UnallocatedOperand::USED_AT_START, GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand,
-                                          UseUniqueRegisterOrSlotOrConstant)
   InstructionOperand UseUniqueRegisterOrSlotOrConstant(node_t node) {
     return Use(node, UnallocatedOperand(
                          UnallocatedOperand::REGISTER_OR_SLOT_OR_CONSTANT,
                          GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseRegister)
   InstructionOperand UseRegister(node_t node) {
     return Use(node, UnallocatedOperand(UnallocatedOperand::MUST_HAVE_REGISTER,
                                         UnallocatedOperand::USED_AT_START,
                                         GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseRegisterAtEnd)
   InstructionOperand UseRegisterAtEnd(node_t node) {
     return Use(node, UnallocatedOperand(UnallocatedOperand::MUST_HAVE_REGISTER,
                                         UnallocatedOperand::USED_AT_END,
                                         GetVReg(node)));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseUniqueSlot)
   InstructionOperand UseUniqueSlot(node_t node) {
     return Use(node, UnallocatedOperand(UnallocatedOperand::MUST_HAVE_SLOT,
                                         GetVReg(node)));
@@ -218,7 +202,6 @@ class OperandGeneratorT : public Adapter {
 
   // Use register or operand for the node. If a register is chosen, it won't
   // alias any temporary or output registers.
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseUnique)
   InstructionOperand UseUnique(node_t node) {
     return Use(node,
                UnallocatedOperand(UnallocatedOperand::NONE, GetVReg(node)));
@@ -226,7 +209,6 @@ class OperandGeneratorT : public Adapter {
 
   // Use a unique register for the node that does not alias any temporary or
   // output registers.
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseUniqueRegister)
   InstructionOperand UseUniqueRegister(node_t node) {
     return Use(node, UnallocatedOperand(UnallocatedOperand::MUST_HAVE_REGISTER,
                                         GetVReg(node)));
@@ -242,7 +224,6 @@ class OperandGeneratorT : public Adapter {
     }
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseFixed)
   InstructionOperand UseFixed(node_t node, Register reg) {
     return Use(node, UnallocatedOperand(UnallocatedOperand::FIXED_REGISTER,
                                         reg.code(), GetVReg(node)));
@@ -262,18 +243,14 @@ class OperandGeneratorT : public Adapter {
     return sequence()->AddImmediate(Constant(immediate));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseImmediate)
   InstructionOperand UseImmediate(node_t node) {
     return sequence()->AddImmediate(ToConstant(node));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand,
-                                          UseNegatedImmediate)
   InstructionOperand UseNegatedImmediate(node_t node) {
     return sequence()->AddImmediate(ToNegatedConstant(node));
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, UseLocation)
   InstructionOperand UseLocation(node_t node, LinkageLocation location) {
     return Use(node, ToUnallocatedOperand(location, GetVReg(node)));
   }
@@ -317,8 +294,6 @@ class OperandGeneratorT : public Adapter {
     kUniqueRegister,
   };
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand,
-                                          UseRegisterWithMode)
   InstructionOperand UseRegisterWithMode(node_t node,
                                          RegisterMode register_mode) {
     return register_mode == kRegister ? UseRegister(node)
@@ -380,7 +355,6 @@ class OperandGeneratorT : public Adapter {
     return ToUnallocatedOperand(location, sequence()->NextVirtualRegister());
   }
 
-  DECLARE_UNREACHABLE_TURBOSHAFT_FALLBACK(InstructionOperand, Label)
   InstructionOperand Label(block_t block) {
     return sequence()->AddImmediate(Constant(this->rpo_number(block)));
   }
@@ -405,6 +379,12 @@ class OperandGeneratorT : public Adapter {
             return Constant(static_cast<int32_t>(constant->word32()));
           case Kind::kWord64:
             return Constant(static_cast<int64_t>(constant->word64()));
+          case Kind::kSmi:
+            if constexpr (Is64()) {
+              return Constant(static_cast<int64_t>(constant->smi().ptr()));
+            } else {
+              return Constant(static_cast<int32_t>(constant->smi().ptr()));
+            }
           case Kind::kHeapObject:
           case Kind::kCompressedHeapObject:
             return Constant(constant->handle(),

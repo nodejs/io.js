@@ -847,7 +847,7 @@ void CBORTokenizer::ReadNextToken(bool enter_envelope) {
           // value 0).
           // The represented allowed values range is -1 to -2^31.
           // They are mapped into the encoded range of 0 to 2^31-1.
-          // We check the the payload in token_start_internal_value_ against
+          // We check the payload in token_start_internal_value_ against
           // that range (2^31-1 is also known as
           // std::numeric_limits<int32_t>::max()).
           if (!bytes_read ||
@@ -1386,7 +1386,7 @@ class JSONEncoder : public StreamingParserHandler {
         // Disallow overlong encodings for ascii characters, as these
         // would include " and other characters significant to JSON
         // string termination / control.
-        if (codepoint < 0x7f)
+        if (codepoint <= 0x7f)
           continue;
         // Invalid in UTF8, and can't be represented in UTF16 anyway.
         if (codepoint > 0x10ffff)

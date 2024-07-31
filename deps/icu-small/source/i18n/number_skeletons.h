@@ -13,8 +13,7 @@
 #include "string_segment.h"
 
 U_NAMESPACE_BEGIN
-namespace number {
-namespace impl {
+namespace number::impl {
 
 // Forward-declaration
 struct SeenMacroProps;
@@ -385,8 +384,7 @@ UPRV_BLOCK_MACRO_BEGIN { \
 
 } // namespace
 
-} // namespace impl
-} // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 #endif //__SOURCE_NUMBER_SKELETONS_H__

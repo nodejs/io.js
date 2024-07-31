@@ -1,28 +1,15 @@
 .\"
 .\" Copyright 1998 by Daniel Stenberg
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_GETSOCK 3 "11 March 2010"
 .SH NAME
-ares_getsock \- get socket descriptors to wait on
+ares_getsock \- get socket descriptors to wait on (deprecated)
 .SH SYNOPSIS
 .nf
 #include <ares.h>
 
-int ares_getsock(ares_channel \fIchannel\fP, ares_socket_t *\fIsocks\fP,
+int ares_getsock(const ares_channel_t *\fIchannel\fP, ares_socket_t *\fIsocks\fP,
                  int \fInumsocks\fP);
 .fi
 .SH DESCRIPTION
@@ -37,8 +24,8 @@ Socket descriptors will be set in the socket descriptor array pointed to by
 \fIsocks\fP.
 \fInumsocks\fP is the size of the given array in number of ints.
 
-This function can only return information about up to 16 sockets. If more are
-in use (however unlikely that is), they are simply not reported back.
+This function can only return information up to 16 sockets. If more are
+in use, they are simply not reported back.
 .SH RETURN VALUES
 \fBares_getsock\fP returns a bitmask for what actions to wait for on the
 different sockets. The ares.h header file provides these convenience macros to
@@ -52,8 +39,15 @@ extract the information appropriately:
                                          ARES_GETSOCK_MAXNUM)))
 .fi
 .SH NOTES
-This function was added in c-ares 1.3.1
+This function was added in c-ares 1.3.1 and deprecated in c-ares 1.20.0 due to
+the implementation of \fBARES_OPT_MAX_UDP_QUERIES\fP which makes it likely to
+exceed 16 open file descriptors.
+
+It is recommended to use \fBARES_OPT_EVENT_THREAD\fP passed to
+\fIares_init_options(3)\fP or to use socket state callbacks
+(\fBARES_OPT_SOCK_STATE_CB\fP) registered via \fBares_init_options(3)\fP.
 .SH SEE ALSO
+.BR ares_init_options (3),
 .BR ares_timeout (3),
 .BR ares_fds (3),
 .BR ares_process (3)

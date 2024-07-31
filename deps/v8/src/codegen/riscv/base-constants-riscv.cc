@@ -1,6 +1,8 @@
 // Copyright 2021 the V8 project authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+#include "src/codegen/riscv/base-constants-riscv.h"
+
 #include "src/codegen/riscv/constants-riscv.h"
 #include "src/execution/simulator.h"
 
@@ -226,6 +228,27 @@ uint32_t InstructionGetters<T>::Rvvuimm() const {
   uint32_t Bits = this->InstructionBits();
   uint32_t uimm = Bits & kRvvUimmMask;
   return uimm >> kRvvUimmShift;
+}
+
+template <class T>
+bool InstructionGetters<T>::IsLoad() {
+  return OperandFunct3() == RO_LB || OperandFunct3() == RO_LBU ||
+         OperandFunct3() == RO_LH || OperandFunct3() == RO_LHU ||
+         OperandFunct3() == RO_LW ||
+#ifdef V8_TARGET_ARCH_RISCV64
+         OperandFunct3() == RO_LD || OperandFunct3() == RO_LWU ||
+#endif
+         BaseOpcode() == LOAD_FP;
+}
+
+template <class T>
+bool InstructionGetters<T>::IsStore() {
+  return OperandFunct3() == RO_SB || OperandFunct3() == RO_SH ||
+         OperandFunct3() == RO_SW ||
+#ifdef V8_TARGET_ARCH_RISCV64
+         OperandFunct3() == RO_SD ||
+#endif
+         BaseOpcode() == STORE_FP;
 }
 
 template class InstructionGetters<InstructionBase>;

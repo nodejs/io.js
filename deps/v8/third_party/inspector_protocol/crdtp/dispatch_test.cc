@@ -169,10 +169,11 @@ TEST(DispatchableTest, MessageWithUnknownProperty) {
 }
 
 TEST(DispatchableTest, DuplicateMapKey) {
-  for (const std::string& json :
-       {"{\"id\":42,\"id\":42}", "{\"params\":null,\"params\":null}",
-        "{\"method\":\"foo\",\"method\":\"foo\"}",
-        "{\"sessionId\":\"42\",\"sessionId\":\"42\"}"}) {
+  const std::array<std::string, 4> jsons = {
+      {"{\"id\":42,\"id\":42}", "{\"params\":null,\"params\":null}",
+       "{\"method\":\"foo\",\"method\":\"foo\"}",
+       "{\"sessionId\":\"42\",\"sessionId\":\"42\"}"}};
+  for (const std::string& json : jsons) {
     SCOPED_TRACE("json = " + json);
     std::vector<uint8_t> cbor;
     ASSERT_TRUE(json::ConvertJSONToCBOR(SpanFrom(json), &cbor).ok());
@@ -185,11 +186,12 @@ TEST(DispatchableTest, DuplicateMapKey) {
 }
 
 TEST(DispatchableTest, ValidMessageParsesOK_NoParams) {
-  for (const std::string& json :
-       {"{\"id\":42,\"method\":\"Foo.executeBar\",\"sessionId\":"
-        "\"f421ssvaz4\"}",
-        "{\"id\":42,\"method\":\"Foo.executeBar\",\"sessionId\":\"f421ssvaz4\","
-        "\"params\":null}"}) {
+  const std::array<std::string, 2> jsons = {
+      {"{\"id\":42,\"method\":\"Foo.executeBar\",\"sessionId\":"
+       "\"f421ssvaz4\"}",
+       "{\"id\":42,\"method\":\"Foo.executeBar\",\"sessionId\":\"f421ssvaz4\","
+       "\"params\":null}"}};
+  for (const std::string& json : jsons) {
     SCOPED_TRACE("json = " + json);
     std::vector<uint8_t> cbor;
     ASSERT_TRUE(json::ConvertJSONToCBOR(SpanFrom(json), &cbor).ok());

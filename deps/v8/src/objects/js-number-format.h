@@ -89,6 +89,15 @@ class JSNumberFormat
   static bool SignificantDigitsFromSkeleton(const icu::UnicodeString& skeleton,
                                             int32_t* minimum, int32_t* maximum);
 
+  static Handle<String> RoundingModeString(Isolate* isolate,
+                                           const icu::UnicodeString& skeleton);
+  static Handle<String> RoundingPriorityString(
+      Isolate* isolate, const icu::UnicodeString& skeleton);
+  static Handle<String> TrailingZeroDisplayString(
+      Isolate* isolate, const icu::UnicodeString& skeleton);
+  static Handle<Object> RoundingIncrement(Isolate* isolate,
+                                          const icu::UnicodeString& skeleton);
+
   enum class ShowTrailingZeros { kShow, kHide };
 
   static icu::number::UnlocalizedNumberFormatter SetDigitOptionsToFormatter(

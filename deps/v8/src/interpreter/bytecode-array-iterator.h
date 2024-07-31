@@ -46,7 +46,7 @@ class V8_EXPORT_PRIVATE JumpTableTargetOffsets final {
     void UpdateAndAdvanceToValid();
 
     const BytecodeArrayIterator* iterator_;
-    Smi current_;
+    Tagged<Smi> current_;
     int index_;
     int table_offset_;
     int table_end_;

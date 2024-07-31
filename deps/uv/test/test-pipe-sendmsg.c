@@ -45,12 +45,12 @@ static void set_nonblocking(uv_os_sock_t sock) {
 #ifdef _WIN32
   unsigned long on = 1;
   r = ioctlsocket(sock, FIONBIO, &on);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 #else
   int flags = fcntl(sock, F_GETFL, 0);
-  ASSERT(flags >= 0);
+  ASSERT_GE(flags, 0);
   r = fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-  ASSERT(r >= 0);
+  ASSERT_GE(r, 0);
 #endif
 }
 
@@ -79,22 +79,22 @@ static void read_cb(uv_stream_t* handle,
   unsigned int i;
 
   p = (uv_pipe_t*) handle;
-  ASSERT(nread >= 0);
+  ASSERT_GE(nread, 0);
 
   while (uv_pipe_pending_count(p) != 0) {
     pending = uv_pipe_pending_type(p);
-    ASSERT(pending == UV_NAMED_PIPE);
+    ASSERT_EQ(pending, UV_NAMED_PIPE);
 
-    ASSERT(incoming_count < ARRAY_SIZE(incoming));
+    ASSERT_LT(incoming_count, ARRAY_SIZE(incoming));
     inc = &incoming[incoming_count++];
-    ASSERT(0 == uv_pipe_init(p->loop, inc, 0));
-    ASSERT(0 == uv_accept(handle, (uv_stream_t*) inc));
+    ASSERT_OK(uv_pipe_init(p->loop, inc, 0));
+    ASSERT_OK(uv_accept(handle, (uv_stream_t*) inc));
   }
 
   if (incoming_count != ARRAY_SIZE(incoming))
     return;
 
-  ASSERT(0 == uv_read_stop((uv_stream_t*) p));
+  ASSERT_OK(uv_read_stop((uv_stream_t*) p));
   uv_close((uv_handle_t*) p, close_cb);
   for (i = 0; i < ARRAY_SIZE(incoming); i++)
     uv_close((uv_handle_t*) &incoming[i], close_cb);
@@ -115,12 +115,12 @@ TEST_IMPL(pipe_sendmsg) {
   unsigned int i;
   uv_buf_t buf;
 
-  ASSERT(0 == socketpair(AF_UNIX, SOCK_STREAM, 0, fds));
+  ASSERT_OK(socketpair(AF_UNIX, SOCK_STREAM, 0, fds));
   for (i = 0; i < ARRAY_SIZE(send_fds); i += 2)
-    ASSERT(0 == socketpair(AF_UNIX, SOCK_STREAM, 0, send_fds + i));
-  ASSERT(i == ARRAY_SIZE(send_fds));
-  ASSERT(0 == uv_pipe_init(uv_default_loop(), &p, 1));
-  ASSERT(0 == uv_pipe_open(&p, fds[1]));
+    ASSERT_OK(socketpair(AF_UNIX, SOCK_STREAM, 0, send_fds + i));
+  ASSERT_EQ(i, ARRAY_SIZE(send_fds));
+  ASSERT_OK(uv_pipe_init(uv_default_loop(), &p, 1));
+  ASSERT_OK(uv_pipe_open(&p, fds[1]));
 
   buf = uv_buf_init("X", 1);
   memset(&msg, 0, sizeof(msg));
@@ -130,7 +130,7 @@ TEST_IMPL(pipe_sendmsg) {
 
   msg.msg_control = (void*) scratch;
   msg.msg_controllen = CMSG_LEN(sizeof(send_fds));
-  ASSERT(sizeof(scratch) >= msg.msg_controllen);
+  ASSERT_GE(sizeof(scratch), msg.msg_controllen);
 
   cmsg = CMSG_FIRSTHDR(&msg);
   cmsg->cmsg_level = SOL_SOCKET;
@@ -146,16 +146,16 @@ TEST_IMPL(pipe_sendmsg) {
   }
 
   set_nonblocking(fds[1]);
-  ASSERT(0 == uv_read_start((uv_stream_t*) &p, alloc_cb, read_cb));
+  ASSERT_OK(uv_read_start((uv_stream_t*) &p, alloc_cb, read_cb));
 
   do
     r = sendmsg(fds[0], &msg, 0);
   while (r == -1 && errno == EINTR);
-  ASSERT(r == 1);
+  ASSERT_EQ(1, r);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  ASSERT(ARRAY_SIZE(incoming) == incoming_count);
-  ASSERT(ARRAY_SIZE(incoming) + 1 == close_called);
+  ASSERT_EQ(ARRAY_SIZE(incoming), incoming_count);
+  ASSERT_EQ(ARRAY_SIZE(incoming) + 1, close_called);
   close(fds[0]);
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());

@@ -163,7 +163,7 @@ class PersistentHandlesThread final : public v8::base::Thread {
   Heap* heap_;
   std::vector<Handle<HeapNumber>> handles_;
   std::unique_ptr<PersistentHandles> ph_;
-  HeapNumber number_;
+  Tagged<HeapNumber> number_;
   base::Semaphore* sema_started_;
   base::Semaphore* sema_gc_finished_;
 };

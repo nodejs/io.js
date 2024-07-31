@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import { execPath } from 'node:process';
 import { describe, it, before } from 'node:test';
 
-describe('ESM in main field', { concurrency: true }, () => {
+describe('ESM in main field', { concurrency: !process.env.TEST_PARALLEL }, () => {
   before(() => tmpdir.refresh());
 
   it('should handle fully-specified relative path without any warning', async () => {

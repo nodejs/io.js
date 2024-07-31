@@ -78,7 +78,7 @@ it still gets the benefits of the ABI stability provided by the C API.
 When using `node-addon-api` instead of the C APIs, start with the API [docs][]
 for `node-addon-api`.
 
-The [Node-API Resource](https://nodejs.github.io/node-addon-examples/) offers
+The [Node-API Resource](https://nodejs.github.io/node-addon-examples/) offers
 an excellent orientation and tips for developers just getting started with
 Node-API and `node-addon-api`. Additional media resources can be found on the
 [Node-API Media][] page.
@@ -175,7 +175,8 @@ developers have run into limitations in node-gyp.
 [CMake.js][] is an alternative build system based on [CMake][].
 
 CMake.js is a good choice for projects that already use CMake or for
-developers affected by limitations in node-gyp.
+developers affected by limitations in node-gyp. [`build_with_cmake`][] is an
+example of a CMake-based native addon project.
 
 ### Uploading precompiled binaries
 
@@ -236,6 +237,18 @@ Some of the Node-API surface is experimental and requires explicit opt-in:
 
 In this case the entire API surface, including any experimental APIs, will be
 available to the module code.
+
+Occasionally, experimental features are introduced that affect already-released
+and stable APIs. These features can be disabled by an opt-out:
+
+```c
+#define NAPI_EXPERIMENTAL
+#define NODE_API_EXPERIMENTAL_<FEATURE_NAME>_OPT_OUT
+#include <node_api.h>
+```
+
+where `<FEATURE_NAME>` is the name of an experimental feature that affects both
+experimental and stable APIs.
 
 ## Node-API version matrix
 
@@ -419,7 +432,7 @@ napi_value create_addon(napi_env env) {
 #include <node_api.h>
 #include "addon.h"
 
-NAPI_MODULE_INIT() {
+NAPI_MODULE_INIT(/* napi_env env, napi_value exports */) {
   // This function body is expected to return a `napi_value`.
   // The variables `napi_env env` and `napi_value exports` may be used within
   // the body, as they are provided by the definition of `NAPI_MODULE_INIT()`.
@@ -464,7 +477,7 @@ napiVersion: 6
 -->
 
 ```c
-napi_status napi_set_instance_data(napi_env env,
+napi_status napi_set_instance_data(node_api_basic_env env,
                                    void* data,
                                    napi_finalize finalize_cb,
                                    void* finalize_hint);
@@ -496,7 +509,7 @@ napiVersion: 6
 -->
 
 ```c
-napi_status napi_get_instance_data(napi_env env,
+napi_status napi_get_instance_data(node_api_basic_env env,
                                    void** data);
 ```
 
@@ -597,6 +610,22 @@ different [`Worker`][] threads is not allowed. The `napi_env` becomes invalid
 when an instance of a native addon is unloaded. Notification of this event is
 delivered through the callbacks given to [`napi_add_env_cleanup_hook`][] and
 [`napi_set_instance_data`][].
+
+### `node_api_basic_env`
+
+> Stability: 1 - Experimental
+
+This variant of `napi_env` is passed to synchronous finalizers
+([`node_api_basic_finalize`][]). There is a subset of Node-APIs which accept
+a parameter of type `node_api_basic_env` as their first argument. These APIs do
+not access the state of the JavaScript engine and are thus safe to call from
+synchronous finalizers. Passing a parameter of type `napi_env` to these APIs is
+allowed, however, passing a parameter of type `node_api_basic_env` to APIs that
+access the JavaScript engine state is not allowed. Attempting to do so without
+a cast will produce a compiler warning or an error when add-ons are compiled
+with flags which cause them to emit warnings and/or errors when incorrect
+pointer types are passed into a function. Calling such APIs from a synchronous
+finalizer will ultimately result in the termination of the application.
 
 ### `napi_value`
 
@@ -762,32 +791,39 @@ typedef napi_value (*napi_callback)(napi_env, napi_callback_info);
 Unless for reasons discussed in [Object Lifetime Management][], creating a
 handle and/or callback scope inside a `napi_callback` is not necessary.
 
-#### `napi_finalize`
+#### `node_api_basic_finalize`
 
 <!-- YAML
-added: v8.0.0
-napiVersion: 1
+added:
+  - v21.6.0
+  - v20.12.0
+  - v18.20.0
 -->
+
+> Stability: 1 - Experimental
 
 Function pointer type for add-on provided functions that allow the user to be
 notified when externally-owned data is ready to be cleaned up because the
-object with which it was associated with has been garbage-collected. The user
-must provide a function satisfying the following signature which would get
-called upon the object's collection. Currently, `napi_finalize` can be used for
+object it was associated with has been garbage-collected. The user must provide
+a function satisfying the following signature which would get called upon the
+object's collection. Currently, `node_api_basic_finalize` can be used for
 finding out when objects that have external data are collected.
 
 ```c
-typedef void (*napi_finalize)(napi_env env,
-                              void* finalize_data,
-                              void* finalize_hint);
+typedef void (*node_api_basic_finalize)(node_api_basic_env env,
+                                      void* finalize_data,
+                                      void* finalize_hint);
 ```
 
 Unless for reasons discussed in [Object Lifetime Management][], creating a
 handle and/or callback scope inside the function body is not necessary.
 
 Since these functions may be called while the JavaScript engine is in a state
-where it cannot execute JavaScript code, some Node-API calls may return
-`napi_pending_exception` even when there is no exception pending.
+where it cannot execute JavaScript code, only Node-APIs which accept a
+`node_api_basic_env` as their first parameter may be called.
+[`node_api_post_finalizer`][] can be used to schedule Node-API calls that
+require access to the JavaScript engine's state to run after the current
+garbage collection cycle has completed.
 
 In the case of [`node_api_create_external_string_latin1`][] and
 [`node_api_create_external_string_utf16`][] the `env` parameter may be null,
@@ -796,11 +832,39 @@ shutdown.
 
 Change History:
 
+* experimental (`NAPI_EXPERIMENTAL`):
+
+  Only Node-API calls that accept a `node_api_basic_env` as their first
+  parameter may be called, otherwise the application will be terminated with an
+  appropriate error message. This feature can be turned off by defining
+  `NODE_API_EXPERIMENTAL_BASIC_ENV_OPT_OUT`.
+
+#### `napi_finalize`
+
+<!-- YAML
+added: v8.0.0
+napiVersion: 1
+-->
+
+Function pointer type for add-on provided function that allow the user to
+schedule a group of calls to Node-APIs in response to a garbage collection
+event, after the garbage collection cycle has completed. These function
+pointers can be used with [`node_api_post_finalizer`][].
+
+```c
+typedef void (*napi_finalize)(napi_env env,
+                              void* finalize_data,
+                              void* finalize_hint);
+```
+
+Change History:
+
 * experimental (`NAPI_EXPERIMENTAL` is defined):
 
-  Node-API calls made from a finalizer will return `napi_cannot_run_js` when
-  the JavaScript engine is unable to execute JavaScript, and will return
-  `napi_exception_pending` if there is a pending exception.
+  A function of this type may no longer be used as a finalizer, except with
+  [`node_api_post_finalizer`][]. [`node_api_basic_finalize`][] must be used
+  instead. This feature can be turned off by defining
+  `NODE_API_EXPERIMENTAL_BASIC_ENV_OPT_OUT`.
 
 #### `napi_async_execute_callback`
 
@@ -1002,7 +1066,7 @@ napiVersion: 1
 
 ```c
 napi_status
-napi_get_last_error_info(napi_env env,
+napi_get_last_error_info(node_api_basic_env env,
                          const napi_extended_error_info** result);
 ```
 
@@ -1821,7 +1885,7 @@ napiVersion: 3
 -->
 
 ```c
-NODE_EXTERN napi_status napi_add_env_cleanup_hook(napi_env env,
+NODE_EXTERN napi_status napi_add_env_cleanup_hook(node_api_basic_env env,
                                                   napi_cleanup_hook fun,
                                                   void* arg);
 ```
@@ -1851,7 +1915,7 @@ napiVersion: 3
 -->
 
 ```c
-NAPI_EXTERN napi_status napi_remove_env_cleanup_hook(napi_env env,
+NAPI_EXTERN napi_status napi_remove_env_cleanup_hook(node_api_basic_env env,
                                                      void (*fun)(void* arg),
                                                      void* arg);
 ```
@@ -1880,7 +1944,7 @@ changes:
 
 ```c
 NAPI_EXTERN napi_status napi_add_async_cleanup_hook(
-    napi_env env,
+    node_api_basic_env env,
     napi_async_cleanup_hook hook,
     void* arg,
     napi_async_cleanup_hook_handle* remove_handle);
@@ -2038,7 +2102,7 @@ You can also use the `NAPI_MODULE_INIT` macro, which acts as a shorthand
 for `NAPI_MODULE` and defining an `Init` function:
 
 ```c
-NAPI_MODULE_INIT() {
+NAPI_MODULE_INIT(/* napi_env env, napi_value exports */) {
   napi_value answer;
   napi_status result;
 
@@ -2051,6 +2115,9 @@ NAPI_MODULE_INIT() {
   return exports;
 }
 ```
+
+The parameters `env` and `exports` are provided to the body of the
+`NAPI_MODULE_INIT` macro.
 
 All Node-API addons are context-aware, meaning they may be loaded multiple
 times. There are a few design considerations when declaring such a module.
@@ -2151,9 +2218,9 @@ typedef enum {
 } napi_key_conversion;
 ```
 
-`napi_key_numbers_to_strings` will convert integer indices to
+`napi_key_numbers_to_strings` will convert integer indexes to
 strings. `napi_key_keep_numbers` will return numbers for integer
-indices.
+indexes.
 
 #### `napi_valuetype`
 
@@ -3017,6 +3084,52 @@ Returns `napi_ok` if the API succeeded.
 
 This API creates a JavaScript `string` value from a UTF8-encoded C string.
 The native string is copied.
+
+The JavaScript `string` type is described in
+[Section 6.1.4][] of the ECMAScript Language Specification.
+
+#### `node_api_create_property_key_utf16`
+
+<!-- YAML
+added:
+  - v21.7.0
+  - v20.12.0
+-->
+
+> Stability: 1 - Experimental
+
+```c
+napi_status NAPI_CDECL node_api_create_property_key_utf16(napi_env env,
+                                                          const char16_t* str,
+                                                          size_t length,
+                                                          napi_value* result);
+```
+
+* `[in] env`: The environment that the API is invoked under.
+* `[in] str`: Character buffer representing a UTF16-LE-encoded string.
+* `[in] length`: The length of the string in two-byte code units, or
+  `NAPI_AUTO_LENGTH` if it is null-terminated.
+* `[out] result`: A `napi_value` representing an optimized JavaScript `string`
+  to be used as a property key for objects.
+
+Returns `napi_ok` if the API succeeded.
+
+This API creates an optimized JavaScript `string` value from
+a UTF16-LE-encoded C string to be used as a property key for objects.
+The native string is copied.
+
+Many JavaScript engines including V8 use internalized strings as keys
+to set and get property values. They typically use a hash table to create
+and lookup such strings. While it adds some cost per key creation, it improves
+the performance after that by enabling comparison of string pointers instead
+of the whole strings.
+
+If a new JavaScript string is intended to be used as a property key, then for
+some JavaScript engines it will be more efficient to use
+the `node_api_create_property_key_utf16` function.
+Otherwise, use the `napi_create_string_utf16` or
+`node_api_create_external_string_utf16` functions as there may be additional
+overhead in creating/storing strings with this method.
 
 The JavaScript `string` type is described in
 [Section 6.1.4][] of the ECMAScript Language Specification.
@@ -5420,7 +5533,7 @@ napiVersion: 5
 napi_status napi_add_finalizer(napi_env env,
                                napi_value js_object,
                                void* finalize_data,
-                               napi_finalize finalize_cb,
+                               node_api_basic_finalize finalize_cb,
                                void* finalize_hint,
                                napi_ref* result);
 ```
@@ -5452,13 +5565,16 @@ required in order to enable correct disposal of the reference.
 #### `node_api_post_finalizer`
 
 <!-- YAML
-added: v21.0.0
+added:
+  - v21.0.0
+  - v20.10.0
+  - v18.19.0
 -->
 
 > Stability: 1 - Experimental
 
 ```c
-napi_status node_api_post_finalizer(napi_env env,
+napi_status node_api_post_finalizer(node_api_basic_env env,
                                     napi_finalize finalize_cb,
                                     void* finalize_data,
                                     void* finalize_hint);
@@ -5528,7 +5644,7 @@ Once created the async worker can be queued
 for execution using the [`napi_queue_async_work`][] function:
 
 ```c
-napi_status napi_queue_async_work(napi_env env,
+napi_status napi_queue_async_work(node_api_basic_env env,
                                   napi_async_work work);
 ```
 
@@ -5620,7 +5736,7 @@ napiVersion: 1
 -->
 
 ```c
-napi_status napi_queue_async_work(napi_env env,
+napi_status napi_queue_async_work(node_api_basic_env env,
                                   napi_async_work work);
 ```
 
@@ -5641,7 +5757,7 @@ napiVersion: 1
 -->
 
 ```c
-napi_status napi_cancel_async_work(napi_env env,
+napi_status napi_cancel_async_work(node_api_basic_env env,
                                    napi_async_work work);
 ```
 
@@ -5845,7 +5961,7 @@ typedef struct {
   const char* release;
 } napi_node_version;
 
-napi_status napi_get_node_version(napi_env env,
+napi_status napi_get_node_version(node_api_basic_env env,
                                   const napi_node_version** version);
 ```
 
@@ -5868,7 +5984,7 @@ napiVersion: 1
 -->
 
 ```c
-napi_status napi_get_version(napi_env env,
+napi_status napi_get_version(node_api_basic_env env,
                              uint32_t* result);
 ```
 
@@ -5901,7 +6017,7 @@ napiVersion: 1
 -->
 
 ```c
-NAPI_EXTERN napi_status napi_adjust_external_memory(napi_env env,
+NAPI_EXTERN napi_status napi_adjust_external_memory(node_api_basic_env env,
                                                     int64_t change_in_bytes,
                                                     int64_t* result);
 ```
@@ -6118,12 +6234,18 @@ napiVersion: 2
 -->
 
 ```c
-NAPI_EXTERN napi_status napi_get_uv_event_loop(napi_env env,
+NAPI_EXTERN napi_status napi_get_uv_event_loop(node_api_basic_env env,
                                                struct uv_loop_s** loop);
 ```
 
 * `[in] env`: The environment that the API is invoked under.
 * `[out] loop`: The current libuv loop instance.
+
+Note: While libuv has been relatively stable over time, it does
+not provide an ABI stability guarantee. Use of this function should be avoided.
+Its use may result in an addon that does not work across Node.js versions.
+[asynchronous-thread-safe-function-calls](https://nodejs.org/docs/latest/api/n-api.html#asynchronous-thread-safe-function-calls)
+are an alternative for many use cases.
 
 ## Asynchronous thread-safe function calls
 
@@ -6432,7 +6554,7 @@ napiVersion: 4
 
 ```c
 NAPI_EXTERN napi_status
-napi_ref_threadsafe_function(napi_env env, napi_threadsafe_function func);
+napi_ref_threadsafe_function(node_api_basic_env env, napi_threadsafe_function func);
 ```
 
 * `[in] env`: The environment that the API is invoked under.
@@ -6458,7 +6580,7 @@ napiVersion: 4
 
 ```c
 NAPI_EXTERN napi_status
-napi_unref_threadsafe_function(napi_env env, napi_threadsafe_function func);
+napi_unref_threadsafe_function(node_api_basic_env env, napi_threadsafe_function func);
 ```
 
 * `[in] env`: The environment that the API is invoked under.
@@ -6484,7 +6606,7 @@ napiVersion: 9
 
 ```c
 NAPI_EXTERN napi_status
-node_api_get_module_file_name(napi_env env, const char** result);
+node_api_get_module_file_name(node_api_basic_env env, const char** result);
 
 ```
 
@@ -6548,6 +6670,7 @@ the add-on's file name during loading.
 [`Number.MIN_SAFE_INTEGER`]: https://tc39.github.io/ecma262/#sec-number.min_safe_integer
 [`Worker`]: worker_threads.md#class-worker
 [`async_hooks.executionAsyncResource()`]: async_hooks.md#async_hooksexecutionasyncresource
+[`build_with_cmake`]: https://github.com/nodejs/node-addon-examples/tree/main/src/8-tooling/build_with_cmake
 [`global`]: globals.md#global
 [`init` hooks]: async_hooks.md#initasyncid-type-triggerasyncid-resource
 [`napi_add_async_cleanup_hook`]: #napi_add_async_cleanup_hook
@@ -6608,9 +6731,11 @@ the add-on's file name during loading.
 [`napi_wrap`]: #napi_wrap
 [`node-addon-api`]: https://github.com/nodejs/node-addon-api
 [`node_api.h`]: https://github.com/nodejs/node/blob/HEAD/src/node_api.h
+[`node_api_basic_finalize`]: #node_api_basic_finalize
 [`node_api_create_external_string_latin1`]: #node_api_create_external_string_latin1
 [`node_api_create_external_string_utf16`]: #node_api_create_external_string_utf16
 [`node_api_create_syntax_error`]: #node_api_create_syntax_error
+[`node_api_post_finalizer`]: #node_api_post_finalizer
 [`node_api_throw_syntax_error`]: #node_api_throw_syntax_error
 [`process.release`]: process.md#processrelease
 [`uv_ref`]: https://docs.libuv.org/en/v1.x/handle.html#c.uv_ref

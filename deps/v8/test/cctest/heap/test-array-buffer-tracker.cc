@@ -156,7 +156,7 @@ TEST(ArrayBuffer_Compaction) {
   CHECK(IsTracked(heap, *buf1));
   heap::InvokeAtomicMajorGC(heap);
 
-  Page* page_before_gc = Page::FromHeapObject(*buf1);
+  PageMetadata* page_before_gc = PageMetadata::FromHeapObject(*buf1);
   heap::ForceEvacuationCandidate(page_before_gc);
   CHECK(IsTracked(heap, *buf1));
 
@@ -164,7 +164,7 @@ TEST(ArrayBuffer_Compaction) {
   DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
   heap::InvokeMajorGC(heap);
 
-  Page* page_after_gc = Page::FromHeapObject(*buf1);
+  PageMetadata* page_after_gc = PageMetadata::FromHeapObject(*buf1);
   CHECK(IsTracked(heap, *buf1));
 
   CHECK_NE(page_before_gc, page_after_gc);
@@ -290,7 +290,7 @@ TEST(ArrayBuffer_LivePromotion) {
     raw_ab = JSArrayBuffer::cast(root->get(0));
     root->set(0, ReadOnlyRoots(heap).undefined_value());
     // Prohibit page from being released.
-    Page::FromHeapObject(raw_ab)->MarkNeverEvacuate();
+    MemoryChunk::FromHeapObject(raw_ab)->MarkNeverEvacuate();
     heap::InvokeMajorGC(heap);
     CHECK(!heap->array_buffer_sweeper()->sweeping_in_progress());
     CHECK(IsTracked(heap, raw_ab));
@@ -319,7 +319,7 @@ TEST(ArrayBuffer_SemiSpaceCopyThenPagePromotion) {
       Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(isolate, 100);
       Handle<JSArrayBuffer> buf = v8::Utils::OpenHandle(*ab);
       root->set(0, *buf);  // Buffer that should be promoted as live.
-      Page::FromHeapObject(*buf)->MarkNeverEvacuate();
+      MemoryChunk::FromHeapObject(*buf)->MarkNeverEvacuate();
     }
     std::vector<Handle<FixedArray>> handles;
     // Make the whole page transition from new->old, getting the buffers
@@ -375,7 +375,7 @@ UNINITIALIZED_TEST(ArrayBuffer_SemiSpaceCopyMultipleTasks) {
   // Test allocates JSArrayBuffer on different pages before triggering a
   // full GC that performs the semispace copy. If parallelized, this test
   // ensures proper synchronization in TSAN configurations.
-  v8_flags.min_semi_space_size = std::max(2 * Page::kPageSize / MB, 1);
+  v8_flags.min_semi_space_size = std::max(2 * PageMetadata::kPageSize / MB, 1);
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
   v8::Isolate* isolate = v8::Isolate::New(create_params);
@@ -395,7 +395,8 @@ UNINITIALIZED_TEST(ArrayBuffer_SemiSpaceCopyMultipleTasks) {
     heap::FillCurrentPage(heap->new_space());
     Local<v8::ArrayBuffer> ab2 = v8::ArrayBuffer::New(isolate, 100);
     Handle<JSArrayBuffer> buf2 = v8::Utils::OpenHandle(*ab2);
-    CHECK_NE(Page::FromHeapObject(*buf1), Page::FromHeapObject(*buf2));
+    CHECK_NE(PageMetadata::FromHeapObject(*buf1),
+             PageMetadata::FromHeapObject(*buf2));
     heap::InvokeAtomicMajorGC(heap);
   }
   isolate->Dispose();
@@ -474,7 +475,7 @@ TEST(ArrayBuffer_ExternalBackingStoreSizeIncreasesMarkCompact) {
     CHECK(IsTracked(heap, *buf1));
     heap::InvokeAtomicMajorGC(heap);
 
-    Page* page_before_gc = Page::FromHeapObject(*buf1);
+    PageMetadata* page_before_gc = PageMetadata::FromHeapObject(*buf1);
     heap::ForceEvacuationCandidate(page_before_gc);
     CHECK(IsTracked(heap, *buf1));
 

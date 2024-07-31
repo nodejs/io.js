@@ -85,6 +85,11 @@ Node* MachineGraph::RelocatableIntPtrConstant(intptr_t value,
              : RelocatableInt32Constant(static_cast<int>(value), rmode);
 }
 
+Node* MachineGraph::RelocatableWasmBuiltinCallTarget(Builtin builtin) {
+  return RelocatableIntPtrConstant(static_cast<intptr_t>(builtin),
+                                   RelocInfo::WASM_STUB_CALL);
+}
+
 Node* MachineGraph::Float32Constant(float value) {
   Node** loc = cache_.FindFloat32Constant(value);
   if (*loc == nullptr) {

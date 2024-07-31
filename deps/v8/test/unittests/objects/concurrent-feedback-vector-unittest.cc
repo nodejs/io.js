@@ -207,7 +207,8 @@ TEST_F(ConcurrentFeedbackVectorTest, CheckLoadICStates) {
 
   // {dummy_handler} is just an arbitrary value to associate with a map in order
   // to fill in the feedback vector slots in a minimally acceptable way.
-  MaybeObjectHandle dummy_handler(Smi::FromInt(10), i_isolate());
+  MaybeObjectHandle dummy_handler(Tagged<Object>(Smi::FromInt(10)),
+                                  i_isolate());
   for (int i = 0; i < kCycles; i++) {
     if (all_states_seen.load(std::memory_order_acquire)) break;
 

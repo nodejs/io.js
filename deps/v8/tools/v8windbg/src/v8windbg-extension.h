@@ -22,11 +22,10 @@ class Extension {
       WRL::ComPtr<IDebugHostContext>& sp_ctx);
   WRL::ComPtr<IDebugHostType> GetTypeFromV8Module(
       WRL::ComPtr<IDebugHostContext>& sp_ctx, const char16_t* type_name);
-  WRL::ComPtr<IDebugHostType> GetV8ObjectType(
+  WRL::ComPtr<IDebugHostType> GetV8TaggedObjectType(
       WRL::ComPtr<IDebugHostContext>& sp_ctx);
   void TryRegisterType(WRL::ComPtr<IDebugHostType>& sp_type,
                        std::u16string type_name);
-  bool DoesTypeDeriveFromObject(const WRL::ComPtr<IDebugHostType>& sp_type);
   static Extension* Current() { return current_extension_.get(); }
   static void SetExtension(std::unique_ptr<Extension> new_extension) {
     current_extension_ = std::move(new_extension);

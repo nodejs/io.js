@@ -1,4 +1,4 @@
-const { relative } = require('path')
+const { relative } = require('node:path')
 
 const Arborist = require('@npmcli/arborist')
 const npa = require('npm-package-arg')
@@ -9,7 +9,7 @@ const tar = require('tar')
 
 // returns a simplified tarball when reading files from node_modules folder,
 // thus avoiding running the prepare scripts and the extra logic from packlist
-const nodeModulesTarball = (manifest, opts) =>
+const nodeModulesTarball = (manifest) =>
   pkgContents({ path: manifest._resolved, depth: 1 })
     .then(files =>
       files.map(file => relative(manifest._resolved, file))

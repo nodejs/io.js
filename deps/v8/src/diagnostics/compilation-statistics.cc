@@ -124,7 +124,7 @@ static void WriteLine(std::ostream& os, bool machine_format, const char* name,
     if (!stats.function_name_.empty()) {
       os << "  " << stats.function_name_.c_str();
     }
-    os << std::endl;
+    os << '\n';
   }
 }
 
@@ -183,7 +183,7 @@ std::ostream& operator<<(std::ostream& os, const AsPrintableStatistics& ps) {
     const auto& phase_kind_stats = phase_kind_it->second;
     WriteLine(os, ps.machine_output, phase_kind_name.c_str(), ps.compiler,
               phase_kind_stats, s.total_stats_);
-    os << std::endl;
+    os << '\n';
   }
 
   if (!ps.machine_output) WriteFullLine(os);
@@ -191,7 +191,7 @@ std::ostream& operator<<(std::ostream& os, const AsPrintableStatistics& ps) {
             s.total_stats_);
 
   if (ps.machine_output) {
-    os << std::endl;
+    os << '\n';
     os << "\"" << ps.compiler << "_totals_count\"=" << s.total_stats_.count_;
   }
   return os;

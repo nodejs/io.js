@@ -511,7 +511,6 @@ BasicTimeZone::getTimeZoneRulesAfter(UDate start, InitialTimeZoneRule*& initial,
     // Set the results
     initial = res_initial.orphan();
     transitionRules = filteredRules.orphan();
-    return;
 }
 
 void

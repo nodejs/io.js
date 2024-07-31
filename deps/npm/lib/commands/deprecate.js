@@ -1,10 +1,11 @@
 const fetch = require('npm-registry-fetch')
-const otplease = require('../utils/otplease.js')
+const { otplease } = require('../utils/auth.js')
 const npa = require('npm-package-arg')
+const { log } = require('proc-log')
 const semver = require('semver')
 const getIdentity = require('../utils/get-identity.js')
 const libaccess = require('libnpmaccess')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 
 class Deprecate extends BaseCommand {
   static description = 'Deprecate a version of a package'
@@ -66,6 +67,8 @@ class Deprecate extends BaseCommand {
         body: packument,
         ignoreBody: true,
       }))
+    } else {
+      log.warn('deprecate', 'No version found for', p.rawSpec)
     }
   }
 }

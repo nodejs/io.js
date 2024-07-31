@@ -55,7 +55,7 @@ namespace internal {
 
 class SafepointTableBuilder;
 
-enum Condition {
+enum Condition : int {
   overflow = 0,
   no_overflow = 1,
   below = 2,

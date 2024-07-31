@@ -107,16 +107,18 @@ void nghttp2_hd_huff_decode_context_init(nghttp2_hd_huff_decode_context *ctx) {
   ctx->fstate = NGHTTP2_HUFF_ACCEPTED;
 }
 
-ssize_t nghttp2_hd_huff_decode(nghttp2_hd_huff_decode_context *ctx,
-                               nghttp2_buf *buf, const uint8_t *src,
-                               size_t srclen, int final) {
+nghttp2_ssize nghttp2_hd_huff_decode(nghttp2_hd_huff_decode_context *ctx,
+                                     nghttp2_buf *buf, const uint8_t *src,
+                                     size_t srclen, int final) {
   const uint8_t *end = src + srclen;
   nghttp2_huff_decode node = {ctx->fstate, 0};
   const nghttp2_huff_decode *t = &node;
   uint8_t c;
 
   /* We use the decoding algorithm described in
-     http://graphics.ics.uci.edu/pub/Prefix.pdf */
+      - http://graphics.ics.uci.edu/pub/Prefix.pdf [!!! NO LONGER VALID !!!]
+      - https://ics.uci.edu/~dan/pubs/Prefix.pdf
+      - https://github.com/nghttp2/nghttp2/files/15141264/Prefix.pdf */
   for (; src != end;) {
     c = *src++;
     t = &huff_decode_table[t->fstate & 0x1ff][c >> 4];
@@ -136,7 +138,7 @@ ssize_t nghttp2_hd_huff_decode(nghttp2_hd_huff_decode_context *ctx,
     return NGHTTP2_ERR_HEADER_COMP;
   }
 
-  return (ssize_t)srclen;
+  return (nghttp2_ssize)srclen;
 }
 
 int nghttp2_hd_huff_decode_failure_state(nghttp2_hd_huff_decode_context *ctx) {

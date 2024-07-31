@@ -1,3 +1,4 @@
+// META: global=window,dedicatedworker,shadowrealm
 // META: title=Encoding API: USVString surrogate handling when encoding
 
 var bad = [

@@ -65,7 +65,7 @@ TransliterationRule::TransliterationRule(const UnicodeString& input,
                                          const TransliterationRuleData* theData,
                                          UErrorCode& status) :
     UMemory(),
-    segments(0),
+    segments(nullptr),
     data(theData) {
 
     if (U_FAILURE(status)) {
@@ -121,7 +121,7 @@ TransliterationRule::TransliterationRule(const UnicodeString& input,
         anteContext = new StringMatcher(pattern, 0, anteContextLength,
                                         false, *data);
         /* test for nullptr */
-        if (anteContext == 0) {
+        if (anteContext == nullptr) {
             status = U_MEMORY_ALLOCATION_ERROR;
             return;
         }
@@ -132,7 +132,7 @@ TransliterationRule::TransliterationRule(const UnicodeString& input,
         key = new StringMatcher(pattern, anteContextLength, anteContextLength + keyLength,
                                 false, *data);
         /* test for nullptr */
-        if (key == 0) {
+        if (key == nullptr) {
             status = U_MEMORY_ALLOCATION_ERROR;
             return;
         }
@@ -144,7 +144,7 @@ TransliterationRule::TransliterationRule(const UnicodeString& input,
         postContext = new StringMatcher(pattern, anteContextLength + keyLength, pattern.length(),
                                         false, *data);
         /* test for nullptr */
-        if (postContext == 0) {
+        if (postContext == nullptr) {
             status = U_MEMORY_ALLOCATION_ERROR;
             return;
         }
@@ -152,7 +152,7 @@ TransliterationRule::TransliterationRule(const UnicodeString& input,
 
     this->output = new StringReplacer(outputStr, cursorPosition + cursorOffset, data);
     /* test for nullptr */
-    if (this->output == 0) {
+    if (this->output == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
         return;
     }

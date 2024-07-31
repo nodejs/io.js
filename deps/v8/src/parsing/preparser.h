@@ -631,6 +631,9 @@ class PreParserFactory {
                                    int pos) {
     return PreParserExpression::Default();
   }
+  PreParserExpression NewConditionalChain(size_t initial_size, int pos) {
+    return PreParserExpression::Default();
+  }
   PreParserExpression NewConditional(const PreParserExpression& condition,
                                      const PreParserExpression& then_expression,
                                      const PreParserExpression& else_expression,
@@ -794,7 +797,7 @@ class PreParserFactory {
 
   PreParserExpression NewImportCallExpression(
       const PreParserExpression& specifier,
-      const PreParserExpression& import_assertions, int pos) {
+      const PreParserExpression& import_options, int pos) {
     return PreParserExpression::Default();
   }
 
@@ -1053,10 +1056,6 @@ class PreParser : public ParserBase<PreParser> {
       const PreParserScopedStatementList* body, PreParserStatement block,
       const PreParserExpression& return_value) {}
 
-  V8_INLINE PreParserExpression
-  RewriteReturn(const PreParserExpression& return_value, int pos) {
-    return return_value;
-  }
   V8_INLINE PreParserStatement
   RewriteSwitchStatement(PreParserStatement switch_statement, Scope* scope) {
     return PreParserStatement::Default();
@@ -1130,11 +1129,11 @@ class PreParser : public ParserBase<PreParser> {
   }
   V8_INLINE void ParseAndRewriteGeneratorFunctionBody(
       int pos, FunctionKind kind, PreParserScopedStatementList* body) {
-    ParseStatementList(body, Token::RBRACE);
+    ParseStatementList(body, Token::kRightBrace);
   }
   V8_INLINE void ParseAndRewriteAsyncGeneratorFunctionBody(
       int pos, FunctionKind kind, PreParserScopedStatementList* body) {
-    ParseStatementList(body, Token::RBRACE);
+    ParseStatementList(body, Token::kRightBrace);
   }
   V8_INLINE void DeclareFunctionNameVar(const AstRawString* function_name,
                                         FunctionSyntaxKind function_syntax_kind,
@@ -1167,7 +1166,7 @@ class PreParser : public ParserBase<PreParser> {
                                         &was_added, beg_pos, kind);
     if (kind == SLOPPY_BLOCK_FUNCTION_VARIABLE) {
       Token::Value init =
-          loop_nesting_depth() > 0 ? Token::ASSIGN : Token::INIT;
+          loop_nesting_depth() > 0 ? Token::kAssign : Token::kInit;
       SloppyBlockFunctionStatement* statement =
           factory()->ast_node_factory()->NewSloppyBlockFunctionStatement(
               end_pos, var, init);
@@ -1373,6 +1372,18 @@ class PreParser : public ParserBase<PreParser> {
     return false;
   }
 
+  V8_INLINE bool CollapseConditionalChain(PreParserExpression* x,
+                                          PreParserExpression cond,
+                                          PreParserExpression then_expression,
+                                          PreParserExpression else_expression,
+                                          int pos,
+                                          const SourceRange& then_range) {
+    return false;
+  }
+
+  V8_INLINE void AppendConditionalChainElse(PreParserExpression* x,
+                                            const SourceRange& else_range) {}
+
   V8_INLINE NaryOperation* CollapseNaryExpression(PreParserExpression* x,
                                                   PreParserExpression y,
                                                   Token::Value op, int pos,
@@ -1536,8 +1547,7 @@ class PreParser : public ParserBase<PreParser> {
     return PreParserExpression::This();
   }
 
-  V8_INLINE PreParserExpression
-  NewSuperPropertyReference(Scope* home_object_scope, int pos) {
+  V8_INLINE PreParserExpression NewSuperPropertyReference(int pos) {
     return PreParserExpression::Default();
   }
 
@@ -1561,7 +1571,7 @@ class PreParser : public ParserBase<PreParser> {
 
   V8_INLINE PreParserExpression ExpressionFromLiteral(Token::Value token,
                                                       int pos) {
-    if (token != Token::STRING) return PreParserExpression::Default();
+    if (token != Token::kString) return PreParserExpression::Default();
     return PreParserExpression::StringLiteral();
   }
 

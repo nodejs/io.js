@@ -67,7 +67,8 @@ class JSRegExp : public TorqueGeneratedJSRegExp<JSRegExp, JSObject> {
   inline Type type_tag() const;
   inline Tagged<String> atom_pattern() const;
   // This could be a Smi kUninitializedValue or InstructionStream.
-  V8_EXPORT_PRIVATE Tagged<Object> code(bool is_latin1) const;
+  V8_EXPORT_PRIVATE Tagged<Object> code(IsolateForSandbox isolate,
+                                        bool is_latin1) const;
   V8_EXPORT_PRIVATE void set_code(bool is_unicode, Handle<Code> code);
   // This could be a Smi kUninitializedValue or ByteArray.
   V8_EXPORT_PRIVATE Tagged<Object> bytecode(bool is_latin1) const;
@@ -141,6 +142,11 @@ class JSRegExp : public TorqueGeneratedJSRegExp<JSRegExp, JSObject> {
   // Each capture (including the match itself) needs two registers.
   static constexpr int RegistersForCaptureCount(int count) {
     return (count + 1) * 2;
+  }
+  static constexpr int CaptureCountForRegisters(int register_count) {
+    DCHECK_EQ(register_count % 2, 0);
+    DCHECK_GE(register_count, 2);
+    return (register_count - 2) / 2;
   }
 
   static constexpr int code_index(bool is_latin1) {

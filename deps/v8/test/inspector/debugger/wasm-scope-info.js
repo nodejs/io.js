@@ -65,7 +65,7 @@ async function printPauseLocationsAndContinue(msg) {
 async function instantiateWasm() {
   var builder = new WasmModuleBuilder();
   // Add a global, memory and exports to populate the module scope.
-  builder.addGlobal(kWasmI32, true).exportAs('exported_global');
+  builder.addGlobal(kWasmI32, true, false).exportAs('exported_global');
   builder.addMemory(1, 1);
   builder.exportMemoryAs('exported_memory');
   builder.addTable(kWasmAnyFunc, 3).exportAs('exported_table');

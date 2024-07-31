@@ -22,8 +22,10 @@
 #include "unicode/ustring.h"
 #include "unicode/strenum.h"
 #include "unicode/localpointer.h"
+#include "charstr.h"
 #include "cmemory.h"
 #include "cstring.h"
+#include "iso8601cal.h"
 #include "ustrenum.h"
 #include "uenumimp.h"
 #include "ulist.h"
@@ -166,21 +168,15 @@ ucal_open(  const char16_t*  zoneID,
   }
 
   if ( caltype == UCAL_GREGORIAN ) {
-      char localeBuf[ULOC_LOCALE_IDENTIFIER_CAPACITY];
       if ( locale == nullptr ) {
           locale = uloc_getDefault();
       }
-      int32_t localeLength = static_cast<int32_t>(uprv_strlen(locale));
-      if (localeLength >= ULOC_LOCALE_IDENTIFIER_CAPACITY) {
-          *status = U_ILLEGAL_ARGUMENT_ERROR;
-          return nullptr;
-      }
-      uprv_strcpy(localeBuf, locale);
-      uloc_setKeywordValue("calendar", "gregorian", localeBuf, ULOC_LOCALE_IDENTIFIER_CAPACITY, status);
+      CharString localeBuf(locale, *status);
+      ulocimp_setKeywordValue("calendar", "gregorian", localeBuf, *status);
       if (U_FAILURE(*status)) {
           return nullptr;
       }
-      return (UCalendar*)Calendar::createInstance(zone.orphan(), Locale(localeBuf), *status);
+      return (UCalendar*)Calendar::createInstance(zone.orphan(), Locale(localeBuf.data()), *status);
   }
   return (UCalendar*)Calendar::createInstance(zone.orphan(), Locale(locale), *status);
 }
@@ -197,13 +193,13 @@ U_CAPI UCalendar* U_EXPORT2
 ucal_clone(const UCalendar* cal,
            UErrorCode*      status)
 {
-  if(U_FAILURE(*status)) return 0;
-  
+  if (U_FAILURE(*status)) return nullptr;
+
   Calendar* res = ((Calendar*)cal)->clone();
 
-  if(res == 0) {
+  if (res == nullptr) {
     *status = U_MEMORY_ALLOCATION_ERROR;
-    return 0;
+    return nullptr;
   }
 
   return (UCalendar*) res;
@@ -307,7 +303,8 @@ ucal_setGregorianChange(UCalendar *cal, UDate date, UErrorCode *pErrorCode) {
         *pErrorCode = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }
-    if(typeid(*cpp_cal) != typeid(GregorianCalendar)) {
+    if(typeid(*cpp_cal) != typeid(GregorianCalendar) &&
+       typeid(*cpp_cal) != typeid(ISO8601Calendar)) {
         *pErrorCode = U_UNSUPPORTED_ERROR;
         return;
     }
@@ -329,7 +326,8 @@ ucal_getGregorianChange(const UCalendar *cal, UErrorCode *pErrorCode) {
         *pErrorCode = U_ILLEGAL_ARGUMENT_ERROR;
         return (UDate)0;
     }
-    if(typeid(*cpp_cal) != typeid(GregorianCalendar)) {
+    if(typeid(*cpp_cal) != typeid(GregorianCalendar) &&
+       typeid(*cpp_cal) != typeid(ISO8601Calendar)) {
         *pErrorCode = U_UNSUPPORTED_ERROR;
         return (UDate)0;
     }
@@ -546,7 +544,7 @@ ucal_getLimit(    const    UCalendar*              cal,
               UCalendarDateFields     field,
               UCalendarLimitType      type,
               UErrorCode        *status) UPRV_NO_SANITIZE_UNDEFINED {
-    if(status==0 || U_FAILURE(*status)) {
+    if (status == nullptr || U_FAILURE(*status)) {
         return -1;
     }
     if (field < 0 || UCAL_FIELD_COUNT <= field) {
@@ -602,13 +600,13 @@ ucal_getTZDataVersion(UErrorCode* status)
 U_CAPI int32_t U_EXPORT2
 ucal_getCanonicalTimeZoneID(const char16_t* id, int32_t len,
                             char16_t* result, int32_t resultCapacity, UBool *isSystemID, UErrorCode* status) {
-    if(status == 0 || U_FAILURE(*status)) {
+    if (status == nullptr || U_FAILURE(*status)) {
         return 0;
     }
     if (isSystemID) {
         *isSystemID = false;
     }
-    if (id == 0 || len == 0 || result == 0 || resultCapacity <= 0) {
+    if (id == nullptr || len == 0 || result == nullptr || resultCapacity <= 0) {
         *status = U_ILLEGAL_ARGUMENT_ERROR;
         return 0;
     }
@@ -624,6 +622,16 @@ ucal_getCanonicalTimeZoneID(const char16_t* id, int32_t len,
     }
     return reslen;
 }
+
+U_DRAFT int32_t U_EXPORT2
+ucal_getIanaTimeZoneID(const char16_t* id, int32_t len,
+                        char16_t* result, int32_t resultCapacity, UErrorCode* status)
+{
+    UnicodeString ianaID;
+    TimeZone::getIanaID(UnicodeString(id, len), ianaID, *status);
+    return ianaID.extract(result, resultCapacity, *status);
+}
+
 
 U_CAPI const char * U_EXPORT2
 ucal_getType(const UCalendar *cal, UErrorCode* status)
@@ -708,13 +716,12 @@ static const char * const CAL_TYPES[] = {
 U_CAPI UEnumeration* U_EXPORT2
 ucal_getKeywordValuesForLocale(const char * /* key */, const char* locale, UBool commonlyUsed, UErrorCode *status) {
     // Resolve region
-    char prefRegion[ULOC_COUNTRY_CAPACITY];
-    (void)ulocimp_getRegionForSupplementalData(locale, true, prefRegion, sizeof(prefRegion), status);
-    
+    CharString prefRegion = ulocimp_getRegionForSupplementalData(locale, true, *status);
+
     // Read preferred calendar values from supplementalData calendarPreference
     UResourceBundle *rb = ures_openDirect(nullptr, "supplementalData", status);
     ures_getByKey(rb, "calendarPreferenceData", rb, status);
-    UResourceBundle *order = ures_getByKey(rb, prefRegion, nullptr, status);
+    UResourceBundle *order = ures_getByKey(rb, prefRegion.data(), nullptr, status);
     if (*status == U_MISSING_RESOURCE_ERROR && rb != nullptr) {
         *status = U_ZERO_ERROR;
         order = ures_getByKey(rb, "001", nullptr, status);

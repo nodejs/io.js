@@ -5,6 +5,8 @@
 #ifndef V8_OBJECTS_NAME_H_
 #define V8_OBJECTS_NAME_H_
 
+#include <atomic>
+
 #include "src/base/bit-field.h"
 #include "src/objects/objects.h"
 #include "src/objects/primitive-heap-object.h"
@@ -16,13 +18,15 @@
 namespace v8 {
 namespace internal {
 
-#include "torque-generated/src/objects/name-tq.inc"
+namespace compiler {
+class WasmGraphBuilder;
+}
 
 class SharedStringAccessGuardIfNeeded;
 
 // The Name abstract class captures anything that can be used as a property
 // name, i.e., strings and symbols.  All names store a hash value.
-class Name : public TorqueGeneratedName<Name, PrimitiveHeapObject> {
+V8_OBJECT class Name : public PrimitiveHeapObject {
  public:
   // Tells whether the hash code has been computed.
   // Note: Use TryGetHash() whenever you want to use the hash, instead of a
@@ -35,19 +39,19 @@ class Name : public TorqueGeneratedName<Name, PrimitiveHeapObject> {
   inline bool HasExternalForwardingIndex(AcquireLoadTag) const;
 
   inline uint32_t raw_hash_field() const {
-    return RELAXED_READ_UINT32_FIELD(*this, kRawHashFieldOffset);
+    return raw_hash_field_.load(std::memory_order_relaxed);
   }
 
   inline uint32_t raw_hash_field(AcquireLoadTag) const {
-    return ACQUIRE_READ_UINT32_FIELD(*this, kRawHashFieldOffset);
+    return raw_hash_field_.load(std::memory_order_acquire);
   }
 
   inline void set_raw_hash_field(uint32_t hash) {
-    RELAXED_WRITE_UINT32_FIELD(*this, kRawHashFieldOffset, hash);
+    raw_hash_field_.store(hash, std::memory_order_relaxed);
   }
 
   inline void set_raw_hash_field(uint32_t hash, ReleaseStoreTag) {
-    RELEASE_WRITE_UINT32_FIELD(*this, kRawHashFieldOffset, hash);
+    raw_hash_field_.store(hash, std::memory_order_release);
   }
 
   // Sets the hash field only if it is empty. Otherwise does nothing.
@@ -78,15 +82,15 @@ class Name : public TorqueGeneratedName<Name, PrimitiveHeapObject> {
   inline bool IsInteresting(Isolate* isolate);
 
   // If the name is private, it can only name own properties.
-  DECL_GETTER(IsPrivate, bool)
+  inline bool IsPrivate();
 
   // If the name is a private name, it should behave like a private
   // symbol but also throw on property access miss.
-  DECL_GETTER(IsPrivateName, bool)
+  inline bool IsPrivateName();
 
   // If the name is a private brand, it should behave like a private name
   // symbol but is filtered out when generating list of private fields.
-  DECL_GETTER(IsPrivateBrand, bool)
+  inline bool IsPrivateBrand();
 
   static inline bool ContainsCachedArrayIndex(uint32_t hash);
 
@@ -97,6 +101,8 @@ class Name : public TorqueGeneratedName<Name, PrimitiveHeapObject> {
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> ToFunctionName(
       Isolate* isolate, Handle<Name> name, Handle<String> prefix);
 
+  DECL_CAST(Name)
+  DECL_VERIFIER(Name)
   DECL_PRINTER(Name)
   void NameShortPrint();
   int NameShortPrint(base::Vector<char> str);
@@ -177,6 +183,14 @@ class Name : public TorqueGeneratedName<Name, PrimitiveHeapObject> {
        << ArrayIndexLengthBits::kShift) |
       HashFieldTypeBits::kMask;
 
+  // When any of these bits is set then the hash field does not contain an
+  // integer or forwarding index.
+  static const unsigned int kDoesNotContainIntegerOrForwardingIndexMask = 0b10;
+  static_assert((HashFieldTypeBits::encode(HashFieldType::kIntegerIndex) &
+                 kDoesNotContainIntegerOrForwardingIndexMask) == 0);
+  static_assert((HashFieldTypeBits::encode(HashFieldType::kForwardingIndex) &
+                 kDoesNotContainIntegerOrForwardingIndexMask) == 0);
+
   // Returns a hash value used for the property table. Ensures that the hash
   // value is computed.
   //
@@ -202,39 +216,60 @@ class Name : public TorqueGeneratedName<Name, PrimitiveHeapObject> {
   static inline uint32_t CreateInternalizedForwardingIndex(uint32_t index);
   static inline uint32_t CreateExternalForwardingIndex(uint32_t index);
 
-  TQ_OBJECT_CONSTRUCTORS(Name)
-
  private:
+  friend class V8HeapExplorer;
+  friend class CodeStubAssembler;
+  friend class StringBuiltinsAssembler;
+  friend class maglev::MaglevAssembler;
+  friend class compiler::AccessBuilder;
+  friend class compiler::WasmGraphBuilder;
+  friend class TorqueGeneratedNameAsserts;
+
   inline uint32_t GetRawHashFromForwardingTable(uint32_t raw_hash) const;
-};
+
+  std::atomic_uint32_t raw_hash_field_;
+} V8_OBJECT_END;
 
 inline bool IsUniqueName(Tagged<Name> obj);
 inline bool IsUniqueName(Tagged<Name> obj, PtrComprCageBase cage_base);
 
 // ES6 symbols.
-class Symbol : public TorqueGeneratedSymbol<Symbol, Name> {
+V8_OBJECT class Symbol : public Name {
  public:
-  DEFINE_TORQUE_GENERATED_SYMBOL_FLAGS()
+  using IsPrivateBit = base::BitField<bool, 0, 1>;
+  using IsWellKnownSymbolBit = IsPrivateBit::Next<bool, 1>;
+  using IsInPublicSymbolTableBit = IsWellKnownSymbolBit::Next<bool, 1>;
+  using IsInterestingSymbolBit = IsInPublicSymbolTableBit::Next<bool, 1>;
+  using IsPrivateNameBit = IsInterestingSymbolBit::Next<bool, 1>;
+  using IsPrivateBrandBit = IsPrivateNameBit::Next<bool, 1>;
+
+  inline Tagged<PrimitiveHeapObject> description() const;
+  inline void set_description(Tagged<PrimitiveHeapObject> value,
+                              WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   // [is_private]: Whether this is a private symbol.  Private symbols can only
   // be used to designate own properties of objects.
-  DECL_BOOLEAN_ACCESSORS(is_private)
+  inline bool is_private() const;
+  inline void set_is_private(bool value);
 
   // [is_well_known_symbol]: Whether this is a spec-defined well-known symbol,
   // or not. Well-known symbols do not throw when an access check fails during
   // a load.
-  DECL_BOOLEAN_ACCESSORS(is_well_known_symbol)
+  inline bool is_well_known_symbol() const;
+  inline void set_is_well_known_symbol(bool value);
 
   // [is_interesting_symbol]: Whether this is an "interesting symbol", which
   // is a well-known symbol like @@toStringTag that's often looked up on
   // random objects but is usually not present. See Name::IsInterestingSymbol()
   // for a detailed description.
-  DECL_BOOLEAN_ACCESSORS(is_interesting_symbol)
+  inline bool is_interesting_symbol() const;
+  inline void set_is_interesting_symbol(bool value);
 
   // [is_in_public_symbol_table]: Whether this is a symbol created by
   // Symbol.for. Calling Symbol.keyFor on such a symbol simply needs
   // to return the attached name.
-  DECL_BOOLEAN_ACCESSORS(is_in_public_symbol_table)
+  inline bool is_in_public_symbol_table() const;
+  inline void set_is_in_public_symbol_table(bool value);
 
   // [is_private_name]: Whether this is a private name.  Private names
   // are the same as private symbols except they throw on missing
@@ -252,21 +287,41 @@ class Symbol : public TorqueGeneratedSymbol<Symbol, Name> {
   inline bool is_private_brand() const;
   inline void set_is_private_brand();
 
+  DECL_CAST(Symbol)
+
   // Dispatched behavior.
   DECL_PRINTER(Symbol)
   DECL_VERIFIER(Symbol)
 
-  using BodyDescriptor = FixedBodyDescriptor<kDescriptionOffset, kSize, kSize>;
-
   void SymbolShortPrint(std::ostream& os);
 
  private:
-  const char* PrivateSymbolToName() const;
+  friend class Factory;
+  friend struct ObjectTraits<Symbol>;
+  friend struct OffsetsForDebug;
+  friend class V8HeapExplorer;
+  friend class CodeStubAssembler;
+  friend class maglev::MaglevAssembler;
+  friend class TorqueGeneratedSymbolAsserts;
 
   // TODO(cbruni): remove once the new maptracer is in place.
   friend class Name;  // For PrivateSymbolToName.
 
-  TQ_OBJECT_CONSTRUCTORS(Symbol)
+  uint32_t flags() const { return flags_; }
+  void set_flags(uint32_t value) { flags_ = value; }
+
+  const char* PrivateSymbolToName() const;
+
+  uint32_t flags_;
+  // String|Undefined
+  // TODO(leszeks): Introduce a union type for this.
+  TaggedMember<PrimitiveHeapObject> description_;
+} V8_OBJECT_END;
+
+template <>
+struct ObjectTraits<Symbol> {
+  using BodyDescriptor = FixedBodyDescriptor<offsetof(Symbol, description_),
+                                             sizeof(Symbol), sizeof(Symbol)>;
 };
 
 }  // namespace internal

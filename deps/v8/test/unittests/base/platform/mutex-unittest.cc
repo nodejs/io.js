@@ -277,7 +277,7 @@ TEST(Mutex, SharedMutexThreadsFuzz) {
     workers[i] = new SharedMutexTestWorker(mutex, reader_count, writer_count);
   }
 
-  base::RandomNumberGenerator rand_gen(::testing::FLAGS_gtest_random_seed);
+  base::RandomNumberGenerator rand_gen(GTEST_FLAG_GET(random_seed));
   for (int i = 0; i < kActionPerWorker; i++) {
     for (int j = 0; j < kThreadCount; j++) {
       if (rand_gen.NextInt() % kReadToWriteRatio == 0) {

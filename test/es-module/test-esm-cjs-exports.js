@@ -7,7 +7,7 @@ const { execPath } = require('node:process');
 const { describe, it } = require('node:test');
 
 
-describe('ESM: importing CJS', { concurrency: true }, () => {
+describe('ESM: importing CJS', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should support valid CJS exports', async () => {
     const validEntry = fixtures.path('/es-modules/cjs-exports.mjs');
     const { code, signal, stdout } = await spawnPromisified(execPath, [validEntry]);
@@ -21,9 +21,8 @@ describe('ESM: importing CJS', { concurrency: true }, () => {
     const invalidEntry = fixtures.path('/es-modules/cjs-exports-invalid.mjs');
     const { code, signal, stderr } = await spawnPromisified(execPath, [invalidEntry]);
 
+    assert.match(stderr, /SyntaxError: The requested module '\.\/invalid-cjs\.js' does not provide an export named 'default'/);
     assert.strictEqual(code, 1);
     assert.strictEqual(signal, null);
-    assert.ok(stderr.includes('Warning: To load an ES module'));
-    assert.ok(stderr.includes('Unexpected token \'export\''));
   });
 });

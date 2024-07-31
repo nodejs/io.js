@@ -7,6 +7,12 @@ doing so can be significantly quicker than using `make`. Please see
 [Ninja][] is supported in the Makefile. Run `./configure --ninja` to configure
 the project to run the regular `make` commands with Ninja.
 
+When modifying only the JS layer in `lib`, you can use:
+
+```bash
+./configure --ninja --node-builtin-modules-path "$(pwd)"
+```
+
 For example, `make` will execute `ninja -C out/Release` internally
 to produce a compiled release binary, It will also execute
 `ln -fs out/Release/node node`, so that you can execute `./node` at
@@ -31,6 +37,10 @@ which is equivalent to the `-j` parameter in the regular `make`:
 make -j4 # With this flag, Ninja will limit itself to 4 parallel jobs,
          # regardless of the number of cores on the current machine.
 ```
+
+Note: if you are on macOS and use GNU Make version `3.x`, the `-jn` flag
+will not work. You can either upgrade to `v4.x` (e.g. using a package manager
+such as [Homebrew](https://formulae.brew.sh/formula/make#default)) or use `make JOBS=n`.
 
 ## Producing a debug build
 

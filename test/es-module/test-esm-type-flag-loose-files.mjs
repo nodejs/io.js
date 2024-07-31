@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 import { strictEqual } from 'node:assert';
 
 describe('the type flag should change the interpretation of certain files outside of any package scope',
-         { concurrency: true }, () => {
+         { concurrency: !process.env.TEST_PARALLEL }, () => {
            it('should run as ESM a .js file that is outside of any package scope', async () => {
              const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
                '--experimental-default-type=module',

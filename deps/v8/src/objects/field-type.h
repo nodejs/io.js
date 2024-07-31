@@ -5,14 +5,15 @@
 #ifndef V8_OBJECTS_FIELD_TYPE_H_
 #define V8_OBJECTS_FIELD_TYPE_H_
 
-#include "src/objects/heap-object.h"
-#include "src/objects/map.h"
-#include "src/objects/objects.h"
+#include "src/handles/handles.h"
+#include "src/objects/tagged.h"
 
 namespace v8 {
 namespace internal {
 
-class FieldType : public Object {
+class FieldType;
+
+class FieldType : public AllStatic {
  public:
   static Tagged<FieldType> None();
   static Tagged<FieldType> Any();
@@ -26,25 +27,22 @@ class FieldType : public Object {
     return Tagged<FieldType>(object.ptr());
   }
 
-  bool NowContains(Tagged<Object> value) const;
+  static bool NowContains(Tagged<FieldType> type, Tagged<Object> value);
 
-  bool NowContains(Handle<Object> value) const { return NowContains(*value); }
-
-  Tagged<Map> AsClass() const;
-  bool NowStable() const;
-  bool NowIs(Tagged<FieldType> other) const;
-  bool NowIs(Handle<FieldType> other) const;
-
-  V8_EXPORT_PRIVATE bool Equals(Tagged<FieldType> other) const;
-  V8_EXPORT_PRIVATE void PrintTo(std::ostream& os) const;
-
- private:
-  friend class Tagged<FieldType>;
-
-  explicit constexpr FieldType(Address ptr) : Object(ptr) {
-    // TODO(leszeks): Typecheck that this is Map or Smi.
+  static bool NowContains(Tagged<FieldType> type, Handle<Object> value) {
+    return NowContains(type, *value);
   }
-  explicit constexpr FieldType(Address ptr, SkipTypeCheckTag) : Object(ptr) {}
+
+  static Tagged<Map> AsClass(Tagged<FieldType> type);
+  static Handle<Map> AsClass(Handle<FieldType> type);
+  static bool NowStable(Tagged<FieldType> type);
+  static bool NowIs(Tagged<FieldType> type, Tagged<FieldType> other);
+  static bool NowIs(Tagged<FieldType> type, Handle<FieldType> other);
+
+  V8_EXPORT_PRIVATE static bool Equals(Tagged<FieldType> type,
+                                       Tagged<FieldType> other);
+  V8_EXPORT_PRIVATE static void PrintTo(Tagged<FieldType> type,
+                                        std::ostream& os);
 };
 
 bool IsClass(Tagged<FieldType> obj);

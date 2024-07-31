@@ -1,18 +1,5 @@
 .\"
 .\" Copyright 1998 by the Massachusetts Institute of Technology.
-.\"
-.\" Permission to use, copy, modify, and distribute this
-.\" software and its documentation for any purpose and without
-.\" fee is hereby granted, provided that the above copyright
-.\" notice appear in all copies and that both that copyright
-.\" notice and this permission notice appear in supporting
-.\" documentation, and that the name of M.I.T. not be used in
-.\" advertising or publicity pertaining to distribution of the
-.\" software without specific, written prior permission.
-.\" M.I.T. makes no representations about the suitability of
-.\" this software for any purpose.  It is provided "as is"
-.\" without express or implied warranty.
-.\"
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_SEARCH 3 "24 July 1998"
@@ -22,13 +9,23 @@ ares_search \- Initiate a DNS query with domain search
 .nf
 #include <ares.h>
 
+typedef void (*ares_callback_dnsrec)(void *\fIarg\fP,
+                                     ares_status_t \fIstatus\fP,
+                                     size_t \fItimeouts\fP,
+                                     const ares_dns_record_t *\fIdnsrec\fP);
+
+void ares_search_dnsrec(ares_channel_t *\fIchannel\fP,
+                        const ares_dns_record_t *\fIdnsrec\fP,
+                        ares_callback_dnsrec \fIcallback\fP, void *\fIarg\fP);
+
 typedef void (*ares_callback)(void *\fIarg\fP, int \fIstatus\fP,
                               int \fItimeouts\fP, unsigned char *\fIabuf\fP,
-                              int \fIalen\fP)
+                              int \fIalen\fP);
 
-void ares_search(ares_channel \fIchannel\fP, const char *\fIname\fP,
+void ares_search(ares_channel_t *\fIchannel\fP, const char *\fIname\fP,
                  int \fIdnsclass\fP, int \fItype\fP,
-                 ares_callback \fIcallback\fP, void *\fIarg\fP)
+                 ares_callback \fIcallback\fP, void *\fIarg\fP);
+
 .fi
 .SH DESCRIPTION
 The
@@ -56,6 +53,12 @@ may happen during a later call to
 .BR ares_process (3)
 or
 .BR ares_destroy (3).
+.PP
+If this is called from a thread other than which the main program event loop is
+running, care needs to be taken to ensure any file descriptor lists are updated
+immediately within the eventloop.  When the associated callback is called,
+it is called with a channel lock so care must be taken to ensure any processing
+is minimal to prevent DNS channel stalls.
 .PP
 The callback argument
 .I arg
@@ -129,6 +132,9 @@ The query was cancelled.
 The name service channel
 .I channel
 is being destroyed; the query will not be completed.
+.TP 19
+.B ARES_ENOSERVER
+No query completed successfully; no DNS servers were configured on the channel.
 .PP
 The callback argument
 .I timeouts
@@ -146,9 +152,30 @@ will usually be NULL and
 will usually be 0, but in some cases an unsuccessful query result may
 be placed in
 .IR abuf .
+
+The \fIares_search_dnsrec(3)\fP function behaves identically to
+\fIares_search(3)\fP, but takes an initialized and filled DNS record object to
+use for queries as the second argument
+.I dnsrec
+instead of a name, class and type.  This object is used as the base for the
+queries and must itself represent a valid query for a single name.  Note that
+the search domains will only be appended to the name in the question section;
+RRs on the DNS record object will not be affected.  Moreover, the
+.I callback
+argument is of type \fIares_callback_dnsrec\fP.  This callback behaves
+identically to \fIares_callback\fP, but is invoked with a parsed DNS record
+object
+.I dnsrec
+rather than a raw buffer with length.  Note that this object is read-only.
+
+The \fIares_search_dnsrec(3)\fP function returns an \fIares_status_t\fP response
+code.  This may be useful to know that the query was enqueued properly.  The
+response code does not reflect the result of the query, just the result of the
+enqueuing of the query.
+
+.SH AVAILABILITY
+\fBares_search_dnsrec(3)\fP was introduced in c-ares 1.28.0.
+
 .SH SEE ALSO
-.BR ares_process (3)
-.SH AUTHOR
-Greg Hudson, MIT Information Systems
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.
+.BR ares_process (3),
+.BR ares_dns_record (3)

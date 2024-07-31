@@ -19,5 +19,18 @@
   },
   "buffered-flag.any.js": {
     "skip": "Browser-specific test"
+  },
+  "idlharness.any.js": {
+    "fail": {
+      "expected": [
+        "PerformanceResourceTiming interface: attribute firstInterimResponseStart",
+        "PerformanceResourceTiming interface: attribute renderBlockingStatus",
+        "PerformanceResourceTiming interface: attribute contentType",
+        "PerformanceResourceTiming interface: resource must inherit property \"firstInterimResponseStart\" with the proper type",
+        "PerformanceResourceTiming interface: resource must inherit property \"renderBlockingStatus\" with the proper type",
+        "PerformanceResourceTiming interface: resource must inherit property \"contentType\" with the proper type",
+        "PerformanceResourceTiming interface: default toJSON operation on resource"
+      ]
+    }
   }
 }

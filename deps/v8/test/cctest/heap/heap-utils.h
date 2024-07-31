@@ -32,7 +32,7 @@ void FillCurrentPage(v8::internal::NewSpace* space,
                      std::vector<Handle<FixedArray>>* out_handles = nullptr);
 
 void FillCurrentPageButNBytes(
-    v8::internal::NewSpace* space, int extra_bytes,
+    v8::internal::SemiSpaceNewSpace* space, int extra_bytes,
     std::vector<Handle<FixedArray>>* out_handles = nullptr);
 
 // Helper function that simulates many incremental marking steps until
@@ -54,7 +54,7 @@ void CollectSharedGarbage(Heap* heap);
 
 void EmptyNewSpaceUsingGC(Heap* heap);
 
-void ForceEvacuationCandidate(Page* page);
+void ForceEvacuationCandidate(PageMetadata* page);
 
 void GrowNewSpace(Heap* heap);
 
@@ -64,7 +64,7 @@ template <typename GlobalOrPersistent>
 bool InYoungGeneration(v8::Isolate* isolate, const GlobalOrPersistent& global) {
   v8::HandleScope scope(isolate);
   auto tmp = global.Get(isolate);
-  return i::Heap::InYoungGeneration(*v8::Utils::OpenHandle(*tmp));
+  return i::Heap::InYoungGeneration(*v8::Utils::OpenDirectHandle(*tmp));
 }
 
 bool InCorrectGeneration(Tagged<HeapObject> object);
@@ -74,7 +74,7 @@ bool InCorrectGeneration(v8::Isolate* isolate,
                          const GlobalOrPersistent& global) {
   v8::HandleScope scope(isolate);
   auto tmp = global.Get(isolate);
-  return InCorrectGeneration(*v8::Utils::OpenHandle(*tmp));
+  return InCorrectGeneration(*v8::Utils::OpenDirectHandle(*tmp));
 }
 
 class ManualEvacuationCandidatesSelectionScope {

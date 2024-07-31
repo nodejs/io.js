@@ -12,12 +12,14 @@
 #include "include/v8-object.h"
 #include "src/flags/flags.h"
 #include "src/handles/handles-inl.h"
+#include "src/heap/gc-tracer-inl.h"
 #include "src/heap/gc-tracer.h"
 #include "src/heap/marking-state-inl.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page.h"
 #include "src/heap/remembered-set.h"
 #include "src/heap/safepoint.h"
 #include "src/heap/spaces-inl.h"
+#include "src/heap/trusted-range.h"
 #include "src/objects/objects-inl.h"
 #include "test/unittests/heap/heap-utils.h"
 #include "test/unittests/test-utils.h"
@@ -192,21 +194,29 @@ TEST_F(HeapTest, HeapLayout) {
     EXPECT_TRUE(IsAligned(code_cage_base, size_t{4} * GB));
   }
 
+#if V8_ENABLE_SANDBOX
+  Address trusted_space_base =
+      TrustedRange::GetProcessWideTrustedRange()->base();
+  EXPECT_TRUE(IsAligned(trusted_space_base, size_t{4} * GB));
+  base::AddressRegion trusted_reservation(trusted_space_base, size_t{4} * GB);
+#endif
+
   // Check that all memory chunks belong this region.
   base::AddressRegion heap_reservation(cage_base, size_t{4} * GB);
   base::AddressRegion code_reservation(code_cage_base, size_t{4} * GB);
 
   IsolateSafepointScope scope(i_isolate()->heap());
   OldGenerationMemoryChunkIterator iter(i_isolate()->heap());
-  for (;;) {
-    MemoryChunk* chunk = iter.next();
-    if (chunk == nullptr) break;
-
-    Address address = chunk->address();
+  while (MutablePageMetadata* chunk = iter.next()) {
+    Address address = chunk->ChunkAddress();
     size_t size = chunk->area_end() - address;
     AllocationSpace owner_id = chunk->owner_identity();
     if (V8_EXTERNAL_CODE_SPACE_BOOL && IsAnyCodeSpace(owner_id)) {
       EXPECT_TRUE(code_reservation.contains(address, size));
+#if V8_ENABLE_SANDBOX
+    } else if (IsAnyTrustedSpace(owner_id)) {
+      EXPECT_TRUE(trusted_reservation.contains(address, size));
+#endif
     } else {
       EXPECT_TRUE(heap_reservation.contains(address, size));
     }
@@ -235,7 +245,7 @@ void ShrinkNewSpace(NewSpace* new_space) {
   for (auto it = paged_new_space->begin();
        it != paged_new_space->end() &&
        (paged_new_space->ShouldReleaseEmptyPage());) {
-    Page* page = *it++;
+    PageMetadata* page = *it++;
     if (page->allocated_bytes() == 0) {
       paged_new_space->ReleasePage(page);
     } else {
@@ -249,7 +259,7 @@ void ShrinkNewSpace(NewSpace* new_space) {
     }
   }
   paged_new_space->FinishShrinking();
-  for (Page* page : *paged_new_space) {
+  for (PageMetadata* page : *paged_new_space) {
     // We reset the number of live bytes to zero, as is expected after a GC.
     page->SetLiveBytes(0);
   }
@@ -391,9 +401,9 @@ TEST_F(HeapTest, OptimizedAllocationAlwaysInNewSpace) {
 
 namespace {
 template <RememberedSetType direction>
-static size_t GetRememberedSetSize(HeapObject obj) {
+static size_t GetRememberedSetSize(Tagged<HeapObject> obj) {
   size_t count = 0;
-  auto chunk = MemoryChunk::FromHeapObject(obj);
+  auto chunk = MutablePageMetadata::FromHeapObject(obj);
   RememberedSet<direction>::Iterate(
       chunk,
       [&count](MaybeObjectSlot slot) {
@@ -466,10 +476,10 @@ TEST_F(HeapTest, Regress978156) {
   // 3. Trim the last array by one word thus creating a one-word filler.
   Handle<FixedArray> last = arrays.back();
   CHECK_GT(last->length(), 0);
-  heap->RightTrimFixedArray(*last, 1);
+  heap->RightTrimArray(*last, last->length() - 1, last->length());
   // 4. Get the last filler on the page.
-  HeapObject filler = HeapObject::FromAddress(
-      MemoryChunk::FromHeapObject(*last)->area_end() - kTaggedSize);
+  Tagged<HeapObject> filler = HeapObject::FromAddress(
+      MutablePageMetadata::FromHeapObject(*last)->area_end() - kTaggedSize);
   HeapObject::FromAddress(last->address() + last->Size());
   CHECK(IsFiller(filler));
   // 5. Start incremental marking.
@@ -486,6 +496,44 @@ TEST_F(HeapTest, Regress978156) {
   // an out-of-bounds access of the marking bitmap in a bad case.
   heap->marking_state()->TryMarkAndAccountLiveBytes(filler);
 }
+
+#ifdef V8_ENABLE_ALLOCATION_TIMEOUT
+namespace {
+struct RandomGCIntervalTestSetter {
+  RandomGCIntervalTestSetter() {
+    static constexpr int kInterval = 87;
+    v8_flags.random_gc_interval = kInterval;
+  }
+  ~RandomGCIntervalTestSetter() { v8_flags.random_gc_interval = 0; }
+};
+
+struct HeapTestWithRandomGCInterval : RandomGCIntervalTestSetter, HeapTest {};
+}  // namespace
+
+TEST_F(HeapTestWithRandomGCInterval, AllocationTimeout) {
+  if (v8_flags.stress_incremental_marking) return;
+  if (v8_flags.stress_concurrent_allocation) return;
+
+  auto* allocator = heap()->allocator();
+
+  // Invoke major GC to cause the timeout to be updated.
+  InvokeMajorGC();
+  const int initial_allocation_timeout =
+      heap()->get_allocation_timeout_for_testing();
+  ASSERT_GT(initial_allocation_timeout, 0);
+
+  for (int i = 0; i < initial_allocation_timeout - 1; ++i) {
+    AllocationResult allocation = allocator->AllocateRaw(
+        2 * kTaggedAligned, AllocationType::kYoung, AllocationOrigin::kRuntime);
+    EXPECT_FALSE(allocation.IsFailure());
+  }
+
+  // The last allocation must fail.
+  AllocationResult allocation = allocator->AllocateRaw(
+      2 * kTaggedAligned, AllocationType::kYoung, AllocationOrigin::kRuntime);
+  EXPECT_TRUE(allocation.IsFailure());
+}
+#endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
 }  // namespace internal
 }  // namespace v8

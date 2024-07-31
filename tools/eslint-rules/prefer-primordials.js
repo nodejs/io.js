@@ -75,9 +75,27 @@ module.exports = {
     messages: {
       error: 'Use `const { {{name}} } = primordials;` instead of the global.',
     },
+    schema: {
+      type: 'array',
+      items: [
+        {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: { type: 'string' },
+            ignore: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+            into: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+      ],
+    },
   },
   create(context) {
-    const globalScope = context.getSourceCode().scopeManager.globalScope;
+    const globalScope = context.sourceCode.scopeManager.globalScope;
 
     const nameMap = new Map();
     const renameMap = new Map();
@@ -110,7 +128,7 @@ module.exports = {
         }
         const name = node.name;
         const parent = getDestructuringAssignmentParent(
-          context.getScope(),
+          context.sourceCode.getScope(node),
           node,
         );
         const parentName = parent?.name;
@@ -155,7 +173,7 @@ module.exports = {
         }
 
         const variables =
-          context.getSourceCode().scopeManager.getDeclaredVariables(node);
+          context.sourceCode.scopeManager.getDeclaredVariables(node);
         if (variables.length === 0) {
           context.report({
             node,

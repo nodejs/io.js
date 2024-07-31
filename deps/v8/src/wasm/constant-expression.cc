@@ -26,9 +26,9 @@ WireBytesRef ConstantExpression::wire_bytes_ref() const {
                       LengthField::decode(bit_field_));
 }
 
-ValueOrError EvaluateConstantExpression(Zone* zone, ConstantExpression expr,
-                                        ValueType expected, Isolate* isolate,
-                                        Handle<WasmInstanceObject> instance) {
+ValueOrError EvaluateConstantExpression(
+    Zone* zone, ConstantExpression expr, ValueType expected, Isolate* isolate,
+    Handle<WasmTrustedInstanceData> trusted_instance_data) {
   switch (expr.kind()) {
     case ConstantExpression::kEmpty:
       UNREACHABLE();
@@ -36,42 +36,57 @@ ValueOrError EvaluateConstantExpression(Zone* zone, ConstantExpression expr,
       return WasmValue(expr.i32_value());
     case ConstantExpression::kRefNull:
       return WasmValue(
-          expected == kWasmExternRef || expected == kWasmNullExternRef
+          expected == kWasmExternRef || expected == kWasmNullExternRef ||
+                  expected == kWasmNullExnRef || expected == kWasmExnRef
               ? Handle<Object>::cast(isolate->factory()->null_value())
               : Handle<Object>::cast(isolate->factory()->wasm_null()),
           ValueType::RefNull(expr.repr()));
     case ConstantExpression::kRefFunc: {
       uint32_t index = expr.index();
-      Handle<Object> value =
-          WasmInstanceObject::GetOrCreateWasmInternalFunction(isolate, instance,
-                                                              index);
+      Handle<WasmFuncRef> value = WasmTrustedInstanceData::GetOrCreateFuncRef(
+          isolate, trusted_instance_data, index);
       return WasmValue(value, expected);
     }
     case ConstantExpression::kWireBytesRef: {
       WireBytesRef ref = expr.wire_bytes_ref();
 
       base::Vector<const uint8_t> module_bytes =
-          instance->module_object()->native_module()->wire_bytes();
+          trusted_instance_data->module_object()->native_module()->wire_bytes();
 
       const uint8_t* start = module_bytes.begin() + ref.offset();
       const uint8_t* end = module_bytes.begin() + ref.end_offset();
 
       auto sig = FixedSizeSignature<ValueType>::Returns(expected);
-      FunctionBody body(&sig, ref.offset(), start, end);
+      // We have already validated the expression, so we might as well
+      // revalidate it as non-shared, which is strictly more permissive.
+      // TODO(14616): Rethink this.
+      constexpr bool kIsShared = false;
+      FunctionBody body(&sig, ref.offset(), start, end, kIsShared);
       WasmFeatures detected;
-      // We use FullValidationTag so we do not have to create another template
-      // instance of WasmFullDecoder, which would cost us >50Kb binary code
-      // size.
-      WasmFullDecoder<Decoder::FullValidationTag, ConstantExpressionInterface,
-                      kConstantExpression>
-          decoder(zone, instance->module(), WasmFeatures::All(), &detected,
-                  body, instance->module(), isolate, instance);
+      auto* module = trusted_instance_data->module();
+      ValueOrError result;
+      {
+        // We need a scope for the decoder because its destructor resets some
+        // Zone elements, which has to be done before we reset the Zone
+        // afterwards.
+        // We use FullValidationTag so we do not have to create another template
+        // instance of WasmFullDecoder, which would cost us >50Kb binary code
+        // size.
+        WasmFullDecoder<Decoder::FullValidationTag, ConstantExpressionInterface,
+                        kConstantExpression>
+            decoder(zone, module, WasmFeatures::All(), &detected, body, module,
+                    isolate, trusted_instance_data);
 
-      decoder.DecodeFunctionBody();
+        decoder.DecodeFunctionBody();
 
-      return decoder.interface().has_error()
-                 ? ValueOrError(decoder.interface().error())
-                 : ValueOrError(decoder.interface().computed_value());
+        result = decoder.interface().has_error()
+                     ? ValueOrError(decoder.interface().error())
+                     : ValueOrError(decoder.interface().computed_value());
+      }
+
+      zone->Reset();
+
+      return result;
     }
   }
 }

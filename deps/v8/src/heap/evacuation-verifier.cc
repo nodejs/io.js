@@ -86,28 +86,20 @@ void EvacuationVerifier::VerifyEvacuationOnPage(Address start, Address end) {
 
 void EvacuationVerifier::VerifyEvacuation(NewSpace* space) {
   if (!space) return;
+
   if (v8_flags.minor_ms) {
     VerifyEvacuation(PagedNewSpace::From(space)->paged_space());
     return;
   }
-  PageRange range(space->first_allocatable_address(), space->top());
-  for (auto it = range.begin(); it != range.end();) {
-    Page* page = *(it++);
-    Address current = page->area_start();
-    Address limit = it != range.end() ? page->area_end() : space->top();
-    CHECK(limit == space->top() || !page->Contains(space->top()));
-    VerifyEvacuationOnPage(current, limit);
+
+  for (PageMetadata* p : *space) {
+    VerifyEvacuationOnPage(p->area_start(), p->area_end());
   }
 }
 
 void EvacuationVerifier::VerifyEvacuation(PagedSpaceBase* space) {
-  for (Page* p : *space) {
-    if (p->IsEvacuationCandidate()) continue;
-    if (p->Contains(space->top())) {
-      CodePageMemoryModificationScope memory_modification_scope(p);
-      heap_->CreateFillerObjectAt(
-          space->top(), static_cast<int>(space->limit() - space->top()));
-    }
+  for (PageMetadata* p : *space) {
+    if (p->Chunk()->IsEvacuationCandidate()) continue;
     VerifyEvacuationOnPage(p->area_start(), p->area_end());
   }
 }

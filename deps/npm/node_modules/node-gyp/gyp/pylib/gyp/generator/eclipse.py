@@ -248,10 +248,7 @@ def GetAllDefines(target_list, target_dicts, data, config_name, params, compiler
                 continue
             cpp_line_parts = cpp_line.split(" ", 2)
             key = cpp_line_parts[1]
-            if len(cpp_line_parts) >= 3:
-                val = cpp_line_parts[2]
-            else:
-                val = "1"
+            val = cpp_line_parts[2] if len(cpp_line_parts) >= 3 else "1"
             all_defines[key] = val
 
     return all_defines

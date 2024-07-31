@@ -240,8 +240,9 @@ class PersistentValueMapBase {
         : value_(other.value_) { }
 
     Local<V> NewLocal(Isolate* isolate) const {
-      return Local<V>::New(
-          isolate, internal::ValueHelper::SlotAsValue<V>(FromVal(value_)));
+      return Local<V>::New(isolate,
+                           internal::ValueHelper::SlotAsValue<V>(
+                               reinterpret_cast<internal::Address*>(value_)));
     }
     bool IsEmpty() const {
       return value_ == kPersistentContainerNotFound;
@@ -298,7 +299,8 @@ class PersistentValueMapBase {
   typename Traits::Impl* impl() { return &impl_; }
 
   static V* FromVal(PersistentContainerValue v) {
-    return reinterpret_cast<V*>(v);
+    return internal::ValueHelper::SlotAsValue<V>(
+        reinterpret_cast<internal::Address*>(v));
   }
 
   static PersistentContainerValue ClearAndLeak(Global<V>* persistent) {
@@ -318,7 +320,7 @@ class PersistentValueMapBase {
    */
   static Global<V> Release(PersistentContainerValue v) {
     Global<V> p;
-    p.slot() = reinterpret_cast<internal::Address*>(FromVal(v));
+    p.slot() = reinterpret_cast<internal::Address*>(v);
     if (Traits::kCallbackType != kNotWeak && p.IsWeak()) {
       Traits::DisposeCallbackData(
           p.template ClearWeak<typename Traits::WeakCallbackDataType>());
@@ -328,8 +330,8 @@ class PersistentValueMapBase {
 
   void RemoveWeak(const K& key) {
     Global<V> p;
-    p.slot() = reinterpret_cast<internal::Address*>(
-        FromVal(Traits::Remove(&impl_, key)));
+    p.slot() =
+        reinterpret_cast<internal::Address*>(Traits::Remove(&impl_, key));
     p.Reset();
   }
 
@@ -345,8 +347,7 @@ class PersistentValueMapBase {
                                     PersistentContainerValue value) {
     bool hasValue = value != kPersistentContainerNotFound;
     if (hasValue) {
-      returnValue->SetInternal(
-          *reinterpret_cast<internal::Address*>(FromVal(value)));
+      returnValue->SetInternal(*reinterpret_cast<internal::Address*>(value));
     }
     return hasValue;
   }
@@ -620,7 +621,7 @@ class V8_DEPRECATE_SOON("Use std::vector<Global<V>>.") PersistentValueVector {
    */
   Local<V> Get(size_t index) const {
     return Local<V>::New(isolate_, internal::ValueHelper::SlotAsValue<V>(
-                                       FromVal(Traits::Get(&impl_, index))));
+                                       Traits::Get(&impl_, index)));
   }
 
   /**
@@ -630,8 +631,7 @@ class V8_DEPRECATE_SOON("Use std::vector<Global<V>>.") PersistentValueVector {
     size_t length = Traits::Size(&impl_);
     for (size_t i = 0; i < length; i++) {
       Global<V> p;
-      p.slot() =
-          reinterpret_cast<internal::Address>(FromVal(Traits::Get(&impl_, i)));
+      p.slot() = reinterpret_cast<internal::Address>(Traits::Get(&impl_, i));
     }
     Traits::Clear(&impl_);
   }
@@ -652,7 +652,8 @@ class V8_DEPRECATE_SOON("Use std::vector<Global<V>>.") PersistentValueVector {
   }
 
   static V* FromVal(PersistentContainerValue v) {
-    return reinterpret_cast<V*>(v);
+    return internal::ValueHelper::SlotAsValue<V>(
+        reinterpret_cast<internal::Address*>(v));
   }
 
   Isolate* isolate_;

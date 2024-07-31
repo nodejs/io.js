@@ -26,17 +26,18 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Flags: --allow-natives-syntax
+// Flags: --js-float16array
 
 // This is a regression test for overlapping key and value registers.
 
 var types = [Array, Int8Array, Uint8Array, Int16Array, Uint16Array,
-             Int32Array, Uint32Array, Uint8ClampedArray, Float32Array,
+             Int32Array, Uint32Array, Uint8ClampedArray, Float16Array, Float32Array,
              Float64Array];
 
-var results1 = [-2, -2, 254, -2, 65534, -2, 4294967294, 0, -2, -2];
-var results2 = [undefined, -1, 255, -1, 65535, -1, 4294967295, 0, -1, -1];
-var results3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-var results4 = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+var results1 = [-2, -2, 254, -2, 65534, -2, 4294967294, 0, -2, -2, -2];
+var results2 = [undefined, -1, 255, -1, 65535, -1, 4294967295, 0, -1, -1, -1];
+var results3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+var results4 = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 
 const kElementCount = 40;
 

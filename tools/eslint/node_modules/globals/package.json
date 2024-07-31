@@ -1,0 +1,90 @@
+{
+	"name": "globals",
+	"version": "15.8.0",
+	"description": "Global identifiers from different JavaScript environments",
+	"license": "MIT",
+	"repository": "sindresorhus/globals",
+	"funding": "https://github.com/sponsors/sindresorhus",
+	"author": {
+		"name": "Sindre Sorhus",
+		"email": "sindresorhus@gmail.com",
+		"url": "https://sindresorhus.com"
+	},
+	"sideEffects": false,
+	"engines": {
+		"node": ">=18"
+	},
+	"scripts": {
+		"test": "npm run build && xo && ava && tsd",
+		"prepare": "npm run build",
+		"update": "node scripts/update.mjs",
+		"update:browser": "node scripts/update.mjs --environment=browser",
+		"update:builtin": "node scripts/update.mjs --environment=builtin",
+		"update:nodeBuiltin": "node scripts/update.mjs --environment=nodeBuiltin",
+		"update:worker": "node scripts/update.mjs --environment=worker",
+		"update:shelljs": "node scripts/update.mjs --environment=shelljs",
+		"update:jest": "node scripts/update.mjs --environment=jest",
+		"build": "run-s build:data build:types",
+		"build:data": "node scripts/generate-data.mjs",
+		"build:types": "node scripts/generate-types.mjs"
+	},
+	"files": [
+		"index.js",
+		"index.d.ts",
+		"globals.json"
+	],
+	"keywords": [
+		"globals",
+		"global",
+		"identifiers",
+		"variables",
+		"vars",
+		"jshint",
+		"eslint",
+		"environments"
+	],
+	"devDependencies": {
+		"ava": "^6.1.1",
+		"cheerio": "^1.0.0-rc.12",
+		"eslint-plugin-jest": "^27.9.0",
+		"execa": "^8.0.1",
+		"get-port": "^7.0.0",
+		"npm-run-all2": "^6.1.2",
+		"outdent": "^0.8.0",
+		"puppeteer": "^22.1.0",
+		"shelljs": "^0.8.5",
+		"tsd": "^0.30.4",
+		"type-fest": "^4.10.2",
+		"xo": "^0.57.0"
+	},
+	"xo": {
+		"rules": {
+			"unicorn/prefer-module": "off"
+		},
+		"overrides": [
+			{
+				"files": [
+					"data/*.mjs"
+				],
+				"rules": {
+					"import/no-anonymous-default-export": "off",
+					"camelcase": "off",
+					"unicorn/filename-case": [
+						"error",
+						{
+							"cases": {
+								"camelCase": true,
+								"kebabCase": true
+							}
+						}
+					]
+				}
+			}
+		]
+	},
+	"tsd": {
+		"compilerOptions": {
+			"resolveJsonModule": true
+		}
+	}
+}

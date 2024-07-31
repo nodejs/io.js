@@ -6,18 +6,43 @@
 static void Finalize(napi_env env, void* data, void* hint) {
   napi_value global, set_timeout;
   napi_ref* ref = data;
-#ifdef NAPI_EXPERIMENTAL
-  napi_status expected_status = napi_cannot_run_js;
-#else
-  napi_status expected_status = napi_pending_exception;
-#endif  // NAPI_EXPERIMENTAL
 
-  if (napi_delete_reference(env, *ref) != napi_ok) abort();
-  if (napi_get_global(env, &global) != napi_ok) abort();
-  if (napi_get_named_property(env, global, "setTimeout", &set_timeout) !=
-      expected_status)
-    abort();
+  NODE_API_BASIC_ASSERT_RETURN_VOID(
+      napi_delete_reference(env, *ref) == napi_ok,
+      "deleting reference in finalizer should succeed");
+  NODE_API_BASIC_ASSERT_RETURN_VOID(
+      napi_get_global(env, &global) == napi_ok,
+      "getting global reference in finalizer should succeed");
+  napi_status result =
+      napi_get_named_property(env, global, "setTimeout", &set_timeout);
+
+  // The finalizer could be invoked either from check callbacks (as native
+  // immediates) if the event loop is still running (where napi_ok is returned)
+  // or during environment shutdown (where napi_cannot_run_js or
+  // napi_pending_exception is returned). This is not deterministic from
+  // the point of view of the addon.
+
+#ifdef NAPI_EXPERIMENTAL
+  NODE_API_BASIC_ASSERT_RETURN_VOID(
+      result == napi_cannot_run_js || result == napi_ok,
+      "getting named property from global in finalizer should succeed "
+      "or return napi_cannot_run_js");
+#else
+  NODE_API_BASIC_ASSERT_RETURN_VOID(
+      result == napi_pending_exception || result == napi_ok,
+      "getting named property from global in finalizer should succeed "
+      "or return napi_pending_exception");
+#endif  // NAPI_EXPERIMENTAL
   free(ref);
+}
+
+static void BasicFinalize(node_api_basic_env env, void* data, void* hint) {
+#ifdef NAPI_EXPERIMENTAL
+  NODE_API_BASIC_CALL_RETURN_VOID(
+      env, node_api_post_finalizer(env, Finalize, data, hint));
+#else
+  Finalize(env, data, hint);
+#endif
 }
 
 static napi_value CreateRef(napi_env env, napi_callback_info info) {
@@ -30,7 +55,8 @@ static napi_value CreateRef(napi_env env, napi_callback_info info) {
   NODE_API_CALL(env, napi_typeof(env, cb, &value_type));
   NODE_API_ASSERT(
       env, value_type == napi_function, "argument must be function");
-  NODE_API_CALL(env, napi_add_finalizer(env, cb, ref, Finalize, NULL, ref));
+  NODE_API_CALL(env,
+                napi_add_finalizer(env, cb, ref, BasicFinalize, NULL, ref));
   return cb;
 }
 

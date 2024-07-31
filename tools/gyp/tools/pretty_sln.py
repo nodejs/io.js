@@ -34,10 +34,10 @@ def BuildProject(project, built, projects, deps):
 
 def ParseSolution(solution_file):
     # All projects, their clsid and paths.
-    projects = dict()
+    projects = {}
 
     # A list of dependencies associated with a project.
-    dependencies = dict()
+    dependencies = {}
 
     # Regular expressions that matches the SLN format.
     # The first line of a project definition.

@@ -24,10 +24,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
-#include <assert.h>
-
-#include "ares.h"
 #include "ares_private.h"
 
 /*
@@ -35,10 +31,15 @@
  * on the given channel. It does NOT kill the channel, use ares_destroy() for
  * that.
  */
-void ares_cancel(ares_channel channel)
+void ares_cancel(ares_channel_t *channel)
 {
-  if (ares__llist_len(channel->all_queries) > 0)
-  {
+  if (channel == NULL) {
+    return;
+  }
+
+  ares__channel_lock(channel);
+
+  if (ares__llist_len(channel->all_queries) > 0) {
     ares__llist_node_t *node = NULL;
     ares__llist_node_t *next = NULL;
 
@@ -46,42 +47,41 @@ void ares_cancel(ares_channel channel)
      * into this function are cancelled. New queries added by callbacks of
      * queries being cancelled will not be cancelled themselves.
      */
-    ares__llist_t *list_copy = channel->all_queries;
-    channel->all_queries = ares__llist_create(NULL);
+    ares__llist_t      *list_copy = channel->all_queries;
+    channel->all_queries          = ares__llist_create(NULL);
 
     /* Out of memory, this function doesn't return a result code though so we
      * can't report to caller */
     if (channel->all_queries == NULL) {
-      channel->all_queries = list_copy;
-      return;
+      channel->all_queries = list_copy; /* LCOV_EXCL_LINE: OutOfMemory */
+      goto done;                        /* LCOV_EXCL_LINE: OutOfMemory */
     }
 
     node = ares__llist_node_first(list_copy);
     while (node != NULL) {
-      struct query *query;
-      ares_socket_t fd = ARES_SOCKET_BAD;
+      struct query             *query;
 
       /* Cache next since this node is being deleted */
       next = ares__llist_node_next(node);
 
-      query = ares__llist_node_claim(node);
+      query                   = ares__llist_node_claim(node);
       query->node_all_queries = NULL;
 
-      /* Cache file descriptor for connection so we can clean it up possibly */
-      if (query->conn)
-        fd = query->conn->fd;
-
       /* NOTE: its possible this may enqueue new queries */
-      query->callback(query->arg, ARES_ECANCELLED, 0, NULL, 0);
+      query->callback(query->arg, ARES_ECANCELLED, 0, NULL);
       ares__free_query(query);
-
-      /* See if the connection should be cleaned up */
-      if (fd != ARES_SOCKET_BAD)
-        ares__check_cleanup_conn(channel, fd);
 
       node = next;
     }
 
     ares__llist_destroy(list_copy);
   }
+
+  /* See if the connections should be cleaned up */
+  ares__check_cleanup_conns(channel);
+
+  ares_queue_notify_empty(channel);
+
+done:
+  ares__channel_unlock(channel);
 }

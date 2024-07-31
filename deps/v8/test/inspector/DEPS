@@ -8,3 +8,10 @@ include_rules = [
   "+src/libplatform/default-platform.h",
   "+src/utils",
 ]
+
+specific_include_rules = {
+  "isolate-data\.cc": [
+    "+src/execution/isolate.h",
+    "+src/heap/heap.h",
+  ],
+}

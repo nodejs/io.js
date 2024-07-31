@@ -34,6 +34,7 @@ class JSInliningHeuristic final : public AdvancedReducer {
         source_positions_(source_positions),
         jsgraph_(jsgraph),
         broker_(broker),
+        info_(info),
         mode_(mode),
         max_inlined_bytecode_size_cumulative_(
             v8_flags.max_inlined_bytecode_size_cumulative),
@@ -120,6 +121,7 @@ class JSInliningHeuristic final : public AdvancedReducer {
   SourcePositionTable* source_positions_;
   JSGraph* const jsgraph_;
   JSHeapBroker* const broker_;
+  OptimizedCompilationInfo* info_;
   int total_inlined_bytecode_size_ = 0;
   const Mode mode_;
   const int max_inlined_bytecode_size_cumulative_;

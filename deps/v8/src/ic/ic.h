@@ -61,7 +61,7 @@ class IC {
     return IsDefineNamedOwnIC() || IsDefineKeyedOwnIC();
   }
 
-  static inline bool IsHandler(MaybeObject object);
+  static inline bool IsHandler(Tagged<MaybeObject> object);
 
   // Nofity the IC system that a feedback has changed.
   static void OnFeedbackChanged(Isolate* isolate, Tagged<FeedbackVector> vector,
@@ -230,27 +230,28 @@ class KeyedLoadIC : public LoadIC {
                                                  Handle<Object> key);
 
  protected:
-  V8_WARN_UNUSED_RESULT MaybeHandle<Object> RuntimeLoad(Handle<Object> object,
-                                                        Handle<Object> key);
+  V8_WARN_UNUSED_RESULT MaybeHandle<Object> RuntimeLoad(
+      Handle<Object> object, Handle<Object> key, bool* is_found = nullptr);
+
+  V8_WARN_UNUSED_RESULT MaybeHandle<Object> LoadName(Handle<Object> object,
+                                                     Handle<Object> key,
+                                                     Handle<Name> name);
 
   // receiver is HeapObject because it could be a String or a JSObject
   void UpdateLoadElement(Handle<HeapObject> receiver,
-                         KeyedAccessLoadMode load_mode);
+                         KeyedAccessLoadMode new_load_mode);
 
  private:
   friend class IC;
 
   Handle<Object> LoadElementHandler(Handle<Map> receiver_map,
-                                    KeyedAccessLoadMode load_mode);
+                                    KeyedAccessLoadMode new_load_mode);
 
   void LoadElementPolymorphicHandlers(MapHandles* receiver_maps,
                                       MaybeObjectHandles* handlers,
-                                      KeyedAccessLoadMode load_mode);
+                                      KeyedAccessLoadMode new_load_mode);
 
-  // Returns true if the receiver_map has a kElement or kIndexedString
-  // handler in the nexus currently but didn't yet allow out of bounds
-  // accesses.
-  bool CanChangeToAllowOutOfBounds(Handle<Map> receiver_map);
+  KeyedAccessLoadMode GetKeyedAccessLoadModeFor(Handle<Map> receiver_map) const;
 };
 
 class StoreIC : public IC {

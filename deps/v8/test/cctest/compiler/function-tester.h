@@ -17,13 +17,9 @@ class Isolate;
 
 namespace compiler {
 
-class Graph;
-
 class FunctionTester : public InitializedHandleScope {
  public:
   explicit FunctionTester(const char* source, uint32_t flags = 0);
-
-  FunctionTester(Graph* graph, int param_count);
 
   FunctionTester(Handle<Code> code, int param_count);
 
@@ -118,8 +114,6 @@ class FunctionTester : public InitializedHandleScope {
   Handle<Object> true_value();
   Handle<Object> false_value();
 
-  static Handle<JSFunction> ForMachineGraph(Graph* graph, int param_count);
-
  private:
   uint32_t flags_;
 
@@ -136,10 +130,6 @@ class FunctionTester : public InitializedHandleScope {
     function_string += "){})";
     return function_string;
   }
-
-  // Compile the given machine graph instead of the source of the function
-  // and replace the JSFunction's code with the result.
-  Handle<JSFunction> CompileGraph(Graph* graph);
 };
 }  // namespace compiler
 }  // namespace internal

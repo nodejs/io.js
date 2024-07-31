@@ -2,9 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-gc --allow-natives-syntax --turbofan
+// Flags: --allow-natives-syntax --turbofan
 // Flags: --no-always-turbofan --no-always-sparkplug --expose-gc
-// Flags: --experimental-wasm-js-inlining
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -28,14 +27,14 @@ function testOptimized(run, fctToOptimize) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('getFieldNull', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGet, struct, 0])
     .exportFunc();
@@ -45,7 +44,7 @@ function testOptimized(run, fctToOptimize) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
@@ -53,7 +52,7 @@ function testOptimized(run, fctToOptimize) {
                       makeSig([wasmRefType(kWasmExternRef)], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGet, struct, 0])
     .exportFunc();
@@ -75,7 +74,7 @@ function testOptimized(run, fctToOptimize) {
     testOptimized(fct);
 
     // While these cases will all trap on the ref.cast, they cover very
-    // different code paths in extern.internalize.
+    // different code paths in any.convert_extern.
     print("Test exceptional cases");
     const trap = kTrapIllegalCast;
     print("- test get null");
@@ -136,14 +135,14 @@ function testOptimized(run, fctToOptimize) {
       ...wasmI32Const(i8Value),
       ...wasmI32Const(i16Value),
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('getI64', makeSig([kWasmExternRef], [kWasmI64]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGet, struct, 0,
     ])
@@ -151,7 +150,7 @@ function testOptimized(run, fctToOptimize) {
   builder.addFunction('getF64', makeSig([kWasmExternRef], [kWasmF64]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGet, struct, 1,
     ])
@@ -159,7 +158,7 @@ function testOptimized(run, fctToOptimize) {
   builder.addFunction('getI8', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGetS, struct, 2,
     ])
@@ -167,7 +166,7 @@ function testOptimized(run, fctToOptimize) {
   builder.addFunction('getI16', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGetU, struct, 3,
     ])
@@ -203,14 +202,14 @@ function testOptimized(run, fctToOptimize) {
       .addBody([
         kExprLocalGet, 0,
         kGCPrefix, kExprStructNew, struct,
-        kGCPrefix, kExprExternExternalize,
+        kGCPrefix, kExprExternConvertAny,
       ])
       .exportFunc();
 
     builder.addFunction('get', makeSig([kWasmExternRef], [fieldType]))
       .addBody([
         kExprLocalGet, 0,
-        kGCPrefix, kExprExternInternalize,
+        kGCPrefix, kExprAnyConvertExtern,
         kGCPrefix, kExprRefCast, struct,
         kGCPrefix, kExprStructGet, struct, 0])
       .exportFunc();
@@ -240,7 +239,7 @@ function testOptimized(run, fctToOptimize) {
                 multiModuleTrap);
 })();
 
-(function TestInliningExternExternalize() {
+(function TestInliningExternConvertAny() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
   let struct = builder.addStruct([
@@ -252,27 +251,27 @@ function testOptimized(run, fctToOptimize) {
       makeSig([kWasmExternRef, kWasmI32], [kWasmExternRef]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, struct,
       kExprLocalGet, 1,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('getRef', makeSig([kWasmExternRef], [kWasmExternRef]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGet, struct, 0,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
   builder.addFunction('getVal', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGet, struct, 1,
     ])
@@ -298,14 +297,14 @@ function testOptimized(run, fctToOptimize) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprArrayNewDefault, array,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('arrayLen', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, array,
       kGCPrefix, kExprArrayLen,
     ])
@@ -335,14 +334,14 @@ function testOptimized(run, fctToOptimize) {
       kExprLocalGet, 1,
       kExprLocalGet, 2,
       kGCPrefix, kExprArrayNewFixed, array, 3,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('get', makeSig([kWasmExternRef, kWasmI32], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, array,
       kExprLocalGet, 1,
       kGCPrefix, kExprArrayGet, array,
@@ -380,14 +379,14 @@ function testOptimized(run, fctToOptimize) {
       kExprLocalGet, 1,
       kExprLocalGet, 2,
       kGCPrefix, kExprArrayNewFixed, array, 3,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('getS', makeSig([kWasmExternRef, kWasmI32], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, array,
       kExprLocalGet, 1,
       kGCPrefix, kExprArrayGetS, array,
@@ -397,7 +396,7 @@ function testOptimized(run, fctToOptimize) {
   builder.addFunction('getU', makeSig([kWasmExternRef, kWasmI32], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, array,
       kExprLocalGet, 1,
       kGCPrefix, kExprArrayGetU, array,
@@ -453,21 +452,21 @@ function testOptimized(run, fctToOptimize) {
   builder.addFunction('createArray', makeSig([], [kWasmExternRef]))
     .addBody([
       kGCPrefix, kExprArrayNewFixed, array, 0,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
   builder.addFunction('createStruct', makeSig([], [kWasmExternRef]))
     .addBody([
       kExprI32Const, 42,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('castArray', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       // Generic cast to ref.array.
       kGCPrefix, kExprRefCast, kArrayRefCode,
       kGCPrefix, kExprArrayLen,
@@ -500,14 +499,14 @@ function testOptimized(run, fctToOptimize) {
       kExprLocalGet, 1,
       kExprLocalGet, 2,
       kGCPrefix, kExprArrayNewFixed, array, 3,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('get', makeSig([kWasmExternRef, kWasmI32], [kWasmI64]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, array,
       kExprLocalGet, 1,
       kGCPrefix, kExprArrayGet, array,
@@ -517,7 +516,7 @@ function testOptimized(run, fctToOptimize) {
   builder.addFunction('set', makeSig([kWasmExternRef, kWasmI32, kWasmI64], []))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, array,
       kExprLocalGet, 1,
       kExprLocalGet, 2,
@@ -559,14 +558,14 @@ function testOptimized(run, fctToOptimize) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('get', makeSig([kWasmExternRef], [kWasmI64]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, struct,
       kGCPrefix, kExprStructGet, struct, 0,
     ])
@@ -575,7 +574,7 @@ function testOptimized(run, fctToOptimize) {
   builder.addFunction('set', makeSig([kWasmExternRef, kWasmI64], []))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCastNull, struct,
       kExprLocalGet, 1,
       kGCPrefix, kExprStructSet, struct, 0,
@@ -620,14 +619,14 @@ function testStackTrace(error, expected) {
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, struct,
-      kGCPrefix, kExprExternExternalize,
+      kGCPrefix, kExprExternConvertAny,
     ])
     .exportFunc();
 
   builder.addFunction('getField', makeSig([kWasmExternRef], [kWasmI32]))
     .addBody([
       kExprLocalGet, 0,
-      kGCPrefix, kExprExternInternalize,
+      kGCPrefix, kExprAnyConvertExtern,
       kGCPrefix, kExprRefCast, struct,
       kGCPrefix, kExprStructGet, struct, 0])
     .exportFunc();
@@ -648,7 +647,7 @@ function testStackTrace(error, expected) {
         testStackTrace(e, [
           /RuntimeError: illegal cast/,
           /at getField \(wasm:\/\/wasm\/[0-9a-f]+:wasm-function\[1\]:0x50/,
-          /at getTrap .*\.js:640:19/,
+          /at getTrap .*\.js:639:19/,
         ]);
       }
     };
@@ -673,8 +672,8 @@ function testStackTrace(error, expected) {
       testStackTrace(e, [
         /RuntimeError: illegal cast/,
         /at getField \(wasm:\/\/wasm\/[0-9a-f]+:wasm-function\[1\]:0x50/,
-        /at inlined .*\.js:662:40/,
-        /at getTrapNested .*\.js:661:14/,
+        /at inlined .*\.js:661:40/,
+        /at getTrapNested .*\.js:660:14/,
       ]);
       assertOptimized(getTrapNested);
     }

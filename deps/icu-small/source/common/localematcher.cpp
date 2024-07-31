@@ -4,6 +4,8 @@
 // localematcher.cpp
 // created: 2019may08 Markus W. Scherer
 
+#include <optional>
+
 #include "unicode/utypes.h"
 #include "unicode/localebuilder.h"
 #include "unicode/localematcher.h"
@@ -302,12 +304,12 @@ LocaleMatcher LocaleMatcher::Builder::build(UErrorCode &errorCode) const {
 
 namespace {
 
-LSR getMaximalLsrOrUnd(const XLikelySubtags &likelySubtags, const Locale &locale,
+LSR getMaximalLsrOrUnd(const LikelySubtags &likelySubtags, const Locale &locale,
                        UErrorCode &errorCode) {
     if (U_FAILURE(errorCode) || locale.isBogus() || *locale.getName() == 0 /* "und" */) {
         return UND_LSR;
     } else {
-        return likelySubtags.makeMaximizedLsrFrom(locale, errorCode);
+        return likelySubtags.makeMaximizedLsrFrom(locale, false, errorCode);
     }
 }
 
@@ -338,7 +340,7 @@ int32_t LocaleMatcher::putIfAbsent(const LSR &lsr, int32_t i, int32_t suppLength
 }
 
 LocaleMatcher::LocaleMatcher(const Builder &builder, UErrorCode &errorCode) :
-        likelySubtags(*XLikelySubtags::getSingleton(errorCode)),
+        likelySubtags(*LikelySubtags::getSingleton(errorCode)),
         localeDistance(*LocaleDistance::getSingleton(errorCode)),
         thresholdDistance(builder.thresholdDistance_),
         demotionPerDesiredLocale(0),
@@ -551,7 +553,7 @@ LocaleMatcher &LocaleMatcher::operator=(LocaleMatcher &&src) noexcept {
 
 class LocaleLsrIterator {
 public:
-    LocaleLsrIterator(const XLikelySubtags &likelySubtags, Locale::Iterator &locales,
+    LocaleLsrIterator(const LikelySubtags &likelySubtags, Locale::Iterator &locales,
                       ULocMatchLifetime lifetime) :
             likelySubtags(likelySubtags), locales(locales), lifetime(lifetime) {}
 
@@ -596,7 +598,7 @@ public:
     }
 
 private:
-    const XLikelySubtags &likelySubtags;
+    const LikelySubtags &likelySubtags;
     Locale::Iterator &locales;
     ULocMatchLifetime lifetime;
     const Locale *current = nullptr, *remembered = nullptr;
@@ -605,10 +607,11 @@ private:
 
 const Locale *LocaleMatcher::getBestMatch(const Locale &desiredLocale, UErrorCode &errorCode) const {
     if (U_FAILURE(errorCode)) { return nullptr; }
-    int32_t suppIndex = getBestSuppIndex(
+    std::optional<int32_t> suppIndex = getBestSuppIndex(
         getMaximalLsrOrUnd(likelySubtags, desiredLocale, errorCode),
         nullptr, errorCode);
-    return U_SUCCESS(errorCode) && suppIndex >= 0 ? supportedLocales[suppIndex] : defaultLocale;
+    return U_SUCCESS(errorCode) && suppIndex.has_value() ? supportedLocales[*suppIndex]
+                                                         : defaultLocale;
 }
 
 const Locale *LocaleMatcher::getBestMatch(Locale::Iterator &desiredLocales,
@@ -618,12 +621,14 @@ const Locale *LocaleMatcher::getBestMatch(Locale::Iterator &desiredLocales,
         return defaultLocale;
     }
     LocaleLsrIterator lsrIter(likelySubtags, desiredLocales, ULOCMATCH_TEMPORARY_LOCALES);
-    int32_t suppIndex = getBestSuppIndex(lsrIter.next(errorCode), &lsrIter, errorCode);
-    return U_SUCCESS(errorCode) && suppIndex >= 0 ? supportedLocales[suppIndex] : defaultLocale;
+    std::optional<int32_t> suppIndex = getBestSuppIndex(lsrIter.next(errorCode), &lsrIter, errorCode);
+    return U_SUCCESS(errorCode) && suppIndex.has_value() ? supportedLocales[*suppIndex]
+                                                         : defaultLocale;
 }
 
 const Locale *LocaleMatcher::getBestMatchForListString(
         StringPiece desiredLocaleList, UErrorCode &errorCode) const {
+    if (U_FAILURE(errorCode)) { return nullptr; }
     LocalePriorityList list(desiredLocaleList, errorCode);
     LocalePriorityList::Iterator iter = list.iterator();
     return getBestMatch(iter, errorCode);
@@ -634,13 +639,13 @@ LocaleMatcher::Result LocaleMatcher::getBestMatchResult(
     if (U_FAILURE(errorCode)) {
         return Result(nullptr, defaultLocale, -1, -1, false);
     }
-    int32_t suppIndex = getBestSuppIndex(
+    std::optional<int32_t> suppIndex = getBestSuppIndex(
         getMaximalLsrOrUnd(likelySubtags, desiredLocale, errorCode),
         nullptr, errorCode);
-    if (U_FAILURE(errorCode) || suppIndex < 0) {
+    if (U_FAILURE(errorCode) || !suppIndex.has_value()) {
         return Result(nullptr, defaultLocale, -1, -1, false);
     } else {
-        return Result(&desiredLocale, supportedLocales[suppIndex], 0, suppIndex, false);
+        return Result(&desiredLocale, supportedLocales[*suppIndex], 0, *suppIndex, false);
     }
 }
 
@@ -650,18 +655,19 @@ LocaleMatcher::Result LocaleMatcher::getBestMatchResult(
         return Result(nullptr, defaultLocale, -1, -1, false);
     }
     LocaleLsrIterator lsrIter(likelySubtags, desiredLocales, ULOCMATCH_TEMPORARY_LOCALES);
-    int32_t suppIndex = getBestSuppIndex(lsrIter.next(errorCode), &lsrIter, errorCode);
-    if (U_FAILURE(errorCode) || suppIndex < 0) {
+    std::optional<int32_t> suppIndex = getBestSuppIndex(lsrIter.next(errorCode), &lsrIter, errorCode);
+    if (U_FAILURE(errorCode) || !suppIndex.has_value()) {
         return Result(nullptr, defaultLocale, -1, -1, false);
     } else {
-        return Result(lsrIter.orphanRemembered(), supportedLocales[suppIndex],
-                      lsrIter.getBestDesiredIndex(), suppIndex, true);
+        return Result(lsrIter.orphanRemembered(), supportedLocales[*suppIndex],
+                      lsrIter.getBestDesiredIndex(), *suppIndex, true);
     }
 }
 
-int32_t LocaleMatcher::getBestSuppIndex(LSR desiredLSR, LocaleLsrIterator *remainingIter,
-                                        UErrorCode &errorCode) const {
-    if (U_FAILURE(errorCode)) { return -1; }
+std::optional<int32_t> LocaleMatcher::getBestSuppIndex(LSR desiredLSR,
+                                                       LocaleLsrIterator *remainingIter,
+                                                       UErrorCode &errorCode) const {
+    if (U_FAILURE(errorCode)) { return std::nullopt; }
     int32_t desiredIndex = 0;
     int32_t bestSupportedLsrIndex = -1;
     for (int32_t bestShiftedDistance = LocaleDistance::shiftDistance(thresholdDistance);;) {
@@ -684,7 +690,7 @@ int32_t LocaleMatcher::getBestSuppIndex(LSR desiredLSR, LocaleLsrIterator *remai
             bestShiftedDistance = LocaleDistance::getShiftedDistance(bestIndexAndDistance);
             if (remainingIter != nullptr) {
                 remainingIter->rememberCurrent(desiredIndex, errorCode);
-                if (U_FAILURE(errorCode)) { return -1; }
+                if (U_FAILURE(errorCode)) { return std::nullopt; }
             }
             bestSupportedLsrIndex = LocaleDistance::getIndex(bestIndexAndDistance);
         }
@@ -695,20 +701,21 @@ int32_t LocaleMatcher::getBestSuppIndex(LSR desiredLSR, LocaleLsrIterator *remai
             break;
         }
         desiredLSR = remainingIter->next(errorCode);
-        if (U_FAILURE(errorCode)) { return -1; }
+        if (U_FAILURE(errorCode)) { return std::nullopt; }
         ++desiredIndex;
     }
     if (bestSupportedLsrIndex < 0) {
         // no good match
-        return -1;
+        return std::nullopt;
     }
     return supportedIndexes[bestSupportedLsrIndex];
 }
 
 UBool LocaleMatcher::isMatch(const Locale &desired, const Locale &supported,
                              UErrorCode &errorCode) const {
+    if (U_FAILURE(errorCode)) { return false; }
     LSR suppLSR = getMaximalLsrOrUnd(likelySubtags, supported, errorCode);
-    if (U_FAILURE(errorCode)) { return 0; }
+    if (U_FAILURE(errorCode)) { return false; }
     const LSR *pSuppLSR = &suppLSR;
     int32_t indexAndDistance = localeDistance.getBestIndexAndDistance(
             getMaximalLsrOrUnd(likelySubtags, desired, errorCode),
@@ -718,9 +725,10 @@ UBool LocaleMatcher::isMatch(const Locale &desired, const Locale &supported,
 }
 
 double LocaleMatcher::internalMatch(const Locale &desired, const Locale &supported, UErrorCode &errorCode) const {
+    if (U_FAILURE(errorCode)) { return 0.; }
     // Returns the inverse of the distance: That is, 1-distance(desired, supported).
     LSR suppLSR = getMaximalLsrOrUnd(likelySubtags, supported, errorCode);
-    if (U_FAILURE(errorCode)) { return 0; }
+    if (U_FAILURE(errorCode)) { return 0.; }
     const LSR *pSuppLSR = &suppLSR;
     int32_t indexAndDistance = localeDistance.getBestIndexAndDistance(
             getMaximalLsrOrUnd(likelySubtags, desired, errorCode),

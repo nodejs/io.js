@@ -171,13 +171,9 @@ class YoungUnifiedHeapTest : public MinorMSEnabler, public UnifiedHeapTest {
 TEST_F(YoungUnifiedHeapTest, OnlyGC) { CollectYoungGarbageWithEmbedderStack(); }
 
 TEST_F(YoungUnifiedHeapTest, CollectUnreachableCppGCObject) {
-  v8::HandleScope scope(v8_isolate());
-  v8::Local<v8::Context> context = v8::Context::New(v8_isolate());
-  v8::Context::Scope context_scope(context);
-
   cppgc::MakeGarbageCollected<Wrappable>(allocation_handle());
   v8::Local<v8::Object> api_object =
-      WrapperHelper::CreateWrapper(context, nullptr, nullptr);
+      WrapperHelper::CreateWrapper(context(), nullptr, nullptr);
   EXPECT_FALSE(api_object.IsEmpty());
 
   Wrappable::destructor_callcount = 0;
@@ -186,31 +182,26 @@ TEST_F(YoungUnifiedHeapTest, CollectUnreachableCppGCObject) {
 }
 
 TEST_F(YoungUnifiedHeapTest, FindingV8ToCppGCReference) {
-  v8::HandleScope scope(v8_isolate());
-  v8::Local<v8::Context> context = v8::Context::New(v8_isolate());
-  v8::Context::Scope context_scope(context);
-
   uint16_t wrappable_type = WrapperHelper::kTracedEmbedderId;
   auto* wrappable_object =
       cppgc::MakeGarbageCollected<Wrappable>(allocation_handle());
-  v8::Local<v8::Object> api_object =
-      WrapperHelper::CreateWrapper(context, &wrappable_type, wrappable_object);
+  v8::Local<v8::Object> api_object = WrapperHelper::CreateWrapper(
+      context(), &wrappable_type, wrappable_object);
   EXPECT_FALSE(api_object.IsEmpty());
+  // With direct locals, api_object may be invalid after a stackless GC.
+  auto handle_api_object = v8::Utils::OpenIndirectHandle(*api_object);
 
   Wrappable::destructor_callcount = 0;
   CollectYoungGarbageWithoutEmbedderStack(cppgc::Heap::SweepingType::kAtomic);
   EXPECT_EQ(0u, Wrappable::destructor_callcount);
 
-  WrapperHelper::ResetWrappableConnection(api_object);
+  WrapperHelper::ResetWrappableConnection(
+      v8::Utils::ToLocal(handle_api_object));
   CollectGarbageWithoutEmbedderStack(cppgc::Heap::SweepingType::kAtomic);
   EXPECT_EQ(1u, Wrappable::destructor_callcount);
 }
 
 TEST_F(YoungUnifiedHeapTest, FindingCppGCToV8Reference) {
-  v8::HandleScope handle_scope(v8_isolate());
-  v8::Local<v8::Context> context = v8::Context::New(v8_isolate());
-  v8::Context::Scope context_scope(context);
-
   auto* wrappable_object =
       cppgc::MakeGarbageCollected<Wrappable>(allocation_handle());
 
@@ -230,14 +221,11 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierV8ToCppGCReference) {
   if (i::v8_flags.single_generation) return;
 
   FlagScope<bool> no_incremental_marking(&v8_flags.incremental_marking, false);
-  v8::HandleScope scope(v8_isolate());
-  v8::Local<v8::Context> context = v8::Context::New(v8_isolate());
-  v8::Context::Scope context_scope(context);
 
   v8::Local<v8::Object> api_object =
-      WrapperHelper::CreateWrapper(context, nullptr, nullptr);
-  auto handle_api_object =
-      v8::Utils::OpenHandle(*v8::Local<v8::Object>::Cast(api_object));
+      WrapperHelper::CreateWrapper(context(), nullptr, nullptr);
+  // With direct locals, api_object may be invalid after a stackless GC.
+  auto handle_api_object = v8::Utils::OpenIndirectHandle(*api_object);
 
   EXPECT_TRUE(Heap::InYoungGeneration(*handle_api_object));
   InvokeMemoryReducingMajorGCs();
@@ -246,7 +234,8 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierV8ToCppGCReference) {
 
   auto* wrappable = cppgc::MakeGarbageCollected<Wrappable>(allocation_handle());
   uint16_t type_info = WrapperHelper::kTracedEmbedderId;
-  WrapperHelper::SetWrappableConnection(api_object, &type_info, wrappable);
+  WrapperHelper::SetWrappableConnection(v8::Utils::ToLocal(handle_api_object),
+                                        &type_info, wrappable);
 
   Wrappable::destructor_callcount = 0;
   CollectYoungGarbageWithoutEmbedderStack(cppgc::Heap::SweepingType::kAtomic);
@@ -258,9 +247,6 @@ TEST_F(YoungUnifiedHeapTest,
   if (i::v8_flags.single_generation) return;
 
   FlagScope<bool> no_incremental_marking(&v8_flags.incremental_marking, false);
-  v8::HandleScope handle_scope(v8_isolate());
-  v8::Local<v8::Context> context = v8::Context::New(v8_isolate());
-  v8::Context::Scope context_scope(context);
 
   auto local = v8::Object::New(v8_isolate());
   {
@@ -281,9 +267,6 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierCppGCToV8ReferenceReset) {
   if (i::v8_flags.single_generation) return;
 
   FlagScope<bool> no_incremental_marking(&v8_flags.incremental_marking, false);
-  v8::HandleScope handle_scope(v8_isolate());
-  v8::Local<v8::Context> context = v8::Context::New(v8_isolate());
-  v8::Context::Scope context_scope(context);
 
   cppgc::Persistent<Wrappable> wrappable_object =
       cppgc::MakeGarbageCollected<Wrappable>(allocation_handle());
@@ -299,7 +282,7 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierCppGCToV8ReferenceReset) {
     EXPECT_TRUE(local->IsObject());
     {
       ExpectCppGCToV8GenerationalBarrierToFire expect_barrier(
-          *v8_isolate(), {*reinterpret_cast<Address*>(*local)});
+          *v8_isolate(), {i::ValueHelper::ValueAsAddress(*local)});
       wrappable_object->SetWrapper(v8_isolate(), local);
     }
   }
@@ -313,9 +296,6 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierCppGCToV8ReferenceCopy) {
   if (i::v8_flags.single_generation) return;
 
   FlagScope<bool> no_incremental_marking(&v8_flags.incremental_marking, false);
-  v8::HandleScope handle_scope(v8_isolate());
-  v8::Local<v8::Context> context = v8::Context::New(v8_isolate());
-  v8::Context::Scope context_scope(context);
 
   cppgc::Persistent<Wrappable> wrappable_object =
       cppgc::MakeGarbageCollected<Wrappable>(allocation_handle());
@@ -342,7 +322,7 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierCppGCToV8ReferenceCopy) {
       // Assign to old object using TracedReference::operator= and expect
       // the barrier to trigger.
       ExpectCppGCToV8GenerationalBarrierToFire expect_barrier(
-          *v8_isolate(), {*reinterpret_cast<Address*>(*local)});
+          *v8_isolate(), {i::ValueHelper::ValueAsAddress(*local)});
       *wrappable_object = *another_wrappable_object;
     }
   }
@@ -356,9 +336,6 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierCppGCToV8ReferenceMove) {
   if (i::v8_flags.single_generation) return;
 
   FlagScope<bool> no_incremental_marking(&v8_flags.incremental_marking, false);
-  v8::HandleScope handle_scope(v8_isolate());
-  v8::Local<v8::Context> context = v8::Context::New(v8_isolate());
-  v8::Context::Scope context_scope(context);
 
   cppgc::Persistent<Wrappable> wrappable_object =
       cppgc::MakeGarbageCollected<Wrappable>(allocation_handle());
@@ -385,7 +362,7 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierCppGCToV8ReferenceMove) {
       // Assign to old object using TracedReference::operator= and expect
       // the barrier to trigger.
       ExpectCppGCToV8GenerationalBarrierToFire expect_barrier(
-          *v8_isolate(), {*reinterpret_cast<Address*>(*local)});
+          *v8_isolate(), {i::ValueHelper::ValueAsAddress(*local)});
       *wrappable_object = std::move(*another_wrappable_object);
     }
   }

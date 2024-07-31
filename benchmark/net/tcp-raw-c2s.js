@@ -9,7 +9,7 @@ const util = require('util');
 // run the function with those settings.
 // if not, then queue up a bunch of child processes.
 const bench = common.createBenchmark(main, {
-  len: [102400, 1024 * 1024 * 16],
+  len: [102400, 1024 * 64 * 16],
   type: ['utf', 'asc', 'buf'],
   dur: [5],
 }, {

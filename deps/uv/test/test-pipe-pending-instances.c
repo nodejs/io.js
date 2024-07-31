@@ -37,22 +37,22 @@ TEST_IMPL(pipe_pending_instances) {
   loop = uv_default_loop();
 
   r = uv_pipe_init(loop, &pipe_handle, 0);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_pipe_pending_instances(&pipe_handle, 8);
 
   r = uv_pipe_bind(&pipe_handle, TEST_PIPENAME);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_pipe_pending_instances(&pipe_handle, 16);
 
   r = uv_listen((uv_stream_t*)&pipe_handle, 128, connection_cb);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   uv_close((uv_handle_t*)&pipe_handle, NULL);
 
   r = uv_run(loop, UV_RUN_DEFAULT);
-  ASSERT(r == 0);
+  ASSERT_OK(r);
 
   MAKE_VALGRIND_HAPPY(loop);
   return 0;

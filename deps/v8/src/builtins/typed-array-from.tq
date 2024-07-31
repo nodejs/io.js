@@ -11,6 +11,8 @@ const kTypedArrayPrototypeValues: constexpr BuiltinsName
     generates 'Builtin::kTypedArrayPrototypeValues';
 const kArrayPrototypeValues: constexpr BuiltinsName
     generates 'Builtin::kArrayPrototypeValues';
+const kSetPrototypeValues: constexpr BuiltinsName
+    generates 'Builtin::kSetPrototypeValues';
 
 extern builtin IterableToList(implicit context: Context)(JSAny, JSAny):
     JSArray;
@@ -119,6 +121,24 @@ transitioning javascript builtin TypedArrayFrom(
             // source object directly, taking advantage of the special-case code
             // in TypedArrayCopyElements
             finalSource = source;
+          }
+          case (sourceFromSet: JSSet): {
+            // Check that the iterator function is exactly
+            // Builtin::kSetPrototypeValues.
+            if (!TaggedEqual(
+                    iteratorFn.shared_function_info.function_data,
+                    SmiConstant(kSetPrototypeValues))) {
+              goto UseUserProvidedIterator;
+            }
+            // Source is a JSSet with unmodified iterator behavior.
+            // Convert the Set to array, taking advantage of the special-case
+            // code in TypedArrayCopyElements
+            const sourceArray: JSArray =
+                iterator::FastIterableToList(sourceFromSet) otherwise
+            UseUserProvidedIterator;
+
+            finalSource = sourceArray;
+            finalLength = Convert<uintptr>(sourceArray.length);
           }
           case (Object): {
             goto UseUserProvidedIterator;

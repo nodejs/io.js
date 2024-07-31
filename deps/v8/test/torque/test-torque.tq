@@ -1187,12 +1187,6 @@ class AbstractInternalClassSubclass1 extends AbstractInternalClass {}
 
 class AbstractInternalClassSubclass2 extends AbstractInternalClass {}
 
-class InternalClassWithSmiElements extends FixedArrayBase {
-  data: Smi;
-  object: Oddball;
-  entries[length]: Smi;
-}
-
 struct InternalClassStructElement {
   a: Smi;
   b: Smi;
@@ -1208,71 +1202,6 @@ class InternalClassWithStructElements extends HeapObject {
   more_entries[count]: InternalClassStructElement;
 }
 
-struct SmiGeneratorIterator {
-  macro Next(): Smi labels _NoMore {
-    return this.value++;
-  }
-  value: Smi;
-}
-
-struct InternalClassStructElementGeneratorIterator {
-  macro Next(): InternalClassStructElement labels _NoMore {
-    return InternalClassStructElement{a: this.value++, b: this.value++};
-  }
-  value: Smi;
-}
-
-@export
-macro TestFullyGeneratedClassWithElements(): void {
-  // Test creation, initialization and access of a fully generated class with
-  // simple (Smi) elements
-  const length: Smi = Convert<Smi>(3);
-  const object1 = new InternalClassWithSmiElements{
-    length,
-    data: 0,
-    object: Undefined,
-    entries: ...SmiGeneratorIterator {
-      value:
-        11
-    }
-  };
-  dcheck(object1.length == 3);
-  dcheck(object1.data == 0);
-  dcheck(object1.object == Undefined);
-  dcheck(object1.entries[0] == 11);
-  dcheck(object1.entries[1] == 12);
-  dcheck(object1.entries[2] == 13);
-
-  // Test creation, initialization and access of a fully generated class
-  // with elements that are a struct.
-  const object2 = new InternalClassWithStructElements{
-    dummy1: 44,
-    dummy2: 45,
-    count: length,
-    data: 55,
-    object: Undefined,
-    entries: ...SmiGeneratorIterator{value: 3},
-    more_entries: ...InternalClassStructElementGeneratorIterator {
-      value:
-        1
-    }
-  };
-
-  dcheck(object2.dummy1 == 44);
-  dcheck(object2.dummy2 == 45);
-  dcheck(object2.count == 3);
-  dcheck(object2.data == 55);
-  dcheck(object2.object == Undefined);
-  dcheck(object2.entries[0] == 3);
-  dcheck(object2.entries[1] == 4);
-  dcheck(object2.entries[2] == 5);
-  dcheck(object2.more_entries[0].a == 1);
-  dcheck(object2.more_entries[0].b == 2);
-  dcheck(object2.more_entries[1].a == 3);
-  dcheck(object2.more_entries[1].b == 4);
-  dcheck(object2.more_entries[2].a == 5);
-  dcheck(object2.more_entries[2].b == 6);
-}
 
 @export
 macro TestFullyGeneratedClassFromCpp(): ExportedSubClass {

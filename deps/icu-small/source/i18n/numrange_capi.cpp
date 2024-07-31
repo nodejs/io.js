@@ -24,8 +24,7 @@ using namespace icu::number::impl;
 
 
 U_NAMESPACE_BEGIN
-namespace number {
-namespace impl {
+namespace number::impl {
 
 /**
  * Implementation class for UNumberRangeFormatter. Wraps a LocalizedRangeNumberFormatter.
@@ -59,8 +58,7 @@ UFormattedNumberRangeImpl::~UFormattedNumberRangeImpl() {
     fImpl.fData = nullptr;
 }
 
-} // namespace impl
-} // namespace number
+} // namespace number::impl
 U_NAMESPACE_END
 
 
@@ -73,7 +71,7 @@ UPRV_FORMATTED_VALUE_CAPI_NO_IMPLTYPE_AUTO_IMPL(
 
 const UFormattedNumberRangeData* number::impl::validateUFormattedNumberRange(
         const UFormattedNumberRange* uresult, UErrorCode& status) {
-    auto* result = UFormattedNumberRangeApiHelper::validate(uresult, status);
+    const auto* result = UFormattedNumberRangeApiHelper::validate(uresult, status);
     if (U_FAILURE(status)) {
         return nullptr;
     }
@@ -147,7 +145,7 @@ U_CAPI UNumberRangeIdentityResult U_EXPORT2
 unumrf_resultGetIdentityResult(
         const UFormattedNumberRange* uresult,
         UErrorCode* ec) {
-    auto* result = UFormattedNumberRangeApiHelper::validate(uresult, *ec);
+    const auto* result = UFormattedNumberRangeApiHelper::validate(uresult, *ec);
     if (U_FAILURE(*ec)) {
         return UNUM_IDENTITY_RESULT_COUNT;
     }
