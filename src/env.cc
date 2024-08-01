@@ -1841,12 +1841,29 @@ void Environment::AddUnmanagedFd(int fd) {
   }
 }
 
-void Environment::RemoveUnmanagedFd(int fd) {
+void Environment::RemoveUnmanagedFd(int fd,
+                                    ProcessEmitScheduleType schedule_type) {
   if (!tracks_unmanaged_fds()) return;
   size_t removed_count = unmanaged_fds_.erase(fd);
   if (removed_count == 0) {
-    ProcessEmitWarning(
-        this, "File descriptor %d closed but not opened in unmanaged mode", fd);
+    switch (schedule_type) {
+      case kSync:
+        ProcessEmitWarning(
+            this,
+            "File descriptor %d closed but not opened in unmanaged mode",
+            fd);
+        break;
+      case kSetImmediate:
+        SetImmediateThreadsafe([&](Environment* env) {
+          ProcessEmitWarning(
+              env,
+              "File descriptor %d closed but not opened in unmanaged mode",
+              fd);
+        });
+        break;
+      default:
+        UNREACHABLE();
+    }
   }
 }
 

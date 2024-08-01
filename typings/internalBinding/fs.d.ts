@@ -70,7 +70,7 @@ declare namespace InternalFSBinding {
   function chown(path: string, uid: number, gid: number): void;
 
   function close(fd: number, req: FSReqCallback): void;
-  function close(fd: number): void;
+  function closeSync(fd: number): void;
 
   function copyFile(src: StringOrBuffer, dest: StringOrBuffer, mode: number, req: FSReqCallback): void;
   function copyFile(src: StringOrBuffer, dest: StringOrBuffer, mode: number, req: undefined, ctx: FSSyncContext): void;
@@ -258,6 +258,7 @@ export interface FsBinding {
   chmod: typeof InternalFSBinding.chmod;
   chown: typeof InternalFSBinding.chown;
   close: typeof InternalFSBinding.close;
+  closeSync: typeof InternalFSBinding.closeSync;
   copyFile: typeof InternalFSBinding.copyFile;
   cpSyncCheckPaths: typeof InternalFSBinding.cpSyncCheckPaths;
   fchmod: typeof InternalFSBinding.fchmod;

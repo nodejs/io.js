@@ -60,6 +60,7 @@ namespace fs {
 
 using v8::Array;
 using v8::BigInt;
+using v8::CFunction;
 using v8::Context;
 using v8::EscapableHandleScope;
 using v8::FastApiCallbackOptions;
@@ -971,11 +972,10 @@ void Access(const FunctionCallbackInfo<Value>& args) {
   }
 }
 
-void Close(const FunctionCallbackInfo<Value>& args) {
+static void Close(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
-  const int argc = args.Length();
-  CHECK_GE(argc, 1);
+  CHECK_EQ(args.Length(), 2);  // fd, req
 
   int fd;
   if (!GetValidatedFd(env, args[0]).To(&fd)) {
@@ -983,19 +983,55 @@ void Close(const FunctionCallbackInfo<Value>& args) {
   }
   env->RemoveUnmanagedFd(fd);
 
-  if (argc > 1) {  // close(fd, req)
-    FSReqBase* req_wrap_async = GetReqWrap(args, 1);
-    CHECK_NOT_NULL(req_wrap_async);
-    FS_ASYNC_TRACE_BEGIN0(UV_FS_CLOSE, req_wrap_async)
-    AsyncCall(env, req_wrap_async, args, "close", UTF8, AfterNoArgs,
-              uv_fs_close, fd);
-  } else {  // close(fd)
-    FSReqWrapSync req_wrap_sync("close");
-    FS_SYNC_TRACE_BEGIN(close);
-    SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_close, fd);
-    FS_SYNC_TRACE_END(close);
+  FSReqBase* req_wrap_async = GetReqWrap(args, 1);
+  CHECK_NOT_NULL(req_wrap_async);
+  FS_ASYNC_TRACE_BEGIN0(UV_FS_CLOSE, req_wrap_async)
+  AsyncCall(
+      env, req_wrap_async, args, "close", UTF8, AfterNoArgs, uv_fs_close, fd);
+}
+
+// Separate implementations are required to provide fast API for closeSync.
+// If both close and closeSync are implemented using the same function, and
+// if a fast API implementation is added for closeSync, close(fd, req) will
+// also trigger the fast API implementation and cause an incident.
+// Ref: https://github.com/nodejs/node/issues/53902
+static void CloseSync(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  CHECK_EQ(args.Length(), 1);
+
+  int fd;
+  if (!GetValidatedFd(env, args[0]).To(&fd)) {
+    return;
+  }
+  env->RemoveUnmanagedFd(fd);
+  FSReqWrapSync req_wrap_sync("close");
+  FS_SYNC_TRACE_BEGIN(close);
+  SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_close, fd);
+  FS_SYNC_TRACE_END(close);
+}
+
+static void FastCloseSync(Local<Object> recv,
+                          const uint32_t fd,
+                          // NOLINTNEXTLINE(runtime/references) This is V8 api.
+                          v8::FastApiCallbackOptions& options) {
+  Environment* env = Environment::GetCurrent(recv->GetCreationContextChecked());
+
+  uv_fs_t req;
+  FS_SYNC_TRACE_BEGIN(close);
+  int err = uv_fs_close(nullptr, &req, fd, nullptr);
+  FS_SYNC_TRACE_END(close);
+
+  if (is_uv_error(err)) {
+    options.fallback = true;
+  } else {
+    // Note: Only remove unmanaged fds if the close was successful.
+    // RemoveUnmanagedFd() can call ProcessEmitWarning() which calls back into
+    // JS process.emitWarning() and violates the fast API protocol.
+    env->RemoveUnmanagedFd(fd, Environment::kSetImmediate);
   }
 }
+
+CFunction fast_close_sync_(CFunction::Make(FastCloseSync));
 
 static void ExistsSync(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
@@ -3547,6 +3583,7 @@ static void CreatePerIsolateProperties(IsolateData* isolate_data,
             GetFormatOfExtensionlessFile);
   SetMethod(isolate, target, "access", Access);
   SetMethod(isolate, target, "close", Close);
+  SetFastMethod(isolate, target, "closeSync", CloseSync, &fast_close_sync_);
   SetMethod(isolate, target, "existsSync", ExistsSync);
   SetMethod(isolate, target, "open", Open);
   SetMethod(isolate, target, "openFileHandle", OpenFileHandle);
@@ -3674,6 +3711,9 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
 
   registry->Register(GetFormatOfExtensionlessFile);
   registry->Register(Close);
+  registry->Register(CloseSync);
+  registry->Register(FastCloseSync);
+  registry->Register(fast_close_sync_.GetTypeInfo());
   registry->Register(ExistsSync);
   registry->Register(Open);
   registry->Register(OpenFileHandle);

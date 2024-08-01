@@ -1026,8 +1026,13 @@ class Environment : public MemoryRetainer {
   uv_buf_t allocate_managed_buffer(const size_t suggested_size);
   std::unique_ptr<v8::BackingStore> release_managed_buffer(const uv_buf_t& buf);
 
+  enum ProcessEmitScheduleType {
+    kSync,
+    kSetImmediate,
+  };
+
   void AddUnmanagedFd(int fd);
-  void RemoveUnmanagedFd(int fd);
+  void RemoveUnmanagedFd(int fd, ProcessEmitScheduleType schedule_type = kSync);
 
   template <typename T>
   void ForEachRealm(T&& iterator) const;
