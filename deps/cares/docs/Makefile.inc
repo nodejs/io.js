@@ -36,6 +36,7 @@ MANPAGES = ares_cancel.3		\
   ares_dns_record_rr_del.3		\
   ares_dns_record_rr_get.3		\
   ares_dns_record_rr_get_const.3	\
+  ares_dns_record_set_id.3		\
   ares_dns_rec_type_fromstr.3		\
   ares_dns_rec_type_tostr.3		\
   ares_dns_rec_type_t.3			\

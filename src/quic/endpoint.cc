@@ -19,6 +19,7 @@
 #include "application.h"
 #include "bindingdata.h"
 #include "defs.h"
+#include "ncrypto.h"
 
 namespace node {
 
@@ -87,7 +88,7 @@ namespace {
 bool is_diagnostic_packet_loss(double probability) {
   if (LIKELY(probability == 0.0)) return false;
   unsigned char c = 255;
-  CHECK(crypto::CSPRNG(&c, 1).is_ok());
+  CHECK(ncrypto::CSPRNG(&c, 1));
   return (static_cast<double>(c) / 255) < probability;
 }
 #endif  // DEBUG

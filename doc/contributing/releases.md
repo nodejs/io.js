@@ -1004,7 +1004,7 @@ release. However, the blog post is not yet fully automatic.
 Create a new blog post by running the [nodejs.org release-post.js script][]:
 
 ```bash
-node ./scripts/release-post/index.mjs x.y.z
+node ./apps/site/scripts/release-post/index.mjs x.y.z
 ```
 
 This script will use the promoted builds and changelog to generate the post. Run

@@ -31,7 +31,7 @@ function main({ size, type, method, n }) {
 function benchFor(buffer, n) {
   for (let k = 0; k < n; k++) {
     for (let i = 0; i < buffer.length; i++) {
-      assert(buffer[i] === 0);
+      assert.strictEqual(buffer[i], 0);
     }
   }
 }
@@ -39,7 +39,7 @@ function benchFor(buffer, n) {
 function benchForOf(buffer, n) {
   for (let k = 0; k < n; k++) {
     for (const b of buffer) {
-      assert(b === 0);
+      assert.strictEqual(b, 0);
     }
   }
 }
@@ -50,7 +50,7 @@ function benchIterator(buffer, n) {
     let cur = iter.next();
 
     while (!cur.done) {
-      assert(cur.value === 0);
+      assert.strictEqual(cur.value, 0);
       cur = iter.next();
     }
 

@@ -28,14 +28,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Use Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Environment Information
         run: npx envinfo
       - name: Build
         run: NODE=$(command -v node) make doc-only
-      - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808  # v4.3.3
+      - uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b  # v4.3.4
         with:
           name: docs
           path: out/doc

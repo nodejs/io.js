@@ -5108,6 +5108,12 @@ Reduction JSCallReducer::ReduceJSCall(Node* node,
     case Builtin::kBigIntAsIntN:
     case Builtin::kBigIntAsUintN:
       return ReduceBigIntAsN(node, builtin);
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+    case Builtin::kGetContinuationPreservedEmbedderData:
+      return ReduceGetContinuationPreservedEmbedderData(node);
+    case Builtin::kSetContinuationPreservedEmbedderData:
+      return ReduceSetContinuationPreservedEmbedderData(node);
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
     default:
       break;
   }
@@ -8779,6 +8785,39 @@ Reduction JSCallReducer::ReduceJSCallMathMinMaxWithArrayLike(Node* node,
   Node* subgraph = a.ReduceJSCallMathMinMaxWithArrayLike(builtin);
   return ReplaceWithSubgraph(&a, subgraph);
 }
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+Reduction JSCallReducer::ReduceGetContinuationPreservedEmbedderData(
+    Node* node) {
+  JSCallNode n(node);
+  Effect effect = n.effect();
+  Control control = n.control();
+
+  Node* value = effect = graph()->NewNode(
+      simplified()->GetContinuationPreservedEmbedderData(), effect);
+
+  ReplaceWithValue(node, value, effect, control);
+  return Replace(node);
+}
+
+Reduction JSCallReducer::ReduceSetContinuationPreservedEmbedderData(
+    Node* node) {
+  JSCallNode n(node);
+  Effect effect = n.effect();
+  Control control = n.control();
+
+  if (n.ArgumentCount() == 0) return NoChange();
+
+  effect =
+      graph()->NewNode(simplified()->SetContinuationPreservedEmbedderData(),
+                       n.Argument(0), effect);
+
+  Node* value = jsgraph()->UndefinedConstant();
+
+  ReplaceWithValue(node, value, effect, control);
+  return Replace(node);
+}
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
 
 CompilationDependencies* JSCallReducer::dependencies() const {
   return broker()->dependencies();

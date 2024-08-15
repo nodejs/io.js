@@ -14,13 +14,15 @@ using v8::String;
 std::vector<std::string> Dotenv::GetPathFromArgs(
     const std::vector<std::string>& args) {
   const auto find_match = [](const std::string& arg) {
-    const std::string_view flag = "--env-file";
-    return strncmp(arg.c_str(), flag.data(), flag.size()) == 0;
+    return arg == "--" || arg == "--env-file" || arg.starts_with("--env-file=");
   };
   std::vector<std::string> paths;
   auto path = std::find_if(args.begin(), args.end(), find_match);
 
   while (path != args.end()) {
+    if (*path == "--") {
+      return paths;
+    }
     auto equal_char = path->find('=');
 
     if (equal_char != std::string::npos) {
@@ -129,6 +131,7 @@ void Dotenv::ParseContent(const std::string_view input) {
     key = content.substr(0, equal);
     content.remove_prefix(equal + 1);
     key = trim_spaces(key);
+    content = trim_spaces(content);
 
     if (key.empty()) {
       break;

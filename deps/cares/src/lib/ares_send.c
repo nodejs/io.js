@@ -43,13 +43,12 @@ static unsigned short generate_unique_qid(ares_channel_t *channel)
   return id;
 }
 
-
 /* https://datatracker.ietf.org/doc/html/draft-vixie-dnsext-dns0x20-00 */
-static ares_status_t ares_apply_dns0x20(ares_channel_t *channel,
+static ares_status_t ares_apply_dns0x20(ares_channel_t    *channel,
                                         ares_dns_record_t *dnsrec)
 {
-  ares_status_t status  = ARES_SUCCESS;
-  const char   *name    = NULL;
+  ares_status_t status = ARES_SUCCESS;
+  const char   *name   = NULL;
   char          dns0x20name[256];
   unsigned char randdata[256 / 8];
   size_t        len;
@@ -72,16 +71,16 @@ static ares_status_t ares_apply_dns0x20(ares_channel_t *channel,
 
   /* Fetch the minimum amount of random data we'd need for the string, which
    * is 1 bit per byte */
-  total_bits = ((len + 7) / 8) * 8;
+  total_bits     = ((len + 7) / 8) * 8;
   remaining_bits = total_bits;
   ares__rand_bytes(channel->rand_state, randdata, total_bits / 8);
 
   /* Randomly apply 0x20 to name */
-  for (i=0; i<len; i++) {
+  for (i = 0; i < len; i++) {
     size_t bit;
 
     /* Only apply 0x20 to alpha characters */
-    if (!isalpha(name[i])) {
+    if (!ares__isalpha(name[i])) {
       dns0x20name[i] = name[i];
       continue;
     }
@@ -89,7 +88,7 @@ static ares_status_t ares_apply_dns0x20(ares_channel_t *channel,
     /* coin flip */
     bit = total_bits - remaining_bits;
     if (randdata[bit / 8] & (1 << (bit % 8))) {
-      dns0x20name[i] = name[i] | 0x20; /* Set 0x20 */
+      dns0x20name[i] = name[i] | 0x20;                          /* Set 0x20 */
     } else {
       dns0x20name[i] = (char)(((unsigned char)name[i]) & 0xDF); /* Unset 0x20 */
     }
@@ -102,13 +101,12 @@ done:
   return status;
 }
 
-
 ares_status_t ares_send_nolock(ares_channel_t          *channel,
                                const ares_dns_record_t *dnsrec,
-                               ares_callback_dnsrec     callback,
-                               void *arg, unsigned short *qid)
+                               ares_callback_dnsrec callback, void *arg,
+                               unsigned short *qid)
 {
-  struct query            *query;
+  ares_query_t            *query;
   ares_timeval_t           now;
   ares_status_t            status;
   unsigned short           id          = generate_unique_qid(channel);
@@ -131,7 +129,7 @@ ares_status_t ares_send_nolock(ares_channel_t          *channel,
   }
 
   /* Allocate space for query and allocated fields. */
-  query = ares_malloc(sizeof(struct query));
+  query = ares_malloc(sizeof(ares_query_t));
   if (!query) {
     callback(arg, ARES_ENOMEM, 0, NULL); /* LCOV_EXCL_LINE: OutOfMemory */
     return ARES_ENOMEM;                  /* LCOV_EXCL_LINE: OutOfMemory */
@@ -142,14 +140,15 @@ ares_status_t ares_send_nolock(ares_channel_t          *channel,
   query->qid          = id;
   query->timeout.sec  = 0;
   query->timeout.usec = 0;
-  query->using_tcp    = (channel->flags & ARES_FLAG_USEVC)?ARES_TRUE:ARES_FALSE;
+  query->using_tcp =
+    (channel->flags & ARES_FLAG_USEVC) ? ARES_TRUE : ARES_FALSE;
 
   /* Duplicate Query */
-  query->query = ares_dns_record_duplicate(dnsrec);
-  if (query->query == NULL) {
+  status = ares_dns_record_duplicate_ex(&query->query, dnsrec);
+  if (status != ARES_SUCCESS) {
     ares_free(query);
-    callback(arg, ARES_ENOMEM, 0, NULL);
-    return ARES_ENOMEM;
+    callback(arg, status, 0, NULL);
+    return status;
   }
 
   ares_dns_record_set_id(query->query, id);

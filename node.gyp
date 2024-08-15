@@ -14,6 +14,7 @@
     'force_dynamic_crt%': 0,
     'ossfuzz' : 'false',
     'node_module_version%': '',
+    'node_use_amaro%': 'true',
     'node_shared_brotli%': 'false',
     'node_shared_zlib%': 'false',
     'node_shared_http_parser%': 'false',
@@ -67,6 +68,7 @@
       'src/api/exceptions.cc',
       'src/api/hooks.cc',
       'src/api/utils.cc',
+      'src/async_context_frame.cc',
       'src/async_wrap.cc',
       'src/base_object.cc',
       'src/cares_wrap.cc',
@@ -105,6 +107,7 @@
       'src/node_constants.cc',
       'src/node_contextify.cc',
       'src/node_credentials.cc',
+      'src/node_debug.cc',
       'src/node_dir.cc',
       'src/node_dotenv.cc',
       'src/node_env_var.cc',
@@ -184,6 +187,7 @@
       'src/aliased_buffer-inl.h',
       'src/aliased_struct.h',
       'src/aliased_struct-inl.h',
+      'src/async_context_frame.h',
       'src/async_wrap.h',
       'src/async_wrap-inl.h',
       'src/base_object.h',
@@ -226,6 +230,7 @@
       'src/node_constants.h',
       'src/node_context_data.h',
       'src/node_contextify.h',
+      'src/node_debug.h',
       'src/node_dir.h',
       'src/node_dotenv.h',
       'src/node_errors.h',
@@ -460,6 +465,11 @@
       }, {
         'use_openssl_def%': 0,
       }],
+      [ 'node_use_amaro=="true"', {
+          'deps_files': [
+              'deps/amaro/dist/index.js',
+          ]
+      } ]
     ],
   },
 
@@ -940,6 +950,9 @@
             '<@(node_crypto_sources)',
             '<@(node_quic_sources)',
           ],
+          'dependencies': [
+            'deps/ncrypto/ncrypto.gyp:ncrypto',
+          ],
         }],
         [ 'OS in "linux freebsd mac solaris" and '
           'target_arch=="x64" and '
@@ -1201,6 +1214,9 @@
           'defines': [
             'HAVE_OPENSSL=1',
           ],
+          'dependencies': [
+            'deps/ncrypto/ncrypto.gyp:ncrypto',
+          ],
           'sources': [ '<@(node_cctest_openssl_sources)' ],
         }],
         ['v8_enable_inspector==1', {
@@ -1394,6 +1410,9 @@
           'defines': [ 'NODE_MKSNAPSHOT_USE_ARRAY_LITERALS=1' ],
         }],
         [ 'node_use_openssl=="true"', {
+          'dependencies': [
+            'deps/ncrypto/ncrypto.gyp:ncrypto',
+          ],
           'defines': [
             'HAVE_OPENSSL=1',
           ],

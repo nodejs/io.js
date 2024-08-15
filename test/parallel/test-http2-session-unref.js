@@ -8,10 +8,10 @@ if (!common.hasCrypto)
   common.skip('missing crypto');
 const http2 = require('http2');
 const Countdown = require('../common/countdown');
-const makeDuplexPair = require('../common/duplexpair');
+const { duplexPair } = require('stream');
 
 const server = http2.createServer();
-const { clientSide, serverSide } = makeDuplexPair();
+const [ clientSide, serverSide ] = duplexPair();
 
 const counter = new Countdown(3, () => server.unref());
 

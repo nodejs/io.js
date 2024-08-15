@@ -185,7 +185,7 @@ loaded by `require()` meets the following requirements:
   1. The file has a `.mjs` extension.
   2. The file has a `.js` extension, and the closest `package.json` contains `"type": "module"`
   3. The file has a `.js` extension, the closest `package.json` does not contain
-     `"type": "commonjs"`, and `--experimental-detect-module` is enabled.
+     `"type": "commonjs"`, and the module contains ES module syntax.
 
 `require()` will load the requested module as an ES Module, and return
 the module namespace object. In this case it is similar to dynamic
@@ -272,7 +272,7 @@ require(X) from module at path Y
 
 MAYBE_DETECT_AND_LOAD(X)
 1. If X parses as a CommonJS module, load X as a CommonJS module. STOP.
-2. Else, if `--experimental-require-module` and `--experimental-detect-module` are
+2. Else, if `--experimental-require-module` is
   enabled, and the source code of X can be parsed as ECMAScript module using
   <a href="esm.md#resolver-algorithm-specification">DETECT_MODULE_SYNTAX defined in
   the ESM resolver</a>,

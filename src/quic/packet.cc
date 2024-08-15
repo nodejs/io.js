@@ -14,6 +14,7 @@
 #include "bindingdata.h"
 #include "cid.h"
 #include "defs.h"
+#include "ncrypto.h"
 #include "tokens.h"
 
 namespace node {
@@ -331,7 +332,7 @@ Packet* Packet::CreateStatelessResetPacket(
 
   StatelessResetToken token(token_secret, path_descriptor.dcid);
   uint8_t random[kRandlen];
-  CHECK(crypto::CSPRNG(random, kRandlen).is_ok());
+  CHECK(ncrypto::CSPRNG(random, kRandlen));
 
   auto packet = Create(env,
                        listener,

@@ -477,7 +477,7 @@ napiVersion: 6
 -->
 
 ```c
-napi_status napi_set_instance_data(node_api_nogc_env env,
+napi_status napi_set_instance_data(node_api_basic_env env,
                                    void* data,
                                    napi_finalize finalize_cb,
                                    void* finalize_hint);
@@ -509,7 +509,7 @@ napiVersion: 6
 -->
 
 ```c
-napi_status napi_get_instance_data(node_api_nogc_env env,
+napi_status napi_get_instance_data(node_api_basic_env env,
                                    void** data);
 ```
 
@@ -611,16 +611,16 @@ when an instance of a native addon is unloaded. Notification of this event is
 delivered through the callbacks given to [`napi_add_env_cleanup_hook`][] and
 [`napi_set_instance_data`][].
 
-### `node_api_nogc_env`
+### `node_api_basic_env`
 
 > Stability: 1 - Experimental
 
 This variant of `napi_env` is passed to synchronous finalizers
-([`node_api_nogc_finalize`][]). There is a subset of Node-APIs which accept
-a parameter of type `node_api_nogc_env` as their first argument. These APIs do
+([`node_api_basic_finalize`][]). There is a subset of Node-APIs which accept
+a parameter of type `node_api_basic_env` as their first argument. These APIs do
 not access the state of the JavaScript engine and are thus safe to call from
 synchronous finalizers. Passing a parameter of type `napi_env` to these APIs is
-allowed, however, passing a parameter of type `node_api_nogc_env` to APIs that
+allowed, however, passing a parameter of type `node_api_basic_env` to APIs that
 access the JavaScript engine state is not allowed. Attempting to do so without
 a cast will produce a compiler warning or an error when add-ons are compiled
 with flags which cause them to emit warnings and/or errors when incorrect
@@ -791,7 +791,7 @@ typedef napi_value (*napi_callback)(napi_env, napi_callback_info);
 Unless for reasons discussed in [Object Lifetime Management][], creating a
 handle and/or callback scope inside a `napi_callback` is not necessary.
 
-#### `node_api_nogc_finalize`
+#### `node_api_basic_finalize`
 
 <!-- YAML
 added:
@@ -806,11 +806,11 @@ Function pointer type for add-on provided functions that allow the user to be
 notified when externally-owned data is ready to be cleaned up because the
 object it was associated with has been garbage-collected. The user must provide
 a function satisfying the following signature which would get called upon the
-object's collection. Currently, `node_api_nogc_finalize` can be used for
+object's collection. Currently, `node_api_basic_finalize` can be used for
 finding out when objects that have external data are collected.
 
 ```c
-typedef void (*node_api_nogc_finalize)(node_api_nogc_env env,
+typedef void (*node_api_basic_finalize)(node_api_basic_env env,
                                       void* finalize_data,
                                       void* finalize_hint);
 ```
@@ -820,7 +820,7 @@ handle and/or callback scope inside the function body is not necessary.
 
 Since these functions may be called while the JavaScript engine is in a state
 where it cannot execute JavaScript code, only Node-APIs which accept a
-`node_api_nogc_env` as their first parameter may be called.
+`node_api_basic_env` as their first parameter may be called.
 [`node_api_post_finalizer`][] can be used to schedule Node-API calls that
 require access to the JavaScript engine's state to run after the current
 garbage collection cycle has completed.
@@ -834,10 +834,10 @@ Change History:
 
 * experimental (`NAPI_EXPERIMENTAL`):
 
-  Only Node-API calls that accept a `node_api_nogc_env` as their first
+  Only Node-API calls that accept a `node_api_basic_env` as their first
   parameter may be called, otherwise the application will be terminated with an
   appropriate error message. This feature can be turned off by defining
-  `NODE_API_EXPERIMENTAL_NOGC_ENV_OPT_OUT`.
+  `NODE_API_EXPERIMENTAL_BASIC_ENV_OPT_OUT`.
 
 #### `napi_finalize`
 
@@ -862,9 +862,9 @@ Change History:
 * experimental (`NAPI_EXPERIMENTAL` is defined):
 
   A function of this type may no longer be used as a finalizer, except with
-  [`node_api_post_finalizer`][]. [`node_api_nogc_finalize`][] must be used
+  [`node_api_post_finalizer`][]. [`node_api_basic_finalize`][] must be used
   instead. This feature can be turned off by defining
-  `NODE_API_EXPERIMENTAL_NOGC_ENV_OPT_OUT`.
+  `NODE_API_EXPERIMENTAL_BASIC_ENV_OPT_OUT`.
 
 #### `napi_async_execute_callback`
 
@@ -1066,7 +1066,7 @@ napiVersion: 1
 
 ```c
 napi_status
-napi_get_last_error_info(node_api_nogc_env env,
+napi_get_last_error_info(node_api_basic_env env,
                          const napi_extended_error_info** result);
 ```
 
@@ -1885,7 +1885,7 @@ napiVersion: 3
 -->
 
 ```c
-NODE_EXTERN napi_status napi_add_env_cleanup_hook(node_api_nogc_env env,
+NODE_EXTERN napi_status napi_add_env_cleanup_hook(node_api_basic_env env,
                                                   napi_cleanup_hook fun,
                                                   void* arg);
 ```
@@ -1915,7 +1915,7 @@ napiVersion: 3
 -->
 
 ```c
-NAPI_EXTERN napi_status napi_remove_env_cleanup_hook(node_api_nogc_env env,
+NAPI_EXTERN napi_status napi_remove_env_cleanup_hook(node_api_basic_env env,
                                                      void (*fun)(void* arg),
                                                      void* arg);
 ```
@@ -1944,7 +1944,7 @@ changes:
 
 ```c
 NAPI_EXTERN napi_status napi_add_async_cleanup_hook(
-    node_api_nogc_env env,
+    node_api_basic_env env,
     napi_async_cleanup_hook hook,
     void* arg,
     napi_async_cleanup_hook_handle* remove_handle);
@@ -5533,7 +5533,7 @@ napiVersion: 5
 napi_status napi_add_finalizer(napi_env env,
                                napi_value js_object,
                                void* finalize_data,
-                               node_api_nogc_finalize finalize_cb,
+                               node_api_basic_finalize finalize_cb,
                                void* finalize_hint,
                                napi_ref* result);
 ```
@@ -5574,7 +5574,7 @@ added:
 > Stability: 1 - Experimental
 
 ```c
-napi_status node_api_post_finalizer(node_api_nogc_env env,
+napi_status node_api_post_finalizer(node_api_basic_env env,
                                     napi_finalize finalize_cb,
                                     void* finalize_data,
                                     void* finalize_hint);
@@ -5644,7 +5644,7 @@ Once created the async worker can be queued
 for execution using the [`napi_queue_async_work`][] function:
 
 ```c
-napi_status napi_queue_async_work(node_api_nogc_env env,
+napi_status napi_queue_async_work(node_api_basic_env env,
                                   napi_async_work work);
 ```
 
@@ -5736,7 +5736,7 @@ napiVersion: 1
 -->
 
 ```c
-napi_status napi_queue_async_work(node_api_nogc_env env,
+napi_status napi_queue_async_work(node_api_basic_env env,
                                   napi_async_work work);
 ```
 
@@ -5757,7 +5757,7 @@ napiVersion: 1
 -->
 
 ```c
-napi_status napi_cancel_async_work(node_api_nogc_env env,
+napi_status napi_cancel_async_work(node_api_basic_env env,
                                    napi_async_work work);
 ```
 
@@ -5961,7 +5961,7 @@ typedef struct {
   const char* release;
 } napi_node_version;
 
-napi_status napi_get_node_version(node_api_nogc_env env,
+napi_status napi_get_node_version(node_api_basic_env env,
                                   const napi_node_version** version);
 ```
 
@@ -5984,7 +5984,7 @@ napiVersion: 1
 -->
 
 ```c
-napi_status napi_get_version(node_api_nogc_env env,
+napi_status napi_get_version(node_api_basic_env env,
                              uint32_t* result);
 ```
 
@@ -6017,7 +6017,7 @@ napiVersion: 1
 -->
 
 ```c
-NAPI_EXTERN napi_status napi_adjust_external_memory(node_api_nogc_env env,
+NAPI_EXTERN napi_status napi_adjust_external_memory(node_api_basic_env env,
                                                     int64_t change_in_bytes,
                                                     int64_t* result);
 ```
@@ -6234,7 +6234,7 @@ napiVersion: 2
 -->
 
 ```c
-NAPI_EXTERN napi_status napi_get_uv_event_loop(node_api_nogc_env env,
+NAPI_EXTERN napi_status napi_get_uv_event_loop(node_api_basic_env env,
                                                struct uv_loop_s** loop);
 ```
 
@@ -6554,7 +6554,7 @@ napiVersion: 4
 
 ```c
 NAPI_EXTERN napi_status
-napi_ref_threadsafe_function(node_api_nogc_env env, napi_threadsafe_function func);
+napi_ref_threadsafe_function(node_api_basic_env env, napi_threadsafe_function func);
 ```
 
 * `[in] env`: The environment that the API is invoked under.
@@ -6580,7 +6580,7 @@ napiVersion: 4
 
 ```c
 NAPI_EXTERN napi_status
-napi_unref_threadsafe_function(node_api_nogc_env env, napi_threadsafe_function func);
+napi_unref_threadsafe_function(node_api_basic_env env, napi_threadsafe_function func);
 ```
 
 * `[in] env`: The environment that the API is invoked under.
@@ -6606,7 +6606,7 @@ napiVersion: 9
 
 ```c
 NAPI_EXTERN napi_status
-node_api_get_module_file_name(node_api_nogc_env env, const char** result);
+node_api_get_module_file_name(node_api_basic_env env, const char** result);
 
 ```
 
@@ -6731,10 +6731,10 @@ the add-on's file name during loading.
 [`napi_wrap`]: #napi_wrap
 [`node-addon-api`]: https://github.com/nodejs/node-addon-api
 [`node_api.h`]: https://github.com/nodejs/node/blob/HEAD/src/node_api.h
+[`node_api_basic_finalize`]: #node_api_basic_finalize
 [`node_api_create_external_string_latin1`]: #node_api_create_external_string_latin1
 [`node_api_create_external_string_utf16`]: #node_api_create_external_string_utf16
 [`node_api_create_syntax_error`]: #node_api_create_syntax_error
-[`node_api_nogc_finalize`]: #node_api_nogc_finalize
 [`node_api_post_finalizer`]: #node_api_post_finalizer
 [`node_api_throw_syntax_error`]: #node_api_throw_syntax_error
 [`process.release`]: process.md#processrelease

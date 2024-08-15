@@ -95,6 +95,9 @@ Print out the CRL in text form.
 
 Verify the signature in the CRL.
 
+This option is implicitly enabled if any of B<-CApath>, B<-CAfile>
+or B<-CAstore> is specified.
+
 =item B<-noout>
 
 Don't output the encoded version of the CRL.
@@ -162,7 +165,7 @@ L<ossl_store-file(7)>
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

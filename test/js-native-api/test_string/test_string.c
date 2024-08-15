@@ -87,7 +87,7 @@ static napi_value TestTwoByteImpl(napi_env env,
   return output;
 }
 
-static void free_string(node_api_nogc_env env, void* data, void* hint) {
+static void free_string(node_api_basic_env env, void* data, void* hint) {
   free(data);
 }
 

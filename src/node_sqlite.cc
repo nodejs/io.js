@@ -91,8 +91,11 @@ DatabaseSync::DatabaseSync(Environment* env,
 }
 
 DatabaseSync::~DatabaseSync() {
-  sqlite3_close_v2(connection_);
-  connection_ = nullptr;
+  if (IsOpen()) {
+    FinalizeStatements();
+    sqlite3_close_v2(connection_);
+    connection_ = nullptr;
+  }
 }
 
 void DatabaseSync::MemoryInfo(MemoryTracker* tracker) const {
@@ -100,7 +103,7 @@ void DatabaseSync::MemoryInfo(MemoryTracker* tracker) const {
 }
 
 bool DatabaseSync::Open() {
-  if (connection_ != nullptr) {
+  if (IsOpen()) {
     node::THROW_ERR_INVALID_STATE(env(), "database is already open");
     return false;
   }
@@ -110,6 +113,29 @@ bool DatabaseSync::Open() {
   int r = sqlite3_open_v2(location_.c_str(), &connection_, flags, nullptr);
   CHECK_ERROR_OR_THROW(env()->isolate(), connection_, r, SQLITE_OK, false);
   return true;
+}
+
+void DatabaseSync::FinalizeStatements() {
+  for (auto stmt : statements_) {
+    stmt->Finalize();
+  }
+
+  statements_.clear();
+}
+
+void DatabaseSync::UntrackStatement(StatementSync* statement) {
+  auto it = statements_.find(statement);
+  if (it != statements_.end()) {
+    statements_.erase(it);
+  }
+}
+
+inline bool DatabaseSync::IsOpen() {
+  return connection_ != nullptr;
+}
+
+inline sqlite3* DatabaseSync::Connection() {
+  return connection_;
 }
 
 void DatabaseSync::New(const FunctionCallbackInfo<Value>& args) {
@@ -164,8 +190,8 @@ void DatabaseSync::Close(const FunctionCallbackInfo<Value>& args) {
   DatabaseSync* db;
   ASSIGN_OR_RETURN_UNWRAP(&db, args.This());
   Environment* env = Environment::GetCurrent(args);
-  THROW_AND_RETURN_ON_BAD_STATE(
-      env, db->connection_ == nullptr, "database is not open");
+  THROW_AND_RETURN_ON_BAD_STATE(env, !db->IsOpen(), "database is not open");
+  db->FinalizeStatements();
   int r = sqlite3_close_v2(db->connection_);
   CHECK_ERROR_OR_THROW(env->isolate(), db->connection_, r, SQLITE_OK, void());
   db->connection_ = nullptr;
@@ -175,8 +201,7 @@ void DatabaseSync::Prepare(const FunctionCallbackInfo<Value>& args) {
   DatabaseSync* db;
   ASSIGN_OR_RETURN_UNWRAP(&db, args.This());
   Environment* env = Environment::GetCurrent(args);
-  THROW_AND_RETURN_ON_BAD_STATE(
-      env, db->connection_ == nullptr, "database is not open");
+  THROW_AND_RETURN_ON_BAD_STATE(env, !db->IsOpen(), "database is not open");
 
   if (!args[0]->IsString()) {
     node::THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
@@ -188,8 +213,8 @@ void DatabaseSync::Prepare(const FunctionCallbackInfo<Value>& args) {
   sqlite3_stmt* s = nullptr;
   int r = sqlite3_prepare_v2(db->connection_, *sql, -1, &s, 0);
   CHECK_ERROR_OR_THROW(env->isolate(), db->connection_, r, SQLITE_OK, void());
-  BaseObjectPtr<StatementSync> stmt =
-      StatementSync::Create(env, db->connection_, s);
+  BaseObjectPtr<StatementSync> stmt = StatementSync::Create(env, db, s);
+  db->statements_.insert(stmt.get());
   args.GetReturnValue().Set(stmt->object());
 }
 
@@ -197,8 +222,7 @@ void DatabaseSync::Exec(const FunctionCallbackInfo<Value>& args) {
   DatabaseSync* db;
   ASSIGN_OR_RETURN_UNWRAP(&db, args.This());
   Environment* env = Environment::GetCurrent(args);
-  THROW_AND_RETURN_ON_BAD_STATE(
-      env, db->connection_ == nullptr, "database is not open");
+  THROW_AND_RETURN_ON_BAD_STATE(env, !db->IsOpen(), "database is not open");
 
   if (!args[0]->IsString()) {
     node::THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
@@ -213,7 +237,7 @@ void DatabaseSync::Exec(const FunctionCallbackInfo<Value>& args) {
 
 StatementSync::StatementSync(Environment* env,
                              Local<Object> object,
-                             sqlite3* db,
+                             DatabaseSync* db,
                              sqlite3_stmt* stmt)
     : BaseObject(env, object) {
   MakeWeak();
@@ -227,13 +251,25 @@ StatementSync::StatementSync(Environment* env,
 }
 
 StatementSync::~StatementSync() {
+  if (!IsFinalized()) {
+    db_->UntrackStatement(this);
+    Finalize();
+  }
+}
+
+void StatementSync::Finalize() {
   sqlite3_finalize(statement_);
   statement_ = nullptr;
 }
 
+inline bool StatementSync::IsFinalized() {
+  return statement_ == nullptr;
+}
+
 bool StatementSync::BindParams(const FunctionCallbackInfo<Value>& args) {
   int r = sqlite3_clear_bindings(statement_);
-  CHECK_ERROR_OR_THROW(env()->isolate(), db_, r, SQLITE_OK, false);
+  CHECK_ERROR_OR_THROW(
+      env()->isolate(), db_->Connection(), r, SQLITE_OK, false);
 
   int anon_idx = 1;
   int anon_start = 0;
@@ -364,18 +400,28 @@ bool StatementSync::BindValue(const Local<Value>& value, const int index) {
     return false;
   }
 
-  CHECK_ERROR_OR_THROW(env()->isolate(), db_, r, SQLITE_OK, false);
+  CHECK_ERROR_OR_THROW(
+      env()->isolate(), db_->Connection(), r, SQLITE_OK, false);
   return true;
 }
 
 Local<Value> StatementSync::ColumnToValue(const int column) {
   switch (sqlite3_column_type(statement_, column)) {
-    case SQLITE_INTEGER:
+    case SQLITE_INTEGER: {
+      sqlite3_int64 value = sqlite3_column_int64(statement_, column);
       if (use_big_ints_) {
-        return BigInt::New(env()->isolate(),
-                           sqlite3_column_int64(statement_, column));
+        return BigInt::New(env()->isolate(), value);
+      } else if (std::abs(value) <= kMaxSafeJsInteger) {
+        return Number::New(env()->isolate(), value);
+      } else {
+        THROW_ERR_OUT_OF_RANGE(env()->isolate(),
+                               "The value of column %d is too large to be "
+                               "represented as a JavaScript number: %" PRId64,
+                               column,
+                               value);
+        return Local<Value>();
       }
-      // Fall through.
+    }
     case SQLITE_FLOAT:
       return Number::New(env()->isolate(),
                          sqlite3_column_double(statement_, column));
@@ -426,8 +472,11 @@ void StatementSync::All(const FunctionCallbackInfo<Value>& args) {
   StatementSync* stmt;
   ASSIGN_OR_RETURN_UNWRAP(&stmt, args.This());
   Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_ON_BAD_STATE(
+      env, stmt->IsFinalized(), "statement has been finalized");
   int r = sqlite3_reset(stmt->statement_);
-  CHECK_ERROR_OR_THROW(env->isolate(), stmt->db_, r, SQLITE_OK, void());
+  CHECK_ERROR_OR_THROW(
+      env->isolate(), stmt->db_->Connection(), r, SQLITE_OK, void());
 
   if (!stmt->BindParams(args)) {
     return;
@@ -441,7 +490,9 @@ void StatementSync::All(const FunctionCallbackInfo<Value>& args) {
 
     for (int i = 0; i < num_cols; ++i) {
       Local<Value> key = stmt->ColumnNameToValue(i);
+      if (key.IsEmpty()) return;
       Local<Value> val = stmt->ColumnToValue(i);
+      if (val.IsEmpty()) return;
 
       if (row->Set(env->context(), key, val).IsNothing()) {
         return;
@@ -451,7 +502,8 @@ void StatementSync::All(const FunctionCallbackInfo<Value>& args) {
     rows.emplace_back(row);
   }
 
-  CHECK_ERROR_OR_THROW(env->isolate(), stmt->db_, r, SQLITE_DONE, void());
+  CHECK_ERROR_OR_THROW(
+      env->isolate(), stmt->db_->Connection(), r, SQLITE_DONE, void());
   args.GetReturnValue().Set(
       Array::New(env->isolate(), rows.data(), rows.size()));
 }
@@ -460,8 +512,11 @@ void StatementSync::Get(const FunctionCallbackInfo<Value>& args) {
   StatementSync* stmt;
   ASSIGN_OR_RETURN_UNWRAP(&stmt, args.This());
   Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_ON_BAD_STATE(
+      env, stmt->IsFinalized(), "statement has been finalized");
   int r = sqlite3_reset(stmt->statement_);
-  CHECK_ERROR_OR_THROW(env->isolate(), stmt->db_, r, SQLITE_OK, void());
+  CHECK_ERROR_OR_THROW(
+      env->isolate(), stmt->db_->Connection(), r, SQLITE_OK, void());
 
   if (!stmt->BindParams(args)) {
     return;
@@ -469,8 +524,9 @@ void StatementSync::Get(const FunctionCallbackInfo<Value>& args) {
 
   auto reset = OnScopeLeave([&]() { sqlite3_reset(stmt->statement_); });
   r = sqlite3_step(stmt->statement_);
-  if (r != SQLITE_ROW && r != SQLITE_DONE) {
-    THROW_ERR_SQLITE_ERROR(env->isolate(), stmt->db_);
+  if (r == SQLITE_DONE) return;
+  if (r != SQLITE_ROW) {
+    THROW_ERR_SQLITE_ERROR(env->isolate(), stmt->db_->Connection());
     return;
   }
 
@@ -483,7 +539,9 @@ void StatementSync::Get(const FunctionCallbackInfo<Value>& args) {
 
   for (int i = 0; i < num_cols; ++i) {
     Local<Value> key = stmt->ColumnNameToValue(i);
+    if (key.IsEmpty()) return;
     Local<Value> val = stmt->ColumnToValue(i);
+    if (val.IsEmpty()) return;
 
     if (result->Set(env->context(), key, val).IsNothing()) {
       return;
@@ -497,8 +555,11 @@ void StatementSync::Run(const FunctionCallbackInfo<Value>& args) {
   StatementSync* stmt;
   ASSIGN_OR_RETURN_UNWRAP(&stmt, args.This());
   Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_ON_BAD_STATE(
+      env, stmt->IsFinalized(), "statement has been finalized");
   int r = sqlite3_reset(stmt->statement_);
-  CHECK_ERROR_OR_THROW(env->isolate(), stmt->db_, r, SQLITE_OK, void());
+  CHECK_ERROR_OR_THROW(
+      env->isolate(), stmt->db_->Connection(), r, SQLITE_OK, void());
 
   if (!stmt->BindParams(args)) {
     return;
@@ -507,7 +568,7 @@ void StatementSync::Run(const FunctionCallbackInfo<Value>& args) {
   auto reset = OnScopeLeave([&]() { sqlite3_reset(stmt->statement_); });
   r = sqlite3_step(stmt->statement_);
   if (r != SQLITE_ROW && r != SQLITE_DONE) {
-    THROW_ERR_SQLITE_ERROR(env->isolate(), stmt->db_);
+    THROW_ERR_SQLITE_ERROR(env->isolate(), stmt->db_->Connection());
     return;
   }
 
@@ -516,8 +577,9 @@ void StatementSync::Run(const FunctionCallbackInfo<Value>& args) {
       FIXED_ONE_BYTE_STRING(env->isolate(), "lastInsertRowid");
   Local<String> changes_string =
       FIXED_ONE_BYTE_STRING(env->isolate(), "changes");
-  sqlite3_int64 last_insert_rowid = sqlite3_last_insert_rowid(stmt->db_);
-  sqlite3_int64 changes = sqlite3_changes64(stmt->db_);
+  sqlite3_int64 last_insert_rowid =
+      sqlite3_last_insert_rowid(stmt->db_->Connection());
+  sqlite3_int64 changes = sqlite3_changes64(stmt->db_->Connection());
   Local<Value> last_insert_rowid_val;
   Local<Value> changes_val;
 
@@ -543,6 +605,8 @@ void StatementSync::SourceSQL(const FunctionCallbackInfo<Value>& args) {
   StatementSync* stmt;
   ASSIGN_OR_RETURN_UNWRAP(&stmt, args.This());
   Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_ON_BAD_STATE(
+      env, stmt->IsFinalized(), "statement has been finalized");
   Local<String> sql;
   if (!String::NewFromUtf8(env->isolate(), sqlite3_sql(stmt->statement_))
            .ToLocal(&sql)) {
@@ -555,6 +619,8 @@ void StatementSync::ExpandedSQL(const FunctionCallbackInfo<Value>& args) {
   StatementSync* stmt;
   ASSIGN_OR_RETURN_UNWRAP(&stmt, args.This());
   Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_ON_BAD_STATE(
+      env, stmt->IsFinalized(), "statement has been finalized");
   char* expanded = sqlite3_expanded_sql(stmt->statement_);
   auto maybe_expanded = String::NewFromUtf8(env->isolate(), expanded);
   sqlite3_free(expanded);
@@ -570,6 +636,8 @@ void StatementSync::SetAllowBareNamedParameters(
   StatementSync* stmt;
   ASSIGN_OR_RETURN_UNWRAP(&stmt, args.This());
   Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_ON_BAD_STATE(
+      env, stmt->IsFinalized(), "statement has been finalized");
 
   if (!args[0]->IsBoolean()) {
     node::THROW_ERR_INVALID_ARG_TYPE(
@@ -585,6 +653,8 @@ void StatementSync::SetReadBigInts(const FunctionCallbackInfo<Value>& args) {
   StatementSync* stmt;
   ASSIGN_OR_RETURN_UNWRAP(&stmt, args.This());
   Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_ON_BAD_STATE(
+      env, stmt->IsFinalized(), "statement has been finalized");
 
   if (!args[0]->IsBoolean()) {
     node::THROW_ERR_INVALID_ARG_TYPE(
@@ -626,7 +696,7 @@ Local<FunctionTemplate> StatementSync::GetConstructorTemplate(
 }
 
 BaseObjectPtr<StatementSync> StatementSync::Create(Environment* env,
-                                                   sqlite3* db,
+                                                   DatabaseSync* db,
                                                    sqlite3_stmt* stmt) {
   Local<Object> obj;
   if (!GetConstructorTemplate(env)

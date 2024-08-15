@@ -113,4 +113,26 @@ describe('node --run [command]', () => {
     assert.strictEqual(child.stderr, '');
     assert.strictEqual(child.code, 0);
   });
+
+  it('returns error on unparsable file', async () => {
+    const child = await common.spawnPromisified(
+      process.execPath,
+      [ '--no-warnings', '--run', 'test'],
+      { cwd: fixtures.path('run-script/cannot-parse') },
+    );
+    assert.match(child.stderr, /Can't parse package\.json/);
+    assert.strictEqual(child.stdout, '');
+    assert.strictEqual(child.code, 1);
+  });
+
+  it('returns error when there is no "scripts" field file', async () => {
+    const child = await common.spawnPromisified(
+      process.execPath,
+      [ '--no-warnings', '--run', 'test'],
+      { cwd: fixtures.path('run-script/cannot-find-script') },
+    );
+    assert.match(child.stderr, /Can't find "scripts" field in package\.json/);
+    assert.strictEqual(child.stdout, '');
+    assert.strictEqual(child.code, 1);
+  });
 });

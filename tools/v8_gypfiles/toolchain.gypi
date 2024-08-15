@@ -69,9 +69,6 @@
     # Enable profiling support. Only required on Windows.
     'v8_enable_prof%': 0,
 
-    # Some versions of GCC 4.5 seem to need -fno-strict-aliasing.
-    'v8_no_strict_aliasing%': 0,
-
     # Chrome needs this definition unconditionally. For standalone V8 builds,
     # it's handled in gypfiles/standalone.gypi.
     'want_separate_host_toolset%': 1,
@@ -540,7 +537,7 @@
         'defines': [
           'WIN32',
           'NOMINMAX',  # Refs: https://chromium-review.googlesource.com/c/v8/v8/+/1456620
-          '_WIN32_WINNT=0x0602',  # Windows 8
+          '_WIN32_WINNT=0x0A00',  # Windows 10
           '_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS',
         ],
         # 4351: VS 2005 and later are warning us that they've fixed a bug
@@ -666,14 +663,6 @@
           'V8_ANDROID_LOG_STDOUT',
         ],
       }],
-      ['OS=="linux" or OS=="freebsd" or OS=="openbsd" or OS=="solaris" \
-         or OS=="netbsd" or OS=="qnx" or OS=="aix" or OS=="os400"', {
-        'conditions': [
-          [ 'v8_no_strict_aliasing==1', {
-            'cflags': [ '-fno-strict-aliasing' ],
-          }],
-        ],  # conditions
-      }],
       ['OS=="solaris"', {
         'defines': [ '__C99FEATURES__=1' ],  # isinf() etc.
       }],
@@ -703,13 +692,7 @@
     'configurations': {
       'Debug': {
         'defines': [
-          'ENABLE_DISASSEMBLER',
-          'V8_ENABLE_CHECKS',
-          'OBJECT_PRINT',
           'DEBUG',
-          'V8_TRACE_MAPS',
-          'V8_ENABLE_ALLOCATION_TIMEOUT',
-          'V8_ENABLE_FORCE_SLOW_PATH',
         ],
         'conditions': [
           ['OS=="linux" and v8_enable_backtrace==1', {
@@ -836,7 +819,6 @@
               ['OS=="mac"', {
                 'xcode_settings': {
                   'GCC_OPTIMIZATION_LEVEL': '3',  # -O3
-                  'GCC_STRICT_ALIASING': 'YES',
                 },
               }],
               ['v8_enable_slow_dchecks==1', {
@@ -895,12 +877,6 @@
           ['OS=="mac"', {
             'xcode_settings': {
               'GCC_OPTIMIZATION_LEVEL': '3',  # -O3
-
-              # -fstrict-aliasing.  Mainline gcc
-              # enables this at -O2 and above,
-              # but Apple gcc does not unless it
-              # is specified explicitly.
-              'GCC_STRICT_ALIASING': 'YES',
             },
           }],  # OS=="mac"
           ['OS=="win"', {

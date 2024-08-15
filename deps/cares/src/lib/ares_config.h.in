@@ -75,6 +75,9 @@
 /* Define to 1 if you have `connect` */
 #undef HAVE_CONNECT
 
+/* Define to 1 if you have `connectx` */
+#undef HAVE_CONNECTX
+
 /* Define to 1 if you have `ConvertInterfaceIndexToLuid` */
 #undef HAVE_CONVERTINTERFACEINDEXTOLUID
 
@@ -201,6 +204,9 @@
 /* Define to 1 if you have the <net/if.h> header file. */
 #undef HAVE_NET_IF_H
 
+/* Define to 1 if you have `NotifyIpInterfaceChange` */
+#undef HAVE_NOTIFYIPINTERFACECHANGE
+
 /* Define to 1 if you have the <ntdef.h> header file. */
 #undef HAVE_NTDEF_H
 
@@ -236,6 +242,9 @@
 
 /* Define to 1 if you have `recvfrom` */
 #undef HAVE_RECVFROM
+
+/* Define to 1 if you have `RegisterWaitForSingleObject` */
+#undef HAVE_REGISTERWAITFORSINGLEOBJECT
 
 /* Define to 1 if you have `send` */
 #undef HAVE_SEND

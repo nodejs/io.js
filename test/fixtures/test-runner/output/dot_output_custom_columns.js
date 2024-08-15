@@ -1,6 +1,9 @@
 // Flags: --test-reporter=dot
 'use strict';
 process.stdout.columns = 30;
+process.env.FORCE_COLOR = '1';
+delete process.env.NODE_DISABLE_COLORS;
+delete process.env.NO_COLOR;
 
 const test = require('node:test');
 const { setTimeout } = require('timers/promises');

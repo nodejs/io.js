@@ -161,16 +161,16 @@ ares_status_t ares__addrinfo2hostent(const struct ares_addrinfo *ai, int family,
       }
       (*host)->h_addr_list[i] = addrs + (i * (size_t)(*host)->h_length);
       if (family == AF_INET6) {
-        memcpy(
-          (*host)->h_addr_list[i],
-          &(CARES_INADDR_CAST(const struct sockaddr_in6 *, next->ai_addr)->sin6_addr),
-          (size_t)(*host)->h_length);
+        memcpy((*host)->h_addr_list[i],
+               &(CARES_INADDR_CAST(const struct sockaddr_in6 *, next->ai_addr)
+                   ->sin6_addr),
+               (size_t)(*host)->h_length);
       }
       if (family == AF_INET) {
-        memcpy(
-          (*host)->h_addr_list[i],
-          &(CARES_INADDR_CAST(const struct sockaddr_in *, next->ai_addr)->sin_addr),
-          (size_t)(*host)->h_length);
+        memcpy((*host)->h_addr_list[i],
+               &(CARES_INADDR_CAST(const struct sockaddr_in *, next->ai_addr)
+                   ->sin_addr),
+               (size_t)(*host)->h_length);
       }
       ++i;
     }
@@ -252,20 +252,20 @@ ares_status_t ares__addrinfo2addrttl(const struct ares_addrinfo *ai, int family,
         addr6ttls[*naddrttls].ttl = next->ai_ttl;
       }
 
-      memcpy(
-        &addr6ttls[*naddrttls].ip6addr,
-        &(CARES_INADDR_CAST(const struct sockaddr_in6 *, next->ai_addr)->sin6_addr),
-        sizeof(struct ares_in6_addr));
+      memcpy(&addr6ttls[*naddrttls].ip6addr,
+             &(CARES_INADDR_CAST(const struct sockaddr_in6 *, next->ai_addr)
+                 ->sin6_addr),
+             sizeof(struct ares_in6_addr));
     } else {
       if (next->ai_ttl > cname_ttl) {
         addrttls[*naddrttls].ttl = cname_ttl;
       } else {
         addrttls[*naddrttls].ttl = next->ai_ttl;
       }
-      memcpy(
-        &addrttls[*naddrttls].ipaddr,
-        &(CARES_INADDR_CAST(const struct sockaddr_in *, next->ai_addr)->sin_addr),
-        sizeof(struct in_addr));
+      memcpy(&addrttls[*naddrttls].ipaddr,
+             &(CARES_INADDR_CAST(const struct sockaddr_in *, next->ai_addr)
+                 ->sin_addr),
+             sizeof(struct in_addr));
     }
     (*naddrttls)++;
   }

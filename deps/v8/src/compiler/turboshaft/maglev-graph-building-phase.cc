@@ -994,6 +994,24 @@ class GraphBuilder {
     return maglev::ProcessResult::kContinue;
   }
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  maglev::ProcessResult Process(
+      maglev::GetContinuationPreservedEmbedderData* node,
+      const maglev::ProcessingState&) {
+    V<Object> data = __ GetContinuationPreservedEmbedderData();
+    SetMap(node, data);
+    return maglev::ProcessResult::kContinue;
+  }
+
+  maglev::ProcessResult Process(
+      maglev::SetContinuationPreservedEmbedderData* node,
+      const maglev::ProcessingState&) {
+    V<Object> data = Map(node->input(0));
+    __ SetContinuationPreservedEmbedderData(data);
+    return maglev::ProcessResult::kContinue;
+  }
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
   template <typename NodeT>
   maglev::ProcessResult Process(NodeT* node,
                                 const maglev::ProcessingState& state) {

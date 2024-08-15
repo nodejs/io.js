@@ -483,7 +483,7 @@ EVP_MD_CTX_get_params() can be used with the following OSSL_PARAM keys:
 
 =over 4
 
-=item "micalg" (B<OSSL_PARAM_DIGEST_KEY_MICALG>) <UTF8 string>.
+=item "micalg" (B<OSSL_DIGEST_PARAM_MICALG>) <UTF8 string>.
 
 Gets the digest Message Integrity Check algorithm string. This is used when
 creating S/MIME multipart/signed messages, as specified in RFC 3851.
@@ -784,7 +784,7 @@ in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

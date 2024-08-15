@@ -82,6 +82,7 @@ class ManagedEVPPKey : public MemoryRetainer {
 
   operator bool() const;
   EVP_PKEY* get() const;
+  inline const EVPKeyPointer& pkey() const { return pkey_; }
   Mutex* mutex() const;
 
   void MemoryInfo(MemoryTracker* tracker) const override;

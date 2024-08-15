@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -156,6 +156,9 @@ int BN_rshift(BIGNUM *r, const BIGNUM *a, int n)
         return 0;
     }
 
+    bn_check_top(r);
+    bn_check_top(a);
+
     ret = bn_rshift_fixed_top(r, a, n);
 
     bn_correct_top(r);
@@ -176,9 +179,6 @@ int bn_rshift_fixed_top(BIGNUM *r, const BIGNUM *a, int n)
     unsigned int lb, rb;
     BN_ULONG *t, *f;
     BN_ULONG l, m, mask;
-
-    bn_check_top(r);
-    bn_check_top(a);
 
     assert(n >= 0);
 

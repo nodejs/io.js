@@ -562,7 +562,7 @@ export type ModuleDeclaration =
 | ExportDefaultDeclaration
 | ExportAllDeclaration
 
-export type AnyNode = Statement | Expression | Declaration | ModuleDeclaration | Literal | Program | SwitchCase | CatchClause | Property | Super | SpreadElement | TemplateElement | AssignmentProperty | ObjectPattern | ArrayPattern | RestElement | AssignmentPattern | ClassBody | MethodDefinition | MetaProperty | ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier | ExportSpecifier | AnonymousFunctionDeclaration | AnonymousClassDeclaration | PropertyDefinition | PrivateIdentifier | StaticBlock
+export type AnyNode = Statement | Expression | Declaration | ModuleDeclaration | Literal | Program | SwitchCase | CatchClause | Property | Super | SpreadElement | TemplateElement | AssignmentProperty | ObjectPattern | ArrayPattern | RestElement | AssignmentPattern | ClassBody | MethodDefinition | MetaProperty | ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier | ExportSpecifier | AnonymousFunctionDeclaration | AnonymousClassDeclaration | PropertyDefinition | PrivateIdentifier | StaticBlock | VariableDeclarator
 
 export function parse(input: string, options: Options): Program
 
@@ -573,16 +573,15 @@ export function tokenizer(input: string, options: Options): {
   [Symbol.iterator](): Iterator<Token>
 }
 
-export type ecmaVersion = 3 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | "latest"
+export type ecmaVersion = 3 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | "latest"
 
 export interface Options {
   /**
-   * `ecmaVersion` indicates the ECMAScript version to parse. Must be
-   * either 3, 5, 6 (or 2015), 7 (2016), 8 (2017), 9 (2018), 10
-   * (2019), 11 (2020), 12 (2021), 13 (2022), 14 (2023), or `"latest"`
-   * (the latest version the library supports). This influences
-   * support for strict mode, the set of reserved words, and support
-   * for new syntax features.
+   * `ecmaVersion` indicates the ECMAScript version to parse. Can be a
+   * number, either in year (`2022`) or plain version number (`6`) form,
+   * or `"latest"` (the latest the library supports). This influences
+   * support for strict mode, the set of reserved words, and support for
+   * new syntax features.
    */
   ecmaVersion: ecmaVersion
 
@@ -733,7 +732,7 @@ export class Parser {
   options: Options
   input: string
   
-  private constructor(options: Options, input: string, startPos?: number)
+  protected constructor(options: Options, input: string, startPos?: number)
   parse(): Program
   
   static parse(input: string, options: Options): Program

@@ -309,6 +309,10 @@ class InspectorSession {
       return notification.method === 'Runtime.executionContextDestroyed' &&
         notification.params.executionContextId === 1;
     });
+    await this.waitForDisconnect();
+  }
+
+  async waitForDisconnect() {
     while ((await this._instance.nextStderrString()) !==
               'Waiting for the debugger to disconnect...');
     await this.disconnect();

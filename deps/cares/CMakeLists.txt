@@ -12,7 +12,7 @@ INCLUDE (CheckCSourceCompiles)
 INCLUDE (CheckStructHasMember)
 INCLUDE (CheckLibraryExists)
 
-PROJECT (c-ares LANGUAGES C VERSION "1.32.1" )
+PROJECT (c-ares LANGUAGES C VERSION "1.33.0" )
 
 # Set this version before release
 SET (CARES_VERSION "${PROJECT_VERSION}")
@@ -30,7 +30,7 @@ INCLUDE (GNUInstallDirs) # include this *AFTER* PROJECT(), otherwise paths are w
 # For example, a version of 4:0:2 would generate output such as:
 #    libname.so   -> libname.so.2
 #    libname.so.2 -> libname.so.2.2.0
-SET (CARES_LIB_VERSIONINFO "19:1:17")
+SET (CARES_LIB_VERSIONINFO "20:0:18")
 
 
 OPTION (CARES_STATIC        "Build as a static library"                                             OFF)
@@ -42,6 +42,7 @@ OPTION (CARES_BUILD_CONTAINER_TESTS "Build and run container tests (implies CARE
 OPTION (CARES_BUILD_TOOLS   "Build tools"                                                           ON)
 OPTION (CARES_SYMBOL_HIDING "Hide private symbols in shared libraries"                              OFF)
 OPTION (CARES_THREADS       "Build with thread-safety support"                                      ON)
+OPTION (CARES_COVERAGE      "Build for code coverage"                                               OFF)
 SET    (CARES_RANDOM_FILE "/dev/urandom" CACHE STRING "Suitable File / Device Path for entropy, such as /dev/urandom")
 
 
@@ -265,7 +266,7 @@ IF (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	LIST (APPEND SYSFLAGS -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700)
 ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "SunOS")
-	LIST (APPEND SYSFLAGS -D__EXTENSIONS__ -D_REENTRANT -D_XOPEN_SOURCE=700)
+	LIST (APPEND SYSFLAGS -D__EXTENSIONS__ -D_REENTRANT -D_XOPEN_SOURCE=600)
 ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "AIX")
 	LIST (APPEND SYSFLAGS -D_ALL_SOURCE -D_XOPEN_SOURCE=700 -D_USE_IRS)
 ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
@@ -409,6 +410,7 @@ CHECK_STRUCT_HAS_MEMBER("struct sockaddr_in6" sin6_scope_id "${CMAKE_EXTRA_INCLU
 CHECK_SYMBOL_EXISTS (closesocket     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CLOSESOCKET)
 CHECK_SYMBOL_EXISTS (CloseSocket     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CLOSESOCKET_CAMEL)
 CHECK_SYMBOL_EXISTS (connect         "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONNECT)
+CHECK_SYMBOL_EXISTS (connectx        "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONNECTX)
 CHECK_SYMBOL_EXISTS (fcntl           "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_FCNTL)
 CHECK_SYMBOL_EXISTS (freeaddrinfo    "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_FREEADDRINFO)
 CHECK_SYMBOL_EXISTS (getaddrinfo     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_GETADDRINFO)
@@ -423,6 +425,10 @@ CHECK_SYMBOL_EXISTS (if_indextoname  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_IF_INDE
 CHECK_SYMBOL_EXISTS (if_nametoindex  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_IF_NAMETOINDEX)
 CHECK_SYMBOL_EXISTS (ConvertInterfaceIndexToLuid  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONVERTINTERFACEINDEXTOLUID)
 CHECK_SYMBOL_EXISTS (ConvertInterfaceLuidToNameA  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONVERTINTERFACELUIDTONAMEA)
+CHECK_SYMBOL_EXISTS (NotifyIpInterfaceChange      "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_NOTIFYIPINTERFACECHANGE)
+CHECK_SYMBOL_EXISTS (RegisterWaitForSingleObject  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_REGISTERWAITFORSINGLEOBJECT)
+
+
 CHECK_SYMBOL_EXISTS (inet_net_pton   "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_INET_NET_PTON)
 IF (NOT WIN32)
 	# Disabled on Windows, because these functions are only really supported on Windows
@@ -682,6 +688,27 @@ IF (HAVE_ARPA_NAMESER_COMPAT_H)
 	SET (CARES_HAVE_ARPA_NAMESER_COMPAT_H 1)
 ENDIF()
 
+
+# Coverage
+IF (CARES_COVERAGE)
+	# set compiler flags
+	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftest-coverage -fprofile-arcs")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftest-coverage -fprofile-arcs")
+
+	# find required tools
+	FIND_PROGRAM(LCOV lcov REQUIRED)
+	FIND_PROGRAM(GENHTML genhtml REQUIRED)
+
+	# add coverage target
+	ADD_CUSTOM_TARGET(coverage
+		# gather data
+		COMMAND ${LCOV} --directory . --capture --output-file coverage.info
+		# generate report
+		COMMAND ${GENHTML} --demangle-cpp -o coverage coverage.info
+		WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+	)
+ENDIF()
+
 # TRANSFORM_MAKEFILE_INC
 #
 # This function consumes the "Makefile.inc" autotools file, and converts it into
@@ -727,6 +754,8 @@ IF (CARES_BUILD_TESTS OR CARES_BUILD_CONTAINER_TESTS)
 	ENABLE_TESTING ()
 	ADD_SUBDIRECTORY (test)
 ENDIF ()
+
+
 
 
 # Export targets

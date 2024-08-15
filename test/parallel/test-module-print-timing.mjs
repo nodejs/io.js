@@ -16,7 +16,7 @@ it('should print the timing information for cjs', () => {
     },
   }, {
     stdout: '',
-    stderr: (result) => result.includes('MODULE_TIMER'),
+    stderr: /MODULE_TIMER/g,
   });
 
   const firstLine = result.stderr.split('\n').find((line) => line.includes('[url]'));
@@ -74,7 +74,7 @@ it('should write tracing & print logs for cjs', async () => {
     },
   }, {
     stdout: '',
-    stderr: (result) => result.includes('MODULE_TIMER'),
+    stderr: /MODULE_TIMER/g,
   });
 
   const firstLine = result.stderr.split('\n').find((line) => line.includes('[url]'));
@@ -89,7 +89,67 @@ it('should write tracing & print logs for cjs', async () => {
   const outputFileJson = JSON.parse(outputFileContent).traceEvents;
   const urlTraces = outputFileJson.filter((trace) => trace.name === "require('url')");
 
+  assert.ok(urlTraces.length > 0, 'Not found url traces');
+
   for (const trace of urlTraces) {
     assert.strictEqual(trace.ph, expectedMimeTypes.shift());
   }
+});
+
+it('should support enable tracing dynamically', async () => {
+  try {
+    spawnSyncAndAssert(process.execPath, [
+      '--eval',
+      'require("trace_events")',
+    ], {
+      stdout: '',
+      stderr: '',
+    });
+  } catch {
+    // Skip this test if the trace_events module is not available
+    return;
+  }
+
+
+  const outputFile = tmpdir.resolve('output-dynamic-trace.log');
+  const jsScript = `
+  const traceEvents = require("trace_events");
+  const tracing = traceEvents.createTracing({ categories: ["node.module_timer"] });
+
+  tracing.enable();
+  require("http");
+  tracing.disable();
+
+  require("vm");
+  `;
+
+  spawnSyncAndAssert(process.execPath, [
+    '--trace-event-file-pattern',
+    outputFile,
+    '--eval',
+    jsScript,
+  ], {
+    cwd: tmpdir.path,
+    env: {
+      ...process.env,
+    },
+  }, {
+    stdout: '',
+    stderr: '',
+  });
+
+  const expectedMimeTypes = ['b', 'e'];
+  const outputFileContent = await readFile(outputFile, 'utf-8');
+
+  const outputFileJson = JSON.parse(outputFileContent).traceEvents;
+  const httpTraces = outputFileJson.filter((trace) => trace.name === "require('http')");
+
+  assert.ok(httpTraces.length > 0, 'Not found http traces');
+
+  for (const trace of httpTraces) {
+    assert.strictEqual(trace.ph, expectedMimeTypes.shift());
+  }
+
+  const vmTraces = outputFileJson.filter((trace) => trace.name === "require('vm')");
+  assert.strictEqual(vmTraces.length, 0);
 });

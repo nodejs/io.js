@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.29.3](https://github.com/nodejs/corepack/compare/v0.29.2...v0.29.3) (2024-07-21)
+
+
+### Bug Fixes
+
+* fallback to `shasum` when `integrity` is not defined ([#542](https://github.com/nodejs/corepack/issues/542)) ([eb63873](https://github.com/nodejs/corepack/commit/eb63873c6c617a2f8ac7106e26ccfe8aa3ae1fb9))
+* make `DEBUG=corepack` more useful ([#538](https://github.com/nodejs/corepack/issues/538)) ([6019d7b](https://github.com/nodejs/corepack/commit/6019d7b56e85bd8b7b58a1a487922c707e70e30e))
+
 ## [0.29.2](https://github.com/nodejs/corepack/compare/v0.29.1...v0.29.2) (2024-07-13)
 
 

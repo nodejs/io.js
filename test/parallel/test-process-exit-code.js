@@ -24,7 +24,7 @@ require('../common');
 const assert = require('assert');
 const debug = require('util').debuglog('test');
 
-const { getTestCases } = require('../fixtures/process-exit-code-cases');
+const { getTestCases } = require('../common/process-exit-code-cases');
 const testCases = getTestCases(false);
 
 if (!process.argv[2]) {

@@ -63,9 +63,11 @@ describe('legacyMainResolve', () => {
 
             assert.throws(() => legacyMainResolve(packageJsonUrl, packageConfig, base), {
               code: 'ERR_ACCESS_DENIED',
-              resource: path.resolve(
-                ${JSON.stringify(fixtextureFolderEscaped)},
-                ${JSON.stringify(mainOrFolder)},
+              resource: path.toNamespacedPath(
+                path.resolve(
+                  ${JSON.stringify(fixtextureFolderEscaped)},
+                  ${JSON.stringify(mainOrFolder)},
+                )
               )
             });
           `,
@@ -120,10 +122,12 @@ describe('legacyMainResolve', () => {
 
             assert.throws(() => legacyMainResolve(packageJsonUrl, packageConfig, base), {
               code: 'ERR_ACCESS_DENIED',
-              resource: path.resolve(
-                ${JSON.stringify(fixtextureFolderEscaped)},
-                ${JSON.stringify(folder)},
-                ${JSON.stringify(expectedFile)},
+              resource: path.toNamespacedPath(
+                path.resolve(
+                  ${JSON.stringify(fixtextureFolderEscaped)},
+                  ${JSON.stringify(folder)},
+                  ${JSON.stringify(expectedFile)},
+                )
               )
             });
           `,

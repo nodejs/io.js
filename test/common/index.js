@@ -143,6 +143,7 @@ const isOpenBSD = process.platform === 'openbsd';
 const isLinux = process.platform === 'linux';
 const isMacOS = process.platform === 'darwin';
 const isASan = process.config.variables.asan === 1;
+const isDebug = process.features.debug;
 const isPi = (() => {
   try {
     // Normal Raspberry Pi detection is to find the `Raspberry Pi` string in
@@ -280,7 +281,7 @@ function platformTimeout(ms) {
   const multipliers = typeof ms === 'bigint' ?
     { two: 2n, four: 4n, seven: 7n } : { two: 2, four: 4, seven: 7 };
 
-  if (process.features.debug)
+  if (isDebug)
     ms = multipliers.two * ms;
 
   if (exports.isAIX || exports.isIBMi)
@@ -998,6 +999,7 @@ const common = {
   invalidArgTypeHelper,
   isAlive,
   isASan,
+  isDebug,
   isDumbTerminal,
   isFreeBSD,
   isLinux,

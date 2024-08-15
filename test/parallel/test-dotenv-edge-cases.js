@@ -98,4 +98,18 @@ describe('.env supports edge cases', () => {
     assert.strictEqual(child.stderr, '');
     assert.strictEqual(child.code, 0);
   });
+
+  it('should handle when --env-file is passed along with --', async () => {
+    const child = await common.spawnPromisified(
+      process.execPath,
+      [
+        '--eval', `require('assert').strictEqual(process.env.BASIC, undefined);`,
+        '--', '--env-file', validEnvFilePath,
+      ],
+      { cwd: fixtures.path('dotenv') },
+    );
+    assert.strictEqual(child.stdout, '');
+    assert.strictEqual(child.stderr, '');
+    assert.strictEqual(child.code, 0);
+  });
 });

@@ -95,7 +95,7 @@
 #endif
 
 typedef CARES_TYPEOF_ARES_SOCKLEN_T ares_socklen_t;
-typedef CARES_TYPEOF_ARES_SSIZE_T ares_ssize_t;
+typedef CARES_TYPEOF_ARES_SSIZE_T   ares_ssize_t;
 
 #ifdef __cplusplus
 extern "C" {

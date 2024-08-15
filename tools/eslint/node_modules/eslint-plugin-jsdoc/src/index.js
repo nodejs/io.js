@@ -7,6 +7,7 @@ import checkParamNames from './rules/checkParamNames.js';
 import checkPropertyNames from './rules/checkPropertyNames.js';
 import checkSyntax from './rules/checkSyntax.js';
 import checkTagNames from './rules/checkTagNames.js';
+import checkTemplateNames from './rules/checkTemplateNames.js';
 import checkTypes from './rules/checkTypes.js';
 import checkValues from './rules/checkValues.js';
 import convertToJsdocComments from './rules/convertToJsdocComments.js';
@@ -81,6 +82,7 @@ const index = {
     'check-property-names': checkPropertyNames,
     'check-syntax': checkSyntax,
     'check-tag-names': checkTagNames,
+    'check-template-names': checkTemplateNames,
     'check-types': checkTypes,
     'check-values': checkValues,
     'convert-to-jsdoc-comments': convertToJsdocComments,
@@ -155,6 +157,7 @@ const createRecommendedRuleset = (warnOrError, flatName) => {
       'jsdoc/check-property-names': warnOrError,
       'jsdoc/check-syntax': 'off',
       'jsdoc/check-tag-names': warnOrError,
+      'jsdoc/check-template-names': 'off',
       'jsdoc/check-types': warnOrError,
       'jsdoc/check-values': warnOrError,
       'jsdoc/convert-to-jsdoc-comments': 'off',

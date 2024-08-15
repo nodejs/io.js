@@ -4,7 +4,7 @@
 #include "js_native_api_types.h"
 #include "js_native_api_v8_internals.h"
 
-inline napi_status napi_clear_last_error(node_api_nogc_env env);
+inline napi_status napi_clear_last_error(node_api_basic_env env);
 
 namespace v8impl {
 
@@ -172,8 +172,8 @@ struct napi_env__ {
   virtual ~napi_env__() = default;
 };
 
-inline napi_status napi_clear_last_error(node_api_nogc_env nogc_env) {
-  napi_env env = const_cast<napi_env>(nogc_env);
+inline napi_status napi_clear_last_error(node_api_basic_env basic_env) {
+  napi_env env = const_cast<napi_env>(basic_env);
   env->last_error.error_code = napi_ok;
   env->last_error.engine_error_code = 0;
   env->last_error.engine_reserved = nullptr;
@@ -181,11 +181,11 @@ inline napi_status napi_clear_last_error(node_api_nogc_env nogc_env) {
   return napi_ok;
 }
 
-inline napi_status napi_set_last_error(node_api_nogc_env nogc_env,
+inline napi_status napi_set_last_error(node_api_basic_env basic_env,
                                        napi_status error_code,
                                        uint32_t engine_error_code = 0,
                                        void* engine_reserved = nullptr) {
-  napi_env env = const_cast<napi_env>(nogc_env);
+  napi_env env = const_cast<napi_env>(basic_env);
   env->last_error.error_code = error_code;
   env->last_error.engine_error_code = engine_error_code;
   env->last_error.engine_reserved = engine_reserved;

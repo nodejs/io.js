@@ -486,6 +486,9 @@
   'compiler/regress-crbug-1201057': [SKIP],
   'compiler/regress-crbug-1201082': [SKIP],
 
+  'maglev/extras-cped': [SKIP],
+  'turboshaft/extras-cped': [SKIP],
+
   # These tests check that we can trace the compiler.
   'tools/compiler-trace-flags': [SKIP],
 
@@ -1432,6 +1435,9 @@
   'regress/regress-1049982-1': [SKIP],
   'regress/regress-1049982-2': [SKIP],
 
+  'maglev/extras-cped': [SKIP],
+  'turboshaft/extras-cped': [SKIP],
+
   # Wasm serialization relies on TurboFan to be available, hence does not work
   # in the 'nooptimization' variant.
   'wasm/serialization-with-compilation-hints': [SKIP],
@@ -2078,6 +2084,7 @@
   # the deprecated map. Wiring this through in Maglev would be too messy to be
   # worth it.
   'regress/regress-map-invalidation-2': [FAIL],
+  'turboshaft/extras-cped': [SKIP],
 }], # variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)
 
 ['(variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)) and (arch != arm)', {

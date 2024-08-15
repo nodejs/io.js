@@ -17,6 +17,13 @@ EnvironmentOptions* PerIsolateOptions::get_per_env_options() {
   return per_env.get();
 }
 
+std::shared_ptr<PerIsolateOptions> PerIsolateOptions::Clone() const {
+  auto options =
+      std::shared_ptr<PerIsolateOptions>(new PerIsolateOptions(*this));
+  options->per_env = std::make_shared<EnvironmentOptions>(*per_env);
+  return options;
+}
+
 namespace options_parser {
 
 template <typename Options>

@@ -1218,6 +1218,11 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
       const FastApiCallFunctionVector& c_candidate_functions,
       FeedbackSource const& feedback, CallDescriptor* descriptor);
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  const Operator* GetContinuationPreservedEmbedderData();
+  const Operator* SetContinuationPreservedEmbedderData();
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
  private:
   Zone* zone() const { return zone_; }
 

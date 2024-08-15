@@ -16,6 +16,13 @@
   "readable-streams/cross-realm-crash.window.js": {
     "skip": "Browser-specific test"
   },
+  "readable-streams/from.any.js": {
+    "fail": {
+      "expected": [
+        "ReadableStream.from ignores a null @@asyncIterator"
+      ]
+    }
+  },
   "readable-streams/owning-type-message-port.any.js": {
     "fail": {
       "note": "Readable streams with type owning are not yet supported",
@@ -40,6 +47,9 @@
       ]
     }
   },
+  "readable-streams/read-task-handling.window.js": {
+    "skip": "Browser-specific test"
+  },
   "transferable/deserialize-error.window.js": {
     "skip": "Browser-specific test"
   },
@@ -55,9 +65,6 @@
     }
   },
   "transform-streams/invalid-realm.tentative.window.js": {
-    "skip": "Browser-specific test"
-  },
-  "readable-streams/read-task-handling.window.js": {
     "skip": "Browser-specific test"
   }
 }

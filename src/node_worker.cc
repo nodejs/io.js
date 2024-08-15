@@ -185,16 +185,15 @@ class WorkerThreadData {
       isolate->SetStackLimit(w->stack_base_);
 
       HandleScope handle_scope(isolate);
-      isolate_data_.reset(
-          CreateIsolateData(isolate,
-                            &loop_,
-                            w_->platform_,
-                            allocator.get(),
-                            w->snapshot_data()->AsEmbedderWrapper().get()));
+      isolate_data_.reset(IsolateData::CreateIsolateData(
+          isolate,
+          &loop_,
+          w_->platform_,
+          allocator.get(),
+          w->snapshot_data()->AsEmbedderWrapper().get(),
+          std::move(w_->per_isolate_opts_)));
       CHECK(isolate_data_);
       CHECK(!isolate_data_->is_building_snapshot());
-      if (w_->per_isolate_opts_)
-        isolate_data_->set_options(std::move(w_->per_isolate_opts_));
       isolate_data_->set_worker_context(w_);
       isolate_data_->max_young_gen_size =
           params.constraints.max_young_generation_size_in_bytes();
@@ -491,9 +490,8 @@ Worker::~Worker() {
 
 void Worker::New(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
-  auto is_internal = args[5];
-  CHECK(is_internal->IsBoolean());
-  if (is_internal->IsFalse()) {
+  bool is_internal = args[5]->IsTrue();
+  if (!is_internal) {
     THROW_IF_INSUFFICIENT_PERMISSIONS(
         env, permission::PermissionScope::kWorkerThreads, "");
   }
@@ -658,7 +656,19 @@ void Worker::New(const FunctionCallbackInfo<Value>& args) {
       return;
     }
   } else {
+    // Copy the parent's execArgv.
     exec_argv_out = env->exec_argv();
+    per_isolate_opts = env->isolate_data()->options()->Clone();
+  }
+
+  // Internal workers should not wait for inspector frontend to connect or
+  // break on the first line of internal scripts. Module loader threads are
+  // essential to load user codes and must not be blocked by the inspector
+  // for internal scripts.
+  // Still, `--inspect-node` can break on the first line of internal scripts.
+  if (is_internal) {
+    per_isolate_opts->per_env->get_debug_options()
+        ->DisableWaitOrBreakFirstLine();
   }
 
   const SnapshotData* snapshot_data = env->isolate_data()->snapshot_data();

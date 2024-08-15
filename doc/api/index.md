@@ -41,6 +41,7 @@
 * [Modules: ECMAScript modules](esm.md)
 * [Modules: `node:module` API](module.md)
 * [Modules: Packages](packages.md)
+* [Modules: TypeScript](typescript.md)
 * [Net](net.md)
 * [OS](os.md)
 * [Path](path.md)

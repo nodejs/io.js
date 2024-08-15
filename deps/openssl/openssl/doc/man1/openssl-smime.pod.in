@@ -195,14 +195,14 @@ Don't try to verify the signatures on the message.
 
 =item B<-nocerts>
 
-When signing a message the signer's certificate is normally included
-with this option it is excluded. This will reduce the size of the
-signed message but the verifier must have a copy of the signers certificate
+When signing a message, the signer's certificate is normally included.
+With this option it is excluded. This will reduce the size of the
+signed message, but the verifier must have a copy of the signers certificate
 available locally (passed using the B<-certfile> option for example).
 
 =item B<-noattr>
 
-Normally when a message is signed a set of attributes are included which
+Normally, when a message is signed, a set of attributes are included which
 include the signing time and supported symmetric algorithms. With this
 option they are not included.
 
@@ -242,14 +242,6 @@ A signing certificate when signing or resigning a message, this option can be
 used multiple times if more than one signer is required. If a message is being
 verified then the signers certificates will be written to this file if the
 verification was successful.
-
-=item B<-nocerts>
-
-Don't include signers certificate when signing.
-
-=item B<-noattr>
-
-Don't include any signed attributes when signing.
 
 =item B<-recip> I<file>
 
@@ -482,7 +474,7 @@ The B<-engine> option was deprecated in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

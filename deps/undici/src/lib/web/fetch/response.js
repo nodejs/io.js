@@ -34,8 +34,9 @@ const hasFinalizationRegistry = globalThis.FinalizationRegistry && process.versi
 let registry
 
 if (hasFinalizationRegistry) {
-  registry = new FinalizationRegistry((stream) => {
-    if (!stream.locked && !isDisturbed(stream) && !isErrored(stream)) {
+  registry = new FinalizationRegistry((weakRef) => {
+    const stream = weakRef.deref()
+    if (stream && !stream.locked && !isDisturbed(stream) && !isErrored(stream)) {
       stream.cancel('Response object has been garbage collected').catch(noop)
     }
   })
@@ -526,7 +527,12 @@ function fromInnerResponse (innerResponse, guard) {
   setHeadersGuard(response[kHeaders], guard)
 
   if (hasFinalizationRegistry && innerResponse.body?.stream) {
-    registry.register(response, innerResponse.body.stream)
+    // If the target (response) is reclaimed, the cleanup callback may be called at some point with
+    // the held value provided for it (innerResponse.body.stream). The held value can be any value:
+    // a primitive or an object, even undefined. If the held value is an object, the registry keeps
+    // a strong reference to it (so it can pass it to the cleanup callback later). Reworded from
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/FinalizationRegistry
+    registry.register(response, new WeakRef(innerResponse.body.stream))
   }
 
   return response

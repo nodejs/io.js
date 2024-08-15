@@ -135,6 +135,7 @@ describe('require(\'node:test\').run', { concurrency: true }, () => {
     })
       .compose(tap)
       .toArray();
+
     assert.strictEqual(result[2], 'ok 1 - this should be executed\n');
     assert.strictEqual(result[4], '1..1\n');
     assert.strictEqual(result[5], '# tests 1\n');
@@ -467,6 +468,19 @@ describe('require(\'node:test\').run', { concurrency: true }, () => {
         }));
     });
 
+    it('should only allow array in options.globPatterns', async () => {
+      [Symbol(), {}, () => {}, 0, 1, 0n, 1n, '', '1', Promise.resolve([]), true, false]
+        .forEach((globPatterns) => assert.throws(() => run({ globPatterns }), {
+          code: 'ERR_INVALID_ARG_TYPE'
+        }));
+    });
+
+    it('should not allow files and globPatterns used together', () => {
+      assert.throws(() => run({ files: ['a.js'], globPatterns: ['*.js'] }), {
+        code: 'ERR_INVALID_ARG_VALUE'
+      });
+    });
+
     it('should only allow object as options', () => {
       [Symbol(), [], () => {}, 0, 1, 0n, 1n, '', '1', true, false]
         .forEach((options) => assert.throws(() => run(options), {
@@ -486,39 +500,6 @@ describe('require(\'node:test\').run', { concurrency: true }, () => {
       // eslint-disable-next-line no-unused-vars
       for await (const _ of stream);
     });
-  });
-
-  it('should run with no files', async () => {
-    const stream = run({
-      files: undefined
-    }).compose(tap);
-    stream.on('test:fail', common.mustNotCall());
-    stream.on('test:pass', common.mustNotCall());
-
-    // eslint-disable-next-line no-unused-vars
-    for await (const _ of stream);
-  });
-
-  it('should run with no files and use spec reporter', async () => {
-    const stream = run({
-      files: undefined
-    }).compose(spec);
-    stream.on('test:fail', common.mustNotCall());
-    stream.on('test:pass', common.mustNotCall());
-
-    // eslint-disable-next-line no-unused-vars
-    for await (const _ of stream);
-  });
-
-  it('should run with no files and use dot reporter', async () => {
-    const stream = run({
-      files: undefined
-    }).compose(dot);
-    stream.on('test:fail', common.mustNotCall());
-    stream.on('test:pass', common.mustNotCall());
-
-    // eslint-disable-next-line no-unused-vars
-    for await (const _ of stream);
   });
 
   it('should avoid running recursively', async () => {
@@ -550,4 +531,14 @@ describe('forceExit', () => {
       message: /The property 'options\.forceExit' is not supported with watch mode\./
     });
   });
+});
+
+
+// exitHandler doesn't run until after the tests / after hooks finish.
+process.on('exit', () => {
+  assert.strictEqual(process.listeners('uncaughtException').length, 0);
+  assert.strictEqual(process.listeners('unhandledRejection').length, 0);
+  assert.strictEqual(process.listeners('beforeExit').length, 0);
+  assert.strictEqual(process.listeners('SIGINT').length, 0);
+  assert.strictEqual(process.listeners('SIGTERM').length, 0);
 });

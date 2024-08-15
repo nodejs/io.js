@@ -30,7 +30,6 @@ describe('ESM: warn for obsolete hooks provided', { concurrency: !process.env.TE
           '--experimental-loader',
           fileURL('es-module-loaders', 'hooks-custom.mjs'),
         ],
-        [/Network Imports/, '--experimental-network-imports'],
       ]
     ) {
       it(`should print for ${experiment.toString().replaceAll('/', '')}`, async () => {

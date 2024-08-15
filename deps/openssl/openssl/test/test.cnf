@@ -72,3 +72,9 @@ commonName			= CN field
 commonName_value		= Eric Young
 emailAddress			= email field
 emailAddress_value		= eay@mincom.oz.au
+
+[ dirname_sec ]
+C  = UK
+O  = My Organization
+OU = My Unit
+CN = My Name

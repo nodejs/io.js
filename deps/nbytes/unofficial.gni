@@ -9,7 +9,7 @@ import("$node_v8_path/gni/v8.gni")
 # prevent accidental edits from contributors.
 template("nbytes_gn_build") {
   config("nbytes_config") {
-    include_dirs = [ "." ]
+    include_dirs = [ "include" ]
   }
 
   gypi_values = exec_script("../../tools/gypi_to_gn.py",

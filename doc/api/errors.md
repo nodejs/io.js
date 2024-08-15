@@ -2572,7 +2572,7 @@ A call was made and the UDP subsystem was not running.
 ### `ERR_SQLITE_ERROR`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 An error was returned from [SQLite][].
@@ -3113,7 +3113,7 @@ nor a relative path starting with `./` or `../`.
 ### `ERR_WORKER_MESSAGING_ERRORED`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 > Stability: 1.1 - Active development
@@ -3125,7 +3125,7 @@ The destination thread threw an error while processing a message sent via [`post
 ### `ERR_WORKER_MESSAGING_FAILED`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 > Stability: 1.1 - Active development
@@ -3137,7 +3137,7 @@ The thread requested in [`postMessageToThread()`][] is invalid or has no `worker
 ### `ERR_WORKER_MESSAGING_SAME_THREAD`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 > Stability: 1.1 - Active development
@@ -3149,7 +3149,7 @@ The thread id requested in [`postMessageToThread()`][] is the current thread id.
 ### `ERR_WORKER_MESSAGING_TIMEOUT`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 > Stability: 1.1 - Active development
@@ -3583,23 +3583,6 @@ removed: v10.0.0
 
 Used by the `Node-API` when `Constructor.prototype` is not an object.
 
-<a id="ERR_NETWORK_IMPORT_BAD_RESPONSE"></a>
-
-### `ERR_NETWORK_IMPORT_BAD_RESPONSE`
-
-> Stability: 1 - Experimental
-
-Response was received but was invalid when importing a module over the network.
-
-<a id="ERR_NETWORK_IMPORT_DISALLOWED"></a>
-
-### `ERR_NETWORK_IMPORT_DISALLOWED`
-
-> Stability: 1 - Experimental
-
-A network module attempted to load another module that it is not allowed to
-load. Likely this restriction is for security reasons.
-
 <a id="ERR_NO_LONGER_SUPPORTED"></a>
 
 ### `ERR_NO_LONGER_SUPPORTED`
@@ -4031,6 +4014,16 @@ The public key in the certificate SubjectPublicKeyInfo could not be read.
 #### `OUT_OF_MEM`
 
 An error occurred trying to allocate memory. This should never happen.
+
+<a id="ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING"></a>
+
+#### `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`
+
+<!-- YAML
+added: v22.6.0
+-->
+
+Type stripping is not supported for files descendent of a `node_modules` directory.
 
 [ES Module]: esm.md
 [ICU]: intl.md#internationalization-support

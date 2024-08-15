@@ -14,10 +14,10 @@ const defaultTagOrder = [
       'import',
 
       // Identifying (name, type)
+      'template',
       'typedef',
       'interface',
       'record',
-      'template',
       'name',
       'kind',
       'type',

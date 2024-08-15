@@ -1,16 +1,17 @@
 #include "inspector_io.h"
 
-#include "inspector_socket_server.h"
+#include "base_object-inl.h"
+#include "crypto/crypto_util.h"
+#include "debug_utils-inl.h"
 #include "inspector/main_thread_interface.h"
 #include "inspector/node_string.h"
-#include "crypto/crypto_util.h"
-#include "base_object-inl.h"
-#include "debug_utils-inl.h"
+#include "inspector_socket_server.h"
+#include "ncrypto.h"
 #include "node.h"
 #include "node_internals.h"
 #include "node_mutex.h"
-#include "v8-inspector.h"
 #include "util-inl.h"
+#include "v8-inspector.h"
 #include "zlib.h"
 
 #include <deque>
@@ -46,7 +47,7 @@ std::string ScriptPath(uv_loop_t* loop, const std::string& script_name) {
 // Used ver 4 - with numbers
 std::string GenerateID() {
   uint16_t buffer[8];
-  CHECK(crypto::CSPRNG(buffer, sizeof(buffer)).is_ok());
+  CHECK(ncrypto::CSPRNG(buffer, sizeof(buffer)));
 
   char uuid[256];
   snprintf(uuid, sizeof(uuid), "%04x%04x-%04x-%04x-%04x-%04x%04x%04x",

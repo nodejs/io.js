@@ -139,12 +139,22 @@ struct PerIsolateWrapperData {
 };
 
 class NODE_EXTERN_PRIVATE IsolateData : public MemoryRetainer {
- public:
+ private:
   IsolateData(v8::Isolate* isolate,
               uv_loop_t* event_loop,
-              MultiIsolatePlatform* platform = nullptr,
-              ArrayBufferAllocator* node_allocator = nullptr,
-              const SnapshotData* snapshot_data = nullptr);
+              MultiIsolatePlatform* platform,
+              ArrayBufferAllocator* node_allocator,
+              const SnapshotData* snapshot_data,
+              std::shared_ptr<PerIsolateOptions> options);
+
+ public:
+  static IsolateData* CreateIsolateData(
+      v8::Isolate* isolate,
+      uv_loop_t* event_loop,
+      MultiIsolatePlatform* platform = nullptr,
+      ArrayBufferAllocator* node_allocator = nullptr,
+      const EmbedderSnapshotData* embedder_snapshot_data = nullptr,
+      std::shared_ptr<PerIsolateOptions> options = nullptr);
   ~IsolateData();
 
   SET_MEMORY_INFO_NAME(IsolateData)
@@ -173,7 +183,6 @@ class NODE_EXTERN_PRIVATE IsolateData : public MemoryRetainer {
   inline MultiIsolatePlatform* platform() const;
   inline const SnapshotData* snapshot_data() const;
   inline std::shared_ptr<PerIsolateOptions> options();
-  inline void set_options(std::shared_ptr<PerIsolateOptions> options);
 
   inline NodeArrayBufferAllocator* node_allocator() const;
 
@@ -596,7 +605,7 @@ v8::Maybe<ExitCode> EmitProcessExitInternal(Environment* env);
  * environment. Each environment has a principal realm. An environment can
  * create multiple subsidiary synthetic realms.
  */
-class Environment : public MemoryRetainer {
+class Environment final : public MemoryRetainer {
  public:
   Environment(const Environment&) = delete;
   Environment& operator=(const Environment&) = delete;
@@ -1027,7 +1036,7 @@ class Environment : public MemoryRetainer {
   std::unique_ptr<v8::BackingStore> release_managed_buffer(const uv_buf_t& buf);
 
   void AddUnmanagedFd(int fd);
-  void RemoveUnmanagedFd(int fd, bool schedule_native_immediate = false);
+  void RemoveUnmanagedFd(int fd);
 
   template <typename T>
   void ForEachRealm(T&& iterator) const;
@@ -1058,6 +1067,14 @@ class Environment : public MemoryRetainer {
 #endif  // HAVE_OPENSSL
 
   v8::Global<v8::Module> temporary_required_module_facade_original;
+
+  void SetAsyncResourceContextFrame(std::uintptr_t async_resource_handle,
+                                    v8::Global<v8::Value>&&);
+
+  const v8::Global<v8::Value>& GetAsyncResourceContextFrame(
+      std::uintptr_t async_resource_handle);
+
+  void RemoveAsyncResourceContextFrame(std::uintptr_t async_resource_handle);
 
  private:
   inline void ThrowError(v8::Local<v8::Value> (*fun)(v8::Local<v8::String>,
@@ -1231,6 +1248,9 @@ class Environment : public MemoryRetainer {
   // track of the BackingStore for a given pointer.
   std::unordered_map<char*, std::unique_ptr<v8::BackingStore>>
       released_allocated_buffers_;
+
+  std::unordered_map<std::uintptr_t, v8::Global<v8::Value>>
+      async_resource_context_frames_;
 };
 
 }  // namespace node

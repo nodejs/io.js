@@ -130,7 +130,7 @@ the expansion of where/when Node.js is used in building solutions.
 ## Serverless
 
 Serverless is a cloud computing model where the cloud provider manages the
-underlyinginfrastructure and automatically allocates resources as
+underlying infrastructure and automatically allocates resources as
 needed. Developers only need to focus on writing code for specific
 functions, which are executed as individual units of work in response to
 events. Node.js is one of the main technology used by developers in

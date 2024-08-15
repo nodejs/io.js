@@ -6525,6 +6525,21 @@ ReduceResult MaglevGraphBuilder::TryReduceStringPrototypeLocaleCompare(
 #endif
 }
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+ReduceResult MaglevGraphBuilder::TryReduceGetContinuationPreservedEmbedderData(
+    compiler::JSFunctionRef target, CallArguments& args) {
+  return AddNewNode<GetContinuationPreservedEmbedderData>({});
+}
+
+ReduceResult MaglevGraphBuilder::TryReduceSetContinuationPreservedEmbedderData(
+    compiler::JSFunctionRef target, CallArguments& args) {
+  if (args.count() == 0) return ReduceResult::Fail();
+
+  AddNewNode<SetContinuationPreservedEmbedderData>({GetTaggedValue(args[0])});
+  return GetRootConstant(RootIndex::kUndefinedValue);
+}
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
 template <typename LoadNode>
 ReduceResult MaglevGraphBuilder::TryBuildLoadDataView(const CallArguments& args,
                                                       ExternalArrayType type) {

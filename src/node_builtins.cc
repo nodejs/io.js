@@ -489,6 +489,14 @@ MaybeLocal<Value> BuiltinLoader::CompileAndCall(Local<Context> context,
   return fn->Call(context, undefined, argc, argv);
 }
 
+MaybeLocal<Function> BuiltinLoader::LookupAndCompile(
+    Local<Context> context,
+    const char* id,
+    std::vector<Local<String>>* parameters,
+    Realm* optional_realm) {
+  return LookupAndCompileInternal(context, id, parameters, optional_realm);
+}
+
 bool BuiltinLoader::CompileAllBuiltinsAndCopyCodeCache(
     Local<Context> context,
     const std::vector<std::string>& eager_builtins,

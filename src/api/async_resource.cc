@@ -1,5 +1,6 @@
-#include "node.h"
+#include "async_context_frame.h"
 #include "env-inl.h"
+#include "node.h"
 
 namespace node {
 
@@ -18,36 +19,55 @@ AsyncResource::AsyncResource(Isolate* isolate,
     : env_(Environment::GetCurrent(isolate)),
       resource_(isolate, resource) {
   CHECK_NOT_NULL(env_);
-  async_context_ = EmitAsyncInit(isolate, resource, name,
-                                 trigger_async_id);
+  env_->SetAsyncResourceContextFrame(
+      reinterpret_cast<std::uintptr_t>(this),
+      {isolate, async_context_frame::current(isolate)});
+  async_context_ = EmitAsyncInit(isolate, resource, name, trigger_async_id);
 }
 
 AsyncResource::~AsyncResource() {
+  CHECK_NOT_NULL(env_);
   EmitAsyncDestroy(env_, async_context_);
+  env_->RemoveAsyncResourceContextFrame(reinterpret_cast<std::uintptr_t>(this));
 }
 
 MaybeLocal<Value> AsyncResource::MakeCallback(Local<Function> callback,
                                               int argc,
                                               Local<Value>* argv) {
-  return node::MakeCallback(env_->isolate(), get_resource(),
-                            callback, argc, argv,
-                            async_context_);
+  auto isolate = env_->isolate();
+  auto context_frame =
+      env_->GetAsyncResourceContextFrame(reinterpret_cast<std::uintptr_t>(this))
+          .Get(isolate);
+  async_context_frame::Scope async_context_frame_scope(isolate, context_frame);
+
+  return node::MakeCallback(
+      isolate, get_resource(), callback, argc, argv, async_context_);
 }
 
 MaybeLocal<Value> AsyncResource::MakeCallback(const char* method,
                                               int argc,
                                               Local<Value>* argv) {
-  return node::MakeCallback(env_->isolate(), get_resource(),
-                            method, argc, argv,
-                            async_context_);
+  auto isolate = env_->isolate();
+  auto context_frame =
+      env_->GetAsyncResourceContextFrame(reinterpret_cast<std::uintptr_t>(this))
+          .Get(isolate);
+  async_context_frame::Scope async_context_frame_scope(isolate, context_frame);
+
+  return node::MakeCallback(
+      isolate, get_resource(), method, argc, argv, async_context_);
 }
 
 MaybeLocal<Value> AsyncResource::MakeCallback(Local<String> symbol,
                                               int argc,
                                               Local<Value>* argv) {
-  return node::MakeCallback(env_->isolate(), get_resource(),
-                            symbol, argc, argv,
-                            async_context_);
+  auto isolate = env_->isolate();
+  auto context_frame =
+      env_->GetAsyncResourceContextFrame(reinterpret_cast<std::uintptr_t>(this))
+          .Get(isolate);
+  async_context_frame::Scope async_context_frame_scope(isolate, context_frame);
+
+  return node::MakeCallback(
+      isolate, get_resource(), symbol, argc, argv, async_context_);
 }
 
 Local<Object> AsyncResource::get_resource() {

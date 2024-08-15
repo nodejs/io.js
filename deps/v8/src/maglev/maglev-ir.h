@@ -261,6 +261,7 @@ class MergePointInterpreterFrameState;
   V(ToString)                                       \
   V(NumberToString)                                 \
   V(UpdateJSArrayLength)                            \
+  V(GetContinuationPreservedEmbedderData)           \
   CONSTANT_VALUE_NODE_LIST(V)                       \
   INT32_OPERATIONS_NODE_LIST(V)                     \
   FLOAT64_OPERATIONS_NODE_LIST(V)                   \
@@ -324,6 +325,7 @@ class MergePointInterpreterFrameState;
   V(ThrowIfNotSuperConstructor)             \
   V(TransitionElementsKind)                 \
   V(TransitionElementsKindOrCheckMap)       \
+  V(SetContinuationPreservedEmbedderData)   \
   GAP_MOVE_NODE_LIST(V)                     \
   VALUE_NODE_LIST(V)
 
@@ -8727,6 +8729,42 @@ class TransitionElementsKindOrCheckMap
 
   ZoneVector<compiler::MapRef> transition_sources_;
   const compiler::MapRef transition_target_;
+};
+
+class GetContinuationPreservedEmbedderData
+    : public FixedInputValueNodeT<0, GetContinuationPreservedEmbedderData> {
+  using Base = FixedInputValueNodeT<0, GetContinuationPreservedEmbedderData>;
+
+ public:
+  explicit GetContinuationPreservedEmbedderData(uint64_t bitfield)
+      : Base(bitfield) {}
+
+  void SetValueLocationConstraints();
+  void GenerateCode(MaglevAssembler*, const ProcessingState&);
+  void PrintParams(std::ostream&, MaglevGraphLabeller*) const {}
+
+  static constexpr OpProperties kProperties =
+      OpProperties::CanRead() | OpProperties::TaggedValue();
+};
+
+class SetContinuationPreservedEmbedderData
+    : public FixedInputNodeT<1, SetContinuationPreservedEmbedderData> {
+  using Base = FixedInputNodeT<1, SetContinuationPreservedEmbedderData>;
+
+ public:
+  explicit SetContinuationPreservedEmbedderData(uint64_t bitfield)
+      : Base(bitfield) {}
+
+  static constexpr
+      typename Base::InputTypes kInputTypes{ValueRepresentation::kTagged};
+
+  Input& data_input() { return input(0); }
+
+  void SetValueLocationConstraints();
+  void GenerateCode(MaglevAssembler*, const ProcessingState&);
+  void PrintParams(std::ostream&, MaglevGraphLabeller*) const {}
+
+  static constexpr OpProperties kProperties = OpProperties::CanWrite();
 };
 
 class ControlNode : public NodeBase {

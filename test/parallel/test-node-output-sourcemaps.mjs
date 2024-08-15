@@ -13,7 +13,7 @@ describe('sourcemaps output', { concurrency: !process.env.TEST_PARALLEL }, () =>
     .replaceAll(/\/(\w)/g, '*$1')
     .replaceAll('*test*', '*')
     .replaceAll('*fixtures*source-map*', '*')
-    .replaceAll(/(\W+).*node:internal\*modules.*/g, '$1*');
+    .replaceAll(/(\W+).*node:.*/g, '$1*');
     if (common.isWindows) {
       const currentDeviceLetter = path.parse(process.cwd()).root.substring(0, 1).toLowerCase();
       const regex = new RegExp(`${currentDeviceLetter}:/?`, 'gi');
@@ -34,7 +34,9 @@ describe('sourcemaps output', { concurrency: !process.env.TEST_PARALLEL }, () =>
     { name: 'source-map/output/source_map_prepare_stack_trace.js' },
     { name: 'source-map/output/source_map_reference_error_tabs.js' },
     { name: 'source-map/output/source_map_sourcemapping_url_string.js' },
+    { name: 'source-map/output/source_map_throw_async_stack_trace.mjs' },
     { name: 'source-map/output/source_map_throw_catch.js' },
+    { name: 'source-map/output/source_map_throw_construct.mjs' },
     { name: 'source-map/output/source_map_throw_first_tick.js' },
     { name: 'source-map/output/source_map_throw_icu.js' },
     { name: 'source-map/output/source_map_throw_set_immediate.js' },

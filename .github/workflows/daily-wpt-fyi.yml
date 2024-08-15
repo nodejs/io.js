@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f  # v5.1.1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Environment Information
@@ -45,7 +45,7 @@ jobs:
         run: echo "NIGHTLY=$(curl -s https://nodejs.org/download/nightly/index.json | jq -r '[.[] | select(.files[] | contains("linux-x64"))][0].version')" >> $GITHUB_ENV
       - name: Install Node.js
         id: setup-node
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
         with:
           node-version: ${{ env.NIGHTLY || matrix.node-version }}
           check-latest: true
@@ -121,7 +121,7 @@ jobs:
         run: cp wptreport.json wptreport-${{ steps.setup-node.outputs.node-version }}.json
       - name: Upload GitHub Actions artifact
         if: ${{ env.WPT_REPORT != '' }}
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808  # v4.3.3
+        uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b  # v4.3.4
         with:
           path: out/wpt/wptreport-*.json
           name: WPT Report for ${{ steps.setup-node.outputs.node-version }}

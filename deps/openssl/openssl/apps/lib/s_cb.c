@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -1318,7 +1318,8 @@ int ssl_load_stores(SSL_CTX *ctx,
         if (vfyCAstore != NULL && !X509_STORE_load_store(vfy, vfyCAstore))
             goto err;
         add_crls_store(vfy, crls);
-        SSL_CTX_set1_verify_cert_store(ctx, vfy);
+        if (SSL_CTX_set1_verify_cert_store(ctx, vfy) == 0)
+            goto err;
         if (crl_download)
             store_setup_crl_download(vfy);
     }
@@ -1332,7 +1333,8 @@ int ssl_load_stores(SSL_CTX *ctx,
             goto err;
         if (chCAstore != NULL && !X509_STORE_load_store(ch, chCAstore))
             goto err;
-        SSL_CTX_set1_chain_cert_store(ctx, ch);
+        if (SSL_CTX_set1_chain_cert_store(ctx, ch) == 0)
+            goto err;
     }
     rv = 1;
  err:

@@ -14,7 +14,7 @@ const { AsyncLocalStorage } = require('async_hooks');
  *        - AsyncLocalStorage1.getStore()
  */
 const bench = common.createBenchmark(main, {
-  sotrageCount: [1, 10, 100],
+  storageCount: [1, 10, 100],
   n: [1e4],
 });
 
@@ -34,8 +34,8 @@ function runStores(stores, value, cb, idx = 0) {
   }
 }
 
-function main({ n, sotrageCount }) {
-  const stores = new Array(sotrageCount).fill(0).map(() => new AsyncLocalStorage());
+function main({ n, storageCount }) {
+  const stores = new Array(storageCount).fill(0).map(() => new AsyncLocalStorage());
   const contextValue = {};
 
   runStores(stores, contextValue, () => {

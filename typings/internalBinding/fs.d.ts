@@ -76,6 +76,8 @@ declare namespace InternalFSBinding {
   function copyFile(src: StringOrBuffer, dest: StringOrBuffer, mode: number, req: undefined, ctx: FSSyncContext): void;
   function copyFile(src: StringOrBuffer, dest: StringOrBuffer, mode: number, usePromises: typeof kUsePromises): Promise<void>;
 
+  function cpSyncCheckPaths(src: StringOrBuffer, dest: StringOrBuffer, dereference: boolean, recursive: boolean): void;
+
   function fchmod(fd: number, mode: number, req: FSReqCallback): void;
   function fchmod(fd: number, mode: number): void;
   function fchmod(fd: number, mode: number, usePromises: typeof kUsePromises): Promise<void>;
@@ -196,6 +198,8 @@ declare namespace InternalFSBinding {
   function rmdir(path: string): void;
   function rmdir(path: string, usePromises: typeof kUsePromises): Promise<void>;
 
+  function rmSync(path: StringOrBuffer, maxRetries: number, recursive: boolean, retryDelay: number): void;
+
   function stat(path: StringOrBuffer, useBigint: boolean, req: FSReqCallback<Float64Array | BigUint64Array>): void;
   function stat(path: StringOrBuffer, useBigint: true, req: FSReqCallback<BigUint64Array>): void;
   function stat(path: StringOrBuffer, useBigint: false, req: FSReqCallback<Float64Array>): void;
@@ -255,6 +259,7 @@ export interface FsBinding {
   chown: typeof InternalFSBinding.chown;
   close: typeof InternalFSBinding.close;
   copyFile: typeof InternalFSBinding.copyFile;
+  cpSyncCheckPaths: typeof InternalFSBinding.cpSyncCheckPaths;
   fchmod: typeof InternalFSBinding.fchmod;
   fchown: typeof InternalFSBinding.fchown;
   fdatasync: typeof InternalFSBinding.fdatasync;
@@ -279,12 +284,14 @@ export interface FsBinding {
   realpath: typeof InternalFSBinding.realpath;
   rename: typeof InternalFSBinding.rename;
   rmdir: typeof InternalFSBinding.rmdir;
+  rmSync: typeof InternalFSBinding.rmSync;
   stat: typeof InternalFSBinding.stat;
   symlink: typeof InternalFSBinding.symlink;
   unlink: typeof InternalFSBinding.unlink;
   utimes: typeof InternalFSBinding.utimes;
   writeBuffer: typeof InternalFSBinding.writeBuffer;
   writeBuffers: typeof InternalFSBinding.writeBuffers;
+  writeFileUtf8: typeof InternalFSBinding.writeFileUtf8;
   writeString: typeof InternalFSBinding.writeString;
 
   getFormatOfExtensionlessFile: typeof InternalFSBinding.getFormatOfExtensionlessFile;

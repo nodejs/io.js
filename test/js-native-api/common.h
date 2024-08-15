@@ -23,7 +23,7 @@
     }                                                                    \
   } while (0)
 
-// The nogc version of GET_AND_THROW_LAST_ERROR. We cannot access any
+// The basic version of GET_AND_THROW_LAST_ERROR. We cannot access any
 // exceptions and we cannot fail by way of JS exception, so we abort.
 #define FATALLY_FAIL_WITH_LAST_ERROR(env)                                      \
   do {                                                                         \
@@ -47,7 +47,7 @@
     }                                                                    \
   } while (0)
 
-#define NODE_API_NOGC_ASSERT_BASE(assertion, message, ret_val)                 \
+#define NODE_API_BASIC_ASSERT_BASE(assertion, message, ret_val)                \
   do {                                                                         \
     if (!(assertion)) {                                                        \
       fprintf(stderr, "assertion (" #assertion ") failed: " message);          \
@@ -66,8 +66,8 @@
 #define NODE_API_ASSERT_RETURN_VOID(env, assertion, message)             \
   NODE_API_ASSERT_BASE(env, assertion, message, NODE_API_RETVAL_NOTHING)
 
-#define NODE_API_NOGC_ASSERT_RETURN_VOID(assertion, message)                   \
-  NODE_API_NOGC_ASSERT_BASE(assertion, message, NODE_API_RETVAL_NOTHING)
+#define NODE_API_BASIC_ASSERT_RETURN_VOID(assertion, message)                  \
+  NODE_API_BASIC_ASSERT_BASE(assertion, message, NODE_API_RETVAL_NOTHING)
 
 #define NODE_API_CALL_BASE(env, the_call, ret_val)                       \
   do {                                                                   \
@@ -77,7 +77,7 @@
     }                                                                    \
   } while (0)
 
-#define NODE_API_NOGC_CALL_BASE(env, the_call, ret_val)                        \
+#define NODE_API_BASIC_CALL_BASE(env, the_call, ret_val)                       \
   do {                                                                         \
     if ((the_call) != napi_ok) {                                               \
       FATALLY_FAIL_WITH_LAST_ERROR((env));                                     \
@@ -93,8 +93,8 @@
 #define NODE_API_CALL_RETURN_VOID(env, the_call)                         \
   NODE_API_CALL_BASE(env, the_call, NODE_API_RETVAL_NOTHING)
 
-#define NODE_API_NOGC_CALL_RETURN_VOID(env, the_call)                          \
-  NODE_API_NOGC_CALL_BASE(env, the_call, NODE_API_RETVAL_NOTHING)
+#define NODE_API_BASIC_CALL_RETURN_VOID(env, the_call)                         \
+  NODE_API_BASIC_CALL_BASE(env, the_call, NODE_API_RETVAL_NOTHING)
 
 #define NODE_API_CHECK_STATUS(the_call)                                   \
   do {                                                                         \

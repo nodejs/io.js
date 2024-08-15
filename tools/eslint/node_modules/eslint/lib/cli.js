@@ -26,7 +26,6 @@ const fs = require("node:fs"),
     { normalizeSeverityToString } = require("./shared/severity");
 const { Legacy: { naming } } = require("@eslint/eslintrc");
 const { ModuleImporter } = require("@humanwhocodes/module-importer");
-const { inactiveFlags, activeFlags } = require("./shared/flags");
 const debug = require("debug")("eslint:cli");
 
 //------------------------------------------------------------------------------
@@ -488,25 +487,6 @@ const cli = {
 
         const ActiveESLint = usingFlatConfig ? ESLint : LegacyESLint;
         const eslintOptions = await translateOptions(options, usingFlatConfig ? "flat" : "eslintrc");
-
-        if (eslintOptions.flags) {
-            debug("Checking for inactive flags");
-
-            for (const flag of eslintOptions.flags) {
-                if (inactiveFlags.has(flag)) {
-                    log.warn(`InactiveFlag: The '${flag}' flag is no longer active: ${inactiveFlags.get(flag)}`);
-                    continue;
-                }
-
-                if (activeFlags.has(flag)) {
-                    continue;
-                }
-
-                log.error(`InvalidFlag: The '${flag}' flag is invalid.`);
-                return 2;
-            }
-        }
-
         const engine = new ActiveESLint(eslintOptions);
         let results;
 

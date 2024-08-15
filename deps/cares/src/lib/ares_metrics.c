@@ -145,7 +145,7 @@ static time_t ares_metric_timestamp(ares_server_bucket_t  bucket,
   return (time_t)(now->sec / divisor);
 }
 
-void ares_metrics_record(const struct query *query, struct server_state *server,
+void ares_metrics_record(const ares_query_t *query, ares_server_t *server,
                          ares_status_t status, const ares_dns_record_t *dnsrec)
 {
   ares_timeval_t       now;
@@ -205,13 +205,13 @@ void ares_metrics_record(const struct query *query, struct server_state *server,
   }
 }
 
-size_t ares_metrics_server_timeout(const struct server_state *server,
-                                   const ares_timeval_t      *now)
+size_t ares_metrics_server_timeout(const ares_server_t  *server,
+                                   const ares_timeval_t *now)
 {
   const ares_channel_t *channel = server->channel;
   ares_server_bucket_t  i;
   size_t                timeout_ms = 0;
-
+  size_t                max_timeout_ms;
 
   for (i = 0; i < ARES_METRIC_COUNT; i++) {
     time_t ts = ares_metric_timestamp(i, now, ARES_FALSE);
@@ -252,10 +252,9 @@ size_t ares_metrics_server_timeout(const struct server_state *server,
   }
 
   /* don't go above upper bounds */
-  if (channel->maxtimeout && timeout_ms > channel->maxtimeout) {
-    timeout_ms = channel->maxtimeout;
-  } else if (timeout_ms > MAX_TIMEOUT_MS) {
-    timeout_ms = MAX_TIMEOUT_MS;
+  max_timeout_ms = channel->maxtimeout ? channel->maxtimeout : MAX_TIMEOUT_MS;
+  if (timeout_ms > max_timeout_ms) {
+    timeout_ms = max_timeout_ms;
   }
 
   return timeout_ms;

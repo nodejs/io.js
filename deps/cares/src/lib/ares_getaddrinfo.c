@@ -252,7 +252,7 @@ static ares_bool_t fake_addrinfo(const char *name, unsigned short port,
     ares_bool_t valid   = ARES_TRUE;
     const char *p;
     for (p = name; *p; p++) {
-      if (!isdigit(*p) && *p != '.') {
+      if (!ares__isdigit(*p) && *p != '.') {
         valid = ARES_FALSE;
         break;
       } else if (*p == '.') {
@@ -469,7 +469,7 @@ static void terminate_retries(const struct host_query *hquery,
   unsigned short term_qid =
     (qid == hquery->qid_a) ? hquery->qid_aaaa : hquery->qid_a;
   const ares_channel_t *channel = hquery->channel;
-  struct query         *query   = NULL;
+  ares_query_t         *query   = NULL;
 
   /* No other outstanding queries, nothing to do */
   if (!hquery->remaining) {

@@ -4,12 +4,12 @@
 
 static uint32_t finalizeCount = 0;
 
-static void FreeData(node_api_nogc_env env, void* data, void* hint) {
-  NODE_API_NOGC_ASSERT_RETURN_VOID(data != NULL, "Expects non-NULL data.");
+static void FreeData(node_api_basic_env env, void* data, void* hint) {
+  NODE_API_BASIC_ASSERT_RETURN_VOID(data != NULL, "Expects non-NULL data.");
   free(data);
 }
 
-static void Finalize(node_api_nogc_env env, void* data, void* hint) {
+static void Finalize(node_api_basic_env env, void* data, void* hint) {
   ++finalizeCount;
 }
 

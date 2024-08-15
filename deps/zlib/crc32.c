@@ -1168,6 +1168,11 @@ ZLIB_INTERNAL void crc_reset(deflate_state *const s)
 
 ZLIB_INTERNAL void crc_finalize(deflate_state *const s)
 {
+#ifdef QAT_COMPRESSION_ENABLED
+    if (s->qat_s) {
+        return;
+    }
+#endif
 #ifdef CRC32_SIMD_SSE42_PCLMUL
     if (x86_cpu_enable_simd)
         s->strm->adler = crc_fold_512to32(s);

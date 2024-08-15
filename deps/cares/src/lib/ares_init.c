@@ -63,7 +63,7 @@
 
 #include "ares_inet_net_pton.h"
 #include "ares_platform.h"
-#include "ares_event.h"
+#include "event/ares_event.h"
 
 int ares_init(ares_channel_t **channelptr)
 {
@@ -72,8 +72,8 @@ int ares_init(ares_channel_t **channelptr)
 
 static int ares_query_timeout_cmp_cb(const void *arg1, const void *arg2)
 {
-  const struct query *q1 = arg1;
-  const struct query *q2 = arg2;
+  const ares_query_t *q1 = arg1;
+  const ares_query_t *q2 = arg2;
 
   if (q1->timeout.sec > q2->timeout.sec) {
     return 1;
@@ -94,8 +94,8 @@ static int ares_query_timeout_cmp_cb(const void *arg1, const void *arg2)
 
 static int server_sort_cb(const void *data1, const void *data2)
 {
-  const struct server_state *s1 = data1;
-  const struct server_state *s2 = data2;
+  const ares_server_t *s1 = data1;
+  const ares_server_t *s2 = data2;
 
   if (s1->consec_failures < s2->consec_failures) {
     return -1;
@@ -280,6 +280,9 @@ int ares_init_options(ares_channel_t           **channelptr,
     return ARES_ENOMEM;
   }
 
+  /* We are in a good state */
+  channel->sys_up = ARES_TRUE;
+
   /* One option where zero is valid, so set default value here */
   channel->ndots = 1;
 
@@ -437,8 +440,9 @@ ares_status_t ares_reinit(ares_channel_t *channel)
 
   ares__channel_lock(channel);
 
-  /* If a reinit is already in process, lets not do it again */
-  if (channel->reinit_pending) {
+  /* If a reinit is already in process, lets not do it again. Or if we are
+   * shutting down, skip. */
+  if (!channel->sys_up || channel->reinit_pending) {
     ares__channel_unlock(channel);
     return ARES_SUCCESS;
   }

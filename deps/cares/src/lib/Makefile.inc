@@ -3,43 +3,16 @@
 
 CSOURCES = ares__addrinfo2hostent.c	\
   ares__addrinfo_localhost.c		\
-  ares__buf.c				\
   ares__close_sockets.c			\
   ares__hosts_file.c			\
-  ares__htable.c			\
-  ares__htable_asvp.c			\
-  ares__htable_strvp.c			\
-  ares__htable_szvp.c			\
-  ares__htable_vpvp.c			\
-  ares__iface_ips.c			\
-  ares__llist.c				\
   ares__parse_into_addrinfo.c		\
-  ares__slist.c				\
   ares__socket.c			\
   ares__sortaddrinfo.c			\
-  ares__threads.c			\
-  ares__timeval.c			\
   ares_android.c			\
   ares_cancel.c				\
+  ares_cookie.c				\
   ares_data.c				\
   ares_destroy.c			\
-  ares_dns_mapping.c			\
-  ares_dns_multistring.c	\
-  ares_dns_name.c			\
-  ares_dns_parse.c			\
-  ares_dns_record.c			\
-  ares_dns_write.c			\
-  ares_event_configchg.c		\
-  ares_event_epoll.c			\
-  ares_event_kqueue.c			\
-  ares_event_poll.c			\
-  ares_event_select.c			\
-  ares_event_thread.c			\
-  ares_event_wake_pipe.c		\
-  ares_event_win32.c			\
-  ares_expand_name.c			\
-  ares_expand_string.c			\
-  ares_fds.c				\
   ares_free_hostent.c			\
   ares_free_string.c			\
   ares_freeaddrinfo.c			\
@@ -48,35 +21,17 @@ CSOURCES = ares__addrinfo2hostent.c	\
   ares_gethostbyaddr.c			\
   ares_gethostbyname.c			\
   ares_getnameinfo.c			\
-  ares_getsock.c			\
   ares_init.c				\
   ares_library_init.c			\
-  ares_math.c				\
   ares_metrics.c			\
-  ares_create_query.c			\
   ares_options.c			\
-  ares_parse_a_reply.c			\
-  ares_parse_aaaa_reply.c		\
-  ares_parse_caa_reply.c		\
-  ares_parse_mx_reply.c			\
-  ares_parse_naptr_reply.c		\
-  ares_parse_ns_reply.c			\
-  ares_parse_ptr_reply.c		\
-  ares_parse_soa_reply.c		\
-  ares_parse_srv_reply.c		\
-  ares_parse_txt_reply.c		\
-  ares_parse_uri_reply.c		\
   ares_platform.c			\
   ares_process.c			\
   ares_qcache.c				\
   ares_query.c				\
-  ares_rand.c				\
   ares_search.c				\
   ares_send.c				\
-  ares_strcasecmp.c			\
-  ares_str.c				\
   ares_strerror.c			\
-  ares_strsplit.c			\
   ares_sysconfig.c			\
   ares_sysconfig_files.c		\
   ares_sysconfig_mac.c			\
@@ -86,32 +41,80 @@ CSOURCES = ares__addrinfo2hostent.c	\
   ares_version.c			\
   inet_net_pton.c			\
   inet_ntop.c				\
-  windows_port.c
+  windows_port.c			\
+  dsa/ares__array.c			\
+  dsa/ares__htable.c			\
+  dsa/ares__htable_asvp.c		\
+  dsa/ares__htable_strvp.c		\
+  dsa/ares__htable_szvp.c		\
+  dsa/ares__htable_vpvp.c		\
+  dsa/ares__llist.c			\
+  dsa/ares__slist.c			\
+  event/ares_event_configchg.c		\
+  event/ares_event_epoll.c		\
+  event/ares_event_kqueue.c		\
+  event/ares_event_poll.c		\
+  event/ares_event_select.c		\
+  event/ares_event_thread.c		\
+  event/ares_event_wake_pipe.c		\
+  event/ares_event_win32.c		\
+  legacy/ares_create_query.c		\
+  legacy/ares_expand_name.c		\
+  legacy/ares_expand_string.c		\
+  legacy/ares_fds.c			\
+  legacy/ares_getsock.c			\
+  legacy/ares_parse_a_reply.c		\
+  legacy/ares_parse_aaaa_reply.c	\
+  legacy/ares_parse_caa_reply.c		\
+  legacy/ares_parse_mx_reply.c		\
+  legacy/ares_parse_naptr_reply.c	\
+  legacy/ares_parse_ns_reply.c		\
+  legacy/ares_parse_ptr_reply.c		\
+  legacy/ares_parse_soa_reply.c		\
+  legacy/ares_parse_srv_reply.c		\
+  legacy/ares_parse_txt_reply.c		\
+  legacy/ares_parse_uri_reply.c		\
+  record/ares_dns_mapping.c		\
+  record/ares_dns_multistring.c		\
+  record/ares_dns_name.c		\
+  record/ares_dns_parse.c		\
+  record/ares_dns_record.c		\
+  record/ares_dns_write.c		\
+  str/ares__buf.c			\
+  str/ares_strcasecmp.c			\
+  str/ares_str.c			\
+  str/ares_strsplit.c			\
+  util/ares__iface_ips.c		\
+  util/ares__threads.c			\
+  util/ares__timeval.c			\
+  util/ares_math.c			\
+  util/ares_rand.c
 
-HHEADERS = ares__buf.h			\
-  ares__htable.h			\
-  ares__htable_asvp.h			\
-  ares__htable_strvp.h			\
-  ares__htable_szvp.h			\
-  ares__htable_vpvp.h			\
-  ares__iface_ips.h			\
-  ares__llist.h				\
-  ares__slist.h				\
-  ares__threads.h			\
-  ares_android.h			\
+HHEADERS = ares_android.h			\
   ares_data.h				\
-  ares_dns_multistring.h		\
-  ares_dns_private.h			\
-  ares_event.h				\
-  ares_event_win32.h			\
   ares_getenv.h				\
   ares_inet_net_pton.h			\
   ares_ipv6.h				\
   ares_platform.h			\
   ares_private.h			\
-  ares_strcasecmp.h			\
-  ares_str.h				\
-  ares_strsplit.h			\
   ares_setup.h				\
+  dsa/ares__array.h			\
+  dsa/ares__htable.h			\
+  dsa/ares__htable_asvp.h		\
+  dsa/ares__htable_strvp.h		\
+  dsa/ares__htable_szvp.h		\
+  dsa/ares__htable_vpvp.h		\
+  dsa/ares__llist.h			\
+  dsa/ares__slist.h			\
+  event/ares_event.h			\
+  event/ares_event_win32.h		\
+  record/ares_dns_multistring.h		\
+  record/ares_dns_private.h		\
+  str/ares__buf.h			\
+  str/ares_strcasecmp.h			\
+  str/ares_str.h			\
+  str/ares_strsplit.h			\
+  util/ares__iface_ips.h		\
+  util/ares__threads.h			\
   thirdparty/apple/dnsinfo.h
 

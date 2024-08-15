@@ -538,19 +538,35 @@ Mutex IsolateData::isolate_data_mutex_;
 std::unordered_map<uint16_t, std::unique_ptr<PerIsolateWrapperData>>
     IsolateData::wrapper_data_map_;
 
+IsolateData* IsolateData::CreateIsolateData(
+    Isolate* isolate,
+    uv_loop_t* loop,
+    MultiIsolatePlatform* platform,
+    ArrayBufferAllocator* allocator,
+    const EmbedderSnapshotData* embedder_snapshot_data,
+    std::shared_ptr<PerIsolateOptions> options) {
+  const SnapshotData* snapshot_data =
+      SnapshotData::FromEmbedderWrapper(embedder_snapshot_data);
+  if (options == nullptr) {
+    options = per_process::cli_options->per_isolate->Clone();
+  }
+  return new IsolateData(
+      isolate, loop, platform, allocator, snapshot_data, options);
+}
+
 IsolateData::IsolateData(Isolate* isolate,
                          uv_loop_t* event_loop,
                          MultiIsolatePlatform* platform,
                          ArrayBufferAllocator* node_allocator,
-                         const SnapshotData* snapshot_data)
+                         const SnapshotData* snapshot_data,
+                         std::shared_ptr<PerIsolateOptions> options)
     : isolate_(isolate),
       event_loop_(event_loop),
       node_allocator_(node_allocator == nullptr ? nullptr
                                                 : node_allocator->GetImpl()),
       platform_(platform),
-      snapshot_data_(snapshot_data) {
-  options_.reset(
-      new PerIsolateOptions(*(per_process::cli_options->per_isolate)));
+      snapshot_data_(snapshot_data),
+      options_(std::move(options)) {
   v8::CppHeap* cpp_heap = isolate->GetCppHeap();
 
   uint16_t cppgc_id = kDefaultCppGCEmbedderID;
@@ -1841,23 +1857,12 @@ void Environment::AddUnmanagedFd(int fd) {
   }
 }
 
-void Environment::RemoveUnmanagedFd(int fd, bool schedule_native_immediate) {
+void Environment::RemoveUnmanagedFd(int fd) {
   if (!tracks_unmanaged_fds()) return;
   size_t removed_count = unmanaged_fds_.erase(fd);
   if (removed_count == 0) {
-    if (schedule_native_immediate) {
-      SetImmediateThreadsafe([&](Environment* env) {
-        ProcessEmitWarning(this,
-                           "File descriptor %d closed but not opened in "
-                           "unmanaged mode",
-                           fd);
-      });
-    } else {
-      ProcessEmitWarning(
-          this,
-          "File descriptor %d closed but not opened in unmanaged mode",
-          fd);
-    }
+    ProcessEmitWarning(
+        this, "File descriptor %d closed but not opened in unmanaged mode", fd);
   }
 }
 

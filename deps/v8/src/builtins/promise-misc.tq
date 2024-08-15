@@ -30,6 +30,11 @@ extern macro PromiseBuiltinsAssembler::IsIsolatePromiseHookEnabled(uint32):
 
 extern macro PromiseBuiltinsAssembler::PromiseHookFlags(): uint32;
 
+namespace macros {
+extern macro GetContinuationPreservedEmbedderData(): Object;
+extern macro SetContinuationPreservedEmbedderData(Object): void;
+}
+
 namespace promise {
 extern macro IsFunctionWithPrototypeSlotMap(Map): bool;
 
@@ -80,7 +85,7 @@ macro NewPromiseFulfillReactionJobTask(
     return new PromiseFulfillReactionJobTask{
       map: PromiseFulfillReactionJobTaskMapConstant(),
       continuation_preserved_embedder_data:
-          GetContinuationPreservedEmbedderData(),
+          macros::GetContinuationPreservedEmbedderData(),
       argument,
       context: handlerContext,
       handler,
@@ -108,7 +113,7 @@ macro NewPromiseRejectReactionJobTask(
     return new PromiseRejectReactionJobTask{
       map: PromiseRejectReactionJobTaskMapConstant(),
       continuation_preserved_embedder_data:
-          GetContinuationPreservedEmbedderData(),
+          macros::GetContinuationPreservedEmbedderData(),
       argument,
       context: handlerContext,
       handler,
@@ -303,7 +308,7 @@ macro NewPromiseReaction(
     return new PromiseReaction{
       map: PromiseReactionMapConstant(),
       continuation_preserved_embedder_data:
-          GetContinuationPreservedEmbedderData(),
+          macros::GetContinuationPreservedEmbedderData(),
       next: next,
       reject_handler: rejectHandler,
       fulfill_handler: fulfillHandler,
@@ -347,7 +352,7 @@ macro NewPromiseResolveThenableJobTask(
     return new PromiseResolveThenableJobTask{
       map: PromiseResolveThenableJobTaskMapConstant(),
       continuation_preserved_embedder_data:
-          GetContinuationPreservedEmbedderData(),
+          macros::GetContinuationPreservedEmbedderData(),
       context: nativeContext,
       promise_to_resolve: promiseToResolve,
       thenable,
@@ -452,4 +457,18 @@ transitioning macro BranchIfAccessCheckFailed(
     }
   } label HasAccess {}
 }
+
+@if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
+transitioning javascript builtin GetContinuationPreservedEmbedderData(
+    js-implicit context: Context, receiver: JSAny)(): JSAny {
+  return UnsafeCast<JSAny>(macros::GetContinuationPreservedEmbedderData());
+}
+
+@if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
+transitioning javascript builtin SetContinuationPreservedEmbedderData(
+    js-implicit context: Context, receiver: JSAny)(data: Object): Undefined {
+  macros::SetContinuationPreservedEmbedderData(data);
+  return Undefined;
+}
+
 }

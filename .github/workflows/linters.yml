@@ -29,7 +29,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Use Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Environment Information
@@ -44,7 +44,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f  # v5.1.1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Environment Information
@@ -60,11 +60,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Use Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f  # v5.1.1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Environment Information
@@ -97,7 +97,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Use Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Environment Information
@@ -122,7 +122,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f  # v5.1.1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Environment Information
@@ -139,7 +139,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Use Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f  # v5.1.1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Environment Information
@@ -185,4 +185,21 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
         with:
           persist-credentials: false
-      - run: tools/lint-readme-lists.mjs
+      - name: Get team members if possible
+        id: team_members
+        run: |
+          get_list_members() {
+            TEAM="$1"
+            QUOTE='"'
+            gh api "/orgs/nodejs/teams/$TEAM/members" -X GET -f per_page=100 --jq "map(.login) | ${QUOTE}${TEAM}=\(tojson)${QUOTE}"
+          }
+          [ -z "$GITHUB_TOKEN" ] || (
+            get_list_members "collaborators"
+            get_list_members "issue-triage"
+            get_list_members "tsc"
+          ) >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_USER_TOKEN }}
+      - run: tools/lint-readme-lists.mjs "$TEAMS"
+        env:
+          TEAMS: ${{ tojson(steps.team_members.outputs) }}

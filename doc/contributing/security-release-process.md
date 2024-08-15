@@ -43,191 +43,136 @@ The current security stewards are documented in the main Node.js
 
 ## Planning
 
-* [ ] Open an [issue](https://github.com/nodejs-private/node-private) titled
-  `Next Security Release`, and put this checklist in the description.
+* [ ] 1\. **Generating Next Security Release PR**
+  * Run `git node security --start` inside [security-release][] repository.
+  * This command generates a new `vulnerabilities.json` file with HackerOne
+    reports chosen to be released in the `security-release/next-security-release`
+    folder.
+  * It also creates the pull request used to manage the security release.
 
-* [ ] Get agreement on the list of vulnerabilities to be addressed:
-  * _**H1 REPORT LINK**_: _**DESCRIPTION**_ (_**CVE or H1 CVE request link**_)
-    * v10.x, v12.x: _**LINK to PR URL**_
-  * ...
+* [ ] 2\. **Review of Reports:**
+  * Reports can be added or removed using the following commands:
+    * Use the "summary" feature in HackerOne. Example [2038134](https://hackerone.com/reports/2038134)
+    * `git node security --add-report=report_id`
+    * `git node security --remove-report=report_id`
 
-* [ ] PR release announcements in [private](https://github.com/nodejs-private/nodejs.org-private):
-  * (Use previous PRs as templates. Don't forget to update the site banner and
-    the date in the slug so that it will move to the top of the blog list.)
-  * (Consider using a [Vulnerability Score System](https://www.first.org/cvss/calculator/3.1)
-    to identify severity of each report)
-  * Share the patch with the reporter when applicable.
-    It will increase the fix accuracy.
-  * [ ] pre-release: _**LINK TO PR**_
-  * [ ] post-release: _**LINK TO PR**_
-    * List vulnerabilities in order of descending severity
-    * Use the "summary" feature in HackerOne to sync post-release content
-      and CVE requests. Example [2038134](https://hackerone.com/bugs?subject=nodejs\&report_id=2038134)
-    * Ask the HackerOne reporter if they would like to be credited on the
-      security release blog page:
-      ```text
-      Thank you to <name> for reporting this vulnerability.
-      ```
+* [ ] 3\. **Assigning Severity and Writing Team Summary:**
+  * [ ] Assign a severity and write a team summary on HackerOne for the reports
+    chosen in the `vulnerabilities.json`.
+  * Run `git node security --sync` to update severity and summary in
+    `vulnerabilities.json`.
 
-* [ ] Get agreement on the planned date for the release: _**RELEASE DATE**_
+* [ ] 4\. **Requesting CVEs:**
+  * Request CVEs for the reports with `git node security --request-cve`.
+  * Make sure to have a green CI before requesting a CVE.
 
-* [ ] Get release team volunteers for all affected lines:
-  * v12.x: _**NAME of RELEASER(S)**_
-  * ... other lines, if multiple releasers
+* [ ] 5\. **Choosing or Updating Release Date:**
+  * Get agreement on the planned date for the release.
+  * [ ] Use `git node security --update-date=YYYY/MM/DD` to choose or update the
+    release date.
+  * This allows flexibility in postponing the release if needed.
+
+* [ ] 6\. **Get release volunteers:**
+  * Get volunteers for the upcoming security release on the affected release
+    lines.
+
+* [ ] 7\. **Preparing Pre and Post Release Blog Posts:**
+  * [ ] Create a pre-release blog post using `git node security --pre-release`.
+  * [ ] Create a post-release blog post using `git node security --post-release`.
 
 ## Announcement (one week in advance of the planned release)
 
-* [ ] Check that all vulnerabilities are ready for release integration:
-  * PRs against all affected release lines or cherry-pick clean
-  * PRs with breaking changes have a
-    [--security-revert](#Adding-a-security-revert-option) option if possible.
-  * Approved
-  * (optional) Approved by the reporter
-    * Build and send the binary to the reporter according to its architecture
-      and ask for a review. This step is important to avoid insufficient fixes
-      between Security Releases.
-  * Pass `make test`
-  * Have CVEs
-    * Use the "summary" feature in HackerOne to create a description for the
-      CVE and the post release announcement.
-      Example [2038134](https://hackerone.com/bugs?subject=nodejs\&report_id=2038134)
-    * Make sure that dependent libraries have CVEs for their issues. We should
-      only create CVEs for vulnerabilities in Node.js itself. This is to avoid
-      having duplicate CVEs for the same vulnerability.
-  * Described in the pre/post announcements
+* [ ] 1\. **Publish Pre-Release Blog Post:**
+  * Publish the pre-release blog post on the `nodejs/nodejs.org` repository.
 
-* [ ] Pre-release announcement to nodejs.org blog: _**LINK TO BLOG**_
-  (Re-PR the pre-approved branch from nodejs-private/nodejs.org-private to
-  nodejs/nodejs.org)
+* [ ] 2\. **Send Pre-Release Announcement:**
+  * Notify the community about the upcoming security release:
 
-  If the security release will only contain an OpenSSL update consider
-  adding the following to the pre-release announcement:
+    * [ ] `git node security --notify-pre-release`
+      Except for those noted in the list below, this will create automatically the
+      issues and emails needed for the notifications.
+    * [docker-node](https://github.com/nodejs/docker-node/issues)
+    * [build-wg](https://github.com/nodejs/build/issues)
+    * [ ] (Not yet automatic - do this manually) [Google Groups](https://groups.google.com/g/nodejs-sec)
+      * Email: notify <oss-security@lists.openwall.com>
+    * [ ] (Not yet automatic - do this manually) Post in the nodejs-social channel
+      in the OpenJS slack asking for amplification of the blog post.
 
-  ```text
-  Since this security release will only include updates for OpenSSL, if you're using
-  a Node.js version which is part of a distribution which uses a system
-  installed OpenSSL, this Node.js security update might not concern you. You may
-  instead need to update your system OpenSSL libraries, please check the
-  security announcements for the distribution.
-  ```
+    ```text
+    Security release pre-alert:
 
-* [ ] Pre-release announcement [email][]: _**LINK TO EMAIL**_
-  * Subject: `Node.js security updates for all active release lines, Month Year`
-  * Body:
-  ```text
-  The Node.js project will release new versions of all supported release lines on or shortly after Day of week, Month Day of Month, Year
-  For more information see: https://nodejs.org/en/blog/vulnerability/month-year-security-releases/
-  ```
-  (Get access from existing manager: Matteo Collina, Rodd Vagg, Michael Dawson,
-  Bryan English)
+    We will release new versions of <add versions> release lines on or shortly
+    after Day Month Date, Year in order to address:
 
-* [ ] CC `oss-security@lists.openwall.com` on pre-release
+    * # high severity issues
+    * # moderate severity issues
 
-The google groups UI does not support adding a CC, until we figure
-out a better way, forward the email you receive to
-`oss-security@lists.openwall.com` as a CC.
+    https://nodejs.org/en/blog/vulnerability/month-year-security-releases/
+    ```
 
-* [ ] Post in the [nodejs-social channel][]
-  in the OpenJS slack asking for amplification of the blog post.
+    We specifically ask that collaborators other than the releasers and security
+    steward working on the security release do not tweet or publicize the release
+    until the tweet from Node.js goes out. We have often
+    seen tweets sent out before the release is
+    complete, which may confuse those waiting for the release and take
+    away from the work the releasers have put into shipping the release.
 
-  ```text
-  Security release pre-alert:
+If the security release will only contain an OpenSSL update, consider
+adding the following to the pre-release announcement:
 
-  We will release new versions of <add versions> release lines on or shortly
-  after Day Month Date, Year in order to address:
-
-  - # high severity issues
-  - # moderate severity issues
-
-  https://nodejs.org/en/blog/vulnerability/month-year-security-releases/
-  ```
-
-  We specifically ask that collaborators other than the releasers and security
-  steward working on the security release do not tweet or publicise the release
-  until the tweet from the Node.js twitter handle goes out. We have often
-  seen tweets sent out before the release and associated announcements are
-  complete which may confuse those waiting for the release and also takes
-  away from the work the releasers have put into shipping the releases.
-
-* [ ] Request releaser(s) to start integrating the PRs to be released.
-
-* [ ] Notify [docker-node][] of upcoming security release date: _**LINK**_
-  ```text
-  Heads up of Node.js security releases Day Month Year
-
-  As per the Node.js security release process this is the FYI that there is going to be a security release Day Month Year
-  ```
-
-* [ ] Notify build-wg of upcoming security release date by opening an issue
-  in [nodejs/build][] to request WG members are available to fix any CI issues.
-  ```text
-  Heads up of Node.js security releases Day Month Year
-
-  As per security release process this is a heads up that there will be security releases Day Month Year and we'll need people from build to lock/unlock ci and to support and build issues we see.
-  ```
+```text
+Since this security release will only include updates for OpenSSL, if you're using
+a Node.js version which is part of a distribution that uses a system
+installed OpenSSL, this Node.js security update may not concern you, instead,
+you may need to update your system OpenSSL libraries. Please check the
+security announcements for more information.
+```
 
 ## Release day
 
-* [ ] [Lock CI](https://github.com/nodejs/build/blob/HEAD/doc/jenkins-guide.md#before-the-release)
+* [ ] 1\. **Lock down the CI:**
+  * Lock down the CI to prevent public access to the CI machines, ping a member of `@nodejs/jenkins-admins`.
 
-* [ ] The releaser(s) run the release process to completion.
+* [ ] 2\. **Release:**
+  * Verify the CI is green on all release proposals (test-V8, CITGM, etc).
+  * Follow the [release process](https://github.com/nodejs/node/blob/main/doc/contributing/releases.md).
 
-* [ ] [Unlock CI](https://github.com/nodejs/build/blob/HEAD/doc/jenkins-guide.md#after-the-release)
+* [ ] 3\. **Unlock the CI:**
+  * Unlock the CI to allow public access to the CI machines, ping a member of `@nodejs/jenkins-admins`.
 
-* [ ] Post-release announcement to Nodejs.org blog: _**LINK TO BLOG POST**_
-  * (Re-PR the pre-approved branch from nodejs-private/nodejs.org-private to
-    nodejs/nodejs.org)
+* [ ] 4\. **Publish Post-Release Blog Post:**
+  * Publish the post-release blog post on the `nodejs/nodejs.org` repository.
 
-* [ ] Post-release announcement in reply [email][]: _**LINK TO EMAIL**_
-  * CC: `oss-security@lists.openwall.com`
-  * Subject: `Node.js security updates for all active release lines, Month Year`
-  * Body:
-  ```text
-  The Node.js project has now released new versions of all supported release lines.
-  For more information see: https://nodejs.org/en/blog/vulnerability/month-year-security-releases/
-  ```
+* [ ] 5\. **Notify the community:**
+  * Notify the community that the security release has gone out:
+    * [ ] Slack: `#nodejs-social`
+    * [ ] [docker-node](https://github.com/nodejs/docker-node/issues)
+    * [ ] [build-wg](https://github.com/nodejs/build/issues)
+    * [ ] Email: notify [Google Groups](https://groups.google.com/g/nodejs-sec)
+      * Forward to <oss-security@lists.openwall.com>
 
-* [ ] Post in the [nodejs-social channel][]
-  in the OpenJS slack asking for amplification of the blog post.
-  ```text
-  Security release:
+## Post-Release
 
-  New security releases are now available for versions <add versions> of Node.js.
+* [ ] 1\. **Merge the Next Security Release PR:**
+  * This involves moving the `vulnerabilities.json` file from
+    `security-release/next-security-release` to the `security-release/YYYY-MM-DD`
+    folder and merging the PR.
 
-  https://nodejs.org/en/blog/vulnerability/month-year-security-releases/
-  ```
-
-* [ ] Comment in [docker-node][] issue that release is ready for integration.
-  The docker-node team will build and release docker image updates.
-
-* [ ] For every H1 report resolved:
-  * Close as Resolved
-  * Request Disclosure
-  * Request publication of [H1 CVE requests][]
-    * (Check that the "Version Fixed" field in the CVE is correct, and provide
-      links to the release blogs in the "Public Reference" section)
-  * In case the reporter doesn't accept the disclosure follow this process:
-    * Remove the original report reference within the reference text box and
+* [ ] 2\. **Cleanup:**
+  * [ ] Close PRs and backports.
+  * [ ] Close HackerOne reports:
+    * Close Resolved
+    * Request Disclosure
+    * Request publication of H1 CVE requests
+    * In case the reporter doesn't accept the disclosure follow this process:
+      Remove the original report reference within the reference text box and
       insert the public URL you would like to be attached to this CVE.
-    * Then uncheck the Public Disclosure on HackerOne box at the bottom of the
+      Then uncheck the Public Disclosure on HackerOne box at the bottom of the
       page.
       ![screenshot of HackerOne CVE form](https://github.com/nodejs/node/assets/26234614/e22e4f33-7948-4dd2-952e-2f9166f5568d)
-
-* [ ] PR machine-readable JSON descriptions of the vulnerabilities to the
-  [core](https://github.com/nodejs/security-wg/tree/HEAD/vuln/core)
-  vulnerability DB. _**LINK TO PR**_
-  * For each vulnerability add a `#.json` file, one can copy an existing
-    [json](https://github.com/nodejs/security-wg/blob/0d82062d917cb9ddab88f910559469b2b13812bf/vuln/core/78.json)
-    file, and increment the latest created file number and use that as the name
-    of the new file to be added. For example, `79.json`.
-
-* [ ] Close this issue
-
-* [ ] Make sure the PRs for the vulnerabilities are closed.
-
-* [ ] PR in that you stewarded the release in
-  [Security release stewards](https://github.com/nodejs/node/blob/HEAD/doc/contributing/security-release-process.md#security-release-stewards).
-  If necessary add the next rotation of the steward rotation.
+  * [ ] PR machine-readable JSON descriptions of the vulnerabilities to the [core](https://github.com/nodejs/security-wg/tree/HEAD/vuln/core)
+    vulnerability DB.
+  * [ ] Add yourself as a steward in the [Security Release Stewards](https://github.com/nodejs/node/blob/HEAD/doc/contributing/security-release-process.md#security-release-stewards)
 
 ## Adding a security revert option
 
@@ -298,8 +243,4 @@ The steps to correct CVE information are:
 * Include all the details that need updating within the form
 * Submit the request
 
-[H1 CVE requests]: https://hackerone.com/nodejs/cve_requests
-[docker-node]: https://github.com/nodejs/docker-node/issues
-[email]: https://groups.google.com/forum/#!forum/nodejs-sec
-[nodejs-social channel]: https://openjs-foundation.slack.com/archives/C0142A39BNE
-[nodejs/build]: https://github.com/nodejs/build/issues
+[security-release]: https://github.com/nodejs-private/security-release

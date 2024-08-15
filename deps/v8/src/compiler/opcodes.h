@@ -429,6 +429,14 @@
 
 #define SIMPLIFIED_SPECULATIVE_NUMBER_UNOP_LIST(V) V(SpeculativeToNumber)
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+#define SIMPLIFIED_CPED_OP_LIST(V)        \
+  V(GetContinuationPreservedEmbedderData) \
+  V(SetContinuationPreservedEmbedderData)
+#else
+#define SIMPLIFIED_CPED_OP_LIST(V)
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
 #define SIMPLIFIED_OTHER_OP_LIST(V)     \
   V(Allocate)                           \
   V(AllocateRaw)                        \
@@ -534,7 +542,8 @@
   V(TransitionElementsKind)             \
   V(TypeOf)                             \
   V(Unsigned32Divide)                   \
-  V(VerifyType)
+  V(VerifyType)                         \
+  SIMPLIFIED_CPED_OP_LIST(V)
 
 #define SIMPLIFIED_SPECULATIVE_BIGINT_BINOP_LIST(V) \
   V(SpeculativeBigIntAdd)                           \

@@ -104,8 +104,12 @@ const windowsTestCases = [
   { path: 'C:\\€', expected: 'file:///C:/%E2%82%AC' },
   // Rocket emoji (non-BMP code point)
   { path: 'C:\\🚀', expected: 'file:///C:/%F0%9F%9A%80' },
+  // Local extended path
+  { path: '\\\\?\\C:\\path\\to\\file.txt', expected: 'file:///C:/path/to/file.txt' },
   // UNC path (see https://docs.microsoft.com/en-us/archive/blogs/ie/file-uris-in-windows)
   { path: '\\\\nas\\My Docs\\File.doc', expected: 'file://nas/My%20Docs/File.doc' },
+  // Extended UNC path
+  { path: '\\\\?\\UNC\\server\\share\\folder\\file.txt', expected: 'file://server/share/folder/file.txt' },
 ];
 const posixTestCases = [
   // Lowercase ascii alpha

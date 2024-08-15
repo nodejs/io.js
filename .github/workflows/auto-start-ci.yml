@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Node.js
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -59,11 +59,15 @@ jobs:
 
       - name: Setup @node-core/utils
         run: |
-          ncu-config set username ${{ secrets.JENKINS_USER }}
-          ncu-config set token "${{ secrets.GH_USER_TOKEN }}"
-          ncu-config set jenkins_token ${{ secrets.JENKINS_TOKEN }}
+          ncu-config set username "$USERNAME"
+          ncu-config set token "$GH_TOKEN"
+          ncu-config set jenkins_token "$JENKINS_TOKEN"
           ncu-config set owner "${{ github.repository_owner }}"
           ncu-config set repo "$(echo ${{ github.repository }} | cut -d/ -f2)"
+        env:
+          USERNAME: ${{ secrets.JENKINS_USER }}
+          GH_TOKEN: ${{ secrets.GH_USER_TOKEN }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
 
       - name: Start the CI
         run: ./tools/actions/start-ci.sh ${{ needs.get-prs-for-ci.outputs.numbers }}

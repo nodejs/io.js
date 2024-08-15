@@ -5,6 +5,7 @@
 #include <node_mutex.h>
 #include <string_bytes.h>
 #include "nbytes.h"
+#include "ncrypto.h"
 #include "quic/defs.h"
 
 namespace node {
@@ -132,7 +133,7 @@ class RandomCIDFactory : public CID::Factory {
     // a CID of the requested size, we regenerate the pool
     // and reset it to zero.
     if (pos_ + length_hint > kPoolSize) {
-      CHECK(crypto::CSPRNG(pool_, kPoolSize).is_ok());
+      CHECK(ncrypto::CSPRNG(pool_, kPoolSize));
       pos_ = 0;
     }
   }

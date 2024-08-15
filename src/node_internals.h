@@ -212,7 +212,17 @@ v8::MaybeLocal<v8::Value> InternalMakeCallback(
     const v8::Local<v8::Function> callback,
     int argc,
     v8::Local<v8::Value> argv[],
-    async_context asyncContext);
+    async_context asyncContext,
+    v8::Local<v8::Value> context_frame);
+
+v8::MaybeLocal<v8::Value> InternalMakeCallback(
+    v8::Isolate* isolate,
+    v8::Local<v8::Object> recv,
+    const v8::Local<v8::Function> callback,
+    int argc,
+    v8::Local<v8::Value> argv[],
+    async_context asyncContext,
+    v8::Local<v8::Value> context_frame);
 
 v8::MaybeLocal<v8::Value> MakeSyncCallback(v8::Isolate* isolate,
                                            v8::Local<v8::Object> recv,
@@ -232,10 +242,13 @@ class InternalCallbackScope {
     // compatibility issues, but it shouldn't.)
     kSkipTaskQueues = 2
   };
-  InternalCallbackScope(Environment* env,
-                        v8::Local<v8::Object> object,
-                        const async_context& asyncContext,
-                        int flags = kNoFlags);
+  InternalCallbackScope(
+      Environment* env,
+      v8::Local<v8::Object> object,
+      const async_context& asyncContext,
+      int flags = kNoFlags,
+      v8::Local<v8::Value> context_frame = v8::Local<v8::Value>());
+
   // Utility that can be used by AsyncWrap classes.
   explicit InternalCallbackScope(AsyncWrap* async_wrap, int flags = 0);
   ~InternalCallbackScope();
@@ -253,6 +266,7 @@ class InternalCallbackScope {
   bool failed_ = false;
   bool pushed_ids_ = false;
   bool closed_ = false;
+  v8::Global<v8::Value> prior_context_frame_;
 };
 
 class DebugSealHandleScope {

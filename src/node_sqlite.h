@@ -9,9 +9,12 @@
 #include "util.h"
 
 #include <map>
+#include <unordered_set>
 
 namespace node {
 namespace sqlite {
+
+class StatementSync;
 
 class DatabaseSync : public BaseObject {
  public:
@@ -25,6 +28,10 @@ class DatabaseSync : public BaseObject {
   static void Close(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void Prepare(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void Exec(const v8::FunctionCallbackInfo<v8::Value>& args);
+  void FinalizeStatements();
+  void UntrackStatement(StatementSync* statement);
+  bool IsOpen();
+  sqlite3* Connection();
 
   SET_MEMORY_INFO_NAME(DatabaseSync)
   SET_SELF_SIZE(DatabaseSync)
@@ -35,19 +42,20 @@ class DatabaseSync : public BaseObject {
   ~DatabaseSync() override;
   std::string location_;
   sqlite3* connection_;
+  std::unordered_set<StatementSync*> statements_;
 };
 
 class StatementSync : public BaseObject {
  public:
   StatementSync(Environment* env,
                 v8::Local<v8::Object> object,
-                sqlite3* db,
+                DatabaseSync* db,
                 sqlite3_stmt* stmt);
   void MemoryInfo(MemoryTracker* tracker) const override;
   static v8::Local<v8::FunctionTemplate> GetConstructorTemplate(
       Environment* env);
   static BaseObjectPtr<StatementSync> Create(Environment* env,
-                                             sqlite3* db,
+                                             DatabaseSync* db,
                                              sqlite3_stmt* stmt);
   static void All(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void Get(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -57,13 +65,15 @@ class StatementSync : public BaseObject {
   static void SetAllowBareNamedParameters(
       const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetReadBigInts(const v8::FunctionCallbackInfo<v8::Value>& args);
+  void Finalize();
+  bool IsFinalized();
 
   SET_MEMORY_INFO_NAME(StatementSync)
   SET_SELF_SIZE(StatementSync)
 
  private:
   ~StatementSync() override;
-  sqlite3* db_;
+  DatabaseSync* db_;
   sqlite3_stmt* statement_;
   bool use_big_ints_;
   bool allow_bare_named_params_;

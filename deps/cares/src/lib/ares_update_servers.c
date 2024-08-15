@@ -525,7 +525,7 @@ static ares__slist_node_t *ares__server_find(ares_channel_t       *channel,
 
   for (node = ares__slist_node_first(channel->servers); node != NULL;
        node = ares__slist_node_next(node)) {
-    const struct server_state *server = ares__slist_node_val(node);
+    const ares_server_t *server = ares__slist_node_val(node);
 
     if (!ares__addr_match(&server->addr, &s->addr)) {
       continue;
@@ -579,8 +579,8 @@ static ares_status_t ares__server_create(ares_channel_t       *channel,
                                          const ares_sconfig_t *sconfig,
                                          size_t                idx)
 {
-  ares_status_t        status;
-  struct server_state *server = ares_malloc_zero(sizeof(*server));
+  ares_status_t  status;
+  ares_server_t *server = ares_malloc_zero(sizeof(*server));
 
   if (server == NULL) {
     return ARES_ENOMEM; /* LCOV_EXCL_LINE: OutOfMemory */
@@ -641,8 +641,8 @@ done:
   return status;
 }
 
-static ares_bool_t ares__server_in_newconfig(const struct server_state *server,
-                                             ares__llist_t             *srvlist)
+static ares_bool_t ares__server_in_newconfig(const ares_server_t *server,
+                                             ares__llist_t       *srvlist)
 {
   ares__llist_node_t   *node;
   const ares_channel_t *channel = server->channel;
@@ -676,8 +676,8 @@ static ares_bool_t ares__servers_remove_stale(ares_channel_t *channel,
   ares__slist_node_t *snode         = ares__slist_node_first(channel->servers);
 
   while (snode != NULL) {
-    ares__slist_node_t        *snext  = ares__slist_node_next(snode);
-    const struct server_state *server = ares__slist_node_val(snode);
+    ares__slist_node_t  *snext  = ares__slist_node_next(snode);
+    const ares_server_t *server = ares__slist_node_val(snode);
     if (!ares__server_in_newconfig(server, srvlist)) {
       /* This will clean up all server state via the destruction callback and
        * move any queries to new servers */
@@ -726,7 +726,7 @@ ares_status_t ares__servers_update(ares_channel_t *channel,
 
     snode = ares__server_find(channel, sconfig);
     if (snode != NULL) {
-      struct server_state *server = ares__slist_node_val(snode);
+      ares_server_t *server = ares__slist_node_val(snode);
 
       /* Copy over link-local settings.  Its possible some of this data has
        * changed, maybe ...  */
@@ -928,8 +928,8 @@ fail:
 }
 
 /* Write out the details of a server to a buffer */
-ares_status_t ares_get_server_addr(const struct server_state *server,
-                                   ares__buf_t               *buf)
+ares_status_t ares_get_server_addr(const ares_server_t *server,
+                                   ares__buf_t         *buf)
 {
   ares_status_t status;
   char          addr[INET6_ADDRSTRLEN];
@@ -1000,7 +1000,7 @@ int ares_get_servers(const ares_channel_t   *channel,
 
   for (node = ares__slist_node_first(channel->servers); node != NULL;
        node = ares__slist_node_next(node)) {
-    const struct server_state *server = ares__slist_node_val(node);
+    const ares_server_t *server = ares__slist_node_val(node);
 
     /* Allocate storage for this server node appending it to the list */
     srvr_curr = ares_malloc_data(ARES_DATATYPE_ADDR_NODE);
@@ -1055,7 +1055,7 @@ int ares_get_servers_ports(const ares_channel_t        *channel,
 
   for (node = ares__slist_node_first(channel->servers); node != NULL;
        node = ares__slist_node_next(node)) {
-    const struct server_state *server = ares__slist_node_val(node);
+    const ares_server_t *server = ares__slist_node_val(node);
 
     /* Allocate storage for this server node appending it to the list */
     srvr_curr = ares_malloc_data(ARES_DATATYPE_ADDR_PORT_NODE);
@@ -1203,8 +1203,8 @@ char *ares_get_servers_csv(const ares_channel_t *channel)
 
   for (node = ares__slist_node_first(channel->servers); node != NULL;
        node = ares__slist_node_next(node)) {
-    ares_status_t              status;
-    const struct server_state *server = ares__slist_node_val(node);
+    ares_status_t        status;
+    const ares_server_t *server = ares__slist_node_val(node);
 
     if (ares__buf_len(buf)) {
       status = ares__buf_append_byte(buf, ',');

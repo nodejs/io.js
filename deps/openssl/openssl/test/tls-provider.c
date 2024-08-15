@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -185,6 +185,8 @@ static int tls_prov_get_capabilities(void *provctx, const char *capability,
     }
 
     /* Register our 2 groups */
+    OPENSSL_assert(xor_group.group_id >= 65024
+                   && xor_group.group_id < 65279 - NUM_DUMMY_GROUPS);
     ret = cb(xor_group_params, arg);
     ret &= cb(xor_kemgroup_params, arg);
 
@@ -196,6 +198,7 @@ static int tls_prov_get_capabilities(void *provctx, const char *capability,
 
     for (i = 0; i < NUM_DUMMY_GROUPS; i++) {
         OSSL_PARAM dummygroup[OSSL_NELEM(xor_group_params)];
+        unsigned int dummygroup_id;
 
         memcpy(dummygroup, xor_group_params, sizeof(xor_group_params));
 
@@ -210,6 +213,9 @@ static int tls_prov_get_capabilities(void *provctx, const char *capability,
         }
         dummygroup[0].data = dummy_group_names[i];
         dummygroup[0].data_size = strlen(dummy_group_names[i]) + 1;
+        /* assign unique group IDs also to dummy groups for registration */
+        dummygroup_id = 65279 - NUM_DUMMY_GROUPS + i;
+        dummygroup[3].data = (unsigned char*)&dummygroup_id;
         ret &= cb(dummygroup, arg);
     }
 
@@ -817,9 +823,10 @@ unsigned int randomize_tls_group_id(OSSL_LIB_CTX *libctx)
         return 0;
     /*
      * Ensure group_id is within the IANA Reserved for private use range
-     * (65024-65279)
+     * (65024-65279).
+     * Carve out NUM_DUMMY_GROUPS ids for properly registering those.
      */
-    group_id %= 65279 - 65024;
+    group_id %= 65279 - NUM_DUMMY_GROUPS - 65024;
     group_id += 65024;
 
     /* Ensure we did not already issue this group_id */

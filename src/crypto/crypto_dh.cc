@@ -142,12 +142,27 @@ void DiffieHellman::MemoryInfo(MemoryTracker* tracker) const {
   tracker->TrackFieldWithSize("dh", dh_ ? kSizeOf_DH : 0);
 }
 
+namespace {
+bool SetDhParams(DH* dh, BignumPointer* p, BignumPointer* g) {
+  // If DH_set0_pqg returns 0, ownership of the input parameters has
+  // not been transferred to the DH object. If the return value is 1,
+  // ownership has been transferred and we need to release them.
+  // The documentation for DH_set0_pqg is not clear on this point.
+  // It says that ownership is transfered when the method is called
+  // but there is an internal check that returns 0 if the input is
+  // not valid, and in that case ownership is not transferred.
+  if (DH_set0_pqg(dh, p->get(), nullptr, g->get()) == 0) return false;
+  p->release();
+  g->release();
+  return true;
+}
+}  // namespace
+
 bool DiffieHellman::Init(BignumPointer&& bn_p, int g) {
   dh_.reset(DH_new());
   CHECK_GE(g, 2);
-  BignumPointer bn_g(BN_new());
-  return bn_g && BN_set_word(bn_g.get(), g) &&
-         DH_set0_pqg(dh_.get(), bn_p.release(), nullptr, bn_g.release()) &&
+  auto bn_g = BignumPointer::New();
+  return bn_p && bn_g.setWord(g) && SetDhParams(dh_.get(), &bn_p, &bn_g) &&
          VerifyContext();
 }
 
@@ -163,14 +178,10 @@ bool DiffieHellman::Init(const char* p, int p_len, int g) {
       DH_R_BAD_GENERATOR, __FILE__, __LINE__);
     return false;
   }
-  BignumPointer bn_p(
-      BN_bin2bn(reinterpret_cast<const unsigned char*>(p), p_len, nullptr));
-  BignumPointer bn_g(BN_new());
-  if (bn_p == nullptr || bn_g == nullptr || !BN_set_word(bn_g.get(), g) ||
-      !DH_set0_pqg(dh_.get(), bn_p.release(), nullptr, bn_g.release())) {
-    return false;
-  }
-  return VerifyContext();
+  BignumPointer bn_p(reinterpret_cast<const unsigned char*>(p), p_len);
+  auto bn_g = BignumPointer::New();
+  return bn_p && bn_g.setWord(g) && SetDhParams(dh_.get(), &bn_p, &bn_g) &&
+         VerifyContext();
 }
 
 bool DiffieHellman::Init(const char* p, int p_len, const char* g, int g_len) {
@@ -185,24 +196,14 @@ bool DiffieHellman::Init(const char* p, int p_len, const char* g, int g_len) {
       DH_R_BAD_GENERATOR, __FILE__, __LINE__);
     return false;
   }
-  BignumPointer bn_g(
-      BN_bin2bn(reinterpret_cast<const unsigned char*>(g), g_len, nullptr));
-  if (BN_is_zero(bn_g.get()) || BN_is_one(bn_g.get())) {
+  BignumPointer bn_g(reinterpret_cast<const unsigned char*>(g), g_len);
+  if (!bn_g || bn_g.isZero() || bn_g.isOne()) {
     ERR_put_error(ERR_LIB_DH, DH_F_DH_BUILTIN_GENPARAMS,
       DH_R_BAD_GENERATOR, __FILE__, __LINE__);
     return false;
   }
-  BignumPointer bn_p(
-      BN_bin2bn(reinterpret_cast<const unsigned char*>(p), p_len, nullptr));
-  if (!DH_set0_pqg(dh_.get(), bn_p.get(), nullptr, bn_g.get())) {
-    return false;
-  }
-  // The DH_set0_pqg call above takes ownership of the bignums on success,
-  // so we should release them here so we don't end with a possible
-  // use-after-free or double free.
-  bn_p.release();
-  bn_g.release();
-  return VerifyContext();
+  BignumPointer bn_p(reinterpret_cast<const unsigned char*>(p), p_len);
+  return bn_p && SetDhParams(dh_.get(), &bn_p, &bn_g) && VerifyContext();
 }
 
 constexpr int kStandardizedGenerator = 2;
@@ -303,16 +304,16 @@ void DiffieHellman::GenerateKeys(const FunctionCallbackInfo<Value>& args) {
 
   std::unique_ptr<BackingStore> bs;
   {
-    const int size = BN_num_bytes(pub_key);
+    const int size = BignumPointer::GetByteCount(pub_key);
     CHECK_GE(size, 0);
     NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
     bs = ArrayBuffer::NewBackingStore(env->isolate(), size);
   }
 
-  CHECK_EQ(static_cast<int>(bs->ByteLength()),
-           BN_bn2binpad(pub_key,
-                        static_cast<unsigned char*>(bs->Data()),
-                        bs->ByteLength()));
+  CHECK_EQ(
+      bs->ByteLength(),
+      BignumPointer::EncodePaddedInto(
+          pub_key, static_cast<unsigned char*>(bs->Data()), bs->ByteLength()));
 
   Local<ArrayBuffer> ab = ArrayBuffer::New(env->isolate(), std::move(bs));
   Local<Value> buffer;
@@ -335,16 +336,15 @@ void DiffieHellman::GetField(const FunctionCallbackInfo<Value>& args,
 
   std::unique_ptr<BackingStore> bs;
   {
-    const int size = BN_num_bytes(num);
+    const int size = BignumPointer::GetByteCount(num);
     CHECK_GE(size, 0);
     NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
     bs = ArrayBuffer::NewBackingStore(env->isolate(), size);
   }
 
-  CHECK_EQ(static_cast<int>(bs->ByteLength()),
-           BN_bn2binpad(num,
-                        static_cast<unsigned char*>(bs->Data()),
-                        bs->ByteLength()));
+  CHECK_EQ(bs->ByteLength(),
+           BignumPointer::EncodePaddedInto(
+               num, static_cast<unsigned char*>(bs->Data()), bs->ByteLength()));
 
   Local<ArrayBuffer> ab = ArrayBuffer::New(env->isolate(), std::move(bs));
   Local<Value> buffer;
@@ -396,7 +396,7 @@ void DiffieHellman::ComputeSecret(const FunctionCallbackInfo<Value>& args) {
   ArrayBufferOrViewContents<unsigned char> key_buf(args[0]);
   if (UNLIKELY(!key_buf.CheckSizeInt32()))
     return THROW_ERR_OUT_OF_RANGE(env, "secret is too big");
-  BignumPointer key(BN_bin2bn(key_buf.data(), key_buf.size(), nullptr));
+  BignumPointer key(key_buf.data(), key_buf.size());
 
   std::unique_ptr<BackingStore> bs;
   {
@@ -452,9 +452,9 @@ void DiffieHellman::SetKey(const FunctionCallbackInfo<Value>& args,
   ArrayBufferOrViewContents<unsigned char> buf(args[0]);
   if (UNLIKELY(!buf.CheckSizeInt32()))
     return THROW_ERR_OUT_OF_RANGE(env, "buf is too big");
-  BIGNUM* num = BN_bin2bn(buf.data(), buf.size(), nullptr);
-  CHECK_NOT_NULL(num);
-  CHECK_EQ(1, set_field(dh->dh_.get(), num));
+  BignumPointer num(buf.data(), buf.size());
+  CHECK(num);
+  CHECK_EQ(1, set_field(dh->dh_.get(), num.release()));
 }
 
 void DiffieHellman::SetPublicKey(const FunctionCallbackInfo<Value>& args) {
@@ -532,8 +532,7 @@ Maybe<bool> DhKeyGenTraits::AdditionalConfig(
         THROW_ERR_OUT_OF_RANGE(env, "prime is too big");
         return Nothing<bool>();
       }
-      params->params.prime = BignumPointer(
-          BN_bin2bn(input.data(), input.size(), nullptr));
+      params->params.prime = BignumPointer(input.data(), input.size());
     }
 
     CHECK(args[*offset + 1]->IsInt32());
@@ -552,15 +551,11 @@ EVPKeyCtxPointer DhKeyGenTraits::Setup(DhKeyPairGenConfig* params) {
     if (!dh)
       return EVPKeyCtxPointer();
 
-    BIGNUM* prime = prime_fixed_value->get();
-    BignumPointer bn_g(BN_new());
-    if (!BN_set_word(bn_g.get(), params->params.generator) ||
-        !DH_set0_pqg(dh.get(), prime, nullptr, bn_g.get())) {
+    auto bn_g = BignumPointer::New();
+    if (!bn_g.setWord(params->params.generator) ||
+        !SetDhParams(dh.get(), prime_fixed_value, &bn_g)) {
       return EVPKeyCtxPointer();
     }
-
-    prime_fixed_value->release();
-    bn_g.release();
 
     key_params = EVPKeyPointer(EVP_PKEY_new());
     CHECK(key_params);

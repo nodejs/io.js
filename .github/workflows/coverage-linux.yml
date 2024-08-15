@@ -12,6 +12,7 @@ on:
       - tools/gyp/**
       - tools/test.py
       - .github/workflows/coverage-linux.yml
+      - codecov.yml
   push:
     branches:
       - main
@@ -24,6 +25,7 @@ on:
       - tools/gyp/**
       - tools/test.py
       - .github/workflows/coverage-linux.yml
+      - codecov.yml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -48,7 +50,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f  # v5.1.1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up sccache
@@ -58,7 +60,7 @@ jobs:
       - name: Environment Information
         run: npx envinfo
       - name: Install gcovr
-        run: pip install gcovr==4.2
+        run: pip install gcovr==7.2
       - name: Build
         run: make build-ci -j4 V=1 CONFIG_FLAGS="--error-on-warn --coverage"
       # TODO(bcoe): fix the couple tests that fail with the inspector enabled.
@@ -70,7 +72,7 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
       - name: Report C++
-        run: cd out && gcovr --gcov-exclude='.*\b(deps|usr|out|obj|cctest|embedding)\b' -v -r Release/obj.target --xml -o ../coverage/coverage-cxx.xml --root=$(cd ../ && pwd)
+        run: gcovr --object-directory=out -v --filter src --xml -o ./coverage/coverage-cxx.xml --root=./ --gcov-executable="llvm-cov-18 gcov"
       # Clean temporary output from gcov and c8, so that it's not uploaded:
       - name: Clean tmp
         run: rm -rf coverage/tmp && rm -rf out

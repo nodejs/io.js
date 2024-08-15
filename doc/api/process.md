@@ -330,7 +330,7 @@ most convenient for scripts).
 ### Event: `'workerMessage'`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 * `value` {any} A value transmitted using [`postMessageToThread()`][].
@@ -1101,7 +1101,6 @@ An example of the possible output looks like:
      node_shared_zlib: 'false',
      node_use_openssl: 'true',
      node_shared_openssl: 'false',
-     strict_aliasing: 'true',
      target_arch: 'x64',
      v8_use_snapshot: 1
    }
@@ -1900,7 +1899,7 @@ previous setting of `process.exitCode`.
 ## `process.finalization.register(ref, callback)`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 > Stability: 1.1 - Active Development
@@ -2009,7 +2008,7 @@ as it is not guaranteed that the callback will be called under all circumstances
 ## `process.finalization.registerBeforeExit(ref, callback)`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 > Stability: 1.1 - Active Development
@@ -2030,7 +2029,7 @@ this means that there is a possibility that the callback will not be called unde
 ## `process.finalization.unregister(ref)`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 > Stability: 1.1 - Active Development
@@ -2153,7 +2152,9 @@ console.log('After:', getActiveResourcesInfo());
 ## `process.getBuiltinModule(id)`
 
 <!-- YAML
-added: v22.3.0
+added:
+- v22.3.0
+- v20.16.0
 -->
 
 * `id` {string} ID of the built-in module being requested.
@@ -2709,6 +2710,9 @@ console.log(memoryUsage.rss());
 <!-- YAML
 added: v0.1.26
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/51280
+    description: Changed stability to Legacy.
   - version: v18.0.0
     pr-url: https://github.com/nodejs/node/pull/41678
     description: Passing an invalid callback to the `callback` argument
@@ -2718,6 +2722,8 @@ changes:
     pr-url: https://github.com/nodejs/node/pull/1077
     description: Additional arguments after `callback` are now supported.
 -->
+
+> Stability: 3 - Legacy: Use [`queueMicrotask()`][] instead.
 
 * `callback` {Function}
 * `...args` {any} Additional arguments to pass when invoking the `callback`

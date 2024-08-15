@@ -26,3 +26,5 @@ test('`${foo}`', async (t) => {
 test('escapes in `\\${foo}`\n', async (t) => {
   t.assert.snapshot('`\\${foo}`\n');
 });
+
+require('./imported-tests');

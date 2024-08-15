@@ -1,4 +1,4 @@
-import {InternalFSBinding, ReadFileContext} from './fs';
+import { InternalFSBinding } from './fs';
 
 declare namespace InternalFSDirBinding {
   import FSReqCallback = InternalFSBinding.FSReqCallback;

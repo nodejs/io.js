@@ -16,6 +16,7 @@ on:
           - acorn
           - acorn-walk
           - ada
+          - amaro
           - brotli
           - c-ares
           - cjs-module-lexer
@@ -79,6 +80,14 @@ jobs:
             label: dependencies
             run: |
               ./tools/dep_updaters/update-ada.sh > temp-output
+              cat temp-output
+              tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
+              rm temp-output
+          - id: amaro
+            subsystem: deps
+            label: dependencies
+            run: |
+              ./tools/dep_updaters/update-amaro.sh > temp-output
               cat temp-output
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
@@ -321,7 +330,7 @@ jobs:
           persist-credentials: false
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         if: matrix.id == 'icu' && (github.event_name == 'schedule' || inputs.id == 'all' || inputs.id == matrix.id)
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f  # v5.1.1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: ${{ matrix.run }}

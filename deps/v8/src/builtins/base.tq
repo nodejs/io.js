@@ -1313,7 +1313,6 @@ extern macro ChangeUint32ToWord(uint32): uintptr;  // Doesn't sign-extend.
 extern macro ChangeInt32ToInt64(int32): int64;  // Sign-extends.
 extern macro ChangeUint32ToUint64(uint32): uint64;  // Doesn't sign-extend.
 extern macro LoadNativeContext(Context): NativeContext;
-extern macro GetContinuationPreservedEmbedderData(): Object;
 extern macro TruncateFloat64ToFloat16(float64): float16;
 extern macro TruncateFloat32ToFloat16(float32): float16;
 extern macro TruncateFloat64ToFloat32(float64): float32;

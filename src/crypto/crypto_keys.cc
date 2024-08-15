@@ -509,16 +509,17 @@ Maybe<void> ExportJWKAsymmetricKey(Environment* env,
 std::shared_ptr<KeyObjectData> ImportJWKAsymmetricKey(
     Environment* env,
     Local<Object> jwk,
-    const char* kty,
+    std::string_view kty,
     const FunctionCallbackInfo<Value>& args,
     unsigned int offset) {
-  if (strcmp(kty, "RSA") == 0) {
+  if (kty == "RSA") {
     return ImportJWKRsaKey(env, jwk, args, offset);
-  } else if (strcmp(kty, "EC") == 0) {
+  } else if (kty == "EC") {
     return ImportJWKEcKey(env, jwk, args, offset);
   }
 
-  THROW_ERR_CRYPTO_INVALID_JWK(env, "%s is not a supported JWK key type", kty);
+  THROW_ERR_CRYPTO_INVALID_JWK(
+      env, "%s is not a supported JWK key type", kty.data());
   return std::shared_ptr<KeyObjectData>();
 }
 

@@ -157,7 +157,7 @@ our %config = (
     ],
     "dynamic_engines" => "0",
     "ex_libs" => [],
-    "full_version" => "3.0.13+quic",
+    "full_version" => "3.0.14+quic",
     "includes" => [],
     "lflags" => [],
     "lib_defines" => [
@@ -206,7 +206,7 @@ our %config = (
     "openssl_sys_defines" => [],
     "openssldir" => "",
     "options" => "enable-ssl-trace enable-fips no-afalgeng no-asan no-asm no-buildtest-c++ no-comp no-crypto-mdebug no-crypto-mdebug-backtrace no-devcryptoeng no-dynamic-engine no-ec_nistp_64_gcc_128 no-egd no-external-tests no-fuzz-afl no-fuzz-libfuzzer no-ktls no-loadereng no-md2 no-msan no-rc5 no-sctp no-shared no-ssl3 no-ssl3-method no-trace no-ubsan no-unit-test no-uplink no-weak-ssl-ciphers no-zlib no-zlib-dynamic",
-    "patch" => "13",
+    "patch" => "14",
     "perl_archname" => "x86_64-linux-gnu-thread-multi",
     "perl_cmd" => "/usr/bin/perl",
     "perl_version" => "5.34.0",
@@ -259,11 +259,11 @@ our %config = (
     "prerelease" => "",
     "processor" => "",
     "rc4_int" => "unsigned char",
-    "release_date" => "30 Jan 2024",
+    "release_date" => "4 Jun 2024",
     "shlib_version" => "81.3",
     "sourcedir" => ".",
     "target" => "linux-ppc64le",
-    "version" => "3.0.13"
+    "version" => "3.0.14"
 );
 our %target = (
     "AR" => "ar",
@@ -332,6 +332,7 @@ our @disablables = (
     "asan",
     "asm",
     "async",
+    "atexit",
     "autoalginit",
     "autoerrinit",
     "autoload-config",

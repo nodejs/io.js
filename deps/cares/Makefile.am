@@ -22,7 +22,7 @@
 AUTOMAKE_OPTIONS = foreign nostdinc 1.9.6
 ACLOCAL_AMFLAGS = -I m4 --install
 
-MSVCFILES = msvc_ver.inc buildconf.bat
+MSVCFILES = buildconf.bat
 
 # adig and ahost are just sample programs and thus not mentioned with the
 # regular sources and headers

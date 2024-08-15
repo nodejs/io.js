@@ -66,6 +66,7 @@ def rebuild_addons(args):
           print(stdout.decode())
         if stderr:
           print(stderr.decode())
+      return return_code
 
     except Exception as e:
       print(f'Unexpected error when building addon in {test_dir}. Error: {e}')
@@ -86,7 +87,8 @@ def rebuild_addons(args):
     test_dirs.append(full_path)
 
   with ThreadPoolExecutor() as executor:
-    executor.map(node_gyp_rebuild, test_dirs)
+    codes = executor.map(node_gyp_rebuild, test_dirs)
+    return 0 if all(code == 0 for code in codes) else 1
 
 def get_default_out_dir(args):
   default_out_dir = os.path.join('out', args.config)
@@ -131,17 +133,19 @@ def main():
   if not args.out_dir:
     args.out_dir = get_default_out_dir(args)
 
+  exit_code = 1
   if args.headers_dir:
-    rebuild_addons(args)
+    exit_code = rebuild_addons(args)
   else:
     # When --headers-dir is not specified, generate headers into a temp dir and
     # build with the new headers.
     try:
       args.headers_dir = tempfile.mkdtemp()
       generate_headers(args.headers_dir, unknown_args)
-      rebuild_addons(args)
+      exit_code = rebuild_addons(args)
     finally:
       shutil.rmtree(args.headers_dir)
+  return exit_code
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())

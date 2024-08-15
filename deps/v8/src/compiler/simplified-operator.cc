@@ -1339,6 +1339,26 @@ struct SimplifiedOperatorGlobalCache final {
       kSpeculativeToBigIntBigInt64Operator;
   SpeculativeToBigIntOperator<BigIntOperationHint::kBigInt>
       kSpeculativeToBigIntBigIntOperator;
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  struct GetContinuationPreservedEmbedderDataOperator : public Operator {
+    GetContinuationPreservedEmbedderDataOperator()
+        : Operator(IrOpcode::kGetContinuationPreservedEmbedderData,
+                   Operator::kNoThrow | Operator::kNoDeopt | Operator::kNoWrite,
+                   "GetContinuationPreservedEmbedderData", 0, 1, 0, 1, 1, 0) {}
+  };
+  GetContinuationPreservedEmbedderDataOperator
+      kGetContinuationPreservedEmbedderData;
+
+  struct SetContinuationPreservedEmbedderDataOperator : public Operator {
+    SetContinuationPreservedEmbedderDataOperator()
+        : Operator(IrOpcode::kSetContinuationPreservedEmbedderData,
+                   Operator::kNoThrow | Operator::kNoDeopt | Operator::kNoRead,
+                   "SetContinuationPreservedEmbedderData", 1, 1, 0, 0, 1, 0) {}
+  };
+  SetContinuationPreservedEmbedderDataOperator
+      kSetContinuationPreservedEmbedderData;
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
 };
 
 namespace {
@@ -2197,6 +2217,18 @@ const Operator* SimplifiedOperatorBuilder::StoreField(
       Operator::kNoDeopt | Operator::kNoThrow | Operator::kNoRead, "StoreField",
       2, 1, 1, 0, 1, 0, store_access);
 }
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+const Operator*
+SimplifiedOperatorBuilder::GetContinuationPreservedEmbedderData() {
+  return &cache_.kGetContinuationPreservedEmbedderData;
+}
+
+const Operator*
+SimplifiedOperatorBuilder::SetContinuationPreservedEmbedderData() {
+  return &cache_.kSetContinuationPreservedEmbedderData;
+}
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
 
 const Operator* SimplifiedOperatorBuilder::LoadMessage() {
   return zone()->New<Operator>(IrOpcode::kLoadMessage, Operator::kEliminatable,

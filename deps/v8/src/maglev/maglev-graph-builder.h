@@ -1690,31 +1690,40 @@ class MaglevGraphBuilder {
                                      ExternalArrayType type,
                                      Function&& getValue);
 
-#define MAGLEV_REDUCED_BUILTIN(V)  \
-  V(ArrayForEach)                  \
-  V(ArrayIsArray)                  \
-  V(DataViewPrototypeGetInt8)      \
-  V(DataViewPrototypeSetInt8)      \
-  V(DataViewPrototypeGetInt16)     \
-  V(DataViewPrototypeSetInt16)     \
-  V(DataViewPrototypeGetInt32)     \
-  V(DataViewPrototypeSetInt32)     \
-  V(DataViewPrototypeGetFloat64)   \
-  V(DataViewPrototypeSetFloat64)   \
-  V(FunctionPrototypeCall)         \
-  V(FunctionPrototypeHasInstance)  \
-  V(ObjectPrototypeHasOwnProperty) \
-  V(MathCeil)                      \
-  V(MathFloor)                     \
-  V(MathPow)                       \
-  V(ArrayPrototypePush)            \
-  V(ArrayPrototypePop)             \
-  V(MathRound)                     \
-  V(StringConstructor)             \
-  V(StringFromCharCode)            \
-  V(StringPrototypeCharCodeAt)     \
-  V(StringPrototypeCodePointAt)    \
-  V(StringPrototypeLocaleCompare)  \
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+#define CONTINUATION_PRESERVED_EMBEDDER_DATA_LIST(V) \
+  V(GetContinuationPreservedEmbedderData)            \
+  V(SetContinuationPreservedEmbedderData)
+#else
+#define CONTINUATION_PRESERVED_EMBEDDER_DATA_LIST(V)
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
+#define MAGLEV_REDUCED_BUILTIN(V)              \
+  V(ArrayForEach)                              \
+  V(ArrayIsArray)                              \
+  V(DataViewPrototypeGetInt8)                  \
+  V(DataViewPrototypeSetInt8)                  \
+  V(DataViewPrototypeGetInt16)                 \
+  V(DataViewPrototypeSetInt16)                 \
+  V(DataViewPrototypeGetInt32)                 \
+  V(DataViewPrototypeSetInt32)                 \
+  V(DataViewPrototypeGetFloat64)               \
+  V(DataViewPrototypeSetFloat64)               \
+  V(FunctionPrototypeCall)                     \
+  V(FunctionPrototypeHasInstance)              \
+  V(ObjectPrototypeHasOwnProperty)             \
+  V(MathCeil)                                  \
+  V(MathFloor)                                 \
+  V(MathPow)                                   \
+  V(ArrayPrototypePush)                        \
+  V(ArrayPrototypePop)                         \
+  V(MathRound)                                 \
+  V(StringConstructor)                         \
+  V(StringFromCharCode)                        \
+  V(StringPrototypeCharCodeAt)                 \
+  V(StringPrototypeCodePointAt)                \
+  V(StringPrototypeLocaleCompare)              \
+  CONTINUATION_PRESERVED_EMBEDDER_DATA_LIST(V) \
   IEEE_754_UNARY_LIST(V)
 
 #define DEFINE_BUILTIN_REDUCER(Name, ...)                      \

@@ -15,22 +15,29 @@ constexpr size_t kAesBlockSize = 16;
 constexpr unsigned kNoAuthTagLength = static_cast<unsigned>(-1);
 constexpr const char* kDefaultWrapIV = "\xa6\xa6\xa6\xa6\xa6\xa6\xa6\xa6";
 
-#define VARIANTS(V)                                                           \
-  V(CTR_128, AES_CTR_Cipher)                                                  \
-  V(CTR_192, AES_CTR_Cipher)                                                  \
-  V(CTR_256, AES_CTR_Cipher)                                                  \
-  V(CBC_128, AES_Cipher)                                                      \
-  V(CBC_192, AES_Cipher)                                                      \
-  V(CBC_256, AES_Cipher)                                                      \
-  V(GCM_128, AES_Cipher)                                                      \
-  V(GCM_192, AES_Cipher)                                                      \
-  V(GCM_256, AES_Cipher)                                                      \
-  V(KW_128, AES_Cipher)                                                       \
-  V(KW_192, AES_Cipher)                                                       \
-  V(KW_256, AES_Cipher)
+enum class AESCipherMode {
+  CTR,
+  CBC,
+  GCM,
+  KW,
+};
+
+#define VARIANTS(V)                                                            \
+  V(CTR_128, AES_CTR_Cipher, AESCipherMode::CTR, NID_aes_128_ctr)              \
+  V(CTR_192, AES_CTR_Cipher, AESCipherMode::CTR, NID_aes_192_ctr)              \
+  V(CTR_256, AES_CTR_Cipher, AESCipherMode::CTR, NID_aes_256_ctr)              \
+  V(CBC_128, AES_Cipher, AESCipherMode::CBC, NID_aes_128_cbc)                  \
+  V(CBC_192, AES_Cipher, AESCipherMode::CBC, NID_aes_192_cbc)                  \
+  V(CBC_256, AES_Cipher, AESCipherMode::CBC, NID_aes_256_cbc)                  \
+  V(GCM_128, AES_Cipher, AESCipherMode::GCM, NID_aes_128_gcm)                  \
+  V(GCM_192, AES_Cipher, AESCipherMode::GCM, NID_aes_192_gcm)                  \
+  V(GCM_256, AES_Cipher, AESCipherMode::GCM, NID_aes_256_gcm)                  \
+  V(KW_128, AES_Cipher, AESCipherMode::KW, NID_id_aes128_wrap)                 \
+  V(KW_192, AES_Cipher, AESCipherMode::KW, NID_id_aes192_wrap)                 \
+  V(KW_256, AES_Cipher, AESCipherMode::KW, NID_id_aes256_wrap)
 
 enum AESKeyVariant {
-#define V(name, _) kKeyVariantAES_ ## name,
+#define V(name, _, __, ___) kKeyVariantAES_##name,
   VARIANTS(V)
 #undef V
 };

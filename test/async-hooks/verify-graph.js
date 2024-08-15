@@ -125,9 +125,9 @@ module.exports.printGraph = function printGraph(hooks) {
   const uidtoid = {};
   const activities = pruneTickObjects(hooks.activities);
   const graph = [];
-  activities.forEach(procesNode);
+  activities.forEach(processNode);
 
-  function procesNode(x) {
+  function processNode(x) {
     const key = x.type.replace(/WRAP/, '').toLowerCase();
     if (!ids[key]) ids[key] = 1;
     const id = `${key}:${ids[key]++}`;

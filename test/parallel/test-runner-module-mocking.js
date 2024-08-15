@@ -10,7 +10,7 @@ const fixtures = require('../common/fixtures');
 const assert = require('node:assert');
 const { relative } = require('node:path');
 const { test } = require('node:test');
-const { pathToFileURL } = require('node:url');
+const { fileURLToPath, pathToFileURL } = require('node:url');
 
 test('input validation', async (t) => {
   await t.test('throws if specifier is not a string', (t) => {
@@ -514,7 +514,7 @@ test('CJS mocks can be used by both module systems', async (t) => {
   const cjsMock = t.mock.module(cjsFixture, {
     namedExports: { fn() { return 42; } },
   });
-  let esmImpl = await import(cjsFixture);
+  let esmImpl = await import(pathToFileURL(cjsFixture));
   let cjsImpl = require(cjsFixture);
 
   assert.strictEqual(esmImpl.fn(), 42);
@@ -522,31 +522,11 @@ test('CJS mocks can be used by both module systems', async (t) => {
 
   cjsMock.restore();
 
-  esmImpl = await import(cjsFixture);
+  esmImpl = await import(pathToFileURL(cjsFixture));
   cjsImpl = require(cjsFixture);
 
   assert.strictEqual(esmImpl.default.string, 'original cjs string');
   assert.strictEqual(cjsImpl.string, 'original cjs string');
-});
-
-test('ESM mocks can be used by both module systems', async (t) => {
-  const esmFixture = fixtures.path('module-mocking', 'basic-esm.mjs');
-  const esmMock = t.mock.module(esmFixture, {
-    namedExports: { fn() { return 42; } },
-  });
-
-  let cjsImpl = require(esmFixture);
-  let esmImpl = await import(esmFixture);
-
-  assert.strictEqual(cjsImpl.fn(), 42);
-  assert.strictEqual(esmImpl.fn(), 42);
-
-  esmMock.restore();
-  cjsImpl = require(esmFixture);
-  esmImpl = await import(esmFixture);
-
-  assert.strictEqual(esmImpl.string, 'original esm string');
-  assert.strictEqual(cjsImpl.string, 'original esm string');
 });
 
 test('relative paths can be used by both module systems', async (t) => {
@@ -586,9 +566,7 @@ test('node_modules can be used by both module systems', async (t) => {
 });
 
 test('file:// imports are supported in ESM only', async (t) => {
-  const fixture = pathToFileURL(
-    fixtures.path('module-mocking', 'basic-esm.mjs')
-  ).href;
+  const fixture = fixtures.fileURL('module-mocking', 'basic-esm.mjs').href;
   const mock = t.mock.module(fixture, {
     namedExports: { fn() { return 42; } },
   });
@@ -604,9 +582,9 @@ test('file:// imports are supported in ESM only', async (t) => {
 });
 
 test('mocked modules do not impact unmocked modules', async (t) => {
-  const mockedFixture = fixtures.path('module-mocking', 'basic-cjs.js');
-  const unmockedFixture = fixtures.path('module-mocking', 'basic-esm.mjs');
-  t.mock.module(mockedFixture, {
+  const mockedFixture = fixtures.fileURL('module-mocking', 'basic-cjs.js');
+  const unmockedFixture = fixtures.fileURL('module-mocking', 'basic-esm.mjs');
+  t.mock.module(`${mockedFixture}`, {
     namedExports: { fn() { return 42; } },
   });
   const mockedImpl = await import(mockedFixture);
@@ -625,16 +603,31 @@ test('defaultExports work with CJS mocks in both module systems', async (t) => {
   assert.strictEqual(original.string, 'original cjs string');
   t.mock.module(fixture, { defaultExport });
   assert.strictEqual(require(fixture), defaultExport);
-  assert.strictEqual((await import(fixture)).default, defaultExport);
+  assert.strictEqual((await import(pathToFileURL(fixture))).default, defaultExport);
 });
 
 test('defaultExports work with ESM mocks in both module systems', async (t) => {
-  const fixture = fixtures.path('module-mocking', 'basic-esm.mjs');
+  const fixture = fixtures.fileURL('module-mocking', 'basic-esm.mjs');
   const original = await import(fixture);
   const defaultExport = Symbol('default');
 
   assert.strictEqual(original.string, 'original esm string');
-  t.mock.module(fixture, { defaultExport });
+  t.mock.module(`${fixture}`, { defaultExport });
   assert.strictEqual((await import(fixture)).default, defaultExport);
-  assert.strictEqual(require(fixture), defaultExport);
+  assert.strictEqual(require(fileURLToPath(fixture)), defaultExport);
+});
+
+test('wrong import syntax should throw error after module mocking.', async () => {
+  const { stdout, stderr, code } = await common.spawnPromisified(
+    process.execPath,
+    [
+      '--experimental-test-module-mocks',
+      '--experimental-default-type=module',
+      fixtures.path('module-mocking/wrong-import-after-module-mocking.js'),
+    ]
+  );
+
+  assert.strictEqual(stdout, '');
+  assert.match(stderr, /Error \[ERR_MODULE_NOT_FOUND\]: Cannot find module/);
+  assert.strictEqual(code, 1);
 });

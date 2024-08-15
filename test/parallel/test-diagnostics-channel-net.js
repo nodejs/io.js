@@ -16,7 +16,7 @@ function testDiagnosticChannel(subscribers, test, after) {
   }));
 }
 
-const testSuccessfullListen = common.mustCall(() => {
+const testSuccessfulListen = common.mustCall(() => {
   let cb;
   const server = net.createServer(common.mustCall((socket) => {
     socket.destroy();
@@ -88,4 +88,4 @@ const testFailingListen = common.mustCall(() => {
   });
 });
 
-testSuccessfullListen();
+testSuccessfulListen();

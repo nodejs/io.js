@@ -43,6 +43,8 @@ test-inspector-async-stack-traces-set-interval: PASS, FLAKY
 # https://github.com/nodejs/node/pull/31178
 test-crypto-dh-stateless: SKIP
 test-crypto-keygen: SKIP
+# https://github.com/nodejs/node/issues/52963
+test-pipe-file-to-http: PASS, FLAKY
 
 [$system==solaris] # Also applies to SmartOS
 # https://github.com/nodejs/node/issues/43457

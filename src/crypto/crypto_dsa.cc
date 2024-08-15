@@ -143,8 +143,8 @@ Maybe<bool> GetDsaKeyDetail(
 
   DSA_get0_pqg(dsa, &p, &q, nullptr);
 
-  size_t modulus_length = BN_num_bits(p);
-  size_t divisor_length = BN_num_bits(q);
+  size_t modulus_length = BignumPointer::GetBitCount(p);
+  size_t divisor_length = BignumPointer::GetBitCount(q);
 
   if (target
           ->Set(

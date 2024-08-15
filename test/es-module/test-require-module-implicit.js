@@ -6,18 +6,6 @@
 const common = require('../common');
 const assert = require('assert');
 
-assert.throws(() => {
-  require('../fixtures/es-modules/package-without-type/noext-esm');
-}, {
-  message: /Unexpected token 'export'/
-});
-
-assert.throws(() => {
-  require('../fixtures/es-modules/loose.js');
-}, {
-  message: /Unexpected token 'export'/
-});
-
 {
   // .mjs should not be matched as default extensions.
   const id = '../fixtures/es-modules/should-not-be-resolved';

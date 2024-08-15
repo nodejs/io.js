@@ -144,9 +144,9 @@ void DumpJavaScriptBacktrace(FILE* fp);
   do {                                                                         \
     /* Make sure that this struct does not end up in inline code, but      */  \
     /* rather in a read-only data section when modifying this code.        */  \
-    static const node::AssertionInfo args = {                                  \
+    static const node::AssertionInfo error_and_abort_args = {                  \
         __FILE__ ":" STRINGIFY(__LINE__), #expr, PRETTY_FUNCTION_NAME};        \
-    node::Assert(args);                                                        \
+    node::Assert(error_and_abort_args);                                        \
     /* `node::Assert` doesn't return. Add an [[noreturn]] abort() here to  */  \
     /* make the compiler happy about no return value in the caller         */  \
     /* function when calling ERROR_AND_ABORT.                              */  \

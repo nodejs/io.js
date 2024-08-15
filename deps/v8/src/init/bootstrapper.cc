@@ -6383,6 +6383,18 @@ bool Genesis::InstallExtrasBindings() {
   SimpleInstallFunction(isolate(), extras_binding, "trace", Builtin::kTrace, 5,
                         true);
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  // binding.getContinuationPreservedEmbedderData()
+  SimpleInstallFunction(
+      isolate(), extras_binding, "getContinuationPreservedEmbedderData",
+      Builtin::kGetContinuationPreservedEmbedderData, 0, true);
+
+  // binding.setContinuationPreservedEmbedderData(value)
+  SimpleInstallFunction(
+      isolate(), extras_binding, "setContinuationPreservedEmbedderData",
+      Builtin::kSetContinuationPreservedEmbedderData, 1, true);
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
   InitializeConsole(extras_binding);
 
   native_context()->set_extras_binding_object(*extras_binding);

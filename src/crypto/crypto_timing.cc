@@ -1,9 +1,10 @@
 #include "crypto/crypto_timing.h"
 #include "crypto/crypto_util.h"
 #include "env-inl.h"
+#include "node.h"
+#include "node_debug.h"
 #include "node_errors.h"
 #include "v8.h"
-#include "node.h"
 
 #include <openssl/crypto.h>
 
@@ -57,10 +58,12 @@ bool FastTimingSafeEqual(Local<Value> receiver,
   uint8_t* data_b;
   if (a.length() != b.length() || !a.getStorageIfAligned(&data_a) ||
       !b.getStorageIfAligned(&data_b)) {
+    TRACK_V8_FAST_API_CALL("crypto.timingSafeEqual.error");
     options.fallback = true;
     return false;
   }
 
+  TRACK_V8_FAST_API_CALL("crypto.timingSafeEqual.ok");
   return CRYPTO_memcmp(data_a, data_b, a.length()) == 0;
 }
 

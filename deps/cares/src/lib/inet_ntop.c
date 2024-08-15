@@ -138,7 +138,7 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
     if (words[i] == 0) {
       if (cur.base == -1) {
         cur.base = (ares_ssize_t)i;
-        cur.len = 1;
+        cur.len  = 1;
       } else {
         cur.len++;
       }
@@ -166,7 +166,8 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
   tp = tmp;
   for (i = 0; i < (NS_IN6ADDRSZ / NS_INT16SZ); i++) {
     /* Are we inside the best run of 0x00's? */
-    if (best.base != -1 && i >= (size_t)best.base && i < ((size_t)best.base + best.len)) {
+    if (best.base != -1 && i >= (size_t)best.base &&
+        i < ((size_t)best.base + best.len)) {
       if (i == (size_t)best.base) {
         *tp++ = ':';
       }
@@ -205,4 +206,3 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
   ares_strcpy(dst, tmp, size);
   return dst;
 }
-

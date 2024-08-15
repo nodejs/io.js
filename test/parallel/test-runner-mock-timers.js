@@ -257,6 +257,13 @@ describe('Mock Timers Test Suite', () => {
 
         assert.strictEqual(fn.mock.callCount(), 0);
       });
+
+      it('clearTimeout does not throw on null and undefined', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+
+        nodeTimers.clearTimeout();
+        nodeTimers.clearTimeout(null);
+      });
     });
 
     describe('setInterval Suite', () => {
@@ -304,6 +311,13 @@ describe('Mock Timers Test Suite', () => {
         t.mock.timers.tick(200);
 
         assert.strictEqual(fn.mock.callCount(), 0);
+      });
+
+      it('clearInterval does not throw on null and undefined', (t) => {
+        t.mock.timers.enable({ apis: ['setInterval'] });
+
+        nodeTimers.clearInterval();
+        nodeTimers.clearInterval(null);
       });
     });
 
@@ -369,6 +383,15 @@ describe('Mock Timers Test Suite', () => {
         t.mock.timers.tick(100);
 
         assert.deepStrictEqual(order, ['f1', 'f2']);
+      });
+    });
+
+    describe('clearImmediate Suite', () => {
+      it('clearImmediate does not throw on null and undefined', (t) => {
+        t.mock.timers.enable({ apis: ['setImmediate'] });
+
+        nodeTimers.clearImmediate();
+        nodeTimers.clearImmediate(null);
       });
     });
 

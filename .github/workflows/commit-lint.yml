@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
       - run: git reset HEAD^2
       - name: Install Node.js
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Validate commit message

@@ -32,11 +32,6 @@
 #include "ares_ipv6.h"
 #include "ares_inet_net_pton.h"
 
-#define ISDIGIT(x)  (isdigit((int)((unsigned char)x)))
-#define ISXDIGIT(x) (isxdigit((int)((unsigned char)x)))
-#define ISASCII(x)  (((unsigned char)x) <= 127 ? 1 : 0)
-#define ISUPPER(x)  (isupper((int)((unsigned char)x)))
-
 const struct ares_in6_addr ares_in6addr_any = { { { 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                                     0, 0, 0, 0, 0, 0, 0 } } };
 
@@ -74,16 +69,16 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
   const unsigned char *odst = dst;
 
   ch = *src++;
-  if (ch == '0' && (src[0] == 'x' || src[0] == 'X') && ISASCII(src[1]) &&
-      ISXDIGIT(src[1])) {
+  if (ch == '0' && (src[0] == 'x' || src[0] == 'X') && ares__isascii(src[1]) &&
+      ares__isxdigit(src[1])) {
     /* Hexadecimal: Eat nybble string. */
     if (!size) {
       goto emsgsize;
     }
     dirty = 0;
     src++; /* skip x or X. */
-    while ((ch = *src++) != '\0' && ISASCII(ch) && ISXDIGIT(ch)) {
-      if (ISUPPER(ch)) {
+    while ((ch = *src++) != '\0' && ares__isascii(ch) && ares__isxdigit(ch)) {
+      if (ares__isupper(ch)) {
         ch = ares__tolower((unsigned char)ch);
       }
       n = (int)(strchr(xdigits, ch) - xdigits);
@@ -106,7 +101,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
       }
       *dst++ = (unsigned char)(tmp << 4);
     }
-  } else if (ISASCII(ch) && ISDIGIT(ch)) {
+  } else if (ares__isascii(ch) && ares__isdigit(ch)) {
     /* Decimal: eat dotted digit string. */
     for (;;) {
       tmp = 0;
@@ -117,7 +112,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
         if (tmp > 255) {
           goto enoent;
         }
-      } while ((ch = *src++) != '\0' && ISASCII(ch) && ISDIGIT(ch));
+      } while ((ch = *src++) != '\0' && ares__isascii(ch) && ares__isdigit(ch));
       if (!size--) {
         goto emsgsize;
       }
@@ -129,7 +124,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
         goto enoent;
       }
       ch = *src++;
-      if (!ISASCII(ch) || !ISDIGIT(ch)) {
+      if (!ares__isascii(ch) || !ares__isdigit(ch)) {
         goto enoent;
       }
     }
@@ -138,7 +133,8 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
   }
 
   bits = -1;
-  if (ch == '/' && ISASCII(src[0]) && ISDIGIT(src[0]) && dst > odst) {
+  if (ch == '/' && ares__isascii(src[0]) && ares__isdigit(src[0]) &&
+      dst > odst) {
     /* CIDR width specifier.  Nothing can follow it. */
     ch   = *src++; /* Skip over the /. */
     bits = 0;
@@ -149,7 +145,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
       if (bits > 32) {
         goto enoent;
       }
-    } while ((ch = *src++) != '\0' && ISASCII(ch) && ISDIGIT(ch));
+    } while ((ch = *src++) != '\0' && ares__isascii(ch) && ares__isdigit(ch));
     if (ch != '\0') {
       goto enoent;
     }

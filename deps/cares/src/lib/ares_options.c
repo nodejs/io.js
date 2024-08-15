@@ -66,7 +66,7 @@ static struct in_addr *ares_save_opt_servers(const ares_channel_t *channel,
 
   for (snode = ares__slist_node_first(channel->servers); snode != NULL;
        snode = ares__slist_node_next(snode)) {
-    const struct server_state *server = ares__slist_node_val(snode);
+    const ares_server_t *server = ares__slist_node_val(snode);
 
     if (server->addr.family != AF_INET) {
       continue;

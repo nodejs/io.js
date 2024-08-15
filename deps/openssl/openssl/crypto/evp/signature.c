@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2006-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -403,8 +403,8 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation,
     int iter;
 
     if (ctx == NULL) {
-        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
-        return -2;
+        ERR_raise(ERR_LIB_EVP, ERR_R_PASSED_NULL_PARAMETER);
+        return -1;
     }
 
     evp_pkey_ctx_free_old_ops(ctx);
@@ -634,8 +634,8 @@ int EVP_PKEY_sign(EVP_PKEY_CTX *ctx,
     int ret;
 
     if (ctx == NULL) {
-        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
-        return -2;
+        ERR_raise(ERR_LIB_EVP, ERR_R_PASSED_NULL_PARAMETER);
+        return -1;
     }
 
     if (ctx->operation != EVP_PKEY_OP_SIGN) {
@@ -645,6 +645,11 @@ int EVP_PKEY_sign(EVP_PKEY_CTX *ctx,
 
     if (ctx->op.sig.algctx == NULL)
         goto legacy;
+
+    if (ctx->op.sig.signature->sign == NULL) {
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        return -2;
+    }
 
     ret = ctx->op.sig.signature->sign(ctx->op.sig.algctx, sig, siglen,
                                       (sig == NULL) ? 0 : *siglen, tbs, tbslen);
@@ -678,8 +683,8 @@ int EVP_PKEY_verify(EVP_PKEY_CTX *ctx,
     int ret;
 
     if (ctx == NULL) {
-        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
-        return -2;
+        ERR_raise(ERR_LIB_EVP, ERR_R_PASSED_NULL_PARAMETER);
+        return -1;
     }
 
     if (ctx->operation != EVP_PKEY_OP_VERIFY) {
@@ -689,6 +694,11 @@ int EVP_PKEY_verify(EVP_PKEY_CTX *ctx,
 
     if (ctx->op.sig.algctx == NULL)
         goto legacy;
+
+    if (ctx->op.sig.signature->verify == NULL) {
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        return -2;
+    }
 
     ret = ctx->op.sig.signature->verify(ctx->op.sig.algctx, sig, siglen,
                                         tbs, tbslen);
@@ -721,8 +731,8 @@ int EVP_PKEY_verify_recover(EVP_PKEY_CTX *ctx,
     int ret;
 
     if (ctx == NULL) {
-        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
-        return -2;
+        ERR_raise(ERR_LIB_EVP, ERR_R_PASSED_NULL_PARAMETER);
+        return -1;
     }
 
     if (ctx->operation != EVP_PKEY_OP_VERIFYRECOVER) {
@@ -732,6 +742,11 @@ int EVP_PKEY_verify_recover(EVP_PKEY_CTX *ctx,
 
     if (ctx->op.sig.algctx == NULL)
         goto legacy;
+
+    if (ctx->op.sig.signature->verify_recover == NULL) {
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        return -2;
+    }
 
     ret = ctx->op.sig.signature->verify_recover(ctx->op.sig.algctx, rout,
                                                 routlen,

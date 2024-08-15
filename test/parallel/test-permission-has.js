@@ -21,3 +21,7 @@ const assert = require('assert');
     message: 'The "reference" argument must be of type string. Received an instance of Object',
   }));
 }
+
+{
+  assert.ok(!process.permission.has('FileSystemWrite', Buffer.from('reference')));
+}

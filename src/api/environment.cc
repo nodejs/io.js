@@ -371,9 +371,8 @@ IsolateData* CreateIsolateData(
     MultiIsolatePlatform* platform,
     ArrayBufferAllocator* allocator,
     const EmbedderSnapshotData* embedder_snapshot_data) {
-  const SnapshotData* snapshot_data =
-      SnapshotData::FromEmbedderWrapper(embedder_snapshot_data);
-  return new IsolateData(isolate, loop, platform, allocator, snapshot_data);
+  return IsolateData::CreateIsolateData(
+      isolate, loop, platform, allocator, embedder_snapshot_data);
 }
 
 void FreeIsolateData(IsolateData* isolate_data) {

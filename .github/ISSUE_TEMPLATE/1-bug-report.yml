@@ -33,13 +33,19 @@ body:
         be run using `node` directly without installing third-party dependencies
         or downloading code from the internet (i.e. no ZIP archive, no GitHub
         repository, etc.).
+    validations:
+      required: true
   - type: textarea
     attributes:
       label: How often does it reproduce? Is there a required condition?
+    validations:
+      required: true
   - type: textarea
     attributes:
       label: What is the expected behavior? Why is that the expected behavior?
       description: If possible please provide textual output instead of screenshots.
+    validations:
+      required: true
   - type: textarea
     attributes:
       label: What do you see instead?

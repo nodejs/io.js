@@ -1,7 +1,7 @@
 import * as common from '../common/index.mjs';
 import * as fixtures from '../common/fixtures.mjs';
 import { EOL } from 'node:os';
-import { strictEqual } from 'node:assert';
+import { strictEqual, notStrictEqual, throws } from 'node:assert';
 import cp from 'node:child_process';
 
 // TODO(LiviaMedeiros): test on different platforms
@@ -56,4 +56,36 @@ for (const tamperedUID of [0, 1, 999, 1000, 0n, 'gwak']) {
   cp.fork(fixtures.path('empty.js'));
 
   delete Object.prototype.execPath;
+}
+
+for (const shellCommandArgument of ['-L && echo "tampered"']) {
+  Object.prototype.shell = true;
+  const cmd = 'pwd';
+  let cmdExitCode = '';
+
+  const program = cp.spawn(cmd, [shellCommandArgument], { cwd: expectedCWD });
+  program.stderr.on('data', common.mustCall());
+  program.stdout.on('data', common.mustNotCall());
+
+  program.on('exit', common.mustCall((code) => {
+    notStrictEqual(code, 0);
+  }));
+
+  cp.execFile(cmd, [shellCommandArgument], { cwd: expectedCWD },
+              common.mustCall((err) => {
+                notStrictEqual(err.code, 0);
+              })
+  );
+
+  throws(() => {
+    cp.execFileSync(cmd, [shellCommandArgument], { cwd: expectedCWD });
+  }, (e) => {
+    notStrictEqual(e.status, 0);
+    return true;
+  });
+
+  cmdExitCode = cp.spawnSync(cmd, [shellCommandArgument], { cwd: expectedCWD }).status;
+  notStrictEqual(cmdExitCode, 0);
+
+  delete Object.prototype.shell;
 }

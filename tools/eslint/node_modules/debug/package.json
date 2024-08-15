@@ -1,6 +1,6 @@
 {
   "name": "debug",
-  "version": "4.3.5",
+  "version": "4.3.6",
   "repository": {
     "type": "git",
     "url": "git://github.com/debug-js/debug.git"

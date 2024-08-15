@@ -120,7 +120,7 @@ cipher B<c>.
 
 SSL_CIPHER_description() returns a textual description of the cipher used
 into the buffer B<buf> of length B<len> provided.  If B<buf> is provided, it
-must be at least 128 bytes, otherwise a buffer will be allocated using
+must be at least 128 bytes. If B<buf> is NULL it will be allocated using
 OPENSSL_malloc().  If the provided buffer is too small, or the allocation fails,
 B<NULL> is returned.
 
@@ -216,7 +216,7 @@ The SSL_CIPHER_get_prf_nid() function was added in OpenSSL 3.0.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

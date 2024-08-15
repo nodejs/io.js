@@ -356,10 +356,11 @@ static ares_bool_t get_DNS_Windows(char **outptr)
      * compute the resulting total metric, just as Windows routing will do.
      * Then, sort all the addresses found by the metric.
      */
-    for (ipaDNSAddr = ipaaEntry->FirstDnsServerAddress; ipaDNSAddr;
+    for (ipaDNSAddr = ipaaEntry->FirstDnsServerAddress; ipaDNSAddr != NULL;
          ipaDNSAddr = ipaDNSAddr->Next) {
       char ipaddr[INET6_ADDRSTRLEN] = "";
-      namesrvr.sa                   = ipaDNSAddr->Address.lpSockaddr;
+
+      namesrvr.sa = ipaDNSAddr->Address.lpSockaddr;
 
       if (namesrvr.sa->sa_family == AF_INET) {
         if ((namesrvr.sa4->sin_addr.S_un.S_addr == INADDR_ANY) ||

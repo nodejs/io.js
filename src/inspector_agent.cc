@@ -2,6 +2,7 @@
 
 #include "env-inl.h"
 #include "inspector/main_thread_interface.h"
+#include "inspector/network_inspector.h"
 #include "inspector/node_string.h"
 #include "inspector/runtime_agent.h"
 #include "inspector/tracing_agent.h"
@@ -231,6 +232,8 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
     }
     runtime_agent_ = std::make_unique<protocol::RuntimeAgent>();
     runtime_agent_->Wire(node_dispatcher_.get());
+    network_inspector_ = std::make_unique<NetworkInspector>(env);
+    network_inspector_->Wire(node_dispatcher_.get());
   }
 
   ~ChannelImpl() override {
@@ -242,6 +245,24 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
     }
     runtime_agent_->disable();
     runtime_agent_.reset();  // Dispose before the dispatchers
+    network_inspector_->Disable();
+    network_inspector_.reset();  // Dispose before the dispatchers
+  }
+
+  void emitNotificationFromBackend(const StringView& event,
+                                   const StringView& params) {
+    std::unique_ptr<protocol::DictionaryValue> value =
+        protocol::DictionaryValue::cast(
+            protocol::StringUtil::parseJSON(params));
+    std::string raw_event = protocol::StringUtil::StringViewToUtf8(event);
+    std::string domain_name = raw_event.substr(0, raw_event.find('.'));
+    std::string event_name = raw_event.substr(raw_event.find('.') + 1);
+    if (network_inspector_->canEmit(domain_name)) {
+      network_inspector_->emitNotification(
+          domain_name, event_name, std::move(value));
+    } else {
+      UNREACHABLE("Unknown domain for emitNotificationFromBackend");
+    }
   }
 
   void dispatchProtocolMessage(const StringView& message) {
@@ -259,8 +280,8 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
             Utf8ToStringView(method)->string())) {
       session_->dispatchProtocolMessage(message);
     } else {
-      node_dispatcher_->dispatch(call_id, method, std::move(value),
-                                 raw_message);
+      node_dispatcher_->dispatch(
+          call_id, method, std::move(value), raw_message);
     }
   }
 
@@ -335,6 +356,7 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
   std::unique_ptr<protocol::RuntimeAgent> runtime_agent_;
   std::unique_ptr<protocol::TracingAgent> tracing_agent_;
   std::unique_ptr<protocol::WorkerAgent> worker_agent_;
+  std::unique_ptr<NetworkInspector> network_inspector_;
   std::unique_ptr<InspectorSessionDelegate> delegate_;
   std::unique_ptr<v8_inspector::V8InspectorSession> session_;
   std::unique_ptr<protocol::UberDispatcher> node_dispatcher_;
@@ -631,6 +653,12 @@ class NodeInspectorClient : public V8InspectorClient {
     return retaining_context;
   }
 
+  void emitNotification(const StringView& event, const StringView& params) {
+    for (const auto& id_channel : channels_) {
+      id_channel.second->emitNotificationFromBackend(event, params);
+    }
+  }
+
   std::shared_ptr<MainThreadHandle> getThreadHandle() {
     if (!interface_) {
       interface_ = std::make_shared<MainThreadInterface>(
@@ -842,6 +870,66 @@ std::unique_ptr<InspectorSession> Agent::ConnectToMainThread(
       client_->getThreadHandle()->MakeDelegateThreadSafe(std::move(delegate));
   return parent_handle_->Connect(std::move(thread_safe_delegate),
                                  prevent_shutdown);
+}
+
+void Agent::EmitProtocolEvent(const StringView& event,
+                              const StringView& params) {
+  if (!env()->options()->experimental_network_inspection) return;
+  client_->emitNotification(event, params);
+}
+
+void Agent::SetupNetworkTracking(Local<Function> enable_function,
+                                 Local<Function> disable_function) {
+  parent_env_->set_inspector_enable_network_tracking(enable_function);
+  parent_env_->set_inspector_disable_network_tracking(disable_function);
+  if (pending_enable_network_tracking) {
+    pending_enable_network_tracking = false;
+    EnableNetworkTracking();
+  } else if (pending_disable_network_tracking) {
+    pending_disable_network_tracking = false;
+    DisableNetworkTracking();
+  }
+}
+
+void Agent::EnableNetworkTracking() {
+  if (network_tracking_enabled_) {
+    return;
+  }
+  HandleScope scope(parent_env_->isolate());
+  Local<Function> enable = parent_env_->inspector_enable_network_tracking();
+  if (enable.IsEmpty()) {
+    pending_enable_network_tracking = true;
+  } else {
+    ToggleNetworkTracking(parent_env_->isolate(), enable);
+    network_tracking_enabled_ = true;
+  }
+}
+
+void Agent::DisableNetworkTracking() {
+  if (!network_tracking_enabled_) {
+    return;
+  }
+  HandleScope scope(parent_env_->isolate());
+  Local<Function> disable = parent_env_->inspector_disable_network_tracking();
+  if (disable.IsEmpty()) {
+    pending_disable_network_tracking = true;
+  } else if (!client_->hasConnectedSessions()) {
+    ToggleNetworkTracking(parent_env_->isolate(), disable);
+    network_tracking_enabled_ = false;
+  }
+}
+
+void Agent::ToggleNetworkTracking(Isolate* isolate, Local<Function> fn) {
+  if (!parent_env_->can_call_into_js()) return;
+  auto context = parent_env_->context();
+  HandleScope scope(isolate);
+  CHECK(!fn.IsEmpty());
+  v8::TryCatch try_catch(isolate);
+  USE(fn->Call(context, Undefined(isolate), 0, nullptr));
+  if (try_catch.HasCaught() && !try_catch.HasTerminated()) {
+    PrintCaughtException(isolate, context, try_catch);
+    UNREACHABLE("Cannot toggle network tracking, please report this.");
+  }
 }
 
 void Agent::WaitForDisconnect() {

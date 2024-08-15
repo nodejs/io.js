@@ -119,3 +119,24 @@ describe('describe only = false, with nested only subtests', { only: false }, co
     test.only('nested test should run', common.mustNotCall());
   }));
 }));
+
+test('nested tests with run only',{only: true}, common.mustCall(async (t) => {
+  // Within this test, all subtests are run by default.
+  await t.test('running subtest - 1');
+
+  // The test context can be updated to run subtests with the 'only' option.
+  await t.runOnly(true);
+  await t.test('this subtest is now skipped - 2', common.mustNotCall());
+  await t.test('this subtest is run  - 3', { only: true }, common.mustCall(async (t) => {
+    await t.test('this subtest is run - 4', common.mustCall());
+    await t.test('this subtest is run - 5', { only: true }, common.mustCall());
+  }));
+
+  // Switch the context back to execute all tests.
+  await t.runOnly(false);
+  await t.test('this subtest is now run - 6');
+
+  // Explicitly do not run these tests.
+  await t.test('skipped subtest - 7', { only: false }, common.mustNotCall());
+  await t.test('skipped subtest - 8', { skip: true }, common.mustNotCall());
+}))

@@ -2,7 +2,7 @@
 
 This directory contains modules used to test the Node.js implementation.
 
-## Table of Contents
+## Table of contents
 
 * [ArrayStream module](#arraystream-module)
 * [Benchmark module](#benchmark-module)
@@ -12,7 +12,6 @@ This directory contains modules used to test the Node.js implementation.
 * [CPU Profiler module](#cpu-profiler-module)
 * [Debugger module](#debugger-module)
 * [DNS module](#dns-module)
-* [Duplex pair helper](#duplex-pair-helper)
 * [Environment variables](#environment-variables)
 * [Fixtures module](#fixtures-module)
 * [Heap dump checker module](#heap-dump-checker-module)
@@ -20,13 +19,14 @@ This directory contains modules used to test the Node.js implementation.
 * [HTTP2 module](#http2-module)
 * [Internet module](#internet-module)
 * [ongc module](#ongc-module)
+* [process-exit-code-test-cases module](#process-exit-code-test-cases-module)
 * [Report module](#report-module)
 * [tick module](#tick-module)
 * [tmpdir module](#tmpdir-module)
 * [UDP pair helper](#udp-pair-helper)
 * [WPT module](#wpt-module)
 
-## Benchmark Module
+## Benchmark module
 
 The `benchmark` module is used by tests to run benchmarks.
 
@@ -36,7 +36,7 @@ The `benchmark` module is used by tests to run benchmarks.
 * `env` [\<Object>][<Object>] Environment variables to be applied during the
   run.
 
-## Child Process Module
+## Child Process module
 
 The `child_process` module is used by tests that launch child processes.
 
@@ -80,7 +80,7 @@ Similar to `expectSyncExit()` with the `status` expected to be 0 and
 Similar to `spawnSyncAndExitWithoutError()`, but with an additional
 `expectations` parameter.
 
-## Common Module API
+## Common module API
 
 The `common` module is used by tests for consistency across repeated
 tasks.
@@ -489,7 +489,7 @@ was compiled with a pointer size smaller than 64 bits.
 Skip the rest of the tests in the current file when not running on a main
 thread.
 
-## ArrayStream Module
+## ArrayStream module
 
 The `ArrayStream` module provides a simple `Stream` that pushes elements from
 a given array.
@@ -504,7 +504,7 @@ stream.run(['a', 'b', 'c']);
 
 It can be used within tests as a simple mock stream.
 
-## Countdown Module
+## Countdown module
 
 The `Countdown` module provides a simple countdown mechanism for tests that
 require a particular action to be taken after a given number of completed
@@ -608,7 +608,7 @@ used to interact with the `node inspect` CLI. These functions are:
 * `stepCommand()`
 * `quit()`
 
-## `DNS` Module
+## `DNS` module
 
 The `DNS` module provides utilities related to the `dns` built-in module.
 
@@ -669,14 +669,6 @@ Reads a Domain String and returns a Buffer containing the domain.
 Takes in a parsed Object and writes its fields to a DNS packet as a Buffer
 object.
 
-## Duplex pair helper
-
-The `common/duplexpair` module exports a single function `makeDuplexPair`,
-which returns an object `{ clientSide, serverSide }` where each side is a
-`Duplex` stream connected to the other side.
-
-There is no difference between client or server side beyond their names.
-
 ## Environment variables
 
 The behavior of the Node.js test suite can be altered using the following
@@ -707,7 +699,7 @@ A comma-separated list of variables names that are appended to the global
 variable allowlist. Alternatively, if `NODE_TEST_KNOWN_GLOBALS` is set to `'0'`,
 global leak detection is disabled.
 
-## Fixtures Module
+## Fixtures module
 
 The `common/fixtures` module provides convenience methods for working with
 files in the `test/fixtures` directory.
@@ -782,7 +774,7 @@ validateSnapshotNodes('TLSWRAP', [
 ]);
 ```
 
-## hijackstdio Module
+## hijackstdio module
 
 The `hijackstdio` module provides utility functions for temporarily redirecting
 `stdout` and `stderr` output.
@@ -830,7 +822,7 @@ original state after calling [`hijackstdio.hijackStdErr()`][].
 Restore the original `process.stdout.write()`. Used to restore `stdout` to its
 original state after calling [`hijackstdio.hijackStdOut()`][].
 
-## HTTP/2 Module
+## HTTP/2 module
 
 The http2.js module provides a handful of utilities for creating mock HTTP/2
 frames for testing of HTTP/2 endpoints
@@ -949,7 +941,7 @@ upon initial establishment of a connection.
 socket.write(http2.kClientMagic);
 ```
 
-## Internet Module
+## Internet module
 
 The `common/internet` module provides utilities for working with
 internet-related tests.
@@ -983,7 +975,7 @@ via `NODE_TEST_*` environment variables. For example, to configure
 `internet.addresses.INET_HOST`, set the environment
 variable `NODE_TEST_INET_HOST` to a specified host.
 
-## ongc Module
+## ongc module
 
 The `ongc` module allows a garbage collection listener to be installed. The
 module exports a single `onGC()` function.
@@ -1011,7 +1003,28 @@ a full `setImmediate()` invocation passes.
 `listener` is an object to make it easier to use a closure; the target object
 should not be in scope when `listener.ongc()` is created.
 
-## Report Module
+## process-exit-code-test-cases module
+
+The `process-exit-code-test-cases` module provides a set of shared test cases
+for testing the exit codes of the `process` object. The test cases are shared
+between `test/parallel/test-process-exit-code.js` and
+`test/parallel/test-worker-exit-code.js`.
+
+### `getTestCases(isWorker)`
+
+* `isWorker` [\<boolean>][<boolean>]
+* return [\<Array>][<Array>]
+
+Returns an array of test cases for testing the exit codes of the `process`. Each
+test case is an object with a `func` property that is a function that runs the
+test case, a `result` property that is the expected exit code, and sometimes an
+`error` property that is a regular expression that the error message should
+match when the test case is run in a worker thread.
+
+The `isWorker` parameter is used to adjust the test cases for worker threads.
+The default value is `false`.
+
+## Report module
 
 The `report` module provides helper functions for testing diagnostic reporting
 functionality.
@@ -1060,7 +1073,7 @@ into `targetExecutable` and sign it if necessary.
 If `verifyWorkflow` is false (default) and any of the steps fails,
 it skips the tests. Otherwise, an error is thrown.
 
-## tick Module
+## tick module
 
 The `tick` module provides a helper function that can be used to call a callback
 after a given number of event loop "ticks".
@@ -1070,7 +1083,7 @@ after a given number of event loop "ticks".
 * `x` [\<number>][<number>] Number of event loop "ticks".
 * `cb` [\<Function>][<Function>] A callback function.
 
-## tmpdir Module
+## tmpdir module
 
 The `tmpdir` module supports the use of a temporary directory for testing.
 
@@ -1138,7 +1151,7 @@ is an `FakeUDPWrap` connected to the other side.
 
 There is no difference between client or server side beyond their names.
 
-## WPT Module
+## WPT module
 
 ### `harness`
 

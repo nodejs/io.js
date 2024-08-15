@@ -45,7 +45,7 @@ const { RuleValidator } = require("../config/rule-validator");
 const { assertIsRuleSeverity } = require("../config/flat-config-schema");
 const { normalizeSeverityToString } = require("../shared/severity");
 const jslang = require("../languages/js");
-const { activeFlags } = require("../shared/flags");
+const { activeFlags, inactiveFlags } = require("../shared/flags");
 const debug = require("debug")("eslint:linter");
 const MAX_AUTOFIX_PASSES = 10;
 const DEFAULT_PARSER_NAME = "espree";
@@ -323,9 +323,10 @@ function createLintingProblem(options) {
  * @param {ASTNode|token} options.node The Comment node/token.
  * @param {function(string): {create: Function}} ruleMapper A map from rule IDs to defined rules
  * @param {Language} language The language to use to adjust the location information.
+ * @param {SourceCode} sourceCode The SourceCode object to get comments from.
  * @returns {Object} Directives and problems from the comment
  */
-function createDisableDirectives({ type, value, justification, node }, ruleMapper, language) {
+function createDisableDirectives({ type, value, justification, node }, ruleMapper, language, sourceCode) {
     const ruleIds = Object.keys(commentParser.parseListConfig(value));
     const directiveRules = ruleIds.length ? ruleIds : [null];
     const result = {
@@ -336,11 +337,15 @@ function createDisableDirectives({ type, value, justification, node }, ruleMappe
 
     for (const ruleId of directiveRules) {
 
+        const loc = sourceCode.getLoc(node);
+
         // push to directives, if the rule is defined(including null, e.g. /*eslint enable*/)
         if (ruleId === null || !!ruleMapper(ruleId)) {
+
+
             if (type === "disable-next-line") {
                 const { line, column } = updateLocationInformation(
-                    node.loc.end,
+                    loc.end,
                     language
                 );
 
@@ -354,7 +359,7 @@ function createDisableDirectives({ type, value, justification, node }, ruleMappe
                 });
             } else {
                 const { line, column } = updateLocationInformation(
-                    node.loc.start,
+                    loc.start,
                     language
                 );
 
@@ -368,7 +373,7 @@ function createDisableDirectives({ type, value, justification, node }, ruleMappe
                 });
             }
         } else {
-            result.directiveProblems.push(createLintingProblem({ ruleId, loc: node.loc, language }));
+            result.directiveProblems.push(createLintingProblem({ ruleId, loc, language }));
         }
     }
     return result;
@@ -410,25 +415,27 @@ function getDirectiveComments(sourceCode, ruleMapper, warnInlineConfig, config) 
             return;
         }
 
+        const loc = sourceCode.getLoc(comment);
+
         if (warnInlineConfig) {
             const kind = comment.type === "Block" ? `/*${directiveText}*/` : `//${directiveText}`;
 
             problems.push(createLintingProblem({
                 ruleId: null,
                 message: `'${kind}' has no effect because you have 'noInlineConfig' setting in ${warnInlineConfig}.`,
-                loc: comment.loc,
+                loc,
                 severity: 1
             }));
             return;
         }
 
-        if (directiveText === "eslint-disable-line" && comment.loc.start.line !== comment.loc.end.line) {
+        if (directiveText === "eslint-disable-line" && loc.start.line !== loc.end.line) {
             const message = `${directiveText} comment should not span multiple lines.`;
 
             problems.push(createLintingProblem({
                 ruleId: null,
                 message,
-                loc: comment.loc
+                loc
             }));
             return;
         }
@@ -446,7 +453,7 @@ function getDirectiveComments(sourceCode, ruleMapper, warnInlineConfig, config) 
                     value: directiveValue,
                     justification: justificationPart,
                     node: comment
-                }, ruleMapper, jslang);
+                }, ruleMapper, jslang, sourceCode);
 
                 disableDirectives.push(...directives);
                 problems.push(...directiveProblems);
@@ -467,7 +474,7 @@ function getDirectiveComments(sourceCode, ruleMapper, warnInlineConfig, config) 
                     } catch (err) {
                         problems.push(createLintingProblem({
                             ruleId: null,
-                            loc: comment.loc,
+                            loc,
                             message: err.message
                         }));
                         continue;
@@ -494,14 +501,14 @@ function getDirectiveComments(sourceCode, ruleMapper, warnInlineConfig, config) 
                         const ruleValue = parseResult.config[name];
 
                         if (!rule) {
-                            problems.push(createLintingProblem({ ruleId: name, loc: comment.loc }));
+                            problems.push(createLintingProblem({ ruleId: name, loc }));
                             return;
                         }
 
                         if (Object.hasOwn(configuredRules, name)) {
                             problems.push(createLintingProblem({
                                 message: `Rule "${name}" is already configured by another configuration comment in the preceding code. This configuration is ignored.`,
-                                loc: comment.loc
+                                loc
                             }));
                             return;
                         }
@@ -563,7 +570,7 @@ function getDirectiveComments(sourceCode, ruleMapper, warnInlineConfig, config) 
                             problems.push(createLintingProblem({
                                 ruleId: name,
                                 message: err.message,
-                                loc: comment.loc
+                                loc
                             }));
 
                             // do not apply the config, if found invalid options.
@@ -575,7 +582,7 @@ function getDirectiveComments(sourceCode, ruleMapper, warnInlineConfig, config) 
                 } else {
                     const problem = createLintingProblem({
                         ruleId: null,
-                        loc: comment.loc,
+                        loc,
                         message: parseResult.error.message
                     });
 
@@ -623,7 +630,7 @@ function getDirectiveCommentsForFlatConfig(sourceCode, ruleMapper, language) {
         })));
 
         directivesSources.forEach(directive => {
-            const { directives, directiveProblems } = createDisableDirectives(directive, ruleMapper, language);
+            const { directives, directiveProblems } = createDisableDirectives(directive, ruleMapper, language, sourceCode);
 
             disableDirectives.push(...directives);
             problems.push(...directiveProblems);
@@ -1282,9 +1289,20 @@ class Linter {
      * @param {"flat"|"eslintrc"} [config.configType="flat"] the type of config used.
      */
     constructor({ cwd, configType = "flat", flags = [] } = {}) {
+
+        flags.forEach(flag => {
+            if (inactiveFlags.has(flag)) {
+                throw new Error(`The flag '${flag}' is inactive: ${inactiveFlags.get(flag)}`);
+            }
+
+            if (!activeFlags.has(flag)) {
+                throw new Error(`Unknown flag '${flag}'.`);
+            }
+        });
+
         internalSlotsMap.set(this, {
             cwd: normalizeCwd(cwd),
-            flags: flags.filter(flag => activeFlags.has(flag)),
+            flags,
             lastConfigArray: null,
             lastSourceCode: null,
             lastSuppressedMessages: [],
@@ -1462,7 +1480,7 @@ class Linter {
             debug("An error occurred while traversing");
             debug("Filename:", options.filename);
             if (err.currentNode) {
-                const { line } = err.currentNode.loc.start;
+                const { line } = sourceCode.getLoc(err.currentNode).start;
 
                 debug("Line:", line);
                 err.message += `:${line}`;
@@ -1480,6 +1498,7 @@ class Linter {
 
         return applyDisableDirectives({
             language: jslang,
+            sourceCode,
             directives: commentDirectives.disableDirectives,
             disableFixes: options.disableFixes,
             problems: lintingProblems
@@ -1759,10 +1778,14 @@ class Linter {
             if (options.warnInlineConfig) {
                 if (sourceCode.getInlineConfigNodes) {
                     sourceCode.getInlineConfigNodes().forEach(node => {
+
+                        const loc = sourceCode.getLoc(node);
+                        const range = sourceCode.getRange(node);
+
                         inlineConfigProblems.push(createLintingProblem({
                             ruleId: null,
-                            message: `'${sourceCode.text.slice(node.range[0], node.range[1])}' has no effect because you have 'noInlineConfig' setting in ${options.warnInlineConfig}.`,
-                            loc: node.loc,
+                            message: `'${sourceCode.text.slice(range[0], range[1])}' has no effect because you have 'noInlineConfig' setting in ${options.warnInlineConfig}.`,
+                            loc,
                             severity: 1,
                             language: config.language
                         }));
@@ -1942,7 +1965,7 @@ class Linter {
             debug("An error occurred while traversing");
             debug("Filename:", options.filename);
             if (err.currentNode) {
-                const { line } = err.currentNode.loc.start;
+                const { line } = sourceCode.getLoc(err.currentNode).start;
 
                 debug("Line:", line);
                 err.message += `:${line}`;
@@ -1961,6 +1984,7 @@ class Linter {
 
         return applyDisableDirectives({
             language: config.language,
+            sourceCode,
             directives: commentDirectives.disableDirectives,
             disableFixes: options.disableFixes,
             problems: lintingProblems

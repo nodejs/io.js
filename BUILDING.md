@@ -19,7 +19,7 @@ file a new issue.
     * [OpenSSL asm support](#openssl-asm-support)
   * [Previous versions of this document](#previous-versions-of-this-document)
 * [Building Node.js on supported platforms](#building-nodejs-on-supported-platforms)
-  * [Note about Python](#note-about-python)
+  * [Prerequisites](#prerequisites)
   * [Unix and macOS](#unix-and-macos)
     * [Unix prerequisites](#unix-prerequisites)
     * [macOS prerequisites](#macos-prerequisites)
@@ -33,7 +33,7 @@ file a new issue.
     * [Speeding up frequent rebuilds when developing](#speeding-up-frequent-rebuilds-when-developing)
     * [Troubleshooting Unix and macOS builds](#troubleshooting-unix-and-macos-builds)
   * [Windows](#windows)
-    * [Prerequisites](#prerequisites)
+    * [Windows Prerequisites](#windows-prerequisites)
       * [Option 1: Manual install](#option-1-manual-install)
       * [Option 2: Automated install with Boxstarter](#option-2-automated-install-with-boxstarter)
     * [Building Node.js](#building-nodejs-2)
@@ -112,7 +112,6 @@ platforms. This is true regardless of entries in the table below.
 | GNU/Linux        | s390x            | kernel >= 4.18[^1], glibc >= 2.28 | Tier 2       | e.g. RHEL 8                          |
 | GNU/Linux        | loong64          | kernel >= 5.19, glibc >= 2.36     | Experimental |                                      |
 | Windows          | x64              | >= Windows 10/Server 2016         | Tier 1       | [^2],[^3]                            |
-| Windows          | x64              | Windows 8.1/Server 2012           | Experimental |                                      |
 | Windows          | arm64            | >= Windows 10                     | Tier 2       |                                      |
 | macOS            | x64              | >= 11.0                           | Tier 1       | For notes about compilation see [^4] |
 | macOS            | arm64            | >= 11.0                           | Tier 1       |                                      |
@@ -151,7 +150,7 @@ Depending on the host platform, the selection of toolchains may vary.
 
 | Operating System | Compiler Versions                                              |
 | ---------------- | -------------------------------------------------------------- |
-| Linux            | GCC >= 10.1                                                    |
+| Linux            | GCC >= 12.2                                                    |
 | Windows          | Visual Studio >= 2022 with the Windows 10 SDK on a 64-bit host |
 | macOS            | Xcode >= 13 (Apple LLVM >= 12)                                 |
 
@@ -222,15 +221,16 @@ Consult previous versions of this document for older versions of Node.js:
 
 ## Building Node.js on supported platforms
 
-### Note about Python
+### Prerequisites
 
-The Node.js project supports Python >= 3 for building and testing.
+* Python support: the Node.js project supports Python >= 3.6 for building and testing.
+* Memory: at least 8GB of RAM is typically required when compiling with 4 parallel jobs (e.g: `make -j4`)
 
 ### Unix and macOS
 
 #### Unix prerequisites
 
-* `gcc` and `g++` >= 10.1 or newer
+* `gcc` and `g++` >= 12.2 or newer
 * GNU Make 3.81 or newer
 * [A supported version of Python][Python versions]
   * For test coverage, your Python installation must include pip.
@@ -594,6 +594,11 @@ rebuild may take a lot more time than previous builds. Additionally,
 ran `./configure` with non-default options (such as `--debug`), you will need
 to run it again before invoking `make -j4`.
 
+If you received the error `nodejs g++ fatal error compilation terminated cc1plus`
+during compilation, this is likely a memory issue and you should either provide
+more RAM or create swap space to accommodate toolchain requirements or reduce
+the number of parallel build tasks (`-j<n>`).
+
 ### Windows
 
 #### Tips
@@ -612,7 +617,7 @@ vcpkg integrate remove
 
 Refs: #24448, <https://github.com/microsoft/vcpkg/issues/37518>, [vcpkg](https://github.com/microsoft/vcpkg/)
 
-#### Prerequisites
+#### Windows Prerequisites
 
 ##### Option 1: Manual install
 
@@ -639,6 +644,8 @@ Optional requirements to build the MSI installer package:
 Optional requirements for compiling for Windows on ARM (ARM64):
 
 * Visual Studio 17.6.0 or newer
+  > **Note:** There is [a bug](https://github.com/nodejs/build/issues/3739) in `17.10.x`
+  > preventing Node.js from compiling.
 * Visual Studio optional components
   * Visual C++ compilers and libraries for ARM64
   * Visual C++ ATL for ARM64

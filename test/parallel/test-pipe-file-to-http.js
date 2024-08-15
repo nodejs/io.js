@@ -32,11 +32,10 @@ const filename = tmpdir.resolve('big');
 let count = 0;
 
 const server = http.createServer((req, res) => {
-  let timeoutId;
   assert.strictEqual(req.method, 'POST');
   req.pause();
 
-  setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     req.resume();
   }, 1000);
 

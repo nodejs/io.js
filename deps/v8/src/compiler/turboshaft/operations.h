@@ -175,10 +175,19 @@ using Variable = SnapshotTable<OpIndex, VariableData>::Key;
   V(Switch)                                           \
   V(Deoptimize)
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+#define TURBOSHAFT_CPED_OPERATION_LIST(V) \
+  V(GetContinuationPreservedEmbedderData) \
+  V(SetContinuationPreservedEmbedderData)
+#else
+#define TURBOSHAFT_CPED_OPERATION_LIST(V)
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
 // These operations should be lowered to Machine operations during
 // MachineLoweringPhase.
 #define TURBOSHAFT_SIMPLIFIED_OPERATION_LIST(V) \
   TURBOSHAFT_INTL_OPERATION_LIST(V)             \
+  TURBOSHAFT_CPED_OPERATION_LIST(V)             \
   V(ArgumentsLength)                            \
   V(BigIntBinop)                                \
   V(BigIntComparison)                           \
@@ -8114,6 +8123,47 @@ struct SetStackPointerOp : FixedArityOperationT<1, SetStackPointerOp> {
 };
 
 #endif  // V8_ENABLE_WEBASSEMBLY
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+struct GetContinuationPreservedEmbedderDataOp
+    : FixedArityOperationT<0, GetContinuationPreservedEmbedderDataOp> {
+  static constexpr OpEffects effects = OpEffects().CanReadOffHeapMemory();
+
+  base::Vector<const RegisterRepresentation> outputs_rep() const {
+    return RepVector<RegisterRepresentation::Tagged()>();
+  }
+
+  base::Vector<const MaybeRegisterRepresentation> inputs_rep(
+      ZoneVector<MaybeRegisterRepresentation>& storage) const {
+    return {};
+  }
+
+  GetContinuationPreservedEmbedderDataOp() : Base() {}
+
+  void Validate(const Graph& graph) const {}
+
+  auto options() const { return std::tuple{}; }
+};
+
+struct SetContinuationPreservedEmbedderDataOp
+    : FixedArityOperationT<1, SetContinuationPreservedEmbedderDataOp> {
+  static constexpr OpEffects effects = OpEffects().CanWriteOffHeapMemory();
+
+  base::Vector<const RegisterRepresentation> outputs_rep() const { return {}; }
+
+  base::Vector<const MaybeRegisterRepresentation> inputs_rep(
+      ZoneVector<MaybeRegisterRepresentation>& storage) const {
+    return MaybeRepVector<MaybeRegisterRepresentation::Tagged()>();
+  }
+
+  explicit SetContinuationPreservedEmbedderDataOp(V<Object> value)
+      : Base(value) {}
+
+  void Validate(const Graph& graph) const {}
+
+  auto options() const { return std::tuple{}; }
+};
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
 
 #define OPERATION_EFFECTS_CASE(Name) Name##Op::EffectsIfStatic(),
 static constexpr base::Optional<OpEffects>

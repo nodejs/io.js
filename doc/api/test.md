@@ -1134,13 +1134,13 @@ export default async function * customReporter(source) {
   for await (const event of source) {
     switch (event.type) {
       case 'test:dequeue':
-        yield `test ${event.data.name} dequeued`;
+        yield `test ${event.data.name} dequeued\n`;
         break;
       case 'test:enqueue':
-        yield `test ${event.data.name} enqueued`;
+        yield `test ${event.data.name} enqueued\n`;
         break;
       case 'test:watch:drained':
-        yield 'test watch queue drained';
+        yield 'test watch queue drained\n';
         break;
       case 'test:start':
         yield `test ${event.data.name} started\n`;
@@ -1152,7 +1152,7 @@ export default async function * customReporter(source) {
         yield `test ${event.data.name} failed\n`;
         break;
       case 'test:plan':
-        yield 'test plan';
+        yield 'test plan\n';
         break;
       case 'test:diagnostic':
       case 'test:stderr':
@@ -1174,13 +1174,13 @@ module.exports = async function * customReporter(source) {
   for await (const event of source) {
     switch (event.type) {
       case 'test:dequeue':
-        yield `test ${event.data.name} dequeued`;
+        yield `test ${event.data.name} dequeued\n`;
         break;
       case 'test:enqueue':
-        yield `test ${event.data.name} enqueued`;
+        yield `test ${event.data.name} enqueued\n`;
         break;
       case 'test:watch:drained':
-        yield 'test watch queue drained';
+        yield 'test watch queue drained\n';
         break;
       case 'test:start':
         yield `test ${event.data.name} started\n`;
@@ -1239,6 +1239,9 @@ added:
   - v18.9.0
   - v16.19.0
 changes:
+  - version: v22.6.0
+    pr-url: https://github.com/nodejs/node/pull/53866
+    description: Added the `globPatterns` option.
   - version:
     - v22.0.0
     - v20.14.0
@@ -1265,6 +1268,9 @@ changes:
   * `forceExit`: {boolean} Configures the test runner to exit the process once
     all known tests have finished executing even if the event loop would
     otherwise remain active. **Default:** `false`.
+  * `globPatterns`: {Array} An array containing the list of glob patterns to
+    match test files. This option cannot be used together with `files`.
+    **Default:** matching files from [test runner execution model][].
   * `inspectPort` {number|Function} Sets inspector port of test child process.
     This can be a number, or a function that takes no arguments and returns a
     number. If a nullish value is provided, each process gets its own port,
@@ -3204,6 +3210,18 @@ test('top level test', (t) => {
 });
 ```
 
+### `context.filePath`
+
+<!-- YAML
+added:
+  - v22.6.0
+  - v20.16.0
+-->
+
+The absolute path of the test file that created the current test. If a test file
+imports additional modules that generate tests, the imported tests will return
+the path of the root test file.
+
 ### `context.fullName`
 
 <!-- YAML
@@ -3437,6 +3455,16 @@ added:
 An instance of `SuiteContext` is passed to each suite function in order to
 interact with the test runner. However, the `SuiteContext` constructor is not
 exposed as part of the API.
+
+### `context.filePath`
+
+<!-- YAML
+added: v22.6.0
+-->
+
+The absolute path of the test file that created the current suite. If a test
+file imports additional modules that generate suites, the imported suites will
+return the path of the root test file.
 
 ### `context.name`
 

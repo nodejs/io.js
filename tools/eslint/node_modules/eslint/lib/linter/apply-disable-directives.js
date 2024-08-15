@@ -61,15 +61,18 @@ function groupByParentDirective(directives) {
  * Creates removal details for a set of directives within the same comment.
  * @param {Directive[]} directives Unused directives to be removed.
  * @param {Token} node The backing Comment token.
+ * @param {SourceCode} sourceCode The source code object for the file being linted.
  * @returns {{ description, fix, unprocessedDirective }[]} Details for later creation of output Problems.
  */
-function createIndividualDirectivesRemoval(directives, node) {
+function createIndividualDirectivesRemoval(directives, node, sourceCode) {
+
+    const range = sourceCode.getRange(node);
 
     /*
      * `node.value` starts right after `//` or `/*`.
      * All calculated offsets will be relative to this index.
      */
-    const commentValueStart = node.range[0] + "//".length;
+    const commentValueStart = range[0] + "//".length;
 
     // Find where the list of rules starts. `\S+` matches with the directive name (e.g. `eslint-disable-line`)
     const listStartOffset = /^\s*\S+\s+/u.exec(node.value)[0].length;
@@ -165,10 +168,11 @@ function createIndividualDirectivesRemoval(directives, node) {
  * Creates a description of deleting an entire unused disable directive.
  * @param {Directive[]} directives Unused directives to be removed.
  * @param {Token} node The backing Comment token.
+ * @param {SourceCode} sourceCode The source code object for the file being linted.
  * @returns {{ description, fix, unprocessedDirective }} Details for later creation of an output problem.
  */
-function createDirectiveRemoval(directives, node) {
-    const { range } = node;
+function createDirectiveRemoval(directives, node, sourceCode) {
+    const range = sourceCode.getRange(node);
     const ruleIds = directives.filter(directive => directive.ruleId).map(directive => `'${directive.ruleId}'`);
 
     return {
@@ -186,9 +190,10 @@ function createDirectiveRemoval(directives, node) {
 /**
  * Parses details from directives to create output Problems.
  * @param {Iterable<Directive>} allDirectives Unused directives to be removed.
+ * @param {SourceCode} sourceCode The source code object for the file being linted.
  * @returns {{ description, fix, unprocessedDirective }[]} Details for later creation of output Problems.
  */
-function processUnusedDirectives(allDirectives) {
+function processUnusedDirectives(allDirectives, sourceCode) {
     const directiveGroups = groupByParentDirective(allDirectives);
 
     return directiveGroups.flatMap(
@@ -201,8 +206,8 @@ function processUnusedDirectives(allDirectives) {
             }
 
             return remainingRuleIds.size
-                ? createIndividualDirectivesRemoval(directives, parentDirective.node)
-                : [createDirectiveRemoval(directives, parentDirective.node)];
+                ? createIndividualDirectivesRemoval(directives, parentDirective.node, sourceCode)
+                : [createDirectiveRemoval(directives, parentDirective.node, sourceCode)];
         }
     );
 }
@@ -309,6 +314,7 @@ function collectUsedEnableDirectives(directives) {
 function applyDirectives(options) {
     const problems = [];
     const usedDisableDirectives = new Set();
+    const { sourceCode } = options;
 
     for (const problem of options.problems) {
         let disableDirectivesForProblem = [];
@@ -370,8 +376,8 @@ function applyDirectives(options) {
         }
     }
 
-    const processed = processUnusedDirectives(unusedDisableDirectivesToReport)
-        .concat(processUnusedDirectives(unusedEnableDirectivesToReport));
+    const processed = processUnusedDirectives(unusedDisableDirectivesToReport, sourceCode)
+        .concat(processUnusedDirectives(unusedEnableDirectivesToReport, sourceCode));
     const columnOffset = options.language.columnStart === 1 ? 0 : 1;
     const lineOffset = options.language.lineStart === 1 ? 0 : 1;
 
@@ -390,11 +396,14 @@ function applyDirectives(options) {
                     ? `Unused eslint-disable directive (no problems were reported from ${description}).`
                     : "Unused eslint-disable directive (no problems were reported).";
             }
+
+            const loc = sourceCode.getLoc(parentDirective.node);
+
             return {
                 ruleId: null,
                 message,
-                line: type === "disable-next-line" ? parentDirective.node.loc.start.line + lineOffset : line,
-                column: type === "disable-next-line" ? parentDirective.node.loc.start.column + columnOffset : column,
+                line: type === "disable-next-line" ? loc.start.line + lineOffset : line,
+                column: type === "disable-next-line" ? loc.start.column + columnOffset : column,
                 severity: options.reportUnusedDisableDirectives === "warn" ? 1 : 2,
                 nodeType: null,
                 ...options.disableFixes ? {} : { fix }
@@ -409,6 +418,7 @@ function applyDirectives(options) {
  * of reported problems, adds the suppression information to the problems.
  * @param {Object} options Information about directives and problems
  * @param {Language} options.language The language being linted.
+ * @param {SourceCode} options.sourceCode The source code object for the file being linted.
  * @param {{
  *      type: ("disable"|"enable"|"disable-line"|"disable-next-line"),
  *      ruleId: (string|null),
@@ -427,7 +437,7 @@ function applyDirectives(options) {
  * @returns {{ruleId: (string|null), line: number, column: number, suppressions?: {kind: string, justification: string}}[]}
  * An object with a list of reported problems, the suppressed of which contain the suppression information.
  */
-module.exports = ({ language, directives, disableFixes, problems, configuredRules, ruleFilter, reportUnusedDisableDirectives = "off" }) => {
+module.exports = ({ language, sourceCode, directives, disableFixes, problems, configuredRules, ruleFilter, reportUnusedDisableDirectives = "off" }) => {
     const blockDirectives = directives
         .filter(directive => directive.type === "disable" || directive.type === "enable")
         .map(directive => Object.assign({}, directive, { unprocessedDirective: directive }))
@@ -477,6 +487,7 @@ module.exports = ({ language, directives, disableFixes, problems, configuredRule
 
     const blockDirectivesResult = applyDirectives({
         language,
+        sourceCode,
         problems,
         directives: blockDirectives,
         disableFixes,
@@ -485,6 +496,7 @@ module.exports = ({ language, directives, disableFixes, problems, configuredRule
     });
     const lineDirectivesResult = applyDirectives({
         language,
+        sourceCode,
         problems: blockDirectivesResult.problems,
         directives: lineDirectives,
         disableFixes,

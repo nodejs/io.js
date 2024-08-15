@@ -874,6 +874,7 @@ IF[{- !$disabled{tests} -}]
   ENDIF
   IF[{- $disabled{module} || !$target{dso_scheme} -}]
     DEFINE[provider_test]=NO_PROVIDER_MODULE
+    DEFINE[prov_config_test]=NO_PROVIDER_MODULE
     DEFINE[provider_internal_test]=NO_PROVIDER_MODULE
   ENDIF
   DEPEND[]=provider_internal_test.cnf

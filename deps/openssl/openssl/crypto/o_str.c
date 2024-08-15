@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2003-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -251,7 +251,7 @@ static int buf2hexstr_sep(char *str, size_t str_n, size_t *strlength,
     *q = CH_ZERO;
 
 #ifdef CHARSET_EBCDIC
-    ebcdic2ascii(str, str, q - str - 1);
+    ebcdic2ascii(str, str, q - str);
 #endif
     return 1;
 }

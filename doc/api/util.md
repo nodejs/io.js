@@ -1390,7 +1390,9 @@ added:
   - v18.3.0
   - v16.17.0
 changes:
-  - version: v22.4.0
+  - version:
+    - v22.4.0
+    - v20.16.0
     pr-url: https://github.com/nodejs/node/pull/53107
     description: add support for allowing negative options in input `config`.
   - version:

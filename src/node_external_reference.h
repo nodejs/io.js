@@ -47,9 +47,6 @@ using CFunctionCallbackWithUint8ArrayUint32Int64Bool =
                 uint32_t,
                 int64_t,
                 bool);
-using CFunctionWithObjectInt32Fallback = void (*)(v8::Local<v8::Object>,
-                                                  int32_t input,
-                                                  v8::FastApiCallbackOptions&);
 using CFunctionWithUint32 = uint32_t (*)(v8::Local<v8::Value>,
                                          const uint32_t input);
 using CFunctionWithDoubleReturnDouble = double (*)(v8::Local<v8::Value>,
@@ -58,6 +55,21 @@ using CFunctionWithInt64Fallback = void (*)(v8::Local<v8::Value>,
                                             const int64_t,
                                             v8::FastApiCallbackOptions&);
 using CFunctionWithBool = void (*)(v8::Local<v8::Value>, bool);
+
+using CFunctionWriteString =
+    uint32_t (*)(v8::Local<v8::Value> receiver,
+                 const v8::FastApiTypedArray<uint8_t>& dst,
+                 const v8::FastOneByteString& src,
+                 uint32_t offset,
+                 uint32_t max_length);
+
+using CFunctionBufferCopy =
+    uint32_t (*)(v8::Local<v8::Value> receiver,
+                 const v8::FastApiTypedArray<uint8_t>& source,
+                 const v8::FastApiTypedArray<uint8_t>& target,
+                 uint32_t target_start,
+                 uint32_t source_start,
+                 uint32_t to_copy);
 
 // This class manages the external references from the V8 heap
 // to the C++ addresses in Node.js.
@@ -78,11 +90,12 @@ class ExternalReferenceRegistry {
   V(CFunctionCallbackWithTwoUint8Arrays)                                       \
   V(CFunctionCallbackWithTwoUint8ArraysFallback)                               \
   V(CFunctionCallbackWithUint8ArrayUint32Int64Bool)                            \
-  V(CFunctionWithObjectInt32Fallback)                                          \
   V(CFunctionWithUint32)                                                       \
   V(CFunctionWithDoubleReturnDouble)                                           \
   V(CFunctionWithInt64Fallback)                                                \
   V(CFunctionWithBool)                                                         \
+  V(CFunctionBufferCopy)                                                       \
+  V(CFunctionWriteString)                                                      \
   V(const v8::CFunctionInfo*)                                                  \
   V(v8::FunctionCallback)                                                      \
   V(v8::AccessorNameGetterCallback)                                            \
@@ -136,6 +149,7 @@ class ExternalReferenceRegistry {
   V(fs_event_wrap)                                                             \
   V(handle_wrap)                                                               \
   V(heap_utils)                                                                \
+  V(http_parser)                                                               \
   V(internal_only_v8)                                                          \
   V(messaging)                                                                 \
   V(mksnapshot)                                                                \

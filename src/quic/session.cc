@@ -24,6 +24,7 @@
 #include "defs.h"
 #include "endpoint.h"
 #include "logstream.h"
+#include "ncrypto.h"
 #include "packet.h"
 #include "preferredaddress.h"
 #include "sessionticket.h"
@@ -2163,7 +2164,7 @@ struct Session::Impl {
   static void on_rand(uint8_t* dest,
                       size_t destlen,
                       const ngtcp2_rand_ctx* rand_ctx) {
-    CHECK(crypto::CSPRNG(dest, destlen).is_ok());
+    CHECK(ncrypto::CSPRNG(dest, destlen));
   }
 
   static int on_early_data_rejected(ngtcp2_conn* conn, void* user_data) {

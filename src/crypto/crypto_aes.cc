@@ -185,10 +185,7 @@ BignumPointer GetCounter(const AESCipherConfig& params) {
 
   if (remainder == 0) {
     unsigned int byte_length = params.length / CHAR_BIT;
-    return BignumPointer(BN_bin2bn(
-        data + params.iv.size() - byte_length,
-        byte_length,
-        nullptr));
+    return BignumPointer(data + params.iv.size() - byte_length, byte_length);
   }
 
   unsigned int byte_length =
@@ -199,7 +196,7 @@ BignumPointer GetCounter(const AESCipherConfig& params) {
       data + params.iv.size());
   counter[0] &= ~(0xFF << remainder);
 
-  return BignumPointer(BN_bin2bn(counter.data(), counter.size(), nullptr));
+  return BignumPointer(counter.data(), counter.size());
 }
 
 std::vector<unsigned char> BlockWithZeroedCounter(
@@ -269,23 +266,22 @@ WebCryptoCipherStatus AES_CTR_Cipher(
     const AESCipherConfig& params,
     const ByteSource& in,
     ByteSource* out) {
-  BignumPointer num_counters(BN_new());
-  if (!BN_lshift(num_counters.get(), BN_value_one(), params.length))
+  auto num_counters = BignumPointer::New();
+  if (!BN_lshift(num_counters.get(), BignumPointer::One(), params.length))
     return WebCryptoCipherStatus::FAILED;
 
   BignumPointer current_counter = GetCounter(params);
 
-  BignumPointer num_output(BN_new());
+  auto num_output = BignumPointer::New();
 
-  if (!BN_set_word(num_output.get(), CeilDiv(in.size(), kAesBlockSize)))
+  if (!num_output.setWord(CeilDiv(in.size(), kAesBlockSize)))
     return WebCryptoCipherStatus::FAILED;
 
   // Just like in chromium's implementation, if the counter will
   // be incremented more than there are counter values, we fail.
-  if (BN_cmp(num_output.get(), num_counters.get()) > 0)
-    return WebCryptoCipherStatus::FAILED;
+  if (num_output > num_counters) return WebCryptoCipherStatus::FAILED;
 
-  BignumPointer remaining_until_reset(BN_new());
+  auto remaining_until_reset = BignumPointer::New();
   if (!BN_sub(remaining_until_reset.get(),
               num_counters.get(),
               current_counter.get())) {
@@ -298,7 +294,7 @@ WebCryptoCipherStatus AES_CTR_Cipher(
   // Also just like in chromium's implementation, if we can process
   // the input without wrapping the counter, we'll do it as a single
   // call here. If we can't, we'll fallback to the a two-step approach
-  if (BN_cmp(remaining_until_reset.get(), num_output.get()) >= 0) {
+  if (remaining_until_reset >= num_output) {
     auto status = AES_CTR_Cipher2(key_data,
                                   cipher_mode,
                                   params,
@@ -309,8 +305,7 @@ WebCryptoCipherStatus AES_CTR_Cipher(
     return status;
   }
 
-  BN_ULONG blocks_part1 = BN_get_word(remaining_until_reset.get());
-  BN_ULONG input_size_part1 = blocks_part1 * kAesBlockSize;
+  BN_ULONG input_size_part1 = remaining_until_reset.getWord() * kAesBlockSize;
 
   // Encrypt the first part...
   auto status =
@@ -476,83 +471,38 @@ Maybe<bool> AESCipherTraits::AdditionalConfig(
   params->variant =
       static_cast<AESKeyVariant>(args[offset].As<Uint32>()->Value());
 
+  AESCipherMode cipher_op_mode;
   int cipher_nid;
 
+#define V(name, _, mode, nid)                                                  \
+  case kKeyVariantAES_##name: {                                                \
+    cipher_op_mode = mode;                                                     \
+    cipher_nid = nid;                                                          \
+    break;                                                                     \
+  }
   switch (params->variant) {
-    case kKeyVariantAES_CTR_128:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateCounter(env, args[offset + 2], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_128_ctr;
-      break;
-    case kKeyVariantAES_CTR_192:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateCounter(env, args[offset + 2], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_192_ctr;
-      break;
-    case kKeyVariantAES_CTR_256:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateCounter(env, args[offset + 2], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_256_ctr;
-      break;
-    case kKeyVariantAES_CBC_128:
-      if (!ValidateIV(env, mode, args[offset + 1], params))
-        return Nothing<bool>();
-      cipher_nid = NID_aes_128_cbc;
-      break;
-    case kKeyVariantAES_CBC_192:
-      if (!ValidateIV(env, mode, args[offset + 1], params))
-        return Nothing<bool>();
-      cipher_nid = NID_aes_192_cbc;
-      break;
-    case kKeyVariantAES_CBC_256:
-      if (!ValidateIV(env, mode, args[offset + 1], params))
-        return Nothing<bool>();
-      cipher_nid = NID_aes_256_cbc;
-      break;
-    case kKeyVariantAES_KW_128:
-      UseDefaultIV(params);
-      cipher_nid = NID_id_aes128_wrap;
-      break;
-    case kKeyVariantAES_KW_192:
-      UseDefaultIV(params);
-      cipher_nid = NID_id_aes192_wrap;
-      break;
-    case kKeyVariantAES_KW_256:
-      UseDefaultIV(params);
-      cipher_nid = NID_id_aes256_wrap;
-      break;
-    case kKeyVariantAES_GCM_128:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateAuthTag(env, mode, cipher_mode, args[offset + 2], params) ||
-          !ValidateAdditionalData(env, mode, args[offset + 3], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_128_gcm;
-      break;
-    case kKeyVariantAES_GCM_192:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateAuthTag(env, mode, cipher_mode, args[offset + 2], params) ||
-          !ValidateAdditionalData(env, mode, args[offset + 3], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_192_gcm;
-      break;
-    case kKeyVariantAES_GCM_256:
-      if (!ValidateIV(env, mode, args[offset + 1], params) ||
-          !ValidateAuthTag(env, mode, cipher_mode, args[offset + 2], params) ||
-          !ValidateAdditionalData(env, mode, args[offset + 3], params)) {
-        return Nothing<bool>();
-      }
-      cipher_nid = NID_aes_256_gcm;
-      break;
+    VARIANTS(V)
     default:
       UNREACHABLE();
+  }
+#undef V
+
+  if (cipher_op_mode != AESCipherMode::KW) {
+    if (!ValidateIV(env, mode, args[offset + 1], params)) {
+      return Nothing<bool>();
+    }
+    if (cipher_op_mode == AESCipherMode::CTR) {
+      if (!ValidateCounter(env, args[offset + 2], params)) {
+        return Nothing<bool>();
+      }
+    } else if (cipher_op_mode == AESCipherMode::GCM) {
+      if (!ValidateAuthTag(env, mode, cipher_mode, args[offset + 2], params) ||
+          !ValidateAdditionalData(env, mode, args[offset + 3], params)) {
+        return Nothing<bool>();
+      }
+    }
+  } else {
+    UseDefaultIV(params);
   }
 
   params->cipher = EVP_get_cipherbynid(cipher_nid);
@@ -577,8 +527,8 @@ WebCryptoCipherStatus AESCipherTraits::DoCipher(
     const AESCipherConfig& params,
     const ByteSource& in,
     ByteSource* out) {
-#define V(name, fn)                                                           \
-  case kKeyVariantAES_ ## name:                                               \
+#define V(name, fn, _, __)                                                     \
+  case kKeyVariantAES_##name:                                                  \
     return fn(env, key_data.get(), cipher_mode, params, in, out);
   switch (params.variant) {
     VARIANTS(V)
@@ -591,7 +541,7 @@ WebCryptoCipherStatus AESCipherTraits::DoCipher(
 void AES::Initialize(Environment* env, Local<Object> target) {
   AESCryptoJob::Initialize(env, target);
 
-#define V(name, _) NODE_DEFINE_CONSTANT(target, kKeyVariantAES_ ## name);
+#define V(name, _, __, ___) NODE_DEFINE_CONSTANT(target, kKeyVariantAES_##name);
   VARIANTS(V)
 #undef V
 }

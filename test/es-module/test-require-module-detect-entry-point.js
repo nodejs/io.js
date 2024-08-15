@@ -1,4 +1,4 @@
-// Flags: --experimental-require-module --experimental-detect-module
+// Flags: --experimental-require-module
 
 import { mustCall } from '../common/index.mjs';
 const fn = mustCall(() => {

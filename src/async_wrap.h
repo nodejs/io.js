@@ -187,6 +187,8 @@ class AsyncWrap : public BaseObject {
   inline double get_async_id() const;
   inline double get_trigger_async_id() const;
 
+  inline v8::Local<v8::Value> context_frame() const;
+
   void AsyncReset(v8::Local<v8::Object> resource,
                   double execution_async_id = kInvalidAsyncId,
                   bool silent = false);
@@ -239,6 +241,8 @@ class AsyncWrap : public BaseObject {
   // Because the values may be Reset(), cannot be made const.
   double async_id_ = kInvalidAsyncId;
   double trigger_async_id_ = kInvalidAsyncId;
+
+  v8::Global<v8::Value> context_frame_;
 };
 
 }  // namespace node

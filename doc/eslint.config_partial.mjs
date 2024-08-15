@@ -1,4 +1,9 @@
-import { requireEslintTool } from '../tools/eslint/eslint.config_utils.mjs';
+import {
+  noRestrictedSyntaxCommonAll,
+  noRestrictedSyntaxCommonLib,
+  requireEslintTool,
+} from '../tools/eslint/eslint.config_utils.mjs';
+import { builtinModules as builtin } from 'node:module';
 
 const globals = requireEslintTool('globals');
 
@@ -8,6 +13,15 @@ export default [
     rules: {
       // Ease some restrictions in doc examples.
       'no-restricted-properties': 'off',
+      'no-restricted-syntax': [
+        'error',
+        ...noRestrictedSyntaxCommonAll,
+        ...noRestrictedSyntaxCommonLib,
+        {
+          selector: `CallExpression[callee.name="require"][arguments.0.type="Literal"]:matches(${builtin.map((name) => `[arguments.0.value="${name}"]`).join(',')}),ImportDeclaration:matches(${builtin.map((name) => `[source.value="${name}"]`).join(',')})`,
+          message: 'Use `node:` prefix.',
+        },
+      ],
       'no-undef': 'off',
       'no-unused-expressions': 'off',
       'no-unused-vars': 'off',

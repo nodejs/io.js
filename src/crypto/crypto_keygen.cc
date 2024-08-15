@@ -4,6 +4,7 @@
 #include "debug_utils-inl.h"
 #include "env-inl.h"
 #include "memory_tracker-inl.h"
+#include "ncrypto.h"
 #include "threadpoolwork-inl.h"
 #include "v8.h"
 
@@ -71,7 +72,7 @@ Maybe<bool> SecretKeyGenTraits::AdditionalConfig(
 KeyGenJobStatus SecretKeyGenTraits::DoKeyGen(Environment* env,
                                              SecretKeyGenConfig* params) {
   ByteSource::Builder bytes(params->length);
-  if (CSPRNG(bytes.data<unsigned char>(), params->length).is_err())
+  if (!ncrypto::CSPRNG(bytes.data<unsigned char>(), params->length))
     return KeyGenJobStatus::FAILED;
   params->out = std::move(bytes).release();
   return KeyGenJobStatus::OK;

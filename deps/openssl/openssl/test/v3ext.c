@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -269,17 +269,20 @@ static int test_addr_fam_len(void)
         goto end;
     if (!ASN1_OCTET_STRING_set(f1->addressFamily, key, keylen))
         goto end;
+
+    /* Push and transfer memory ownership to stack */
     if (!sk_IPAddressFamily_push(addr, f1))
         goto end;
+    f1 = NULL;
 
     /* Shouldn't be able to canonize this as the len is > 3*/
     if (!TEST_false(X509v3_addr_canonize(addr)))
         goto end;
 
-    /* Create a well formed IPAddressFamily */
-    f1 = sk_IPAddressFamily_pop(addr);
-    IPAddressFamily_free(f1);
+    /* Pop and free the new stack element */
+    IPAddressFamily_free(sk_IPAddressFamily_pop(addr));
 
+    /* Create a well-formed IPAddressFamily */
     key[0] = (afi >> 8) & 0xFF;
     key[1] = afi & 0xFF;
     key[2] = 0x1;
@@ -297,8 +300,11 @@ static int test_addr_fam_len(void)
 
     /* Mark this as inheritance so we skip some of the is_canonize checks */
     f1->ipAddressChoice->type = IPAddressChoice_inherit;
+
+    /* Push and transfer memory ownership to stack */
     if (!sk_IPAddressFamily_push(addr, f1))
         goto end;
+    f1 = NULL;
 
     /* Should be able to canonize now */
     if (!TEST_true(X509v3_addr_canonize(addr)))
@@ -306,7 +312,10 @@ static int test_addr_fam_len(void)
 
     testresult = 1;
   end:
+    /* Free stack and any memory owned by detached element */
+    IPAddressFamily_free(f1);
     sk_IPAddressFamily_pop_free(addr, IPAddressFamily_free);
+
     ASN1_OCTET_STRING_free(ip1);
     ASN1_OCTET_STRING_free(ip2);
     return testresult;

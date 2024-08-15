@@ -1577,7 +1577,7 @@ protocol.
 ### `tlsSocket.setKeyCert(context)`
 
 <!-- YAML
-added: REPLACEME
+added: v22.5.0
 -->
 
 * `context` {Object|tls.SecureContext} An object containing at least `key` and
@@ -1854,7 +1854,9 @@ argument.
 <!-- YAML
 added: v0.11.13
 changes:
-  - version: v22.4.0
+  - version:
+    - v22.4.0
+    - v20.16.0
     pr-url: https://github.com/nodejs/node/pull/53329
     description: The `clientCertEngine`, `privateKeyEngine` and
                  `privateKeyIdentifier` options depend on custom engine
@@ -2115,7 +2117,9 @@ where `secureSocket` has the same API as `pair.cleartext`.
 <!-- YAML
 added: v0.3.2
 changes:
-  - version: v22.4.0
+  - version:
+    - v22.4.0
+    - v20.16.0
     pr-url: https://github.com/nodejs/node/pull/53329
     description: The `clientCertEngine` option depends on custom engine
                  support in OpenSSL which is deprecated in OpenSSL 3.

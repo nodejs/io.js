@@ -4,6 +4,8 @@
  */
 "use strict";
 
+/* eslint class-methods-use-this: off -- Methods desired on instance */
+
 //------------------------------------------------------------------------------
 // Requirements
 //------------------------------------------------------------------------------
@@ -35,8 +37,22 @@ function insertTextAt(index, text) {
 /**
  * Creates code fixing commands for rules.
  */
+class RuleFixer {
 
-const ruleFixer = Object.freeze({
+    /**
+     * The source code object representing the text to be fixed.
+     * @type {SourceCode}
+     */
+    #sourceCode;
+
+    /**
+     * Creates a new instance.
+     * @param {Object} options The options for the fixer.
+     * @param {SourceCode} options.sourceCode The source code object representing the text to be fixed.
+     */
+    constructor({ sourceCode }) {
+        this.#sourceCode = sourceCode;
+    }
 
     /**
      * Creates a fix command that inserts text after the given node or token.
@@ -46,8 +62,10 @@ const ruleFixer = Object.freeze({
      * @returns {Object} The fix command.
      */
     insertTextAfter(nodeOrToken, text) {
-        return this.insertTextAfterRange(nodeOrToken.range, text);
-    },
+        const range = this.#sourceCode.getRange(nodeOrToken);
+
+        return this.insertTextAfterRange(range, text);
+    }
 
     /**
      * Creates a fix command that inserts text after the specified range in the source text.
@@ -59,7 +77,7 @@ const ruleFixer = Object.freeze({
      */
     insertTextAfterRange(range, text) {
         return insertTextAt(range[1], text);
-    },
+    }
 
     /**
      * Creates a fix command that inserts text before the given node or token.
@@ -69,8 +87,10 @@ const ruleFixer = Object.freeze({
      * @returns {Object} The fix command.
      */
     insertTextBefore(nodeOrToken, text) {
-        return this.insertTextBeforeRange(nodeOrToken.range, text);
-    },
+        const range = this.#sourceCode.getRange(nodeOrToken);
+
+        return this.insertTextBeforeRange(range, text);
+    }
 
     /**
      * Creates a fix command that inserts text before the specified range in the source text.
@@ -82,7 +102,7 @@ const ruleFixer = Object.freeze({
      */
     insertTextBeforeRange(range, text) {
         return insertTextAt(range[0], text);
-    },
+    }
 
     /**
      * Creates a fix command that replaces text at the node or token.
@@ -92,8 +112,10 @@ const ruleFixer = Object.freeze({
      * @returns {Object} The fix command.
      */
     replaceText(nodeOrToken, text) {
-        return this.replaceTextRange(nodeOrToken.range, text);
-    },
+        const range = this.#sourceCode.getRange(nodeOrToken);
+
+        return this.replaceTextRange(range, text);
+    }
 
     /**
      * Creates a fix command that replaces text at the specified range in the source text.
@@ -108,7 +130,7 @@ const ruleFixer = Object.freeze({
             range,
             text
         };
-    },
+    }
 
     /**
      * Creates a fix command that removes the node or token from the source.
@@ -117,8 +139,10 @@ const ruleFixer = Object.freeze({
      * @returns {Object} The fix command.
      */
     remove(nodeOrToken) {
-        return this.removeRange(nodeOrToken.range);
-    },
+        const range = this.#sourceCode.getRange(nodeOrToken);
+
+        return this.removeRange(range);
+    }
 
     /**
      * Creates a fix command that removes the specified range of text from the source.
@@ -133,8 +157,7 @@ const ruleFixer = Object.freeze({
             text: ""
         };
     }
+}
 
-});
 
-
-module.exports = ruleFixer;
+module.exports = { RuleFixer };

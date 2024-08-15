@@ -64,6 +64,26 @@ using v8::Value;
 namespace crypto {
 
 namespace {
+
+// Our custom implementation of the certificate verify callback
+// used when establishing a TLS handshake. Because we cannot perform
+// I/O quickly enough with X509_STORE_CTX_ APIs in this callback,
+// we ignore preverify_ok errors here and let the handshake continue.
+// In other words, this VerifyCallback is a non-op. It is imperative
+// that the user user Connection::VerifyError after the `secure`
+// callback has been made.
+int VerifyCallback(int preverify_ok, X509_STORE_CTX* ctx) {
+  // From https://www.openssl.org/docs/man1.1.1/man3/SSL_verify_cb:
+  //
+  //   If VerifyCallback returns 1, the verification process is continued. If
+  //   VerifyCallback always returns 1, the TLS/SSL handshake will not be
+  //   terminated with respect to verification failures and the connection will
+  //   be established. The calling process can however retrieve the error code
+  //   of the last verification error using SSL_get_verify_result(3) or by
+  //   maintaining its own error storage managed by VerifyCallback.
+  return 1;
+}
+
 SSL_SESSION* GetSessionCallback(
     SSL* s,
     const unsigned char* key,

@@ -38,9 +38,11 @@ function runInAsyncScopes(resourceCount, cb, i = 0) {
 
 function main({ n, resourceCount }) {
   const store = new AsyncLocalStorage();
-  runInAsyncScopes(resourceCount, () => {
-    bench.start();
-    runBenchmark(store, n);
-    bench.end(n);
+  store.run({}, () => {
+    runInAsyncScopes(resourceCount, () => {
+      bench.start();
+      runBenchmark(store, n);
+      bench.end(n);
+    });
   });
 }

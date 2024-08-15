@@ -131,7 +131,7 @@ NAPI_EXTERN napi_status NAPI_CDECL
 napi_create_external_buffer(napi_env env,
                             size_t length,
                             void* data,
-                            node_api_nogc_finalize finalize_cb,
+                            node_api_basic_finalize finalize_cb,
                             void* finalize_hint,
                             napi_value* result);
 #endif  // NODE_API_NO_EXTERNAL_BUFFERS_ALLOWED
@@ -159,20 +159,20 @@ napi_create_async_work(napi_env env,
                        napi_async_work* result);
 NAPI_EXTERN napi_status NAPI_CDECL napi_delete_async_work(napi_env env,
                                                           napi_async_work work);
-NAPI_EXTERN napi_status NAPI_CDECL napi_queue_async_work(node_api_nogc_env env,
+NAPI_EXTERN napi_status NAPI_CDECL napi_queue_async_work(node_api_basic_env env,
                                                          napi_async_work work);
-NAPI_EXTERN napi_status NAPI_CDECL napi_cancel_async_work(node_api_nogc_env env,
-                                                          napi_async_work work);
+NAPI_EXTERN napi_status NAPI_CDECL
+napi_cancel_async_work(node_api_basic_env env, napi_async_work work);
 
 // version management
-NAPI_EXTERN napi_status NAPI_CDECL
-napi_get_node_version(node_api_nogc_env env, const napi_node_version** version);
+NAPI_EXTERN napi_status NAPI_CDECL napi_get_node_version(
+    node_api_basic_env env, const napi_node_version** version);
 
 #if NAPI_VERSION >= 2
 
 // Return the current libuv event loop for a given environment
 NAPI_EXTERN napi_status NAPI_CDECL
-napi_get_uv_event_loop(node_api_nogc_env env, struct uv_loop_s** loop);
+napi_get_uv_event_loop(node_api_basic_env env, struct uv_loop_s** loop);
 
 #endif  // NAPI_VERSION >= 2
 
@@ -182,10 +182,10 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_fatal_exception(napi_env env,
                                                         napi_value err);
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_add_env_cleanup_hook(
-    node_api_nogc_env env, napi_cleanup_hook fun, void* arg);
+    node_api_basic_env env, napi_cleanup_hook fun, void* arg);
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_remove_env_cleanup_hook(
-    node_api_nogc_env env, napi_cleanup_hook fun, void* arg);
+    node_api_basic_env env, napi_cleanup_hook fun, void* arg);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 napi_open_callback_scope(napi_env env,
@@ -229,17 +229,17 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_release_threadsafe_function(
     napi_threadsafe_function func, napi_threadsafe_function_release_mode mode);
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_unref_threadsafe_function(
-    node_api_nogc_env env, napi_threadsafe_function func);
+    node_api_basic_env env, napi_threadsafe_function func);
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_ref_threadsafe_function(
-    node_api_nogc_env env, napi_threadsafe_function func);
+    node_api_basic_env env, napi_threadsafe_function func);
 
 #endif  // NAPI_VERSION >= 4
 
 #if NAPI_VERSION >= 8
 
 NAPI_EXTERN napi_status NAPI_CDECL
-napi_add_async_cleanup_hook(node_api_nogc_env env,
+napi_add_async_cleanup_hook(node_api_basic_env env,
                             napi_async_cleanup_hook hook,
                             void* arg,
                             napi_async_cleanup_hook_handle* remove_handle);
@@ -252,7 +252,7 @@ napi_remove_async_cleanup_hook(napi_async_cleanup_hook_handle remove_handle);
 #if NAPI_VERSION >= 9
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_get_module_file_name(node_api_nogc_env env, const char** result);
+node_api_get_module_file_name(node_api_basic_env env, const char** result);
 
 #endif  // NAPI_VERSION >= 9
 

@@ -115,11 +115,11 @@ static ares_status_t dnsinfo_init(dnsinfo_t **dnsinfo_out)
       continue;
     }
 
-    dnsinfo->dns_configuration_copy = (dns_config_t *(*)(void))
+    dnsinfo->dns_configuration_copy = (dns_config_t * (*)(void))
       dlsym(dnsinfo->handle, "dns_configuration_copy");
 
-    dnsinfo->dns_configuration_free = (void (*)(dns_config_t *))
-      dlsym(dnsinfo->handle, "dns_configuration_free");
+    dnsinfo->dns_configuration_free = (void (*)(dns_config_t *))dlsym(
+      dnsinfo->handle, "dns_configuration_free");
 
     if (dnsinfo->dns_configuration_copy != NULL &&
         dnsinfo->dns_configuration_free != NULL) {
@@ -274,25 +274,7 @@ static ares_status_t read_resolver(const dns_resolver_t *resolver,
     /* UBSAN alignment workaround to fetch memory address */
     memcpy(&sockaddr, resolver->nameserver + i, sizeof(sockaddr));
 
-    if (sockaddr->sa_family == AF_INET) {
-      /* NOTE: memcpy sockaddr_in due to alignment issues found by UBSAN due to
-       *       dnsinfo packing */
-      struct sockaddr_in addr_in;
-      memcpy(&addr_in, sockaddr, sizeof(addr_in));
-
-      addr.family = AF_INET;
-      memcpy(&addr.addr.addr4, &(addr_in.sin_addr), sizeof(addr.addr.addr4));
-      addrport = ntohs(addr_in.sin_port);
-    } else if (sockaddr->sa_family == AF_INET6) {
-      /* NOTE: memcpy sockaddr_in6 due to alignment issues found by UBSAN due to
-       *       dnsinfo packing */
-      struct sockaddr_in6 addr_in6;
-      memcpy(&addr_in6, sockaddr, sizeof(addr_in6));
-
-      addr.family = AF_INET6;
-      memcpy(&addr.addr.addr6, &(addr_in6.sin6_addr), sizeof(addr.addr.addr6));
-      addrport = ntohs(addr_in6.sin6_port);
-    } else {
+    if (!ares_sockaddr_to_ares_addr(&addr, &addrport, sockaddr)) {
       continue;
     }
 

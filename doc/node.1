@@ -173,9 +173,6 @@ Specify the
 .Ar module
 to use as a custom module loader.
 .
-.It Fl -experimental-network-imports
-Enable experimental support for loading modules using `import` over `https:`.
-.
 .It Fl -experimental-permission
 Enable the experimental permission model.
 .
@@ -193,6 +190,12 @@ Enable module mocking in the test runner.
 .
 .It Fl -experimental-test-snapshots
 Enable snapshot testing in the test runner.
+.
+.It Fl -experimental-strip-types
+Enable experimental type-stripping for TypeScript files.
+.
+.It Fl -experimental-transform-types
+Enable transformation of TypeScript-only syntax into JavaScript code.
 .
 .It Fl -experimental-eventsource
 Enable experimental support for the EventSource Web API.

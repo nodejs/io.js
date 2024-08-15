@@ -866,6 +866,9 @@ DebugInfo::SideEffectState BuiltinGetSideEffectState(Builtin id) {
     case Builtin::kConstructWithArrayLike:
     case Builtin::kGetOwnPropertyDescriptor:
     case Builtin::kOrdinaryGetOwnPropertyDescriptor:
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+    case Builtin::kGetContinuationPreservedEmbedderData:
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
       return DebugInfo::kHasNoSideEffect;
 
 #ifdef V8_INTL_SUPPORT

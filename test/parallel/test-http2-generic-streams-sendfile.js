@@ -5,7 +5,7 @@ if (!common.hasCrypto)
 const assert = require('assert');
 const http2 = require('http2');
 const fs = require('fs');
-const makeDuplexPair = require('../common/duplexpair');
+const { duplexPair } = require('stream');
 
 {
   const server = http2.createServer();
@@ -13,7 +13,7 @@ const makeDuplexPair = require('../common/duplexpair');
     stream.respondWithFile(__filename);
   }));
 
-  const { clientSide, serverSide } = makeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
   server.emit('connection', serverSide);
 
   const client = http2.connect('http://localhost:80', {

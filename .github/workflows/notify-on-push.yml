@@ -60,7 +60,7 @@ jobs:
         env:
           SLACK_COLOR: '#DE512A'
           SLACK_ICON: https://github.com/nodejs.png?size=48
-          SLACK_TITLE: Invalid commit was pushed to ${{ github.repository.default_branch }}
+          SLACK_TITLE: Invalid commit was pushed to ${{ github.ref }}
           SLACK_MESSAGE: |
             <!here> A commit with an invalid message was pushed to <https://github.com/${{ github.repository }}/tree/${{ github.ref_name }}|${{ github.repository }}@${{ github.ref_name }}> by <https://github.com/${{ github.actor }}|${{ github.actor }}>.
 

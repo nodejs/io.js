@@ -2263,6 +2263,14 @@ OpIndex GraphBuilder::Process(
       return OpIndex::Invalid();
     }
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+    case IrOpcode::kGetContinuationPreservedEmbedderData:
+      return __ GetContinuationPreservedEmbedderData();
+    case IrOpcode::kSetContinuationPreservedEmbedderData:
+      __ SetContinuationPreservedEmbedderData(Map(node->InputAt(0)));
+      return OpIndex::Invalid();
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
     default:
       std::cerr << "unsupported node type: " << *node->op() << "\n";
       node->Print(std::cerr);

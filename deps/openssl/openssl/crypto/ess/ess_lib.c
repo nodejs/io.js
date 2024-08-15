@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -293,7 +293,7 @@ int OSSL_ESS_check_signing_certs(const ESS_SIGNING_CERT *ss,
     int i, ret;
 
     if (require_signing_cert && ss == NULL && ssv2 == NULL) {
-        ERR_raise(ERR_LIB_CMS, ESS_R_MISSING_SIGNING_CERTIFICATE_ATTRIBUTE);
+        ERR_raise(ERR_LIB_ESS, ESS_R_MISSING_SIGNING_CERTIFICATE_ATTRIBUTE);
         return -1;
     }
     if (n_v1 == 0 || n_v2 == 0) {

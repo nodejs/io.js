@@ -71,7 +71,7 @@ jobs:
 
       # Install dependencies
       - name: Install Node.js
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.0.2
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Install @node-core/utils
@@ -86,11 +86,15 @@ jobs:
         run: |
           ncu-config set branch ${GITHUB_REF_NAME}
           ncu-config set upstream origin
-          ncu-config set username "${{ secrets.GH_USER_NAME }}"
-          ncu-config set token "${{ secrets.GH_USER_TOKEN }}"
-          ncu-config set jenkins_token "${{ secrets.JENKINS_TOKEN }}"
+          ncu-config set username "$USERNAME"
+          ncu-config set token "$GH_TOKEN"
+          ncu-config set jenkins_token "$JENKINS_TOKEN"
           ncu-config set repo "${REPOSITORY}"
           ncu-config set owner "${OWNER}"
+        env:
+          USERNAME: ${{ secrets.JENKINS_USER }}
+          GH_TOKEN: ${{ secrets.GH_USER_TOKEN }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
 
       - name: Start the Commit Queue
         run: ./tools/actions/commit-queue.sh ${{ env.OWNER }} ${{ env.REPOSITORY }} ${{ needs.get_mergeable_prs.outputs.numbers }}

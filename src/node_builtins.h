@@ -97,6 +97,12 @@ class NODE_EXTERN_PRIVATE BuiltinLoader {
                                                 const char* id,
                                                 Realm* optional_realm);
 
+  v8::MaybeLocal<v8::Function> LookupAndCompile(
+      v8::Local<v8::Context> context,
+      const char* id,
+      std::vector<v8::Local<v8::String>>* parameters,
+      Realm* optional_realm);
+
   v8::MaybeLocal<v8::Value> CompileAndCall(v8::Local<v8::Context> context,
                                            const char* id,
                                            int argc,

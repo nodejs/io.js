@@ -69,14 +69,14 @@ expressions:
 * Strings passed in as an argument to `--eval`, or piped to `node` via `STDIN`,
   with the flag `--input-type=module`.
 
-* When using [`--experimental-detect-module`][], code containing syntax only
-  successfully parsed as [ES modules][], such as `import` or `export`
-  statements or `import.meta`, having no explicit marker of how it should be
-  interpreted. Explicit markers are `.mjs` or `.cjs` extensions, `package.json`
-  `"type"` fields with either `"module"` or `"commonjs"` values, or
-  `--input-type` or `--experimental-default-type` flags. Dynamic `import()`
-  expressions are supported in either CommonJS or ES modules and would not
-  cause a file to be treated as an ES module.
+* Code containing syntax only successfully parsed as [ES modules][], such as
+  `import` or `export` statements or `import.meta`, with no explicit marker of
+  how it should be interpreted. Explicit markers are `.mjs` or `.cjs`
+  extensions, `package.json` `"type"` fields with either `"module"` or
+  `"commonjs"` values, or `--input-type` or `--experimental-default-type` flags.
+  Dynamic `import()` expressions are supported in either CommonJS or ES modules
+  and would not force a file to be treated as an ES module. See
+  [Syntax detection][].
 
 Node.js will treat the following as [CommonJS][] when passed to `node` as the
 initial input, or when referenced by `import` statements or `import()`
@@ -114,6 +114,44 @@ CommonJS. Being explicit about the `type` of the package will future-proof the
 package in case the default type of Node.js ever changes, and it will also make
 things easier for build tools and loaders to determine how the files in the
 package should be interpreted.
+
+### Syntax detection
+
+<!-- YAML
+added:
+  - v21.1.0
+  - v20.10.0
+changes:
+  - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/53619
+    description: Syntax detection is enabled by default.
+-->
+
+> Stability: 1.2 - Release candidate
+
+Node.js will inspect the source code of ambiguous input to determine whether it
+contains ES module syntax; if such syntax is detected, the input will be treated
+as an ES module.
+
+Ambiguous input is defined as:
+
+* Files with a `.js` extension or no extension; and either no controlling
+  `package.json` file or one that lacks a `type` field; and
+  `--experimental-default-type` is not specified.
+* String input (`--eval` or STDIN) when neither `--input-type` nor
+  `--experimental-default-type` are specified.
+
+ES module syntax is defined as syntax that would throw when evaluated as
+CommonJS. This includes the following:
+
+* `import` statements (but _not_ `import()` expressions, which are valid in
+  CommonJS).
+* `export` statements.
+* `import.meta` references.
+* `await` at the top level of a module.
+* Lexical redeclarations of the CommonJS wrapper variables (`require`, `module`,
+  `exports`, `__dirname`, `__filename`).
 
 ### Modules loaders
 
@@ -1355,6 +1393,7 @@ This field defines [subpath imports][] for the current package.
 [ES modules]: esm.md
 [Node.js documentation for this section]: https://github.com/nodejs/node/blob/HEAD/doc/api/packages.md#conditions-definitions
 [Runtime Keys]: https://runtime-keys.proposal.wintercg.org/
+[Syntax detection]: #syntax-detection
 [WinterCG]: https://wintercg.org/
 [`"exports"`]: #exports
 [`"imports"`]: #imports
@@ -1364,7 +1403,6 @@ This field defines [subpath imports][] for the current package.
 [`"type"`]: #type
 [`--conditions` / `-C` flag]: #resolving-user-conditions
 [`--experimental-default-type`]: cli.md#--experimental-default-typetype
-[`--experimental-detect-module`]: cli.md#--experimental-detect-module
 [`--no-addons` flag]: cli.md#--no-addons
 [`ERR_PACKAGE_PATH_NOT_EXPORTED`]: errors.md#err_package_path_not_exported
 [`esm`]: https://github.com/standard-things/esm#readme

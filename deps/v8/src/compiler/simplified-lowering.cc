@@ -4635,6 +4635,17 @@ class RepresentationSelector {
         SetOutput<T>(node, LoadRepresentationOf(node->op()).representation());
         return;
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+      case IrOpcode::kGetContinuationPreservedEmbedderData:
+        SetOutput<T>(node, MachineRepresentation::kTagged);
+        return;
+
+      case IrOpcode::kSetContinuationPreservedEmbedderData:
+        ProcessInput<T>(node, 0, UseInfo::AnyTagged());
+        SetOutput<T>(node, MachineRepresentation::kNone);
+        return;
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
       default:
         FATAL(
             "Representation inference: unsupported opcode %i (%s), node #%i\n.",

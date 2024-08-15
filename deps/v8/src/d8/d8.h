@@ -665,6 +665,15 @@ class Shell : public i::AllStatic {
   // the "mkdir -p" command.
   static void MakeDirectory(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void RemoveDirectory(const v8::FunctionCallbackInfo<v8::Value>& info);
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  static void GetContinuationPreservedEmbedderData(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
+#endif  // V8_ENABLE_CONTINUATION_PRESERVER_EMBEDDER_DATA
+
+  static void GetExtrasBindingObject(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
+
   static MaybeLocal<Promise> HostImportModuleDynamically(
       Local<Context> context, Local<Data> host_defined_options,
       Local<Value> resource_name, Local<String> specifier,

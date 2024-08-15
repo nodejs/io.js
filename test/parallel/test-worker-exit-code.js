@@ -8,7 +8,7 @@ const assert = require('assert');
 const worker = require('worker_threads');
 const { Worker, parentPort } = worker;
 
-const { getTestCases } = require('../fixtures/process-exit-code-cases');
+const { getTestCases } = require('../common/process-exit-code-cases');
 const testCases = getTestCases(true);
 
 // Do not use isMainThread so that this test itself can be run inside a Worker.

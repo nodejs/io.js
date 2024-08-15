@@ -8,11 +8,11 @@ if (!common.hasCrypto)
 const assert = require('assert');
 const http2 = require('http2');
 const stream = require('stream');
-const makeDuplexPair = require('../common/duplexpair');
+const { duplexPair } = require('stream');
 
 // Basic test
 {
-  const { clientSide, serverSide } = makeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
 
   const client = http2.connect('http://example.com', {
     createConnection: () => clientSide,

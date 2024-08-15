@@ -2733,6 +2733,20 @@ void Shell::SetTimeout(const v8::FunctionCallbackInfo<v8::Value>& info) {
   PerIsolateData::Get(isolate)->SetTimeout(callback, context);
 }
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+void Shell::GetContinuationPreservedEmbedderData(
+    const v8::FunctionCallbackInfo<v8::Value>& info) {
+  info.GetReturnValue().Set(
+      info.GetIsolate()->GetContinuationPreservedEmbedderData());
+}
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
+void Shell::GetExtrasBindingObject(
+    const v8::FunctionCallbackInfo<v8::Value>& info) {
+  Local<Context> context = info.GetIsolate()->GetCurrentContext();
+  info.GetReturnValue().Set(context->GetExtrasBindingObject());
+}
+
 void Shell::ReadCodeTypeAndArguments(
     const v8::FunctionCallbackInfo<v8::Value>& info, int index,
     CodeType* code_type, Local<Value>* arguments) {
@@ -3547,8 +3561,15 @@ Local<ObjectTemplate> Shell::CreateD8Template(Isolate* isolate) {
         FunctionTemplate::New(isolate, ProfilerTriggerSample));
     d8_template->Set(isolate, "profiler", profiler_template);
   }
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  d8_template->Set(
+      isolate, "getContinuationPreservedEmbedderDataViaAPIForTesting",
+      FunctionTemplate::New(isolate, GetContinuationPreservedEmbedderData));
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
   d8_template->Set(isolate, "terminate",
                    FunctionTemplate::New(isolate, Terminate));
+  d8_template->Set(isolate, "getExtrasBindingObject",
+                   FunctionTemplate::New(isolate, GetExtrasBindingObject));
   if (!options.omit_quit) {
     d8_template->Set(isolate, "quit", FunctionTemplate::New(isolate, Quit));
   }

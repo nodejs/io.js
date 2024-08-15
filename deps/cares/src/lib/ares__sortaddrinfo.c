@@ -51,7 +51,6 @@
 #include <assert.h>
 #include <limits.h>
 
-
 struct addrinfo_sort_elem {
   struct ares_addrinfo_node *ai;
   ares_bool_t                has_src_addr;
@@ -347,7 +346,6 @@ static int find_src_addr(ares_channel_t *channel, const struct sockaddr *addr,
                          struct sockaddr *src_addr)
 {
   ares_socket_t  sock;
-  int            ret;
   ares_socklen_t len;
 
   switch (addr->sa_family) {
@@ -364,18 +362,14 @@ static int find_src_addr(ares_channel_t *channel, const struct sockaddr *addr,
 
   sock = ares__open_socket(channel, addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
   if (sock == ARES_SOCKET_BAD) {
-    if (errno == EAFNOSUPPORT) {
+    if (SOCKERRNO == EAFNOSUPPORT) {
       return 0;
     } else {
       return -1;
     }
   }
 
-  do {
-    ret = ares__connect_socket(channel, sock, addr, len);
-  } while (ret == -1 && errno == EINTR);
-
-  if (ret == -1) {
+  if (ares__connect_socket(channel, sock, addr, len) != ARES_SUCCESS) {
     ares__close_socket(channel, sock);
     return 0;
   }

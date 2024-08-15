@@ -4,12 +4,17 @@
 #include "crypto/crypto_keys.h"
 #include "env-inl.h"
 #include "memory_tracker-inl.h"
+#include "ncrypto.h"
 #include "node_buffer.h"
 #include "node_options-inl.h"
 #include "string_bytes.h"
 #include "threadpoolwork-inl.h"
 #include "util-inl.h"
 #include "v8.h"
+
+#ifndef OPENSSL_NO_ENGINE
+#include <openssl/engine.h>
+#endif  // !OPENSSL_NO_ENGINE
 
 #include "math.h"
 
@@ -43,56 +48,6 @@ using v8::Uint8Array;
 using v8::Value;
 
 namespace crypto {
-int VerifyCallback(int preverify_ok, X509_STORE_CTX* ctx) {
-  // From https://www.openssl.org/docs/man1.1.1/man3/SSL_verify_cb:
-  //
-  //   If VerifyCallback returns 1, the verification process is continued. If
-  //   VerifyCallback always returns 1, the TLS/SSL handshake will not be
-  //   terminated with respect to verification failures and the connection will
-  //   be established. The calling process can however retrieve the error code
-  //   of the last verification error using SSL_get_verify_result(3) or by
-  //   maintaining its own error storage managed by VerifyCallback.
-  //
-  // Since we cannot perform I/O quickly enough with X509_STORE_CTX_ APIs in
-  // this callback, we ignore all preverify_ok errors and let the handshake
-  // continue. It is imperative that the user use Connection::VerifyError after
-  // the 'secure' callback has been made.
-  return 1;
-}
-
-MUST_USE_RESULT CSPRNGResult CSPRNG(void* buffer, size_t length) {
-  unsigned char* buf = static_cast<unsigned char*>(buffer);
-  do {
-    if (1 == RAND_status()) {
-#if OPENSSL_VERSION_MAJOR >= 3
-      if (1 == RAND_bytes_ex(nullptr, buf, length, 0)) return {true};
-#else
-      while (length > INT_MAX && 1 == RAND_bytes(buf, INT_MAX)) {
-        buf += INT_MAX;
-        length -= INT_MAX;
-      }
-      if (length <= INT_MAX && 1 == RAND_bytes(buf, static_cast<int>(length)))
-        return {true};
-#endif
-    }
-#if OPENSSL_VERSION_MAJOR >= 3
-    const auto code = ERR_peek_last_error();
-    // A misconfigured OpenSSL 3 installation may report 1 from RAND_poll()
-    // and RAND_status() but fail in RAND_bytes() if it cannot look up
-    // a matching algorithm for the CSPRNG.
-    if (ERR_GET_LIB(code) == ERR_LIB_RAND) {
-      const auto reason = ERR_GET_REASON(code);
-      if (reason == RAND_R_ERROR_INSTANTIATING_DRBG ||
-          reason == RAND_R_UNABLE_TO_FETCH_DRBG ||
-          reason == RAND_R_UNABLE_TO_CREATE_DRBG) {
-        return {false};
-      }
-    }
-#endif
-  } while (1 == RAND_poll());
-
-  return {false};
-}
 
 int PasswordCallback(char* buf, int size, int rwflag, void* u) {
   const ByteSource* passphrase = *static_cast<const ByteSource**>(u);
@@ -206,21 +161,14 @@ void InitCryptoOnce() {
   sk_SSL_COMP_zero(SSL_COMP_get_compression_methods());
 
 #ifndef OPENSSL_NO_ENGINE
-  ERR_load_ENGINE_strings();
-  ENGINE_load_builtin_engines();
+  ncrypto::EnginePointer::initEnginesOnce();
 #endif  // !OPENSSL_NO_ENGINE
 }
 
 void GetFipsCrypto(const FunctionCallbackInfo<Value>& args) {
   Mutex::ScopedLock lock(per_process::cli_options_mutex);
   Mutex::ScopedLock fips_lock(fips_mutex);
-
-#if OPENSSL_VERSION_MAJOR >= 3
-  args.GetReturnValue().Set(EVP_default_properties_is_fips_enabled(nullptr) ?
-      1 : 0);
-#else
-  args.GetReturnValue().Set(FIPS_mode() ? 1 : 0);
-#endif
+  args.GetReturnValue().Set(ncrypto::isFipsEnabled() ? 1 : 0);
 }
 
 void SetFipsCrypto(const FunctionCallbackInfo<Value>& args) {
@@ -232,43 +180,19 @@ void SetFipsCrypto(const FunctionCallbackInfo<Value>& args) {
   CHECK(env->owns_process_state());
   bool enable = args[0]->BooleanValue(env->isolate());
 
-#if OPENSSL_VERSION_MAJOR >= 3
-  if (enable == EVP_default_properties_is_fips_enabled(nullptr))
-#else
-  if (static_cast<int>(enable) == FIPS_mode())
-#endif
-    return;  // No action needed.
-
-#if OPENSSL_VERSION_MAJOR >= 3
-  if (!EVP_default_properties_enable_fips(nullptr, enable)) {
-#else
-  if (!FIPS_mode_set(enable)) {
-#endif
-    unsigned long err = ERR_get_error();  // NOLINT(runtime/int)
-    return ThrowCryptoError(env, err);
+  ncrypto::CryptoErrorList errors;
+  if (!ncrypto::setFipsEnabled(enable, &errors)) {
+    Local<Value> exception;
+    if (cryptoErrorListToException(env, errors).ToLocal(&exception)) {
+      env->isolate()->ThrowException(exception);
+    }
   }
 }
 
 void TestFipsCrypto(const v8::FunctionCallbackInfo<v8::Value>& args) {
   Mutex::ScopedLock lock(per_process::cli_options_mutex);
   Mutex::ScopedLock fips_lock(fips_mutex);
-
-#if OPENSSL_VERSION_MAJOR >= 3
-  OSSL_PROVIDER* fips_provider = nullptr;
-  if (OSSL_PROVIDER_available(nullptr, "fips")) {
-    fips_provider = OSSL_PROVIDER_load(nullptr, "fips");
-  }
-  const auto enabled = fips_provider == nullptr ? 0 :
-      OSSL_PROVIDER_self_test(fips_provider) ? 1 : 0;
-#else
-#ifdef OPENSSL_FIPS
-  const auto enabled = FIPS_selftest() ? 1 : 0;
-#else  // OPENSSL_FIPS
-  const auto enabled = 0;
-#endif  // OPENSSL_FIPS
-#endif
-
-  args.GetReturnValue().Set(enabled);
+  args.GetReturnValue().Set(ncrypto::testFipsEnabled() ? 1 : 0);
 }
 
 void CryptoErrorStore::Capture() {
@@ -283,6 +207,60 @@ void CryptoErrorStore::Capture() {
 
 bool CryptoErrorStore::Empty() const {
   return errors_.empty();
+}
+
+MaybeLocal<Value> cryptoErrorListToException(
+    Environment* env, const ncrypto::CryptoErrorList& errors) {
+  // The CryptoErrorList contains a listing of zero or more errors.
+  // If there are no errors, it is likely a bug but we will return
+  // an error anyway.
+  if (errors.empty()) {
+    return Exception::Error(FIXED_ONE_BYTE_STRING(env->isolate(), "Ok"));
+  }
+
+  // The last error in the list is the one that will be used as the
+  // error message. All other errors will be added to the .opensslErrorStack
+  // property. We know there has to be at least one error in the list at
+  // this point.
+  auto& last = errors.peek_back();
+  Local<String> message;
+  if (!String::NewFromUtf8(
+           env->isolate(), last.data(), NewStringType::kNormal, last.size())
+           .ToLocal(&message)) {
+    return {};
+  }
+
+  Local<Value> exception = Exception::Error(message);
+  CHECK(!exception.IsEmpty());
+
+  if (errors.size() > 1) {
+    CHECK(exception->IsObject());
+    Local<Object> exception_obj = exception.As<Object>();
+    std::vector<Local<Value>> stack(errors.size() - 1);
+
+    // Iterate over all but the last error in the list.
+    auto current = errors.begin();
+    auto last = errors.end();
+    last--;
+    while (current != last) {
+      Local<Value> error;
+      if (!ToV8Value(env->context(), *current).ToLocal(&error)) {
+        return {};
+      }
+      stack.push_back(error);
+      ++current;
+    }
+
+    Local<v8::Array> stackArray =
+        v8::Array::New(env->isolate(), &stack[0], stack.size());
+
+    if (!exception_obj
+             ->Set(env->context(), env->openssl_error_stack(), stackArray)
+             .IsNothing()) {
+      return {};
+    }
+  }
+  return exception;
 }
 
 MaybeLocal<Value> CryptoErrorStore::ToException(
@@ -591,54 +569,8 @@ void ThrowCryptoError(Environment* env,
 }
 
 #ifndef OPENSSL_NO_ENGINE
-EnginePointer LoadEngineById(const char* id, CryptoErrorStore* errors) {
-  MarkPopErrorOnReturn mark_pop_error_on_return;
-
-  EnginePointer engine(ENGINE_by_id(id));
-  if (!engine) {
-    // Engine not found, try loading dynamically.
-    engine = EnginePointer(ENGINE_by_id("dynamic"));
-    if (engine) {
-      if (!ENGINE_ctrl_cmd_string(engine.get(), "SO_PATH", id, 0) ||
-          !ENGINE_ctrl_cmd_string(engine.get(), "LOAD", nullptr, 0)) {
-        engine.reset();
-      }
-    }
-  }
-
-  if (!engine && errors != nullptr) {
-    errors->Capture();
-    if (errors->Empty()) {
-      errors->Insert(NodeCryptoError::ENGINE_NOT_FOUND, id);
-    }
-  }
-
-  return engine;
-}
-
-bool SetEngine(const char* id, uint32_t flags, CryptoErrorStore* errors) {
-  ClearErrorOnReturn clear_error_on_return;
-  EnginePointer engine = LoadEngineById(id, errors);
-  if (!engine)
-    return false;
-
-  if (!ENGINE_set_default(engine.get(), flags)) {
-    if (errors != nullptr)
-      errors->Capture();
-    return false;
-  }
-
-  return true;
-}
-
 void SetEngine(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
-  CHECK(args.Length() >= 2 && args[0]->IsString());
-  uint32_t flags;
-  if (!args[1]->Uint32Value(env->context()).To(&flags)) return;
-
-  const node::Utf8Value engine_id(env->isolate(), args[0]);
-
   if (UNLIKELY(env->permission()->enabled())) {
     return THROW_ERR_CRYPTO_CUSTOM_ENGINE_NOT_SUPPORTED(
         env,
@@ -646,7 +578,16 @@ void SetEngine(const FunctionCallbackInfo<Value>& args) {
         "experimental permission model is enabled");
   }
 
-  args.GetReturnValue().Set(SetEngine(*engine_id, flags));
+  CHECK(args.Length() >= 2 && args[0]->IsString());
+  uint32_t flags;
+  if (!args[1]->Uint32Value(env->context()).To(&flags)) return;
+
+  const node::Utf8Value engine_id(env->isolate(), args[0]);
+  // If the engine name is not known, calling setAsDefault on the
+  // empty engine pointer will be non-op that always returns false.
+  args.GetReturnValue().Set(
+      ncrypto::EnginePointer::getEngineByName(engine_id.ToStringView())
+          .setAsDefault(flags));
 }
 #endif  // !OPENSSL_NO_ENGINE
 
@@ -655,14 +596,13 @@ MaybeLocal<Value> EncodeBignum(
     const BIGNUM* bn,
     int size,
     Local<Value>* error) {
-  std::vector<uint8_t> buf(size);
-  CHECK_EQ(BN_bn2binpad(bn, buf.data(), size), size);
-  return StringBytes::Encode(
-      env->isolate(),
-      reinterpret_cast<const char*>(buf.data()),
-      buf.size(),
-      BASE64URL,
-      error);
+  auto buf = ncrypto::BignumPointer::EncodePadded(bn, size);
+  CHECK_EQ(buf.size(), static_cast<size_t>(size));
+  return StringBytes::Encode(env->isolate(),
+                             reinterpret_cast<const char*>(buf.get()),
+                             buf.size(),
+                             BASE64URL,
+                             error);
 }
 
 Maybe<bool> SetEncodedValue(
@@ -674,8 +614,7 @@ Maybe<bool> SetEncodedValue(
   Local<Value> value;
   Local<Value> error;
   CHECK_NOT_NULL(bn);
-  if (size == 0)
-    size = BN_num_bytes(bn);
+  if (size == 0) size = BignumPointer::GetByteCount(bn);
   if (!EncodeBignum(env, bn, size, &error).ToLocal(&value)) {
     if (!error.IsEmpty())
       env->isolate()->ThrowException(error);

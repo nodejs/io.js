@@ -916,6 +916,25 @@ class SourceCode extends TokenStore {
 
         return ancestorsStartingAtParent.reverse();
     }
+
+    /**
+     * Returns the locatin of the given node or token.
+     * @param {ASTNode|Token} nodeOrToken The node or token to get the location of.
+     * @returns {SourceLocation} The location of the node or token.
+     */
+    getLoc(nodeOrToken) {
+        return nodeOrToken.loc;
+    }
+
+    /**
+     * Returns the range of the given node or token.
+     * @param {ASTNode|Token} nodeOrToken The node or token to get the range of.
+     * @returns {[number, number]} The range of the node or token.
+     */
+    getRange(nodeOrToken) {
+        return nodeOrToken.range;
+    }
+
     /* eslint-enable class-methods-use-this -- node is owned by SourceCode */
 
     /**

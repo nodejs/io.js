@@ -5277,7 +5277,9 @@ added: v15.6.0
 <!-- YAML
 added: v0.11.11
 changes:
-  - version: v22.4.0
+  - version:
+    - v22.4.0
+    - v20.16.0
     pr-url: https://github.com/nodejs/node/pull/53329
     description: Custom engine support in OpenSSL 3 is deprecated.
 -->

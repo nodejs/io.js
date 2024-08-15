@@ -480,7 +480,7 @@ Setting the FIPS HMAC key
 
 As part of its self-test validation, the FIPS module must verify itself
 by performing a SHA-256 HMAC computation on itself. The default key is
-the SHA256 value of "the holy handgrenade of antioch" and is sufficient
+the SHA256 value of "holy hand grenade of antioch" and is sufficient
 for meeting the FIPS requirements.
 
 To change the key to a different value, use this flag. The value should
@@ -545,6 +545,13 @@ be used even with this option.
 ### no-async
 
 Do not build support for async operations.
+
+### no-atexit
+
+Do not use `atexit()` in libcrypto builds.
+
+`atexit()` has varied semantics between platforms and can cause SIGSEGV in some
+circumstances. This option disables the atexit registration of OPENSSL_cleanup.
 
 ### no-autoalginit
 

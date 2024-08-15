@@ -10,7 +10,7 @@
 //------------------------------------------------------------------------------
 
 const assert = require("node:assert");
-const ruleFixer = require("./rule-fixer");
+const { RuleFixer } = require("./rule-fixer");
 const { interpolate } = require("./interpolate");
 
 //------------------------------------------------------------------------------
@@ -91,13 +91,10 @@ function assertValidNodeInfo(descriptor) {
  * from the `node` of the original descriptor, or infers the `start` from the `loc` of the original descriptor.
  */
 function normalizeReportLoc(descriptor) {
-    if (descriptor.loc) {
-        if (descriptor.loc.start) {
-            return descriptor.loc;
-        }
-        return { start: descriptor.loc, end: null };
+    if (descriptor.loc.start) {
+        return descriptor.loc;
     }
-    return descriptor.node.loc;
+    return { start: descriptor.loc, end: null };
 }
 
 /**
@@ -189,6 +186,8 @@ function normalizeFixes(descriptor, sourceCode) {
     if (typeof descriptor.fix !== "function") {
         return null;
     }
+
+    const ruleFixer = new RuleFixer({ sourceCode });
 
     // @type {null | Fix | Fix[] | IterableIterator<Fix>}
     const fix = descriptor.fix(ruleFixer);
@@ -335,6 +334,7 @@ module.exports = function createReportTranslator(metadata) {
     return (...args) => {
         const descriptor = normalizeMultiArgReportCall(...args);
         const messages = metadata.messageIds;
+        const { sourceCode } = metadata;
 
         assertValidNodeInfo(descriptor);
 
@@ -367,9 +367,9 @@ module.exports = function createReportTranslator(metadata) {
             node: descriptor.node,
             message: interpolate(computedMessage, descriptor.data),
             messageId: descriptor.messageId,
-            loc: normalizeReportLoc(descriptor),
-            fix: metadata.disableFixes ? null : normalizeFixes(descriptor, metadata.sourceCode),
-            suggestions: metadata.disableFixes ? [] : mapSuggestions(descriptor, metadata.sourceCode, messages),
+            loc: descriptor.loc ? normalizeReportLoc(descriptor) : sourceCode.getLoc(descriptor.node),
+            fix: metadata.disableFixes ? null : normalizeFixes(descriptor, sourceCode),
+            suggestions: metadata.disableFixes ? [] : mapSuggestions(descriptor, sourceCode, messages),
             language: metadata.language
         });
     };

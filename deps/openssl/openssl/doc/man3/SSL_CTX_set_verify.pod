@@ -144,6 +144,9 @@ B<Client mode:> ignored (see BUGS)
 
 If the B<mode> is SSL_VERIFY_NONE none of the other flags may be set.
 
+If verification flags are not modified explicitly by C<SSL_CTX_set_verify()>
+or C<SSL_set_verify()>, the default value will be SSL_VERIFY_NONE.
+
 The actual verification procedure is performed either using the built-in
 verification procedure or using another application provided verification
 function set with
@@ -363,7 +366,7 @@ and SSL_set_post_handshake_auth() functions were added in OpenSSL 1.1.1.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

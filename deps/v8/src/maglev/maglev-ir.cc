@@ -5735,6 +5735,36 @@ void CheckTypedArrayNotDetached::GenerateCode(MaglevAssembler* masm,
   __ DeoptIfBufferDetached(object, scratch, this);
 }
 
+void GetContinuationPreservedEmbedderData::SetValueLocationConstraints() {
+  DefineAsRegister(this);
+}
+
+void GetContinuationPreservedEmbedderData::GenerateCode(
+    MaglevAssembler* masm, const ProcessingState& state) {
+  Register result = ToRegister(this->result());
+  MaglevAssembler::ScratchRegisterScope temps(masm);
+  Register scratch = temps.GetDefaultScratchRegister();
+  MemOperand reference = __ ExternalReferenceAsOperand(
+      ExternalReference::continuation_preserved_embedder_data(masm->isolate()),
+      scratch);
+  __ Move(result, reference);
+}
+
+void SetContinuationPreservedEmbedderData::SetValueLocationConstraints() {
+  UseRegister(data_input());
+}
+
+void SetContinuationPreservedEmbedderData::GenerateCode(
+    MaglevAssembler* masm, const ProcessingState& state) {
+  Register data = ToRegister(data_input());
+  MaglevAssembler::ScratchRegisterScope temps(masm);
+  Register scratch = temps.GetDefaultScratchRegister();
+  MemOperand reference = __ ExternalReferenceAsOperand(
+      ExternalReference::continuation_preserved_embedder_data(masm->isolate()),
+      scratch);
+  __ Move(reference, data);
+}
+
 namespace {
 
 template <typename ResultReg, typename NodeT>

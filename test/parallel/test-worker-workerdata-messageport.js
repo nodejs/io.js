@@ -8,7 +8,7 @@ const {
 } = require('node:worker_threads');
 
 const channel = new MessageChannel();
-const workerData = { mesage: channel.port1 };
+const workerData = { message: channel.port1 };
 const transferList = [channel.port1];
 const meowScript = () => 'meow';
 

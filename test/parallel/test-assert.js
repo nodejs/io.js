@@ -55,6 +55,16 @@ assert.throws(() => a.ok(false), a.AssertionError, 'ok(false)');
   assert.ok(threw, 'Error: ok(false)');
 }
 
+// Errors created in different contexts are handled as any other custom error
+{
+  const context = vm.createContext();
+  const error = vm.runInContext('new SyntaxError("custom error")', context);
+
+  assert.throws(() => assert(false, error), {
+    message: 'custom error',
+    name: 'SyntaxError'
+  });
+}
 
 a(true);
 a('test', 'ok(\'test\')');

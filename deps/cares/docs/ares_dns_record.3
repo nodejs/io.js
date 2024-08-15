@@ -32,6 +32,9 @@ ares_dns_record_t *ares_dns_record_duplicate(const ares_dns_record_t *dnsrec);
 
 unsigned short ares_dns_record_get_id(const ares_dns_record_t *dnsrec);
 
+ares_bool_t ares_dns_record_set_id(ares_dns_record_t *dnsrec,
+                                   unsigned short id);
+
 unsigned short ares_dns_record_get_flags(const ares_dns_record_t *dnsrec);
 
 ares_dns_opcode_t ares_dns_record_get_opcode(const ares_dns_record_t *dnsrec);
@@ -343,6 +346,14 @@ message id from the DNS record provided in the
 .IR dnsrec
 parameter.
 
+The \fIares_dns_record_set_id(3)\fP function is used to set the DNS
+message id in the
+.IR id
+parameter from the DNS record provided in the
+.IR dnsrec
+parameter.  This id will be overwritten when passing the record to c-ares,
+so mostly exists for external purposes.
+
 The \fIares_dns_record_get_flags(3)\fP function is used to retrieve the DNS
 message flags from the DNS record provided in the
 .IR dnsrec
@@ -428,12 +439,12 @@ is returned on out of memory,
 .B ARES_EFORMERR
 is returned on misuse.
 
-\fIares_dns_record_get_id(3)\fP, \fIares_dns_record_get_flags(3)\fP,
-\fIares_dns_record_get_opcode(3)\fP, \fIares_dns_record_get_rcode(3)\fP, and
-\fIares_dns_record_query_cnt(3)\fP all returned their prescribed datatype
-values and in general can't fail except for misuse cases, in which a 0 may
-be returned, however 0 can also be a valid return value for most of these
-functions.
+\fIares_dns_record_get_id(3)\fP, \fIares_dns_record_set_id(3)\fP,
+\fIares_dns_record_get_flags(3)\fP, \fIares_dns_record_get_opcode(3)\fP,
+\fIares_dns_record_get_rcode(3)\fP, and \fIares_dns_record_query_cnt(3)\fP
+all returned their prescribed datatype values and in general can't fail except
+for misuse cases, in which a 0 may be returned, however 0 can also be a valid
+return value for most of these functions.
 
 
 .SH AVAILABILITY

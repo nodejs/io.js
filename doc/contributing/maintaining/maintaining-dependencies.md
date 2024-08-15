@@ -10,6 +10,7 @@ This a list of all the dependencies:
 
 * [acorn][]
 * [ada][]
+* [amaro][]
 * [base64][]
 * [brotli][]
 * [c-ares][]
@@ -167,6 +168,11 @@ an abstract syntax tree walker for the ESTree format.
 
 The [ada](https://github.com/ada-url/ada) dependency is a
 fast and spec-compliant URL parser written in C++.
+
+### amaro
+
+The [amaro](https://www.npmjs.com/package/amaro) dependency is a wrapper around the
+WebAssembly version of the SWC JavaScript/TypeScript parser.
 
 ### brotli
 
@@ -336,6 +342,7 @@ performance improvements not currently available in standard zlib.
 
 [acorn]: #acorn
 [ada]: #ada
+[amaro]: #amaro
 [base64]: #base64
 [brotli]: #brotli
 [c-ares]: #c-ares

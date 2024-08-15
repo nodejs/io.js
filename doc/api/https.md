@@ -342,7 +342,9 @@ a `timeout` of 5 seconds.
 <!-- YAML
 added: v0.3.6
 changes:
-  - version: v22.4.0
+  - version:
+    - v22.4.0
+    - v20.16.0
     pr-url: https://github.com/nodejs/node/pull/53329
     description: The `clientCertEngine` option depends on custom engine
                  support in OpenSSL which is deprecated in OpenSSL 3.

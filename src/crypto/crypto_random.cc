@@ -3,11 +3,13 @@
 #include "crypto/crypto_util.h"
 #include "env-inl.h"
 #include "memory_tracker-inl.h"
+#include "ncrypto.h"
 #include "threadpoolwork-inl.h"
 #include "v8.h"
 
 #include <openssl/bn.h>
 #include <openssl/rand.h>
+#include <compare>
 
 namespace node {
 
@@ -60,7 +62,7 @@ bool RandomBytesTraits::DeriveBits(
     Environment* env,
     const RandomBytesConfig& params,
     ByteSource* unused) {
-  return CSPRNG(params.buffer, params.size).is_ok();
+  return ncrypto::CSPRNG(params.buffer, params.size);
 }
 
 void RandomPrimeConfig::MemoryInfo(MemoryTracker* tracker) const {
@@ -72,13 +74,14 @@ Maybe<bool> RandomPrimeTraits::EncodeOutput(
     const RandomPrimeConfig& params,
     ByteSource* unused,
     v8::Local<v8::Value>* result) {
-  size_t size = BN_num_bytes(params.prime.get());
+  size_t size = params.prime.byteLength();
   std::shared_ptr<BackingStore> store =
       ArrayBuffer::NewBackingStore(env->isolate(), size);
-  CHECK_EQ(static_cast<int>(size),
-           BN_bn2binpad(params.prime.get(),
-                        reinterpret_cast<unsigned char*>(store->Data()),
-                        size));
+  CHECK_EQ(size,
+           BignumPointer::EncodePaddedInto(
+               params.prime.get(),
+               reinterpret_cast<unsigned char*>(store->Data()),
+               size));
   *result = ArrayBuffer::New(env->isolate(), store);
   return Just(true);
 }
@@ -98,7 +101,7 @@ Maybe<bool> RandomPrimeTraits::AdditionalConfig(
 
   if (!args[offset + 2]->IsUndefined()) {
     ArrayBufferOrViewContents<unsigned char> add(args[offset + 2]);
-    params->add.reset(BN_bin2bn(add.data(), add.size(), nullptr));
+    params->add.reset(add.data(), add.size());
     if (!params->add) {
       THROW_ERR_CRYPTO_OPERATION_FAILED(env, "could not generate prime");
       return Nothing<bool>();
@@ -107,7 +110,7 @@ Maybe<bool> RandomPrimeTraits::AdditionalConfig(
 
   if (!args[offset + 3]->IsUndefined()) {
     ArrayBufferOrViewContents<unsigned char> rem(args[offset + 3]);
-    params->rem.reset(BN_bin2bn(rem.data(), rem.size(), nullptr));
+    params->rem.reset(rem.data(), rem.size());
     if (!params->rem) {
       THROW_ERR_CRYPTO_OPERATION_FAILED(env, "could not generate prime");
       return Nothing<bool>();
@@ -119,7 +122,7 @@ Maybe<bool> RandomPrimeTraits::AdditionalConfig(
   CHECK_GT(bits, 0);
 
   if (params->add) {
-    if (BN_num_bits(params->add.get()) > bits) {
+    if (BignumPointer::GetBitCount(params->add.get()) > bits) {
       // If we allowed this, the best case would be returning a static prime
       // that wasn't generated randomly. The worst case would be an infinite
       // loop within OpenSSL, blocking the main thread or one of the threads
@@ -128,19 +131,17 @@ Maybe<bool> RandomPrimeTraits::AdditionalConfig(
       return Nothing<bool>();
     }
 
-    if (params->rem) {
-      if (BN_cmp(params->add.get(), params->rem.get()) != 1) {
-        // This would definitely lead to an infinite loop if allowed since
-        // OpenSSL does not check this condition.
-        THROW_ERR_OUT_OF_RANGE(env, "invalid options.rem");
-        return Nothing<bool>();
-      }
+    if (params->rem && params->add <= params->rem) {
+      // This would definitely lead to an infinite loop if allowed since
+      // OpenSSL does not check this condition.
+      THROW_ERR_OUT_OF_RANGE(env, "invalid options.rem");
+      return Nothing<bool>();
     }
   }
 
   params->bits = bits;
   params->safe = safe;
-  params->prime.reset(BN_secure_new());
+  params->prime = BignumPointer::NewSecure();
   if (!params->prime) {
     THROW_ERR_CRYPTO_OPERATION_FAILED(env, "could not generate prime");
     return Nothing<bool>();
@@ -154,7 +155,7 @@ bool RandomPrimeTraits::DeriveBits(Environment* env,
                                    ByteSource* unused) {
   // BN_generate_prime_ex() calls RAND_bytes_ex() internally.
   // Make sure the CSPRNG is properly seeded.
-  CHECK(CSPRNG(nullptr, 0).is_ok());
+  CHECK(ncrypto::CSPRNG(nullptr, 0));
 
   if (BN_generate_prime_ex(
           params.prime.get(),
@@ -170,8 +171,7 @@ bool RandomPrimeTraits::DeriveBits(Environment* env,
 }
 
 void CheckPrimeConfig::MemoryInfo(MemoryTracker* tracker) const {
-  tracker->TrackFieldWithSize(
-      "prime", candidate ? BN_num_bytes(candidate.get()) : 0);
+  tracker->TrackFieldWithSize("prime", candidate ? candidate.byteLength() : 0);
 }
 
 Maybe<bool> CheckPrimeTraits::AdditionalConfig(
@@ -181,11 +181,7 @@ Maybe<bool> CheckPrimeTraits::AdditionalConfig(
     CheckPrimeConfig* params) {
   ArrayBufferOrViewContents<unsigned char> candidate(args[offset]);
 
-  params->candidate =
-      BignumPointer(BN_bin2bn(
-          candidate.data(),
-          candidate.size(),
-          nullptr));
+  params->candidate = BignumPointer(candidate.data(), candidate.size());
 
   CHECK(args[offset + 1]->IsInt32());  // Checks
   params->checks = args[offset + 1].As<Int32>()->Value();

@@ -2,10 +2,10 @@ dnl Copyright (C) The c-ares project and its contributors
 dnl SPDX-License-Identifier: MIT
 AC_PREREQ([2.69])
 
-AC_INIT([c-ares], [1.32.1],
+AC_INIT([c-ares], [1.33.0],
   [c-ares mailing list: http://lists.haxx.se/listinfo/c-ares])
 
-CARES_VERSION_INFO="19:1:17"
+CARES_VERSION_INFO="20:0:18"
 dnl This flag accepts an argument of the form current[:revision[:age]]. So,
 dnl passing -version-info 3:12:1 sets current to 3, revision to 12, and age to
 dnl 1.
@@ -245,8 +245,18 @@ AC_SUBST(CARES_SYMBOL_HIDING_CFLAG)
 
 
 if test "$enable_warnings" = "yes"; then
-  AX_APPEND_COMPILE_FLAGS([-std=c90 -Wall -Wextra -Waggregate-return -Wcast-align -Wcast-qual -Wconversion -Wdeclaration-after-statement -Wdouble-promotion -Wfloat-equal -Wformat-security -Winit-self -Wjump-misses-init -Wlogical-op -Wmissing-braces -Wmissing-declarations -Wmissing-format-attribute -Wmissing-include-dirs -Wmissing-prototypes -Wnested-externs -Wno-coverage-mismatch -Wold-style-definition -Wpacked -Wpedantic -Wpointer-arith -Wredundant-decls -Wshadow -Wsign-conversion -Wstrict-overflow -Wstrict-prototypes -Wtrampolines -Wundef -Wunreachable-code -Wunused -Wvariadic-macros -Wvla -Wwrite-strings -Werror=implicit-int -Werror=implicit-function-declaration -Werror=partial-availability -Wno-long-long ],
+  AX_APPEND_COMPILE_FLAGS([-Wall -Wextra -Waggregate-return -Wcast-align -Wcast-qual -Wconversion -Wdeclaration-after-statement -Wdouble-promotion -Wfloat-equal -Wformat-security -Winit-self -Wjump-misses-init -Wlogical-op -Wmissing-braces -Wmissing-declarations -Wmissing-format-attribute -Wmissing-include-dirs -Wmissing-prototypes -Wnested-externs -Wno-coverage-mismatch -Wold-style-definition -Wpacked -Wpedantic -Wpointer-arith -Wredundant-decls -Wshadow -Wsign-conversion -Wstrict-overflow -Wstrict-prototypes -Wtrampolines -Wundef -Wunreachable-code -Wunused -Wvariadic-macros -Wvla -Wwrite-strings -Werror=implicit-int -Werror=implicit-function-declaration -Werror=partial-availability -Wno-long-long ],
     [AM_CFLAGS], [-Werror])
+
+  dnl Android requires c99, all others should use c90
+  case $host_os in
+    *android*)
+      AX_APPEND_COMPILE_FLAGS([-std=c99], [AM_CFLAGS], [-Werror])
+      ;;
+    *)
+      AX_APPEND_COMPILE_FLAGS([-std=c90], [AM_CFLAGS], [-Werror])
+      ;;
+  esac
 fi
 
 if test "$ax_cv_c_compiler_vendor" = "intel"; then
@@ -538,6 +548,7 @@ AC_CHECK_DECL(send,            [AC_DEFINE([HAVE_SEND],              1, [Define t
 AC_CHECK_DECL(getnameinfo,     [AC_DEFINE([HAVE_GETNAMEINFO],       1, [Define to 1 if you have `getnameinfo`]    )], [], $cares_all_includes)
 AC_CHECK_DECL(gethostname,     [AC_DEFINE([HAVE_GETHOSTNAME],       1, [Define to 1 if you have `gethostname`]    )], [], $cares_all_includes)
 AC_CHECK_DECL(connect,         [AC_DEFINE([HAVE_CONNECT],           1, [Define to 1 if you have `connect`]        )], [], $cares_all_includes)
+AC_CHECK_DECL(connectx,        [AC_DEFINE([HAVE_CONNECTX],          1, [Define to 1 if you have `connectx`]       )], [], $cares_all_includes)
 AC_CHECK_DECL(closesocket,     [AC_DEFINE([HAVE_CLOSESOCKET],       1, [Define to 1 if you have `closesocket`]    )], [], $cares_all_includes)
 AC_CHECK_DECL(CloseSocket,     [AC_DEFINE([HAVE_CLOSESOCKET_CAMEL], 1, [Define to 1 if you have `CloseSocket`]    )], [], $cares_all_includes)
 AC_CHECK_DECL(fcntl,           [AC_DEFINE([HAVE_FCNTL],             1, [Define to 1 if you have `fcntl`]          )], [], $cares_all_includes)
@@ -574,6 +585,8 @@ AC_CHECK_DECL(kqueue,          [AC_DEFINE([HAVE_KQUEUE],            1, [Define t
 AC_CHECK_DECL(epoll_create1,   [AC_DEFINE([HAVE_EPOLL],             1, [Define to 1 if you have `epoll_{create1,ctl,wait}`])], [], $cares_all_includes)
 AC_CHECK_DECL(ConvertInterfaceIndexToLuid, [AC_DEFINE([HAVE_CONVERTINTERFACEINDEXTOLUID], 1, [Define to 1 if you have `ConvertInterfaceIndexToLuid`])], [], $cares_all_includes)
 AC_CHECK_DECL(ConvertInterfaceLuidToNameA, [AC_DEFINE([HAVE_CONVERTINTERFACELUIDTONAMEA], 1, [Define to 1 if you have `ConvertInterfaceLuidToNameA`])], [], $cares_all_includes)
+AC_CHECK_DECL(NotifyIpInterfaceChange,     [AC_DEFINE([HAVE_NOTIFYIPINTERFACECHANGE],     1, [Define to 1 if you have `NotifyIpInterfaceChange`]    )], [], $cares_all_includes)
+AC_CHECK_DECL(RegisterWaitForSingleObject, [AC_DEFINE([HAVE_REGISTERWAITFORSINGLEOBJECT], 1, [Define to 1 if you have `RegisterWaitForSingleObject`])], [], $cares_all_includes)
 AC_CHECK_DECL(__system_property_get,       [AC_DEFINE([HAVE___SYSTEM_PROPERTY_GET],       1, [Define to 1 if you have `__system_property_get`]      )], [], $cares_all_includes)
 
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2017-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -305,7 +305,8 @@ static int test_sm2_sign(const EC_GROUP *group,
                          const char *message,
                          const char *k_hex,
                          const char *r_hex,
-                         const char *s_hex)
+                         const char *s_hex,
+                         int omit_pubkey)
 {
     const size_t msg_len = strlen(message);
     int ok = 0;
@@ -327,11 +328,13 @@ static int test_sm2_sign(const EC_GROUP *group,
             || !TEST_true(EC_KEY_set_private_key(key, priv)))
         goto done;
 
-    pt = EC_POINT_new(group);
-    if (!TEST_ptr(pt)
-            || !TEST_true(EC_POINT_mul(group, pt, priv, NULL, NULL, NULL))
-            || !TEST_true(EC_KEY_set_public_key(key, pt)))
-        goto done;
+    if (omit_pubkey == 0) {
+        pt = EC_POINT_new(group);
+        if (!TEST_ptr(pt)
+                || !TEST_true(EC_POINT_mul(group, pt, priv, NULL, NULL, NULL))
+                || !TEST_true(EC_KEY_set_public_key(key, pt)))
+            goto done;
+    }
 
     start_fake_rand(k_hex);
     sig = ossl_sm2_do_sign(key, EVP_sm3(), (const uint8_t *)userid,
@@ -392,7 +395,25 @@ static int sm2_sig_test(void)
                         "006CB28D99385C175C94F94E934817663FC176D925DD72B727260DBAAE1FB2F96F"
                         "007c47811054c6f99613a578eb8453706ccb96384fe7df5c171671e760bfa8be3a",
                         "40F1EC59F793D9F49E09DCEF49130D4194F79FB1EED2CAA55BACDB49C4E755D1",
-                        "6FC6DAC32C5D5CF10C77DFB20F7C2EB667A457872FB09EC56327A67EC7DEEBE7")))
+                        "6FC6DAC32C5D5CF10C77DFB20F7C2EB667A457872FB09EC56327A67EC7DEEBE7", 0)))
+        goto done;
+
+    /* Make sure we fail if we omit the public portion of the key */
+    if (!TEST_false(test_sm2_sign(
+                     test_group,
+                     /* the default ID specified in GM/T 0009-2012 (Sec. 10).*/
+                     SM2_DEFAULT_USERID,
+                     /* privkey */
+                     "3945208F7B2144B13F36E38AC6D39F95889393692860B51A42FB81EF4DF7C5B8",
+                     /* plaintext message */
+                     "message digest",
+                     /* ephemeral nonce k */
+                     "59276E27D506861A16680F3AD9C02DCCEF3CC1FA3CDBE4CE6D54B80DEAC1BC21",
+                     /* expected signature, */
+                     /* signature R, 0x20 bytes */
+                     "F5A03B0648D2C4630EEAC513E1BB81A15944DA3827D5B74143AC7EACEEE720B3",
+                     /* signature S, 0x20 bytes */
+                     "B1B6AA29DF212FD8763182BC0D421CA1BB9038FD1F7F42D4840B69C485BBC1AA", 1)))
         goto done;
 
     testresult = 1;

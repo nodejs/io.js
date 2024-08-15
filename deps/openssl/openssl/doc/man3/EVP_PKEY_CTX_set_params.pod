@@ -23,7 +23,9 @@ The EVP_PKEY_CTX_get_params() and EVP_PKEY_CTX_set_params() functions allow
 transfer of arbitrary key parameters to and from providers.
 Not all parameters may be supported by all providers.
 See L<OSSL_PROVIDER(3)> for more information on providers.
-See L<OSSL_PARAM(3)> for more information on parameters.
+The I<params> field is a pointer to a list of B<OSSL_PARAM> structures,
+terminated with a L<OSSL_PARAM_END(3)> struct.
+See L<OSSL_PARAM(3)> for information about passing parameters.
 These functions must only be called after the EVP_PKEY_CTX has been initialised
 for use in an operation.
 These methods replace the EVP_PKEY_CTX_ctrl() mechanism. (EVP_PKEY_CTX_ctrl now
@@ -84,7 +86,7 @@ All functions were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

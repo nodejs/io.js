@@ -26,7 +26,7 @@
  */
 
 #include "ares_private.h"
-#include "ares_event.h"
+#include "event/ares_event.h"
 #include <assert.h>
 
 void ares_destroy(ares_channel_t *channel)
@@ -38,7 +38,17 @@ void ares_destroy(ares_channel_t *channel)
     return;
   }
 
-  /* Disable configuration change monitoring */
+  /* Mark as being shutdown */
+  ares__channel_lock(channel);
+  channel->sys_up = ARES_FALSE;
+  ares__channel_unlock(channel);
+
+  /* Disable configuration change monitoring.  We can't hold a lock because
+   * some cleanup routines, such as on Windows, are synchronous operations.
+   * What we've observed is a system config change event was triggered right
+   * at shutdown time and it tries to take the channel lock and the destruction
+   * waits for that event to complete before it continues so we get a channel
+   * lock deadlock at shutdown if we hold a lock during this process. */
   if (channel->optmask & ARES_OPT_EVENT_THREAD) {
     ares_event_thread_t *e = channel->sock_state_cb_data;
     if (e && e->configchg) {
@@ -47,21 +57,23 @@ void ares_destroy(ares_channel_t *channel)
     }
   }
 
-  /* Wait for reinit thread to exit if there was one pending */
+  /* Wait for reinit thread to exit if there was one pending, can't be
+   * holding a lock as the thread may take locks. */
   if (channel->reinit_thread != NULL) {
     void *rv;
     ares__thread_join(channel->reinit_thread, &rv);
     channel->reinit_thread = NULL;
   }
 
-  /* Lock because callbacks will be triggered */
+  /* Lock because callbacks will be triggered, and any system-generated
+   * callbacks need to hold a channel lock. */
   ares__channel_lock(channel);
 
   /* Destroy all queries */
   node = ares__llist_node_first(channel->all_queries);
   while (node != NULL) {
     ares__llist_node_t *next  = ares__llist_node_next(node);
-    struct query       *query = ares__llist_node_claim(node);
+    ares_query_t       *query = ares__llist_node_claim(node);
 
     query->node_all_queries = NULL;
     query->callback(query->arg, ARES_EDESTRUCTION, 0, NULL);
@@ -122,7 +134,7 @@ void ares_destroy(ares_channel_t *channel)
   ares_free(channel);
 }
 
-void ares__destroy_server(struct server_state *server)
+void ares__destroy_server(ares_server_t *server)
 {
   if (server == NULL) {
     return; /* LCOV_EXCL_LINE: DefensiveCoding */
@@ -140,7 +152,7 @@ void ares__destroy_servers_state(ares_channel_t *channel)
   ares__slist_node_t *node;
 
   while ((node = ares__slist_node_first(channel->servers)) != NULL) {
-    struct server_state *server = ares__slist_node_claim(node);
+    ares_server_t *server = ares__slist_node_claim(node);
     ares__destroy_server(server);
   }
 

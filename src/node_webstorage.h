@@ -23,11 +23,13 @@ struct stmt_deleter {
 };
 using stmt_unique_ptr = std::unique_ptr<sqlite3_stmt, stmt_deleter>;
 
+static constexpr std::string_view kInMemoryPath = ":memory:";
+
 class Storage : public BaseObject {
  public:
   Storage(Environment* env,
           v8::Local<v8::Object> object,
-          v8::Local<v8::String> location);
+          std::string_view location);
   void MemoryInfo(MemoryTracker* tracker) const override;
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
 

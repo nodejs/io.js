@@ -909,8 +909,8 @@ static const char* error_messages[] = {
 };
 
 napi_status NAPI_CDECL napi_get_last_error_info(
-    node_api_nogc_env nogc_env, const napi_extended_error_info** result) {
-  napi_env env = const_cast<napi_env>(nogc_env);
+    node_api_basic_env basic_env, const napi_extended_error_info** result) {
+  napi_env env = const_cast<napi_env>(basic_env);
   CHECK_ENV(env);
   CHECK_ARG(env, result);
 
@@ -1652,12 +1652,12 @@ napi_status NAPI_CDECL node_api_create_external_string_latin1(
     napi_env env,
     char* str,
     size_t length,
-    node_api_nogc_finalize nogc_finalize_callback,
+    node_api_basic_finalize basic_finalize_callback,
     void* finalize_hint,
     napi_value* result,
     bool* copied) {
   napi_finalize finalize_callback =
-      reinterpret_cast<napi_finalize>(nogc_finalize_callback);
+      reinterpret_cast<napi_finalize>(basic_finalize_callback);
   return v8impl::NewExternalString(
       env,
       str,
@@ -1681,12 +1681,12 @@ napi_status NAPI_CDECL node_api_create_external_string_utf16(
     napi_env env,
     char16_t* str,
     size_t length,
-    node_api_nogc_finalize nogc_finalize_callback,
+    node_api_basic_finalize basic_finalize_callback,
     void* finalize_hint,
     napi_value* result,
     bool* copied) {
   napi_finalize finalize_callback =
-      reinterpret_cast<napi_finalize>(nogc_finalize_callback);
+      reinterpret_cast<napi_finalize>(basic_finalize_callback);
   return v8impl::NewExternalString(
       env,
       str,
@@ -2560,10 +2560,11 @@ GEN_COERCE_FUNCTION(STRING, String, string)
 napi_status NAPI_CDECL napi_wrap(napi_env env,
                                  napi_value js_object,
                                  void* native_object,
-                                 node_api_nogc_finalize nogc_finalize_cb,
+                                 node_api_basic_finalize basic_finalize_cb,
                                  void* finalize_hint,
                                  napi_ref* result) {
-  napi_finalize finalize_cb = reinterpret_cast<napi_finalize>(nogc_finalize_cb);
+  napi_finalize finalize_cb =
+      reinterpret_cast<napi_finalize>(basic_finalize_cb);
   return v8impl::Wrap(
       env, js_object, native_object, finalize_cb, finalize_hint, result);
 }
@@ -2583,10 +2584,11 @@ napi_status NAPI_CDECL napi_remove_wrap(napi_env env,
 napi_status NAPI_CDECL
 napi_create_external(napi_env env,
                      void* data,
-                     node_api_nogc_finalize nogc_finalize_cb,
+                     node_api_basic_finalize basic_finalize_cb,
                      void* finalize_hint,
                      napi_value* result) {
-  napi_finalize finalize_cb = reinterpret_cast<napi_finalize>(nogc_finalize_cb);
+  napi_finalize finalize_cb =
+      reinterpret_cast<napi_finalize>(basic_finalize_cb);
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, result);
 
@@ -3027,7 +3029,7 @@ napi_status NAPI_CDECL
 napi_create_external_arraybuffer(napi_env env,
                                  void* external_data,
                                  size_t byte_length,
-                                 node_api_nogc_finalize finalize_cb,
+                                 node_api_basic_finalize finalize_cb,
                                  void* finalize_hint,
                                  napi_value* result) {
   // The API contract here is that the cleanup function runs on the JS thread,
@@ -3292,7 +3294,7 @@ napi_status NAPI_CDECL napi_get_dataview_info(napi_env env,
   return napi_clear_last_error(env);
 }
 
-napi_status NAPI_CDECL napi_get_version(node_api_nogc_env env,
+napi_status NAPI_CDECL napi_get_version(node_api_basic_env env,
                                         uint32_t* result) {
   CHECK_ENV(env);
   CHECK_ARG(env, result);
@@ -3414,12 +3416,13 @@ napi_status NAPI_CDECL
 napi_add_finalizer(napi_env env,
                    napi_value js_object,
                    void* finalize_data,
-                   node_api_nogc_finalize nogc_finalize_cb,
+                   node_api_basic_finalize basic_finalize_cb,
                    void* finalize_hint,
                    napi_ref* result) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
-  napi_finalize finalize_cb = reinterpret_cast<napi_finalize>(nogc_finalize_cb);
+  napi_finalize finalize_cb =
+      reinterpret_cast<napi_finalize>(basic_finalize_cb);
   CHECK_ENV_NOT_IN_GC(env);
   CHECK_ARG(env, js_object);
   CHECK_ARG(env, finalize_cb);
@@ -3443,11 +3446,11 @@ napi_add_finalizer(napi_env env,
 
 #ifdef NAPI_EXPERIMENTAL
 
-napi_status NAPI_CDECL node_api_post_finalizer(node_api_nogc_env nogc_env,
+napi_status NAPI_CDECL node_api_post_finalizer(node_api_basic_env basic_env,
                                                napi_finalize finalize_cb,
                                                void* finalize_data,
                                                void* finalize_hint) {
-  napi_env env = const_cast<napi_env>(nogc_env);
+  napi_env env = const_cast<napi_env>(basic_env);
   CHECK_ENV(env);
   env->EnqueueFinalizer(v8impl::TrackedFinalizer::New(
       env, finalize_cb, finalize_data, finalize_hint));
@@ -3456,7 +3459,7 @@ napi_status NAPI_CDECL node_api_post_finalizer(node_api_nogc_env nogc_env,
 
 #endif
 
-napi_status NAPI_CDECL napi_adjust_external_memory(node_api_nogc_env env,
+napi_status NAPI_CDECL napi_adjust_external_memory(node_api_basic_env env,
                                                    int64_t change_in_bytes,
                                                    int64_t* adjusted_value) {
   CHECK_ENV(env);
@@ -3468,11 +3471,11 @@ napi_status NAPI_CDECL napi_adjust_external_memory(node_api_nogc_env env,
   return napi_clear_last_error(env);
 }
 
-napi_status NAPI_CDECL napi_set_instance_data(node_api_nogc_env nogc_env,
+napi_status NAPI_CDECL napi_set_instance_data(node_api_basic_env basic_env,
                                               void* data,
                                               napi_finalize finalize_cb,
                                               void* finalize_hint) {
-  napi_env env = const_cast<napi_env>(nogc_env);
+  napi_env env = const_cast<napi_env>(basic_env);
   CHECK_ENV(env);
 
   v8impl::RefBase* old_data = static_cast<v8impl::RefBase*>(env->instance_data);
@@ -3488,7 +3491,7 @@ napi_status NAPI_CDECL napi_set_instance_data(node_api_nogc_env nogc_env,
   return napi_clear_last_error(env);
 }
 
-napi_status NAPI_CDECL napi_get_instance_data(node_api_nogc_env env,
+napi_status NAPI_CDECL napi_get_instance_data(node_api_basic_env env,
                                               void** data) {
   CHECK_ENV(env);
   CHECK_ARG(env, data);

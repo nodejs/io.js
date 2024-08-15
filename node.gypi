@@ -412,5 +412,10 @@
     }, {
       'defines': [ 'HAVE_OPENSSL=0' ]
     }],
+    [ 'node_use_amaro=="true"', {
+      'defines': [ 'HAVE_AMARO=1' ],
+    }, {
+      'defines': [ 'HAVE_AMARO=0' ]
+    }],
   ],
 }

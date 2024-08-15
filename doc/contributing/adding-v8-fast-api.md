@@ -29,6 +29,12 @@ for example, they may not trigger garbage collection.
 * To test fast APIs, make sure to run the tests in a loop with a decent
   iterations count to trigger relevant optimizations that prefer the fast API
   over the slow one.
+* In debug mode (`--debug` or `--debug-node` flags), the fast API calls can be
+  tracked using the `TRACK_V8_FAST_API_CALL("key")` macro. This can be used to
+  count how many times fast paths are taken during tests. The key is a global
+  identifier and should be unique across the codebase.
+  Use `"binding_name.function_name"` or `"binding_name.function_name.suffix"` to
+  ensure uniqueness.
 * The fast callback must be idempotent up to the point where error and fallback
   conditions are checked, because otherwise executing the slow callback might
   produce visible side effects twice.
@@ -77,6 +83,7 @@ A typical function that communicates between JavaScript and C++ is as follows.
 * On the C++ side:
 
   ```cpp
+  #include "node_debug.h"
   #include "v8-fast-api-calls.h"
 
   namespace node {
@@ -102,9 +109,11 @@ A typical function that communicates between JavaScript and C++ is as follows.
                            const int32_t b,
                            v8::FastApiCallbackOptions& options) {
     if (b == 0) {
+      TRACK_V8_FAST_API_CALL("custom_namespace.divide.error");
       options.fallback = true;
       return 0;
     } else {
+      TRACK_V8_FAST_API_CALL("custom_namespace.divide.ok");
       return a / b;
     }
   }
@@ -147,4 +156,43 @@ A typical function that communicates between JavaScript and C++ is as follows.
   using CFunctionCallbackReturningDouble = double (*)(const int32_t a,
                                                       const int32_t b,
                                                       v8::FastApiCallbackOptions& options);
+  ```
+
+* In the unit tests:
+
+  Since the fast API function uses `TRACK_V8_FAST_API_CALL`, we can ensure that
+  the fast paths are taken and test them by writing tests that force
+  V8 optimizations and check the counters.
+
+  ```js
+  // Flags: --expose-internals --no-warnings --allow-natives-syntax
+  'use strict';
+  const common = require('../common');
+
+  const { internalBinding } = require('internal/test/binding');
+  // We could also require a function that uses the internal binding internally.
+  const { divide } = internalBinding('custom_namespace');
+
+  if (common.isDebug) {
+    const { getV8FastApiCallCount } = internalBinding('debug');
+
+    // The function that will be optimized. It has to be a function written in
+    // JavaScript. Since `divide` comes from the C++ side, we need to wrap it.
+    function testFastPath(a, b) {
+      return divide(a, b);
+    }
+
+    eval('%PrepareFunctionForOptimization(testFastPath)');
+    // This call will let V8 know about the argument types that the function expects.
+    assert.strictEqual(testFastPath(6, 3), 2);
+
+    eval('%OptimizeFunctionOnNextCall(testFastPath)');
+    assert.strictEqual(testFastPath(8, 2), 4);
+    assert.throws(() => testFastPath(1, 0), {
+      code: 'ERR_INVALID_STATE',
+    });
+
+    assert.strictEqual(getV8FastApiCallCount('custom_namespace.divide.ok'), 1);
+    assert.strictEqual(getV8FastApiCallCount('custom_namespace.divide.error'), 1);
+  }
   ```

@@ -329,41 +329,6 @@ our @tests = (
         },
     },
     {
-        name => "Ed25519 CipherString and Curves Selection",
-        server => $server,
-        client => {
-            "CipherString" => "aECDSA",
-            "MaxProtocol" => "TLSv1.2",
-            "SignatureAlgorithms" => "ECDSA+SHA256:ed25519",
-            # Excluding P-256 from the supported curves list means server
-            # certificate should be Ed25519 and not P-256
-            "Curves" => "X25519"
-        },
-        test   => {
-            "ExpectedServerCertType" =>, "Ed25519",
-            "ExpectedServerSignType" =>, "Ed25519",
-            "ExpectedResult" => "Success"
-        },
-    },
-    {
-        name => "Ed448 CipherString and Curves Selection",
-        server => $server,
-        client => {
-            "CipherString" => "aECDSA",
-            "MaxProtocol" => "TLSv1.2",
-            "SignatureAlgorithms" => "ECDSA+SHA256:ed448",
-            "VerifyCAFile" => test_pem("root-ed448-cert.pem"),
-            # Excluding P-256 from the supported curves list means server
-            # certificate should be Ed25519 and not P-256
-            "Curves" => "X448"
-        },
-        test   => {
-            "ExpectedServerCertType" =>, "Ed448",
-            "ExpectedServerSignType" =>, "Ed448",
-            "ExpectedResult" => "Success"
-        },
-    },
-    {
         name => "TLS 1.2 Ed25519 Client Auth",
         server => {
             "VerifyCAFile" => test_pem("root-cert.pem"),
@@ -443,6 +408,41 @@ my @tests_non_fips = (
             "ExpectedServerSignType" =>, "EC",
             # Note: certificate_authorities not sent for TLS < 1.3
             "ExpectedServerCANames" =>, "empty",
+            "ExpectedResult" => "Success"
+        },
+    },
+    {
+        name => "Ed25519 CipherString and Curves Selection",
+        server => $server,
+        client => {
+            "CipherString" => "aECDSA",
+            "MaxProtocol" => "TLSv1.2",
+            "SignatureAlgorithms" => "ECDSA+SHA256:ed25519",
+            # Excluding P-256 from the supported curves list means server
+            # certificate should be Ed25519 and not P-256
+            "Curves" => "X25519"
+        },
+        test   => {
+            "ExpectedServerCertType" =>, "Ed25519",
+            "ExpectedServerSignType" =>, "Ed25519",
+            "ExpectedResult" => "Success"
+        },
+    },
+    {
+        name => "Ed448 CipherString and Curves Selection",
+        server => $server,
+        client => {
+            "CipherString" => "aECDSA",
+            "MaxProtocol" => "TLSv1.2",
+            "SignatureAlgorithms" => "ECDSA+SHA256:ed448",
+            "VerifyCAFile" => test_pem("root-ed448-cert.pem"),
+            # Excluding P-256 from the supported curves list means server
+            # certificate should be Ed25519 and not P-256
+            "Curves" => "X448"
+        },
+        test   => {
+            "ExpectedServerCertType" =>, "Ed448",
+            "ExpectedServerSignType" =>, "Ed448",
             "ExpectedResult" => "Success"
         },
     },

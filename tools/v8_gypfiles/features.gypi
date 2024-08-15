@@ -88,7 +88,6 @@
         'v8_enable_private_mapping_fork_optimization': 0,
       }],
     ],
-    'is_debug%': 0,
 
     # Variables from BUILD.gn
 

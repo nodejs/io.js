@@ -1,4 +1,4 @@
-// Flags: --experimental-require-module --experimental-detect-module
+// Flags: --experimental-require-module
 'use strict';
 
 const common = require('../common');

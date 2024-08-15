@@ -3855,6 +3855,16 @@ class TurboshaftAssemblerOpInterface
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  V<Object> GetContinuationPreservedEmbedderData() {
+    return ReduceIfReachableGetContinuationPreservedEmbedderData();
+  }
+
+  void SetContinuationPreservedEmbedderData(V<Object> data) {
+    ReduceIfReachableSetContinuationPreservedEmbedderData(data);
+  }
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
   template <typename Rep>
   V<Rep> resolve(const V<Rep>& v) {
     return v;

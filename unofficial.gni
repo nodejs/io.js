@@ -178,6 +178,7 @@ template("node_gn_build") {
       deps += [ "//third_party/icu" ]
     }
     if (node_use_openssl) {
+      deps += [ "deps/ncrypto" ]
       public_deps += [ "deps/openssl" ]
       sources += gypi_values.node_crypto_sources
     }
@@ -339,6 +340,7 @@ template("node_gn_build") {
 
     sources = gypi_values.node_cctest_sources
     if (node_use_openssl) {
+      deps += [ "deps/ncrypto" ]
       sources += gypi_values.node_cctest_openssl_sources
     }
     if (node_enable_inspector) {
