@@ -950,6 +950,10 @@ Environment::Environment(IsolateData* isolate_data,
                           options_->allow_fs_write,
                           permission::PermissionScope::kFileSystemWrite);
     }
+    if (!options_->allow_net_udp.empty()) {
+      permission()->Apply(
+          this, options_->allow_net_udp, permission::PermissionScope::kNetUDP);
+    }
   }
 }
 

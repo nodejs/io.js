@@ -301,8 +301,8 @@ void UDPWrap::DoBind(const FunctionCallbackInfo<Value>& args, int family) {
   ASSIGN_OR_RETURN_UNWRAP(
       &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
-  // bind(ip, port, flags)
-  CHECK_EQ(args.Length(), 3);
+  // bind(ip, port, flags, [checked])
+  CHECK_GE(args.Length(), 3);
 
   node::Utf8Value address(args.GetIsolate(), args[0]);
   Local<Context> ctx = args.GetIsolate()->GetCurrentContext();
@@ -310,6 +310,17 @@ void UDPWrap::DoBind(const FunctionCallbackInfo<Value>& args, int family) {
   if (!args[1]->Uint32Value(ctx).To(&port) ||
       !args[2]->Uint32Value(ctx).To(&flags))
     return;
+  bool checked = true;
+  if (args.Length() > 3 && args[3]->IsBoolean()) {
+    checked = args[3].As<Boolean>()->Value();
+  }
+  if (checked) {
+    Environment* env = Environment::GetCurrent(args);
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        permission::PermissionScope::kNetUDP,
+        address.out() + std::string(":") + std::to_string(port));
+  }
   struct sockaddr_storage addr_storage;
   int err = sockaddr_for_family(family, address.out(), port, &addr_storage);
   if (err == 0) {
@@ -330,13 +341,24 @@ void UDPWrap::DoConnect(const FunctionCallbackInfo<Value>& args, int family) {
   ASSIGN_OR_RETURN_UNWRAP(
       &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
-  CHECK_EQ(args.Length(), 2);
+  CHECK_GE(args.Length(), 3);
 
   node::Utf8Value address(args.GetIsolate(), args[0]);
   Local<Context> ctx = args.GetIsolate()->GetCurrentContext();
   uint32_t port;
   if (!args[1]->Uint32Value(ctx).To(&port))
     return;
+  bool checked = true;
+  if (args.Length() > 3 && args[3]->IsBoolean()) {
+    checked = args[3].As<Boolean>()->Value();
+  }
+  if (checked) {
+    Environment* env = Environment::GetCurrent(args);
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        permission::PermissionScope::kNetUDP,
+        address.out() + std::string("/") + std::to_string(port));
+  }
   struct sockaddr_storage addr_storage;
   int err = sockaddr_for_family(family, address.out(), port, &addr_storage);
   if (err == 0) {
@@ -521,17 +543,30 @@ void UDPWrap::DoSend(const FunctionCallbackInfo<Value>& args, int family) {
   ASSIGN_OR_RETURN_UNWRAP(
       &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
-  CHECK(args.Length() == 4 || args.Length() == 6);
+  CHECK(args.Length() == 4 || args.Length() >= 6);
   CHECK(args[0]->IsObject());
   CHECK(args[1]->IsArray());
   CHECK(args[2]->IsUint32());
 
-  bool sendto = args.Length() == 6;
+  bool sendto = args.Length() >= 6;
   if (sendto) {
-    // send(req, list, list.length, port, address, hasCallback)
+    // send(req, list, list.length, port, address, hasCallback, checked)
     CHECK(args[3]->IsUint32());
     CHECK(args[4]->IsString());
     CHECK(args[5]->IsBoolean());
+    bool checked = true;
+    if (args.Length() > 6 && args[6]->IsBoolean()) {
+      checked = args[6].As<Boolean>()->Value();
+    }
+    if (checked) {
+      Environment* env = Environment::GetCurrent(args);
+      const unsigned short port = args[3].As<Uint32>()->Value();
+      node::Utf8Value address(env->isolate(), args[4]);
+      THROW_IF_INSUFFICIENT_PERMISSIONS(
+          env,
+          permission::PermissionScope::kNetUDP,
+          address.out() + std::string("/") + std::to_string(port));
+    }
   } else {
     // send(req, list, list.length, hasCallback)
     CHECK(args[3]->IsBoolean());

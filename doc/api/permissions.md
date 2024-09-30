@@ -69,6 +69,8 @@ using the [`--allow-child-process`][] and [`--allow-worker`][] respectively.
 To allow native addons when using permission model, use the [`--allow-addons`][]
 flag. For WASI, use the [`--allow-wasi`][] flag.
 
+For UDP, use [`--allow-net-udp`][] flag.
+
 #### Runtime API
 
 When enabling the Permission Model through the [`--experimental-permission`][]
@@ -147,6 +149,7 @@ There are constraints you need to know before using this system:
   * Inspector protocol
   * File system access
   * WASI
+  * UDP
 * The Permission Model is initialized after the Node.js environment is set up.
   However, certain flags such as `--env-file` or `--openssl-config` are designed
   to read files before environment initialization. As a result, such flags are
@@ -170,6 +173,7 @@ There are constraints you need to know before using this system:
 [`--allow-child-process`]: cli.md#--allow-child-process
 [`--allow-fs-read`]: cli.md#--allow-fs-read
 [`--allow-fs-write`]: cli.md#--allow-fs-write
+[`--allow-net-udp`]: cli.md#--allow-net-udp
 [`--allow-wasi`]: cli.md#--allow-wasi
 [`--allow-worker`]: cli.md#--allow-worker
 [`--experimental-permission`]: cli.md#--experimental-permission

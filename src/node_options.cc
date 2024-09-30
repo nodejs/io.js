@@ -6,6 +6,7 @@
 #include "node_external_reference.h"
 #include "node_internals.h"
 #include "node_sea.h"
+#include "permission/net_permission.h"
 #if HAVE_OPENSSL
 #include "openssl/opensslv.h"
 #endif
@@ -232,6 +233,62 @@ void EnvironmentOptions::CheckOptions(std::vector<std::string>* errors,
 
   debug_options_.CheckOptions(errors, argv);
 #endif  // HAVE_INSPECTOR
+
+  // The flag --experimental_permission maybe set after --allow-net-udp
+  // So we just check allow_net_udp.size() here
+  if (allow_net_udp.size() > 0) {
+    using std::string_view_literals::operator""sv;
+    // Allow multiple item in one flag,
+    // such as --allow-net-udp=127.0.0.1,localhost
+    for (const auto& res : allow_net_udp) {
+      const auto addresses = SplitString(res, ","sv);
+      for (const auto& address : addresses) {
+        if (address != "*"sv && address != "*:*"sv) {
+          std::unique_ptr<PermissionAddressInfo> result = ParseAddress(address);
+          // Address can be *, host and IP, do we need check it ?
+          if (result->port != "*") {
+            if (IsDigit(result->port)) {
+              uint16_t port{};
+              auto r =
+                  std::from_chars(result->port.data(),
+                                  result->port.data() + result->port.size(),
+                                  port);
+              if (r.ec == std::errc::result_out_of_range || port > 0xFFFF) {
+                errors->push_back("invalid port: " + std::string(result->port));
+              }
+            } else {
+              errors->push_back("invalid port: " + std::string(result->port));
+            }
+          }
+          if (!result->netmask.empty()) {
+            int ip_version = IsIP(std::string(result->address));
+            if (ip_version == 0) {
+              errors->push_back(
+                  "can not use netmask when IP is not an IPV4 or IPV6 address");
+            } else if (IsDigit(result->netmask)) {  // 127.0.0.1/24
+              uint16_t netmask_len{};
+              auto r = std::from_chars(
+                  result->netmask.data(),
+                  result->netmask.data() + result->netmask.size(),
+                  netmask_len);
+              if (r.ec == std::errc::result_out_of_range ||
+                  (ip_version == 4 && netmask_len > 32) ||
+                  (ip_version == 6 && netmask_len > 128)) {
+                errors->push_back("invalid netmask: " +
+                                  std::string(result->netmask));
+              }
+            } else {  // 127.0.0.1/255.0.0.0
+              int netmask_ip_version = IsIP(std::string(result->netmask));
+              if (netmask_ip_version == 0 || netmask_ip_version != ip_version) {
+                errors->push_back("invalid netmask: " +
+                                  std::string(result->netmask));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 namespace options_parser {
@@ -485,6 +542,11 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
   AddOption("--allow-worker",
             "allow worker threads when any permissions are set",
             &EnvironmentOptions::allow_worker_threads,
+            kAllowedInEnvvar);
+  AddOption("--allow-net-udp",
+            "allow host:port or ip:port to bind and connect by UDP socket "
+            "when any permissions are set",
+            &EnvironmentOptions::allow_net_udp,
             kAllowedInEnvvar);
   AddOption("--experimental-repl-await",
             "experimental await keyword support in REPL",

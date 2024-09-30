@@ -883,4 +883,59 @@ v8::Maybe<int> GetValidFileMode(Environment* env,
   return v8::Just(mode);
 }
 
+bool IsDigit(const std::string_view str) {
+  return !str.empty() && std::all_of(str.begin(), str.end(), ::isdigit);
+}
+
+int IsIP(const std::string& address) {
+  char buf[IPV6_CHAR_LEN];
+  if (uv_inet_pton(AF_INET, address.c_str(), &buf) == 0) {
+    return 4;
+  }
+  if (uv_inet_pton(AF_INET6, address.c_str(), &buf) == 0) {
+    return 6;
+  }
+  return 0;
+}
+
+std::unique_ptr<PermissionAddressInfo> ParseAddress(
+    const std::string_view param) {
+  using std::string_view_literals::operator""sv;
+  size_t ipv6_idx = param.find("]"sv);
+  bool is_ipv6 = ipv6_idx != std::string::npos;
+  size_t net_mask_idx = param.find("/"sv);
+  bool has_net_mask = net_mask_idx != std::string::npos;
+  size_t port_idx = param.find(":"sv, is_ipv6 ? ipv6_idx : 0);
+  bool has_port = port_idx != std::string::npos;
+  std::string_view address;
+  std::string_view net_mask;
+  std::string_view port;
+  if (is_ipv6) {
+    address = param.substr(1, ipv6_idx - 1);
+  } else {
+    if (has_net_mask) {
+      address = param.substr(0, net_mask_idx);
+    } else if (has_port) {
+      address = param.substr(0, port_idx);
+    } else {
+      address = param;
+    }
+  }
+  if (has_net_mask) {
+    if (has_port) {
+      net_mask = param.substr(net_mask_idx + 1, port_idx - net_mask_idx - 1);
+    } else if (net_mask_idx + 1 < param.size()) {
+      net_mask = param.substr(net_mask_idx + 1);
+    }
+  }
+  if (has_port && port_idx + 1 < param.size()) {
+    port = param.substr(port_idx + 1);
+  }
+  if (port.empty()) {
+    port = "*";
+  }
+  return std::unique_ptr<PermissionAddressInfo>(
+      new PermissionAddressInfo(address, net_mask, port));
+}
+
 }  // namespace node

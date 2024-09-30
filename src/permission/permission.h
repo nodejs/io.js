@@ -8,6 +8,7 @@
 #include "permission/child_process_permission.h"
 #include "permission/fs_permission.h"
 #include "permission/inspector_permission.h"
+#include "permission/net_permission.h"
 #include "permission/permission_base.h"
 #include "permission/wasi_permission.h"
 #include "permission/worker_permission.h"

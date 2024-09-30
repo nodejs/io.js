@@ -1017,6 +1017,28 @@ v8::Maybe<int> GetValidFileMode(Environment* env,
 // case insensitive.
 inline bool IsWindowsBatchFile(const char* filename);
 
+constexpr int IPV4_CHAR_LEN = sizeof(struct in_addr);
+constexpr int IPV6_CHAR_LEN = sizeof(struct in6_addr);
+constexpr int IPV4_BIT_LEN = IPV4_CHAR_LEN << 3;
+constexpr int IPV6_BIT_LEN = IPV6_CHAR_LEN << 3;
+
+struct PermissionAddressInfo {
+  std::string_view address;
+  std::string_view netmask;
+  std::string_view port;
+  explicit PermissionAddressInfo(const std::string_view address_,
+                                 const std::string_view netmask_,
+                                 const std::string_view port_)
+      : address(address_), netmask(netmask_), port(port_) {}
+};
+
+bool IsDigit(const std::string_view str);
+
+int IsIP(const std::string& address);
+
+std::unique_ptr<PermissionAddressInfo> ParseAddress(
+    const std::string_view param);
+
 }  // namespace node
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
