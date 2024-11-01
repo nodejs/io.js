@@ -3533,22 +3533,31 @@ the corresponding digest algorithm. This does not work for all signature
 algorithms, such as `'ecdsa-with-SHA256'`, so it is best to always use digest
 algorithm names.
 
-### `crypto.diffieHellman(options)`
+### `crypto.diffieHellman(options[, callback])`
 
 <!-- YAML
 added:
  - v13.9.0
  - v12.17.0
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/57274
+    description: Optional callback argument added.
 -->
 
 * `options`: {Object}
   * `privateKey`: {KeyObject}
   * `publicKey`: {KeyObject}
-* Returns: {Buffer}
+* `callback` {Function}
+  * `err` {Error}
+  * `secret` {Buffer}
+* Returns: {Buffer} if the `callback` function is not provided.
 
 Computes the Diffie-Hellman secret based on a `privateKey` and a `publicKey`.
 Both keys must have the same `asymmetricKeyType`, which must be one of `'dh'`
 (for Diffie-Hellman), `'ec'`, `'x448'`, or `'x25519'` (for ECDH).
+
+If the `callback` function is provided this function uses libuv's threadpool.
 
 ### `crypto.fips`
 
