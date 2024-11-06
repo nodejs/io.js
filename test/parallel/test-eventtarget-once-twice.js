@@ -13,12 +13,12 @@ test('should resolve `once` twice', (t, done) => {
     await once(et, 'foo');
     await once(et, 'foo');
     done();
-  })();
+  })(common.mustCall());
 
   (async () => {
     et.dispatchEvent(new Event('foo'));
     await setImmediate();
     et.dispatchEvent(new Event('foo'));
-  })();
+  })(common.mustCall());
 
 });
