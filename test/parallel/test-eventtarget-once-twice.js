@@ -1,6 +1,5 @@
 'use strict';
-const common = require('../common');
-const assert = require('node:assert/strict');
+require('../common');
 const { once } = require('node:events');
 const { test } = require('node:test');
 const { setImmediate } = require('node:timers/promises');
