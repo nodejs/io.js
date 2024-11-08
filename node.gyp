@@ -1276,13 +1276,15 @@
       'sources': [
         'src/node_snapshot_stub.cc',
         'test/embedding/embedtest.cc',
+        'test/embedding/embedtest_c_api.cc',
+        'test/embedding/embedtest_c_api_common.cc',
+        'test/embedding/embedtest_c_api_common.h',
+        'test/embedding/embedtest_c_api_env.cc',
+        'test/embedding/embedtest_c_api_modules.cc',
+        'test/embedding/embedtest_c_api_preload.cc',
+        'test/embedding/embedtest_c_api_run_main.cc',
+        'test/embedding/embedtest_c_api_threading.cc',
         'test/embedding/embedtest_main.cc',
-        'test/embedding/embedtest_modules_node_api.cc',
-        'test/embedding/embedtest_node_api.cc',
-        'test/embedding/embedtest_node_api.h',
-        'test/embedding/embedtest_nodejs_main_node_api.cc',
-        'test/embedding/embedtest_preload_node_api.cc',
-        'test/embedding/embedtest_threading_node_api.cc',
       ],
 
       'conditions': [

@@ -1,7 +1,9 @@
-#include "embedtest_node_api.h"
+#include "embedtest_c_api_common.h"
 
 #include <mutex>
 #include <thread>
+
+using namespace node;
 
 // Tests that the same preload callback is called from the main thread and from
 // the worker thread.
@@ -28,26 +30,11 @@ extern "C" int32_t test_main_preload_node_api(int32_t argc, char* argv[]) {
                       NODE_API_CALL_RETURN_VOID(napi_set_named_property(
                           env, global, "preloadValue", value));
                     })));
-            CHECK_STATUS(node_embedding_runtime_on_start_execution(
-                runtime_config,
-                AsFunctor<node_embedding_start_execution_functor>(
-                    [](node_embedding_runtime runtime,
-                       napi_env env,
-                       napi_value process,
-                       napi_value require,
-                       napi_value run_cjs) -> napi_value {
-                      napi_value script, undefined, result;
-                      NODE_API_CALL(napi_create_string_utf8(
-                          env, main_script, NAPI_AUTO_LENGTH, &script));
-                      NODE_API_CALL(napi_get_undefined(env, &undefined));
-                      NODE_API_CALL(napi_call_function(
-                          env, undefined, run_cjs, 1, &script, &result));
-                      return result;
-                    })));
+
+            CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
 
             return node_embedding_status_ok;
-          }),
-      {}));
+          })));
 
   return 0;
 }

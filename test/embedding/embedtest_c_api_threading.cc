@@ -1,9 +1,11 @@
-#include "embedtest_node_api.h"
+#include "embedtest_c_api_common.h"
 
 #include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <thread>
+
+using namespace node;
 
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
@@ -35,36 +37,26 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                   // process.
                   CHECK_STATUS(node_embedding_runtime_set_flags(
                       runtime_config,
-                      node_embedding_runtime_default_flags |
-                          node_embedding_runtime_no_create_inspector));
-                  CHECK_STATUS(node_embedding_runtime_on_start_execution(
+                      node_embedding_runtime_flags_default |
+                          node_embedding_runtime_flags_no_create_inspector));
+                  CHECK_STATUS(LoadUtf8Script(
                       runtime_config,
-                      AsFunctor<node_embedding_start_execution_functor>(
-                          [](node_embedding_runtime runtime,
-                             napi_env env,
-                             napi_value process,
-                             napi_value require,
-                             napi_value run_cjs) -> napi_value {
-                            napi_value script, undefined, result;
-                            NODE_API_CALL(napi_create_string_utf8(
-                                env, main_script, NAPI_AUTO_LENGTH, &script));
-                            NODE_API_CALL(napi_get_undefined(env, &undefined));
-                            NODE_API_CALL(napi_call_function(
-                                env, undefined, run_cjs, 1, &script, &result));
-                            return result;
+                      main_script,
+                      AsFunctor<node_embedding_handle_result_functor>(
+                          [&](node_embedding_runtime runtime,
+                              napi_env env,
+                              napi_value /*value*/) {
+                            napi_value global, my_count;
+                            NODE_API_CALL_RETURN_VOID(
+                                napi_get_global(env, &global));
+                            NODE_API_CALL_RETURN_VOID(napi_get_named_property(
+                                env, global, "myCount", &my_count));
+                            int32_t count;
+                            NODE_API_CALL_RETURN_VOID(
+                                napi_get_value_int32(env, my_count, &count));
+                            global_count.fetch_add(count);
                           })));
                   return node_embedding_status_ok;
-                }),
-            AsFunctorRef<node_embedding_node_api_functor_ref>(
-                [&](node_embedding_runtime runtime, napi_env env) {
-                  napi_value global, my_count;
-                  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                  NODE_API_CALL_RETURN_VOID(napi_get_named_property(
-                      env, global, "myCount", &my_count));
-                  int32_t count;
-                  NODE_API_CALL_RETURN_VOID(
-                      napi_get_value_int32(env, my_count, &count));
-                  global_count.fetch_add(count);
                 })));
         return node_embedding_status_ok;
       }();
@@ -116,25 +108,9 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
               // process.
               CHECK_STATUS(node_embedding_runtime_set_flags(
                   runtime_config,
-                  node_embedding_runtime_default_flags |
-                      node_embedding_runtime_no_create_inspector));
-              CHECK_STATUS(node_embedding_runtime_on_start_execution(
-                  runtime_config,
-                  AsFunctor<node_embedding_start_execution_functor>(
-                      [](node_embedding_runtime runtime,
-                         napi_env env,
-                         napi_value process,
-                         napi_value require,
-                         napi_value run_cjs) -> napi_value {
-                        napi_value script, undefined, result;
-                        NODE_API_CALL(napi_create_string_utf8(
-                            env, main_script, NAPI_AUTO_LENGTH, &script));
-                        NODE_API_CALL(napi_get_undefined(env, &undefined));
-                        NODE_API_CALL(napi_call_function(
-                            env, undefined, run_cjs, 1, &script, &result));
-                        return result;
-                      })));
-
+                  node_embedding_runtime_flags_default |
+                      node_embedding_runtime_flags_no_create_inspector));
+              CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
               return node_embedding_status_ok;
             }),
         &runtime));
@@ -142,7 +118,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
 
     CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
         runtime,
-        AsFunctorRef<node_embedding_node_api_functor_ref>(
+        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value undefined, global, func;
               NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -163,7 +139,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
     for (node_embedding_runtime runtime : runtimes) {
       bool has_more_work = false;
       CHECK_STATUS_OR_EXIT(node_embedding_run_event_loop(
-          runtime, node_embedding_event_loop_run_nowait, &has_more_work));
+          runtime, node_embedding_event_loop_run_mode_nowait, &has_more_work));
       more_work |= has_more_work;
     }
   } while (more_work);
@@ -171,7 +147,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
   for (node_embedding_runtime runtime : runtimes) {
     CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
         runtime,
-        AsFunctorRef<node_embedding_node_api_functor_ref>(
+        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value global, my_count;
               NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -225,23 +201,7 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
       AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(node_embedding_runtime_on_start_execution(
-                runtime_config,
-                AsFunctor<node_embedding_start_execution_functor>(
-                    [](node_embedding_runtime runtime,
-                       napi_env env,
-                       napi_value process,
-                       napi_value require,
-                       napi_value run_cjs) -> napi_value {
-                      napi_value script, undefined, result;
-                      NODE_API_CALL(napi_create_string_utf8(
-                          env, main_script, NAPI_AUTO_LENGTH, &script));
-                      NODE_API_CALL(napi_get_undefined(env, &undefined));
-                      NODE_API_CALL(napi_call_function(
-                          env, undefined, run_cjs, 1, &script, &result));
-                      return result;
-                    })));
-
+            CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
             return node_embedding_status_ok;
           }),
       &runtime));
@@ -251,7 +211,7 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
       std::scoped_lock lock(mutex);
       node_embedding_status status = node_embedding_run_node_api(
           runtime,
-          AsFunctorRef<node_embedding_node_api_functor_ref>(
+          AsFunctorRef<node_embedding_run_node_api_functor_ref>(
               [&](node_embedding_runtime runtime, napi_env env) {
                 napi_value undefined, global, func, my_count;
                 NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -359,21 +319,25 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
             // The callback will be invoked from the runtime's event loop
             // observer thread. It must schedule the work to the UI thread's
             // event loop.
-            CHECK_STATUS(node_embedding_on_wake_up_event_loop(
+            CHECK_STATUS(node_embedding_runtime_set_task_runner(
                 runtime_config,
-                AsFunctor<node_embedding_event_loop_functor>(
-                    [&ui_queue](node_embedding_runtime runtime) {
-                      ui_queue.PostTask([runtime, &ui_queue]() {
-                        CHECK_STATUS_OR_EXIT(node_embedding_run_event_loop(
-                            runtime,
-                            node_embedding_event_loop_run_nowait,
-                            nullptr));
+                AsFunctor<node_embedding_post_task_functor>(
+                    // We capture the ui_queue by reference here because we
+                    // guarantee it to be alive till the end of the test. In
+                    // real applications, you should use a safer way to capture
+                    // the dispatcher queue.
+                    [&ui_queue,
+                     &runtime](node_embedding_run_task_functor run_task) {
+                      // TODO: figure out the termination scenario.
+                      ui_queue.PostTask([run_task, &runtime, &ui_queue]() {
+                        AsStdFunction(run_task)();
 
                         // Check myCount and stop the processing when it
                         // reaches 5.
                         CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
                             runtime,
-                            AsFunctorRef<node_embedding_node_api_functor_ref>(
+                            AsFunctorRef<
+                                node_embedding_run_node_api_functor_ref>(
                                 [&](node_embedding_runtime runtime,
                                     napi_env env) {
                                   napi_value global, my_count;
@@ -400,22 +364,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
                       });
                     })));
 
-            CHECK_STATUS(node_embedding_runtime_on_start_execution(
-                runtime_config,
-                AsFunctor<node_embedding_start_execution_functor>(
-                    [](node_embedding_runtime runtime,
-                       napi_env env,
-                       napi_value process,
-                       napi_value require,
-                       napi_value run_cjs) -> napi_value {
-                      napi_value script, undefined, result;
-                      NODE_API_CALL(napi_create_string_utf8(
-                          env, main_script, NAPI_AUTO_LENGTH, &script));
-                      NODE_API_CALL(napi_get_undefined(env, &undefined));
-                      NODE_API_CALL(napi_call_function(
-                          env, undefined, run_cjs, 1, &script, &result));
-                      return result;
-                    })));
+            CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
 
             return node_embedding_status_ok;
           }),
@@ -426,7 +375,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
   ui_queue.PostTask([runtime]() {
     node_embedding_status status = node_embedding_run_node_api(
         runtime,
-        AsFunctorRef<node_embedding_node_api_functor_ref>(
+        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value undefined, global, func;
               NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -441,7 +390,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
                   env, undefined, func, 0, nullptr, nullptr));
 
               node_embedding_run_event_loop(
-                  runtime, node_embedding_event_loop_run_nowait, nullptr);
+                  runtime, node_embedding_event_loop_run_mode_nowait, nullptr);
             }));
     CHECK_STATUS_OR_EXIT(status);
   });

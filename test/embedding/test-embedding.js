@@ -383,6 +383,34 @@ runSnapshotTests('cpp-api');
   );
 }
 
+function runEnvTests(apiType) {
+  runTest(
+    `${apiType}: Env No Browser Globals`,
+    spawnSyncAndExitWithoutError,
+    [`${apiType}-env-no-browser-globals`],
+    {}
+  );
+
+  runTest(
+    `${apiType}: Env With ESM Loader`,
+    spawnSyncAndExitWithoutError,
+    [`${apiType}-env-with-esm-loader`],
+    {}
+  );
+
+  runTest(
+    `${apiType}: Env With No ESM Loader`,
+    spawnSyncAndExit,
+    [`${apiType}-env-with-no-esm-loader`],
+    {
+      status: 1,
+      signal: null,
+    }
+  );
+}
+
+runEnvTests('c-api');
+
 /*
 runTest(
   `modules-node-api: load modules`,

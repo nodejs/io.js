@@ -88,27 +88,28 @@ struct napi_env__ {
   template <typename Call, typename JSExceptionHandler = decltype(HandleThrow)>
   inline void CallIntoModule(
       Call&& call, JSExceptionHandler&& handle_exception = HandleThrow) {
-    CallModuleScope scope = OpenCallModuleScope();
+    CallModuleScopeData scope_data = OpenCallModuleScope();
+    auto onModuleScopeLeave = node::OnScopeLeave(
+        [&] { CloseCallModuleScope(scope_data, handle_exception); });
     call(this);
-    CloseCallModuleScope(scope, handle_exception);
   }
 
-  struct CallModuleScope {
+  struct CallModuleScopeData {
     int open_handle_scopes_before;
     int open_callback_scopes_before;
   };
 
-  inline CallModuleScope OpenCallModuleScope() {
+  inline CallModuleScopeData OpenCallModuleScope() {
     napi_clear_last_error(this);
     return {open_handle_scopes, open_callback_scopes};
   }
 
   template <typename JSExceptionHandler = decltype(HandleThrow)>
   inline void CloseCallModuleScope(
-      const CallModuleScope& scope,
+      const CallModuleScopeData& scope_data,
       JSExceptionHandler&& handle_exception = HandleThrow) {
-    CHECK_EQ(open_handle_scopes, scope.open_handle_scopes_before);
-    CHECK_EQ(open_callback_scopes, scope.open_callback_scopes_before);
+    CHECK_EQ(open_handle_scopes, scope_data.open_handle_scopes_before);
+    CHECK_EQ(open_callback_scopes, scope_data.open_callback_scopes_before);
     if (!last_exception.IsEmpty()) {
       handle_exception(this, last_exception.Get(this->isolate));
       last_exception.Reset();

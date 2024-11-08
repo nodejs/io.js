@@ -10,11 +10,37 @@
 #include <string>
 #include <vector>
 
-extern "C" inline void NAPI_CDECL GetArgsVector(void* data,
-                                                int32_t argc,
-                                                const char* argv[]) {
-  static_cast<std::vector<std::string>*>(data)->assign(argv, argv + argc);
-}
+template <size_t kInplaceBufferSize = 32>
+class CStringArray {
+ public:
+  explicit CStringArray(const std::vector<std::string>& strings) noexcept
+      : size_(strings.size()) {
+    if (size_ <= inplace_buffer_.size()) {
+      c_strs_ = inplace_buffer_.data();
+    } else {
+      allocated_buffer_ = std::make_unique<const char*[]>(size_);
+      c_strs_ = allocated_buffer_.get();
+    }
+    for (size_t i = 0; i < size_; ++i) {
+      c_strs_[i] = strings[i].c_str();
+    }
+  }
+
+  CStringArray(const CStringArray&) = delete;
+  CStringArray& operator=(const CStringArray&) = delete;
+
+  const char** c_strs() const { return c_strs_; }
+  size_t size() const { return size_; }
+
+  const char** argv() const { return c_strs_; }
+  int32_t argc() const { return static_cast<int32_t>(size_); }
+
+ private:
+  const char** c_strs_{};
+  size_t size_{};
+  std::array<const char*, kInplaceBufferSize> inplace_buffer_;
+  std::unique_ptr<const char*[]> allocated_buffer_;
+};
 
 extern "C" inline node_embedding_status NAPI_CDECL
 HandleTestError(void* handler_data,
@@ -38,7 +64,7 @@ HandleTestError(void* handler_data,
   return node_embedding_status_ok;
 }
 
-#endif
+#endif  // __cplusplus
 
 extern const char* main_script;
 
@@ -50,40 +76,10 @@ void ThrowLastErrorMessage(napi_env env, const char* message);
 
 std::string FormatString(const char* format, ...);
 
-template <typename TLambda, typename TFunctor>
-struct Adapter {
-  static_assert(sizeof(TLambda) == -1, "Unsupported signature");
-};
-
-template <typename TLambda, typename TResult, typename... TArgs>
-struct Adapter<TLambda, TResult(void*, TArgs...)> {
-  static TResult Invoke(void* data, TArgs... args) {
-    return reinterpret_cast<TLambda*>(data)->operator()(args...);
-  }
-};
-
-template <typename TFunctor, typename TLambda>
-inline TFunctor AsFunctorRef(TLambda&& lambda) {
-  using TLambdaType = std::remove_reference_t<TLambda>;
-  using TAdapter =
-      Adapter<TLambdaType,
-              std::remove_pointer_t<
-                  decltype(std::remove_reference_t<TFunctor>::invoke)>>;
-  return TFunctor{static_cast<void*>(&lambda), &TAdapter::Invoke};
-}
-
-template <typename TFunctor, typename TLambda>
-inline TFunctor AsFunctor(TLambda&& lambda) {
-  using TLambdaType = std::remove_reference_t<TLambda>;
-  using TAdapter =
-      Adapter<TLambdaType,
-              std::remove_pointer_t<
-                  decltype(std::remove_reference_t<TFunctor>::invoke)>>;
-  return TFunctor{
-      static_cast<void*>(new TLambdaType(std::forward<TLambdaType>(lambda))),
-      &TAdapter::Invoke,
-      [](void* data) { delete static_cast<TLambdaType*>(data); }};
-}
+node_embedding_status LoadUtf8Script(
+    node_embedding_runtime_config runtime_config,
+    std::string script,
+    const node_embedding_handle_result_functor& handle_result = {});
 
 //
 // Error handling macros copied from test/js_native_api/common.h
