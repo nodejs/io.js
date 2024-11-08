@@ -9,8 +9,12 @@
 The `node:path` module provides utilities for working with file and directory
 paths. It can be accessed using:
 
-```js
+```cjs
 const path = require('node:path');
+```
+
+```mjs
+import path from 'node:path';
 ```
 
 ## Windows vs. POSIX

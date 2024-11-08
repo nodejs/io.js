@@ -220,7 +220,7 @@ The initializer module also needs to be allowed. Consider the following example:
 ```console
 $ node --experimental-permission t.js
 node:internal/modules/cjs/loader:162
-  const result = internalModuleStat(filename);
+  const result = internalModuleStat(receiver, filename);
                  ^
 
 Error: Access to this API has been restricted
@@ -477,6 +477,7 @@ added:
 changes:
   - version:
     - v22.9.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/54209
     description: The flag is no longer experimental.
 -->
@@ -708,7 +709,9 @@ code from strings throw an exception instead. This does not affect the Node.js
 ### `--expose-gc`
 
 <!-- YAML
-added: v22.3.0
+added:
+  - v22.3.0
+  - v20.18.0
 -->
 
 > Stability: 1 - Experimental. This flag is inherited from V8 and is subject to
@@ -805,6 +808,29 @@ when `Error.stack` is accessed. If you access `Error.stack` frequently
 in your application, take into account the performance implications
 of `--enable-source-maps`.
 
+### `--entry-url`
+
+<!-- YAML
+added:
+  - v23.0.0
+  - v22.10.0
+-->
+
+> Stability: 1 - Experimental
+
+When present, Node.js will interpret the entry point as a URL, rather than a
+path.
+
+Follows [ECMAScript module][] resolution rules.
+
+Any query parameter or hash in the URL will be accessible via [`import.meta.url`][].
+
+```bash
+node --entry-url 'file:///path/to/file.js?queryparams=work#and-hashes-too'
+node --entry-url --experimental-strip-types 'file.ts?query#hash'
+node --entry-url 'data:text/javascript,console.log("Hello")'
+```
+
 ### `--env-file=config`
 
 > Stability: 1.1 - Active development
@@ -872,6 +898,15 @@ export USERNAME="nodejs" # will result in `nodejs` as the value.
 If you want to load environment variables from a file that may not exist, you
 can use the [`--env-file-if-exists`][] flag instead.
 
+### `--env-file-if-exists=config`
+
+<!-- YAML
+added: v22.9.0
+-->
+
+Behavior is the same as [`--env-file`][], but an error is not thrown if the file
+does not exist.
+
 ### `-e`, `--eval "script"`
 
 <!-- YAML
@@ -894,21 +929,6 @@ and `"` are usable.
 
 It is possible to run code containing inline types by passing
 [`--experimental-strip-types`][].
-
-### `--experimental-async-context-frame`
-
-<!-- YAML
-added: v22.7.0
--->
-
-> Stability: 1 - Experimental
-
-Enables the use of [`AsyncLocalStorage`][] backed by `AsyncContextFrame` rather
-than the default implementation which relies on async\_hooks. This new model is
-implemented very differently and so could have differences in how context data
-flows within the application. As such, it is presently recommended to be sure
-your application behaviour is unaffected by this change before using it in
-production.
 
 ### `--experimental-default-type=type`
 
@@ -948,7 +968,7 @@ JavaScript.
 added: v22.7.0
 -->
 
-> Stability: 1.0 - Early development
+> Stability: 1.1 - Active development
 
 Enables the transformation of TypeScript-only syntax into JavaScript code.
 Implies `--experimental-strip-types` and `--enable-source-maps`.
@@ -956,7 +976,9 @@ Implies `--experimental-strip-types` and `--enable-source-maps`.
 ### `--experimental-eventsource`
 
 <!-- YAML
-added: v22.3.0
+added:
+  - v22.3.0
+  - v20.18.0
 -->
 
 Enable exposition of [EventSource Web API][] on the global scope.
@@ -1005,6 +1027,7 @@ Specify the `module` containing exported [module customization hooks][].
 <!-- YAML
 added:
   - v22.6.0
+  - v20.18.0
 -->
 
 > Stability: 1 - Experimental
@@ -1027,6 +1050,7 @@ following permissions are restricted:
 * Child Process - manageable through [`--allow-child-process`][] flag
 * Worker Threads - manageable through [`--allow-worker`][] flag
 * WASI - manageable through [`--allow-wasi`][] flag
+* Addons - manageable through [`--allow-addons`][] flag
 
 ### `--experimental-require-module`
 
@@ -1034,6 +1058,10 @@ following permissions are restricted:
 added:
   - v22.0.0
   - v20.17.0
+changes:
+  - version: v23.0.0
+    pr-url: https://github.com/nodejs/node/pull/55085
+    description: This is now true by default.
 -->
 
 > Stability: 1.1 - Active Development
@@ -1078,7 +1106,7 @@ Enable the experimental [`node:sqlite`][] module.
 added: v22.6.0
 -->
 
-> Stability: 1.0 - Early development
+> Stability: 1.1 - Active development
 
 Enable experimental type-stripping for TypeScript files.
 For more information, see the [TypeScript type-stripping][] documentation.
@@ -1119,7 +1147,9 @@ present. See the [test runner execution model][] section for more information.
 ### `--experimental-test-module-mocks`
 
 <!-- YAML
-added: v22.3.0
+added:
+  - v22.3.0
+  - v20.18.0
 -->
 
 > Stability: 1.0 - Early development
@@ -1618,6 +1648,19 @@ Disable the `node-addons` exports condition as well as disable loading
 native addons. When `--no-addons` is specified, calling `process.dlopen` or
 requiring a native C++ addon will fail and throw an exception.
 
+### `--no-async-context-frame`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 2 - Stable
+
+Disables the use of [`AsyncLocalStorage`][] backed by `AsyncContextFrame` and
+uses the prior implementation which relied on async\_hooks. The previous model
+is retained for compatibility with Electron and for cases where the context
+flow may differ. However, if a difference in flow is found please report it.
+
 ### `--no-deprecation`
 
 <!-- YAML
@@ -1658,6 +1701,24 @@ added: v16.6.0
 -->
 
 Use this flag to disable top-level await in REPL.
+
+### `--no-experimental-require-module`
+
+<!-- YAML
+added:
+  - v22.0.0
+  - v20.17.0
+changes:
+  - version: v23.0.0
+    pr-url: https://github.com/nodejs/node/pull/55085
+    description: This is now false by default.
+-->
+
+> Stability: 1.1 - Active Development
+
+Disable support for loading a synchronous ES module graph in `require()`.
+
+See [Loading ECMAScript modules using `require()`][].
 
 ### `--no-experimental-websocket`
 
@@ -1766,15 +1827,6 @@ is being linked to Node.js. Sharing the OpenSSL configuration may have unwanted
 implications and it is recommended to use a configuration section specific to
 Node.js which is `nodejs_conf` and is default when this option is not used.
 
-### `--env-file-if-exists=config`
-
-<!-- YAML
-added: v22.9.0
--->
-
-Behavior is the same as [`--env-file`][], but an error is not thrown if the file
-does not exist.
-
 ### `--pending-deprecation`
 
 <!-- YAML
@@ -1875,9 +1927,7 @@ added:
   - v20.17.0
 -->
 
-This flag is only useful when `--experimental-require-module` is enabled.
-
-If the ES module being `require()`'d contains top-level await, this flag
+If the ES module being `require()`'d contains top-level `await`, this flag
 allows Node.js to evaluate the module, try to locate the
 top-level awaits, and print their location to help users find them.
 
@@ -2997,8 +3047,8 @@ one is included in the list below.
 * `--enable-fips`
 * `--enable-network-family-autoselection`
 * `--enable-source-maps`
+* `--entry-url`
 * `--experimental-abortcontroller`
-* `--experimental-async-context-frame`
 * `--experimental-default-type`
 * `--experimental-detect-module`
 * `--experimental-eventsource`
@@ -3023,6 +3073,10 @@ one is included in the list below.
 * `--force-fips`
 * `--force-node-api-uncaught-exceptions-policy`
 * `--frozen-intrinsics`
+* `--heap-prof-dir`
+* `--heap-prof-interval`
+* `--heap-prof-name`
+* `--heap-prof`
 * `--heapsnapshot-near-heap-limit`
 * `--heapsnapshot-signal`
 * `--http-parser`
@@ -3040,6 +3094,7 @@ one is included in the list below.
 * `--napi-modules`
 * `--network-family-autoselection-attempt-timeout`
 * `--no-addons`
+* `--no-async-context-frame`
 * `--no-deprecation`
 * `--no-experimental-global-navigator`
 * `--no-experimental-repl-await`
@@ -3415,23 +3470,6 @@ threadpool by setting the `'UV_THREADPOOL_SIZE'` environment variable to a value
 greater than `4` (its current default value). For more information, see the
 [libuv threadpool documentation][].
 
-### `UV_USE_IO_URING=value`
-
-Enable or disable libuv's use of `io_uring` on supported platforms.
-
-On supported platforms, `io_uring` can significantly improve the performance of
-various asynchronous I/O operations.
-
-`io_uring` is disabled by default due to security concerns. When `io_uring`
-is enabled, applications must not change the user identity of the process at
-runtime. In this case, JavaScript functions such as [`process.setuid()`][] are
-unavailable, and native addons must not invoke system functions such as
-[`setuid(2)`][].
-
-This environment variable is implemented by a dependency of Node.js and may be
-removed in future versions of Node.js. No stability guarantees are provided for
-the behavior of this environment variable.
-
 ## Useful V8 options
 
 V8 has its own set of CLI options. Any V8 CLI option that is provided to `node`
@@ -3503,8 +3541,12 @@ an increase of 1 MiB to semi-space applies to each of the three individual
 semi-spaces and causes the heap size to increase by 3 MiB. The throughput
 improvement depends on your workload (see [#42511][]).
 
-The default value is 16 MiB for 64-bit systems and 8 MiB for 32-bit systems. To
-get the best configuration for your application, you should try different
+The default value depends on the memory limit. For example, on 64-bit systems
+with a memory limit of 512 MiB, the max size of a semi-space defaults to 1 MiB.
+On 64-bit systems with a memory limit of 2 GiB, the max size of a semi-space
+defaults to 16 MiB.
+
+To get the best configuration for your application, you should try different
 max-semi-space-size values when running benchmarks for your application.
 
 For example, benchmark on a 64-bit systems:
@@ -3553,6 +3595,7 @@ node --stack-trace-limit=12 -p -e "Error.stackTraceLimit" # prints 12
 [V8 Inspector integration for Node.js]: debugger.md#v8-inspector-integration-for-nodejs
 [V8 JavaScript code coverage]: https://v8project.blogspot.com/2017/12/javascript-code-coverage.html
 [`"type"`]: packages.md#type
+[`--allow-addons`]: #--allow-addons
 [`--allow-child-process`]: #--allow-child-process
 [`--allow-fs-read`]: #--allow-fs-read
 [`--allow-fs-write`]: #--allow-fs-write
@@ -3586,12 +3629,11 @@ node --stack-trace-limit=12 -p -e "Error.stackTraceLimit" # prints 12
 [`dns.lookup()`]: dns.md#dnslookuphostname-options-callback
 [`dns.setDefaultResultOrder()`]: dns.md#dnssetdefaultresultorderorder
 [`dnsPromises.lookup()`]: dns.md#dnspromiseslookuphostname-options
+[`import.meta.url`]: esm.md#importmetaurl
 [`import` specifier]: esm.md#import-specifiers
 [`net.getDefaultAutoSelectFamilyAttemptTimeout()`]: net.md#netgetdefaultautoselectfamilyattempttimeout
 [`node:sqlite`]: sqlite.md
 [`process.setUncaughtExceptionCaptureCallback()`]: process.md#processsetuncaughtexceptioncapturecallbackfn
-[`process.setuid()`]: process.md#processsetuidid
-[`setuid(2)`]: https://man7.org/linux/man-pages/man2/setuid.2.html
 [`tls.DEFAULT_MAX_VERSION`]: tls.md#tlsdefault_max_version
 [`tls.DEFAULT_MIN_VERSION`]: tls.md#tlsdefault_min_version
 [`unhandledRejection`]: process.md#event-unhandledrejection

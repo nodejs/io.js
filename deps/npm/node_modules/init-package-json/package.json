@@ -1,15 +1,16 @@
 {
   "name": "init-package-json",
-  "version": "6.0.3",
+  "version": "7.0.1",
   "main": "lib/init-package-json.js",
   "scripts": {
     "test": "tap",
-    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lint": "npm run eslint",
     "postlint": "template-oss-check",
-    "lintfix": "npm run lint -- --fix",
+    "lintfix": "npm run eslint -- --fix",
     "snap": "tap",
     "posttest": "npm run lint",
-    "template-oss-apply": "template-oss-apply --force"
+    "template-oss-apply": "template-oss-apply --force",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "repository": {
     "type": "git",
@@ -19,22 +20,22 @@
   "license": "ISC",
   "description": "A node module to get your node module started",
   "dependencies": {
-    "@npmcli/package-json": "^5.0.0",
-    "npm-package-arg": "^11.0.0",
-    "promzard": "^1.0.0",
-    "read": "^3.0.1",
+    "@npmcli/package-json": "^6.0.0",
+    "npm-package-arg": "^12.0.0",
+    "promzard": "^2.0.0",
+    "read": "^4.0.0",
     "semver": "^7.3.5",
     "validate-npm-package-license": "^3.0.4",
-    "validate-npm-package-name": "^5.0.0"
+    "validate-npm-package-name": "^6.0.0"
   },
   "devDependencies": {
     "@npmcli/config": "^8.2.0",
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.22.0",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "tap": "^16.0.1"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "tap": {
     "test-ignore": "fixtures/",
@@ -60,7 +61,7 @@
   ],
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.22.0",
+    "version": "4.23.3",
     "publish": true
   }
 }

@@ -249,12 +249,12 @@ static UNewTrie2 *
 cloneBuilder(const UNewTrie2 *other) {
     UNewTrie2 *trie;
 
-    trie=(UNewTrie2 *)uprv_malloc(sizeof(UNewTrie2));
+    trie = static_cast<UNewTrie2*>(uprv_malloc(sizeof(UNewTrie2)));
     if(trie==nullptr) {
         return nullptr;
     }
 
-    trie->data=(uint32_t *)uprv_malloc(other->dataCapacity*4);
+    trie->data = static_cast<uint32_t*>(uprv_malloc(other->dataCapacity * 4));
     if(trie->data==nullptr) {
         uprv_free(trie);
         return nullptr;
@@ -506,7 +506,7 @@ isInNullBlock(UNewTrie2 *trie, UChar32 c, UBool forLSCP) {
             ((c>>UTRIE2_SHIFT_2)&UTRIE2_INDEX_2_MASK);
     }
     block=trie->index2[i2];
-    return (UBool)(block==trie->dataNullOffset);
+    return block == trie->dataNullOffset;
 }
 
 static int32_t
@@ -577,7 +577,7 @@ allocDataBlock(UNewTrie2 *trie, int32_t copyBlock) {
                  */
                 return -1;
             }
-            data=(uint32_t *)uprv_malloc(capacity*4);
+            data = static_cast<uint32_t*>(uprv_malloc(capacity * 4));
             if(data==nullptr) {
                 return -1;
             }
@@ -603,7 +603,7 @@ releaseDataBlock(UNewTrie2 *trie, int32_t block) {
 
 static inline UBool
 isWritableBlock(UNewTrie2 *trie, int32_t block) {
-    return (UBool)(block!=trie->dataNullOffset && 1==trie->map[block>>UTRIE2_SHIFT_2]);
+    return block != trie->dataNullOffset && 1 == trie->map[block >> UTRIE2_SHIFT_2];
 }
 
 static inline void
@@ -891,7 +891,7 @@ equal_int32(const int32_t *s, const int32_t *t, int32_t length) {
         ++t;
         --length;
     }
-    return (UBool)(length==0);
+    return length == 0;
 }
 
 static inline UBool
@@ -901,7 +901,7 @@ equal_uint32(const uint32_t *s, const uint32_t *t, int32_t length) {
         ++t;
         --length;
     }
-    return (UBool)(length==0);
+    return length == 0;
 }
 
 static int32_t
@@ -1211,7 +1211,7 @@ compactIndex2(UNewTrie2 *trie) {
      */
     while((newStart&((UTRIE2_DATA_GRANULARITY-1)|1))!=0) {
         /* Arbitrary value: 0x3fffc not possible for real data. */
-        trie->index2[newStart++]=(int32_t)0xffff<<UTRIE2_INDEX_SHIFT;
+        trie->index2[newStart++] = static_cast<int32_t>(0xffff) << UTRIE2_INDEX_SHIFT;
     }
 
 #ifdef UTRIE2_DEBUG

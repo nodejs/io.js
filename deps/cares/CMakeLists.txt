@@ -12,7 +12,7 @@ INCLUDE (CheckCSourceCompiles)
 INCLUDE (CheckStructHasMember)
 INCLUDE (CheckLibraryExists)
 
-PROJECT (c-ares LANGUAGES C VERSION "1.33.1" )
+PROJECT (c-ares LANGUAGES C VERSION "1.34.2" )
 
 # Set this version before release
 SET (CARES_VERSION "${PROJECT_VERSION}")
@@ -30,7 +30,7 @@ INCLUDE (GNUInstallDirs) # include this *AFTER* PROJECT(), otherwise paths are w
 # For example, a version of 4:0:2 would generate output such as:
 #    libname.so   -> libname.so.2
 #    libname.so.2 -> libname.so.2.2.0
-SET (CARES_LIB_VERSIONINFO "20:1:18")
+SET (CARES_LIB_VERSIONINFO "21:1:19")
 
 
 OPTION (CARES_STATIC        "Build as a static library"                                             OFF)
@@ -406,7 +406,7 @@ ENDIF ()
 
 CHECK_STRUCT_HAS_MEMBER("struct sockaddr_in6" sin6_scope_id "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID LANGUAGE C)
 
-
+CHECK_SYMBOL_EXISTS (memmem          "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_MEMMEM)
 CHECK_SYMBOL_EXISTS (closesocket     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CLOSESOCKET)
 CHECK_SYMBOL_EXISTS (CloseSocket     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CLOSESOCKET_CAMEL)
 CHECK_SYMBOL_EXISTS (connect         "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONNECT)
@@ -443,6 +443,7 @@ CHECK_SYMBOL_EXISTS (IoctlSocket     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_IOCTLSO
 CHECK_SYMBOL_EXISTS (recv            "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_RECV)
 CHECK_SYMBOL_EXISTS (recvfrom        "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_RECVFROM)
 CHECK_SYMBOL_EXISTS (send            "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SEND)
+CHECK_SYMBOL_EXISTS (sendto          "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SENDTO)
 CHECK_SYMBOL_EXISTS (setsockopt      "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SETSOCKOPT)
 CHECK_SYMBOL_EXISTS (socket          "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SOCKET)
 CHECK_SYMBOL_EXISTS (strcasecmp      "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_STRCASECMP)
@@ -500,7 +501,10 @@ IF (CARES_THREADS)
 			CARES_EXTRAINCLUDE_IFSET (HAVE_PTHREAD_NP_H                    pthread_np.h)
 			CHECK_SYMBOL_EXISTS (pthread_init  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_PTHREAD_INIT)
 			# Make sure libcares.pc.cmake knows about thread libraries on static builds
-			LIST (APPEND CARES_DEPENDENT_LIBS ${CMAKE_THREAD_LIBS_INIT})
+			# The variable set by FIND_PACKAGE(Threads) has a -l prefix on it, we need
+			# to strip that first since CARES_DEPENDENT_LIBS doesn't expect that.
+			STRING (REPLACE "-l" "" CARES_THREAD_LIBRARY "${CMAKE_THREAD_LIBS_INIT}")
+			LIST (APPEND CARES_DEPENDENT_LIBS ${CARES_THREAD_LIBRARY})
 		ELSE ()
 			MESSAGE (WARNING "Threading support not found, disabling...")
 			SET (CARES_THREADS OFF)
@@ -688,7 +692,6 @@ IF (HAVE_ARPA_NAMESER_COMPAT_H)
 	SET (CARES_HAVE_ARPA_NAMESER_COMPAT_H 1)
 ENDIF()
 
-
 # Coverage
 IF (CARES_COVERAGE)
 	# set compiler flags
@@ -755,9 +758,6 @@ IF (CARES_BUILD_TESTS OR CARES_BUILD_CONTAINER_TESTS)
 	ADD_SUBDIRECTORY (test)
 ENDIF ()
 
-
-
-
 # Export targets
 IF (CARES_INSTALL)
 	SET (CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
@@ -780,7 +780,6 @@ IF (CARES_INSTALL)
 	CONFIGURE_FILE("libcares.pc.cmake" "libcares.pc" @ONLY)
 	INSTALL (FILES "${CMAKE_CURRENT_BINARY_DIR}/libcares.pc" COMPONENT Devel DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 ENDIF ()
-
 
 # Legacy chain-building variables (provided for compatibility with old code).
 # Don't use these, external code should be updated to refer to the aliases directly (e.g., Cares::cares).

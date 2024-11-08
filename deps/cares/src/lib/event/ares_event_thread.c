@@ -77,11 +77,11 @@ static void ares_event_thread_wake(const ares_event_thread_t *e)
 static ares_event_t *ares_event_update_find(ares_event_thread_t *e,
                                             ares_socket_t fd, const void *data)
 {
-  ares__llist_node_t *node;
+  ares_llist_node_t *node;
 
-  for (node = ares__llist_node_first(e->ev_updates); node != NULL;
-       node = ares__llist_node_next(node)) {
-    ares_event_t *ev = ares__llist_node_val(node);
+  for (node = ares_llist_node_first(e->ev_updates); node != NULL;
+       node = ares_llist_node_next(node)) {
+    ares_event_t *ev = ares_llist_node_val(node);
 
     if (fd != ARES_SOCKET_BAD && fd == ev->fd && ev->flags != 0) {
       return ev;
@@ -134,7 +134,7 @@ ares_status_t ares_event_update(ares_event_t **event, ares_event_thread_t *e,
 
   /* That's all the validation we can really do */
 
-  ares__thread_mutex_lock(e->mutex);
+  ares_thread_mutex_lock(e->mutex);
 
   /* See if we have a queued update already */
   ev = ares_event_update_find(e, fd, data);
@@ -146,7 +146,7 @@ ares_status_t ares_event_update(ares_event_t **event, ares_event_thread_t *e,
       goto done;            /* LCOV_EXCL_LINE: OutOfMemory */
     }
 
-    if (ares__llist_insert_last(e->ev_updates, ev) == NULL) {
+    if (ares_llist_insert_last(e->ev_updates, ev) == NULL) {
       ares_free(ev);        /* LCOV_EXCL_LINE: OutOfMemory */
       status = ARES_ENOMEM; /* LCOV_EXCL_LINE: OutOfMemory */
       goto done;            /* LCOV_EXCL_LINE: OutOfMemory */
@@ -180,7 +180,7 @@ done:
     ares_event_thread_wake(e);
   }
 
-  ares__thread_mutex_unlock(e->mutex);
+  ares_thread_mutex_unlock(e->mutex);
 
   return status;
 }
@@ -189,11 +189,18 @@ static void ares_event_thread_process_fd(ares_event_thread_t *e,
                                          ares_socket_t fd, void *data,
                                          ares_event_flags_t flags)
 {
+  ares_fd_events_t event;
   (void)data;
 
-  ares_process_fd(e->channel,
-                  (flags & ARES_EVENT_FLAG_READ) ? fd : ARES_SOCKET_BAD,
-                  (flags & ARES_EVENT_FLAG_WRITE) ? fd : ARES_SOCKET_BAD);
+  event.fd     = fd;
+  event.events = 0;
+  if (flags & ARES_EVENT_FLAG_READ) {
+    event.events |= ARES_FD_EVENT_READ;
+  }
+  if (flags & ARES_EVENT_FLAG_WRITE) {
+    event.events |= ARES_FD_EVENT_WRITE;
+  }
+  ares_process_fds(e->channel, &event, 1, ARES_PROCESS_FLAG_SKIP_NON_FD);
 }
 
 static void ares_event_thread_sockstate_cb(void *data, ares_socket_t socket_fd,
@@ -216,20 +223,31 @@ static void ares_event_thread_sockstate_cb(void *data, ares_socket_t socket_fd,
                     NULL, NULL, NULL);
 }
 
+static void notifywrite_cb(void *data)
+{
+  ares_event_thread_t *e = data;
+
+  ares_thread_mutex_lock(e->mutex);
+  e->process_pending_write = ARES_TRUE;
+  ares_thread_mutex_unlock(e->mutex);
+
+  ares_event_thread_wake(e);
+}
+
 static void ares_event_process_updates(ares_event_thread_t *e)
 {
-  ares__llist_node_t *node;
+  ares_llist_node_t *node;
 
   /* Iterate across all updates and apply to internal list, removing from update
    * list */
-  while ((node = ares__llist_node_first(e->ev_updates)) != NULL) {
-    ares_event_t *newev = ares__llist_node_claim(node);
+  while ((node = ares_llist_node_first(e->ev_updates)) != NULL) {
+    ares_event_t *newev = ares_llist_node_claim(node);
     ares_event_t *oldev;
 
     if (newev->fd == ARES_SOCKET_BAD) {
-      oldev = ares__htable_vpvp_get_direct(e->ev_cust_handles, newev->data);
+      oldev = ares_htable_vpvp_get_direct(e->ev_cust_handles, newev->data);
     } else {
-      oldev = ares__htable_asvp_get_direct(e->ev_sock_handles, newev->fd);
+      oldev = ares_htable_asvp_get_direct(e->ev_sock_handles, newev->fd);
     }
 
     /* Adding new */
@@ -244,9 +262,9 @@ static void ares_event_process_updates(ares_event_thread_t *e)
         ares_event_destroy_cb(newev);
       } else {
         if (newev->fd == ARES_SOCKET_BAD) {
-          ares__htable_vpvp_insert(e->ev_cust_handles, newev->data, newev);
+          ares_htable_vpvp_insert(e->ev_cust_handles, newev->data, newev);
         } else {
-          ares__htable_asvp_insert(e->ev_sock_handles, newev->fd, newev);
+          ares_htable_asvp_insert(e->ev_sock_handles, newev->fd, newev);
         }
       }
       continue;
@@ -257,9 +275,9 @@ static void ares_event_process_updates(ares_event_thread_t *e)
       /* the callback for the removal will call e->ev_sys->event_del(e, event)
        */
       if (newev->fd == ARES_SOCKET_BAD) {
-        ares__htable_vpvp_remove(e->ev_cust_handles, newev->data);
+        ares_htable_vpvp_remove(e->ev_cust_handles, newev->data);
       } else {
-        ares__htable_asvp_remove(e->ev_sock_handles, newev->fd);
+        ares_htable_asvp_remove(e->ev_sock_handles, newev->fd);
       }
       ares_free(newev);
       continue;
@@ -276,22 +294,22 @@ static void ares_event_thread_cleanup(ares_event_thread_t *e)
 {
   /* Manually free any updates that weren't processed */
   if (e->ev_updates != NULL) {
-    ares__llist_node_t *node;
+    ares_llist_node_t *node;
 
-    while ((node = ares__llist_node_first(e->ev_updates)) != NULL) {
-      ares_event_destroy_cb(ares__llist_node_claim(node));
+    while ((node = ares_llist_node_first(e->ev_updates)) != NULL) {
+      ares_event_destroy_cb(ares_llist_node_claim(node));
     }
-    ares__llist_destroy(e->ev_updates);
+    ares_llist_destroy(e->ev_updates);
     e->ev_updates = NULL;
   }
 
   if (e->ev_sock_handles != NULL) {
-    ares__htable_asvp_destroy(e->ev_sock_handles);
+    ares_htable_asvp_destroy(e->ev_sock_handles);
     e->ev_sock_handles = NULL;
   }
 
   if (e->ev_cust_handles != NULL) {
-    ares__htable_vpvp_destroy(e->ev_cust_handles);
+    ares_htable_vpvp_destroy(e->ev_cust_handles);
     e->ev_cust_handles = NULL;
   }
 
@@ -304,19 +322,20 @@ static void ares_event_thread_cleanup(ares_event_thread_t *e)
 static void *ares_event_thread(void *arg)
 {
   ares_event_thread_t *e = arg;
-  ares__thread_mutex_lock(e->mutex);
+  ares_thread_mutex_lock(e->mutex);
 
   while (e->isup) {
     struct timeval        tv;
     const struct timeval *tvout;
     unsigned long         timeout_ms = 0; /* 0 = unlimited */
+    ares_bool_t           process_pending_write;
 
     ares_event_process_updates(e);
 
     /* Don't hold a mutex while waiting on events or calling into anything
      * that might require a c-ares channel lock since a callback could be
      * triggered cross-thread */
-    ares__thread_mutex_unlock(e->mutex);
+    ares_thread_mutex_unlock(e->mutex);
 
     tvout = ares_timeout(e->channel, NULL, &tv);
     if (tvout != NULL) {
@@ -326,19 +345,29 @@ static void *ares_event_thread(void *arg)
 
     e->ev_sys->wait(e, timeout_ms);
 
-    /* Each iteration should do timeout processing */
+    /* Process pending write operation */
+    ares_thread_mutex_lock(e->mutex);
+    process_pending_write    = e->process_pending_write;
+    e->process_pending_write = ARES_FALSE;
+    ares_thread_mutex_unlock(e->mutex);
+    if (process_pending_write) {
+      ares_process_pending_write(e->channel);
+    }
+
+    /* Each iteration should do timeout processing and any other cleanup
+     * that may not have been performed */
     if (e->isup) {
-      ares_process_fd(e->channel, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
+      ares_process_fds(e->channel, NULL, 0, ARES_PROCESS_FLAG_NONE);
     }
 
     /* Relock before we loop again */
-    ares__thread_mutex_lock(e->mutex);
+    ares_thread_mutex_lock(e->mutex);
   }
 
   /* Lets cleanup while we're in the thread itself */
   ares_event_thread_cleanup(e);
 
-  ares__thread_mutex_unlock(e->mutex);
+  ares_thread_mutex_unlock(e->mutex);
 
   return NULL;
 }
@@ -346,17 +375,17 @@ static void *ares_event_thread(void *arg)
 static void ares_event_thread_destroy_int(ares_event_thread_t *e)
 {
   /* Wake thread and tell it to shutdown if it exists */
-  ares__thread_mutex_lock(e->mutex);
+  ares_thread_mutex_lock(e->mutex);
   if (e->isup) {
     e->isup = ARES_FALSE;
     ares_event_thread_wake(e);
   }
-  ares__thread_mutex_unlock(e->mutex);
+  ares_thread_mutex_unlock(e->mutex);
 
   /* Wait for thread to shutdown */
   if (e->thread) {
     void *rv = NULL;
-    ares__thread_join(e->thread, &rv);
+    ares_thread_join(e->thread, &rv);
     e->thread = NULL;
   }
 
@@ -364,7 +393,7 @@ static void ares_event_thread_destroy_int(ares_event_thread_t *e)
    * as it runs this same cleanup when it shuts down */
   ares_event_thread_cleanup(e);
 
-  ares__thread_mutex_destroy(e->mutex);
+  ares_thread_mutex_destroy(e->mutex);
   e->mutex = NULL;
 
   ares_free(e);
@@ -379,8 +408,10 @@ void ares_event_thread_destroy(ares_channel_t *channel)
   }
 
   ares_event_thread_destroy_int(e);
-  channel->sock_state_cb_data = NULL;
-  channel->sock_state_cb      = NULL;
+  channel->sock_state_cb_data           = NULL;
+  channel->sock_state_cb                = NULL;
+  channel->notify_pending_write_cb      = NULL;
+  channel->notify_pending_write_cb_data = NULL;
 }
 
 static const ares_event_sys_t *ares_event_fetch_sys(ares_evsys_t evsys)
@@ -451,25 +482,25 @@ ares_status_t ares_event_thread_init(ares_channel_t *channel)
     return ARES_ENOMEM; /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
-  e->mutex = ares__thread_mutex_create();
+  e->mutex = ares_thread_mutex_create();
   if (e->mutex == NULL) {
     ares_event_thread_destroy_int(e); /* LCOV_EXCL_LINE: OutOfMemory */
     return ARES_ENOMEM;               /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
-  e->ev_updates = ares__llist_create(NULL);
+  e->ev_updates = ares_llist_create(NULL);
   if (e->ev_updates == NULL) {
     ares_event_thread_destroy_int(e); /* LCOV_EXCL_LINE: OutOfMemory */
     return ARES_ENOMEM;               /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
-  e->ev_sock_handles = ares__htable_asvp_create(ares_event_destroy_cb);
+  e->ev_sock_handles = ares_htable_asvp_create(ares_event_destroy_cb);
   if (e->ev_sock_handles == NULL) {
     ares_event_thread_destroy_int(e); /* LCOV_EXCL_LINE: OutOfMemory */
     return ARES_ENOMEM;               /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
-  e->ev_cust_handles = ares__htable_vpvp_create(NULL, ares_event_destroy_cb);
+  e->ev_cust_handles = ares_htable_vpvp_create(NULL, ares_event_destroy_cb);
   if (e->ev_cust_handles == NULL) {
     ares_event_thread_destroy_int(e); /* LCOV_EXCL_LINE: OutOfMemory */
     return ARES_ENOMEM;               /* LCOV_EXCL_LINE: OutOfMemory */
@@ -483,8 +514,10 @@ ares_status_t ares_event_thread_init(ares_channel_t *channel)
     return ARES_ENOTIMP;              /* LCOV_EXCL_LINE: UntestablePath */
   }
 
-  channel->sock_state_cb      = ares_event_thread_sockstate_cb;
-  channel->sock_state_cb_data = e;
+  channel->sock_state_cb                = ares_event_thread_sockstate_cb;
+  channel->sock_state_cb_data           = e;
+  channel->notify_pending_write_cb      = notifywrite_cb;
+  channel->notify_pending_write_cb_data = e;
 
   if (!e->ev_sys->init(e)) {
     /* LCOV_EXCL_START: UntestablePath */
@@ -503,7 +536,7 @@ ares_status_t ares_event_thread_init(ares_channel_t *channel)
   ares_event_process_updates(e);
 
   /* Start thread */
-  if (ares__thread_create(&e->thread, ares_event_thread, e) != ARES_SUCCESS) {
+  if (ares_thread_create(&e->thread, ares_event_thread, e) != ARES_SUCCESS) {
     /* LCOV_EXCL_START: UntestablePath */
     ares_event_thread_destroy_int(e);
     channel->sock_state_cb      = NULL;

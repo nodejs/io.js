@@ -29,30 +29,30 @@
 int ares_getsock(const ares_channel_t *channel, ares_socket_t *socks,
                  int numsocks) /* size of the 'socks' array */
 {
-  ares__slist_node_t *snode;
-  size_t              sockindex = 0;
-  unsigned int        bitmap    = 0;
-  unsigned int        setbits   = 0xffffffff;
+  ares_slist_node_t *snode;
+  size_t             sockindex = 0;
+  unsigned int       bitmap    = 0;
+  unsigned int       setbits   = 0xffffffff;
 
   /* Are there any active queries? */
-  size_t              active_queries;
+  size_t             active_queries;
 
   if (channel == NULL || numsocks <= 0) {
     return 0;
   }
 
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
 
-  active_queries = ares__llist_len(channel->all_queries);
+  active_queries = ares_llist_len(channel->all_queries);
 
-  for (snode = ares__slist_node_first(channel->servers); snode != NULL;
-       snode = ares__slist_node_next(snode)) {
-    ares_server_t      *server = ares__slist_node_val(snode);
-    ares__llist_node_t *node;
+  for (snode = ares_slist_node_first(channel->servers); snode != NULL;
+       snode = ares_slist_node_next(snode)) {
+    ares_server_t     *server = ares_slist_node_val(snode);
+    ares_llist_node_t *node;
 
-    for (node = ares__llist_node_first(server->connections); node != NULL;
-         node = ares__llist_node_next(node)) {
-      const ares_conn_t *conn = ares__llist_node_val(node);
+    for (node = ares_llist_node_first(server->connections); node != NULL;
+         node = ares_llist_node_next(node)) {
+      const ares_conn_t *conn = ares_llist_node_val(node);
 
       if (sockindex >= (size_t)numsocks || sockindex >= ARES_GETSOCK_MAXNUM) {
         break;
@@ -71,7 +71,7 @@ int ares_getsock(const ares_channel_t *channel, ares_socket_t *socks,
         bitmap |= ARES_GETSOCK_READABLE(setbits, sockindex);
       }
 
-      if (conn->flags & ARES_CONN_FLAG_TCP && ares__buf_len(server->tcp_send)) {
+      if (conn->state_flags & ARES_CONN_STATE_WRITE) {
         /* then the tcp socket is also writable! */
         bitmap |= ARES_GETSOCK_WRITABLE(setbits, sockindex);
       }
@@ -80,6 +80,6 @@ int ares_getsock(const ares_channel_t *channel, ares_socket_t *socks,
     }
   }
 
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
   return (int)bitmap;
 }

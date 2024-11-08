@@ -68,6 +68,7 @@ template("node_gn_build") {
       "-Wno-extra-semi",
       "-Wno-implicit-fallthrough",
       "-Wno-macro-redefined",
+      "-Wno-missing-braces",
       "-Wno-return-type",
       "-Wno-shadow",
       "-Wno-sometimes-uninitialized",

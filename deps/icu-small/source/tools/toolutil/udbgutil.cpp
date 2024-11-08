@@ -562,7 +562,7 @@ static const USystemParams systemParams[] = {
 #define U_SYSPARAM_COUNT UPRV_LENGTHOF(systemParams)
 
 U_CAPI const char *udbg_getSystemParameterNameByIndex(int32_t i) {
-  if(i>=0 && i < (int32_t)U_SYSPARAM_COUNT) {
+  if (i >= 0 && i < U_SYSPARAM_COUNT) {
     return systemParams[i].paramName;
   } else {
     return nullptr;
@@ -571,7 +571,7 @@ U_CAPI const char *udbg_getSystemParameterNameByIndex(int32_t i) {
 
 
 U_CAPI int32_t udbg_getSystemParameterValueByIndex(int32_t i, char *buffer, int32_t bufferCapacity, UErrorCode *status) {
-  if(i>=0 && i< (int32_t)U_SYSPARAM_COUNT) {
+  if (i >= 0 && i < U_SYSPARAM_COUNT) {
     return systemParams[i].paramFunction(&(systemParams[i]),buffer,bufferCapacity,status);
   } else {
     return 0;

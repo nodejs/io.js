@@ -105,7 +105,8 @@ ares_status_t ares_query_nolock(ares_channel_t *channel, const char *name,
   qquery->arg      = arg;
 
   /* Send it off.  qcallback will be called when we get an answer. */
-  status = ares_send_nolock(channel, dnsrec, ares_query_dnsrec_cb, qquery, qid);
+  status = ares_send_nolock(channel, NULL, 0, dnsrec, ares_query_dnsrec_cb,
+                            qquery, qid);
 
   ares_dns_record_destroy(dnsrec);
   return status;
@@ -123,9 +124,9 @@ ares_status_t ares_query_dnsrec(ares_channel_t *channel, const char *name,
     return ARES_EFORMERR;
   }
 
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
   status = ares_query_nolock(channel, name, dnsclass, type, callback, arg, qid);
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
   return status;
 }
 
@@ -138,13 +139,13 @@ void ares_query(ares_channel_t *channel, const char *name, int dnsclass,
     return;
   }
 
-  carg = ares__dnsrec_convert_arg(callback, arg);
+  carg = ares_dnsrec_convert_arg(callback, arg);
   if (carg == NULL) {
     callback(arg, ARES_ENOMEM, 0, NULL, 0); /* LCOV_EXCL_LINE: OutOfMemory */
     return;                                 /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
   ares_query_dnsrec(channel, name, (ares_dns_class_t)dnsclass,
-                    (ares_dns_rec_type_t)type, ares__dnsrec_convert_cb, carg,
+                    (ares_dns_rec_type_t)type, ares_dnsrec_convert_cb, carg,
                     NULL);
 }

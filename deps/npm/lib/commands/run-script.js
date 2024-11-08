@@ -21,6 +21,7 @@ class RunScript extends BaseCommand {
   static workspaces = true
   static ignoreImplicitWorkspace = false
   static isShellout = true
+  static checkDevEngines = true
 
   static async completion (opts, npm) {
     const argv = opts.conf.argv.remain

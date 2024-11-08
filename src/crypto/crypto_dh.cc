@@ -120,7 +120,7 @@ void New(const FunctionCallbackInfo<Value>& args) {
   // or an ArrayBuffer or ArrayBufferView with the generator.
 
   ArrayBufferOrViewContents<char> arg0(args[0]);
-  if (UNLIKELY(!arg0.CheckSizeInt32()))
+  if (!arg0.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "prime is too big");
 
   BignumPointer bn_p(reinterpret_cast<uint8_t*>(arg0.data()), arg0.size());
@@ -142,7 +142,7 @@ void New(const FunctionCallbackInfo<Value>& args) {
     }
   } else {
     ArrayBufferOrViewContents<char> arg1(args[1]);
-    if (UNLIKELY(!arg1.CheckSizeInt32()))
+    if (!arg1.CheckSizeInt32()) [[unlikely]]
       return THROW_ERR_OUT_OF_RANGE(env, "generator is too big");
     bn_g = BignumPointer(reinterpret_cast<uint8_t*>(arg1.data()), arg1.size());
     if (!bn_g) {
@@ -253,7 +253,7 @@ void ComputeSecret(const FunctionCallbackInfo<Value>& args) {
 
   CHECK_EQ(args.Length(), 1);
   ArrayBufferOrViewContents<unsigned char> key_buf(args[0]);
-  if (UNLIKELY(!key_buf.CheckSizeInt32()))
+  if (!key_buf.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "secret is too big");
   BignumPointer key(key_buf.data(), key_buf.size());
 
@@ -286,7 +286,7 @@ void SetPublicKey(const FunctionCallbackInfo<Value>& args) {
   DHPointer& dh = *diffieHellman;
   CHECK_EQ(args.Length(), 1);
   ArrayBufferOrViewContents<unsigned char> buf(args[0]);
-  if (UNLIKELY(!buf.CheckSizeInt32()))
+  if (!buf.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "buf is too big");
   BignumPointer num(buf.data(), buf.size());
   CHECK(num);
@@ -300,7 +300,7 @@ void SetPrivateKey(const FunctionCallbackInfo<Value>& args) {
   DHPointer& dh = *diffieHellman;
   CHECK_EQ(args.Length(), 1);
   ArrayBufferOrViewContents<unsigned char> buf(args[0]);
-  if (UNLIKELY(!buf.CheckSizeInt32()))
+  if (!buf.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "buf is too big");
   BignumPointer num(buf.data(), buf.size());
   CHECK(num);
@@ -368,7 +368,7 @@ Maybe<void> DhKeyGenTraits::AdditionalConfig(
       params->params.prime = size;
     } else {
       ArrayBufferOrViewContents<unsigned char> input(args[*offset]);
-      if (UNLIKELY(!input.CheckSizeInt32())) {
+      if (!input.CheckSizeInt32()) [[unlikely]] {
         THROW_ERR_OUT_OF_RANGE(env, "prime is too big");
         return Nothing<void>();
       }

@@ -4,9 +4,14 @@ import argparse
 import ast
 import errno
 import os
+import platform
 import shutil
 import sys
 import re
+
+current_system = platform.system()
+
+SYSTEM_AIX = "AIX"
 
 def abspath(*args):
   path = os.path.join(*args)
@@ -44,6 +49,7 @@ def try_rmdir_r(options, path):
     except OSError as e:
       if e.errno == errno.ENOTEMPTY: return
       if e.errno == errno.ENOENT: return
+      if e.errno == errno.EEXIST and current_system == SYSTEM_AIX: return
       raise
     path = abspath(path, '..')
 

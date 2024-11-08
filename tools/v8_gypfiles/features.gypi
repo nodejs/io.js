@@ -219,7 +219,7 @@
     # Enable third party HEAP library
     'v8_enable_third_party_heap%': 0,
 
-    # Libaries used by third party heap
+    # Libraries used by third party heap
     'v8_third_party_heap_libs%': [],
 
     # Source code used by third party heap

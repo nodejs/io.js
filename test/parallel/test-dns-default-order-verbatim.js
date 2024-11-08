@@ -46,4 +46,14 @@ function allowFailed(fn) {
 
   await allowFailed(dnsPromises.lookup('example.org', {}));
   checkParameter(cares.DNS_ORDER_VERBATIM);
+
+  await allowFailed(
+    promisify(dns.lookup)('example.org', { order: 'ipv4first' })
+  );
+  checkParameter(cares.DNS_ORDER_IPV4_FIRST);
+
+  await allowFailed(
+    promisify(dns.lookup)('example.org', { order: 'ipv6first' })
+  );
+  checkParameter(cares.DNS_ORDER_IPV6_FIRST);
 })().then(common.mustCall());

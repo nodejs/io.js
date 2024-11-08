@@ -325,7 +325,7 @@ added: v0.0.1
 ## `CloseEvent`
 
 <!-- YAML
-added: REPLACEME
+added: v23.0.0
 -->
 
 <!-- type=global -->
@@ -374,7 +374,7 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
-  - version: REPLACEME
+  - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/52564
     description: No longer experimental.
   - version: v19.0.0
@@ -395,7 +395,7 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
-  - version: REPLACEME
+  - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/52564
     description: No longer experimental.
   - version: v19.0.0
@@ -414,7 +414,7 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
-  - version: REPLACEME
+  - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/52564
     description: No longer experimental.
   - version: v19.0.0
@@ -435,7 +435,7 @@ added:
   - v18.7.0
   - v16.17.0
 changes:
-  - version: REPLACEME
+  - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/52723
     description: No longer experimental.
   - version: v19.0.0
@@ -477,7 +477,9 @@ A browser-compatible implementation of the `Event` class. See
 ## `EventSource`
 
 <!-- YAML
-added: v22.3.0
+added:
+  - v22.3.0
+  - v20.18.0
 -->
 
 > Stability: 1 - Experimental. Enable this API with the [`--experimental-eventsource`][]

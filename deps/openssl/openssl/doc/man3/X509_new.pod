@@ -18,7 +18,7 @@ X509_chain_up_ref - X509 certificate ASN1 allocation functions
 
 =head1 DESCRIPTION
 
-The X509 ASN1 allocation routines, allocate and free an
+The X509 ASN1 allocation routines allocate and free an
 X509 structure, which represents an X509 certificate.
 
 X509_new_ex() allocates and initializes a X509 structure with a
@@ -33,7 +33,8 @@ and property query to NULL. This results in the default (NULL) library context
 being used for any X509 operations requiring algorithm fetches.
 
 X509_free() decrements the reference count of B<X509> structure B<a> and
-frees it up if the reference count is zero. If B<a> is NULL nothing is done.
+frees it up if the reference count is zero. If the argument is NULL,
+nothing is done.
 
 X509_up_ref() increments the reference count of B<a>.
 
@@ -86,7 +87,7 @@ The function X509_new_ex() was added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2002-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2002-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

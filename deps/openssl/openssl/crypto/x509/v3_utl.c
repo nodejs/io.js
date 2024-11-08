@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -916,36 +916,64 @@ static int do_x509_check(X509 *x, const char *chk, size_t chklen,
             ASN1_STRING *cstr;
 
             gen = sk_GENERAL_NAME_value(gens, i);
-            if ((gen->type == GEN_OTHERNAME) && (check_type == GEN_EMAIL)) {
-                if (OBJ_obj2nid(gen->d.otherName->type_id) ==
-                    NID_id_on_SmtpUTF8Mailbox) {
-                    san_present = 1;
-
-                    /*
-                     * If it is not a UTF8String then that is unexpected and we
-                     * treat it as no match
+            switch (gen->type) {
+            default:
+                continue;
+            case GEN_OTHERNAME:
+		switch (OBJ_obj2nid(gen->d.otherName->type_id)) {
+                default:
+                    continue;
+                case NID_id_on_SmtpUTF8Mailbox:
+                    /*-
+                     * https://datatracker.ietf.org/doc/html/rfc8398#section-3
+                     *
+                     *   Due to name constraint compatibility reasons described
+                     *   in Section 6, SmtpUTF8Mailbox subjectAltName MUST NOT
+                     *   be used unless the local-part of the email address
+                     *   contains non-ASCII characters. When the local-part is
+                     *   ASCII, rfc822Name subjectAltName MUST be used instead
+                     *   of SmtpUTF8Mailbox. This is compatible with legacy
+                     *   software that supports only rfc822Name (and not
+                     *   SmtpUTF8Mailbox). [...]
+                     *
+                     *   SmtpUTF8Mailbox is encoded as UTF8String.
+                     *
+                     * If it is not a UTF8String then that is unexpected, and
+                     * we ignore the invalid SAN (neither set san_present nor
+                     * consider it a candidate for equality).  This does mean
+                     * that the subject CN may be considered, as would be the
+                     * case when the malformed SmtpUtf8Mailbox SAN is instead
+                     * simply absent.
+                     *
+                     * When CN-ID matching is not desirable, applications can
+                     * choose to turn it off, doing so is at this time a best
+                     * practice.
                      */
-                    if (gen->d.otherName->value->type == V_ASN1_UTF8STRING) {
-                        cstr = gen->d.otherName->value->value.utf8string;
-
-                        /* Positive on success, negative on error! */
-                        if ((rv = do_check_string(cstr, 0, equal, flags,
-                                                chk, chklen, peername)) != 0)
-                            break;
-                    }
-                } else
+                    if (check_type != GEN_EMAIL
+                        || gen->d.otherName->value->type != V_ASN1_UTF8STRING)
+                        continue;
+                    alt_type = 0;
+                    cstr = gen->d.otherName->value->value.utf8string;
+                    break;
+                }
+                break;
+            case GEN_EMAIL:
+                if (check_type != GEN_EMAIL)
                     continue;
-            } else {
-                if ((gen->type != check_type) && (gen->type != GEN_OTHERNAME))
+                cstr = gen->d.rfc822Name;
+                break;
+            case GEN_DNS:
+                if (check_type != GEN_DNS)
                     continue;
+                cstr = gen->d.dNSName;
+                break;
+            case GEN_IPADD:
+                if (check_type != GEN_IPADD)
+                    continue;
+                cstr = gen->d.iPAddress;
+                break;
             }
             san_present = 1;
-            if (check_type == GEN_EMAIL)
-                cstr = gen->d.rfc822Name;
-            else if (check_type == GEN_DNS)
-                cstr = gen->d.dNSName;
-            else
-                cstr = gen->d.iPAddress;
             /* Positive on success, negative on error! */
             if ((rv = do_check_string(cstr, alt_type, equal, flags,
                                       chk, chklen, peername)) != 0)

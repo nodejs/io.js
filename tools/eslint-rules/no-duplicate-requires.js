@@ -34,7 +34,7 @@ module.exports = {
 
     return {
       CallExpression(node) {
-        if (isRequireCall(node) && isTopLevel(node)) {
+        if (isRequireCall(node)) {
           const [firstArg] = node.arguments;
           if (isString(firstArg)) {
             const moduleName = firstArg.value.trim();
@@ -43,7 +43,7 @@ module.exports = {
                 node,
                 message: `'${moduleName}' require is duplicated.`,
               });
-            } else {
+            } else if (isTopLevel(node)) {
               requiredModules.add(moduleName);
             }
           }

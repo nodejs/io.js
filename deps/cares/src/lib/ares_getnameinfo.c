@@ -193,9 +193,9 @@ void ares_getnameinfo(ares_channel_t *channel, const struct sockaddr *sa,
     return;
   }
 
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
   ares_getnameinfo_int(channel, sa, salen, flags_int, callback, arg);
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
 }
 
 static void nameinfo_callback(void *arg, int status, int timeouts,
@@ -410,8 +410,8 @@ static char *ares_striendstr(const char *s1, const char *s2)
   c1       = c1_begin;
   c2       = s2;
   while (c2 < s2 + s2_len) {
-    lo1 = ares__tolower((unsigned char)*c1);
-    lo2 = ares__tolower((unsigned char)*c2);
+    lo1 = ares_tolower((unsigned char)*c1);
+    lo2 = ares_tolower((unsigned char)*c2);
     if (lo1 != lo2) {
       return NULL;
     } else {
@@ -423,7 +423,7 @@ static char *ares_striendstr(const char *s1, const char *s2)
   return (char *)((size_t)c1_begin);
 }
 
-ares_bool_t ares__is_onion_domain(const char *name)
+ares_bool_t ares_is_onion_domain(const char *name)
 {
   if (ares_striendstr(name, ".onion")) {
     return ARES_TRUE;

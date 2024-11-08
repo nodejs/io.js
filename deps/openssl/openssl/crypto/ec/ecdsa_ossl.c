@@ -130,7 +130,11 @@ static int ecdsa_sign_setup(EC_KEY *eckey, BN_CTX *ctx_in,
         ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
         goto err;
     }
-    order = EC_GROUP_get0_order(group);
+
+    if ((order = EC_GROUP_get0_order(group)) == NULL) {
+        ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
+        goto err;
+    }
 
     /* Preallocate space */
     order_bits = BN_num_bits(order);
@@ -255,7 +259,11 @@ ECDSA_SIG *ossl_ecdsa_simple_sign_sig(const unsigned char *dgst, int dgst_len,
         goto err;
     }
 
-    order = EC_GROUP_get0_order(group);
+    if ((order = EC_GROUP_get0_order(group)) == NULL) {
+        ERR_raise(ERR_LIB_EC, ERR_R_EC_LIB);
+        goto err;
+    }
+
     i = BN_num_bits(order);
     /*
      * Need to truncate digest if it is too long: first truncate whole bytes.

@@ -1,6 +1,6 @@
 {
   "name": "@npmcli/redact",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "description": "Redact sensitive npm information from output",
   "main": "lib/index.js",
   "exports": {
@@ -10,12 +10,13 @@
   },
   "scripts": {
     "test": "tap",
-    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lint": "npm run eslint",
     "postlint": "template-oss-check",
     "template-oss-apply": "template-oss-apply --force",
-    "lintfix": "npm run lint -- --fix",
+    "lintfix": "npm run eslint -- --fix",
     "snap": "tap",
-    "posttest": "npm run lint"
+    "posttest": "npm run lint",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "keywords": [],
   "author": "GitHub Inc.",
@@ -26,11 +27,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/redact.git"
+    "url": "git+https://github.com/npm/redact.git"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.21.3",
+    "version": "4.23.3",
     "publish": true
   },
   "tap": {
@@ -41,11 +42,11 @@
     "timeout": 120
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.2",
-    "@npmcli/template-oss": "4.21.3",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "tap": "^16.3.10"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   }
 }

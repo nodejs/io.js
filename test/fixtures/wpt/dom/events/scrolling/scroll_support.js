@@ -88,7 +88,7 @@ const MAX_UNCHANGED_FRAMES = 20;
 function waitFor(condition, error_message = 'Reaches the maximum frames.') {
   return new Promise((resolve, reject) => {
     function tick(frames) {
-      // We requestAnimationFrame either for MAX_FRAM frames or until condition
+      // We requestAnimationFrame either for MAX_FRAME frames or until condition
       // is met.
       if (frames >= MAX_FRAME)
         reject(error_message);

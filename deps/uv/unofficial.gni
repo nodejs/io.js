@@ -40,6 +40,7 @@ template("uv_gn_build") {
         "-Wno-extra-semi",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-braces",
+        "-Wno-sign-compare",
         "-Wno-string-conversion",
         "-Wno-shadow",
         "-Wno-unreachable-code",

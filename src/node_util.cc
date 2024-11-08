@@ -23,6 +23,7 @@ using v8::Isolate;
 using v8::KeyCollectionMode;
 using v8::Local;
 using v8::LocalVector;
+using v8::Name;
 using v8::Object;
 using v8::ObjectTemplate;
 using v8::ONLY_CONFIGURABLE;
@@ -246,7 +247,7 @@ static void ParseEnv(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(dotenv.ToObject(env));
 }
 
-static void GetCallSite(const FunctionCallbackInfo<Value>& args) {
+static void GetCallSites(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Isolate* isolate = env->isolate();
 
@@ -262,28 +263,32 @@ static void GetCallSite(const FunctionCallbackInfo<Value>& args) {
 
   // Frame 0 is node:util. It should be skipped.
   for (int i = 1; i < frame_count; ++i) {
-    Local<Object> obj = Object::New(isolate);
     Local<StackFrame> stack_frame = stack->GetFrame(isolate, i);
 
-    Utf8Value function_name(isolate, stack_frame->GetFunctionName());
-    Utf8Value script_name(isolate, stack_frame->GetScriptName());
+    Local<Value> function_name = stack_frame->GetFunctionName();
+    if (function_name.IsEmpty()) {
+      function_name = v8::String::Empty(isolate);
+    }
 
-    obj->Set(env->context(),
-             env->function_name_string(),
-             String::NewFromUtf8(isolate, *function_name).ToLocalChecked())
-        .Check();
-    obj->Set(env->context(),
-             env->script_name_string(),
-             String::NewFromUtf8(isolate, *script_name).ToLocalChecked())
-        .Check();
-    obj->Set(env->context(),
-             env->line_number_string(),
-             Integer::NewFromUnsigned(isolate, stack_frame->GetLineNumber()))
-        .Check();
-    obj->Set(env->context(),
-             env->column_string(),
-             Integer::NewFromUnsigned(isolate, stack_frame->GetColumn()))
-        .Check();
+    Local<Value> script_name = stack_frame->GetScriptName();
+    if (script_name.IsEmpty()) {
+      script_name = v8::String::Empty(isolate);
+    }
+
+    Local<Name> names[] = {
+        env->function_name_string(),
+        env->script_name_string(),
+        env->line_number_string(),
+        env->column_string(),
+    };
+    Local<Value> values[] = {
+        function_name,
+        script_name,
+        Integer::NewFromUnsigned(isolate, stack_frame->GetLineNumber()),
+        Integer::NewFromUnsigned(isolate, stack_frame->GetColumn()),
+    };
+    Local<Object> obj = Object::New(
+        isolate, v8::Null(isolate), names, values, arraysize(names));
 
     callsite_objects.push_back(obj);
   }
@@ -293,12 +298,54 @@ static void GetCallSite(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(callsites);
 }
 
+static void IsInsideNodeModules(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  CHECK_EQ(args.Length(), 2);
+  CHECK(args[0]->IsInt32());  // frame_limit
+  // The second argument is the default value.
+
+  int frames_limit = args[0].As<v8::Int32>()->Value();
+  Local<StackTrace> stack =
+      StackTrace::CurrentStackTrace(isolate, frames_limit);
+  int frame_count = stack->GetFrameCount();
+
+  // If the search requires looking into more than |frames_limit| frames, give
+  // up and return the specified default value.
+  if (frame_count == frames_limit) {
+    return args.GetReturnValue().Set(args[1]);
+  }
+
+  bool result = false;
+  for (int i = 0; i < frame_count; ++i) {
+    Local<StackFrame> stack_frame = stack->GetFrame(isolate, i);
+    Local<String> script_name = stack_frame->GetScriptName();
+
+    if (script_name.IsEmpty() || script_name->Length() == 0) {
+      continue;
+    }
+    Utf8Value script_name_utf8(isolate, script_name);
+    std::string_view script_name_str = script_name_utf8.ToStringView();
+    if (script_name_str.starts_with("node:")) {
+      continue;
+    }
+    if (script_name_str.find("/node_modules/") != std::string::npos ||
+        script_name_str.find("\\node_modules\\") != std::string::npos ||
+        script_name_str.find("/node_modules\\") != std::string::npos ||
+        script_name_str.find("\\node_modules/") != std::string::npos) {
+      result = true;
+      break;
+    }
+  }
+
+  args.GetReturnValue().Set(result);
+}
+
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(GetPromiseDetails);
   registry->Register(GetProxyDetails);
   registry->Register(GetCallerLocation);
   registry->Register(PreviewEntries);
-  registry->Register(GetCallSite);
+  registry->Register(GetCallSites);
   registry->Register(GetOwnNonIndexProperties);
   registry->Register(GetConstructorName);
   registry->Register(GetExternalValue);
@@ -308,6 +355,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(FastGuessHandleType);
   registry->Register(fast_guess_handle_type_.GetTypeInfo());
   registry->Register(ParseEnv);
+  registry->Register(IsInsideNodeModules);
 }
 
 void Initialize(Local<Object> target,
@@ -391,6 +439,7 @@ void Initialize(Local<Object> target,
     target->Set(context, env->constants_string(), constants).Check();
   }
 
+  SetMethod(context, target, "isInsideNodeModules", IsInsideNodeModules);
   SetMethodNoSideEffect(
       context, target, "getPromiseDetails", GetPromiseDetails);
   SetMethodNoSideEffect(context, target, "getProxyDetails", GetProxyDetails);
@@ -402,7 +451,7 @@ void Initialize(Local<Object> target,
   SetMethodNoSideEffect(
       context, target, "getConstructorName", GetConstructorName);
   SetMethodNoSideEffect(context, target, "getExternalValue", GetExternalValue);
-  SetMethodNoSideEffect(context, target, "getCallSite", GetCallSite);
+  SetMethodNoSideEffect(context, target, "getCallSites", GetCallSites);
   SetMethod(context, target, "sleep", Sleep);
   SetMethod(context, target, "parseEnv", ParseEnv);
 

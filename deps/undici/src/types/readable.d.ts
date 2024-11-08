@@ -25,6 +25,11 @@ declare class BodyReadable extends Readable {
    */
   blob(): Promise<Blob>
 
+  /** Consumes and returns the body as an Uint8Array
+   *  https://fetch.spec.whatwg.org/#dom-body-bytes
+   */
+  bytes(): Promise<Uint8Array>
+
   /** Consumes and returns the body as an ArrayBuffer
    *  https://fetch.spec.whatwg.org/#dom-body-arraybuffer
    */

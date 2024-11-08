@@ -78,7 +78,7 @@ void Grouper::setLocaleData(const impl::ParsedPatternInfo &patternInfo, const Lo
     auto grouping2 = static_cast<int16_t> ((patternInfo.positive.groupingSizes >> 16) & 0xffff);
     auto grouping3 = static_cast<int16_t> ((patternInfo.positive.groupingSizes >> 32) & 0xffff);
     if (grouping2 == -1) {
-        grouping1 = fGrouping1 == -4 ? (short) 3 : (short) -1;
+        grouping1 = fGrouping1 == -4 ? static_cast<short>(3) : static_cast<short>(-1);
     }
     if (grouping3 == -1) {
         grouping2 = grouping1;

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+
+<head>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+</head>
+
+<body>
+  <script>
+    promise_test(async () => {
+      performance.clearResourceTimings();
+
+      performance.mark('entry-name');
+
+      const navigationEntries = performance.getEntries({ entryType: 'navigation' });
+
+      const markedEntries = performance.getEntries(
+        { name: 'entry-name', entryType: 'mark' });
+
+      assert_equals(navigationEntries.length, 1, 'navigationEntries should be 1.');
+
+      assert_equals(markedEntries.length, 1, 'markedEntries should be 1.');
+
+    }, 'GetEntries with filter options.');
+  </script>
+</body>

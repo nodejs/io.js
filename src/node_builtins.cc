@@ -132,6 +132,9 @@ BuiltinLoader::BuiltinCategories BuiltinLoader::GetBuiltinCategories() const {
         "internal/http2/core", "internal/http2/compat",
         "internal/streams/lazy_transform",
 #endif           // !HAVE_OPENSSL
+#if !NODE_OPENSSL_HAS_QUIC
+        "internal/quic/quic",
+#endif             // !NODE_OPENSSL_HAS_QUIC
         "sqlite",  // Experimental.
         "sys",     // Deprecated.
         "wasi",    // Experimental.
@@ -185,7 +188,7 @@ MaybeLocal<String> BuiltinLoader::LoadBuiltinSource(Isolate* isolate,
   auto source = source_.read();
 #ifndef NODE_BUILTIN_MODULES_PATH
   const auto source_it = source->find(id);
-  if (UNLIKELY(source_it == source->end())) {
+  if (source_it == source->end()) [[unlikely]] {
     fprintf(stderr, "Cannot find native builtin: \"%s\".\n", id);
     ABORT();
   }

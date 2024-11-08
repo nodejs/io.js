@@ -90,6 +90,45 @@ TEST_IMPL(platform_output) {
   ASSERT_GE(par, 1);
   printf("uv_available_parallelism: %u\n", par);
 
+#ifdef __linux__
+  FILE* file;
+  int cgroup_version = 0;
+  unsigned int cgroup_par = 0;
+  uint64_t quota, period;
+
+  // Attempt to parse cgroup v2 to deduce parallelism constraints
+  file = fopen("/sys/fs/cgroup/cpu.max", "r");
+  if (file) {
+    if (fscanf(file, "%lu %lu", &quota, &period) == 2 && quota > 0) {
+      cgroup_version = 2;
+      cgroup_par = (unsigned int)(quota / period);
+    }
+    fclose(file);
+  }
+
+  // If cgroup v2 wasn't present, try parsing cgroup v1
+  if (cgroup_version == 0) {
+    file = fopen("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us", "r");
+    if (file) {
+      if (fscanf(file, "%lu", &quota) == 1 && quota > 0 && quota < ~0ULL) {
+        fclose(file);
+        file = fopen("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us", "r");
+        if (file && fscanf(file, "%lu", &period) == 1) {
+          cgroup_version = 1;
+          cgroup_par = (unsigned int)(quota / period);
+        }
+      }
+      if (file) fclose(file);
+    }
+  }
+
+  // If we found cgroup parallelism constraints, assert and print them
+  if (cgroup_par > 0) {
+    ASSERT_GE(par, cgroup_par);
+    printf("cgroup v%d available parallelism: %u\n", cgroup_version, cgroup_par);
+  }
+#endif
+
   err = uv_cpu_info(&cpus, &count);
 #if defined(__CYGWIN__) || defined(__MSYS__)
   ASSERT_EQ(err, UV_ENOSYS);

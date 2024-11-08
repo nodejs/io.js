@@ -843,14 +843,14 @@ private:
     const CollationSettings &getDefaultSettings() const;
 
     void setAttributeDefault(int32_t attribute) {
-        explicitlySetAttributes &= ~((uint32_t)1 << attribute);
+        explicitlySetAttributes &= ~(static_cast<uint32_t>(1) << attribute);
     }
     void setAttributeExplicitly(int32_t attribute) {
-        explicitlySetAttributes |= (uint32_t)1 << attribute;
+        explicitlySetAttributes |= static_cast<uint32_t>(1) << attribute;
     }
     UBool attributeHasBeenSetExplicitly(int32_t attribute) const {
         // assert(0 <= attribute < ATTR_LIMIT);
-        return (UBool)((explicitlySetAttributes & ((uint32_t)1 << attribute)) != 0);
+        return (explicitlySetAttributes & (static_cast<uint32_t>(1) << attribute)) != 0;
     }
 
     /**

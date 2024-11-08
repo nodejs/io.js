@@ -13,14 +13,7 @@ if (process.argv[2] === 'child') {
   );
 } else {
   const cp = require('child_process');
-  cp.exec([
-    'echo',
-    'hello',
-    '|',
-    `"${process.execPath}"`,
-    `"${__filename}"`,
-    'child',
-  ].join(' '), common.mustSucceed((stdout) => {
+  cp.exec(...common.escapePOSIXShell`echo hello | "${process.execPath}" "${__filename}" child`, common.mustSucceed((stdout) => {
     assert.strictEqual(stdout.split(os.EOL).shift().trim(), 'hello');
   }));
 }

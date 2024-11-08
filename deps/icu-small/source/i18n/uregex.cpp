@@ -637,7 +637,7 @@ uregex_groupNumberFromName(URegularExpression *regexp2,
                            const char16_t     *groupName,
                            int32_t             nameLength,
                            UErrorCode          *status) {
-    RegularExpression *regexp = (RegularExpression*)regexp2;
+    RegularExpression* regexp = reinterpret_cast<RegularExpression*>(regexp2);
     if (validateRE(regexp, false, status) == false) {
         return 0;
     }
@@ -650,7 +650,7 @@ uregex_groupNumberFromCName(URegularExpression *regexp2,
                             const char         *groupName,
                             int32_t             nameLength,
                             UErrorCode          *status) {
-    RegularExpression *regexp = (RegularExpression*)regexp2;
+    RegularExpression* regexp = reinterpret_cast<RegularExpression*>(regexp2);
     if (validateRE(regexp, false, status) == false) {
         return 0;
     }
@@ -1389,8 +1389,8 @@ int32_t RegexCImpl::appendReplacement(RegularExpression    *regexp,
         int32_t matchStart;
         int32_t lastMatchEnd;
         if (UTEXT_USES_U16(m->fInputText)) {
-            lastMatchEnd = (int32_t)m->fLastMatchEnd;
-            matchStart = (int32_t)m->fMatchStart;
+            lastMatchEnd = static_cast<int32_t>(m->fLastMatchEnd);
+            matchStart = static_cast<int32_t>(m->fMatchStart);
         } else {
             // !!!: Would like a better way to do this!
             UErrorCode tempStatus = U_ZERO_ERROR;
@@ -1440,9 +1440,9 @@ int32_t RegexCImpl::appendReplacement(RegularExpression    *regexp,
                        replacementLength,          // Length of replacement text
                        (void *)replacementText);
 
-                if (escapedChar != (UChar32)0xFFFFFFFF) {
+                if (escapedChar != static_cast<UChar32>(0xFFFFFFFF)) {
                     if (escapedChar <= 0xffff) {
-                        appendToBuf((char16_t)escapedChar, &destIdx, dest, capacity);
+                        appendToBuf(static_cast<char16_t>(escapedChar), &destIdx, dest, capacity);
                     } else {
                         appendToBuf(U16_LEAD(escapedChar), &destIdx, dest, capacity);
                         appendToBuf(U16_TRAIL(escapedChar), &destIdx, dest, capacity);
@@ -1527,7 +1527,7 @@ int32_t RegexCImpl::appendReplacement(RegularExpression    *regexp,
 
         // Finally, append the capture group data to the destination.
         if (U_SUCCESS(*status)) {
-            destIdx += uregex_group((URegularExpression*)regexp, groupNum,
+            destIdx += uregex_group(reinterpret_cast<URegularExpression*>(regexp), groupNum,
                                     dest==nullptr?nullptr:&dest[destIdx], REMAINING_CAPACITY(destIdx, capacity), status);
             if (*status == U_BUFFER_OVERFLOW_ERROR) {
                 // Ignore buffer overflow when extracting the group.  We need to
@@ -1653,7 +1653,7 @@ int32_t RegexCImpl::appendTail(RegularExpression    *regexp,
         if (nativeIdx == -1) {
             srcIdx = 0;
         } else if (UTEXT_USES_U16(m->fInputText)) {
-            srcIdx = (int32_t)nativeIdx;
+            srcIdx = static_cast<int32_t>(nativeIdx);
         } else {
             UErrorCode newStatus = U_ZERO_ERROR;
             srcIdx = utext_extract(m->fInputText, 0, nativeIdx, nullptr, 0, &newStatus);
@@ -1842,7 +1842,7 @@ int32_t RegexCImpl::split(RegularExpression     *regexp,
                     // No fields are left.  Recycle the last one for holding the trailing part of
                     //   the input string.
                     i = destFieldsCapacity-1;
-                    destIdx = (int32_t)(destFields[i] - destFields[0]);
+                    destIdx = static_cast<int32_t>(destFields[i] - destFields[0]);
                 }
 
                 destFields[i] = (destBuf == nullptr) ? nullptr :  &destBuf[destIdx];
@@ -1879,7 +1879,7 @@ int32_t RegexCImpl::split(RegularExpression     *regexp,
                 // Set up to extract the capture group contents into the dest buffer.
                 destFields[i] = &destBuf[destIdx];
                 tStatus = U_ZERO_ERROR;
-                int32_t t = uregex_group((URegularExpression*)regexp,
+                int32_t t = uregex_group(reinterpret_cast<URegularExpression*>(regexp),
                                          groupNum,
                                          destFields[i],
                                          REMAINING_CAPACITY(destIdx, destCapacity),

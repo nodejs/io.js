@@ -43,10 +43,10 @@ public:
         int32_t offset=stringOffset;
         int32_t length;
         if(offset>=0) {
-            length=(uint8_t)strings[offset++];
+            length = static_cast<uint8_t>(strings[offset++]);
         } else {
             offset=~offset;
-            length=((int32_t)(uint8_t)strings[offset]<<8)|(uint8_t)strings[offset+1];
+            length = (static_cast<int32_t>(static_cast<uint8_t>(strings[offset])) << 8) | static_cast<uint8_t>(strings[offset + 1]);
             offset+=2;
         }
         return StringPiece(strings.data()+offset, length);
@@ -54,10 +54,10 @@ public:
     int32_t getStringLength(const CharString &strings) const {
         int32_t offset=stringOffset;
         if(offset>=0) {
-            return (uint8_t)strings[offset];
+            return static_cast<uint8_t>(strings[offset]);
         } else {
             offset=~offset;
-            return ((int32_t)(uint8_t)strings[offset]<<8)|(uint8_t)strings[offset+1];
+            return (static_cast<int32_t>(static_cast<uint8_t>(strings[offset])) << 8) | static_cast<uint8_t>(strings[offset + 1]);
         }
     }
 
@@ -102,9 +102,9 @@ BytesTrieElement::setTo(StringPiece s, int32_t val,
     int32_t offset=strings.length();
     if(length>0xff) {
         offset=~offset;
-        strings.append((char)(length>>8), errorCode);
+        strings.append(static_cast<char>(length >> 8), errorCode);
     }
-    strings.append((char)length, errorCode);
+    strings.append(static_cast<char>(length), errorCode);
     stringOffset=offset;
     value=val;
     strings.append(s, errorCode);
@@ -229,7 +229,7 @@ BytesTrieBuilder::buildBytes(UStringTrieBuildOption buildOption, UErrorCode &err
             errorCode=U_INDEX_OUTOFBOUNDS_ERROR;
             return;
         }
-        uprv_sortArray(elements, elementsLength, (int32_t)sizeof(BytesTrieElement),
+        uprv_sortArray(elements, elementsLength, static_cast<int32_t>(sizeof(BytesTrieElement)),
                       compareElementStrings, strings,
                       false,  // need not be a stable sort
                       &errorCode);
@@ -284,7 +284,7 @@ BytesTrieBuilder::getElementStringLength(int32_t i) const {
 
 char16_t
 BytesTrieBuilder::getElementUnit(int32_t i, int32_t byteIndex) const {
-    return (uint8_t)elements[i].charAt(byteIndex, *strings);
+    return static_cast<uint8_t>(elements[i].charAt(byteIndex, *strings));
 }
 
 int32_t
@@ -330,7 +330,7 @@ BytesTrieBuilder::skipElementsBySomeUnits(int32_t i, int32_t byteIndex, int32_t 
 
 int32_t
 BytesTrieBuilder::indexOfElementWithNextUnit(int32_t i, int32_t byteIndex, char16_t byte) const {
-    char b=(char)byte;
+    char b = static_cast<char>(byte);
     while(b==elements[i].charAt(byteIndex, *strings)) {
         ++i;
     }
@@ -404,7 +404,7 @@ BytesTrieBuilder::write(int32_t byte) {
     int32_t newLength=bytesLength+1;
     if(ensureCapacity(newLength)) {
         bytesLength=newLength;
-        bytes[bytesCapacity-bytesLength]=(char)byte;
+        bytes[bytesCapacity - bytesLength] = static_cast<char>(byte);
     }
     return bytesLength;
 }
@@ -432,30 +432,30 @@ BytesTrieBuilder::writeValueAndFinal(int32_t i, UBool isFinal) {
     char intBytes[5];
     int32_t length=1;
     if(i<0 || i>0xffffff) {
-        intBytes[0]=(char)BytesTrie::kFiveByteValueLead;
-        intBytes[1]=(char)((uint32_t)i>>24);
-        intBytes[2]=(char)((uint32_t)i>>16);
-        intBytes[3]=(char)((uint32_t)i>>8);
-        intBytes[4]=(char)i;
+        intBytes[0] = static_cast<char>(BytesTrie::kFiveByteValueLead);
+        intBytes[1] = static_cast<char>(static_cast<uint32_t>(i) >> 24);
+        intBytes[2] = static_cast<char>(static_cast<uint32_t>(i) >> 16);
+        intBytes[3] = static_cast<char>(static_cast<uint32_t>(i) >> 8);
+        intBytes[4] = static_cast<char>(i);
         length=5;
     // } else if(i<=BytesTrie::kMaxOneByteValue) {
     //     intBytes[0]=(char)(BytesTrie::kMinOneByteValueLead+i);
     } else {
         if(i<=BytesTrie::kMaxTwoByteValue) {
-            intBytes[0]=(char)(BytesTrie::kMinTwoByteValueLead+(i>>8));
+            intBytes[0] = static_cast<char>(BytesTrie::kMinTwoByteValueLead + (i >> 8));
         } else {
             if(i<=BytesTrie::kMaxThreeByteValue) {
-                intBytes[0]=(char)(BytesTrie::kMinThreeByteValueLead+(i>>16));
+                intBytes[0] = static_cast<char>(BytesTrie::kMinThreeByteValueLead + (i >> 16));
             } else {
-                intBytes[0]=(char)BytesTrie::kFourByteValueLead;
-                intBytes[1]=(char)(i>>16);
+                intBytes[0] = static_cast<char>(BytesTrie::kFourByteValueLead);
+                intBytes[1] = static_cast<char>(i >> 16);
                 length=2;
             }
-            intBytes[length++]=(char)(i>>8);
+            intBytes[length++] = static_cast<char>(i >> 8);
         }
-        intBytes[length++]=(char)i;
+        intBytes[length++] = static_cast<char>(i);
     }
-    intBytes[0]=(char)((intBytes[0]<<1)|isFinal);
+    intBytes[0] = static_cast<char>((intBytes[0] << 1) | isFinal);
     return write(intBytes, length);
 }
 
@@ -484,28 +484,28 @@ int32_t
 BytesTrieBuilder::internalEncodeDelta(int32_t i, char intBytes[]) {
     U_ASSERT(i>=0);
     if(i<=BytesTrie::kMaxOneByteDelta) {
-        intBytes[0]=(char)i;
+        intBytes[0] = static_cast<char>(i);
         return 1;
     }
     int32_t length=1;
     if(i<=BytesTrie::kMaxTwoByteDelta) {
-        intBytes[0]=(char)(BytesTrie::kMinTwoByteDeltaLead+(i>>8));
+        intBytes[0] = static_cast<char>(BytesTrie::kMinTwoByteDeltaLead + (i >> 8));
     } else {
         if(i<=BytesTrie::kMaxThreeByteDelta) {
-            intBytes[0]=(char)(BytesTrie::kMinThreeByteDeltaLead+(i>>16));
+            intBytes[0] = static_cast<char>(BytesTrie::kMinThreeByteDeltaLead + (i >> 16));
         } else {
             if(i<=0xffffff) {
-                intBytes[0]=(char)BytesTrie::kFourByteDeltaLead;
+                intBytes[0] = static_cast<char>(BytesTrie::kFourByteDeltaLead);
             } else {
-                intBytes[0]=(char)BytesTrie::kFiveByteDeltaLead;
-                intBytes[1]=(char)(i>>24);
+                intBytes[0] = static_cast<char>(BytesTrie::kFiveByteDeltaLead);
+                intBytes[1] = static_cast<char>(i >> 24);
                 length=2;
             }
-            intBytes[length++]=(char)(i>>16);
+            intBytes[length++] = static_cast<char>(i >> 16);
         }
-        intBytes[length++]=(char)(i>>8);
+        intBytes[length++] = static_cast<char>(i >> 8);
     }
-    intBytes[length++]=(char)i;
+    intBytes[length++] = static_cast<char>(i);
     return length;
 }
 

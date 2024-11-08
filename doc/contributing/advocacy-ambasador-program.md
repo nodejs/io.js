@@ -39,6 +39,15 @@ a discussion issue with the nomination in
 [nodejs/collaborators](https://github.com/nodejs/collaborators/)
 titled `Nomination X to be an Ambassador`, where X is the name of the person
 being nominated.
+If there is no objection within 14 days, the nomination is approved.
+
+## Onboarding
+
+To onboard an ambassador, a member of the TSC will:
+
+* \[ ] Add the ambassador to the nodejs/ambassadors team.
+* \[ ] Add the ambassador to the nodejs/ambassadors `README.md`.
+* \[ ] Add the ambassador to the OpenJS Slack channel.
 
 ## Reviewing content
 

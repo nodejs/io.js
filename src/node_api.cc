@@ -1431,3 +1431,38 @@ napi_status NAPI_CDECL node_api_get_module_file_name(
   *result = static_cast<node_napi_env>(env)->GetFilename();
   return napi_clear_last_error(env);
 }
+
+#ifdef NAPI_EXPERIMENTAL
+
+napi_status NAPI_CDECL
+node_api_create_buffer_from_arraybuffer(napi_env env,
+                                        napi_value arraybuffer,
+                                        size_t byte_offset,
+                                        size_t byte_length,
+                                        napi_value* result) {
+  NAPI_PREAMBLE(env);
+  CHECK_ARG(env, arraybuffer);
+  CHECK_ARG(env, result);
+
+  v8::Local<v8::Value> arraybuffer_value =
+      v8impl::V8LocalValueFromJsValue(arraybuffer);
+  if (!arraybuffer_value->IsArrayBuffer()) {
+    return napi_invalid_arg;
+  }
+
+  v8::Local<v8::ArrayBuffer> arraybuffer_obj =
+      arraybuffer_value.As<v8::ArrayBuffer>();
+  if (byte_offset + byte_length > arraybuffer_obj->ByteLength()) {
+    return napi_throw_range_error(
+        env, "ERR_OUT_OF_RANGE", "The byte offset + length is out of range");
+  }
+
+  v8::Local<v8::Object> buffer =
+      node::Buffer::New(env->isolate, arraybuffer_obj, byte_offset, byte_length)
+          .ToLocalChecked();
+
+  *result = v8impl::JsValueFromV8LocalValue(buffer);
+  return napi_ok;
+}
+
+#endif

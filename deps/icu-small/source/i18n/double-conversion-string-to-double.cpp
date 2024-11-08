@@ -383,7 +383,7 @@ static double RadixStringToIeee(Iterator* current,
       }
 
       // Rounding up may cause overflow.
-      if ((number & ((int64_t)1 << kSignificandSize)) != 0) {
+      if ((number & (static_cast<int64_t>(1) << kSignificandSize)) != 0) {
         exponent++;
         number >>= 1;
       }

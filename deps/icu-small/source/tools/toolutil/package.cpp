@@ -46,12 +46,12 @@ static const int32_t kItemsChunk = 256; /* How much to increase the filesarray b
 
 /* UDataInfo cf. udata.h */
 static const UDataInfo dataInfo={
-    (uint16_t)sizeof(UDataInfo),
+    static_cast<uint16_t>(sizeof(UDataInfo)),
     0,
 
     U_IS_BIG_ENDIAN,
     U_CHARSET_FAMILY,
-    (uint8_t)sizeof(char16_t),
+    static_cast<uint8_t>(sizeof(char16_t)),
     0,
 
     {0x43, 0x6d, 0x6e, 0x44},     /* dataFormat="CmnD" */
@@ -68,7 +68,7 @@ U_CDECL_END
 
 static uint16_t
 readSwapUInt16(uint16_t x) {
-    return (uint16_t)((x<<8)|(x>>8));
+    return static_cast<uint16_t>((x << 8) | (x >> 8));
 }
 
 // platform types ---------------------------------------------------------- ***
@@ -79,7 +79,7 @@ enum { TYPE_L, TYPE_B, TYPE_LE, TYPE_E, TYPE_COUNT };
 
 static inline int32_t
 makeTypeEnum(uint8_t charset, UBool isBigEndian) {
-    return 2*(int32_t)charset+isBigEndian;
+    return 2 * static_cast<int32_t>(charset) + isBigEndian;
 }
 
 static inline int32_t
@@ -104,8 +104,8 @@ makeTypeLetter(int32_t typeEnum) {
 static void
 makeTypeProps(char type, uint8_t &charset, UBool &isBigEndian) {
     int32_t typeEnum=makeTypeEnum(type);
-    charset=(uint8_t)(typeEnum>>1);
-    isBigEndian=(UBool)(typeEnum&1);
+    charset = static_cast<uint8_t>(typeEnum >> 1);
+    isBigEndian = static_cast<UBool>(typeEnum & 1);
 }
 
 U_CFUNC const UDataInfo *
@@ -168,7 +168,7 @@ getTypeEnumForInputData(const uint8_t *data, int32_t length,
         return -1;
     }
 
-    return makeTypeEnum(pInfo->charsetFamily, (UBool)pInfo->isBigEndian);
+    return makeTypeEnum(pInfo->charsetFamily, static_cast<UBool>(pInfo->isBigEndian));
 }
 
 // file handling ----------------------------------------------------------- ***
@@ -180,7 +180,7 @@ extractPackageName(const char *filename,
     int32_t len;
 
     basename=findBasename(filename);
-    len=(int32_t)strlen(basename)-4; /* -4: subtract the length of ".dat" */
+    len = static_cast<int32_t>(strlen(basename)) - 4; /* -4: subtract the length of ".dat" */
 
     if(len<=0 || 0!=strcmp(basename+len, ".dat")) {
         fprintf(stderr, "icupkg: \"%s\" is not recognized as a package filename (must end with .dat)\n",
@@ -190,7 +190,7 @@ extractPackageName(const char *filename,
 
     if(len>=capacity) {
         fprintf(stderr, "icupkg: the package name \"%s\" is too long (>=%ld)\n",
-                         basename, (long)capacity);
+                         basename, static_cast<long>(capacity));
         exit(U_ILLEGAL_ARGUMENT_ERROR);
     }
 
@@ -203,7 +203,7 @@ getFileLength(FILE *f) {
     int32_t length;
 
     fseek(f, 0, SEEK_END);
-    length=(int32_t)ftell(f);
+    length = static_cast<int32_t>(ftell(f));
     fseek(f, 0, SEEK_SET);
     return length;
 }
@@ -254,7 +254,7 @@ makeFullFilename(const char *path, const char *name,
 
     // prepend the path unless nullptr or empty
     if(path!=nullptr && path[0]!=0) {
-        if((int32_t)(strlen(path)+1)>=capacity) {
+        if (static_cast<int32_t>(strlen(path) + 1) >= capacity) {
             fprintf(stderr, "pathname too long: \"%s\"\n", path);
             exit(U_BUFFER_OVERFLOW_ERROR);
         }
@@ -270,7 +270,7 @@ makeFullFilename(const char *path, const char *name,
     }
 
     // turn the name into a filename, turn tree separators into file separators
-    if((int32_t)((s-filename)+strlen(name))>=capacity) {
+    if (static_cast<int32_t>((s - filename) + strlen(name)) >= capacity) {
         fprintf(stderr, "path/filename too long: \"%s%s\"\n", filename, name);
         exit(U_BUFFER_OVERFLOW_ERROR);
     }
@@ -309,7 +309,7 @@ readFile(const char *path, const char *name, int32_t &length, char &type) {
     UErrorCode errorCode;
     int32_t fileLength, typeEnum;
 
-    makeFullFilename(path, name, filename, (int32_t)sizeof(filename));
+    makeFullFilename(path, name, filename, static_cast<int32_t>(sizeof(filename)));
 
     /* open the input file, get its length, allocate memory for it, read the file */
     file=fopen(filename, "rb");
@@ -328,15 +328,15 @@ readFile(const char *path, const char *name, int32_t &length, char &type) {
 
     /* allocate the buffer, pad to multiple of 16 */
     length=(fileLength+0xf)&~0xf;
-    icu::LocalMemory<uint8_t> data((uint8_t *)uprv_malloc(length));
+    icu::LocalMemory<uint8_t> data(static_cast<uint8_t*>(uprv_malloc(length)));
     if(data.isNull()) {
         fclose(file);
-        fprintf(stderr, "icupkg: malloc error allocating %d bytes.\n", (int)length);
+        fprintf(stderr, "icupkg: malloc error allocating %d bytes.\n", static_cast<int>(length));
         exit(U_MEMORY_ALLOCATION_ERROR);
     }
 
     /* read the file */
-    if(fileLength!=(int32_t)fread(data.getAlias(), 1, fileLength, file)) {
+    if (fileLength != static_cast<int32_t>(fread(data.getAlias(), 1, fileLength, file))) {
         fprintf(stderr, "icupkg: error reading \"%s\"\n", filename);
         fclose(file);
         exit(U_FILE_ACCESS_ERROR);
@@ -403,18 +403,18 @@ Package::Package()
 
     // create a header for an empty package
     DataHeader *pHeader;
-    pHeader=(DataHeader *)header;
+    pHeader = reinterpret_cast<DataHeader*>(header);
     pHeader->dataHeader.magic1=0xda;
     pHeader->dataHeader.magic2=0x27;
     memcpy(&pHeader->info, &dataInfo, sizeof(dataInfo));
-    headerLength=(int32_t)(4+sizeof(dataInfo));
+    headerLength = static_cast<int32_t>(4 + sizeof(dataInfo));
     if(headerLength&0xf) {
         /* NUL-pad the header to a multiple of 16 */
         int32_t length=(headerLength+0xf)&~0xf;
         memset(header+headerLength, 0, length-headerLength);
         headerLength=length;
     }
-    pHeader->dataHeader.headerSize=(uint16_t)headerLength;
+    pHeader->dataHeader.headerSize = static_cast<uint16_t>(headerLength);
 }
 
 Package::~Package() {
@@ -454,7 +454,7 @@ Package::readPackage(const char *filename) {
 
     const UDataOffsetTOCEntry *inEntries;
 
-    extractPackageName(filename, inPkgName, (int32_t)sizeof(inPkgName));
+    extractPackageName(filename, inPkgName, static_cast<int32_t>(sizeof(inPkgName)));
 
     /* read the file */
     inData=readFile(nullptr, filename, inLength, type);
@@ -486,7 +486,7 @@ Package::readPackage(const char *filename) {
     }
 
     /* check data format and format version */
-    pInfo=(const UDataInfo *)((const char *)inData+4);
+    pInfo = reinterpret_cast<const UDataInfo*>(reinterpret_cast<const char*>(inData) + 4);
     if(!(
         pInfo->dataFormat[0]==0x43 &&   /* dataFormat="CmnD" */
         pInfo->dataFormat[1]==0x6d &&
@@ -500,11 +500,11 @@ Package::readPackage(const char *filename) {
                 pInfo->formatVersion[0]);
         exit(U_UNSUPPORTED_ERROR);
     }
-    inIsBigEndian=(UBool)pInfo->isBigEndian;
+    inIsBigEndian = static_cast<UBool>(pInfo->isBigEndian);
     inCharset=pInfo->charsetFamily;
 
     inBytes=(const uint8_t *)inData+headerLength;
-    inEntries=(const UDataOffsetTOCEntry *)(inBytes+4);
+    inEntries = reinterpret_cast<const UDataOffsetTOCEntry*>(inBytes + 4);
 
     /* check that the itemCount fits, then the ToC table, then at least the header of the last item */
     length-=headerLength;
@@ -512,7 +512,7 @@ Package::readPackage(const char *filename) {
         /* itemCount does not fit */
         offset=0x7fffffff;
     } else {
-        itemCount=udata_readInt32(ds, *(const int32_t *)inBytes);
+        itemCount = udata_readInt32(ds, *reinterpret_cast<const int32_t*>(inBytes));
         setItemCapacity(itemCount); /* resize so there's space */
         if(itemCount==0) {
             offset=4;
@@ -521,12 +521,12 @@ Package::readPackage(const char *filename) {
             offset=0x7fffffff;
         } else {
             /* offset of the last item plus at least 20 bytes for its header */
-            offset=20+(int32_t)ds->readUInt32(inEntries[itemCount-1].dataOffset);
+            offset = 20 + static_cast<int32_t>(ds->readUInt32(inEntries[itemCount - 1].dataOffset));
         }
     }
     if(length<offset) {
         fprintf(stderr, "icupkg: too few bytes (%ld after header) for a .dat package\n",
-                        (long)length);
+                        static_cast<long>(length));
         exit(U_INDEX_OUTOFBOUNDS_ERROR);
     }
     /* do not modify the package length variable until the last item's length is set */
@@ -547,7 +547,7 @@ Package::readPackage(const char *filename) {
 
         /* swap the item name strings */
         int32_t stringsOffset=4+8*itemCount;
-        itemLength=(int32_t)(ds->readUInt32(inEntries[0].dataOffset))-stringsOffset;
+        itemLength = static_cast<int32_t>(ds->readUInt32(inEntries[0].dataOffset)) - stringsOffset;
 
         // don't include padding bytes at the end of the item names
         while(itemLength>0 && inBytes[stringsOffset+itemLength-1]!=0) {
@@ -577,7 +577,7 @@ Package::readPackage(const char *filename) {
          * while old-style ICU .dat packages (before multi-tree support)
          * use an underscore ('_') between package and item names.
          */
-        offset=(int32_t)ds->readUInt32(inEntries[0].nameOffset)-stringsOffset;
+        offset = static_cast<int32_t>(ds->readUInt32(inEntries[0].nameOffset)) - stringsOffset;
         s=inItemStrings+offset;  // name of the first entry
         int32_t prefixLength;
         if(doAutoPrefix) {
@@ -590,7 +590,7 @@ Package::readPackage(const char *filename) {
                         s, U_TREE_ENTRY_SEP_CHAR);
                 exit(U_INVALID_FORMAT_ERROR);
             }
-            prefixLength=(int32_t)(prefixLimit-s);
+            prefixLength = static_cast<int32_t>(prefixLimit - s);
             if(prefixLength==0 || prefixLength>=UPRV_LENGTHOF(pkgPrefix)) {
                 fprintf(stderr,
                         "icupkg: --auto_toc_prefix[_with_type] but "
@@ -614,7 +614,7 @@ Package::readPackage(const char *filename) {
             memcpy(prefix, inPkgName, inPkgNameLength);
             prefixLength=inPkgNameLength;
 
-            if( (int32_t)strlen(s)>=(inPkgNameLength+2) &&
+            if (static_cast<int32_t>(strlen(s)) >= (inPkgNameLength + 2) &&
                 0==memcmp(s, inPkgName, inPkgNameLength) &&
                 s[inPkgNameLength]=='_'
             ) {
@@ -633,7 +633,7 @@ Package::readPackage(const char *filename) {
         for(i=0; i<itemCount; ++i) {
             // skip the package part of the item name, error if it does not match the actual package name
             // or if nothing follows the package name
-            offset=(int32_t)ds->readUInt32(inEntries[i].nameOffset)-stringsOffset;
+            offset = static_cast<int32_t>(ds->readUInt32(inEntries[i].nameOffset)) - stringsOffset;
             s=inItemStrings+offset;
             if(0!=strncmp(s, prefix, prefixLength) || s[prefixLength]==0) {
                 fprintf(stderr, "icupkg: input .dat item name \"%s\" does not start with \"%s\"\n",
@@ -643,9 +643,9 @@ Package::readPackage(const char *filename) {
             items[i].name=s+prefixLength;
 
             // set the item's data
-            items[i].data=(uint8_t *)inBytes+ds->readUInt32(inEntries[i].dataOffset);
+            items[i].data = const_cast<uint8_t*>(inBytes) + ds->readUInt32(inEntries[i].dataOffset);
             if(i>0) {
-                items[i-1].length=(int32_t)(items[i].data-items[i-1].data);
+                items[i - 1].length = static_cast<int32_t>(items[i].data - items[i - 1].data);
 
                 // set the previous item's platform type
                 typeEnum=getTypeEnumForInputData(items[i-1].data, items[i-1].length, &errorCode);
@@ -703,10 +703,10 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
         DataHeader *pHeader;
         int32_t length;
 
-        pHeader=(DataHeader *)header;
+        pHeader = reinterpret_cast<DataHeader*>(header);
         headerLength=4+pHeader->info.size;
-        length=(int32_t)strlen(comment);
-        if((int32_t)(headerLength+length)>=(int32_t)sizeof(header)) {
+        length = static_cast<int32_t>(strlen(comment));
+        if ((headerLength + length) >= static_cast<int32_t>(sizeof(header))) {
             fprintf(stderr, "icupkg: comment too long\n");
             exit(U_BUFFER_OVERFLOW_ERROR);
         }
@@ -718,7 +718,7 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
             memset(header+headerLength, 0, length-headerLength);
             headerLength=length;
         }
-        pHeader->dataHeader.headerSize=(uint16_t)headerLength;
+        pHeader->dataHeader.headerSize = static_cast<uint16_t>(headerLength);
     }
 
     makeTypeProps(outType, outCharset, outIsBigEndian);
@@ -760,7 +760,7 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
             exit(errorCode);
         }
     }
-    length=(int32_t)fwrite(header, 1, headerLength, file);
+    length = static_cast<int32_t>(fwrite(header, 1, headerLength, file));
     if(length!=headerLength) {
         fprintf(stderr, "icupkg: unable to write complete header to file \"%s\"\n", filename);
         exit(U_FILE_ACCESS_ERROR);
@@ -769,9 +769,9 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
     // prepare and swap the package name with a tree separator
     // for prepending to item names
     if(pkgPrefix[0]==0) {
-        prefixLength=(int32_t)strlen(prefix);
+        prefixLength = static_cast<int32_t>(strlen(prefix));
     } else {
-        prefixLength=(int32_t)strlen(pkgPrefix);
+        prefixLength = static_cast<int32_t>(strlen(pkgPrefix));
         memcpy(prefix, pkgPrefix, prefixLength);
         if(prefixEndsWithType) {
             prefix[prefixLength-1]=outType;
@@ -797,7 +797,7 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
 
     // create the output item names in sorted order, with the package name prepended to each
     for(i=0; i<itemCount; ++i) {
-        length=(int32_t)strlen(items[i].name);
+        length = static_cast<int32_t>(strlen(items[i].name));
         name=allocString(false, length+prefixLength);
         memcpy(name, prefix, prefixLength);
         memcpy(name+prefixLength, items[i].name, length+1);
@@ -824,7 +824,7 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
             exit(errorCode);
         }
     }
-    length=(int32_t)fwrite(&outInt32, 1, 4, file);
+    length = static_cast<int32_t>(fwrite(&outInt32, 1, 4, file));
     if(length!=4) {
         fprintf(stderr, "icupkg: unable to write complete item count to file \"%s\"\n", filename);
         exit(U_FILE_ACCESS_ERROR);
@@ -833,18 +833,18 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
     // then write the item entries (and collect the maxItemLength)
     maxItemLength=0;
     for(i=0; i<itemCount; ++i) {
-        entry.nameOffset=(uint32_t)(basenameOffset+(items[i].name-outStrings));
-        entry.dataOffset=(uint32_t)offset;
+        entry.nameOffset = static_cast<uint32_t>(basenameOffset + (items[i].name - outStrings));
+        entry.dataOffset = static_cast<uint32_t>(offset);
         if(dsLocalToOut!=nullptr) {
             dsLocalToOut->swapArray32(dsLocalToOut, &entry, 8, &entry, &errorCode);
             if(U_FAILURE(errorCode)) {
-                fprintf(stderr, "icupkg: swapArray32(item entry %ld) failed - %s\n", (long)i, u_errorName(errorCode));
+                fprintf(stderr, "icupkg: swapArray32(item entry %ld) failed - %s\n", static_cast<long>(i), u_errorName(errorCode));
                 exit(errorCode);
             }
         }
-        length=(int32_t)fwrite(&entry, 1, 8, file);
+        length = static_cast<int32_t>(fwrite(&entry, 1, 8, file));
         if(length!=8) {
-            fprintf(stderr, "icupkg: unable to write complete item entry %ld to file \"%s\"\n", (long)i, filename);
+            fprintf(stderr, "icupkg: unable to write complete item entry %ld to file \"%s\"\n", static_cast<long>(i), filename);
             exit(U_FILE_ACCESS_ERROR);
         }
 
@@ -856,7 +856,7 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
     }
 
     // write the item names
-    length=(int32_t)fwrite(outStrings, 1, outStringTop, file);
+    length = static_cast<int32_t>(fwrite(outStrings, 1, outStringTop, file));
     if(length!=outStringTop) {
         fprintf(stderr, "icupkg: unable to write complete item names to file \"%s\"\n", filename);
         exit(U_FILE_ACCESS_ERROR);
@@ -872,13 +872,13 @@ Package::writePackage(const char *filename, char outType, const char *comment) {
                 pItem->data, pItem->length, pItem->data,
                 &errorCode);
             if(U_FAILURE(errorCode)) {
-                fprintf(stderr, "icupkg: udata_swap(item %ld) failed - %s\n", (long)i, u_errorName(errorCode));
+                fprintf(stderr, "icupkg: udata_swap(item %ld) failed - %s\n", static_cast<long>(i), u_errorName(errorCode));
                 exit(errorCode);
             }
         }
-        length=(int32_t)fwrite(pItem->data, 1, pItem->length, file);
+        length = static_cast<int32_t>(fwrite(pItem->data, 1, pItem->length, file));
         if(length!=pItem->length) {
-            fprintf(stderr, "icupkg: unable to write complete item %ld to file \"%s\"\n", (long)i, filename);
+            fprintf(stderr, "icupkg: unable to write complete item %ld to file \"%s\"\n", static_cast<long>(i), filename);
             exit(U_FILE_ACCESS_ERROR);
         }
     }
@@ -948,12 +948,12 @@ Package::findItems(const char *pattern) {
     wild=strchr(pattern, '*');
     if(wild==nullptr) {
         // no wildcard
-        findPrefixLength=(int32_t)strlen(pattern);
+        findPrefixLength = static_cast<int32_t>(strlen(pattern));
     } else {
         // one wildcard
-        findPrefixLength=(int32_t)(wild-pattern);
+        findPrefixLength = static_cast<int32_t>(wild - pattern);
         findSuffix=wild+1;
-        findSuffixLength=(int32_t)strlen(findSuffix);
+        findSuffixLength = static_cast<int32_t>(strlen(findSuffix));
         if(nullptr!=strchr(findSuffix, '*')) {
             // two or more wildcards
             fprintf(stderr, "icupkg: syntax error (more than one '*') in item pattern \"%s\"\n", pattern);
@@ -980,7 +980,7 @@ Package::findNextItem() {
     while(findNextIndex<itemCount) {
         idx=findNextIndex++;
         name=items[idx].name;
-        nameLength=(int32_t)strlen(name);
+        nameLength = static_cast<int32_t>(strlen(name));
         if(nameLength<(findPrefixLength+findSuffixLength)) {
             // item name too short for prefix & suffix
             continue;
@@ -1148,7 +1148,7 @@ Package::extractItem(const char *filesPath, const char *outName, int32_t idx, ch
         ds=udata_openSwapper(itemIsBigEndian, itemCharset, outIsBigEndian, outCharset, &errorCode);
         if(U_FAILURE(errorCode)) {
             fprintf(stderr, "icupkg: udata_openSwapper(item %ld) failed - %s\n",
-                    (long)idx, u_errorName(errorCode));
+                    static_cast<long>(idx), u_errorName(errorCode));
             exit(errorCode);
         }
 
@@ -1158,7 +1158,7 @@ Package::extractItem(const char *filesPath, const char *outName, int32_t idx, ch
         // swap the item from its platform properties to the desired ones
         udata_swap(ds, pItem->data, pItem->length, pItem->data, &errorCode);
         if(U_FAILURE(errorCode)) {
-            fprintf(stderr, "icupkg: udata_swap(item %ld) failed - %s\n", (long)idx, u_errorName(errorCode));
+            fprintf(stderr, "icupkg: udata_swap(item %ld) failed - %s\n", static_cast<long>(idx), u_errorName(errorCode));
             exit(errorCode);
         }
         udata_closeSwapper(ds);
@@ -1166,13 +1166,13 @@ Package::extractItem(const char *filesPath, const char *outName, int32_t idx, ch
     }
 
     // create the file and write its contents
-    makeFullFilenameAndDirs(filesPath, outName, filename, (int32_t)sizeof(filename));
+    makeFullFilenameAndDirs(filesPath, outName, filename, static_cast<int32_t>(sizeof(filename)));
     file=fopen(filename, "wb");
     if(file==nullptr) {
         fprintf(stderr, "icupkg: unable to create file \"%s\"\n", filename);
         exit(U_FILE_ACCESS_ERROR);
     }
-    fileLength=(int32_t)fwrite(pItem->data, 1, pItem->length, file);
+    fileLength = static_cast<int32_t>(fwrite(pItem->data, 1, pItem->length, file));
 
     if(ferror(file) || fileLength!=pItem->length) {
         fprintf(stderr, "icupkg: unable to write complete file \"%s\"\n", filename);
@@ -1222,7 +1222,7 @@ Package::getItem(int32_t idx) const {
 void
 Package::checkDependency(void *context, const char *itemName, const char *targetName) {
     // check dependency: make sure the target item is in the package
-    Package *me=(Package *)context;
+    Package* me = static_cast<Package*>(context);
     if(me->findItem(targetName)<0) {
         me->isMissingItems=true;
         fprintf(stderr, "Item %s depends on missing item %s\n", itemName, targetName);
@@ -1233,7 +1233,7 @@ UBool
 Package::checkDependencies() {
     isMissingItems=false;
     enumDependencies(this, checkDependency);
-    return (UBool)!isMissingItems;
+    return !isMissingItems;
 }
 
 void
@@ -1274,7 +1274,7 @@ Package::allocString(UBool in, int32_t length) {
 void
 Package::sortItems() {
     UErrorCode errorCode=U_ZERO_ERROR;
-    uprv_sortArray(items, itemCount, (int32_t)sizeof(Item), compareItems, nullptr, false, &errorCode);
+    uprv_sortArray(items, itemCount, static_cast<int32_t>(sizeof(Item)), compareItems, nullptr, false, &errorCode);
     if(U_FAILURE(errorCode)) {
         fprintf(stderr, "icupkg: sorting item names failed - %s\n", u_errorName(errorCode));
         exit(errorCode);
@@ -1286,11 +1286,11 @@ void Package::setItemCapacity(int32_t max)
   if(max<=itemMax) {
     return;
   }
-  Item *newItems = (Item*)uprv_malloc(max * sizeof(items[0]));
+  Item* newItems = static_cast<Item*>(uprv_malloc(max * sizeof(items[0])));
   Item *oldItems = items;
   if(newItems == nullptr) {
     fprintf(stderr, "icupkg: Out of memory trying to allocate %lu bytes for %d items\n",
-        (unsigned long)(max*sizeof(items[0])), max);
+        max * sizeof(items[0]), max);
     exit(U_MEMORY_ALLOCATION_ERROR);
   }
   if(items && itemCount>0) {

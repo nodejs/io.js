@@ -97,7 +97,6 @@ std::string PathResolve(Environment* env,
   std::string resolvedDevice = "";
   std::string resolvedTail = "";
   bool resolvedAbsolute = false;
-  bool slashCheck = false;
   const size_t numArgs = paths.size();
   auto cwd = env->GetCwd(env->exec_path());
 
@@ -127,10 +126,6 @@ std::string PathResolve(Environment* env,
       }
     }
 
-    if (static_cast<size_t>(i) == numArgs - 1 &&
-        IsPathSeparator(path[path.length() - 1])) {
-      slashCheck = true;
-    }
     const size_t len = path.length();
     int rootEnd = 0;
     std::string device = "";
@@ -232,27 +227,15 @@ std::string PathResolve(Environment* env,
   // Normalize the tail path
   resolvedTail = NormalizeString(resolvedTail, !resolvedAbsolute, "\\");
 
-  if (!resolvedAbsolute) {
-    if (!resolvedDevice.empty() || !resolvedTail.empty()) {
-      return resolvedDevice + resolvedTail;
-    }
-    return ".";
+  if (resolvedAbsolute) {
+    return resolvedDevice + "\\" + resolvedTail;
   }
 
-  if (resolvedTail.empty()) {
-    if (slashCheck) {
-      return resolvedDevice + "\\";
-    }
-    return resolvedDevice;
+  if (!resolvedDevice.empty() || !resolvedTail.empty()) {
+    return resolvedDevice + resolvedTail;
   }
 
-  if (slashCheck) {
-    if (resolvedTail == "\\") {
-      return resolvedDevice + "\\";
-    }
-    return resolvedDevice + "\\" + resolvedTail + "\\";
-  }
-  return resolvedDevice + "\\" + resolvedTail;
+  return ".";
 }
 #else   // _WIN32
 std::string PathResolve(Environment* env,
@@ -261,14 +244,9 @@ std::string PathResolve(Environment* env,
   bool resolvedAbsolute = false;
   auto cwd = env->GetCwd(env->exec_path());
   const size_t numArgs = paths.size();
-  bool slashCheck = false;
 
   for (int i = numArgs - 1; i >= -1 && !resolvedAbsolute; i--) {
     const std::string& path = (i >= 0) ? std::string(paths[i]) : cwd;
-
-    if (static_cast<size_t>(i) == numArgs - 1 && path.back() == '/') {
-      slashCheck = true;
-    }
 
     if (!path.empty()) {
       resolvedPath = std::string(path) + "/" + resolvedPath;
@@ -283,21 +261,15 @@ std::string PathResolve(Environment* env,
   // Normalize the path
   auto normalizedPath = NormalizeString(resolvedPath, !resolvedAbsolute, "/");
 
-  if (!resolvedAbsolute) {
-    if (normalizedPath.empty()) {
-      return ".";
-    }
-    if (slashCheck) {
-      return normalizedPath + "/";
-    }
-    return normalizedPath;
+  if (resolvedAbsolute) {
+    return "/" + normalizedPath;
   }
 
-  if (normalizedPath.empty() || normalizedPath == "/") {
-    return "/";
+  if (normalizedPath.empty()) {
+    return ".";
   }
 
-  return slashCheck ? "/" + normalizedPath + "/" : "/" + normalizedPath;
+  return normalizedPath;
 }
 #endif  // _WIN32
 

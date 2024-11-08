@@ -128,7 +128,7 @@ public:
          * NULLORDER indicates that an error has occurred while processing
          * @stable ICU 2.0
          */
-        NULLORDER = (int32_t)0xffffffff
+        NULLORDER = static_cast<int32_t>(0xffffffff)
     };
 
     // CollationElementIterator public constructor/destructor -------------------

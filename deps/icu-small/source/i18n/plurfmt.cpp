@@ -234,7 +234,7 @@ PluralFormat::format(int32_t number,
                      UnicodeString& appendTo,
                      FieldPosition& pos,
                      UErrorCode& status) const {
-    return format(Formattable(number), (double)number, appendTo, pos, status);
+    return format(Formattable(number), static_cast<double>(number), appendTo, pos, status);
 }
 
 UnicodeString&
@@ -242,7 +242,7 @@ PluralFormat::format(double number,
                      UnicodeString& appendTo,
                      FieldPosition& pos,
                      UErrorCode& status) const {
-    return format(Formattable(number), (double)number, appendTo, pos, status);
+    return format(Formattable(number), number, appendTo, pos, status);
 }
 
 UnicodeString&

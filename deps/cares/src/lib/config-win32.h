@@ -187,6 +187,9 @@
 /* Define if you have the send function. */
 #define HAVE_SEND 1
 
+/* Define if you have the sendto function. */
+#define HAVE_SENDTO 1
+
 /* Define to the type of arg 1 for send. */
 #define SEND_TYPE_ARG1 SOCKET
 

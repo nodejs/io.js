@@ -148,7 +148,7 @@ void SpoofImpl::setAllowedLocales(const char *localesList, UErrorCode &status) {
         if (trimmedEnd <= locStart) {
             break;
         }
-        const char *locale = uprv_strndup(locStart, (int32_t)(trimmedEnd + 1 - locStart));
+        const char* locale = uprv_strndup(locStart, static_cast<int32_t>(trimmedEnd + 1 - locStart));
         localeListCount++;
 
         // We have one locale from the locales list.
@@ -305,7 +305,7 @@ void SpoofImpl::getNumerics(const UnicodeString& input, UnicodeSet& result, UErr
         if (u_charType(codePoint) == U_DECIMAL_DIGIT_NUMBER) {
             // Store the zero character as a representative for comparison.
             // Unicode guarantees it is codePoint - value
-            result.add(codePoint - (UChar32)u_getNumericValue(codePoint));
+            result.add(codePoint - static_cast<UChar32>(u_getNumericValue(codePoint)));
         }
     }
 }
@@ -432,7 +432,7 @@ UChar32 SpoofImpl::ScanHex(const char16_t *s, int32_t start, int32_t limit, UErr
         status = U_PARSE_ERROR;
         val = 0;
     }
-    return (UChar32)val;
+    return static_cast<UChar32>(val);
 }
 
 
@@ -601,7 +601,7 @@ SpoofData::SpoofData(const void *data, int32_t length, UErrorCode &status)
     if (U_FAILURE(status)) {
         return;
     }
-    if ((size_t)length < sizeof(SpoofDataHeader)) {
+    if (static_cast<size_t>(length) < sizeof(SpoofDataHeader)) {
         status = U_INVALID_FORMAT_ERROR;
         return;
     }
@@ -688,13 +688,13 @@ void SpoofData::initPtrs(UErrorCode &status) {
         return;
     }
     if (fRawData->fCFUKeys != 0) {
-        fCFUKeys = (int32_t *)((char *)fRawData + fRawData->fCFUKeys);
+        fCFUKeys = reinterpret_cast<int32_t*>(reinterpret_cast<char*>(fRawData) + fRawData->fCFUKeys);
     }
     if (fRawData->fCFUStringIndex != 0) {
-        fCFUValues = (uint16_t *)((char *)fRawData + fRawData->fCFUStringIndex);
+        fCFUValues = reinterpret_cast<uint16_t*>(reinterpret_cast<char*>(fRawData) + fRawData->fCFUStringIndex);
     }
     if (fRawData->fCFUStringTable != 0) {
-        fCFUStrings = (char16_t *)((char *)fRawData + fRawData->fCFUStringTable);
+        fCFUStrings = reinterpret_cast<char16_t*>(reinterpret_cast<char*>(fRawData) + fRawData->fCFUStringTable);
     }
 }
 
@@ -739,7 +739,7 @@ void *SpoofData::reserveSpace(int32_t numBytes,  UErrorCode &status) {
     fRawData->fLength = fMemLimit;
     uprv_memset((char *)fRawData + returnOffset, 0, numBytes);
     initPtrs(status);
-    return (char *)fRawData + returnOffset;
+    return reinterpret_cast<char*>(fRawData) + returnOffset;
 }
 
 int32_t SpoofData::serialize(void *buf, int32_t capacity, UErrorCode &status) const {
@@ -806,7 +806,7 @@ int32_t SpoofData::appendValueTo(int32_t index, UnicodeString& dest) const {
     // an index into the string table (for longer strings)
     uint16_t value = fCFUValues[index];
     if (stringLength == 1) {
-        dest.append((char16_t)value);
+        dest.append(static_cast<char16_t>(value));
     } else {
         dest.append(fCFUStrings + value, stringLength);
     }

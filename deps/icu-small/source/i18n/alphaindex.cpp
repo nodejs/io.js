@@ -379,16 +379,16 @@ const UnicodeString &fixLabel(const UnicodeString &current, UnicodeString &temp)
     char16_t rest = current.charAt(BASE_LENGTH);
     if (0x2800 < rest && rest <= 0x28FF) { // stroke count
         int32_t count = rest-0x2800;
-        temp.setTo((char16_t)(0x30 + count % 10));
+        temp.setTo(static_cast<char16_t>(0x30 + count % 10));
         if (count >= 10) {
             count /= 10;
-            temp.insert(0, (char16_t)(0x30 + count % 10));
+            temp.insert(0, static_cast<char16_t>(0x30 + count % 10));
             if (count >= 10) {
                 count /= 10;
-                temp.insert(0, (char16_t)(0x30 + count));
+                temp.insert(0, static_cast<char16_t>(0x30 + count));
             }
         }
-        return temp.append((char16_t)0x5283);
+        return temp.append(static_cast<char16_t>(0x5283));
     }
     return temp.setTo(current, BASE_LENGTH);
 }
@@ -402,7 +402,7 @@ UBool hasMultiplePrimaryWeights(
     UBool seenPrimary = false;
     for (int32_t i = 0; i < ces.size(); ++i) {
         int64_t ce = ces.elementAti(i);
-        uint32_t p = (uint32_t)(ce >> 32);
+        uint32_t p = static_cast<uint32_t>(ce >> 32);
         if (p > variableTop) {
             // not primary ignorable
             if (seenPrimary) {
@@ -494,10 +494,10 @@ BucketList *AlphabeticIndex::createBucketList(UErrorCode &errorCode) const {
         // Remember ASCII and Pinyin buckets for Pinyin redirects.
         char16_t c;
         if (current.length() == 1 && 0x41 <= (c = current.charAt(0)) && c <= 0x5A) {  // A-Z
-            asciiBuckets[c - 0x41] = (Bucket *)bucketList->lastElement();
+            asciiBuckets[c - 0x41] = static_cast<Bucket*>(bucketList->lastElement());
         } else if (current.length() == BASE_LENGTH + 1 && current.startsWith(BASE, BASE_LENGTH) &&
                 0x41 <= (c = current.charAt(BASE_LENGTH)) && c <= 0x5A) {
-            pinyinBuckets[c - 0x41] = (Bucket *)bucketList->lastElement();
+            pinyinBuckets[c - 0x41] = static_cast<Bucket*>(bucketList->lastElement());
             hasPinyin = true;
         }
         // Check for multiple primary weights.
@@ -522,7 +522,7 @@ BucketList *AlphabeticIndex::createBucketList(UErrorCode &errorCode) const {
                     // For example, after ... Q R S Sch we add Sch\uFFFF->S
                     // and after ... Q R S Sch Sch\uFFFF St we add St\uFFFF->S.
                     bucket.adoptInsteadAndCheckErrorCode(new Bucket(emptyString_,
-                        UnicodeString(current).append((char16_t)0xFFFF),
+                        UnicodeString(current).append(static_cast<char16_t>(0xFFFF)),
                         U_ALPHAINDEX_NORMAL),
                         errorCode);
                     if (U_FAILURE(errorCode)) {
@@ -880,7 +880,7 @@ void AlphabeticIndex::init(const Locale *locale, UErrorCode &status) {
         return;
     }
 
-    inflowLabel_.setTo((char16_t)0x2026);    // Ellipsis
+    inflowLabel_.setTo(static_cast<char16_t>(0x2026)); // Ellipsis
     overflowLabel_ = inflowLabel_;
     underflowLabel_ = inflowLabel_;
 

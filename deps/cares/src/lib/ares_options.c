@@ -54,9 +54,9 @@ void ares_destroy_options(struct ares_options *options)
 static struct in_addr *ares_save_opt_servers(const ares_channel_t *channel,
                                              int                  *nservers)
 {
-  ares__slist_node_t *snode;
-  struct in_addr     *out =
-    ares_malloc_zero(ares__slist_len(channel->servers) * sizeof(*out));
+  ares_slist_node_t *snode;
+  struct in_addr    *out =
+    ares_malloc_zero(ares_slist_len(channel->servers) * sizeof(*out));
 
   *nservers = 0;
 
@@ -64,9 +64,9 @@ static struct in_addr *ares_save_opt_servers(const ares_channel_t *channel,
     return NULL;
   }
 
-  for (snode = ares__slist_node_first(channel->servers); snode != NULL;
-       snode = ares__slist_node_next(snode)) {
-    const ares_server_t *server = ares__slist_node_val(snode);
+  for (snode = ares_slist_node_first(channel->servers); snode != NULL;
+       snode = ares_slist_node_next(snode)) {
+    const ares_server_t *server = ares_slist_node_val(snode);
 
     if (server->addr.family != AF_INET) {
       continue;
@@ -111,7 +111,7 @@ int ares_save_options(const ares_channel_t *channel,
   }
 
   /* We convert ARES_OPT_TIMEOUT to ARES_OPT_TIMEOUTMS in
-   * ares__init_by_options() */
+   * ares_init_by_options() */
   if (channel->optmask & ARES_OPT_TIMEOUTMS) {
     options->timeout = (int)channel->timeout;
   }
@@ -238,28 +238,28 @@ int ares_save_options(const ares_channel_t *channel,
   return ARES_SUCCESS;
 }
 
-static ares_status_t ares__init_options_servers(ares_channel_t       *channel,
-                                                const struct in_addr *servers,
-                                                size_t                nservers)
+static ares_status_t ares_init_options_servers(ares_channel_t       *channel,
+                                               const struct in_addr *servers,
+                                               size_t                nservers)
 {
-  ares__llist_t *slist = NULL;
-  ares_status_t  status;
+  ares_llist_t *slist = NULL;
+  ares_status_t status;
 
-  status = ares_in_addr_to_server_config_llist(servers, nservers, &slist);
+  status = ares_in_addr_to_sconfig_llist(servers, nservers, &slist);
   if (status != ARES_SUCCESS) {
     return status; /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
-  status = ares__servers_update(channel, slist, ARES_TRUE);
+  status = ares_servers_update(channel, slist, ARES_TRUE);
 
-  ares__llist_destroy(slist);
+  ares_llist_destroy(slist);
 
   return status;
 }
 
-ares_status_t ares__init_by_options(ares_channel_t            *channel,
-                                    const struct ares_options *options,
-                                    int                        optmask)
+ares_status_t ares_init_by_options(ares_channel_t            *channel,
+                                   const struct ares_options *options,
+                                   int                        optmask)
 {
   size_t i;
 
@@ -472,8 +472,8 @@ ares_status_t ares__init_by_options(ares_channel_t            *channel,
       optmask &= ~(ARES_OPT_SERVERS);
     } else {
       ares_status_t status;
-      status = ares__init_options_servers(channel, options->servers,
-                                          (size_t)options->nservers);
+      status = ares_init_options_servers(channel, options->servers,
+                                         (size_t)options->nservers);
       if (status != ARES_SUCCESS) {
         return status; /* LCOV_EXCL_LINE: OutOfMemory */
       }

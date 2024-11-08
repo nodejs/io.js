@@ -34,7 +34,7 @@ See [Testing](Testing.md) for more details on the test framework.
 Note that it can be handy to look at the project files output by the tests
 to diagnose problems. The easiest way to do that is by kindly asking the
 test driver to leave the temporary directories it creates in-place.
-This is done by setting the enviroment variable "PRESERVE", e.g.
+This is done by setting the environment variable "PRESERVE", e.g.
 
 ```
 set PRESERVE=all     # On Windows

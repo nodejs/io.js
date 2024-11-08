@@ -229,7 +229,9 @@ overhead.
 <!-- YAML
 added: v0.3.1
 changes:
-  - version: v22.8.0
+  - version:
+    - v22.8.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/54394
     description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
   - version: v14.6.0
@@ -1091,6 +1093,7 @@ added: v0.3.1
 changes:
   - version:
     - v22.8.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/54394
     description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
   - version:
@@ -1363,6 +1366,7 @@ added: v0.3.1
 changes:
   - version:
     - v22.8.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/54394
     description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
   - version:

@@ -194,6 +194,40 @@ isMarkedAsUntransferable(pooledBuffer);  // Returns true.
 
 There is no equivalent to this API in browsers.
 
+## `worker.markAsUncloneable(object)`
+
+<!-- YAML
+added:
+ - v23.0.0
+ - v22.10.0
+-->
+
+* `object` {any} Any arbitrary JavaScript value.
+
+Mark an object as not cloneable. If `object` is used as [`message`](#event-message) in
+a [`port.postMessage()`][] call, an error is thrown. This is a no-op if `object` is a
+primitive value.
+
+This has no effect on `ArrayBuffer`, or any `Buffer` like objects.
+
+This operation cannot be undone.
+
+```js
+const { markAsUncloneable } = require('node:worker_threads');
+
+const anyObject = { foo: 'bar' };
+markAsUncloneable(anyObject);
+const { port1 } = new MessageChannel();
+try {
+  // This will throw an error, because anyObject is not cloneable.
+  port1.postMessage(anyObject)
+} catch (error) {
+  // error.name === 'DataCloneError'
+}
+```
+
+There is no equivalent to this API in browsers.
+
 ## `worker.moveMessagePortToContext(port, contextifiedSandbox)`
 
 <!-- YAML

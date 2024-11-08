@@ -39,7 +39,6 @@
 
 #include "ares_nameser.h"
 #include "ares_inet_net_pton.h"
-#include "ares_platform.h"
 
 struct addr_query {
   /* Arguments passed to ares_gethostbyaddr() */
@@ -112,9 +111,9 @@ void ares_gethostbyaddr(ares_channel_t *channel, const void *addr, int addrlen,
   if (channel == NULL) {
     return;
   }
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
   ares_gethostbyaddr_nolock(channel, addr, addrlen, family, callback, arg);
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
 }
 
 static void next_lookup(struct addr_query *aquery)
@@ -216,12 +215,12 @@ static ares_status_t file_lookup(ares_channel_t         *channel,
     return ARES_ENOTFOUND;
   }
 
-  status = ares__hosts_search_ipaddr(channel, ARES_FALSE, ipaddr, &entry);
+  status = ares_hosts_search_ipaddr(channel, ARES_FALSE, ipaddr, &entry);
   if (status != ARES_SUCCESS) {
     return status;
   }
 
-  status = ares__hosts_entry_to_hostent(entry, addr->family, host);
+  status = ares_hosts_entry_to_hostent(entry, addr->family, host);
   if (status != ARES_SUCCESS) {
     return status; /* LCOV_EXCL_LINE: OutOfMemory */
   }

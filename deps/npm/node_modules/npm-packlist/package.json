@@ -1,13 +1,13 @@
 {
   "name": "npm-packlist",
-  "version": "8.0.2",
+  "version": "9.0.0",
   "description": "Get a list of the files to add from a folder into an npm package",
   "directories": {
     "test": "test"
   },
   "main": "lib/index.js",
   "dependencies": {
-    "ignore-walk": "^6.0.4"
+    "ignore-walk": "^7.0.0"
   },
   "author": "GitHub Inc.",
   "license": "ISC",
@@ -16,9 +16,9 @@
     "lib/"
   ],
   "devDependencies": {
-    "@npmcli/arborist": "^6.0.0 || ^6.0.0-pre.0",
+    "@npmcli/arborist": "^7.5.4",
     "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.21.2",
+    "@npmcli/template-oss": "4.23.3",
     "mutate-fs": "^2.1.1",
     "tap": "^16.0.1"
   },
@@ -27,16 +27,16 @@
     "posttest": "npm run lint",
     "snap": "tap",
     "postsnap": "npm run lintfix --",
-    "eslint": "eslint",
-    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
-    "lintfix": "npm run lint -- --fix",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lint": "npm run eslint",
+    "lintfix": "npm run eslint -- --fix",
     "npmclilint": "npmcli-lint",
     "postlint": "template-oss-check",
     "template-oss-apply": "template-oss-apply --force"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/npm-packlist.git"
+    "url": "git+https://github.com/npm/npm-packlist.git"
   },
   "tap": {
     "test-env": [
@@ -51,11 +51,11 @@
     ]
   },
   "engines": {
-    "node": "^14.17.0 || ^16.13.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.21.2",
+    "version": "4.23.3",
     "publish": true
   }
 }

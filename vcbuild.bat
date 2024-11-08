@@ -122,7 +122,6 @@ if /i "%1"=="lint-js-build" set lint_js_build=1&goto arg-ok
 if /i "%1"=="lint-js-fix"   set lint_js_fix=1&goto arg-ok
 if /i "%1"=="jslint"        set lint_js=1&echo Please use lint-js instead of jslint&goto arg-ok
 if /i "%1"=="lint-md"       set lint_md=1&goto arg-ok
-if /i "%1"=="lint-md-build" set lint_md_build=1&goto arg-ok
 if /i "%1"=="lint"          set lint_cpp=1&set lint_js=1&set lint_md=1&goto arg-ok
 if /i "%1"=="lint-ci"       set lint_cpp=1&set lint_js_ci=1&goto arg-ok
 if /i "%1"=="format-md"     set format_md=1&goto arg-ok
@@ -548,38 +547,36 @@ if not defined SSHCONFIG (
 )
 
 if not defined STAGINGSERVER set STAGINGSERVER=node-www
-if not defined CLOUDFLARE_ENDPOINT set CLOUDFLARE_ENDPOINT=https://07be8d2fbc940503ca1be344714cb0d1.r2.cloudflarestorage.com
-if not defined CLOUDFLARE_BUCKET set CLOUDFLARE_BUCKET=dist-staging
-if not defined CLOUDFLARE_PROFILE set CLOUDFLARE_PROFILE=worker
+if not defined CLOUDFLARE_BUCKET set CLOUDFLARE_BUCKET=r2:dist-staging
 ssh -F %SSHCONFIG% %STAGINGSERVER% "mkdir -p nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%"
 if errorlevel 1 goto exit
 scp -F %SSHCONFIG% Release\node.exe %STAGINGSERVER%:nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.exe
 if errorlevel 1 goto exit
-ssh -F %SSHCONFIG% %STAGINGSERVER% "aws s3 cp nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.exe s3://%CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.exe --endpoint=%CLOUDFLARE_ENDPOINT% --profile=%CLOUDFLARE_PROFILE%"
+ssh -F %SSHCONFIG% %STAGINGSERVER% "rclone copyto nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.exe %CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.exe"
 if errorlevel 1 goto exit
 scp -F %SSHCONFIG% Release\node.lib %STAGINGSERVER%:nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.lib
 if errorlevel 1 goto exit
-ssh -F %SSHCONFIG% %STAGINGSERVER% "aws s3 cp nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.lib s3://%CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.lib --endpoint=%CLOUDFLARE_ENDPOINT% --profile=%CLOUDFLARE_PROFILE%"
+ssh -F %SSHCONFIG% %STAGINGSERVER% "rclone copyto nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.lib %CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node.lib"
 if errorlevel 1 goto exit
 scp -F %SSHCONFIG% Release\node_pdb.zip %STAGINGSERVER%:nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.zip
 if errorlevel 1 goto exit
-ssh -F %SSHCONFIG% %STAGINGSERVER% "aws s3 cp nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.zip s3://%CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.zip --endpoint=%CLOUDFLARE_ENDPOINT% --profile=%CLOUDFLARE_PROFILE%"
+ssh -F %SSHCONFIG% %STAGINGSERVER% "rclone copyto nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.zip %CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.zip"
 if errorlevel 1 goto exit
 scp -F %SSHCONFIG% Release\node_pdb.7z %STAGINGSERVER%:nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.7z
 if errorlevel 1 goto exit
-ssh -F %SSHCONFIG% %STAGINGSERVER% "aws s3 cp nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.7z s3://%CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.7z --endpoint=%CLOUDFLARE_ENDPOINT% --profile=%CLOUDFLARE_PROFILE%"
+ssh -F %SSHCONFIG% %STAGINGSERVER% "rclone copyto nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.7z %CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%/node_pdb.7z"
 if errorlevel 1 goto exit
 scp -F %SSHCONFIG% Release\%TARGET_NAME%.7z %STAGINGSERVER%:nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.7z
 if errorlevel 1 goto exit
-ssh -F %SSHCONFIG% %STAGINGSERVER% "aws s3 cp nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.7z s3://%CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.7z --endpoint=%CLOUDFLARE_ENDPOINT% --profile=%CLOUDFLARE_PROFILE%"
+ssh -F %SSHCONFIG% %STAGINGSERVER% "rclone copyto nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.7z %CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.7z"
 if errorlevel 1 goto exit
 scp -F %SSHCONFIG% Release\%TARGET_NAME%.zip %STAGINGSERVER%:nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.zip
 if errorlevel 1 goto exit
-ssh -F %SSHCONFIG% %STAGINGSERVER% "aws s3 cp nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.zip s3://%CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.zip --endpoint=%CLOUDFLARE_ENDPOINT% --profile=%CLOUDFLARE_PROFILE%"
+ssh -F %SSHCONFIG% %STAGINGSERVER% "rclone copyto nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.zip %CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.zip"
 if errorlevel 1 goto exit
 scp -F %SSHCONFIG% node-v%FULLVERSION%-%target_arch%.msi %STAGINGSERVER%:nodejs/%DISTTYPEDIR%/v%FULLVERSION%/
 if errorlevel 1 goto exit
-ssh -F %SSHCONFIG% %STAGINGSERVER% "aws s3 cp nodejs/%DISTTYPEDIR%/v%FULLVERSION%/node-v%FULLVERSION%-%target_arch%.msi s3://%CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/node-v%FULLVERSION%-%target_arch%.msi --endpoint=%CLOUDFLARE_ENDPOINT% --profile=%CLOUDFLARE_PROFILE%"
+ssh -F %SSHCONFIG% %STAGINGSERVER% "rclone copyto nodejs/%DISTTYPEDIR%/v%FULLVERSION%/node-v%FULLVERSION%-%target_arch%.msi %CLOUDFLARE_BUCKET%/nodejs/%DISTTYPEDIR%/v%FULLVERSION%/node-v%FULLVERSION%-%target_arch%.msi"
 if errorlevel 1 goto exit
 ssh -F %SSHCONFIG% %STAGINGSERVER% "touch nodejs/%DISTTYPEDIR%/v%FULLVERSION%/node-v%FULLVERSION%-%target_arch%.msi.done nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.zip.done nodejs/%DISTTYPEDIR%/v%FULLVERSION%/%TARGET_NAME%.7z.done nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%.done && chmod -R ug=rw-x+X,o=r+X nodejs/%DISTTYPEDIR%/v%FULLVERSION%/node-v%FULLVERSION%-%target_arch%.* nodejs/%DISTTYPEDIR%/v%FULLVERSION%/win-%target_arch%*"
 if errorlevel 1 goto exit
@@ -750,24 +747,21 @@ echo running lint-js
 goto lint-js-fix
 
 :lint-js-fix
-if not defined lint_js_fix goto lint-md-build
+if not defined lint_js_fix goto lint-md
 if not exist tools\eslint\node_modules\eslint goto no-lint
 echo running lint-js-fix
 %node_exe% tools\eslint\node_modules\eslint\bin\eslint.js --cache --max-warnings=0 --report-unused-disable-directives --rule "@stylistic/js/linebreak-style: 0" eslint.config.mjs benchmark doc lib test tools --fix
 goto lint-md-build
 
-:no-lint
-echo Linting is not available through the source tarball.
-echo Use the git repo instead: $ git clone https://github.com/nodejs/node.git
-goto lint-md-build
-
 :lint-md-build
-if not defined lint_md_build goto lint-md
-echo "Deprecated no-op target 'lint_md_build'"
-goto lint-md
+if not defined lint_md if not defined format_md goto lint-md
+cd tools\lint-md
+%npm_exe% ci
+cd ..\..
 
 :lint-md
 if not defined lint_md goto format-md
+if not exist tools\lint-md\node_modules goto no-lint
 echo Running Markdown linter on docs...
 SETLOCAL ENABLEDELAYEDEXPANSION
 set lint_md_files=
@@ -782,6 +776,7 @@ goto format-md
 
 :format-md
 if not defined format_md goto exit
+if not exist tools\lint-md\node_modules goto no-lint
 echo Running Markdown formatter on docs...
 SETLOCAL ENABLEDELAYEDEXPANSION
 set lint_md_files=
@@ -792,6 +787,10 @@ for /D %%D IN (doc\*) do (
 )
 %node_exe% tools\lint-md\lint-md.mjs --format %lint_md_files%
 ENDLOCAL
+
+:no-lint
+echo Linting is not available through the source tarball.
+echo Use the git repo instead: $ git clone https://github.com/nodejs/node.git
 goto exit
 
 :create-msvs-files-failed

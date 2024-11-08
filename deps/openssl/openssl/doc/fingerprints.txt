@@ -12,9 +12,6 @@ in the file named openssl-1.0.1h.tar.gz.asc.
 The following is the list of fingerprints for the keys that are
 currently in use to sign OpenSSL distributions:
 
-OpenSSL OMC:
-EFC0 A467 D613 CB83 C7ED 6D30 D894 E2CE 8B3D 79F5
-
 OpenSSL:
 BA54 73A2 B058 7B07 FB27 CF2D 2160 94DF D0CB 81EF
 

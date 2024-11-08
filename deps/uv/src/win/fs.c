@@ -46,6 +46,17 @@
 #define UV_FS_FREE_PTR           0x0008
 #define UV_FS_CLEANEDUP          0x0010
 
+#ifndef FILE_DISPOSITION_DELETE
+#define FILE_DISPOSITION_DELETE                     0x0001
+#endif  /* FILE_DISPOSITION_DELETE */
+
+#ifndef FILE_DISPOSITION_POSIX_SEMANTICS
+#define FILE_DISPOSITION_POSIX_SEMANTICS            0x0002
+#endif  /* FILE_DISPOSITION_POSIX_SEMANTICS */
+
+#ifndef FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE
+#define FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE  0x0010
+#endif  /* FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE */
 
 #define INIT(subtype)                                                         \
   do {                                                                        \
@@ -58,7 +69,7 @@
 #define POST                                                                  \
   do {                                                                        \
     if (cb != NULL) {                                                         \
-      uv__req_register(loop, req);                                            \
+      uv__req_register(loop);                                                 \
       uv__work_submit(loop,                                                   \
                       &req->work_req,                                         \
                       UV__WORK_FAST_IO,                                       \
@@ -97,13 +108,14 @@
     return;                                                                 \
   }
 
-#define MILLION ((int64_t) 1000 * 1000)
-#define BILLION ((int64_t) 1000 * 1000 * 1000)
+#define NSEC_PER_TICK 100
+#define TICKS_PER_SEC ((int64_t) 1e9 / NSEC_PER_TICK)
+static const int64_t WIN_TO_UNIX_TICK_OFFSET = 11644473600 * TICKS_PER_SEC;
 
 static void uv__filetime_to_timespec(uv_timespec_t *ts, int64_t filetime) {
-  filetime -= 116444736 * BILLION;
-  ts->tv_sec = (long) (filetime / (10 * MILLION));
-  ts->tv_nsec = (long) ((filetime - ts->tv_sec * 10 * MILLION) * 100U);
+  filetime -= WIN_TO_UNIX_TICK_OFFSET;
+  ts->tv_sec = filetime / TICKS_PER_SEC;
+  ts->tv_nsec = (filetime % TICKS_PER_SEC) * NSEC_PER_TICK;
   if (ts->tv_nsec < 0) {
     ts->tv_sec -= 1;
     ts->tv_nsec += 1e9;
@@ -112,7 +124,7 @@ static void uv__filetime_to_timespec(uv_timespec_t *ts, int64_t filetime) {
 
 #define TIME_T_TO_FILETIME(time, filetime_ptr)                              \
   do {                                                                      \
-    int64_t bigtime = ((time) * 10 * MILLION + 116444736 * BILLION);        \
+    int64_t bigtime = ((time) * TICKS_PER_SEC + WIN_TO_UNIX_TICK_OFFSET);   \
     (filetime_ptr)->dwLowDateTime = (uint64_t) bigtime & 0xFFFFFFFF;        \
     (filetime_ptr)->dwHighDateTime = (uint64_t) bigtime >> 32;              \
   } while(0)
@@ -135,6 +147,16 @@ const WCHAR UNC_PATH_PREFIX_LEN = 8;
 static int uv__file_symlink_usermode_flag = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
 
 static DWORD uv__allocation_granularity;
+
+typedef enum {
+  FS__STAT_PATH_SUCCESS,
+  FS__STAT_PATH_ERROR,
+  FS__STAT_PATH_TRY_SLOW
+} fs__stat_path_return_t;
+
+INLINE static void fs__stat_assign_statbuf_null(uv_stat_t* statbuf);
+INLINE static void fs__stat_assign_statbuf(uv_stat_t* statbuf,
+    FILE_STAT_BASIC_INFORMATION stat_info, int do_lstat);
 
 
 void uv__fs_init(void) {
@@ -1056,27 +1078,20 @@ void fs__write(uv_fs_t* req) {
       error = ERROR_INVALID_FLAGS;
     }
 
-    SET_REQ_WIN32_ERROR(req, error);
+    SET_REQ_UV_ERROR(req, uv_translate_write_sys_error(error), error);
   }
 }
 
 
-void fs__rmdir(uv_fs_t* req) {
-  int result = _wrmdir(req->file.pathw);
-  if (result == -1)
-    SET_REQ_WIN32_ERROR(req, _doserrno);
-  else
-    SET_REQ_RESULT(req, 0);
-}
-
-
-void fs__unlink(uv_fs_t* req) {
+static void fs__unlink_rmdir(uv_fs_t* req, BOOL isrmdir) {
   const WCHAR* pathw = req->file.pathw;
   HANDLE handle;
   BY_HANDLE_FILE_INFORMATION info;
   FILE_DISPOSITION_INFORMATION disposition;
+  FILE_DISPOSITION_INFORMATION_EX disposition_ex;
   IO_STATUS_BLOCK iosb;
   NTSTATUS status;
+  DWORD error;
 
   handle = CreateFileW(pathw,
                        FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | DELETE,
@@ -1097,10 +1112,18 @@ void fs__unlink(uv_fs_t* req) {
     return;
   }
 
-  if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-    /* Do not allow deletion of directories, unless it is a symlink. When the
-     * path refers to a non-symlink directory, report EPERM as mandated by
-     * POSIX.1. */
+  if (isrmdir && !(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+    /* Error if we're in rmdir mode but it is not a dir.
+     * TODO: change it to UV_NOTDIR in v2. */
+    SET_REQ_UV_ERROR(req, UV_ENOENT, ERROR_DIRECTORY);
+    CloseHandle(handle);
+    return;
+  }
+
+  if (!isrmdir && (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+    /* If not explicitly allowed, do not allow deletion of directories, unless
+     * it is a symlink. When the path refers to a non-symlink directory, report
+     * EPERM as mandated by POSIX.1. */
 
     /* Check if it is a reparse point. If it's not, it's a normal directory. */
     if (!(info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
@@ -1112,7 +1135,7 @@ void fs__unlink(uv_fs_t* req) {
     /* Read the reparse point and check if it is a valid symlink. If not, don't
      * unlink. */
     if (fs__readlink_handle(handle, NULL, NULL) < 0) {
-      DWORD error = GetLastError();
+      error = GetLastError();
       if (error == ERROR_SYMLINK_NOT_SUPPORTED)
         error = ERROR_ACCESS_DENIED;
       SET_REQ_WIN32_ERROR(req, error);
@@ -1121,39 +1144,74 @@ void fs__unlink(uv_fs_t* req) {
     }
   }
 
-  if (info.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
-    /* Remove read-only attribute */
-    FILE_BASIC_INFORMATION basic = { 0 };
+  /* Try posix delete first */
+  disposition_ex.Flags = FILE_DISPOSITION_DELETE | FILE_DISPOSITION_POSIX_SEMANTICS |
+                          FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE;
 
-    basic.FileAttributes = (info.dwFileAttributes & ~FILE_ATTRIBUTE_READONLY) |
-                           FILE_ATTRIBUTE_ARCHIVE;
-
-    status = pNtSetInformationFile(handle,
-                                   &iosb,
-                                   &basic,
-                                   sizeof basic,
-                                   FileBasicInformation);
-    if (!NT_SUCCESS(status)) {
-      SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
-      CloseHandle(handle);
-      return;
-    }
-  }
-
-  /* Try to set the delete flag. */
-  disposition.DeleteFile = TRUE;
   status = pNtSetInformationFile(handle,
                                  &iosb,
-                                 &disposition,
-                                 sizeof disposition,
-                                 FileDispositionInformation);
+                                 &disposition_ex,
+                                 sizeof disposition_ex,
+                                 FileDispositionInformationEx);
   if (NT_SUCCESS(status)) {
     SET_REQ_SUCCESS(req);
   } else {
-    SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
+    /* If status == STATUS_CANNOT_DELETE here, given we set
+     * FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE, STATUS_CANNOT_DELETE can only mean
+     * that there is an existing mapped view to the file, preventing delete.
+     * STATUS_CANNOT_DELETE maps to UV_EACCES so it's not specifically worth handling  */
+    error = pRtlNtStatusToDosError(status);
+    if (error == ERROR_NOT_SUPPORTED /* filesystem does not support posix deletion */ ||
+        error == ERROR_INVALID_PARAMETER /* pre Windows 10 error */ ||
+        error == ERROR_INVALID_FUNCTION /* pre Windows 10 1607 error */) {
+      /* posix delete not supported so try fallback */
+      if (info.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
+        /* Remove read-only attribute */
+        FILE_BASIC_INFORMATION basic = { 0 };
+
+        basic.FileAttributes = (info.dwFileAttributes & ~FILE_ATTRIBUTE_READONLY) |
+                              FILE_ATTRIBUTE_ARCHIVE;
+
+        status = pNtSetInformationFile(handle,
+                                      &iosb,
+                                      &basic,
+                                      sizeof basic,
+                                      FileBasicInformation);
+        if (!NT_SUCCESS(status)) {
+          SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
+          CloseHandle(handle);
+          return;
+        }
+      }
+
+      /* Try to set the delete flag. */
+      disposition.DeleteFile = TRUE;
+      status = pNtSetInformationFile(handle,
+                                    &iosb,
+                                    &disposition,
+                                    sizeof disposition,
+                                    FileDispositionInformation);
+      if (NT_SUCCESS(status)) {
+        SET_REQ_SUCCESS(req);
+      } else {
+        SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
+      }
+    } else {
+      SET_REQ_WIN32_ERROR(req, error);
+    }
   }
 
   CloseHandle(handle);
+}
+
+
+static void fs__rmdir(uv_fs_t* req) {
+  fs__unlink_rmdir(req, /*isrmdir*/1);
+}
+
+
+static void fs__unlink(uv_fs_t* req) {
+  fs__unlink_rmdir(req, /*isrmdir*/0);
 }
 
 
@@ -1182,7 +1240,7 @@ void fs__mktemp(uv_fs_t* req, uv__fs_mktemp_func func) {
   size_t len;
   uint64_t v;
   char* path;
-  
+
   path = (char*)req->path;
   len = wcslen(req->file.pathw);
   ep = req->file.pathw + len;
@@ -1593,12 +1651,12 @@ void fs__readdir(uv_fs_t* req) {
       goto error;
 
     /* Copy file type. */
-    if ((find_data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
-      dent.d_type = UV__DT_DIR;
+    if ((find_data->dwFileAttributes & FILE_ATTRIBUTE_DEVICE) != 0)
+      dent.d_type = UV__DT_CHAR;
     else if ((find_data->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
       dent.d_type = UV__DT_LINK;
-    else if ((find_data->dwFileAttributes & FILE_ATTRIBUTE_DEVICE) != 0)
-      dent.d_type = UV__DT_CHAR;
+    else if ((find_data->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+      dent.d_type = UV__DT_DIR;
     else
       dent.d_type = UV__DT_FILE;
 
@@ -1627,6 +1685,43 @@ void fs__closedir(uv_fs_t* req) {
   SET_REQ_RESULT(req, 0);
 }
 
+INLINE static fs__stat_path_return_t fs__stat_path(WCHAR* path,
+    uv_stat_t* statbuf, int do_lstat) {
+  FILE_STAT_BASIC_INFORMATION stat_info;
+
+  // Check if the new fast API is available.
+  if (!pGetFileInformationByName) {
+    return FS__STAT_PATH_TRY_SLOW;
+  }
+
+  // Check if the API call fails.
+  if (!pGetFileInformationByName(path, FileStatBasicByNameInfo, &stat_info,
+      sizeof(stat_info))) {
+    switch(GetLastError()) {
+      case ERROR_FILE_NOT_FOUND:
+      case ERROR_PATH_NOT_FOUND:
+      case ERROR_NOT_READY:
+      case ERROR_BAD_NET_NAME:
+        /* These errors aren't worth retrying with the slow path. */
+        return FS__STAT_PATH_ERROR;
+    }
+    return FS__STAT_PATH_TRY_SLOW;
+  }
+
+  // A file handle is needed to get st_size for links.
+  if ((stat_info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+    return FS__STAT_PATH_TRY_SLOW;
+  }
+
+  if (stat_info.DeviceType == FILE_DEVICE_NULL) {
+    fs__stat_assign_statbuf_null(statbuf);
+    return FS__STAT_PATH_SUCCESS;
+  }
+
+  fs__stat_assign_statbuf(statbuf, stat_info, do_lstat);
+  return FS__STAT_PATH_SUCCESS;
+}
+
 INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf,
     int do_lstat) {
   size_t target_length = 0;
@@ -1635,6 +1730,7 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf,
   FILE_FS_VOLUME_INFORMATION volume_info;
   NTSTATUS nt_status;
   IO_STATUS_BLOCK io_status;
+  FILE_STAT_BASIC_INFORMATION stat_info;
 
   nt_status = pNtQueryVolumeInformationFile(handle,
                                             &io_status,
@@ -1650,13 +1746,7 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf,
 
   /* If it's NUL device set fields as reasonable as possible and return. */
   if (device_info.DeviceType == FILE_DEVICE_NULL) {
-    memset(statbuf, 0, sizeof(uv_stat_t));
-    statbuf->st_mode = _S_IFCHR;
-    statbuf->st_mode |= (_S_IREAD | _S_IWRITE) | ((_S_IREAD | _S_IWRITE) >> 3) |
-                        ((_S_IREAD | _S_IWRITE) >> 6);
-    statbuf->st_nlink = 1;
-    statbuf->st_blksize = 4096;    
-    statbuf->st_rdev = FILE_DEVICE_NULL << 16;
+    fs__stat_assign_statbuf_null(statbuf);
     return 0;
   }
 
@@ -1680,13 +1770,64 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf,
 
   /* Buffer overflow (a warning status code) is expected here. */
   if (io_status.Status == STATUS_NOT_IMPLEMENTED) {
-    statbuf->st_dev = 0;
+    stat_info.VolumeSerialNumber.QuadPart = 0;
   } else if (NT_ERROR(nt_status)) {
     SetLastError(pRtlNtStatusToDosError(nt_status));
     return -1;
   } else {
-    statbuf->st_dev = volume_info.VolumeSerialNumber;
+    stat_info.VolumeSerialNumber.QuadPart = volume_info.VolumeSerialNumber;
   }
+
+  stat_info.DeviceType = device_info.DeviceType;
+  stat_info.FileAttributes = file_info.BasicInformation.FileAttributes;
+  stat_info.NumberOfLinks = file_info.StandardInformation.NumberOfLinks;
+  stat_info.FileId.QuadPart =
+      file_info.InternalInformation.IndexNumber.QuadPart;
+  stat_info.ChangeTime.QuadPart =
+      file_info.BasicInformation.ChangeTime.QuadPart;
+  stat_info.CreationTime.QuadPart =
+      file_info.BasicInformation.CreationTime.QuadPart;
+  stat_info.LastAccessTime.QuadPart =
+      file_info.BasicInformation.LastAccessTime.QuadPart;
+  stat_info.LastWriteTime.QuadPart =
+      file_info.BasicInformation.LastWriteTime.QuadPart;
+  stat_info.AllocationSize.QuadPart =
+      file_info.StandardInformation.AllocationSize.QuadPart;
+
+  if (do_lstat &&
+      (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+    /*
+     * If reading the link fails, the reparse point is not a symlink and needs
+     * to be treated as a regular file. The higher level lstat function will
+     * detect this failure and retry without do_lstat if appropriate.
+     */
+    if (fs__readlink_handle(handle, NULL, &target_length) != 0) {
+      fs__stat_assign_statbuf(statbuf, stat_info, do_lstat);
+      return -1;
+    }
+    stat_info.EndOfFile.QuadPart = target_length;
+  } else {
+    stat_info.EndOfFile.QuadPart =
+      file_info.StandardInformation.EndOfFile.QuadPart;
+  }
+
+  fs__stat_assign_statbuf(statbuf, stat_info, do_lstat);
+  return 0;
+}
+
+INLINE static void fs__stat_assign_statbuf_null(uv_stat_t* statbuf) {
+  memset(statbuf, 0, sizeof(uv_stat_t));
+  statbuf->st_mode = _S_IFCHR;
+  statbuf->st_mode |= (_S_IREAD | _S_IWRITE) | ((_S_IREAD | _S_IWRITE) >> 3) |
+                      ((_S_IREAD | _S_IWRITE) >> 6);
+  statbuf->st_nlink = 1;
+  statbuf->st_blksize = 4096;
+  statbuf->st_rdev = FILE_DEVICE_NULL << 16;
+}
+
+INLINE static void fs__stat_assign_statbuf(uv_stat_t* statbuf,
+    FILE_STAT_BASIC_INFORMATION stat_info, int do_lstat) {
+  statbuf->st_dev = stat_info.VolumeSerialNumber.QuadPart;
 
   /* Todo: st_mode should probably always be 0666 for everyone. We might also
    * want to report 0777 if the file is a .exe or a directory.
@@ -1719,50 +1860,43 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf,
   * target. Otherwise, reparse points must be treated as regular files.
   */
   if (do_lstat &&
-      (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-    /*
-     * If reading the link fails, the reparse point is not a symlink and needs
-     * to be treated as a regular file. The higher level lstat function will
-     * detect this failure and retry without do_lstat if appropriate.
-     */
-    if (fs__readlink_handle(handle, NULL, &target_length) != 0)
-      return -1;
+      (stat_info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
     statbuf->st_mode |= S_IFLNK;
-    statbuf->st_size = target_length;
+    statbuf->st_size = stat_info.EndOfFile.QuadPart;
   }
 
   if (statbuf->st_mode == 0) {
-    if (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+    if (stat_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
       statbuf->st_mode |= _S_IFDIR;
       statbuf->st_size = 0;
     } else {
       statbuf->st_mode |= _S_IFREG;
-      statbuf->st_size = file_info.StandardInformation.EndOfFile.QuadPart;
+      statbuf->st_size = stat_info.EndOfFile.QuadPart;
     }
   }
 
-  if (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_READONLY)
+  if (stat_info.FileAttributes & FILE_ATTRIBUTE_READONLY)
     statbuf->st_mode |= _S_IREAD | (_S_IREAD >> 3) | (_S_IREAD >> 6);
   else
     statbuf->st_mode |= (_S_IREAD | _S_IWRITE) | ((_S_IREAD | _S_IWRITE) >> 3) |
                         ((_S_IREAD | _S_IWRITE) >> 6);
 
   uv__filetime_to_timespec(&statbuf->st_atim,
-                           file_info.BasicInformation.LastAccessTime.QuadPart);
+                           stat_info.LastAccessTime.QuadPart);
   uv__filetime_to_timespec(&statbuf->st_ctim,
-                           file_info.BasicInformation.ChangeTime.QuadPart);
+                           stat_info.ChangeTime.QuadPart);
   uv__filetime_to_timespec(&statbuf->st_mtim,
-                           file_info.BasicInformation.LastWriteTime.QuadPart);
+                           stat_info.LastWriteTime.QuadPart);
   uv__filetime_to_timespec(&statbuf->st_birthtim,
-                           file_info.BasicInformation.CreationTime.QuadPart);
+                           stat_info.CreationTime.QuadPart);
 
-  statbuf->st_ino = file_info.InternalInformation.IndexNumber.QuadPart;
+  statbuf->st_ino = stat_info.FileId.QuadPart;
 
   /* st_blocks contains the on-disk allocation size in 512-byte units. */
   statbuf->st_blocks =
-      (uint64_t) file_info.StandardInformation.AllocationSize.QuadPart >> 9;
+      (uint64_t) stat_info.AllocationSize.QuadPart >> 9;
 
-  statbuf->st_nlink = file_info.StandardInformation.NumberOfLinks;
+  statbuf->st_nlink = stat_info.NumberOfLinks;
 
   /* The st_blksize is supposed to be the 'optimal' number of bytes for reading
    * and writing to the disk. That is, for any definition of 'optimal' - it's
@@ -1794,8 +1928,6 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf,
   statbuf->st_uid = 0;
   statbuf->st_rdev = 0;
   statbuf->st_gen = 0;
-
-  return 0;
 }
 
 
@@ -1817,6 +1949,17 @@ INLINE static DWORD fs__stat_impl_from_path(WCHAR* path,
   DWORD flags;
   DWORD ret;
 
+  // If new API exists, try to use it.
+  switch (fs__stat_path(path, statbuf, do_lstat)) {
+    case FS__STAT_PATH_SUCCESS:
+      return 0;
+    case FS__STAT_PATH_ERROR:
+      return GetLastError();
+    case FS__STAT_PATH_TRY_SLOW:
+      break;
+  }
+
+  // If the new API does not exist, use the old API.
   flags = FILE_FLAG_BACKUP_SEMANTICS;
   if (do_lstat)
     flags |= FILE_FLAG_OPEN_REPARSE_POINT;
@@ -2830,7 +2973,7 @@ static void uv__fs_done(struct uv__work* w, int status) {
   uv_fs_t* req;
 
   req = container_of(w, uv_fs_t, work_req);
-  uv__req_unregister(req->loop, req);
+  uv__req_unregister(req->loop);
 
   if (status == UV_ECANCELED) {
     assert(req->result == 0);

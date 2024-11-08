@@ -368,7 +368,7 @@ getTrail:
                     /*look ahead to find the trail surrogate*/
                     if(source < sourceLimit) {
                         /* test the following code unit */
-                        char16_t trail=(char16_t) *source;
+                        char16_t trail = *source;
                         if(U16_IS_TRAIL(trail)) {
                             source++;
                             sourceChar=U16_GET_SUPPLEMENTARY(sourceChar, trail);

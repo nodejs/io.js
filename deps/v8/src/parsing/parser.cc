@@ -2735,6 +2735,13 @@ void Parser::ReindexArrowFunctionFormalParameters(
   }
 }
 
+void Parser::ReindexComputedMemberName(Expression* computed_name) {
+  // Make space for the member initializer function above the computed property
+  // name.
+  AstFunctionLiteralIdReindexer reindexer(stack_limit_, 1);
+  reindexer.Reindex(computed_name);
+}
+
 void Parser::PrepareGeneratorVariables() {
   // Calling a generator returns a generator object.  That object is stored
   // in a temporary variable, a definition that is used by "yield"

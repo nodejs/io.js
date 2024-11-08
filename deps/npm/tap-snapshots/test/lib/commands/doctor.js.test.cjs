@@ -1166,7 +1166,7 @@ Object {
 exports[`test/lib/commands/doctor.js TAP ping 404 > ping 404 1`] = `
 Connecting to the registry
 Not ok
-404 404 Not Found - GET https://registry.npmjs.org/-/ping?write=true
+404 404 Not Found - GET https://registry.npmjs.org/-/ping
 Checking npm version
 Ok
 current: v1.0.0, latest: v1.0.0
@@ -1226,7 +1226,7 @@ Object {
 exports[`test/lib/commands/doctor.js TAP ping 404 in color > ping 404 in color 1`] = `
 Connecting to the registry
 [31mNot ok[39m
-[36m404 404 Not Found - GET https://registry.npmjs.org/-/ping?write=true[39m
+[36m404 404 Not Found - GET https://registry.npmjs.org/-/ping[39m
 Checking npm version
 [32mOk[39m
 current: v1.0.0, latest: v1.0.0
@@ -1286,7 +1286,7 @@ Object {
 exports[`test/lib/commands/doctor.js TAP ping exception with code > ping failure 1`] = `
 Connecting to the registry
 Not ok
-request to https://registry.npmjs.org/-/ping?write=true failed, reason: Test Error
+request to https://registry.npmjs.org/-/ping failed, reason: Test Error
 Checking npm version
 Ok
 current: v1.0.0, latest: v1.0.0
@@ -1346,7 +1346,7 @@ Object {
 exports[`test/lib/commands/doctor.js TAP ping exception without code > ping failure 1`] = `
 Connecting to the registry
 Not ok
-request to https://registry.npmjs.org/-/ping?write=true failed, reason: Test Error
+request to https://registry.npmjs.org/-/ping failed, reason: Test Error
 Checking npm version
 Ok
 current: v1.0.0, latest: v1.0.0

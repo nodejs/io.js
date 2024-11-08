@@ -760,10 +760,19 @@ a `void* hint` argument.
 Inside these cleanup hooks, new asynchronous operations _may_ be started on the
 event loop, although ideally that is avoided as much as possible.
 
-Every [`BaseObject`][] has its own cleanup hook that deletes it. For
-[`ReqWrap`][] and [`HandleWrap`][] instances, cleanup of the associated libuv
-objects is performed automatically, i.e. handles are closed and requests
-are cancelled if possible.
+For every [`ReqWrap`][] and [`HandleWrap`][] instance, the cleanup of the
+associated libuv objects is performed automatically, i.e. handles are closed
+and requests are cancelled if possible.
+
+#### Cleanup realms and BaseObjects
+
+Realm cleanup depends on the realm types. All realms are destroyed when the
+[`Environment`][] is destroyed with the cleanup hook. A [`ShadowRealm`][] can
+also be destroyed by the garbage collection when there is no strong reference
+to it.
+
+Every [`BaseObject`][] is tracked with its creation realm and will be destroyed
+when the realm is tearing down.
 
 #### Closing libuv handles
 

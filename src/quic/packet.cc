@@ -117,10 +117,10 @@ Packet* Packet::Create(Environment* env,
                        const char* diagnostic_label) {
   if (BindingData::Get(env).packet_freelist.empty()) {
     Local<Object> obj;
-    if (UNLIKELY(!GetConstructorTemplate(env)
-                      ->InstanceTemplate()
-                      ->NewInstance(env->context())
-                      .ToLocal(&obj))) {
+    if (!GetConstructorTemplate(env)
+             ->InstanceTemplate()
+             ->NewInstance(env->context())
+             .ToLocal(&obj)) [[unlikely]] {
       return nullptr;
     }
 
@@ -138,10 +138,10 @@ Packet* Packet::Clone() const {
   auto& binding = BindingData::Get(env());
   if (binding.packet_freelist.empty()) {
     Local<Object> obj;
-    if (UNLIKELY(!GetConstructorTemplate(env())
-                      ->InstanceTemplate()
-                      ->NewInstance(env()->context())
-                      .ToLocal(&obj))) {
+    if (!GetConstructorTemplate(env())
+             ->InstanceTemplate()
+             ->NewInstance(env()->context())
+             .ToLocal(&obj)) [[unlikely]] {
       return nullptr;
     }
 

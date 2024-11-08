@@ -219,7 +219,7 @@ public:
          * boundaries have been returned.
          * @stable ICU 2.0
          */
-        DONE = (int32_t)-1
+        DONE = static_cast<int32_t>(-1)
     };
 
     /**

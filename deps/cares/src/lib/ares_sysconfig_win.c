@@ -53,7 +53,6 @@
 #endif
 
 #include "ares_inet_net_pton.h"
-#include "ares_platform.h"
 
 #if defined(USE_WINSOCK)
 /*
@@ -420,7 +419,7 @@ static ares_bool_t get_DNS_Windows(char **outptr)
         memset(&addr, 0, sizeof(addr));
         addr.family = AF_INET6;
         memcpy(&addr.addr.addr6, &namesrvr.sa6->sin6_addr, 16);
-        if (ares__addr_is_linklocal(&addr)) {
+        if (ares_addr_is_linklocal(&addr)) {
           ll_scope = ipaaEntry->Ipv6IfIndex;
         }
 
@@ -514,10 +513,6 @@ static ares_bool_t get_SuffixList_Windows(char **outptr)
 
   *outptr = NULL;
 
-  if (ares__getplatform() != WIN_NT) {
-    return ARES_FALSE;
-  }
-
   /* 1. Global DNS Suffix Search List */
   if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, WIN_NS_NT_KEY, 0, KEY_READ, &hKey) ==
       ERROR_SUCCESS) {
@@ -589,13 +584,15 @@ static ares_bool_t get_SuffixList_Windows(char **outptr)
   return *outptr != NULL ? ARES_TRUE : ARES_FALSE;
 }
 
-ares_status_t ares__init_sysconfig_windows(ares_sysconfig_t *sysconfig)
+ares_status_t ares_init_sysconfig_windows(const ares_channel_t *channel,
+                                          ares_sysconfig_t     *sysconfig)
 {
   char         *line   = NULL;
   ares_status_t status = ARES_SUCCESS;
 
   if (get_DNS_Windows(&line)) {
-    status = ares__sconfig_append_fromstr(&sysconfig->sconfig, line, ARES_TRUE);
+    status = ares_sconfig_append_fromstr(channel, &sysconfig->sconfig, line,
+                                         ARES_TRUE);
     ares_free(line);
     if (status != ARES_SUCCESS) {
       goto done;
@@ -603,7 +600,7 @@ ares_status_t ares__init_sysconfig_windows(ares_sysconfig_t *sysconfig)
   }
 
   if (get_SuffixList_Windows(&line)) {
-    sysconfig->domains = ares__strsplit(line, ", ", &sysconfig->ndomains);
+    sysconfig->domains = ares_strsplit(line, ", ", &sysconfig->ndomains);
     ares_free(line);
     if (sysconfig->domains == NULL) {
       status = ARES_EFILE;

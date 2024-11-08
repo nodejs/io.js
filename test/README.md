@@ -39,7 +39,7 @@ For the tests to run on Windows, be sure to clone Node.js source code with the
 | `tick-processor` | No         | Tests for the V8 tick processor integration.[^4]                                                              |
 | `v8-updates`     | No         | Tests for V8 performance integration.                                                                         |
 
-[^1]: [Documentation](./common/README.md)
+[^1]: [Documentation](../test/common/README.md)
 
 [^2]: Tests for networking related modules may also be present in other directories, but those tests do
     not make outbound connections.

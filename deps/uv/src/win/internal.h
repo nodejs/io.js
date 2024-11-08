@@ -330,4 +330,6 @@ void uv__wake_all_loops(void);
  */
 void uv__init_detect_system_wakeup(void);
 
+int uv_translate_write_sys_error(int sys_errno);
+
 #endif /* UV_WIN_INTERNAL_H_ */

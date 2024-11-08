@@ -49,8 +49,8 @@ U_CFUNC void ucnv_fromUnicode_UTF8_OFFSETS_LOGIC(UConverterFromUnicodeArgs *args
 #define MAXIMUM_UCS2            0x0000FFFF
 
 static const uint32_t offsetsFromUTF8[5] = {0,
-  (uint32_t) 0x00000000, (uint32_t) 0x00003080, (uint32_t) 0x000E2080,
-  (uint32_t) 0x03C82080
+  static_cast<uint32_t>(0x00000000), static_cast<uint32_t>(0x00003080),
+  static_cast<uint32_t>(0x000E2080), static_cast<uint32_t>(0x03C82080)
 };
 
 static UBool hasCESU8Data(const UConverter *cnv)
@@ -58,7 +58,7 @@ static UBool hasCESU8Data(const UConverter *cnv)
 #if UCONFIG_ONLY_HTML_CONVERSION
     return false;
 #else
-    return (UBool)(cnv->sharedData == &_CESU8Data);
+    return cnv->sharedData == &_CESU8Data;
 #endif
 }
 U_CDECL_BEGIN
@@ -571,7 +571,7 @@ static UChar32 U_CALLCONV ucnv_getNextUChar_UTF8(UConverterToUnicodeArgs *args,
         return 0xffff;
     }
 
-    myByte = (uint8_t)*(source++);
+    myByte = *(source++);
     if (U8_IS_SINGLE(myByte))
     {
         args->source = (const char *)source;

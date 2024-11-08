@@ -34,6 +34,9 @@ template("nghttp2_gn_build") {
     if (is_clang || !is_win) {
       cflags_c = [
         "-Wno-implicit-fallthrough",
+        # Ref https://github.com/nghttp2/nghttp2/pull/2258
+        # This can be removed when the above PR is ingested.
+        "-Wno-extra-semi",
       ]
     }
   }

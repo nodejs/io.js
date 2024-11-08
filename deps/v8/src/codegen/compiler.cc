@@ -1338,7 +1338,14 @@ MaybeHandle<Code> GetOrCompileOptimized(
   }
 
   // Do not optimize when debugger needs to hook into every call.
-  if (isolate->debug()->needs_check_on_function_call()) return {};
+  if (isolate->debug()->needs_check_on_function_call()) {
+    // Reset the OSR urgency to avoid triggering this compilation request on
+    // every iteration and thereby skipping other interrupts.
+    if (IsOSR(osr_offset)) {
+      function->feedback_vector()->reset_osr_urgency();
+    }
+    return {};
+  }
 
   // Do not optimize if we need to be able to set break points.
   if (shared->HasBreakInfo(isolate)) return {};

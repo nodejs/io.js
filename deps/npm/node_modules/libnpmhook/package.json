@@ -1,6 +1,6 @@
 {
   "name": "libnpmhook",
-  "version": "10.0.5",
+  "version": "11.0.0",
   "description": "programmatic API for managing npm registry hooks",
   "main": "lib/index.js",
   "files": [
@@ -32,16 +32,16 @@
   "license": "ISC",
   "dependencies": {
     "aproba": "^2.0.0",
-    "npm-registry-fetch": "^17.0.1"
+    "npm-registry-fetch": "^18.0.1"
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/eslint-config": "^5.0.1",
     "@npmcli/template-oss": "4.23.3",
     "nock": "^13.3.3",
     "tap": "^16.3.8"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",

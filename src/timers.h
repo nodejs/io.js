@@ -26,23 +26,29 @@ class BindingData : public SnapshotableObject {
   static void SetupTimers(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   static void SlowGetLibuvNow(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static double FastGetLibuvNow(v8::Local<v8::Object> receiver);
+  static double FastGetLibuvNow(v8::Local<v8::Object> unused,
+                                v8::Local<v8::Object> receiver);
   static double GetLibuvNowImpl(BindingData* data);
 
   static void SlowScheduleTimer(
       const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void FastScheduleTimer(v8::Local<v8::Object> receiver,
+  static void FastScheduleTimer(v8::Local<v8::Object> unused,
+                                v8::Local<v8::Object> receiver,
                                 int64_t duration);
   static void ScheduleTimerImpl(BindingData* data, int64_t duration);
 
   static void SlowToggleTimerRef(
       const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void FastToggleTimerRef(v8::Local<v8::Object> receiver, bool ref);
+  static void FastToggleTimerRef(v8::Local<v8::Object> unused,
+                                 v8::Local<v8::Object> receiver,
+                                 bool ref);
   static void ToggleTimerRefImpl(BindingData* data, bool ref);
 
   static void SlowToggleImmediateRef(
       const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void FastToggleImmediateRef(v8::Local<v8::Object> receiver, bool ref);
+  static void FastToggleImmediateRef(v8::Local<v8::Object> unused,
+                                     v8::Local<v8::Object> receiver,
+                                     bool ref);
   static void ToggleImmediateRefImpl(BindingData* data, bool ref);
 
   static void CreatePerIsolateProperties(IsolateData* isolate_data,

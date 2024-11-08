@@ -1,11 +1,9 @@
-// Flags: --expose-internals
 import * as common from '../common/index.mjs';
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { spawn } from 'node:child_process';
 import { writeFile, unlink } from 'node:fs/promises';
 import { setTimeout } from 'node:timers/promises';
-import util from 'internal/util';
 import tmpdir from '../common/tmpdir.js';
 
 if (common.isIBMi)
@@ -56,8 +54,8 @@ await setupFixtures();
 
 describe('test runner watch mode with more complex setup', () => {
   it('should run tests when a dependency changed after a watched test file being deleted', async () => {
-    const ran1 = util.createDeferredPromise();
-    const ran2 = util.createDeferredPromise();
+    const ran1 = Promise.withResolvers();
+    const ran2 = Promise.withResolvers();
     const child = spawn(process.execPath,
                         ['--watch', '--test'],
                         { encoding: 'utf8', stdio: 'pipe', cwd: tmpdir.path });

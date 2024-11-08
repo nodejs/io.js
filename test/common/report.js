@@ -251,7 +251,7 @@ function _validateContent(report, fields = []) {
   assert(typeof usage.free_memory, 'string');
   assert(typeof usage.total_memory, 'string');
   assert(typeof usage.available_memory, 'string');
-  // This field may not exsit
+  // This field may not exist
   if (report.resourceUsage.constrained_memory) {
     assert(typeof report.resourceUsage.constrained_memory, 'string');
   }

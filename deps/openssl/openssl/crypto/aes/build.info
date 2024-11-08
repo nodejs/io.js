@@ -38,7 +38,11 @@ IF[{- !$disabled{asm} -}]
   $AESASM_parisc20_64=$AESASM_parisc11
   $AESDEF_parisc20_64=$AESDEF_parisc11
 
+  IF[{- $target{sys_id} ne "MACOSX" -}]
   $AESASM_ppc32=aes_core.c aes_cbc.c aes-ppc.s vpaes-ppc.s aesp8-ppc.s
+  ELSE
+    $AESASM_ppc32=aes_core.c aes_cbc.c aes-ppc.s vpaes-ppc.s
+  ENDIF
   $AESDEF_ppc32=AES_ASM VPAES_ASM
   $AESASM_ppc64=$AESASM_ppc32
   $AESDEF_ppc64=$AESDEF_ppc32

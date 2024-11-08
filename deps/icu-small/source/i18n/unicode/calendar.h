@@ -2045,9 +2045,11 @@ protected:
      * taking currently-set year and era into account.  Defaults to 1 for Gregorian.
      * @param eyear the extended year
      * @param month the month in the year
+     * @param status Output param set to failure code on function return
+     *          when this function fails.
      * @internal
      */
-    virtual int32_t getDefaultDayInMonth(int32_t eyear, int32_t month);
+    virtual int32_t getDefaultDayInMonth(int32_t eyear, int32_t month, UErrorCode& status);
 
     //-------------------------------------------------------------------------
     // Protected utility methods for use by subclasses.  These are very handy
@@ -2537,14 +2539,14 @@ Calendar::createInstance(TimeZone* zone, UErrorCode& errorCode)
 inline void
 Calendar::roll(UCalendarDateFields field, UBool up, UErrorCode& status)
 {
-    roll(field, (int32_t)(up ? +1 : -1), status);
+    roll(field, static_cast<int32_t>(up ? +1 : -1), status);
 }
 
 #ifndef U_HIDE_DEPRECATED_API
 inline void
 Calendar::roll(EDateFields field, UBool up, UErrorCode& status)
 {
-    roll((UCalendarDateFields) field, up, status);
+    roll(static_cast<UCalendarDateFields>(field), up, status);
 }
 #endif  /* U_HIDE_DEPRECATED_API */
 

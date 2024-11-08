@@ -24,8 +24,8 @@ import tmpdir from '../common/tmpdir.js';
 tmpdir.refresh();
 
 let dirc = 0;
-function nextdir() {
-  return tmpdir.resolve(`copy_${++dirc}`);
+function nextdir(dirname) {
+  return tmpdir.resolve(dirname || `copy_%${++dirc}`);
 }
 
 // Synchronous implementation of copy.
@@ -317,6 +317,45 @@ function nextdir() {
   assert.throws(
     () => cpSync(src, dest),
     { code: 'ERR_FS_CP_NON_DIR_TO_DIR' }
+  );
+}
+
+// It must not throw error if attempt is made to copy to dest
+// directory with same prefix as src directory
+// regression test for https://github.com/nodejs/node/issues/54285
+{
+  const src = nextdir('prefix');
+  const dest = nextdir('prefix-a');
+  mkdirSync(src);
+  mkdirSync(dest);
+  cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true }));
+}
+
+// It must not throw error if attempt is made to copy to dest
+// directory if the parent of dest has same prefix as src directory
+// regression test for https://github.com/nodejs/node/issues/54285
+{
+  const src = nextdir('aa');
+  const destParent = nextdir('aaa');
+  const dest = nextdir('aaa/aabb');
+  mkdirSync(src);
+  mkdirSync(destParent);
+  mkdirSync(dest);
+  cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true }));
+}
+
+// It throws error if attempt is made to copy src to dest
+// when src is parent directory of the parent of dest
+{
+  const src = nextdir('a');
+  const destParent = nextdir('a/b');
+  const dest = nextdir('a/b/c');
+  mkdirSync(src);
+  mkdirSync(destParent);
+  mkdirSync(dest);
+  assert.throws(
+    () => cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true })),
+    { code: 'ERR_FS_CP_EINVAL' },
   );
 }
 

@@ -1644,6 +1644,15 @@ util.inspect(process);
 
   assert.throws(() => util.inspect(new ThrowingClass()), /toStringTag error/);
 
+  const y = {
+    get [Symbol.toStringTag]() {
+      return JSON.stringify(this);
+    }
+  };
+  const x = { y };
+  y.x = x;
+  assert.throws(() => util.inspect(x), /TypeError: Converting circular structure to JSON/);
+
   class NotStringClass {
     get [Symbol.toStringTag]() {
       return null;

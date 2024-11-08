@@ -104,10 +104,10 @@ void RBBIDataWrapper::init(const RBBIDataHeader *data, UErrorCode &status) {
 
     fDontFreeData = false;
     if (data->fFTableLen != 0) {
-        fForwardTable = (RBBIStateTable *)((char *)data + fHeader->fFTable);
+        fForwardTable = reinterpret_cast<const RBBIStateTable*>(reinterpret_cast<const char*>(data) + fHeader->fFTable);
     }
     if (data->fRTableLen != 0) {
-        fReverseTable = (RBBIStateTable *)((char *)data + fHeader->fRTable);
+        fReverseTable = reinterpret_cast<const RBBIStateTable*>(reinterpret_cast<const char*>(data) + fHeader->fRTable);
     }
 
     fTrie = ucptrie_openFromBinary(UCPTRIE_TYPE_FAST,
@@ -130,7 +130,7 @@ void RBBIDataWrapper::init(const RBBIDataHeader *data, UErrorCode &status) {
     fRuleString = UnicodeString::fromUTF8(StringPiece(fRuleSource, fHeader->fRuleSourceLen));
     U_ASSERT(data->fRuleSourceLen > 0);
 
-    fRuleStatusTable = (int32_t *)((char *)data + fHeader->fStatusTable);
+    fRuleStatusTable = reinterpret_cast<const int32_t*>(reinterpret_cast<const char*>(data) + fHeader->fStatusTable);
     fStatusMaxIdx    = data->fStatusTableLen / sizeof(int32_t);
 
     fRefCount = 1;

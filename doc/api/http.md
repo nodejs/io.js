@@ -3289,9 +3289,7 @@ added:
 -->
 
 * `headers` {Headers|Map}
-* Returns: {http.ServerResponse}
-
-Returns the response object.
+* Returns: {this}
 
 Sets multiple header values for implicit headers.
 `headers` must be an instance of [`Headers`][] or `Map`,
@@ -3300,14 +3298,14 @@ its value will be replaced.
 
 ```js
 const headers = new Headers({ foo: 'bar' });
-response.setHeaders(headers);
+outgoingMessage.setHeaders(headers);
 ```
 
 or
 
 ```js
 const headers = new Map([['foo', 'bar']]);
-res.setHeaders(headers);
+outgoingMessage.setHeaders(headers);
 ```
 
 When headers have been set with [`outgoingMessage.setHeaders()`][],

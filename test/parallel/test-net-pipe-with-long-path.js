@@ -20,7 +20,7 @@ const server = net.createServer()
   .listen(pipePath)
   // It may work on some operating systems
   .on('listening', () => {
-    // The socket file must exsit
+    // The socket file must exist
     assert.ok(fs.existsSync(pipePath));
     const socket = net.connect(pipePath, common.mustCall(() => {
       socket.destroy();

@@ -196,11 +196,11 @@ function writeDNSPacket(parsed) {
 
   buffers.push(new Uint16Array([
     parsed.id,
-    parsed.flags === undefined ? kStandardResponseFlags : parsed.flags,
-    parsed.questions && parsed.questions.length,
-    parsed.answers && parsed.answers.length,
-    parsed.authorityAnswers && parsed.authorityAnswers.length,
-    parsed.additionalRecords && parsed.additionalRecords.length,
+    parsed.flags ?? kStandardResponseFlags,
+    parsed.questions?.length,
+    parsed.answers?.length,
+    parsed.authorityAnswers?.length,
+    parsed.additionalRecords?.length,
   ]));
 
   for (const q of parsed.questions) {

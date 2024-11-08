@@ -134,7 +134,7 @@ writeFileSync(testfile5, '');
 })().then(common.mustCall());
 
 (async () => {
-  // We currently do not allow File-backed blobs to be cloned or transfered
+  // We currently do not allow File-backed blobs to be cloned or transferred
   // across worker threads. This is largely because the underlying FdEntry
   // is bound to the Environment/Realm under which is was created.
   const blob = await openAsBlob(__filename);

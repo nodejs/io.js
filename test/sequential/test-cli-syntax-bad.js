@@ -1,16 +1,14 @@
 'use strict';
 
-require('../common');
+const common = require('../common');
 const { exec } = require('child_process');
 const { test } = require('node:test');
 const fixtures = require('../common/fixtures');
 
-const node = process.execPath;
-
 // Test both sets of arguments that check syntax
 const syntaxArgs = [
-  ['-c'],
-  ['--check'],
+  '-c',
+  '--check',
 ];
 
 // Match on the name of the `Error` but not the message as it is different
@@ -27,13 +25,10 @@ const syntaxErrorRE = /^SyntaxError: \b/m;
   const path = fixtures.path(file);
 
   // Loop each possible option, `-c` or `--check`
-  syntaxArgs.forEach((args) => {
-    test(`Checking syntax for ${file} with ${args.join(' ')}`, async (t) => {
-      const _args = args.concat(path);
-      const cmd = [node, ..._args].join(' ');
-
+  syntaxArgs.forEach((flag) => {
+    test(`Checking syntax for ${file} with ${flag}`, async (t) => {
       try {
-        const { stdout, stderr } = await execPromise(cmd);
+        const { stdout, stderr } = await execNode(flag, path);
 
         // No stdout should be produced
         t.assert.strictEqual(stdout, '');
@@ -51,9 +46,9 @@ const syntaxErrorRE = /^SyntaxError: \b/m;
 });
 
 // Helper function to promisify exec
-function execPromise(cmd) {
+function execNode(flag, path) {
   const { promise, resolve, reject } = Promise.withResolvers();
-  exec(cmd, (err, stdout, stderr) => {
+  exec(...common.escapePOSIXShell`"${process.execPath}" ${flag} "${path}"`, (err, stdout, stderr) => {
     if (err) return reject({ ...err, stdout, stderr });
     resolve({ stdout, stderr });
   });

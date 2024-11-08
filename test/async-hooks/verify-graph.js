@@ -69,7 +69,7 @@ module.exports = function verifyGraph(hooks, graph) {
   activities.forEach(processActivity);
 
   function processActivity(x) {
-    if (!typeSeen[x.type]) typeSeen[x.type] = 0;
+    typeSeen[x.type] ||= 0;
     typeSeen[x.type]++;
 
     const node = findInGraph(graph, x.type, typeSeen[x.type]);
@@ -102,7 +102,7 @@ module.exports = function verifyGraph(hooks, graph) {
   // Verify that all expected types are present (but more/others are allowed)
   const expTypes = { __proto__: null };
   for (let i = 0; i < graph.length; i++) {
-    if (expTypes[graph[i].type] == null) expTypes[graph[i].type] = 0;
+    expTypes[graph[i].type] ??= 0;
     expTypes[graph[i].type]++;
   }
 
@@ -129,7 +129,7 @@ module.exports.printGraph = function printGraph(hooks) {
 
   function processNode(x) {
     const key = x.type.replace(/WRAP/, '').toLowerCase();
-    if (!ids[key]) ids[key] = 1;
+    ids[key] ||= 1;
     const id = `${key}:${ids[key]++}`;
     uidtoid[x.uid] = id;
     const triggerAsyncId = uidtoid[x.triggerAsyncId] || null;

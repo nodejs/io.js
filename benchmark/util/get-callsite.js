@@ -1,15 +1,15 @@
 'use strict';
 
 const common = require('../common');
-const { getCallSite } = require('node:util');
+const { getCallSites } = require('node:util');
 const assert = require('node:assert');
 
 const bench = common.createBenchmark(main, {
   n: [1e6],
-  method: ['ErrorCallSite', 'ErrorCallSiteSerialized', 'CPP'],
+  method: ['ErrorCallSites', 'ErrorCallSitesSerialized', 'CPP'],
 });
 
-function ErrorGetCallSite() {
+function ErrorGetCallSites() {
   const originalStackFormatter = Error.prepareStackTrace;
   Error.prepareStackTrace = (_err, stack) => {
     if (stack && stack.length > 1) {
@@ -25,15 +25,15 @@ function ErrorGetCallSite() {
   return err.stack;
 }
 
-function ErrorCallSiteSerialized() {
-  const callsite = ErrorGetCallSite();
+function ErrorCallSitesSerialized() {
+  const callSites = ErrorGetCallSites();
   const serialized = [];
-  for (let i = 0; i < callsite.length; ++i) {
+  for (let i = 0; i < callSites.length; ++i) {
     serialized.push({
-      functionName: callsite[i].getFunctionName(),
-      scriptName: callsite[i].getFileName(),
-      lineNumber: callsite[i].getLineNumber(),
-      column: callsite[i].getColumnNumber(),
+      functionName: callSites[i].getFunctionName(),
+      scriptName: callSites[i].getFileName(),
+      lineNumber: callSites[i].getLineNumber(),
+      column: callSites[i].getColumnNumber(),
     });
   }
   return serialized;
@@ -42,14 +42,14 @@ function ErrorCallSiteSerialized() {
 function main({ n, method }) {
   let fn;
   switch (method) {
-    case 'ErrorCallSite':
-      fn = ErrorGetCallSite;
+    case 'ErrorCallSites':
+      fn = ErrorGetCallSites;
       break;
-    case 'ErrorCallSiteSerialized':
-      fn = ErrorCallSiteSerialized;
+    case 'ErrorCallSitesSerialized':
+      fn = ErrorCallSitesSerialized;
       break;
     case 'CPP':
-      fn = getCallSite;
+      fn = getCallSites;
       break;
   }
   let lastStack = {};

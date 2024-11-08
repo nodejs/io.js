@@ -413,6 +413,15 @@ test('modules cannot be mocked multiple times at once', async (t) => {
     t.mock.module(fixture, { namedExports: { fn() { return 42; } } });
     await assert.rejects(import(fixture), { code: 'ERR_UNSUPPORTED_ESM_URL_SCHEME' });
   });
+
+  await t.test('Importing a module with a quote in its URL should work', async (t) => {
+    const fixture = fixtures.fileURL('module-mocking', 'don\'t-open.mjs');
+    t.mock.module(fixture, { namedExports: { fn() { return 42; } } });
+
+    const mocked = await import(fixture);
+
+    assert.strictEqual(mocked.fn(), 42);
+  });
 });
 
 test('mocks are automatically restored', async (t) => {

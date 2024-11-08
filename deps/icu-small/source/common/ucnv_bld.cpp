@@ -231,7 +231,7 @@ static void
 ucnv_flushAvailableConverterCache() {
     gAvailableConverterCount = 0;
     if (gAvailableConverters) {
-        uprv_free((char **)gAvailableConverters);
+        uprv_free(const_cast<char**>(gAvailableConverters));
         gAvailableConverters = nullptr;
     }
     gAvailableConvertersInitOnce.reset();
@@ -270,7 +270,7 @@ static UBool U_CALLCONV
 isCnvAcceptable(void * /*context*/,
                 const char * /*type*/, const char * /*name*/,
                 const UDataInfo *pInfo) {
-    return (UBool)(
+    return
         pInfo->size>=20 &&
         pInfo->isBigEndian==U_IS_BIG_ENDIAN &&
         pInfo->charsetFamily==U_CHARSET_FAMILY &&
@@ -279,7 +279,7 @@ isCnvAcceptable(void * /*context*/,
         pInfo->dataFormat[1]==0x6e &&
         pInfo->dataFormat[2]==0x76 &&
         pInfo->dataFormat[3]==0x74 &&
-        pInfo->formatVersion[0]==6);  /* Everything will be version 6 */
+        pInfo->formatVersion[0]==6;  /* Everything will be version 6 */
 }
 
 /**
@@ -289,15 +289,15 @@ static UConverterSharedData*
 ucnv_data_unFlattenClone(UConverterLoadArgs *pArgs, UDataMemory *pData, UErrorCode *status)
 {
     /* UDataInfo info; -- necessary only if some converters have different formatVersion */
-    const uint8_t *raw = (const uint8_t *)udata_getMemory(pData);
-    const UConverterStaticData *source = (const UConverterStaticData *) raw;
+    const uint8_t* raw = static_cast<const uint8_t*>(udata_getMemory(pData));
+    const UConverterStaticData* source = reinterpret_cast<const UConverterStaticData*>(raw);
     UConverterSharedData *data;
-    UConverterType type = (UConverterType)source->conversionType;
+    UConverterType type = static_cast<UConverterType>(source->conversionType);
 
     if(U_FAILURE(*status))
         return nullptr;
 
-    if( (uint16_t)type >= UCNV_NUMBER_OF_SUPPORTED_CONVERTER_TYPES ||
+    if (static_cast<uint16_t>(type) >= UCNV_NUMBER_OF_SUPPORTED_CONVERTER_TYPES ||
         converterData[type] == nullptr ||
         !converterData[type]->isReferenceCounted ||
         converterData[type]->referenceCounter != 1 ||
@@ -307,7 +307,7 @@ ucnv_data_unFlattenClone(UConverterLoadArgs *pArgs, UDataMemory *pData, UErrorCo
         return nullptr;
     }
 
-    data = (UConverterSharedData *)uprv_malloc(sizeof(UConverterSharedData));
+    data = static_cast<UConverterSharedData*>(uprv_malloc(sizeof(UConverterSharedData)));
     if(data == nullptr) {
         *status = U_MEMORY_ALLOCATION_ERROR;
         return nullptr;
@@ -397,7 +397,7 @@ getAlgorithmicTypeFromName(const char *realName)
     lastMid = UINT32_MAX;
 
     for (;;) {
-        mid = (uint32_t)((start + limit) / 2);
+        mid = (start + limit) / 2;
         if (lastMid == mid) {   /* Have we moved? */
             break;  /* We haven't moved, and it wasn't found. */
         }
@@ -491,7 +491,7 @@ ucnv_getSharedConverterData(const char *name)
     {
         UConverterSharedData *rc;
 
-        rc = (UConverterSharedData*)uhash_get(SHARED_DATA_HASHTABLE, name);
+        rc = static_cast<UConverterSharedData*>(uhash_get(SHARED_DATA_HASHTABLE, name));
         UCNV_DEBUG_LOG("get",name,rc);
         return rc;
     }
@@ -682,8 +682,8 @@ parseConverterOptions(const char *inName,
             if(c==0) {
                 pArgs->options=(pPieces->options&=~UCNV_OPTION_VERSION);
                 return;
-            } else if((uint8_t)(c-'0')<10) {
-                pArgs->options=pPieces->options=(pPieces->options&~UCNV_OPTION_VERSION)|(uint32_t)(c-'0');
+            } else if (static_cast<uint8_t>(c - '0') < 10) {
+                pArgs->options = pPieces->options = (pPieces->options & ~UCNV_OPTION_VERSION) | static_cast<uint32_t>(c - '0');
                 ++inName;
             }
         } else if(uprv_strncmp(inName, "swaplfnl", 8)==0) {
@@ -909,7 +909,7 @@ ucnv_createAlgorithmicConverter(UConverter *myUConverter,
     stackArgs.options = options;
     stackArgs.locale=locale;
     cnv = ucnv_createConverterFromSharedData(
-            myUConverter, (UConverterSharedData *)sharedData,
+            myUConverter, const_cast<UConverterSharedData*>(sharedData),
             &stackArgs, err);
 
     UTRACE_EXIT_PTR_STATUS(cnv, *err);
@@ -1112,7 +1112,7 @@ static void U_CALLCONV initAvailableConvertersList(UErrorCode &errCode) {
     }
 
     /* We can't have more than "*converterTable" converters to open */
-    gAvailableConverters = (const char **) uprv_malloc(allConverterCount * sizeof(char*));
+    gAvailableConverters = static_cast<const char**>(uprv_malloc(allConverterCount * sizeof(char*)));
     if (!gAvailableConverters) {
         errCode = U_MEMORY_ALLOCATION_ERROR;
         return;
@@ -1440,7 +1440,7 @@ ucnv_swap(const UDataSwapper *ds,
                    MBCS_OPT_UNKNOWN_INCOMPATIBLE_MASK)==0
         ) {
             mbcsHeaderLength=mbcsHeader.options&MBCS_OPT_LENGTH_MASK;
-            noFromU=(UBool)((mbcsHeader.options&MBCS_OPT_NO_FROM_U)!=0);
+            noFromU = (mbcsHeader.options & MBCS_OPT_NO_FROM_U) != 0;
         } else {
             udata_printError(ds, "ucnv_swap(): unsupported _MBCSHeader.version %d.%d\n",
                              inMBCSHeader->version[0], inMBCSHeader->version[1]);

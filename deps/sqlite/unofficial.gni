@@ -18,8 +18,14 @@ template("sqlite_gn_build") {
     forward_variables_from(invoker, "*")
     public_configs = [ ":sqlite_config" ]
     sources = gypi_values.sqlite_sources
+    cflags_c = [
+      "-Wno-implicit-fallthrough",
+      "-Wno-unreachable-code-return",
+      "-Wno-unreachable-code-break",
+      "-Wno-unreachable-code",
+    ]
     if (is_win) {
-      cflags_c = [
+      cflags_c += [
         "-Wno-sign-compare",
         "-Wno-unused-but-set-variable",
         "-Wno-unused-function",

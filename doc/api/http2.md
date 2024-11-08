@@ -2767,6 +2767,11 @@ Throws `ERR_INVALID_ARG_TYPE` for invalid `settings` argument.
 added: v8.4.0
 changes:
   - version:
+      - v23.0.0
+      - v22.10.0
+    pr-url: https://github.com/nodejs/node/pull/54875
+    description: Added `streamResetBurst` and `streamResetRate`.
+  - version:
       - v15.10.0
       - v14.16.0
       - v12.21.0
@@ -2868,6 +2873,9 @@ changes:
     **Default:** `100`.
   * `settings` {HTTP/2 Settings Object} The initial settings to send to the
     remote peer upon connection.
+  * `streamResetBurst` {number} and `streamResetRate` {number} Sets the rate
+    limit for the incoming stream reset (RST\_STREAM frame). Both settings must
+    be set to have any effect, and default to 1000 and 33 respectively.
   * `remoteCustomSettings` {Array} The array of integer values determines the
     settings types, which are included in the `CustomSettings`-property of
     the received remoteSettings. Please see the `CustomSettings`-property of

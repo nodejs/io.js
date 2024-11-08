@@ -174,6 +174,16 @@ It is possible to execute more groups by adding extra process arguments.
 node benchmark/run.js assert async_hooks
 ```
 
+It's also possible to execute the benchmark more than once using the
+`--runs` flag.
+
+```bash
+node benchmark/run.js --runs 10 assert async_hooks
+```
+
+This command will run the benchmark files in `benchmark/assert` and `benchmark/async_hooks`
+10 times each.
+
 #### Specifying CPU Cores for Benchmarks with run.js
 
 When using `run.js` to execute a group of benchmarks,

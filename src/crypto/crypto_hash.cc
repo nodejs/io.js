@@ -368,7 +368,7 @@ void Hash::HashUpdate(const FunctionCallbackInfo<Value>& args) {
                   const char* data,
                   size_t size) {
                  Environment* env = Environment::GetCurrent(args);
-                 if (UNLIKELY(size > INT_MAX))
+                 if (size > INT_MAX) [[unlikely]]
                    return THROW_ERR_OUT_OF_RANGE(env, "data is too long");
                  bool r = hash->HashUpdate(data, size);
                  args.GetReturnValue().Set(r);
@@ -467,13 +467,13 @@ Maybe<void> HashTraits::AdditionalConfig(
   CHECK(args[offset]->IsString());  // Hash algorithm
   Utf8Value digest(env->isolate(), args[offset]);
   params->digest = EVP_get_digestbyname(*digest);
-  if (UNLIKELY(params->digest == nullptr)) {
+  if (params->digest == nullptr) [[unlikely]] {
     THROW_ERR_CRYPTO_INVALID_DIGEST(env, "Invalid digest: %s", *digest);
     return Nothing<void>();
   }
 
   ArrayBufferOrViewContents<char> data(args[offset + 1]);
-  if (UNLIKELY(!data.CheckSizeInt32())) {
+  if (!data.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "data is too big");
     return Nothing<void>();
   }
@@ -483,7 +483,7 @@ Maybe<void> HashTraits::AdditionalConfig(
 
   unsigned int expected = EVP_MD_size(params->digest);
   params->length = expected;
-  if (UNLIKELY(args[offset + 2]->IsUint32())) {
+  if (args[offset + 2]->IsUint32()) [[unlikely]] {
     // length is expressed in terms of bits
     params->length =
         static_cast<uint32_t>(args[offset + 2]
@@ -505,14 +505,13 @@ bool HashTraits::DeriveBits(
     ByteSource* out) {
   EVPMDCtxPointer ctx(EVP_MD_CTX_new());
 
-  if (UNLIKELY(!ctx ||
-               EVP_DigestInit_ex(ctx.get(), params.digest, nullptr) <= 0 ||
-               EVP_DigestUpdate(
-                   ctx.get(), params.in.data<char>(), params.in.size()) <= 0)) {
+  if (!ctx || EVP_DigestInit_ex(ctx.get(), params.digest, nullptr) <= 0 ||
+      EVP_DigestUpdate(ctx.get(), params.in.data<char>(), params.in.size()) <=
+          0) [[unlikely]] {
     return false;
   }
 
-  if (LIKELY(params.length > 0)) {
+  if (params.length > 0) [[likely]] {
     unsigned int length = params.length;
     ByteSource::Builder buf(length);
 
@@ -523,7 +522,7 @@ bool HashTraits::DeriveBits(
             ? EVP_DigestFinal_ex(ctx.get(), buf.data<unsigned char>(), &length)
             : EVP_DigestFinalXOF(ctx.get(), buf.data<unsigned char>(), length);
 
-    if (UNLIKELY(ret != 1))
+    if (ret != 1) [[unlikely]]
       return false;
 
     *out = std::move(buf).release();

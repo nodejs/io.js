@@ -44,7 +44,6 @@
 #endif
 
 #include "ares_inet_net_pton.h"
-#include "ares_platform.h"
 
 static void   sort_addresses(const struct hostent  *host,
                              const struct apattern *sortlist, size_t nsort);
@@ -68,7 +67,7 @@ static void ares_gethostbyname_callback(void *arg, int status, int timeouts,
   struct host_query *ghbn_arg = arg;
 
   if (status == ARES_SUCCESS) {
-    status = (int)ares__addrinfo2hostent(result, AF_UNSPEC, &hostent);
+    status = (int)ares_addrinfo2hostent(result, AF_UNSPEC, &hostent);
   }
 
   /* addrinfo2hostent will only return ENODATA if there are no addresses _and_
@@ -175,7 +174,7 @@ static size_t get_address_index(const struct in_addr  *addr,
       continue;
     }
 
-    if (ares__subnet_match(&aaddr, &sortlist[i].addr, sortlist[i].mask)) {
+    if (ares_subnet_match(&aaddr, &sortlist[i].addr, sortlist[i].mask)) {
       break;
     }
   }
@@ -231,15 +230,15 @@ static size_t get6_address_index(const struct ares_in6_addr *addr,
       continue;
     }
 
-    if (ares__subnet_match(&aaddr, &sortlist[i].addr, sortlist[i].mask)) {
+    if (ares_subnet_match(&aaddr, &sortlist[i].addr, sortlist[i].mask)) {
       break;
     }
   }
   return i;
 }
 
-static ares_status_t ares__hostent_localhost(const char *name, int family,
-                                             struct hostent **host_out)
+static ares_status_t ares_hostent_localhost(const char *name, int family,
+                                            struct hostent **host_out)
 {
   ares_status_t              status;
   struct ares_addrinfo      *ai = NULL;
@@ -254,12 +253,12 @@ static ares_status_t ares__hostent_localhost(const char *name, int family,
     goto done;            /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
-  status = ares__addrinfo_localhost(name, 0, &hints, ai);
+  status = ares_addrinfo_localhost(name, 0, &hints, ai);
   if (status != ARES_SUCCESS) {
     goto done; /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
-  status = ares__addrinfo2hostent(ai, family, host_out);
+  status = ares_addrinfo2hostent(ai, family, host_out);
   if (status != ARES_SUCCESS) {
     goto done; /* LCOV_EXCL_LINE: OutOfMemory */
   }
@@ -289,16 +288,16 @@ static ares_status_t ares_gethostbyname_file_int(ares_channel_t *channel,
   }
 
   /* Per RFC 7686, reject queries for ".onion" domain names with NXDOMAIN. */
-  if (ares__is_onion_domain(name)) {
+  if (ares_is_onion_domain(name)) {
     return ARES_ENOTFOUND;
   }
 
-  status = ares__hosts_search_host(channel, ARES_FALSE, name, &entry);
+  status = ares_hosts_search_host(channel, ARES_FALSE, name, &entry);
   if (status != ARES_SUCCESS) {
     goto done;
   }
 
-  status = ares__hosts_entry_to_hostent(entry, family, host);
+  status = ares_hosts_entry_to_hostent(entry, family, host);
   if (status != ARES_SUCCESS) {
     goto done; /* LCOV_EXCL_LINE: OutOfMemory */
   }
@@ -310,8 +309,8 @@ done:
    * We will also ignore ALL errors when trying to resolve localhost, such
    * as permissions errors reading /etc/hosts or a malformed /etc/hosts */
   if (status != ARES_SUCCESS && status != ARES_ENOMEM &&
-      ares__is_localhost(name)) {
-    return ares__hostent_localhost(name, family, host);
+      ares_is_localhost(name)) {
+    return ares_hostent_localhost(name, family, host);
   }
 
   return status;
@@ -325,8 +324,8 @@ int ares_gethostbyname_file(ares_channel_t *channel, const char *name,
     return ARES_ENOTFOUND;
   }
 
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
   status = ares_gethostbyname_file_int(channel, name, family, host);
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
   return (int)status;
 }

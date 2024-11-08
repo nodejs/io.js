@@ -233,7 +233,7 @@ function getServerName (host) {
     return null
   }
 
-  assert.strictEqual(typeof host, 'string')
+  assert(typeof host === 'string')
 
   const servername = getHostname(host)
   if (net.isIP(servername)) {

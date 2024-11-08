@@ -82,6 +82,9 @@
 /* Define to 1 if you have the <poll.h> header file. */
 #cmakedefine HAVE_POLL_H 1
 
+/* Define to 1 if you have the memmem function. */
+#cmakedefine HAVE_MEMMEM 1
+
 /* Define to 1 if you have the poll function. */
 #cmakedefine HAVE_POLL 1
 
@@ -241,6 +244,9 @@
 
 /* Define to 1 if you have the send function. */
 #cmakedefine HAVE_SEND 1
+
+/* Define to 1 if you have the sendto function. */
+#cmakedefine HAVE_SENDTO 1
 
 /* Define to 1 if you have the setsockopt function. */
 #cmakedefine HAVE_SETSOCKOPT 1

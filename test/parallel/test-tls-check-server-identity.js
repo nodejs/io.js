@@ -331,8 +331,8 @@ const tests = [
 
 tests.forEach(function(test, i) {
   const err = tls.checkServerIdentity(test.host, test.cert);
-  assert.strictEqual(err && err.reason,
+  assert.strictEqual(err?.reason,
                      test.error,
                      `Test# ${i} failed: ${util.inspect(test)} \n` +
-                     `${test.error} != ${(err && err.reason)}`);
+                     `${test.error} != ${(err?.reason)}`);
 });

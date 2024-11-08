@@ -19,11 +19,7 @@ import getnapibuildversion
 
 # Regex used for parsing results of "gn args".
 GN_RE = re.compile(r'(\w+)\s+=\s+(.*?)$', re.MULTILINE)
-
-if sys.platform == 'win32':
-  GN = 'gn.exe'
-else:
-  GN = 'gn'
+GN = 'gn.bat' if sys.platform == 'win32' else 'gn'
 
 def bool_to_number(v):
   return 1 if v else 0

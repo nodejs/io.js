@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2007-2024 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright Siemens AG 2015-2022
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -335,9 +335,8 @@ size_t UTIL_url_encode(const char  *source,
 int f()
 {
     c;
-    if (1) {
+    if (1)
         c;
-    }
     c;
     if (1)
         if (2)

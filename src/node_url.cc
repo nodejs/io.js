@@ -75,6 +75,108 @@ void BindingData::Deserialize(v8::Local<v8::Context> context,
   CHECK_NOT_NULL(binding);
 }
 
+#ifndef LARGEST_ASCII_CHAR_CODE_TO_ENCODE
+#define LARGEST_ASCII_CHAR_CODE_TO_ENCODE '~'
+#endif
+
+// RFC1738 defines the following chars as "unsafe" for URLs
+// @see https://www.ietf.org/rfc/rfc1738.txt 2.2. URL Character Encoding Issues
+constexpr auto lookup_table = []() consteval {
+  // Each entry is an array that can hold up to 3 chars + null terminator
+  std::array<std::array<char, 4>, LARGEST_ASCII_CHAR_CODE_TO_ENCODE + 1>
+      result{};
+
+  for (uint8_t i = 0; i <= LARGEST_ASCII_CHAR_CODE_TO_ENCODE; i++) {
+    switch (i) {
+#define ENCODE_CHAR(CHAR, HEX_DIGIT_2, HEX_DIGIT_1)                            \
+  case CHAR:                                                                   \
+    result[i] = {{'%', HEX_DIGIT_2, HEX_DIGIT_1, 0}};                          \
+    break;
+
+      ENCODE_CHAR('\0', '0', '0')  // '\0' == 0x00
+      ENCODE_CHAR('\t', '0', '9')  // '\t' == 0x09
+      ENCODE_CHAR('\n', '0', 'A')  // '\n' == 0x0A
+      ENCODE_CHAR('\r', '0', 'D')  // '\r' == 0x0D
+      ENCODE_CHAR(' ', '2', '0')   // ' ' == 0x20
+      ENCODE_CHAR('"', '2', '2')   // '"' == 0x22
+      ENCODE_CHAR('#', '2', '3')   // '#' == 0x23
+      ENCODE_CHAR('%', '2', '5')   // '%' == 0x25
+      ENCODE_CHAR('?', '3', 'F')   // '?' == 0x3F
+      ENCODE_CHAR('[', '5', 'B')   // '[' == 0x5B
+      ENCODE_CHAR('\\', '5', 'C')  // '\\' == 0x5C
+      ENCODE_CHAR(']', '5', 'D')   // ']' == 0x5D
+      ENCODE_CHAR('^', '5', 'E')   // '^' == 0x5E
+      ENCODE_CHAR('|', '7', 'C')   // '|' == 0x7C
+      ENCODE_CHAR('~', '7', 'E')   // '~' == 0x7E
+#undef ENCODE_CHAR
+
+      default:
+        result[i] = {{static_cast<char>(i), '\0', '\0', '\0'}};
+        break;
+    }
+  }
+
+  return result;
+}
+();
+
+enum class OS { WINDOWS, POSIX };
+
+std::string EncodePathChars(std::string_view input_str, OS operating_system) {
+  std::string encoded = "file://";
+  encoded.reserve(input_str.size() +
+                  7);  // Reserve space for "file://" and input_str
+  for (size_t i : input_str) {
+    if (i > LARGEST_ASCII_CHAR_CODE_TO_ENCODE) [[unlikely]] {
+      encoded.push_back(i);
+      continue;
+    }
+    if (operating_system == OS::WINDOWS) {
+      if (i == '\\') {
+        encoded.push_back('/');
+        continue;
+      }
+    }
+    encoded.append(lookup_table[i].data());
+  }
+
+  return encoded;
+}
+
+void BindingData::PathToFileURL(const FunctionCallbackInfo<Value>& args) {
+  CHECK_GE(args.Length(), 2);  // input
+  CHECK(args[0]->IsString());
+  CHECK(args[1]->IsBoolean());
+
+  Realm* realm = Realm::GetCurrent(args);
+  BindingData* binding_data = realm->GetBindingData<BindingData>();
+  Isolate* isolate = realm->isolate();
+  OS os = args[1]->IsTrue() ? OS::WINDOWS : OS::POSIX;
+
+  Utf8Value input(isolate, args[0]);
+  auto input_str = input.ToStringView();
+  CHECK(!input_str.empty());
+
+  auto out =
+      ada::parse<ada::url_aggregator>(EncodePathChars(input_str, os), nullptr);
+
+  if (!out) {
+    return ThrowInvalidURL(realm->env(), input.ToStringView(), nullptr);
+  }
+
+  if (os == OS::WINDOWS && args.Length() > 2 && !args[2]->IsUndefined())
+      [[unlikely]] {
+    CHECK(args[2]->IsString());
+    Utf8Value hostname(isolate, args[2]);
+    CHECK(out->set_hostname(hostname.ToStringView()));
+  }
+
+  binding_data->UpdateComponents(out->get_components(), out->type);
+
+  args.GetReturnValue().Set(
+      ToV8Value(realm->context(), out->get_href(), isolate).ToLocalChecked());
+}
+
 void BindingData::DomainToASCII(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   CHECK_GE(args.Length(), 1);  // input
@@ -371,6 +473,7 @@ void BindingData::CreatePerIsolateProperties(IsolateData* isolate_data,
   SetMethodNoSideEffect(isolate, target, "format", Format);
   SetMethodNoSideEffect(isolate, target, "getOrigin", GetOrigin);
   SetMethod(isolate, target, "parse", Parse);
+  SetMethod(isolate, target, "pathToFileURL", PathToFileURL);
   SetMethod(isolate, target, "update", Update);
   SetFastMethodNoSideEffect(
       isolate, target, "canParse", CanParse, {fast_can_parse_methods_, 2});
@@ -391,6 +494,7 @@ void BindingData::RegisterExternalReferences(
   registry->Register(Format);
   registry->Register(GetOrigin);
   registry->Register(Parse);
+  registry->Register(PathToFileURL);
   registry->Register(Update);
   registry->Register(CanParse);
   registry->Register(FastCanParse);

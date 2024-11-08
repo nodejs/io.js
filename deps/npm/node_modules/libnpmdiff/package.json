@@ -1,6 +1,6 @@
 {
   "name": "libnpmdiff",
-  "version": "6.1.4",
+  "version": "7.0.0",
   "description": "The registry diff",
   "repository": {
     "type": "git",
@@ -13,7 +13,7 @@
     "lib/"
   ],
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "keywords": [
     "npm",
@@ -42,18 +42,18 @@
     "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/eslint-config": "^5.0.1",
     "@npmcli/template-oss": "4.23.3",
     "tap": "^16.3.8"
   },
   "dependencies": {
-    "@npmcli/arborist": "^7.5.4",
-    "@npmcli/installed-package-contents": "^2.1.0",
+    "@npmcli/arborist": "^8.0.0",
+    "@npmcli/installed-package-contents": "^3.0.0",
     "binary-extensions": "^2.3.0",
     "diff": "^5.1.0",
     "minimatch": "^9.0.4",
-    "npm-package-arg": "^11.0.2",
-    "pacote": "^18.0.6",
+    "npm-package-arg": "^12.0.0",
+    "pacote": "^19.0.0",
     "tar": "^6.2.1"
   },
   "templateOSS": {

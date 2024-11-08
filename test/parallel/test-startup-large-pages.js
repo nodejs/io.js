@@ -22,8 +22,8 @@ const { spawnSync } = require('child_process');
                           [ '--use-largepages=xyzzy', '-p', '42' ]);
   assert.strictEqual(child.status, 9);
   assert.strictEqual(child.signal, null);
-  assert.strictEqual(child.stderr.toString().match(/\S+/g).slice(1).join(' '),
-                     'invalid value for --use-largepages');
+  assert.match(child.stderr.toString().trim(),
+               /invalid value for --use-largepages$/);
 }
 
 // TODO(gabrielschulhof): Make assertions about the stderr, which may or may not

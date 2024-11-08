@@ -47,7 +47,7 @@ def pipe(sfd, dfd):
 if __name__ == '__main__':
   argv = sys.argv[1:]
 
-  # Make select() interruptable by SIGCHLD.
+  # Make select() interruptible by SIGCHLD.
   signal.signal(signal.SIGCHLD, lambda nr, _: None)
 
   parent_fd, child_fd = pty.openpty()

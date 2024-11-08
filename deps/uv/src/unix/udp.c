@@ -100,7 +100,7 @@ static void uv__udp_run_completed(uv_udp_t* handle) {
     uv__queue_remove(q);
 
     req = uv__queue_data(q, uv_udp_send_t, queue);
-    uv__req_unregister(handle->loop, req);
+    uv__req_unregister(handle->loop);
 
     handle->send_queue_size -= uv__count_bufs(req->bufs, req->nbufs);
     handle->send_queue_count--;
@@ -141,14 +141,14 @@ static void uv__udp_io(uv_loop_t* loop, uv__io_t* w, unsigned int revents) {
   if (revents & POLLIN)
     uv__udp_recvmsg(handle);
 
-  if (revents & POLLOUT) {
+  if (revents & POLLOUT && !uv__is_closing(handle)) {
     uv__udp_sendmsg(handle);
     uv__udp_run_completed(handle);
   }
 }
 
 static int uv__udp_recvmmsg(uv_udp_t* handle, uv_buf_t* buf) {
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
   struct sockaddr_in6 peers[20];
   struct iovec iov[ARRAY_SIZE(peers)];
   struct mmsghdr msgs[ARRAY_SIZE(peers)];
@@ -173,11 +173,18 @@ static int uv__udp_recvmmsg(uv_udp_t* handle, uv_buf_t* buf) {
     msgs[k].msg_hdr.msg_control = NULL;
     msgs[k].msg_hdr.msg_controllen = 0;
     msgs[k].msg_hdr.msg_flags = 0;
+    msgs[k].msg_len = 0;
   }
 
+#if defined(__APPLE__)
+  do
+    nread = recvmsg_x(handle->io_watcher.fd, msgs, chunks, MSG_DONTWAIT);
+  while (nread == -1 && errno == EINTR);
+#else
   do
     nread = recvmmsg(handle->io_watcher.fd, msgs, chunks, 0, NULL);
   while (nread == -1 && errno == EINTR);
+#endif
 
   if (nread < 1) {
     if (nread == 0 || errno == EAGAIN || errno == EWOULDBLOCK)
@@ -204,9 +211,9 @@ static int uv__udp_recvmmsg(uv_udp_t* handle, uv_buf_t* buf) {
       handle->recv_cb(handle, 0, buf, NULL, UV_UDP_MMSG_FREE);
   }
   return nread;
-#else  /* __linux__ || ____FreeBSD__ */
+#else  /* __linux__ || ____FreeBSD__ || __APPLE__ */
   return UV_ENOSYS;
-#endif  /* __linux__ || ____FreeBSD__ */
+#endif  /* __linux__ || ____FreeBSD__ || __APPLE__ */
 }
 
 static void uv__udp_recvmsg(uv_udp_t* handle) {
@@ -275,8 +282,61 @@ static void uv__udp_recvmsg(uv_udp_t* handle) {
       && handle->recv_cb != NULL);
 }
 
-static void uv__udp_sendmsg(uv_udp_t* handle) {
-#if defined(__linux__) || defined(__FreeBSD__)
+static void uv__udp_sendmsg_one(uv_udp_t* handle, uv_udp_send_t* req) {
+  struct uv__queue* q;
+  struct msghdr h;
+  ssize_t size;
+
+  for (;;) {
+    memset(&h, 0, sizeof h);
+    if (req->addr.ss_family == AF_UNSPEC) {
+      h.msg_name = NULL;
+      h.msg_namelen = 0;
+    } else {
+      h.msg_name = &req->addr;
+      if (req->addr.ss_family == AF_INET6)
+        h.msg_namelen = sizeof(struct sockaddr_in6);
+      else if (req->addr.ss_family == AF_INET)
+        h.msg_namelen = sizeof(struct sockaddr_in);
+      else if (req->addr.ss_family == AF_UNIX)
+        h.msg_namelen = sizeof(struct sockaddr_un);
+      else {
+        assert(0 && "unsupported address family");
+        abort();
+      }
+    }
+    h.msg_iov = (struct iovec*) req->bufs;
+    h.msg_iovlen = req->nbufs;
+
+    do
+      size = sendmsg(handle->io_watcher.fd, &h, 0);
+    while (size == -1 && errno == EINTR);
+
+    if (size == -1)
+      if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOBUFS)
+        return;
+
+    req->status = (size == -1 ? UV__ERR(errno) : size);
+
+    /* Sending a datagram is an atomic operation: either all data
+     * is written or nothing is (and EMSGSIZE is raised). That is
+     * why we don't handle partial writes. Just pop the request
+     * off the write queue and onto the completed queue, done.
+     */
+    uv__queue_remove(&req->queue);
+    uv__queue_insert_tail(&handle->write_completed_queue, &req->queue);
+    uv__io_feed(handle->loop, &handle->io_watcher);
+
+    if (uv__queue_empty(&handle->write_queue))
+      return;
+
+    q = uv__queue_head(&handle->write_queue);
+    req = uv__queue_data(q, uv_udp_send_t, queue);
+  }
+}
+
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
+static void uv__udp_sendmsg_many(uv_udp_t* handle) {
   uv_udp_send_t* req;
   struct mmsghdr h[20];
   struct mmsghdr* p;
@@ -285,16 +345,11 @@ static void uv__udp_sendmsg(uv_udp_t* handle) {
   size_t pkts;
   size_t i;
 
-  if (uv__queue_empty(&handle->write_queue))
-    return;
-
 write_queue_drain:
   for (pkts = 0, q = uv__queue_head(&handle->write_queue);
        pkts < ARRAY_SIZE(h) && q != &handle->write_queue;
        ++pkts, q = uv__queue_head(q)) {
-    assert(q != NULL);
     req = uv__queue_data(q, uv_udp_send_t, queue);
-    assert(req != NULL);
 
     p = &h[pkts];
     memset(p, 0, sizeof(*p));
@@ -318,9 +373,15 @@ write_queue_drain:
     h[pkts].msg_hdr.msg_iovlen = req->nbufs;
   }
 
+#if defined(__APPLE__)
+  do
+    npkts = sendmsg_x(handle->io_watcher.fd, h, pkts, MSG_DONTWAIT);
+  while (npkts == -1 && errno == EINTR);
+#else
   do
     npkts = sendmmsg(handle->io_watcher.fd, h, pkts, 0);
   while (npkts == -1 && errno == EINTR);
+#endif
 
   if (npkts < 1) {
     if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOBUFS)
@@ -328,10 +389,7 @@ write_queue_drain:
     for (i = 0, q = uv__queue_head(&handle->write_queue);
          i < pkts && q != &handle->write_queue;
          ++i, q = uv__queue_head(&handle->write_queue)) {
-      assert(q != NULL);
       req = uv__queue_data(q, uv_udp_send_t, queue);
-      assert(req != NULL);
-
       req->status = UV__ERR(errno);
       uv__queue_remove(&req->queue);
       uv__queue_insert_tail(&handle->write_completed_queue, &req->queue);
@@ -346,10 +404,7 @@ write_queue_drain:
   for (i = 0, q = uv__queue_head(&handle->write_queue);
        i < (size_t)npkts && q != &handle->write_queue;
        ++i, q = uv__queue_head(&handle->write_queue)) {
-    assert(q != NULL);
     req = uv__queue_data(q, uv_udp_send_t, queue);
-    assert(req != NULL);
-
     req->status = req->bufs[0].len;
 
     /* Sending a datagram is an atomic operation: either all data
@@ -364,75 +419,48 @@ write_queue_drain:
   /* couldn't batch everything, continue sending (jump to avoid stack growth) */
   if (!uv__queue_empty(&handle->write_queue))
     goto write_queue_drain;
+
   uv__io_feed(handle->loop, &handle->io_watcher);
-#else  /* __linux__ || ____FreeBSD__ */
-  uv_udp_send_t* req;
-  struct msghdr h;
+}
+#endif  /* __linux__ || ____FreeBSD__ || __APPLE__ */
+
+static void uv__udp_sendmsg(uv_udp_t* handle) {
   struct uv__queue* q;
-  ssize_t size;
+  uv_udp_send_t* req;
 
-  while (!uv__queue_empty(&handle->write_queue)) {
-    q = uv__queue_head(&handle->write_queue);
-    assert(q != NULL);
+  if (uv__queue_empty(&handle->write_queue))
+    return;
 
-    req = uv__queue_data(q, uv_udp_send_t, queue);
-    assert(req != NULL);
+  q = uv__queue_head(&handle->write_queue);
+  req = uv__queue_data(q, uv_udp_send_t, queue);
 
-    memset(&h, 0, sizeof h);
-    if (req->addr.ss_family == AF_UNSPEC) {
-      h.msg_name = NULL;
-      h.msg_namelen = 0;
-    } else {
-      h.msg_name = &req->addr;
-      if (req->addr.ss_family == AF_INET6)
-        h.msg_namelen = sizeof(struct sockaddr_in6);
-      else if (req->addr.ss_family == AF_INET)
-        h.msg_namelen = sizeof(struct sockaddr_in);
-      else if (req->addr.ss_family == AF_UNIX)
-        h.msg_namelen = sizeof(struct sockaddr_un);
-      else {
-        assert(0 && "unsupported address family");
-        abort();
-      }
-    }
-    h.msg_iov = (struct iovec*) req->bufs;
-    h.msg_iovlen = req->nbufs;
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
+  /* Use sendmmsg() if this send request contains more than one datagram OR
+   * there is more than one send request (because that automatically implies
+   * there is more than one datagram.)
+   */
+  if (req->nbufs != 1 || &handle->write_queue != uv__queue_next(&req->queue))
+    return uv__udp_sendmsg_many(handle);
+#endif
 
-    do {
-      size = sendmsg(handle->io_watcher.fd, &h, 0);
-    } while (size == -1 && errno == EINTR);
-
-    if (size == -1) {
-      if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOBUFS)
-        break;
-    }
-
-    req->status = (size == -1 ? UV__ERR(errno) : size);
-
-    /* Sending a datagram is an atomic operation: either all data
-     * is written or nothing is (and EMSGSIZE is raised). That is
-     * why we don't handle partial writes. Just pop the request
-     * off the write queue and onto the completed queue, done.
-     */
-    uv__queue_remove(&req->queue);
-    uv__queue_insert_tail(&handle->write_completed_queue, &req->queue);
-    uv__io_feed(handle->loop, &handle->io_watcher);
-  }
-#endif  /* __linux__ || ____FreeBSD__ */
+  return uv__udp_sendmsg_one(handle, req);
 }
 
 /* On the BSDs, SO_REUSEPORT implies SO_REUSEADDR but with some additional
- * refinements for programs that use multicast.
+ * refinements for programs that use multicast. Therefore we preferentially
+ * set SO_REUSEPORT over SO_REUSEADDR here, but we set SO_REUSEPORT only
+ * when that socket option doesn't have the capability of load balancing.
+ * Otherwise, we fall back to SO_REUSEADDR.
  *
- * Linux as of 3.9 has a SO_REUSEPORT socket option but with semantics that
- * are different from the BSDs: it _shares_ the port rather than steal it
- * from the current listener.  While useful, it's not something we can emulate
- * on other platforms so we don't enable it.
+ * Linux as of 3.9, DragonflyBSD 3.6, AIX 7.2.5 have the SO_REUSEPORT socket
+ * option but with semantics that are different from the BSDs: it _shares_
+ * the port rather than steals it from the current listener. While useful,
+ * it's not something we can emulate on other platforms so we don't enable it.
  *
  * zOS does not support getsockname with SO_REUSEPORT option when using
  * AF_UNIX.
  */
-static int uv__set_reuse(int fd) {
+static int uv__sock_reuseaddr(int fd) {
   int yes;
   yes = 1;
 
@@ -449,7 +477,7 @@ static int uv__set_reuse(int fd) {
        return UV__ERR(errno);
   }
 #elif defined(SO_REUSEPORT) && !defined(__linux__) && !defined(__GNU__) && \
-	!defined(__sun__)
+	!defined(__sun__) && !defined(__DragonFly__) && !defined(_AIX73)
   if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes)))
     return UV__ERR(errno);
 #else
@@ -492,7 +520,8 @@ int uv__udp_bind(uv_udp_t* handle,
   int fd;
 
   /* Check for bad flags. */
-  if (flags & ~(UV_UDP_IPV6ONLY | UV_UDP_REUSEADDR | UV_UDP_LINUX_RECVERR))
+  if (flags & ~(UV_UDP_IPV6ONLY | UV_UDP_REUSEADDR |
+                UV_UDP_REUSEPORT | UV_UDP_LINUX_RECVERR))
     return UV_EINVAL;
 
   /* Cannot set IPv6-only mode on non-IPv6 socket. */
@@ -515,7 +544,13 @@ int uv__udp_bind(uv_udp_t* handle,
   }
 
   if (flags & UV_UDP_REUSEADDR) {
-    err = uv__set_reuse(fd);
+    err = uv__sock_reuseaddr(fd);
+    if (err)
+      return err;
+  }
+
+  if (flags & UV_UDP_REUSEPORT) {
+    err = uv__sock_reuseport(fd);
     if (err)
       return err;
   }
@@ -722,7 +757,7 @@ int uv__udp_send(uv_udp_send_t* req,
     req->bufs = uv__malloc(nbufs * sizeof(bufs[0]));
 
   if (req->bufs == NULL) {
-    uv__req_unregister(handle->loop, req);
+    uv__req_unregister(handle->loop);
     return UV_ENOMEM;
   }
 
@@ -1015,7 +1050,7 @@ int uv__udp_init_ex(uv_loop_t* loop,
 
 
 int uv_udp_using_recvmmsg(const uv_udp_t* handle) {
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
   if (handle->flags & UV_HANDLE_UDP_RECVMMSG)
     return 1;
 #endif
@@ -1037,7 +1072,7 @@ int uv_udp_open(uv_udp_t* handle, uv_os_sock_t sock) {
   if (err)
     return err;
 
-  err = uv__set_reuse(sock);
+  err = uv__sock_reuseaddr(sock);
   if (err)
     return err;
 

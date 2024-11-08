@@ -1,13 +1,13 @@
 {
   "name": "libnpmexec",
-  "version": "8.1.4",
+  "version": "9.0.0",
   "files": [
     "bin/",
     "lib/"
   ],
   "main": "lib/index.js",
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "description": "npm exec (npx) programmatic API",
   "repository": {
@@ -50,24 +50,24 @@
     ]
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/eslint-config": "^5.0.1",
     "@npmcli/mock-registry": "^1.0.0",
     "@npmcli/template-oss": "4.23.3",
-    "bin-links": "^4.0.4",
+    "bin-links": "^5.0.0",
     "chalk": "^5.2.0",
     "just-extend": "^6.2.0",
     "just-safe-set": "^4.2.1",
     "tap": "^16.3.8"
   },
   "dependencies": {
-    "@npmcli/arborist": "^7.5.4",
-    "@npmcli/run-script": "^8.1.0",
+    "@npmcli/arborist": "^8.0.0",
+    "@npmcli/run-script": "^9.0.1",
     "ci-info": "^4.0.0",
-    "npm-package-arg": "^11.0.2",
-    "pacote": "^18.0.6",
-    "proc-log": "^4.2.0",
-    "read": "^3.0.1",
-    "read-package-json-fast": "^3.0.2",
+    "npm-package-arg": "^12.0.0",
+    "pacote": "^19.0.0",
+    "proc-log": "^5.0.0",
+    "read": "^4.0.0",
+    "read-package-json-fast": "^4.0.0",
     "semver": "^7.3.7",
     "walk-up-path": "^3.0.1"
   },

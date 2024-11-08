@@ -1459,8 +1459,7 @@ async function foo(emitter, event, signal) {
 }
 
 foo(ee, 'foo', ac.signal);
-ac.abort(); // Abort waiting for the event
-ee.emit('foo'); // Prints: Waiting for the event was canceled!
+ac.abort(); // Prints: Waiting for the event was canceled!
 ```
 
 ```cjs
@@ -1483,8 +1482,7 @@ async function foo(emitter, event, signal) {
 }
 
 foo(ee, 'foo', ac.signal);
-ac.abort(); // Abort waiting for the event
-ee.emit('foo'); // Prints: Waiting for the event was canceled!
+ac.abort(); // Prints: Waiting for the event was canceled!
 ```
 
 ### Awaiting multiple events emitted on `process.nextTick()`

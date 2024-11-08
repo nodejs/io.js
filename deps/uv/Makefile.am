@@ -198,6 +198,7 @@ test_run_tests_SOURCES = test/blackhole-server.c \
                          test/test-hrtime.c \
                          test/test-idle.c \
                          test/test-idna.c \
+                         test/test-iouring-pollhup.c \
                          test/test-ip4-addr.c \
                          test/test-ip6-addr.c \
                          test/test-ip-name.c \
@@ -275,6 +276,7 @@ test_run_tests_SOURCES = test/blackhole-server.c \
                          test/test-tcp-flags.c \
                          test/test-tcp-open.c \
                          test/test-tcp-read-stop.c \
+                         test/test-tcp-reuseport.c \
                          test/test-tcp-read-stop-start.c \
                          test/test-tcp-rst.c \
                          test/test-tcp-shutdown-after-write.c \
@@ -324,6 +326,7 @@ test_run_tests_SOURCES = test/blackhole-server.c \
                          test/test-udp-send-unreachable.c \
                          test/test-udp-try-send.c \
                          test/test-udp-recv-in-a-row.c \
+                         test/test-udp-reuseport.c \
                          test/test-uname.c \
                          test/test-walk-handles.c \
                          test/test-watcher-cross-stop.c
@@ -427,6 +430,7 @@ libuv_la_CFLAGS += -D_DARWIN_UNLIMITED_SELECT=1
 libuv_la_SOURCES += src/unix/bsd-ifaddrs.c \
                     src/unix/darwin-proctitle.c \
                     src/unix/darwin-stub.h \
+                    src/unix/darwin-syscalls.h \
                     src/unix/darwin.c \
                     src/unix/fsevents.c \
                     src/unix/kqueue.c \

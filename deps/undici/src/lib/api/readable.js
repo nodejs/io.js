@@ -121,6 +121,11 @@ class BodyReadable extends Readable {
     return consume(this, 'blob')
   }
 
+  // https://fetch.spec.whatwg.org/#dom-body-bytes
+  async bytes () {
+    return consume(this, 'bytes')
+  }
+
   // https://fetch.spec.whatwg.org/#dom-body-arraybuffer
   async arrayBuffer () {
     return consume(this, 'arrayBuffer')
@@ -306,6 +311,31 @@ function chunksDecode (chunks, length) {
   return buffer.utf8Slice(start, bufferLength)
 }
 
+/**
+ * @param {Buffer[]} chunks
+ * @param {number} length
+ * @returns {Uint8Array}
+ */
+function chunksConcat (chunks, length) {
+  if (chunks.length === 0 || length === 0) {
+    return new Uint8Array(0)
+  }
+  if (chunks.length === 1) {
+    // fast-path
+    return new Uint8Array(chunks[0])
+  }
+  const buffer = new Uint8Array(Buffer.allocUnsafeSlow(length).buffer)
+
+  let offset = 0
+  for (let i = 0; i < chunks.length; ++i) {
+    const chunk = chunks[i]
+    buffer.set(chunk, offset)
+    offset += chunk.length
+  }
+
+  return buffer
+}
+
 function consumeEnd (consume) {
   const { type, body, resolve, stream, length } = consume
 
@@ -315,17 +345,11 @@ function consumeEnd (consume) {
     } else if (type === 'json') {
       resolve(JSON.parse(chunksDecode(body, length)))
     } else if (type === 'arrayBuffer') {
-      const dst = new Uint8Array(length)
-
-      let pos = 0
-      for (const buf of body) {
-        dst.set(buf, pos)
-        pos += buf.byteLength
-      }
-
-      resolve(dst.buffer)
+      resolve(chunksConcat(body, length).buffer)
     } else if (type === 'blob') {
       resolve(new Blob(body, { type: stream[kContentType] }))
+    } else if (type === 'bytes') {
+      resolve(chunksConcat(body, length))
     }
 
     consumeFinish(consume)

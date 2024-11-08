@@ -122,9 +122,9 @@ const char *DangiCalendar::getType() const {
  */
 static void U_CALLCONV initAstronomerTimeZone(UErrorCode &status) {
     U_ASSERT(gAstronomerTimeZone == nullptr);
-    const UDate millis1897[] = { (UDate)((1897 - 1970) * 365 * kOneDay) }; // some days of error is not a problem here
-    const UDate millis1898[] = { (UDate)((1898 - 1970) * 365 * kOneDay) }; // some days of error is not a problem here
-    const UDate millis1912[] = { (UDate)((1912 - 1970) * 365 * kOneDay) }; // this doesn't create an issue for 1911/12/20
+    const UDate millis1897[] = { static_cast<UDate>((1897 - 1970) * 365 * kOneDay) }; // some days of error is not a problem here
+    const UDate millis1898[] = { static_cast<UDate>((1898 - 1970) * 365 * kOneDay) }; // some days of error is not a problem here
+    const UDate millis1912[] = { static_cast<UDate>((1912 - 1970) * 365 * kOneDay) }; // this doesn't create an issue for 1911/12/20
     LocalPointer<InitialTimeZoneRule> initialTimeZone(new InitialTimeZoneRule(
         UnicodeString(u"GMT+8"), 8*kOneHour, 0), status);
 

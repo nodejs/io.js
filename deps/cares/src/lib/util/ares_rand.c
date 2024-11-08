@@ -55,7 +55,7 @@ typedef struct ares_rand_rc4 {
 static unsigned int ares_u32_from_ptr(void *addr)
 {
   /* LCOV_EXCL_START: FallbackCode */
-  if (ares__is_64bit()) {
+  if (ares_is_64bit()) {
     return (unsigned int)((((ares_uint64_t)addr >> 32) & 0xFFFFFFFF) |
                           ((ares_uint64_t)addr & 0xFFFFFFFF));
   }
@@ -77,9 +77,13 @@ static void ares_rc4_generate_key(ares_rand_rc4 *rc4_state, unsigned char *key,
     return;
   }
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+  /* For fuzzing, random should be deterministic */
+  srand(0);
+#else
   /* Randomness is hard to come by.  Maybe the system randomizes heap and stack
    * addresses. Maybe the current timestamp give us some randomness. Use
-   * rc4_state (heap), &i (stack), and ares__tvnow()
+   * rc4_state (heap), &i (stack), and ares_tvnow()
    */
   data = ares_u32_from_ptr(rc4_state);
   memcpy(key + len, &data, sizeof(data));
@@ -89,13 +93,14 @@ static void ares_rc4_generate_key(ares_rand_rc4 *rc4_state, unsigned char *key,
   memcpy(key + len, &data, sizeof(data));
   len += sizeof(data);
 
-  ares__tvnow(&tv);
+  ares_tvnow(&tv);
   data = (unsigned int)((tv.sec | tv.usec) & 0xFFFFFFFF);
   memcpy(key + len, &data, sizeof(data));
   len += sizeof(data);
 
   srand(ares_u32_from_ptr(rc4_state) | ares_u32_from_ptr(&i) |
         (unsigned int)((tv.sec | tv.usec) & 0xFFFFFFFF));
+#endif
 
   for (i = len; i < key_len; i++) {
     key[i] = (unsigned char)(rand() % 256); /* LCOV_EXCL_LINE */
@@ -188,9 +193,14 @@ BOOLEAN WINAPI SystemFunction036(PVOID RandomBuffer, ULONG RandomBufferLength);
 #endif
 
 
-static ares_bool_t ares__init_rand_engine(ares_rand_state *state)
+static ares_bool_t ares_init_rand_engine(ares_rand_state *state)
 {
   state->cache_remaining = 0;
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+  /* For fuzzing, random should be deterministic */
+  state->bad_backends |= ARES_RAND_OS | ARES_RAND_FILE;
+#endif
 
 #if defined(HAVE_ARC4RANDOM_BUF) || defined(HAVE_GETRANDOM) || defined(_WIN32)
   if (!(state->bad_backends & ARES_RAND_OS)) {
@@ -223,7 +233,7 @@ static ares_bool_t ares__init_rand_engine(ares_rand_state *state)
   return ARES_TRUE; /* LCOV_EXCL_LINE: UntestablePath */
 }
 
-ares_rand_state *ares__init_rand_state(void)
+ares_rand_state *ares_init_rand_state(void)
 {
   ares_rand_state *state = NULL;
 
@@ -232,7 +242,7 @@ ares_rand_state *ares__init_rand_state(void)
     return NULL;
   }
 
-  if (!ares__init_rand_engine(state)) {
+  if (!ares_init_rand_engine(state)) {
     ares_free(state); /* LCOV_EXCL_LINE: UntestablePath */
     return NULL;      /* LCOV_EXCL_LINE: UntestablePath */
   }
@@ -240,7 +250,7 @@ ares_rand_state *ares__init_rand_state(void)
   return state;
 }
 
-static void ares__clear_rand_state(ares_rand_state *state)
+static void ares_clear_rand_state(ares_rand_state *state)
 {
   if (!state) {
     return; /* LCOV_EXCL_LINE: DefensiveCoding */
@@ -259,26 +269,26 @@ static void ares__clear_rand_state(ares_rand_state *state)
   }
 }
 
-static void ares__reinit_rand(ares_rand_state *state)
+static void ares_reinit_rand(ares_rand_state *state)
 {
   /* LCOV_EXCL_START: UntestablePath */
-  ares__clear_rand_state(state);
-  ares__init_rand_engine(state);
+  ares_clear_rand_state(state);
+  ares_init_rand_engine(state);
   /* LCOV_EXCL_STOP */
 }
 
-void ares__destroy_rand_state(ares_rand_state *state)
+void ares_destroy_rand_state(ares_rand_state *state)
 {
   if (!state) {
     return;
   }
 
-  ares__clear_rand_state(state);
+  ares_clear_rand_state(state);
   ares_free(state);
 }
 
-static void ares__rand_bytes_fetch(ares_rand_state *state, unsigned char *buf,
-                                   size_t len)
+static void ares_rand_bytes_fetch(ares_rand_state *state, unsigned char *buf,
+                                  size_t len)
 {
   while (1) {
     size_t bytes_read = 0;
@@ -344,17 +354,17 @@ static void ares__rand_bytes_fetch(ares_rand_state *state, unsigned char *buf,
 
     /* If we didn't return before we got here, that means we had a critical rand
      * failure and need to reinitialized */
-    ares__reinit_rand(state); /* LCOV_EXCL_LINE: UntestablePath */
+    ares_reinit_rand(state); /* LCOV_EXCL_LINE: UntestablePath */
   }
 }
 
-void ares__rand_bytes(ares_rand_state *state, unsigned char *buf, size_t len)
+void ares_rand_bytes(ares_rand_state *state, unsigned char *buf, size_t len)
 {
   /* See if we need to refill the cache to serve the request, but if len is
    * excessive, we're not going to update our cache or serve from cache */
   if (len > state->cache_remaining && len < sizeof(state->cache)) {
     size_t fetch_size = sizeof(state->cache) - state->cache_remaining;
-    ares__rand_bytes_fetch(state, state->cache, fetch_size);
+    ares_rand_bytes_fetch(state, state->cache, fetch_size);
     state->cache_remaining = sizeof(state->cache);
   }
 
@@ -367,13 +377,13 @@ void ares__rand_bytes(ares_rand_state *state, unsigned char *buf, size_t len)
   }
 
   /* Serve direct due to excess size of request */
-  ares__rand_bytes_fetch(state, buf, len);
+  ares_rand_bytes_fetch(state, buf, len);
 }
 
-unsigned short ares__generate_new_id(ares_rand_state *state)
+unsigned short ares_generate_new_id(ares_rand_state *state)
 {
   unsigned short r = 0;
 
-  ares__rand_bytes(state, (unsigned char *)&r, sizeof(r));
+  ares_rand_bytes(state, (unsigned char *)&r, sizeof(r));
   return r;
 }

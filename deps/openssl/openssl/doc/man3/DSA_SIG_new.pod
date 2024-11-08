@@ -20,6 +20,7 @@ DSA_SIG_new() allocates an empty B<DSA_SIG> structure.
 
 DSA_SIG_free() frees the B<DSA_SIG> structure and its components. The
 values are erased before the memory is returned to the system.
+If the argument is NULL, nothing is done.
 
 DSA_SIG_get0() returns internal pointers to the B<r> and B<s> values contained
 in B<sig>.
@@ -48,7 +49,7 @@ L<ERR_get_error(3)>
 
 =head1 COPYRIGHT
 
-Copyright 2000-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

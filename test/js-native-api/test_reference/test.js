@@ -142,7 +142,7 @@ runTests();
 // reference (there is a finalizer behind the scenes even
 // though it cannot be passed to napi_create_reference).
 //
-// Since the order is not guarranteed, run the
+// Since the order is not guaranteed, run the
 // test a number of times maximize the chance that we
 // get a run with the desired order for the test.
 //

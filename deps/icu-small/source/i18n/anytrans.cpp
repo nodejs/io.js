@@ -286,7 +286,7 @@ Transliterator* AnyTransliterator::getTransliterator(UScriptCode source) const {
     Transliterator* t = nullptr;
     {
         Mutex m(nullptr);
-        t = (Transliterator*) uhash_iget(cache, (int32_t) source);
+        t = static_cast<Transliterator*>(uhash_iget(cache, static_cast<int32_t>(source)));
     }
     if (t == nullptr) {
         UErrorCode ec = U_ZERO_ERROR;
@@ -312,10 +312,10 @@ Transliterator* AnyTransliterator::getTransliterator(UScriptCode source) const {
             Transliterator *rt = nullptr;
             {
                 Mutex m(nullptr);
-                rt = static_cast<Transliterator *> (uhash_iget(cache, (int32_t) source));
+                rt = static_cast<Transliterator*>(uhash_iget(cache, static_cast<int32_t>(source)));
                 if (rt == nullptr) {
                     // Common case, no race to cache this new transliterator.
-                    uhash_iput(cache, (int32_t) source, t, &ec);
+                    uhash_iput(cache, static_cast<int32_t>(source), t, &ec);
                 } else {
                     // Race case, some other thread beat us to caching this transliterator.
                     Transliterator *temp = rt;
@@ -340,7 +340,7 @@ static UScriptCode scriptNameToCode(const UnicodeString& name) {
     UBool isInvariant = uprv_isInvariantUString(name.getBuffer(), nameLen);
 
     if (isInvariant) {
-        name.extract(0, nameLen, buf, (int32_t)sizeof(buf), US_INV);
+        name.extract(0, nameLen, buf, static_cast<int32_t>(sizeof(buf)), US_INV);
         buf[127] = 0;   // Make sure that we nullptr terminate the string.
     }
     if (!isInvariant || uscript_getCode(buf, &code, 1, &ec) != 1 || U_FAILURE(ec))

@@ -343,7 +343,9 @@ used when using `dgram.Socket` objects with the [`cluster`][] module. When
 `exclusive` is set to `false` (the default), cluster workers will use the same
 underlying socket handle allowing connection handling duties to be shared.
 When `exclusive` is `true`, however, the handle is not shared and attempted
-port sharing results in an error.
+port sharing results in an error. Creating a `dgram.Socket` with the `reusePort`
+option set to `true` causes `exclusive` to always be `true` when `socket.bind()`
+is called.
 
 A bound datagram socket keeps the Node.js process running to receive
 datagram messages.
@@ -916,6 +918,9 @@ chained.
 <!-- YAML
 added: v0.11.13
 changes:
+  - version: v23.1.0
+    pr-url: https://github.com/nodejs/node/pull/55403
+    description: The `reusePort` option is supported.
   - version: v15.8.0
     pr-url: https://github.com/nodejs/node/pull/37026
     description: AbortSignal support was added.
@@ -935,7 +940,15 @@ changes:
   * `type` {string} The family of socket. Must be either `'udp4'` or `'udp6'`.
     Required.
   * `reuseAddr` {boolean} When `true` [`socket.bind()`][] will reuse the
-    address, even if another process has already bound a socket on it.
+    address, even if another process has already bound a socket on it, but
+    only one socket can receive the data.
+    **Default:** `false`.
+  * `reusePort` {boolean} When `true` [`socket.bind()`][] will reuse the
+    port, even if another process has already bound a socket on it. Incoming
+    datagrams are distributed to listening sockets. The option is available
+    only on some platforms, such as Linux 3.9+, DragonFlyBSD 3.6+, FreeBSD 12.0+,
+    Solaris 11.4, and AIX 7.2.5+. On unsupported platforms this option raises an
+    an error when the socket is bound.
     **Default:** `false`.
   * `ipv6Only` {boolean} Setting `ipv6Only` to `true` will
     disable dual-stack support, i.e., binding to address `::` won't make

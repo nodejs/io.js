@@ -684,22 +684,6 @@ base class of the compressor/decompressor classes.
 This class inherits from [`stream.Transform`][], allowing `node:zlib` objects to
 be used in pipes and similar stream operations.
 
-### `zlib.bytesRead`
-
-<!-- YAML
-added: v8.1.0
-deprecated: v10.0.0
--->
-
-> Stability: 0 - Deprecated: Use [`zlib.bytesWritten`][] instead.
-
-* {number}
-
-Deprecated alias for [`zlib.bytesWritten`][]. This original name was chosen
-because it also made sense to interpret the value as the number of bytes
-read by the engine, but is inconsistent with other streams in Node.js that
-expose values under these names.
-
 ### `zlib.bytesWritten`
 
 <!-- YAML
@@ -1307,7 +1291,6 @@ Decompress a chunk of data with [`Unzip`][].
 [`buffer.kMaxLength`]: buffer.md#bufferkmaxlength
 [`deflateInit2` and `inflateInit2`]: https://zlib.net/manual.html#Advanced
 [`stream.Transform`]: stream.md#class-streamtransform
-[`zlib.bytesWritten`]: #zlibbyteswritten
 [convenience methods]: #convenience-methods
 [zlib documentation]: https://zlib.net/manual.html#Constants
 [zlib.createGzip example]: #zlib

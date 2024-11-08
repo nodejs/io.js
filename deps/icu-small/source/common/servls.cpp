@@ -179,7 +179,7 @@ private:
 
             length = other._ids.size();
             for(i = 0; i < length; ++i) {
-                LocalPointer<UnicodeString> clonedId(((UnicodeString *)other._ids.elementAt(i))->clone(), status);
+                LocalPointer<UnicodeString> clonedId(static_cast<UnicodeString*>(other._ids.elementAt(i))->clone(), status);
                 _ids.adoptElement(clonedId.orphan(), status);
             }
 
@@ -228,7 +228,7 @@ public:
 
     virtual const UnicodeString* snext(UErrorCode& status) override {
         if (upToDate(status) && (_pos < _ids.size())) {
-            return (const UnicodeString*)_ids[_pos++];
+            return static_cast<const UnicodeString*>(_ids[_pos++]);
         }
         return nullptr;
     }
@@ -263,7 +263,7 @@ const UnicodeString&
 ICULocaleService::validateFallbackLocale() const
 {
     const Locale&     loc    = Locale::getDefault();
-    ICULocaleService* ncThis = (ICULocaleService*)this;
+    ICULocaleService* ncThis = const_cast<ICULocaleService*>(this);
     static UMutex llock;
     {
         Mutex mutex(&llock);

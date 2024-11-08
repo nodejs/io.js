@@ -14,14 +14,15 @@ function runChecks(err, stdio, streamName, expected) {
 // On non-Windows, we can pass the path via the env; `"` is not a valid char on
 // Windows, so we can simply pass the path.
 const execNode = (args, optionsOrCallback, callback) => {
+  const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" `;
   let options = optionsOrCallback;
   if (typeof optionsOrCallback === 'function') {
     options = undefined;
     callback = optionsOrCallback;
   }
   return cp.exec(
-    `"${common.isWindows ? process.execPath : '$NODE'}" ${args}`,
-    common.isWindows ? options : { ...options, env: { ...process.env, NODE: process.execPath } },
+    cmd + args,
+    { ...opts, ...options },
     callback,
   );
 };

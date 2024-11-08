@@ -75,7 +75,7 @@ static size_t ares_evsys_select_wait(ares_event_thread_t *e,
                                      unsigned long        timeout_ms)
 {
   size_t          num_fds = 0;
-  ares_socket_t  *fdlist = ares__htable_asvp_keys(e->ev_sock_handles, &num_fds);
+  ares_socket_t  *fdlist  = ares_htable_asvp_keys(e->ev_sock_handles, &num_fds);
   int             rv;
   size_t          cnt = 0;
   size_t          i;
@@ -92,7 +92,7 @@ static size_t ares_evsys_select_wait(ares_event_thread_t *e,
 
   for (i = 0; i < num_fds; i++) {
     const ares_event_t *ev =
-      ares__htable_asvp_get_direct(e->ev_sock_handles, fdlist[i]);
+      ares_htable_asvp_get_direct(e->ev_sock_handles, fdlist[i]);
     if (ev->flags & ARES_EVENT_FLAG_READ) {
       FD_SET(ev->fd, &read_fds);
     }
@@ -117,7 +117,7 @@ static size_t ares_evsys_select_wait(ares_event_thread_t *e,
       ares_event_t      *ev;
       ares_event_flags_t flags = 0;
 
-      ev = ares__htable_asvp_get_direct(e->ev_sock_handles, fdlist[i]);
+      ev = ares_htable_asvp_get_direct(e->ev_sock_handles, fdlist[i]);
       if (ev == NULL || ev->cb == NULL) {
         continue; /* LCOV_EXCL_LINE: DefensiveCoding */
       }

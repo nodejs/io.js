@@ -75,6 +75,7 @@ criterion, so they must have at least the same life time as the created
 B<OSSL_STORE_SEARCH>.
 
 OSSL_STORE_SEARCH_free() is used to free the B<OSSL_STORE_SEARCH>.
+If the argument is NULL, nothing is done.
 
 =head2 Loader Functions
 
@@ -183,7 +184,7 @@ were added in OpenSSL 1.1.1.
 
 =head1 COPYRIGHT
 
-Copyright 2018-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2018-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

@@ -17,8 +17,7 @@
 #include "sessionticket.h"
 #include "tokens.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 #define ENDPOINT_CC(V)                                                         \
   V(RENO, reno)                                                                \
@@ -92,7 +91,7 @@ class Endpoint final : public AsyncWrap, public Packet::Listener {
     // Similar to stateless resets, we enforce a limit on the number of retry
     // packets that can be generated and sent for a remote host. Generating
     // retry packets consumes a modest amount of resources and it's fairly
-    // trivial for a malcious peer to trigger generation of a large number of
+    // trivial for a malicious peer to trigger generation of a large number of
     // retries, so limiting them helps prevent a DOS vector.
     uint64_t max_retries = DEFAULT_MAX_RETRY_LIMIT;
 
@@ -453,8 +452,7 @@ class Endpoint final : public AsyncWrap, public Packet::Listener {
   friend class Session;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

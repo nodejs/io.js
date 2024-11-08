@@ -45,7 +45,7 @@ static uint64_t time_now_sec(void) {
 #if defined(HAVE_GETTICKCOUNT64) && !defined(__CYGWIN__)
 uint64_t nghttp2_time_now_sec(void) { return GetTickCount64() / 1000; }
 #elif defined(HAVE_CLOCK_GETTIME) && defined(HAVE_DECL_CLOCK_MONOTONIC) &&     \
-    HAVE_DECL_CLOCK_MONOTONIC
+  HAVE_DECL_CLOCK_MONOTONIC
 uint64_t nghttp2_time_now_sec(void) {
   struct timespec tp;
   int rv = clock_gettime(CLOCK_MONOTONIC, &tp);

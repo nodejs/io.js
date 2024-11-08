@@ -135,7 +135,7 @@ ares_status_t ares_parse_ptr_reply_dnsrec(const ares_dns_record_t *dnsrec,
      *   status = ARES_EBADRESP;
      *   goto done;
      * }
-     * if (strcasecmp(ptrname, rname) != 0) {
+     * if (!ares_strcaseeq(ptrname, rname)) {
      *   continue;
      * }
      */

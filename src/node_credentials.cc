@@ -228,31 +228,13 @@ static gid_t gid_by_name(Isolate* isolate, Local<Value> value) {
   }
 }
 
-#ifdef __linux__
-extern "C" {
-int uv__node_patch_is_using_io_uring(void);
-
-int uv__node_patch_is_using_io_uring(void) __attribute__((weak));
-
-typedef int (*is_using_io_uring_fn)(void);
-}
-#endif  // __linux__
-
 static bool UvMightBeUsingIoUring() {
 #ifdef __linux__
-  // Support for io_uring is only included in libuv 1.45.0 and later, and only
-  // on Linux (and Android, but there it is always disabled). The patch that we
-  // apply to libuv to work around the io_uring security issue adds a function
-  // that tells us whether io_uring is being used. If that function is not
-  // present, we assume that we are dynamically linking against an unpatched
-  // version.
-  static std::atomic<is_using_io_uring_fn> check =
-      uv__node_patch_is_using_io_uring;
-  if (check == nullptr) {
-    check = reinterpret_cast<is_using_io_uring_fn>(
-        dlsym(RTLD_DEFAULT, "uv__node_patch_is_using_io_uring"));
-  }
-  return uv_version() >= 0x012d00u && (check == nullptr || (*check)());
+  // Support for io_uring is only included in libuv 1.45.0 and later. Starting
+  // with 1.49.0 is disabled by default. Check the version in case Node.js is
+  // dynamically to an io_uring-enabled version of libuv.
+  unsigned int version = uv_version();
+  return version >= 0x012d00u && version < 0x013100u;
 #else
   return false;
 #endif

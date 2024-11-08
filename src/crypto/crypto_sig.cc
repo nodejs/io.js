@@ -370,7 +370,7 @@ void Sign::SignUpdate(const FunctionCallbackInfo<Value>& args) {
   Decode<Sign>(args, [](Sign* sign, const FunctionCallbackInfo<Value>& args,
                         const char* data, size_t size) {
     Environment* env = Environment::GetCurrent(args);
-    if (UNLIKELY(size > INT_MAX))
+    if (size > INT_MAX) [[unlikely]]
       return THROW_ERR_OUT_OF_RANGE(env, "data is too long");
     Error err = sign->Update(data, size);
     crypto::CheckThrow(sign->env(), err);
@@ -408,7 +408,8 @@ void Sign::SignFinal(const FunctionCallbackInfo<Value>& args) {
 
   unsigned int offset = 0;
   auto data = KeyObjectData::GetPrivateKeyFromJs(args, &offset, true);
-  if (UNLIKELY(!data)) return;
+  if (!data) [[unlikely]]
+    return;
   const auto& key = data.GetAsymmetricKey();
   if (!key)
     return;
@@ -493,7 +494,7 @@ void Verify::VerifyUpdate(const FunctionCallbackInfo<Value>& args) {
                           const FunctionCallbackInfo<Value>& args,
                           const char* data, size_t size) {
     Environment* env = Environment::GetCurrent(args);
-    if (UNLIKELY(size > INT_MAX))
+    if (size > INT_MAX) [[unlikely]]
       return THROW_ERR_OUT_OF_RANGE(env, "data is too long");
     Error err = verify->Update(data, size);
     crypto::CheckThrow(verify->env(), err);
@@ -554,7 +555,7 @@ void Verify::VerifyFinal(const FunctionCallbackInfo<Value>& args) {
   }
 
   ArrayBufferOrViewContents<char> hbuf(args[offset]);
-  if (UNLIKELY(!hbuf.CheckSizeInt32()))
+  if (!hbuf.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "buffer is too big");
 
   int padding = GetDefaultSignPadding(pkey);
@@ -643,7 +644,7 @@ Maybe<void> SignTraits::AdditionalConfig(
   }
 
   ArrayBufferOrViewContents<char> data(args[offset + 5]);
-  if (UNLIKELY(!data.CheckSizeInt32())) {
+  if (!data.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "data is too big");
     return Nothing<void>();
   }
@@ -681,7 +682,7 @@ Maybe<void> SignTraits::AdditionalConfig(
 
   if (params->mode == SignConfiguration::kVerify) {
     ArrayBufferOrViewContents<char> signature(args[offset + 10]);
-    if (UNLIKELY(!signature.CheckSizeInt32())) {
+    if (!signature.CheckSizeInt32()) [[unlikely]] {
       THROW_ERR_OUT_OF_RANGE(env, "signature is too big");
       return Nothing<void>();
     }

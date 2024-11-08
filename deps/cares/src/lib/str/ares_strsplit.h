@@ -40,12 +40,12 @@
  * returns an allocated array of allocated string elements.
  *
  */
-char **ares__strsplit(const char *in, const char *delms, size_t *num_elm);
+char **ares_strsplit(const char *in, const char *delms, size_t *num_elm);
 
-/* Frees the result returned from ares__strsplit(). */
-void   ares__strsplit_free(char **elms, size_t num_elm);
+/* Frees the result returned from ares_strsplit(). */
+void   ares_strsplit_free(char **elms, size_t num_elm);
 
 /* Duplicate the array */
-char **ares__strsplit_duplicate(char **elms, size_t num_elm);
+char **ares_strsplit_duplicate(char **elms, size_t num_elm);
 
 #endif /* HEADER_CARES_STRSPLIT_H */

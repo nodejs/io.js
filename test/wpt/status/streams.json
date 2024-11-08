@@ -16,13 +16,6 @@
   "readable-streams/cross-realm-crash.window.js": {
     "skip": "Browser-specific test"
   },
-  "readable-streams/from.any.js": {
-    "fail": {
-      "expected": [
-        "ReadableStream.from ignores a null @@asyncIterator"
-      ]
-    }
-  },
   "readable-streams/owning-type-message-port.any.js": {
     "fail": {
       "note": "Readable streams with type owning are not yet supported",

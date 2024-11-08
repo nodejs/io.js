@@ -3,9 +3,13 @@
 
 const common = require('../common');
 const assert = require('assert');
+const path = require('path');
 
+// Only the first load will trigger the warning.
 common.expectWarning(
   'ExperimentalWarning',
+  `CommonJS module ${__filename} is loading ES Module ` +
+  `${path.resolve(__dirname, '../fixtures/es-module-loaders/module-named-exports.mjs')} using require().\n` +
   'Support for loading ES Module in require() is an experimental feature ' +
   'and might change at any time'
 );

@@ -98,7 +98,7 @@ test('expect fail eval TypeScript CommonJS syntax with input-type module', async
   strictEqual(result.code, 1);
 });
 
-test('expect fail eval TypeScript CommonJS syntax with input-type module', async () => {
+test('expect fail eval TypeScript ESM syntax with input-type commonjs', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--experimental-strip-types',
     '--input-type=commonjs',
@@ -108,5 +108,15 @@ test('expect fail eval TypeScript CommonJS syntax with input-type module', async
     console.log(util.styleText('red', text));`]);
   strictEqual(result.stdout, '');
   match(result.stderr, /Cannot use import statement outside a module/);
+  strictEqual(result.code, 1);
+});
+
+test('check syntax error is thrown when passing invalid syntax', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--experimental-strip-types',
+    '--eval',
+    'enum Foo { A, B, C }']);
+  strictEqual(result.stdout, '');
+  match(result.stderr, /ERR_INVALID_TYPESCRIPT_SYNTAX/);
   strictEqual(result.code, 1);
 });

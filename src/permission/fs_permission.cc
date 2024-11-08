@@ -227,8 +227,8 @@ void FSPermission::RadixTree::Insert(const std::string& path) {
     }
   }
 
-  if (UNLIKELY(per_process::enabled_debug_list.enabled(
-          DebugCategory::PERMISSION_MODEL))) {
+  if (per_process::enabled_debug_list.enabled(DebugCategory::PERMISSION_MODEL))
+      [[unlikely]] {
     per_process::Debug(DebugCategory::PERMISSION_MODEL, "Inserting %s\n", path);
     PrintTree(root_node_);
   }

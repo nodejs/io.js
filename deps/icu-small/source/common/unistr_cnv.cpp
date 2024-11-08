@@ -63,7 +63,7 @@ UnicodeString::UnicodeString(const char *codepageData,
                              const char *codepage) {
     fUnion.fFields.fLengthAndFlags = kShortString;
     if (codepageData != nullptr) {
-        doCodepageCreate(codepageData, (int32_t)uprv_strlen(codepageData), codepage);
+        doCodepageCreate(codepageData, static_cast<int32_t>(uprv_strlen(codepageData)), codepage);
     }
 }
 
@@ -89,7 +89,7 @@ UnicodeString::UnicodeString(const char *src, int32_t srcLength,
         } else {
             // get input length
             if(srcLength==-1) {
-                srcLength=(int32_t)uprv_strlen(src);
+                srcLength = static_cast<int32_t>(uprv_strlen(src));
             }
             if(srcLength>0) {
                 if (cnv != nullptr) {
@@ -151,13 +151,13 @@ UnicodeString::extract(int32_t start,
     int32_t capacity;
     if(dstSize < 0x7fffffff) {
         // Assume that the capacity is real and a limit pointer won't wrap around.
-        capacity = (int32_t)dstSize;
+        capacity = static_cast<int32_t>(dstSize);
     } else {
         // Pin the capacity so that a limit pointer does not wrap around.
-        char *targetLimit = (char *)U_MAX_PTR(target);
+        char* targetLimit = static_cast<char*>(U_MAX_PTR(target));
         // U_MAX_PTR(target) returns a targetLimit that is at most 0x7fffffff
         // greater than target and does not wrap around the top of the address space.
-        capacity = (int32_t)(targetLimit - target);
+        capacity = static_cast<int32_t>(targetLimit - target);
     }
 
     // create the converter
@@ -267,7 +267,7 @@ UnicodeString::doExtract(int32_t start, int32_t length,
         destLimit=dest=nullptr;
     } else if(destCapacity==-1) {
         // Pin the limit to U_MAX_PTR if the "magic" destCapacity is used.
-        destLimit=(char*)U_MAX_PTR(dest);
+        destLimit = static_cast<char*>(U_MAX_PTR(dest));
         // for NUL-termination, translate into highest int32_t
         destCapacity=0x7fffffff;
     } else {
@@ -276,7 +276,7 @@ UnicodeString::doExtract(int32_t start, int32_t length,
 
     // perform the conversion
     ucnv_fromUnicode(cnv, &dest, destLimit, &src, srcLimit, nullptr, true, &errorCode);
-    length=(int32_t)(dest-originalDest);
+    length = static_cast<int32_t>(dest - originalDest);
 
     // if an overflow occurs, then get the preflighting length
     if(errorCode==U_BUFFER_OVERFLOW_ERROR) {
@@ -287,7 +287,7 @@ UnicodeString::doExtract(int32_t start, int32_t length,
             dest=buffer;
             errorCode=U_ZERO_ERROR;
             ucnv_fromUnicode(cnv, &dest, destLimit, &src, srcLimit, nullptr, true, &errorCode);
-            length+=(int32_t)(dest-buffer);
+            length += static_cast<int32_t>(dest - buffer);
         } while(errorCode==U_BUFFER_OVERFLOW_ERROR);
     }
 
@@ -304,7 +304,7 @@ UnicodeString::doCodepageCreate(const char *codepageData,
         return;
     }
     if(dataLength == -1) {
-        dataLength = (int32_t)uprv_strlen(codepageData);
+        dataLength = static_cast<int32_t>(uprv_strlen(codepageData));
     }
 
     UErrorCode status = U_ZERO_ERROR;
@@ -393,7 +393,7 @@ UnicodeString::doCodepageCreate(const char *codepageData,
             &mySource, mySourceEnd, nullptr, true, &status);
 
         // update the conversion parameters
-        setLength((int32_t)(myTarget - array));
+        setLength(static_cast<int32_t>(myTarget - array));
 
         // allocate more space and copy data, if needed
         if(status == U_BUFFER_OVERFLOW_ERROR) {
@@ -405,7 +405,7 @@ UnicodeString::doCodepageCreate(const char *codepageData,
 
             // estimate the new size needed, larger than before
             // try 2 char16_t's per remaining source byte
-            arraySize = (int32_t)(length() + 2 * (mySourceEnd - mySource));
+            arraySize = static_cast<int32_t>(length() + 2 * (mySourceEnd - mySource));
         } else {
             break;
         }

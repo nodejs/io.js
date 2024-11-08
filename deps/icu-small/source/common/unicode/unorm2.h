@@ -197,7 +197,6 @@ unorm2_getNFKDInstance(UErrorCode *pErrorCode);
 U_CAPI const UNormalizer2 * U_EXPORT2
 unorm2_getNFKCCasefoldInstance(UErrorCode *pErrorCode);
 
-#ifndef U_HIDE_DRAFT_API
 /**
  * Returns a UNormalizer2 instance for a variant of Unicode toNFKC_Casefold() normalization
  * which is equivalent to applying the NFKC_Simple_Casefold mappings and then NFC.
@@ -210,11 +209,10 @@ unorm2_getNFKCCasefoldInstance(UErrorCode *pErrorCode);
  *                  immediately. Check for U_FAILURE() on output or use with
  *                  function chaining. (See User Guide for details.)
  * @return the requested Normalizer2, if successful
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI const UNormalizer2 * U_EXPORT2
 unorm2_getNFKCSimpleCasefoldInstance(UErrorCode *pErrorCode);
-#endif  // U_HIDE_DRAFT_API
 
 /**
  * Returns a UNormalizer2 instance which uses the specified data file

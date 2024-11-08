@@ -42,20 +42,7 @@
 #include "ares_getopt.h"
 #include "ares_ipv6.h"
 
-#ifndef HAVE_STRDUP
-#  include "str/ares_str.h"
-#  define strdup(ptr) ares_strdup(ptr)
-#endif
-
-#ifndef HAVE_STRCASECMP
-#  include "str/ares_strcasecmp.h"
-#  define strcasecmp(p1, p2) ares_strcasecmp(p1, p2)
-#endif
-
-#ifndef HAVE_STRNCASECMP
-#  include "str/ares_strcasecmp.h"
-#  define strncasecmp(p1, p2, n) ares_strncasecmp(p1, p2, n)
-#endif
+#include "ares_str.h"
 
 static void callback(void *arg, int status, int timeouts, struct hostent *host);
 static void ai_callback(void *arg, int status, int timeouts,
@@ -111,11 +98,11 @@ int         main(int argc, char **argv)
         options.domains[options.ndomains - 1] = strdup(state.optarg);
         break;
       case 't':
-        if (!strcasecmp(state.optarg, "a")) {
+        if (ares_strcaseeq(state.optarg, "a")) {
           addr_family = AF_INET;
-        } else if (!strcasecmp(state.optarg, "aaaa")) {
+        } else if (ares_strcaseeq(state.optarg, "aaaa")) {
           addr_family = AF_INET6;
-        } else if (!strcasecmp(state.optarg, "u")) {
+        } else if (ares_strcaseeq(state.optarg, "u")) {
           addr_family = AF_UNSPEC;
         } else {
           usage();

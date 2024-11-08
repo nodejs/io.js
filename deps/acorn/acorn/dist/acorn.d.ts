@@ -403,6 +403,7 @@ export interface ImportDeclaration extends Node {
   type: "ImportDeclaration"
   specifiers: Array<ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier>
   source: Literal
+  attributes: Array<ImportAttribute>
 }
 
 export interface ImportSpecifier extends Node {
@@ -421,11 +422,18 @@ export interface ImportNamespaceSpecifier extends Node {
   local: Identifier
 }
 
+export interface ImportAttribute extends Node {
+  type: "ImportAttribute"
+  key: Identifier | Literal
+  value: Literal
+}
+
 export interface ExportNamedDeclaration extends Node {
   type: "ExportNamedDeclaration"
   declaration?: Declaration | null
   specifiers: Array<ExportSpecifier>
   source?: Literal | null
+  attributes: Array<ImportAttribute>
 }
 
 export interface ExportSpecifier extends Node {
@@ -454,6 +462,7 @@ export interface ExportAllDeclaration extends Node {
   type: "ExportAllDeclaration"
   source: Literal
   exported?: Identifier | Literal | null
+  attributes: Array<ImportAttribute>
 }
 
 export interface AwaitExpression extends Node {
@@ -469,6 +478,7 @@ export interface ChainExpression extends Node {
 export interface ImportExpression extends Node {
   type: "ImportExpression"
   source: Expression
+  options: Expression | null
 }
 
 export interface ParenthesizedExpression extends Node {
@@ -562,7 +572,7 @@ export type ModuleDeclaration =
 | ExportDefaultDeclaration
 | ExportAllDeclaration
 
-export type AnyNode = Statement | Expression | Declaration | ModuleDeclaration | Literal | Program | SwitchCase | CatchClause | Property | Super | SpreadElement | TemplateElement | AssignmentProperty | ObjectPattern | ArrayPattern | RestElement | AssignmentPattern | ClassBody | MethodDefinition | MetaProperty | ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier | ExportSpecifier | AnonymousFunctionDeclaration | AnonymousClassDeclaration | PropertyDefinition | PrivateIdentifier | StaticBlock | VariableDeclarator
+export type AnyNode = Statement | Expression | Declaration | ModuleDeclaration | Literal | Program | SwitchCase | CatchClause | Property | Super | SpreadElement | TemplateElement | AssignmentProperty | ObjectPattern | ArrayPattern | RestElement | AssignmentPattern | ClassBody | MethodDefinition | MetaProperty | ImportAttribute | ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier | ExportSpecifier | AnonymousFunctionDeclaration | AnonymousClassDeclaration | PropertyDefinition | PrivateIdentifier | StaticBlock | VariableDeclarator
 
 export function parse(input: string, options: Options): Program
 

@@ -23,7 +23,9 @@ const IDX_OPTIONS_MAX_OUTSTANDING_PINGS = 6;
 const IDX_OPTIONS_MAX_OUTSTANDING_SETTINGS = 7;
 const IDX_OPTIONS_MAX_SESSION_MEMORY = 8;
 const IDX_OPTIONS_MAX_SETTINGS = 9;
-const IDX_OPTIONS_FLAGS = 10;
+const IDX_OPTIONS_STREAM_RESET_RATE = 10;
+const IDX_OPTIONS_STREAM_RESET_BURST = 11;
+const IDX_OPTIONS_FLAGS = 12;
 
 {
   updateOptionsBuffer({
@@ -37,6 +39,8 @@ const IDX_OPTIONS_FLAGS = 10;
     maxOutstandingSettings: 8,
     maxSessionMemory: 9,
     maxSettings: 10,
+    streamResetRate: 11,
+    streamResetBurst: 12,
   });
 
   strictEqual(optionsBuffer[IDX_OPTIONS_MAX_DEFLATE_DYNAMIC_TABLE_SIZE], 1);
@@ -49,6 +53,8 @@ const IDX_OPTIONS_FLAGS = 10;
   strictEqual(optionsBuffer[IDX_OPTIONS_MAX_OUTSTANDING_SETTINGS], 8);
   strictEqual(optionsBuffer[IDX_OPTIONS_MAX_SESSION_MEMORY], 9);
   strictEqual(optionsBuffer[IDX_OPTIONS_MAX_SETTINGS], 10);
+  strictEqual(optionsBuffer[IDX_OPTIONS_STREAM_RESET_RATE], 11);
+  strictEqual(optionsBuffer[IDX_OPTIONS_STREAM_RESET_BURST], 12);
 
   const flags = optionsBuffer[IDX_OPTIONS_FLAGS];
 
@@ -61,6 +67,8 @@ const IDX_OPTIONS_FLAGS = 10;
   ok(flags & (1 << IDX_OPTIONS_MAX_OUTSTANDING_PINGS));
   ok(flags & (1 << IDX_OPTIONS_MAX_OUTSTANDING_SETTINGS));
   ok(flags & (1 << IDX_OPTIONS_MAX_SETTINGS));
+  ok(flags & (1 << IDX_OPTIONS_STREAM_RESET_RATE));
+  ok(flags & (1 << IDX_OPTIONS_STREAM_RESET_BURST));
 }
 
 {

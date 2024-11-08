@@ -225,7 +225,7 @@ describe('watch mode', { concurrency: !process.env.TEST_PARALLEL, timeout: 60_00
 
     try {
       await restart();
-      await writeFileSync(envFile, `${envKey}=value1\n${envKey2}=newValue`);
+      writeFileSync(envFile, `${envKey}=value1\n${envKey2}=newValue`);
 
       // Second restart, after env change
       const { stderr, stdout } = await restart();

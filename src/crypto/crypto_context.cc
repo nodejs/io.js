@@ -685,7 +685,7 @@ void SecureContext::SetEngineKey(const FunctionCallbackInfo<Value>& args) {
 
   CHECK_EQ(args.Length(), 2);
 
-  if (UNLIKELY(env->permission()->enabled())) {
+  if (env->permission()->enabled()) [[unlikely]] {
     return THROW_ERR_CRYPTO_CUSTOM_ENGINE_NOT_SUPPORTED(
         env,
         "Programmatic selection of OpenSSL engines is unsupported while the "
@@ -1198,7 +1198,7 @@ void SecureContext::SetClientCertEngine(
   // support multiple calls to SetClientCertEngine.
   CHECK(!sc->client_cert_engine_provided_);
 
-  if (UNLIKELY(env->permission()->enabled())) {
+  if (env->permission()->enabled()) [[unlikely]] {
     return THROW_ERR_CRYPTO_CUSTOM_ENGINE_NOT_SUPPORTED(
         env,
         "Programmatic selection of OpenSSL engines is unsupported while the "

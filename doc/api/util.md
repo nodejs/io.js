@@ -364,7 +364,7 @@ util.formatWithOptions({ colors: true }, 'See object %O', { foo: 42 });
 // when printed to a terminal.
 ```
 
-## `util.getCallSite(frames)`
+## `util.getCallSites(frameCountOrOptions, [options])`
 
 > Stability: 1.1 - Active development
 
@@ -372,23 +372,26 @@ util.formatWithOptions({ colors: true }, 'See object %O', { foo: 42 });
 added: v22.9.0
 -->
 
-* `frames` {number} Number of frames returned in the stacktrace.
+* `frameCount` {number} Optional number of frames to capture as call site objects.
   **Default:** `10`. Allowable range is between 1 and 200.
-* Returns: {Object\[]} An array of stacktrace objects
-  * `functionName` {string} Returns the name of the function associated with this stack frame.
+* `options` {Object} Optional
+  * `sourceMap` {boolean} Reconstruct the original location in the stacktrace from the source-map.
+    Enabled by default with the flag `--enable-source-maps`.
+* Returns: {Object\[]} An array of call site objects
+  * `functionName` {string} Returns the name of the function associated with this call site.
   * `scriptName` {string} Returns the name of the resource that contains the script for the
-    function for this StackFrame.
+    function for this call site.
   * `lineNumber` {number} Returns the number, 1-based, of the line for the associate function call.
   * `column` {number} Returns the 1-based column offset on the line for the associated function call.
 
-Returns an array of stacktrace objects containing the stack of
+Returns an array of call site objects containing the stack of
 the caller function.
 
 ```js
 const util = require('node:util');
 
 function exampleFunction() {
-  const callSites = util.getCallSite();
+  const callSites = util.getCallSites();
 
   console.log('Call Sites:');
   callSites.forEach((callSite, index) => {
@@ -419,6 +422,33 @@ function anotherFunction() {
 }
 
 anotherFunction();
+```
+
+It is possible to reconstruct the original locations by setting the option `sourceMap` to `true`.
+If the source map is not available, the original location will be the same as the current location.
+When the `--enable-source-maps` flag is enabled, for example when using `--experimental-transform-types`,
+`sourceMap` will be true by default.
+
+```ts
+import util from 'node:util';
+
+interface Foo {
+  foo: string;
+}
+
+const callSites = util.getCallSites({ sourceMap: true });
+
+// With sourceMap:
+// Function Name: ''
+// Script Name: example.js
+// Line Number: 7
+// Column Number: 26
+
+// Without sourceMap:
+// Function Name: ''
+// Script Name: example.js
+// Line Number: 2
+// Column Number: 26
 ```
 
 ## `util.getSystemErrorName(err)`
@@ -460,6 +490,26 @@ fs.access('file/that/does/not/exist', (err) => {
   const errorMap = util.getSystemErrorMap();
   const name = errorMap.get(err.errno);
   console.error(name);  // ENOENT
+});
+```
+
+## `util.getSystemErrorMessage(err)`
+
+<!-- YAML
+added: v23.1.0
+-->
+
+* `err` {number}
+* Returns: {string}
+
+Returns the string message for a numeric error code that comes from a Node.js
+API.
+The mapping between error codes and string messages is platform-dependent.
+
+```js
+fs.access('file/that/does/not/exist', (err) => {
+  const name = util.getSystemErrorMessage(err.errno);
+  console.error(name);  // no such file or directory
 });
 ```
 
@@ -1868,7 +1918,9 @@ added:
   - v21.7.0
   - v20.12.0
 changes:
-  - version: v22.8.0
+  - version:
+    - v22.8.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/54389
     description: Respect isTTY and environment variables
       such as NO_COLORS, NODE_DISABLE_COLORS, and FORCE_COLOR.
@@ -2355,6 +2407,24 @@ Returns `true` if the value is a `BigInt64Array` instance.
 ```js
 util.types.isBigInt64Array(new BigInt64Array());   // Returns true
 util.types.isBigInt64Array(new BigUint64Array());  // Returns false
+```
+
+### `util.types.isBigIntObject(value)`
+
+<!-- YAML
+added: v10.4.0
+-->
+
+* `value` {any}
+* Returns: {boolean}
+
+Returns `true` if the value is a BigInt object, e.g. created
+by `Object(BigInt(123))`.
+
+```js
+util.types.isBigIntObject(Object(BigInt(123)));   // Returns true
+util.types.isBigIntObject(BigInt(123));   // Returns false
+util.types.isBigIntObject(123);  // Returns false
 ```
 
 ### `util.types.isBigUint64Array(value)`

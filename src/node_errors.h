@@ -119,7 +119,11 @@ void OOMErrorHandler(const char* location, const v8::OOMDetails& details);
     std::string message = SPrintF(format, std::forward<Args>(args)...);        \
     v8::Local<v8::String> js_code = OneByteString(isolate, #code);             \
     v8::Local<v8::String> js_msg =                                             \
-        OneByteString(isolate, message.c_str(), message.length());             \
+        v8::String::NewFromUtf8(isolate,                                       \
+                                message.c_str(),                               \
+                                v8::NewStringType::kNormal,                    \
+                                message.length())                              \
+            .ToLocalChecked();                                                 \
     v8::Local<v8::Object> e = v8::Exception::type(js_msg)                      \
                                   ->ToObject(isolate->GetCurrentContext())     \
                                   .ToLocalChecked();                           \

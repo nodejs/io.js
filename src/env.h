@@ -977,7 +977,7 @@ class Environment final : public MemoryRetainer {
   inline std::shared_ptr<EnvironmentOptions> options();
   inline std::shared_ptr<ExclusiveAccess<HostPort>> inspector_host_port();
 
-  inline int32_t stack_trace_limit() const { return 10; }
+  inline int64_t stack_trace_limit() const;
 
 #if HAVE_INSPECTOR
   void set_coverage_connection(

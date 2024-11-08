@@ -34,7 +34,7 @@ U_NAMESPACE_BEGIN
 uint8_t *
 RuleBasedCollator::cloneRuleData(int32_t &length, UErrorCode &errorCode) const {
     if(U_FAILURE(errorCode)) { return nullptr; }
-    LocalMemory<uint8_t> buffer((uint8_t *)uprv_malloc(20000));
+    LocalMemory<uint8_t> buffer(static_cast<uint8_t*>(uprv_malloc(20000)));
     if(buffer.isNull()) {
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         return nullptr;
@@ -118,7 +118,7 @@ CollationDataWriter::write(UBool isBase, const UVersionInfo dataVersion,
 
     int32_t fastLatinVersion;
     if(data.fastLatinTable != nullptr) {
-        fastLatinVersion = (int32_t)CollationFastLatin::VERSION << 16;
+        fastLatinVersion = static_cast<int32_t>(CollationFastLatin::VERSION) << 16;
     } else {
         fastLatinVersion = 0;
     }
@@ -185,7 +185,7 @@ CollationDataWriter::write(UBool isBase, const UVersionInfo dataVersion,
         header.dataHeader.magic2 = 0x27;
         uprv_memcpy(&header.info, &dataInfo, sizeof(UDataInfo));
         uprv_memcpy(header.info.dataVersion, dataVersion, sizeof(UVersionInfo));
-        headerSize = (int32_t)sizeof(header);
+        headerSize = static_cast<int32_t>(sizeof(header));
         U_ASSERT((headerSize & 3) == 0);  // multiple of 4 bytes
         if(hasMappings && data.cesLength != 0) {
             // Sum of the sizes of the data items which are
@@ -199,7 +199,7 @@ CollationDataWriter::write(UBool isBase, const UVersionInfo dataVersion,
                 headerSize += 4;
             }
         }
-        header.dataHeader.headerSize = (uint16_t)headerSize;
+        header.dataHeader.headerSize = static_cast<uint16_t>(headerSize);
         if(headerSize <= capacity) {
             uprv_memcpy(dest, &header, sizeof(header));
             // Write 00 bytes so that the padding is not mistaken for a copyright string.
@@ -302,7 +302,7 @@ CollationDataWriter::write(UBool isBase, const UVersionInfo dataVersion,
     UnicodeString scripts;
     indexes[CollationDataReader::IX_SCRIPTS_OFFSET] = totalSize;
     if(isBase) {
-        scripts.append((char16_t)data.numScripts);
+        scripts.append(static_cast<char16_t>(data.numScripts));
         scripts.append(reinterpret_cast<const char16_t *>(data.scriptsIndex), data.numScripts + 16);
         scripts.append(reinterpret_cast<const char16_t *>(data.scriptStarts), data.scriptStartsLength);
         totalSize += scripts.length() * 2;

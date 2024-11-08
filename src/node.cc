@@ -494,7 +494,7 @@ void ResetSignalHandlers() {
       continue;
     act.sa_handler = (nr == SIGPIPE || nr == SIGXFSZ) ? SIG_IGN : SIG_DFL;
     if (act.sa_handler == SIG_DFL) {
-      // The only bad handler value we can inhert from before exec is SIG_IGN
+      // The only bad handler value we can inherit from before exec is SIG_IGN
       // (any actual function pointer is reset to SIG_DFL during exec).
       // If that's the case, we want to reset it back to SIG_DFL.
       // However, it's also possible that an embeder (or an LD_PRELOAD-ed

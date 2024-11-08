@@ -2136,6 +2136,26 @@ added: v11.6.0
 For secret keys, this property represents the size of the key in bytes. This
 property is `undefined` for asymmetric keys.
 
+### `keyObject.toCryptoKey(algorithm, extractable, keyUsages)`
+
+<!-- YAML
+added:
+ - v23.0.0
+ - v22.10.0
+-->
+
+<!--lint disable maximum-line-length remark-lint-->
+
+* `algorithm`: {AlgorithmIdentifier|RsaHashedImportParams|EcKeyImportParams|HmacImportParams}
+
+<!--lint enable maximum-line-length remark-lint-->
+
+* `extractable`: {boolean}
+* `keyUsages`: {string\[]} See [Key usages][].
+* Returns: {CryptoKey}
+
+Converts a `KeyObject` instance to a `CryptoKey`.
+
 ### `keyObject.type`
 
 <!-- YAML
@@ -2868,7 +2888,9 @@ The date/time from which this certificate is valid.
 ### `x509.validFromDate`
 
 <!-- YAML
-added: REPLACEME
+added:
+ - v23.0.0
+ - v22.10.0
 -->
 
 * Type: {Date}
@@ -2888,7 +2910,9 @@ The date/time until which this certificate is valid.
 ### `x509.validToDate`
 
 <!-- YAML
-added: REPLACEME
+added:
+ - v23.0.0
+ - v22.10.0
 -->
 
 * Type: {Date}
@@ -3539,7 +3563,7 @@ added:
 
 Computes the Diffie-Hellman secret based on a `privateKey` and a `publicKey`.
 Both keys must have the same `asymmetricKeyType`, which must be one of `'dh'`
-(for Diffie-Hellman), `'ec'` (for ECDH), `'x448'`, or `'x25519'` (for ECDH-ES).
+(for Diffie-Hellman), `'ec'`, `'x448'`, or `'x25519'` (for ECDH).
 
 ### `crypto.hash(algorithm, data[, outputEncoding])`
 
@@ -5968,7 +5992,7 @@ See the [list of SSL OP Flags][] for details.
   </tr>
   <tr>
     <td><code>ENGINE_METHOD_PKEY_METHS</code></td>
-    <td>Limit engine usage to PKEY_METHDS</td>
+    <td>Limit engine usage to PKEY_METHS</td>
   </tr>
   <tr>
     <td><code>ENGINE_METHOD_PKEY_ASN1_METHS</code></td>
@@ -6087,6 +6111,7 @@ See the [list of SSL OP Flags][] for details.
 [FIPS provider from OpenSSL 3]: https://www.openssl.org/docs/man3.0/man7/crypto.html#FIPS-provider
 [HTML 5.2]: https://www.w3.org/TR/html52/changes.html#features-removed
 [JWK]: https://tools.ietf.org/html/rfc7517
+[Key usages]: webcrypto.md#cryptokeyusages
 [NIST SP 800-131A]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-131Ar2.pdf
 [NIST SP 800-132]: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-132.pdf
 [NIST SP 800-38D]: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf

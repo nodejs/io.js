@@ -402,15 +402,16 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
   });
 });
 
-// Validate temporarily disabling `--abort-on-uncaught-exception`
-// while running `containsModuleSyntax`.
+// Checks the error caught during module detection does not trigger abort when
+// `--abort-on-uncaught-exception` is passed in (as that's a caught internal error).
 // Ref: https://github.com/nodejs/node/issues/50878
 describe('Wrapping a `require` of an ES module while using `--abort-on-uncaught-exception`', () => {
   it('should work', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
       '--abort-on-uncaught-exception',
+      '--no-warnings',
       '--eval',
-      'assert.throws(() => require("./package-type-module/esm.js"), { code: "ERR_REQUIRE_ESM" })',
+      'require("./package-type-module/esm.js")',
     ], {
       cwd: fixtures.path('es-modules'),
     });

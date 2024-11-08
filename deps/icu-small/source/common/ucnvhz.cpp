@@ -345,7 +345,7 @@ UConverter_fromUnicode_HZ_OFFSETS_LOGIC (UConverterFromUnicodeArgs * args,
     uint32_t targetUniChar = 0x0000;
     UChar32 mySourceChar = 0x0000;
     UConverterDataHZ *myConverterData=(UConverterDataHZ*)args->converter->extraInfo;
-    UBool isTargetUCharDBCS = (UBool) myConverterData->isTargetUCharDBCS;
+    UBool isTargetUCharDBCS = myConverterData->isTargetUCharDBCS;
     UBool oldIsTargetUCharDBCS;
     int len =0;
     const char* escSeq=nullptr;
@@ -363,7 +363,7 @@ UConverter_fromUnicode_HZ_OFFSETS_LOGIC (UConverterFromUnicodeArgs * args,
         targetUniChar = missingCharMarker;
         if (myTargetIndex < targetLength){
             
-            mySourceChar = (char16_t) mySource[mySourceIndex++];
+            mySourceChar = mySource[mySourceIndex++];
             
 
             oldIsTargetUCharDBCS = isTargetUCharDBCS;
@@ -389,7 +389,7 @@ UConverter_fromUnicode_HZ_OFFSETS_LOGIC (UConverterFromUnicodeArgs * args,
                 }
             }
             if (targetUniChar != missingCharMarker){
-               myConverterData->isTargetUCharDBCS = isTargetUCharDBCS = (UBool)(targetUniChar>0x00FF);     
+               myConverterData->isTargetUCharDBCS = isTargetUCharDBCS = targetUniChar > 0x00FF;
                  if(oldIsTargetUCharDBCS != isTargetUCharDBCS || !myConverterData->isEscapeAppended ){
                     /*Shifting from a double byte to single byte mode*/
                     if(!isTargetUCharDBCS){

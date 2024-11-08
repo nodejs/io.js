@@ -195,7 +195,7 @@ static void uv__signal_handler(int signum) {
 
   for (handle = uv__signal_first_handle(signum);
        handle != NULL && handle->signum == signum;
-       handle = RB_NEXT(uv__signal_tree_s, &uv__signal_tree, handle)) {
+       handle = RB_NEXT(uv__signal_tree_s, handle)) {
     int r;
 
     msg.signum = signum;

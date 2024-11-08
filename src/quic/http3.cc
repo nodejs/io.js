@@ -17,8 +17,7 @@
 #include "session.h"
 #include "sessionticket.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 namespace {
 
 struct Http3HeadersTraits {
@@ -616,7 +615,9 @@ class Http3Application final : public Session::Application {
 
 #define NGHTTP3_CALLBACK_SCOPE(name)                                           \
   auto name = From(conn, conn_user_data);                                      \
-  if (UNLIKELY(name->is_destroyed())) return NGHTTP3_ERR_CALLBACK_FAILURE;     \
+  if (name->is_destroyed()) [[unlikely]] {                                     \
+    return NGHTTP3_ERR_CALLBACK_FAILURE;                                       \
+  }                                                                            \
   NgHttp3CallbackScope scope(name->env());
 
   static nghttp3_ssize on_read_data_callback(nghttp3_conn* conn,
@@ -831,7 +832,6 @@ std::unique_ptr<Session::Application> createHttp3Application(
   return std::make_unique<Http3Application>(session, options);
 }
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC

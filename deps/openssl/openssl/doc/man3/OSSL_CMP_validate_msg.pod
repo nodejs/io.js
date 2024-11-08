@@ -40,11 +40,14 @@ using any trust store set via L<OSSL_CMP_CTX_set0_trustedStore(3)>.
 
 If the option OSSL_CMP_OPT_PERMIT_TA_IN_EXTRACERTS_FOR_IR was set by calling
 L<OSSL_CMP_CTX_set_option(3)>, for an Initialization Response (IP) message
-any self-issued certificate from the I<msg> extraCerts field may also be used
-as trust anchor for the path verification of an acceptable cert if it can be
+any self-issued certificate from the I<msg> extraCerts field may be used
+as a trust anchor for the path verification of an 'acceptable' cert if it can be
 used also to validate the issued certificate returned in the IP message. This is
 according to TS 33.310 [Network Domain Security (NDS); Authentication Framework
 (AF)] document specified by the The 3rd Generation Partnership Project (3GPP).
+Note that using this option is dangerous as the certificate obtained this way
+has not been authenticated (at least not at CMP level).
+Taking it over as a trust anchor implements trust-on-first-use (TOFU).
 
 Any cert that has been found as described above is cached and tried first when
 validating the signatures of subsequent messages in the same transaction.
@@ -74,7 +77,7 @@ The OpenSSL CMP support was added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2007-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2007-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

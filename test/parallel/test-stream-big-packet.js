@@ -28,10 +28,8 @@ let passed = false;
 
 class TestStream extends stream.Transform {
   _transform(chunk, encoding, done) {
-    if (!passed) {
-      // Char 'a' only exists in the last write
-      passed = chunk.toString().includes('a');
-    }
+    // Char 'a' only exists in the last write
+    passed ||= chunk.toString().includes('a');
     done();
   }
 }

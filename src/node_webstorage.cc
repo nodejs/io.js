@@ -530,7 +530,7 @@ template <typename T>
 static bool ShouldIntercept(Local<Name> property,
                             const PropertyCallbackInfo<T>& info) {
   Environment* env = Environment::GetCurrent(info);
-  Local<Value> proto = info.This()->GetPrototype();
+  Local<Value> proto = info.This()->GetPrototypeV2();
 
   if (proto->IsObject()) {
     bool has_prop;

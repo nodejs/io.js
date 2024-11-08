@@ -3,6 +3,31 @@ import * as fixtures from '../common/fixtures.mjs';
 import { match, strictEqual } from 'node:assert';
 import { test } from 'node:test';
 
+test('expect process.features.typescript to be \'strip\' when --experimental-strip-types', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-strip-types',
+    fixtures.path('typescript/echo-process-features-typescript.cjs'),
+  ]);
+
+  strictEqual(result.stderr, '');
+  strictEqual(result.stdout, process.config.variables.node_use_amaro ? 'strip\n' : 'false\n');
+  strictEqual(result.code, 0);
+});
+
+test('expect process.features.typescript to be \'transform\' when --experimental-transform-types', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-transform-types',
+    fixtures.path('typescript/echo-process-features-typescript.cjs'),
+  ]);
+
+  strictEqual(result.stderr, '');
+  strictEqual(result.stdout, process.config.variables.node_use_amaro ? 'transform\n' : 'false\n');
+  strictEqual(result.code, 0);
+});
+
+
 if (!process.config.variables.node_use_amaro) skip('Requires Amaro');
 
 test('execute a TypeScript file', async () => {
@@ -32,11 +57,11 @@ test('execute a TypeScript file with imports', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
     '--eval',
-    `assert.throws(() => require(${JSON.stringify(fixtures.path('typescript/ts/test-import-fs.ts'))}), {code: 'ERR_REQUIRE_ESM'})`,
+    `require(${JSON.stringify(fixtures.path('typescript/ts/test-import-fs.ts'))})`,
   ]);
 
   strictEqual(result.stderr, '');
-  strictEqual(result.stdout, '');
+  match(result.stdout, /Hello, TypeScript!/);
   strictEqual(result.code, 0);
 });
 
@@ -283,12 +308,11 @@ test('execute a TypeScript file with CommonJS syntax requiring .mts', async () =
     fixtures.path('typescript/ts/test-require-mts.ts'),
   ]);
 
-  strictEqual(result.stdout, '');
-  match(result.stderr, /Error \[ERR_REQUIRE_ESM\]: require\(\) of ES Module/);
-  strictEqual(result.code, 1);
+  match(result.stdout, /Hello, TypeScript!/);
+  strictEqual(result.code, 0);
 });
 
-test('execute a TypeScript file with CommonJS syntax requiring .mts with require-module', async () => {
+test('execute a TypeScript file with CommonJS syntax requiring .mts using require-module', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--experimental-strip-types',
     '--experimental-require-module',
@@ -300,7 +324,7 @@ test('execute a TypeScript file with CommonJS syntax requiring .mts with require
   strictEqual(result.code, 0);
 });
 
-test('execute a TypeScript file with CommonJS syntax requiring .mts with require-module', async () => {
+test('execute a TypeScript file with CommonJS syntax requiring .cts using commonjs', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--experimental-strip-types',
     '--no-warnings',
@@ -352,4 +376,41 @@ test('execute a TypeScript test mocking module', { skip: isWindows && process.ar
   match(result.stdout, /Hello, TypeScript-Module!/);
   match(result.stdout, /Hello, TypeScript-CommonJS!/);
   strictEqual(result.code, 0);
+});
+
+test('expect process.features.typescript to be false without type-stripping', async () => {
+  strictEqual(process.features.typescript, false);
+});
+
+test('execute a TypeScript file with union types', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--experimental-strip-types',
+    '--no-warnings',
+    fixtures.path('typescript/ts/test-union-types.ts'),
+  ]);
+
+  strictEqual(result.stderr, '');
+  strictEqual(result.stdout,
+              '{' +
+      " name: 'Hello, TypeScript!' }\n" +
+      '{ role: \'admin\', permission: \'all\' }\n' +
+      '{\n  foo: \'Testing Partial Type\',\n  bar: 42,\n' +
+      '  zoo: true,\n  metadata: undefined\n' +
+      '}\n');
+  strictEqual(result.code, 0);
+});
+
+test('expect error when executing a TypeScript file with generics', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--experimental-strip-types',
+    fixtures.path('typescript/ts/test-parameter-properties.ts'),
+  ]);
+
+  // This error should be thrown during transformation
+  match(
+    result.stderr,
+    /TypeScript parameter property is not supported in strip-only mode/
+  );
+  strictEqual(result.stdout, '');
+  strictEqual(result.code, 1);
 });

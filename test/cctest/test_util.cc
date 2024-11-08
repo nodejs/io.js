@@ -27,6 +27,7 @@ TEST_F(UtilTest, ListHead) {
 
   List list;
   EXPECT_TRUE(list.IsEmpty());
+  EXPECT_TRUE(list.PopFront() == nullptr);
 
   Item one;
   EXPECT_TRUE(one.node_.IsEmpty());

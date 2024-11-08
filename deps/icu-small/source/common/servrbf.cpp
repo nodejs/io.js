@@ -61,8 +61,8 @@ ICUResourceBundleFactory::handleCreate(const Locale& loc, int32_t /* kind */, co
                 // who made this change? -- dlf
         char pkg[20];
         int32_t length;
-        length=_bundleName.extract(0, INT32_MAX, pkg, (int32_t)sizeof(pkg), US_INV);
-        if(length>=(int32_t)sizeof(pkg)) {
+        length = _bundleName.extract(0, INT32_MAX, pkg, static_cast<int32_t>(sizeof(pkg)), US_INV);
+        if (length >= static_cast<int32_t>(sizeof(pkg))) {
             return nullptr;
         }
         return new ResourceBundle(pkg, loc, status);

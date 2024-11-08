@@ -63,6 +63,8 @@ let deprecatedInterceptorWarned = false
 
 const kClosedResolve = Symbol('kClosedResolve')
 
+const noop = () => {}
+
 function getPipelining (client) {
   return client[kPipelining] ?? client[kHTTPContext]?.defaultPipelining ?? 1
 }
@@ -385,6 +387,10 @@ function onError (client, err) {
   }
 }
 
+/**
+ * @param {Client} client
+ * @returns
+ */
 async function connect (client) {
   assert(!client[kConnecting])
   assert(!client[kHTTPContext])
@@ -438,7 +444,7 @@ async function connect (client) {
     })
 
     if (client.destroyed) {
-      util.destroy(socket.on('error', () => {}), new ClientDestroyedError())
+      util.destroy(socket.on('error', noop), new ClientDestroyedError())
       return
     }
 
@@ -449,7 +455,7 @@ async function connect (client) {
         ? await connectH2(client, socket)
         : await connectH1(client, socket)
     } catch (err) {
-      socket.destroy().on('error', () => {})
+      socket.destroy().on('error', noop)
       throw err
     }
 

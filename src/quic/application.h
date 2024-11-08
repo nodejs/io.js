@@ -10,8 +10,7 @@
 #include "sessionticket.h"
 #include "streams.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 // An Application implements the ALPN-protocol specific semantics on behalf
 // of a QUIC Session.
@@ -154,8 +153,7 @@ struct Session::Application::StreamData final {
   std::string ToString() const;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

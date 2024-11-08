@@ -113,7 +113,7 @@ inline const char *skipws(const char *p, const char *e) {
 void appendByte(std::string &outstr,
                 uint8_t byte) {
     char tmp2[5];
-    snprintf(tmp2, sizeof(tmp2), "\\x%02X", 0xFF & (int)(byte));
+    snprintf(tmp2, sizeof(tmp2), "\\x%02X", 0xFF & static_cast<int>(byte));
     outstr += tmp2;
 }
 
@@ -270,7 +270,7 @@ bool fixAt(std::string &linestr, size_t pos) {
 #endif
       
       // Proceed to decode utf-8
-      const uint8_t *s = (const uint8_t*) (linestr.c_str());
+      const uint8_t* s = reinterpret_cast<const uint8_t*>(linestr.c_str());
       int32_t length = linestr.size();
       UChar32 c;
       if(U8_IS_SINGLE((uint8_t)s[i]) && oldIllegal[s[i]]) {
@@ -285,7 +285,7 @@ bool fixAt(std::string &linestr, size_t pos) {
         U8_NEXT(s, i, length, c);
       }
       if(c<0) {
-        fprintf(stderr, "Illegal utf-8 sequence at Column: %d\n", (int)old_pos);
+        fprintf(stderr, "Illegal utf-8 sequence at Column: %d\n", static_cast<int>(old_pos));
         fprintf(stderr, "Line: >>%s<<\n", linestr.c_str());
         return true;
       }

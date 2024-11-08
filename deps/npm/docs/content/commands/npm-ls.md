@@ -27,7 +27,7 @@ packages will *also* show the paths to the specified packages.  For
 example, running `npm ls promzard` in npm's source tree will show:
 
 ```bash
-npm@10.8.3 /path/to/npm
+npm@10.9.0 /path/to/npm
 └─┬ init-package-json@0.0.4
   └── promzard@0.1.5
 ```

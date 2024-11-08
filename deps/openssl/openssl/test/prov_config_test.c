@@ -26,15 +26,13 @@ static int test_double_config(void)
     int testresult = 0;
     EVP_MD *sha256 = NULL;
 
-    if (!TEST_ptr(configfile))
-        return 0;
     if (!TEST_ptr(ctx))
         return 0;
 
     if (!TEST_true(OSSL_LIB_CTX_load_config(ctx, configfile)))
-        return 0;
+        goto err;
     if (!TEST_true(OSSL_LIB_CTX_load_config(ctx, configfile)))
-        return 0;
+        goto err;
 
     /* Check we can actually fetch something */
     sha256 = EVP_MD_fetch(ctx, "SHA2-256", NULL);
@@ -53,9 +51,6 @@ static int test_recursive_config(void)
     OSSL_LIB_CTX *ctx = OSSL_LIB_CTX_new();
     int testresult = 0;
     unsigned long err;
-
-    if (!TEST_ptr(recurseconfigfile))
-        goto err;
 
     if (!TEST_ptr(ctx))
         goto err;

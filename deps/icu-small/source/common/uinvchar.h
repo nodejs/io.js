@@ -120,7 +120,7 @@ U_NAMESPACE_END
  * EBCDIC machine won't be compiled the same way on other EBCDIC based machines.
  * @internal
  */
-U_CFUNC UBool
+U_CAPI UBool
 uprv_isEbcdicAtSign(char c);
 
 /**

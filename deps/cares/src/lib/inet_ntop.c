@@ -29,6 +29,22 @@
 #include "ares_nameser.h"
 #include "ares_ipv6.h"
 
+#ifdef USE_WINSOCK
+#  define SOCKERRNO        ((int)WSAGetLastError())
+#  define SET_SOCKERRNO(x) (WSASetLastError((int)(x)))
+#  undef EMSGSIZE
+#  define EMSGSIZE WSAEMSGSIZE
+#  undef ENOENT
+#  define ENOENT WSA_INVALID_PARAMETER
+#  undef EAFNOSUPPORT
+#  define EAFNOSUPPORT WSAEAFNOSUPPORT
+#  undef ENOSPC
+#  define ENOSPC WSA_INVALID_PARAMETER
+#else
+#  define SOCKERRNO        (errno)
+#  define SET_SOCKERRNO(x) (errno = (x))
+#endif
+
 /*
  * WARNING: Don't even consider trying to compile this on a system where
  * sizeof(int) < 4.  sizeof(int) > 4 is fine; all the world's not a VAX.
@@ -42,11 +58,6 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size);
  *     convert a network format address to presentation format.
  * return:
  *     pointer to presentation format address (`dst'), or NULL (see errno).
- * note:
- *     On Windows we store the error in the thread errno, not
- *     in the winsock error code. This is to avoid losing the
- *     actual last winsock error. So use macro ERRNO to fetch the
- *     errno this function sets when returning NULL, not SOCKERRNO.
  * author:
  *     Paul Vixie, 1996.
  */
@@ -61,7 +72,7 @@ const char        *ares_inet_ntop(int af, const void *src, char *dst,
     default:
       break;
   }
-  SET_ERRNO(EAFNOSUPPORT);
+  SET_SOCKERRNO(EAFNOSUPPORT);
   return NULL;
 }
 
@@ -82,13 +93,13 @@ static const char *inet_ntop4(const unsigned char *src, char *dst, size_t size)
   char              tmp[sizeof("255.255.255.255")];
 
   if (size < sizeof(tmp)) {
-    SET_ERRNO(ENOSPC);
+    SET_SOCKERRNO(ENOSPC);
     return NULL;
   }
 
   if ((size_t)snprintf(tmp, sizeof(tmp), fmt, src[0], src[1], src[2], src[3]) >=
       size) {
-    SET_ERRNO(ENOSPC);
+    SET_SOCKERRNO(ENOSPC);
     return NULL;
   }
   ares_strcpy(dst, tmp, size);
@@ -200,7 +211,7 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
    * Check for overflow, copy, and we're done.
    */
   if ((size_t)(tp - tmp) > size) {
-    SET_ERRNO(ENOSPC);
+    SET_SOCKERRNO(ENOSPC);
     return NULL;
   }
   ares_strcpy(dst, tmp, size);

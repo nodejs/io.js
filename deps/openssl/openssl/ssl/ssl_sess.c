@@ -53,21 +53,36 @@ __owur static int timeoutcmp(SSL_SESSION *a, SSL_SESSION *b)
     return 0;
 }
 
+#ifdef __DJGPP__ /* time_t is unsigned on djgpp, it's signed anywhere else */
+# define TMAX(_type_) ((time_t)-1)
+#else
+# define TMAX(_type_) ((time_t)(((_type_)-1) >> 1))
+#endif
+
+#define CALCULATE_TIMEOUT(_ss_, _type_) do { \
+        _type_ overflow; \
+        time_t tmax = TMAX(_type_); \
+        overflow = (_type_)tmax - (_type_)(_ss_)->time; \
+        if ((_ss_)->timeout > (time_t)overflow) { \
+            (_ss_)->timeout_ovf = 1; \
+            (_ss_)->calc_timeout = (_ss_)->timeout - (time_t)overflow; \
+        } else { \
+            (_ss_)->timeout_ovf = 0; \
+            (_ss_)->calc_timeout = (_ss_)->time + (_ss_)->timeout; \
+        } \
+    } while (0)
 /*
  * Calculates effective timeout, saving overflow state
  * Locking must be done by the caller of this function
  */
 void ssl_session_calculate_timeout(SSL_SESSION *ss)
 {
-    /* Force positive timeout */
-    if (ss->timeout < 0)
-        ss->timeout = 0;
-    ss->calc_timeout = ss->time + ss->timeout;
-    /*
-     * |timeout| is always zero or positive, so the check for
-     * overflow only needs to consider if |time| is positive
-     */
-    ss->timeout_ovf = ss->time > 0 && ss->calc_timeout < ss->time;
+
+    if (sizeof(time_t) == 8)
+        CALCULATE_TIMEOUT(ss, uint64_t);
+    else
+        CALCULATE_TIMEOUT(ss, uint32_t);
+
     /*
      * N.B. Realistic overflow can only occur in our lifetimes on a
      *      32-bit machine in January 2038.
@@ -132,6 +147,7 @@ SSL_SESSION *SSL_SESSION_new(void)
         return NULL;
     }
 
+    ss->ext.max_fragment_len_mode = TLSEXT_max_fragment_length_UNSPECIFIED;
     ss->verify_result = 1;      /* avoid 0 (= X509_V_OK) just in case */
     ss->references = 1;
     ss->timeout = 60 * 5 + 4;   /* 5 minute timeout by default */

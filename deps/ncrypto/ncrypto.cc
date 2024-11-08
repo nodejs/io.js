@@ -5,6 +5,7 @@
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <openssl/rand.h>
 #include <openssl/pkcs12.h>
 #include <openssl/x509v3.h>
 #if OPENSSL_VERSION_MAJOR >= 3
@@ -33,7 +34,7 @@ ClearErrorOnReturn::~ClearErrorOnReturn() {
   ERR_clear_error();
 }
 
-int ClearErrorOnReturn::peeKError() { return ERR_peek_error(); }
+int ClearErrorOnReturn::peekError() { return ERR_peek_error(); }
 
 MarkPopErrorOnReturn::MarkPopErrorOnReturn(CryptoErrorList* errors) : errors_(errors) {
   ERR_set_mark();
@@ -79,7 +80,7 @@ std::optional<std::string> CryptoErrorList::pop_front() {
 
 // ============================================================================
 DataPointer DataPointer::Alloc(size_t len) {
-  return DataPointer(OPENSSL_malloc(len), len);
+  return DataPointer(OPENSSL_zalloc(len), len);
 }
 
 DataPointer::DataPointer(void* data, size_t length)
@@ -1427,6 +1428,33 @@ DataPointer pbkdf2(const EVP_MD* md,
 
 // ============================================================================
 
+EVPKeyPointer::PrivateKeyEncodingConfig::PrivateKeyEncodingConfig(
+    const PrivateKeyEncodingConfig& other)
+    : PrivateKeyEncodingConfig(other.output_key_object, other.format, other.type) {
+  cipher = other.cipher;
+  if (other.passphrase.has_value()) {
+    auto& otherPassphrase = other.passphrase.value();
+    auto newPassphrase = DataPointer::Alloc(otherPassphrase.size());
+    memcpy(newPassphrase.get(), otherPassphrase.get(), otherPassphrase.size());
+    passphrase = std::move(newPassphrase);
+  }
+}
+
+EVPKeyPointer::AsymmetricKeyEncodingConfig::AsymmetricKeyEncodingConfig(
+    bool output_key_object,
+    PKFormatType format,
+    PKEncodingType type)
+    : output_key_object(output_key_object),
+      format(format),
+      type(type) {}
+
+EVPKeyPointer::PrivateKeyEncodingConfig& EVPKeyPointer::PrivateKeyEncodingConfig::operator=(
+    const PrivateKeyEncodingConfig& other) {
+  if (this == &other) return *this;
+  this->~PrivateKeyEncodingConfig();
+  return *new (this) PrivateKeyEncodingConfig(other);
+}
+
 EVPKeyPointer EVPKeyPointer::New() {
   return EVPKeyPointer(EVP_PKEY_new());
 }
@@ -1570,11 +1598,66 @@ EVPKeyPointer::ParseKeyResult TryParsePublicKeyInner(
   return EVPKeyPointer::ParseKeyResult(std::move(pkey));
 }
 
-EVPKeyPointer::ParseKeyResult TryParsePublicKeyPEM(
+constexpr bool IsASN1Sequence(const unsigned char* data, size_t size,
+                              size_t* data_offset, size_t* data_size) {
+  if (size < 2 || data[0] != 0x30)
+    return false;
+
+  if (data[1] & 0x80) {
+    // Long form.
+    size_t n_bytes = data[1] & ~0x80;
+    if (n_bytes + 2 > size || n_bytes > sizeof(size_t))
+      return false;
+    size_t length = 0;
+    for (size_t i = 0; i < n_bytes; i++)
+      length = (length << 8) | data[i + 2];
+    *data_offset = 2 + n_bytes;
+    *data_size = std::min(size - 2 - n_bytes, length);
+  } else {
+    // Short form.
+    *data_offset = 2;
+    *data_size = std::min<size_t>(size - 2, data[1]);
+  }
+
+  return true;
+}
+
+constexpr bool IsEncryptedPrivateKeyInfo(const Buffer<const unsigned char>& buffer) {
+  // Both PrivateKeyInfo and EncryptedPrivateKeyInfo start with a SEQUENCE.
+  if (buffer.len == 0 || buffer.data == nullptr) return false;
+  size_t offset, len;
+  if (!IsASN1Sequence(buffer.data, buffer.len, &offset, &len))
+    return false;
+
+  // A PrivateKeyInfo sequence always starts with an integer whereas an
+  // EncryptedPrivateKeyInfo starts with an AlgorithmIdentifier.
+  return len >= 1 && buffer.data[offset] != 2;
+}
+
+}  // namespace
+
+bool EVPKeyPointer::IsRSAPrivateKey(const Buffer<const unsigned char>& buffer) {
+  // Both RSAPrivateKey and RSAPublicKey structures start with a SEQUENCE.
+  size_t offset, len;
+  if (!IsASN1Sequence(buffer.data, buffer.len, &offset, &len))
+    return false;
+
+  // An RSAPrivateKey sequence always starts with a single-byte integer whose
+  // value is either 0 or 1, whereas an RSAPublicKey starts with the modulus
+  // (which is the product of two primes and therefore at least 4), so we can
+  // decide the type of the structure based on the first three bytes of the
+  // sequence.
+  return len >= 3 &&
+         buffer.data[offset] == 2 &&
+         buffer.data[offset + 1] == 1 &&
+         !(buffer.data[offset + 2] & 0xfe);
+}
+
+EVPKeyPointer::ParseKeyResult EVPKeyPointer::TryParsePublicKeyPEM(
     const Buffer<const unsigned char>& buffer) {
   auto bp = BIOPointer::New(buffer.data, buffer.len);
   if (!bp)
-    return EVPKeyPointer::ParseKeyResult(EVPKeyPointer::PKParseError::FAILED);
+    return ParseKeyResult(PKParseError::FAILED);
 
   // Try parsing as SubjectPublicKeyInfo (SPKI) first.
   if (auto ret = TryParsePublicKeyInner(bp, "PUBLIC KEY",
@@ -1601,19 +1684,17 @@ EVPKeyPointer::ParseKeyResult TryParsePublicKeyPEM(
     return ret;
   };
 
-  return EVPKeyPointer::ParseKeyResult(EVPKeyPointer::PKParseError::NOT_RECOGNIZED);
+  return ParseKeyResult(PKParseError::NOT_RECOGNIZED);
 }
-}  // namespace
 
 EVPKeyPointer::ParseKeyResult EVPKeyPointer::TryParsePublicKey(
-    PKFormatType format,
-    PKEncodingType encoding,
+    const PublicKeyEncodingConfig& config,
     const Buffer<const unsigned char>& buffer) {
-  if (format == PKFormatType::PEM) {
+  if (config.format == PKFormatType::PEM) {
     return TryParsePublicKeyPEM(buffer);
   }
 
-  if (format != PKFormatType::DER) {
+  if (config.format != PKFormatType::DER) {
     return ParseKeyResult(PKParseError::FAILED);
   }
 
@@ -1621,17 +1702,265 @@ EVPKeyPointer::ParseKeyResult EVPKeyPointer::TryParsePublicKey(
 
   EVP_PKEY* key = nullptr;
 
-  if (encoding == PKEncodingType::PKCS1 &&
+  if (config.type == PKEncodingType::PKCS1 &&
       (key = d2i_PublicKey(EVP_PKEY_RSA, nullptr, &start, buffer.len))) {
     return EVPKeyPointer::ParseKeyResult(EVPKeyPointer(key));
   }
 
-  if (encoding == PKEncodingType::SPKI &&
+  if (config.type == PKEncodingType::SPKI &&
       (key = d2i_PUBKEY(nullptr, &start, buffer.len))) {
     return EVPKeyPointer::ParseKeyResult(EVPKeyPointer(key));
   }
 
   return ParseKeyResult(PKParseError::FAILED);
+}
+
+namespace {
+Buffer<char> GetPassphrase(const EVPKeyPointer::PrivateKeyEncodingConfig& config) {
+  Buffer<char> pass {
+    // OpenSSL will not actually dereference this pointer, so it can be any
+    // non-null pointer. We cannot assert that directly, which is why we
+    // intentionally use a pointer that will likely cause a segmentation fault
+    // when dereferenced.
+    .data = reinterpret_cast<char*>(-1),
+    .len = 0,
+  };
+  if (config.passphrase.has_value()) {
+    auto& passphrase = config.passphrase.value();
+    // The pass.data can't be a nullptr, even if the len is zero or else
+    // openssl will prompt for a password and we really don't want that.
+    if (passphrase.get() != nullptr) {
+      pass.data = static_cast<char*>(passphrase.get());
+    }
+    pass.len = passphrase.size();
+  }
+  return pass;
+}
+}  // namespace
+
+EVPKeyPointer::ParseKeyResult EVPKeyPointer::TryParsePrivateKey(
+    const PrivateKeyEncodingConfig& config,
+    const Buffer<const unsigned char>& buffer) {
+
+  static constexpr auto keyOrError = [](EVPKeyPointer pkey, bool had_passphrase = false) {
+    if (int err = ERR_peek_error()) {
+      if (ERR_GET_LIB(err) == ERR_LIB_PEM &&
+          ERR_GET_REASON(err) == PEM_R_BAD_PASSWORD_READ &&
+          !had_passphrase) {
+        return ParseKeyResult(PKParseError::NEED_PASSPHRASE);
+      }
+      return ParseKeyResult(PKParseError::FAILED, err);
+    }
+    if (!pkey) return ParseKeyResult(PKParseError::FAILED);
+    return ParseKeyResult(std::move(pkey));
+  };
+
+
+  auto bio = BIOPointer::New(buffer);
+  if (!bio) return ParseKeyResult(PKParseError::FAILED);
+
+  auto passphrase = GetPassphrase(config);
+
+  if (config.format == PKFormatType::PEM) {
+    auto key = PEM_read_bio_PrivateKey(bio.get(), nullptr, PasswordCallback,
+        config.passphrase.has_value() ? &passphrase : nullptr);
+    return keyOrError(EVPKeyPointer(key), config.passphrase.has_value());
+  }
+
+  if (config.format != PKFormatType::DER) {
+    return ParseKeyResult(PKParseError::FAILED);
+  }
+
+  switch (config.type) {
+    case PKEncodingType::PKCS1: {
+      auto key = d2i_PrivateKey_bio(bio.get(), nullptr);
+      return keyOrError(EVPKeyPointer(key));
+    }
+    case PKEncodingType::PKCS8: {
+      if (IsEncryptedPrivateKeyInfo(buffer)) {
+        auto key = d2i_PKCS8PrivateKey_bio(bio.get(),
+                                           nullptr,
+                                           PasswordCallback,
+                                           config.passphrase.has_value() ? &passphrase : nullptr);
+        return keyOrError(EVPKeyPointer(key), config.passphrase.has_value());
+      }
+
+      PKCS8Pointer p8inf(d2i_PKCS8_PRIV_KEY_INFO_bio(bio.get(), nullptr));
+      if (!p8inf) {
+        return ParseKeyResult(PKParseError::FAILED, ERR_peek_error());
+      }
+      return keyOrError(EVPKeyPointer(EVP_PKCS82PKEY(p8inf.get())));
+    }
+    case PKEncodingType::SEC1: {
+      auto key = d2i_PrivateKey_bio(bio.get(), nullptr);
+      return keyOrError(EVPKeyPointer(key));
+    }
+    default: {
+      return ParseKeyResult(PKParseError::FAILED, ERR_peek_error());
+    }
+  };
+}
+
+Result<BIOPointer, bool> EVPKeyPointer::writePrivateKey(
+    const PrivateKeyEncodingConfig& config) const {
+  if (config.format == PKFormatType::JWK) {
+    return Result<BIOPointer, bool>(false);
+  }
+
+  auto bio = BIOPointer::NewMem();
+  if (!bio) {
+    return Result<BIOPointer, bool>(false);
+  }
+
+  auto passphrase = GetPassphrase(config);
+  MarkPopErrorOnReturn mark_pop_error_on_return;
+  bool err;
+
+  switch (config.type) {
+    case PKEncodingType::PKCS1: {
+      // PKCS1 is only permitted for RSA keys.
+      if (id() != EVP_PKEY_RSA) return Result<BIOPointer, bool>(false);
+
+#if OPENSSL_VERSION_MAJOR >= 3
+      const RSA* rsa = EVP_PKEY_get0_RSA(get());
+#else
+      RSA* rsa = EVP_PKEY_get0_RSA(get());
+#endif
+      switch (config.format) {
+        case PKFormatType::PEM: {
+          err = PEM_write_bio_RSAPrivateKey(bio.get(), rsa, config.cipher,
+              reinterpret_cast<unsigned char*>(passphrase.data),
+              passphrase.len, nullptr, nullptr) != 1;
+          break;
+        }
+        case PKFormatType::DER: {
+          // Encoding PKCS1 as DER. This variation does not permit encryption.
+          err = i2d_RSAPrivateKey_bio(bio.get(), rsa) != 1;
+          break;
+        }
+        default: {
+          // Should never get here.
+          return Result<BIOPointer, bool>(false);
+        }
+      }
+      break;
+    }
+    case PKEncodingType::PKCS8: {
+      switch (config.format) {
+        case PKFormatType::PEM: {
+          // Encode PKCS#8 as PEM.
+          err = PEM_write_bio_PKCS8PrivateKey(
+                    bio.get(), get(),
+                    config.cipher,
+                    passphrase.data,
+                    passphrase.len,
+                    nullptr, nullptr) != 1;
+          break;
+        }
+        case PKFormatType::DER: {
+          err = i2d_PKCS8PrivateKey_bio(
+                    bio.get(), get(),
+                    config.cipher,
+                    passphrase.data,
+                    passphrase.len,
+                    nullptr, nullptr) != 1;
+          break;
+        }
+        default: {
+          // Should never get here.
+          return Result<BIOPointer, bool>(false);
+        }
+      }
+      break;
+    }
+    case PKEncodingType::SEC1: {
+      // SEC1 is only permitted for EC keys
+      if (id() != EVP_PKEY_EC) return Result<BIOPointer, bool>(false);
+
+#if OPENSSL_VERSION_MAJOR >= 3
+      const EC_KEY* ec = EVP_PKEY_get0_EC_KEY(get());
+#else
+      EC_KEY* ec = EVP_PKEY_get0_EC_KEY(get());
+#endif
+      switch (config.format) {
+        case PKFormatType::PEM: {
+          err = PEM_write_bio_ECPrivateKey(bio.get(),
+                                          ec,
+                                          config.cipher,
+                                          reinterpret_cast<unsigned char*>(passphrase.data),
+                                          passphrase.len,
+                                          nullptr,
+                                          nullptr) != 1;
+          break;
+        }
+        case PKFormatType::DER: {
+          // Encoding SEC1 as DER. This variation does not permit encryption.
+          err = i2d_ECPrivateKey_bio(bio.get(), ec) != 1;
+          break;
+        }
+        default: {
+          // Should never get here.
+          return Result<BIOPointer, bool>(false);
+        }
+      }
+      break;
+    }
+    default: {
+      // Not a valid private key encoding
+      return Result<BIOPointer, bool>(false);
+    }
+  }
+
+  if (err) {
+    // Failed to encode the private key.
+    return Result<BIOPointer, bool>(false, mark_pop_error_on_return.peekError());
+  }
+
+  return bio;
+}
+
+Result<BIOPointer, bool> EVPKeyPointer::writePublicKey(
+      const ncrypto::EVPKeyPointer::PublicKeyEncodingConfig& config) const {
+  auto bio = BIOPointer::NewMem();
+  if (!bio) return Result<BIOPointer, bool>(false);
+
+  MarkPopErrorOnReturn mark_pop_error_on_return;
+
+  if (config.type == ncrypto::EVPKeyPointer::PKEncodingType::PKCS1) {
+    // PKCS#1 is only valid for RSA keys.
+#if OPENSSL_VERSION_MAJOR >= 3
+    const RSA* rsa = EVP_PKEY_get0_RSA(get());
+#else
+    RSA* rsa = EVP_PKEY_get0_RSA(get());
+#endif
+    if (config.format == ncrypto::EVPKeyPointer::PKFormatType::PEM) {
+      // Encode PKCS#1 as PEM.
+      if (PEM_write_bio_RSAPublicKey(bio.get(), rsa) != 1) {
+        return Result<BIOPointer, bool>(false, mark_pop_error_on_return.peekError());
+      }
+      return bio;
+    }
+
+    // Encode PKCS#1 as DER.
+    if (i2d_RSAPublicKey_bio(bio.get(), rsa) != 1) {
+      return Result<BIOPointer, bool>(false, mark_pop_error_on_return.peekError());
+    }
+    return bio;
+  }
+
+  if (config.format == ncrypto::EVPKeyPointer::PKFormatType::PEM) {
+    // Encode SPKI as PEM.
+    if (PEM_write_bio_PUBKEY(bio.get(), get()) != 1) {
+      return Result<BIOPointer, bool>(false, mark_pop_error_on_return.peekError());
+    }
+    return bio;
+  }
+
+  // Encode SPKI as DER.
+  if (i2d_PUBKEY_bio(bio.get(), get()) != 1) {
+    return Result<BIOPointer, bool>(false, mark_pop_error_on_return.peekError());
+  }
+  return bio;
 }
 
 }  // namespace ncrypto

@@ -1040,8 +1040,9 @@ static void ExistsSync(const FunctionCallbackInfo<Value>& args) {
 static void InternalModuleStat(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
-  CHECK(args[0]->IsString());
-  BufferValue path(env->isolate(), args[0]);
+  CHECK_GE(args.Length(), 2);
+  CHECK(args[1]->IsString());
+  BufferValue path(env->isolate(), args[1]);
   CHECK_NOT_NULL(*path);
   ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
@@ -1059,6 +1060,7 @@ static void InternalModuleStat(const FunctionCallbackInfo<Value>& args) {
 }
 
 static int32_t FastInternalModuleStat(
+    Local<Object> unused,
     Local<Object> recv,
     const FastOneByteString& input,
     // NOLINTNEXTLINE(runtime/references) This is V8 api.
@@ -3125,6 +3127,55 @@ static void GetFormatOfExtensionlessFile(
   return args.GetReturnValue().Set(EXTENSIONLESS_FORMAT_JAVASCRIPT);
 }
 
+#ifdef _WIN32
+std::wstring ConvertToWideString(const std::string& str) {
+  int size_needed = MultiByteToWideChar(
+      CP_UTF8, 0, &str[0], static_cast<int>(str.size()), nullptr, 0);
+  std::wstring wstrTo(size_needed, 0);
+  MultiByteToWideChar(CP_UTF8,
+                      0,
+                      &str[0],
+                      static_cast<int>(str.size()),
+                      &wstrTo[0],
+                      size_needed);
+  return wstrTo;
+}
+
+#define BufferValueToPath(str)                                                 \
+  std::filesystem::path(ConvertToWideString(str.ToString()))
+
+std::string ConvertWideToUTF8(const std::wstring& wstr) {
+  if (wstr.empty()) return std::string();
+
+  int size_needed = WideCharToMultiByte(CP_UTF8,
+                                        0,
+                                        &wstr[0],
+                                        static_cast<int>(wstr.size()),
+                                        nullptr,
+                                        0,
+                                        nullptr,
+                                        nullptr);
+  std::string strTo(size_needed, 0);
+  WideCharToMultiByte(CP_UTF8,
+                      0,
+                      &wstr[0],
+                      static_cast<int>(wstr.size()),
+                      &strTo[0],
+                      size_needed,
+                      nullptr,
+                      nullptr);
+  return strTo;
+}
+
+#define PathToString(path) ConvertWideToUTF8(path.wstring());
+
+#else  // _WIN32
+
+#define BufferValueToPath(str) std::filesystem::path(str.ToStringView());
+#define PathToString(path) path.native();
+
+#endif  // _WIN32
+
 static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Isolate* isolate = env->isolate();
@@ -3137,7 +3188,7 @@ static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemRead, src.ToStringView());
 
-  auto src_path = std::filesystem::path(src.ToU8StringView());
+  auto src_path = BufferValueToPath(src);
 
   BufferValue dest(isolate, args[1]);
   CHECK_NOT_NULL(*dest);
@@ -3145,7 +3196,7 @@ static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemWrite, dest.ToStringView());
 
-  auto dest_path = std::filesystem::path(dest.ToU8StringView());
+  auto dest_path = BufferValueToPath(dest);
   bool dereference = args[2]->IsTrue();
   bool recursive = args[3]->IsTrue();
 
@@ -3174,44 +3225,41 @@ static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
       (src_status.type() == std::filesystem::file_type::directory) ||
       (dereference && src_status.type() == std::filesystem::file_type::symlink);
 
+  auto src_path_str = PathToString(src_path);
+  auto dest_path_str = PathToString(dest_path);
+
   if (!error_code) {
     // Check if src and dest are identical.
     if (std::filesystem::equivalent(src_path, dest_path)) {
-      std::u8string message =
-          u8"src and dest cannot be the same " + dest_path.u8string();
-      return THROW_ERR_FS_CP_EINVAL(
-          env, reinterpret_cast<const char*>(message.c_str()));
+      std::string message = "src and dest cannot be the same %s";
+      return THROW_ERR_FS_CP_EINVAL(env, message.c_str(), dest_path_str);
     }
 
     const bool dest_is_dir =
         dest_status.type() == std::filesystem::file_type::directory;
-
     if (src_is_dir && !dest_is_dir) {
-      std::u8string message = u8"Cannot overwrite non-directory " +
-                              src_path.u8string() + u8" with directory " +
-                              dest_path.u8string();
+      std::string message =
+          "Cannot overwrite non-directory %s with directory %s";
       return THROW_ERR_FS_CP_DIR_TO_NON_DIR(
-          env, reinterpret_cast<const char*>(message.c_str()));
+          env, message.c_str(), src_path_str, dest_path_str);
     }
 
     if (!src_is_dir && dest_is_dir) {
-      std::u8string message = u8"Cannot overwrite directory " +
-                              dest_path.u8string() + u8" with non-directory " +
-                              src_path.u8string();
+      std::string message =
+          "Cannot overwrite directory %s with non-directory %s";
       return THROW_ERR_FS_CP_NON_DIR_TO_DIR(
-          env, reinterpret_cast<const char*>(message.c_str()));
+          env, message.c_str(), dest_path_str, src_path_str);
     }
   }
 
-  std::u8string dest_path_str = dest_path.u8string();
-
+  if (!src_path_str.ends_with(std::filesystem::path::preferred_separator)) {
+    src_path_str += std::filesystem::path::preferred_separator;
+  }
   // Check if dest_path is a subdirectory of src_path.
-  if (src_is_dir && dest_path_str.starts_with(src_path.u8string())) {
-    std::u8string message = u8"Cannot copy " + src_path.u8string() +
-                            u8" to a subdirectory of self " +
-                            dest_path.u8string();
+  if (src_is_dir && dest_path_str.starts_with(src_path_str)) {
+    std::string message = "Cannot copy %s to a subdirectory of self %s";
     return THROW_ERR_FS_CP_EINVAL(
-        env, reinterpret_cast<const char*>(message.c_str()));
+        env, message.c_str(), src_path_str, dest_path_str);
   }
 
   auto dest_parent = dest_path.parent_path();
@@ -3222,11 +3270,9 @@ static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
          dest_parent.parent_path() != dest_parent) {
     if (std::filesystem::equivalent(
             src_path, dest_path.parent_path(), error_code)) {
-      std::u8string message = u8"Cannot copy " + src_path.u8string() +
-                              u8" to a subdirectory of self " +
-                              dest_path.u8string();
+      std::string message = "Cannot copy %s to a subdirectory of self %s";
       return THROW_ERR_FS_CP_EINVAL(
-          env, reinterpret_cast<const char*>(message.c_str()));
+          env, message.c_str(), src_path_str, dest_path_str);
     }
 
     // If equivalent fails, it's highly likely that dest_parent does not exist
@@ -3238,29 +3284,23 @@ static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
   }
 
   if (src_is_dir && !recursive) {
-    std::u8string message =
-        u8"Recursive option not enabled, cannot copy a directory: " +
-        src_path.u8string();
-    return THROW_ERR_FS_EISDIR(env,
-                               reinterpret_cast<const char*>(message.c_str()));
+    std::string message =
+        "Recursive option not enabled, cannot copy a directory: %s";
+    return THROW_ERR_FS_EISDIR(env, message.c_str(), src_path_str);
   }
 
   switch (src_status.type()) {
     case std::filesystem::file_type::socket: {
-      std::u8string message = u8"Cannot copy a socket file: " + dest_path_str;
-      return THROW_ERR_FS_CP_SOCKET(
-          env, reinterpret_cast<const char*>(message.c_str()));
+      std::string message = "Cannot copy a socket file: %s";
+      return THROW_ERR_FS_CP_SOCKET(env, message.c_str(), dest_path_str);
     }
     case std::filesystem::file_type::fifo: {
-      std::u8string message = u8"Cannot copy a FIFO pipe: " + dest_path_str;
-      return THROW_ERR_FS_CP_FIFO_PIPE(
-          env, reinterpret_cast<const char*>(message.c_str()));
+      std::string message = "Cannot copy a FIFO pipe: %s";
+      return THROW_ERR_FS_CP_FIFO_PIPE(env, message.c_str(), dest_path_str);
     }
     case std::filesystem::file_type::unknown: {
-      std::u8string message =
-          u8"Cannot copy an unknown file type: " + dest_path_str;
-      return THROW_ERR_FS_CP_UNKNOWN(
-          env, reinterpret_cast<const char*>(message.c_str()));
+      std::string message = "Cannot copy an unknown file type: %s";
+      return THROW_ERR_FS_CP_UNKNOWN(env, message.c_str(), dest_path_str);
     }
     default:
       break;
@@ -3331,37 +3371,18 @@ void BindingData::LegacyMainResolve(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   auto isolate = env->isolate();
 
-  Utf8Value utf8_package_json_url(isolate, args[0]);
-  auto package_json_url =
-      ada::parse<ada::url_aggregator>(utf8_package_json_url.ToStringView());
-
-  if (!package_json_url) {
-    THROW_ERR_INVALID_URL(isolate, "Invalid URL");
-    return;
-  }
+  auto utf8_package_path = Utf8Value(isolate, args[0]).ToString();
 
   std::string package_initial_file = "";
 
-  ada::result<ada::url_aggregator> file_path_url;
   std::optional<std::string> initial_file_path;
   std::string file_path;
 
   if (args.Length() >= 2 && args[1]->IsString()) {
     auto package_config_main = Utf8Value(isolate, args[1]).ToString();
 
-    file_path_url = ada::parse<ada::url_aggregator>(
-        std::string("./") + package_config_main, &package_json_url.value());
-
-    if (!file_path_url) {
-      THROW_ERR_INVALID_URL(isolate, "Invalid URL");
-      return;
-    }
-
-    initial_file_path = node::url::FileURLToPath(env, *file_path_url);
-    if (!initial_file_path.has_value()) {
-      return;
-    }
-
+    initial_file_path =
+        PathResolve(env, {utf8_package_path, package_config_main});
     FromNamespacedPath(&initial_file_path.value());
 
     package_initial_file = *initial_file_path;
@@ -3392,15 +3413,7 @@ void BindingData::LegacyMainResolve(const FunctionCallbackInfo<Value>& args) {
     }
   }
 
-  file_path_url =
-      ada::parse<ada::url_aggregator>("./index", &package_json_url.value());
-
-  if (!file_path_url) {
-    THROW_ERR_INVALID_URL(isolate, "Invalid URL");
-    return;
-  }
-
-  initial_file_path = node::url::FileURLToPath(env, *file_path_url);
+  initial_file_path = PathResolve(env, {utf8_package_path, "./index"});
   if (!initial_file_path.has_value()) {
     return;
   }

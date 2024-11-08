@@ -793,7 +793,6 @@ const errorTests = [
       'Object [console] {',
       '  log: [Function: log],',
       '  warn: [Function: warn],',
-      '  error: [Function: error],',
       '  dir: [Function: dir],',
       '  time: [Function: time],',
       '  timeEnd: [Function: timeEnd],',
@@ -809,6 +808,7 @@ const errorTests = [
       / {2}debug: \[Function: (debug|log)],/,
       / {2}info: \[Function: (info|log)],/,
       / {2}dirxml: \[Function: (dirxml|log)],/,
+      / {2}error: \[Function: (error|warn)],/,
       / {2}groupCollapsed: \[Function: (groupCollapsed|group)],/,
       / {2}Console: \[Function: Console],?/,
       ...process.features.inspector ? [
@@ -1034,4 +1034,18 @@ function event(ee, expected) {
       resolve(...args);
     }));
   });
+}
+
+{
+  const server = repl.REPLServer();
+  common.expectWarning({
+    DeprecationWarning: {
+      DEP0185: 'Instantiating REPLServer without the \'new\' keyword has been deprecated.',
+      // For the 'url.format' test-case.
+      DEP0169:
+        '`url.parse()` behavior is not standardized and prone to errors that have security implications. ' +
+        'Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.',
+    }
+  });
+  server.emit('line', '.exit');
 }

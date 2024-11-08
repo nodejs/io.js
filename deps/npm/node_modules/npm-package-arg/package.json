@@ -1,6 +1,6 @@
 {
   "name": "npm-package-arg",
-  "version": "11.0.3",
+  "version": "12.0.0",
   "description": "Parse the things that can be arguments to `npm install`",
   "main": "./lib/npa.js",
   "directories": {
@@ -11,14 +11,14 @@
     "lib/"
   ],
   "dependencies": {
-    "hosted-git-info": "^7.0.0",
-    "proc-log": "^4.0.0",
+    "hosted-git-info": "^8.0.0",
+    "proc-log": "^5.0.0",
     "semver": "^7.3.5",
-    "validate-npm-package-name": "^5.0.0"
+    "validate-npm-package-name": "^6.0.0"
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.23.1",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "tap": "^16.0.1"
   },
   "scripts": {
@@ -44,7 +44,7 @@
   },
   "homepage": "https://github.com/npm/npm-package-arg",
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "tap": {
     "branches": 97,
@@ -55,7 +55,7 @@
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.23.1",
+    "version": "4.23.3",
     "publish": true
   }
 }

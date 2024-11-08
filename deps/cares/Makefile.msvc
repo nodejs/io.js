@@ -192,7 +192,7 @@ EX_LIBS_DBG = ws2_32.lib advapi32.lib kernel32.lib iphlpapi.lib
 
 CC_CMD_REL = cl.exe /nologo $(RTLIB) /DNDEBUG /O2
 CC_CMD_DBG = cl.exe /nologo $(RTLIBD) /D_DEBUG /Od /Zi /RTCsu
-CC_CFLAGS  = $(CFLAGS) /D_REENTRANT /I.\src\lib /I.\include /W3 /EHsc /FD
+CC_CFLAGS  = $(CFLAGS) /D_REENTRANT /I.\src\lib /I.\include /I.\src\lib\include /W3 /EHsc /FD
 
 RC_CMD_REL = rc.exe /l 0x409 /d "NDEBUG"
 RC_CMD_DBG = rc.exe /l 0x409 /d "_DEBUG"
@@ -343,15 +343,6 @@ PROG3_OBJS = $(PROG3_OBJS) $(PROG3_OBJDIR)\ahost.obj
 
 {$(SRCDIR)\src\tools}.c{$(PROG3_OBJDIR)}.obj:
     $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$@ /Fd$(PROG3_OBJDIR)\ /c $<
-
-# Hack Alert! we reference ../lib/str files in the Makefile.inc for tools as they
-# share some files with the library itself.  We need to hack around that here.
-
-{$(SRCDIR)\src\lib\str}.c{$(PROG2_OBJDIR)\..\lib\str}.obj:
-    $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$(PROG2_OBJDIR)\str\$(@F) /Fd$(PROG2_OBJDIR)\str\ /c $<
-
-{$(SRCDIR)\src\lib\str}.c{$(PROG3_OBJDIR)\..\lib\str}.obj:
-    $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$(PROG3_OBJDIR)\str\$(@F) /Fd$(PROG3_OBJDIR)\str\ /c $<
 
 # ------------------------------------------------------------- #
 # ------------------------------------------------------------- #

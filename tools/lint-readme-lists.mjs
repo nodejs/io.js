@@ -6,6 +6,9 @@ import assert from 'node:assert';
 import { open } from 'node:fs/promises';
 import { argv } from 'node:process';
 
+const ghHandleLine = /^\* \[(.+)\]\(https:\/\/github\.com\/\1\) -$/;
+const memberInfoLine = /^ {2}\*\*[^*]+\*\* <<[^@]+@.+\.[a-z]+>>( \(\w+(\/[^)/]+)+\))?( - \[Support me\]\(.+\))?$/;
+
 const lists = {
   '__proto__': null,
 
@@ -26,12 +29,19 @@ const tscMembers = new Set();
 const readme = await open(new URL('../README.md', import.meta.url), 'r');
 
 let currentList = null;
+let previousGithubHandleInfoRequired;
 let previousGithubHandle;
 let lineNumber = 0;
 
 for await (const line of readme.readLines()) {
   lineNumber++;
-  if (line.startsWith('### ')) {
+  if (previousGithubHandleInfoRequired) {
+    if (!memberInfoLine.test(line)) {
+      throw new Error(`${previousGithubHandleInfoRequired} info are not formatted correctly (README.md:${lineNumber})`);
+    }
+    previousGithubHandle = previousGithubHandleInfoRequired;
+    previousGithubHandleInfoRequired = null;
+  } else if (line.startsWith('### ')) {
     currentList = line.slice(4);
     previousGithubHandle = null;
   } else if (line.startsWith('#### ')) {
@@ -49,6 +59,10 @@ for await (const line of readme.readLines()) {
       );
     }
 
+    if (!ghHandleLine.test(line)) {
+      throw new Error(`${currentGithubHandle} is not formatted correctly (README.md:${lineNumber})`);
+    }
+
     if (
       currentList === 'TSC voting members' ||
       currentList === 'TSC regular members'
@@ -60,7 +74,7 @@ for await (const line of readme.readLines()) {
     if (lists[currentList]) {
       (actualMembers[lists[currentList]] ??= new Set()).add(currentGithubHandle);
     }
-    previousGithubHandle = currentGithubHandleLowerCase;
+    previousGithubHandleInfoRequired = currentGithubHandleLowerCase;
   }
 }
 console.info('Lists are in the alphabetical order.');

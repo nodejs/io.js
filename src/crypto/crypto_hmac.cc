@@ -103,7 +103,7 @@ void Hmac::HmacUpdate(const FunctionCallbackInfo<Value>& args) {
   Decode<Hmac>(args, [](Hmac* hmac, const FunctionCallbackInfo<Value>& args,
                         const char* data, size_t size) {
     Environment* env = Environment::GetCurrent(args);
-    if (UNLIKELY(size > INT_MAX))
+    if (size > INT_MAX) [[unlikely]]
       return THROW_ERR_OUT_OF_RANGE(env, "data is too long");
     bool r = hmac->HmacUpdate(data, size);
     args.GetReturnValue().Set(r);
@@ -198,7 +198,7 @@ Maybe<void> HmacTraits::AdditionalConfig(
   params->key = key->Data().addRef();
 
   ArrayBufferOrViewContents<char> data(args[offset + 3]);
-  if (UNLIKELY(!data.CheckSizeInt32())) {
+  if (!data.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "data is too big");
     return Nothing<void>();
   }
@@ -208,7 +208,7 @@ Maybe<void> HmacTraits::AdditionalConfig(
 
   if (!args[offset + 4]->IsUndefined()) {
     ArrayBufferOrViewContents<char> signature(args[offset + 4]);
-    if (UNLIKELY(!signature.CheckSizeInt32())) {
+    if (!signature.CheckSizeInt32()) [[unlikely]] {
       THROW_ERR_OUT_OF_RANGE(env, "signature is too big");
       return Nothing<void>();
     }

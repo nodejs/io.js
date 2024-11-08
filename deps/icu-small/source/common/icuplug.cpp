@@ -747,7 +747,7 @@ uplug_init(UErrorCode *status) {
     FILE *f;
         
     CharString pluginFile;
-#ifdef OS390BATCH
+#ifdef ICU_PLUGINS_DD
 /* There are potentially a lot of ways to implement a plugin directory on OS390/zOS  */
 /* Keeping in mind that unauthorized file access is logged, monitored, and enforced  */
 /* I've chosen to open a DDNAME if BATCH and leave it alone for (presumably) UNIX    */

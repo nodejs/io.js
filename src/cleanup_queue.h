@@ -12,8 +12,6 @@
 
 namespace node {
 
-class BaseObject;
-
 class CleanupQueue : public MemoryRetainer {
  public:
   typedef void (*Callback)(void*);
@@ -24,7 +22,7 @@ class CleanupQueue : public MemoryRetainer {
   CleanupQueue(const CleanupQueue&) = delete;
 
   SET_MEMORY_INFO_NAME(CleanupQueue)
-  inline void MemoryInfo(node::MemoryTracker* tracker) const override;
+  SET_NO_MEMORY_INFO()
   inline size_t SelfSize() const override;
 
   inline bool empty() const;
@@ -32,9 +30,6 @@ class CleanupQueue : public MemoryRetainer {
   inline void Add(Callback cb, void* arg);
   inline void Remove(Callback cb, void* arg);
   void Drain();
-
-  template <typename T>
-  inline void ForEachBaseObject(T&& iterator) const;
 
  private:
   class CleanupHookCallback {
@@ -68,7 +63,6 @@ class CleanupQueue : public MemoryRetainer {
   };
 
   std::vector<CleanupHookCallback> GetOrdered() const;
-  inline BaseObject* GetBaseObject(const CleanupHookCallback& callback) const;
 
   // Use an unordered_set, so that we have efficient insertion and removal.
   std::unordered_set<CleanupHookCallback,

@@ -366,7 +366,7 @@ UcXd/5qu2GhokrKU2cPttU+XAN2Om6a0
   // Test date parsing of `validFromDate` and `validToDate` fields, according to RFC 5280.
 
   // Validity dates up until the year 2049 are encoded as UTCTime.
-  // The fomatting of UTCTime changes from the year ~1949 to 1950~.
+  // The formatting of UTCTime changes from the year ~1949 to 1950~.
   const certPemUTCTime = `-----BEGIN CERTIFICATE-----
 MIIE/TCCAuWgAwIBAgIUHbXPaFnjeBehMvdHkXZ+E3a78QswDQYJKoZIhvcNAQEL
 BQAwDTELMAkGA1UEBhMCS1IwIBgPMTk0OTEyMjUyMzU5NThaFw01MDAxMDEyMzU5

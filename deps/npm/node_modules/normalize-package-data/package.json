@@ -1,6 +1,6 @@
 {
   "name": "normalize-package-data",
-  "version": "6.0.2",
+  "version": "7.0.0",
   "author": "GitHub Inc.",
   "description": "Normalizes data that can be found in package.json files.",
   "license": "BSD-2-Clause",
@@ -12,22 +12,23 @@
   "scripts": {
     "test": "tap",
     "npmclilint": "npmcli-lint",
-    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
-    "lintfix": "npm run lint -- --fix",
+    "lint": "npm run eslint",
+    "lintfix": "npm run eslint -- --fix",
     "posttest": "npm run lint",
     "postsnap": "npm run lintfix --",
     "postlint": "template-oss-check",
     "snap": "tap",
-    "template-oss-apply": "template-oss-apply --force"
+    "template-oss-apply": "template-oss-apply --force",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "dependencies": {
-    "hosted-git-info": "^7.0.0",
+    "hosted-git-info": "^8.0.0",
     "semver": "^7.3.5",
     "validate-npm-package-license": "^3.0.4"
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.22.0",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "tap": "^16.0.1"
   },
   "files": [
@@ -35,11 +36,11 @@
     "lib/"
   ],
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.22.0",
+    "version": "4.23.3",
     "publish": "true"
   },
   "tap": {

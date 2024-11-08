@@ -17,7 +17,7 @@ new RuleTester({
 }).run('no-duplicate-requires', rule, {
   valid: [
     {
-      code: 'require("a"); require("b"); (function() { require("a"); });',
+      code: '(function() { require("a"); }); (function() { require("a"); });',
     },
     {
       code: 'require(a); require(a);',

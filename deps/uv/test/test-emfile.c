@@ -75,6 +75,14 @@ TEST_IMPL(emfile) {
   ASSERT_EQ(errno, EMFILE);
   close(maxfd);
 
+#if defined(__ANDROID__)
+  /* Android connect syscall requires an extra file descriptor
+   *
+   * It fails in uv__tcp_connect
+   * */
+  close(maxfd - 1);
+#endif
+
   /* Now connect and use up the last available file descriptor.  The EMFILE
    * handling logic in src/unix/stream.c should ensure that connect_cb() runs
    * whereas connection_cb() should *not* run.

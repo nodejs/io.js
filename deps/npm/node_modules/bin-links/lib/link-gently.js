@@ -6,10 +6,16 @@
 
 const { resolve, dirname } = require('path')
 const { lstat, mkdir, readlink, rm, symlink } = require('fs/promises')
-const throwNonEnoent = er => {
-  if (er.code !== 'ENOENT') {
-    throw er
+const { log } = require('proc-log')
+const throwSignificant = er => {
+  if (er.code === 'ENOENT') {
+    return
   }
+  if (er.code === 'EACCES') {
+    log.warn('error adding file', er.message)
+    return
+  }
+  throw er
 }
 
 const rmOpts = {
@@ -37,8 +43,8 @@ const linkGently = async ({ path, to, from, absFrom, force }) => {
   // or at least a warning, but npm has always behaved this
   // way in the past, so it'd be a breaking change
   return Promise.all([
-    lstat(absFrom).catch(throwNonEnoent),
-    lstat(to).catch(throwNonEnoent),
+    lstat(absFrom).catch(throwSignificant),
+    lstat(to).catch(throwSignificant),
   ]).then(([stFrom, stTo]) => {
     // not present in package, skip it
     if (!stFrom) {

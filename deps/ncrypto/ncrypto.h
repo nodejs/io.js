@@ -148,7 +148,7 @@ public:
   NCRYPTO_DISALLOW_COPY_AND_MOVE(ClearErrorOnReturn)
   NCRYPTO_DISALLOW_NEW_DELETE()
 
-  int peeKError();
+  int peekError();
 
 private:
   CryptoErrorList* errors_;
@@ -178,9 +178,13 @@ template <typename T, typename E>
 struct Result final {
   const bool has_value;
   T value;
-  std::optional<E> error;
+  std::optional<E> error = std::nullopt;
+  std::optional<int> openssl_error = std::nullopt;
   Result(T&& value) : has_value(true), value(std::move(value)) {}
-  Result(E&& error) : has_value(false), error(std::move(error)) {}
+  Result(E&& error, std::optional<int> openssl_error = std::nullopt)
+      : has_value(false),
+        error(std::move(error)),
+        openssl_error(std::move(openssl_error)) {}
   inline operator bool() const { return has_value; }
 };
 
@@ -276,6 +280,11 @@ public:
   static BIOPointer New(const void* data, size_t len);
   static BIOPointer NewFile(std::string_view filename, std::string_view mode);
   static BIOPointer NewFp(FILE* fd, int flags);
+
+  template <typename T>
+  static BIOPointer New(const Buffer<T>& buf) {
+    return New(buf.data, buf.len);
+  }
 
   BIOPointer() = default;
   BIOPointer(std::nullptr_t) : bio_(nullptr) {}
@@ -377,13 +386,13 @@ public:
     // SubjectPublicKeyInfo according to X.509.
     SPKI,
     // ECPrivateKey according to SEC1.
-    SEC1
+    SEC1,
   };
 
   enum class PKFormatType {
     DER,
     PEM,
-    JWK
+    JWK,
   };
 
   enum class PKParseError {
@@ -393,9 +402,36 @@ public:
   };
   using ParseKeyResult = Result<EVPKeyPointer, PKParseError>;
 
+  struct AsymmetricKeyEncodingConfig {
+    bool output_key_object = false;
+    PKFormatType format = PKFormatType::DER;
+    PKEncodingType type = PKEncodingType::PKCS8;
+    AsymmetricKeyEncodingConfig() = default;
+    AsymmetricKeyEncodingConfig(bool output_key_object, PKFormatType format, PKEncodingType type);
+    AsymmetricKeyEncodingConfig(const AsymmetricKeyEncodingConfig&) = default;
+    AsymmetricKeyEncodingConfig& operator=(const AsymmetricKeyEncodingConfig&) = default;
+  };
+  using PublicKeyEncodingConfig = AsymmetricKeyEncodingConfig;
+
+  struct PrivateKeyEncodingConfig: public AsymmetricKeyEncodingConfig {
+    const EVP_CIPHER* cipher = nullptr;
+    std::optional<DataPointer> passphrase = std::nullopt;
+    PrivateKeyEncodingConfig() = default;
+    PrivateKeyEncodingConfig(bool output_key_object, PKFormatType format, PKEncodingType type)
+        : AsymmetricKeyEncodingConfig(output_key_object, format, type) {}
+    PrivateKeyEncodingConfig(const PrivateKeyEncodingConfig&);
+    PrivateKeyEncodingConfig& operator=(const PrivateKeyEncodingConfig&);
+  };
+
   static ParseKeyResult TryParsePublicKey(
-      PKFormatType format,
-      PKEncodingType encoding,
+      const PublicKeyEncodingConfig& config,
+      const Buffer<const unsigned char>& buffer);
+
+  static ParseKeyResult TryParsePublicKeyPEM(
+      const Buffer<const unsigned char>& buffer);
+
+  static ParseKeyResult TryParsePrivateKey(
+      const PrivateKeyEncodingConfig& config,
       const Buffer<const unsigned char>& buffer);
 
   EVPKeyPointer() = default;
@@ -423,10 +459,14 @@ public:
   size_t rawPrivateKeySize() const;
   DataPointer rawPublicKey() const;
   DataPointer rawPrivateKey() const;
-
   BIOPointer derPublicKey() const;
 
+  Result<BIOPointer, bool> writePrivateKey(const PrivateKeyEncodingConfig& config) const;
+  Result<BIOPointer, bool> writePublicKey(const PublicKeyEncodingConfig& config) const;
+
   EVPKeyCtxPointer newCtx() const;
+
+  static bool IsRSAPrivateKey(const Buffer<const unsigned char>& buffer);
 
 private:
   DeleteFnPtr<EVP_PKEY, EVP_PKEY_free> pkey_;

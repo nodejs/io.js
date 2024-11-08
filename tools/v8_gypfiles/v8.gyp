@@ -48,7 +48,7 @@
       'type': 'none',
       'toolsets': ['host', 'target'],
       'conditions': [
-        ['OS=="win" and clang==0', {
+        ['OS=="win"', {
           'direct_dependent_settings': {
             'msvs_precompiled_header': '<(V8_ROOT)/../../tools/msvs/pch/v8_pch.h',
             'msvs_precompiled_source': '<(V8_ROOT)/../../tools/msvs/pch/v8_pch.cc',
@@ -1893,7 +1893,7 @@
           ['enable_lto=="true"', {
             'cflags_cc': [ '-fno-lto' ],
           }],
-          # Chnges in push_registers_asm.cc in V8 v12.8 requires using
+          # Changes in push_registers_asm.cc in V8 v12.8 requires using
           # push_registers_masm on Windows even with ClangCL on x64
           ['OS=="win"', {
             'conditions': [

@@ -2,8 +2,8 @@
 const common = require('../common.js');
 
 const bench = common.createBenchmark(main, {
-  n: [1e6],
-  nListener: [5, 10],
+  n: [1e5],
+  nListener: [1, 5, 10],
 });
 
 function main({ n, nListener }) {

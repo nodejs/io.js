@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -21,16 +21,18 @@ setup("test_eai_data");
 #./util/wrap.pl apps/openssl verify -nameopt utf8 -no_check_time -CAfile test/recipes/25-test_eai_data/utf8_chain.pem test/recipes/25-test_eai_data/ascii_leaf.pem
 #./util/wrap.pl apps/openssl verify -nameopt utf8 -no_check_time -CAfile test/recipes/25-test_eai_data/ascii_chain.pem test/recipes/25-test_eai_data/utf8_leaf.pem
 
-plan tests => 12;
+plan tests => 16;
 
 require_ok(srctop_file('test','recipes','tconversion.pl'));
 my $folder = "test/recipes/25-test_eai_data";
 
 my $ascii_pem = srctop_file($folder, "ascii_leaf.pem");
 my $utf8_pem  = srctop_file($folder, "utf8_leaf.pem");
+my $kdc_pem   = srctop_file($folder, "kdc-cert.pem");
 
 my $ascii_chain_pem = srctop_file($folder, "ascii_chain.pem");
 my $utf8_chain_pem  = srctop_file($folder, "utf8_chain.pem");
+my $kdc_chain_pem  = srctop_file($folder, "kdc-root-cert.pem");
 
 my $out;
 my $outcnt = 0;
@@ -56,9 +58,17 @@ SKIP: {
 
 ok(run(app(["openssl", "verify", "-nameopt", "utf8", "-no_check_time", "-CAfile", $ascii_chain_pem, $ascii_pem])));
 ok(run(app(["openssl", "verify", "-nameopt", "utf8", "-no_check_time", "-CAfile", $utf8_chain_pem, $utf8_pem])));
+ok(run(app(["openssl", "verify", "-nameopt", "utf8", "-no_check_time", "-CAfile", $kdc_chain_pem, $kdc_pem])));
 
 ok(!run(app(["openssl", "verify", "-nameopt", "utf8", "-no_check_time", "-CAfile", $ascii_chain_pem, $utf8_pem])));
 ok(!run(app(["openssl", "verify", "-nameopt", "utf8", "-no_check_time", "-CAfile", $utf8_chain_pem,  $ascii_pem])));
+
+# Check an otherName does not get misparsed as an DNS name, (should trigger ASAN errors if violated).
+ok(run(app(["openssl", "verify", "-nameopt", "utf8", "-no_check_time", "-verify_hostname", 'mx1.example.com', "-CAfile", $kdc_chain_pem,  $kdc_pem])));
+# Check an otherName does not get misparsed as an email address, (should trigger ASAN errors if violated).
+ok(run(app(["openssl", "verify", "-nameopt", "utf8", "-no_check_time", "-verify_email", 'joe@example.com', "-CAfile", $kdc_chain_pem,  $kdc_pem])));
+# We expect SmtpUTF8Mailbox to be a UTF8 String, not an IA5String.
+ok(!run(app(["openssl", "verify", "-nameopt", "utf8", "-no_check_time", "-verify_email", 'moe@example.com', "-CAfile", $kdc_chain_pem,  $kdc_pem])));
 
 #Check that we get the expected failure return code
 with({ exit_checker => sub { return shift == 2; } },

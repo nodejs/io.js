@@ -76,6 +76,13 @@ TEST_IMPL(tmpdir) {
   size_t lenx = sizeof tmpdirx;
   r = uv_os_tmpdir(tmpdirx, &lenx);
   ASSERT_OK(r);
+
+  /* Test empty environment variable */
+  r = uv_os_setenv("TMP", "");
+  ASSERT_EQ(r, 0);
+  len = sizeof tmpdir;
+  r = uv_os_tmpdir(tmpdir, &len);
+  ASSERT_EQ(r, UV_ENOENT);
 #endif
 
   return 0;

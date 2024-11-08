@@ -1,0 +1,75 @@
+{
+  "name": "make-fetch-happen",
+  "version": "13.0.1",
+  "description": "Opinionated, caching, retrying fetch client",
+  "main": "lib/index.js",
+  "files": [
+    "bin/",
+    "lib/"
+  ],
+  "scripts": {
+    "test": "tap",
+    "posttest": "npm run lint",
+    "eslint": "eslint",
+    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lintfix": "npm run lint -- --fix",
+    "postlint": "template-oss-check",
+    "snap": "tap",
+    "template-oss-apply": "template-oss-apply --force"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/npm/make-fetch-happen.git"
+  },
+  "keywords": [
+    "http",
+    "request",
+    "fetch",
+    "mean girls",
+    "caching",
+    "cache",
+    "subresource integrity"
+  ],
+  "author": "GitHub Inc.",
+  "license": "ISC",
+  "dependencies": {
+    "@npmcli/agent": "^2.0.0",
+    "cacache": "^18.0.0",
+    "http-cache-semantics": "^4.1.1",
+    "is-lambda": "^1.0.1",
+    "minipass": "^7.0.2",
+    "minipass-fetch": "^3.0.0",
+    "minipass-flush": "^1.0.5",
+    "minipass-pipeline": "^1.2.4",
+    "negotiator": "^0.6.3",
+    "proc-log": "^4.2.0",
+    "promise-retry": "^2.0.1",
+    "ssri": "^10.0.0"
+  },
+  "devDependencies": {
+    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/template-oss": "4.21.4",
+    "nock": "^13.2.4",
+    "safe-buffer": "^5.2.1",
+    "standard-version": "^9.3.2",
+    "tap": "^16.0.0"
+  },
+  "engines": {
+    "node": "^16.14.0 || >=18.0.0"
+  },
+  "tap": {
+    "color": 1,
+    "files": "test/*.js",
+    "check-coverage": true,
+    "timeout": 60,
+    "nyc-arg": [
+      "--exclude",
+      "tap-snapshots/**"
+    ]
+  },
+  "templateOSS": {
+    "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
+    "version": "4.21.4",
+    "publish": "true"
+  }
+}

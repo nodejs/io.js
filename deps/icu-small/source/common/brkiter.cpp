@@ -85,7 +85,7 @@ BreakIterator::buildInstance(const Locale& loc, const char *type, UErrorCode &st
         // Get the actual string
         brkfname = ures_getString(brkName, &size, &status);
         U_ASSERT((size_t)size<sizeof(fnbuff));
-        if ((size_t)size>=sizeof(fnbuff)) {
+        if (static_cast<size_t>(size) >= sizeof(fnbuff)) {
             size=0;
             if (U_SUCCESS(status)) {
                 status = U_BUFFER_OVERFLOW_ERROR;
@@ -99,7 +99,7 @@ BreakIterator::buildInstance(const Locale& loc, const char *type, UErrorCode &st
             char16_t* extStart=u_strchr(brkfname, 0x002e);
             int len = 0;
             if (extStart != nullptr){
-                len = (int)(extStart-brkfname);
+                len = static_cast<int>(extStart - brkfname);
                 u_UCharsToChars(extStart+1, ext, sizeof(ext)); // nul terminates the buff
                 u_UCharsToChars(brkfname, fnbuff, len);
             }

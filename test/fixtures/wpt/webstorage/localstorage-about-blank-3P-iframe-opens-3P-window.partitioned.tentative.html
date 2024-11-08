@@ -57,7 +57,7 @@ promise_test(async t => {
       for (let id in ids) {
         assert_true(id !== undefined, "id is not undefined");
       }
-      // Note: we use assert_true, rather than assert_equals becuase we're
+      // Note: we use assert_true, rather than assert_equals because we're
       // setting random numbers as IDs - this would mean expectations
       // files wouldn't work as intended.
       assert_true(crossSiteIframeAboutBlankID !== crossSiteIframeID,

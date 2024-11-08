@@ -29,28 +29,28 @@
 
 int ares_fds(const ares_channel_t *channel, fd_set *read_fds, fd_set *write_fds)
 {
-  ares_socket_t       nfds;
-  ares__slist_node_t *snode;
+  ares_socket_t      nfds;
+  ares_slist_node_t *snode;
   /* Are there any active queries? */
-  size_t              active_queries;
+  size_t             active_queries;
 
   if (channel == NULL || read_fds == NULL || write_fds == NULL) {
     return 0;
   }
 
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
 
-  active_queries = ares__llist_len(channel->all_queries);
+  active_queries = ares_llist_len(channel->all_queries);
 
   nfds = 0;
-  for (snode = ares__slist_node_first(channel->servers); snode != NULL;
-       snode = ares__slist_node_next(snode)) {
-    ares_server_t      *server = ares__slist_node_val(snode);
-    ares__llist_node_t *node;
+  for (snode = ares_slist_node_first(channel->servers); snode != NULL;
+       snode = ares_slist_node_next(snode)) {
+    ares_server_t     *server = ares_slist_node_val(snode);
+    ares_llist_node_t *node;
 
-    for (node = ares__llist_node_first(server->connections); node != NULL;
-         node = ares__llist_node_next(node)) {
-      const ares_conn_t *conn = ares__llist_node_val(node);
+    for (node = ares_llist_node_first(server->connections); node != NULL;
+         node = ares_llist_node_next(node)) {
+      const ares_conn_t *conn = ares_llist_node_val(node);
 
       if (!active_queries && !(conn->flags & ARES_CONN_FLAG_TCP)) {
         continue;
@@ -68,13 +68,13 @@ int ares_fds(const ares_channel_t *channel, fd_set *read_fds, fd_set *write_fds)
         nfds = conn->fd + 1;
       }
 
-      /* TCP only wait on write if we have buffered data */
-      if (conn->flags & ARES_CONN_FLAG_TCP && ares__buf_len(server->tcp_send)) {
+      /* TCP only wait on write if we have the flag set */
+      if (conn->state_flags & ARES_CONN_STATE_WRITE) {
         FD_SET(conn->fd, write_fds);
       }
     }
   }
 
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
   return (int)nfds;
 }

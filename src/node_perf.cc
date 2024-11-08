@@ -14,6 +14,7 @@
 namespace node {
 namespace performance {
 
+using v8::Array;
 using v8::Context;
 using v8::DontDelete;
 using v8::Function;
@@ -190,8 +191,9 @@ void MarkGarbageCollectionEnd(
   }
   env->performance_state()->current_gc_type = 0;
   // If no one is listening to gc performance entries, do not create them.
-  if (LIKELY(!state->observers[NODE_PERFORMANCE_ENTRY_TYPE_GC]))
+  if (!state->observers[NODE_PERFORMANCE_ENTRY_TYPE_GC]) [[likely]] {
     return;
+  }
 
   double start_time =
       (state->performance_last_gc_start_mark - env->time_origin()) /
@@ -263,26 +265,17 @@ void LoopIdleTime(const FunctionCallbackInfo<Value>& args) {
 
 void UvMetricsInfo(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
+  Isolate* isolate = env->isolate();
   uv_metrics_t metrics;
-
   // uv_metrics_info always return 0
   CHECK_EQ(uv_metrics_info(env->event_loop(), &metrics), 0);
-
-  Local<Object> obj = Object::New(env->isolate());
-  obj->Set(env->context(),
-           env->loop_count(),
-           Integer::NewFromUnsigned(env->isolate(), metrics.loop_count))
-      .Check();
-  obj->Set(env->context(),
-           env->events(),
-           Integer::NewFromUnsigned(env->isolate(), metrics.events))
-      .Check();
-  obj->Set(env->context(),
-           env->events_waiting(),
-           Integer::NewFromUnsigned(env->isolate(), metrics.events_waiting))
-      .Check();
-
-  args.GetReturnValue().Set(obj);
+  Local<Value> data[] = {
+      Integer::New(isolate, metrics.loop_count),
+      Integer::New(isolate, metrics.events),
+      Integer::New(isolate, metrics.events_waiting),
+  };
+  Local<Array> arr = Array::New(env->isolate(), data, arraysize(data));
+  args.GetReturnValue().Set(arr);
 }
 
 void CreateELDHistogram(const FunctionCallbackInfo<Value>& args) {

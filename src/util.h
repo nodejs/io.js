@@ -158,12 +158,8 @@ void DumpJavaScriptBacktrace(FILE* fp);
   } while (0)
 
 #ifdef __GNUC__
-#define LIKELY(expr) __builtin_expect(!!(expr), 1)
-#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
 #define PRETTY_FUNCTION_NAME __PRETTY_FUNCTION__
 #else
-#define LIKELY(expr) expr
-#define UNLIKELY(expr) expr
 #if defined(_MSC_VER)
 #define PRETTY_FUNCTION_NAME __FUNCSIG__
 #else
@@ -174,11 +170,11 @@ void DumpJavaScriptBacktrace(FILE* fp);
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
-#define CHECK(expr)                                                           \
-  do {                                                                        \
-    if (UNLIKELY(!(expr))) {                                                  \
-      ERROR_AND_ABORT(expr);                                                  \
-    }                                                                         \
+#define CHECK(expr)                                                            \
+  do {                                                                         \
+    if (!(expr)) [[unlikely]] {                                                \
+      ERROR_AND_ABORT(expr);                                                   \
+    }                                                                          \
   } while (0)
 
 #define CHECK_EQ(a, b) CHECK((a) == (b))
@@ -323,7 +319,7 @@ class KVStore {
   virtual std::shared_ptr<KVStore> Clone(v8::Isolate* isolate) const;
   virtual v8::Maybe<void> AssignFromObject(v8::Local<v8::Context> context,
                                            v8::Local<v8::Object> entries);
-  v8::Maybe<bool> AssignToObject(v8::Isolate* isolate,
+  v8::Maybe<void> AssignToObject(v8::Isolate* isolate,
                                  v8::Local<v8::Context> context,
                                  v8::Local<v8::Object> object);
 

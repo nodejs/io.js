@@ -135,6 +135,18 @@ napi_create_external_buffer(napi_env env,
                             void* finalize_hint,
                             napi_value* result);
 #endif  // NODE_API_NO_EXTERNAL_BUFFERS_ALLOWED
+
+#ifdef NAPI_EXPERIMENTAL
+#define NODE_API_EXPERIMENTAL_HAS_CREATE_BUFFER_FROM_ARRAYBUFFER
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_create_buffer_from_arraybuffer(napi_env env,
+                                        napi_value arraybuffer,
+                                        size_t byte_offset,
+                                        size_t byte_length,
+                                        napi_value* result);
+#endif  // NAPI_EXPERIMENTAL
+
 NAPI_EXTERN napi_status NAPI_CDECL napi_create_buffer_copy(napi_env env,
                                                            size_t length,
                                                            const void* data,

@@ -27,6 +27,7 @@
 #include <type_traits>  // std::remove_reference
 #include "base_object_types.h"
 #include "memory_tracker.h"
+#include "util.h"
 #include "v8.h"
 
 namespace node {
@@ -178,7 +179,7 @@ class BaseObject : public MemoryRetainer {
   virtual std::unique_ptr<worker::TransferData> CloneForMessaging() const;
   virtual v8::Maybe<std::vector<BaseObjectPtrImpl<BaseObject, false>>>
       NestedTransferables() const;
-  virtual v8::Maybe<bool> FinalizeTransferRead(
+  virtual v8::Maybe<void> FinalizeTransferRead(
       v8::Local<v8::Context> context, v8::ValueDeserializer* deserializer);
 
   // Indicates whether this object is expected to use a strong reference during
@@ -192,7 +193,7 @@ class BaseObject : public MemoryRetainer {
  private:
   v8::Local<v8::Object> WrappedObject() const override;
   bool IsRootNode() const override;
-  static void DeleteMe(void* data);
+  void DeleteMe();
 
   // persistent_handle_ needs to be at a fixed offset from the start of the
   // class because it is used by src/node_postmortem_metadata.cc to calculate
@@ -237,6 +238,20 @@ class BaseObject : public MemoryRetainer {
 
   Realm* realm_;
   PointerData* pointer_data_ = nullptr;
+  ListNode<BaseObject> base_object_list_node_;
+
+  friend class BaseObjectList;
+};
+
+class BaseObjectList
+    : public ListHead<BaseObject, &BaseObject::base_object_list_node_>,
+      public MemoryRetainer {
+ public:
+  void Cleanup();
+
+  SET_MEMORY_INFO_NAME(BaseObjectList)
+  SET_SELF_SIZE(BaseObjectList)
+  void MemoryInfo(node::MemoryTracker* tracker) const override;
 };
 
 #define ASSIGN_OR_RETURN_UNWRAP(ptr, obj, ...)                                 \

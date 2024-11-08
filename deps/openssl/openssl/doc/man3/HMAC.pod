@@ -87,7 +87,7 @@ created with HMAC_CTX_new().
 
 HMAC_CTX_free() erases the key and other data from the B<HMAC_CTX>,
 releases any associated resources and finally frees the B<HMAC_CTX>
-itself.
+itself. If the argument is NULL, nothing is done.
 
 The following functions may be used if the message is not completely
 stored in memory:
@@ -163,7 +163,7 @@ OpenSSL before version 1.0.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

@@ -34,7 +34,7 @@ static void nghttp2_default_debug_vfprintf_callback(const char *fmt,
 }
 
 static nghttp2_debug_vprintf_callback static_debug_vprintf_callback =
-    nghttp2_default_debug_vfprintf_callback;
+  nghttp2_default_debug_vfprintf_callback;
 
 void nghttp2_debug_vprintf(const char *format, ...) {
   if (static_debug_vprintf_callback) {
@@ -46,14 +46,14 @@ void nghttp2_debug_vprintf(const char *format, ...) {
 }
 
 void nghttp2_set_debug_vprintf_callback(
-    nghttp2_debug_vprintf_callback debug_vprintf_callback) {
+  nghttp2_debug_vprintf_callback debug_vprintf_callback) {
   static_debug_vprintf_callback = debug_vprintf_callback;
 }
 
 #else /* !DEBUGBUILD */
 
 void nghttp2_set_debug_vprintf_callback(
-    nghttp2_debug_vprintf_callback debug_vprintf_callback) {
+  nghttp2_debug_vprintf_callback debug_vprintf_callback) {
   (void)debug_vprintf_callback;
 }
 

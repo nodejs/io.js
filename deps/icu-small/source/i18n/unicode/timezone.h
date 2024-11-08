@@ -445,7 +445,6 @@ public:
         UnicodeString& canonicalID, UBool& isSystemID, UErrorCode& status);
 
 
-#ifndef U_HIDE_DRAFT_API
     /**
      * Returns the preferred time zone ID in the IANA time zone database for the given time zone ID.
      * There are two types of preferred IDs. The first type is the one defined in zone.tab file,
@@ -469,11 +468,10 @@ public:
      * @param status    Receives the status.  When the given time zone ID is not a known time zone
      *                  ID, U_ILLEGAL_ARGUMENT_ERROR is set.
      * @return  A reference to the result.
-     * @draft ICU 74
+     * @stable ICU 74
      */
     static UnicodeString& U_EXPORT2 getIanaID(const UnicodeString&id, UnicodeString& ianaID,
         UErrorCode& status);
-#endif // U_HIDE_DRAFT_API
 
     /**
     * Converts a system time zone ID to an equivalent Windows time zone ID. For example,

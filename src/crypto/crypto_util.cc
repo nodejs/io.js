@@ -571,7 +571,7 @@ void ThrowCryptoError(Environment* env,
 #ifndef OPENSSL_NO_ENGINE
 void SetEngine(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
-  if (UNLIKELY(env->permission()->enabled())) {
+  if (env->permission()->enabled()) [[unlikely]] {
     return THROW_ERR_CRYPTO_CUSTOM_ENGINE_NOT_SUPPORTED(
         env,
         "Programmatic selection of OpenSSL engines is unsupported while the "

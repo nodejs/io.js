@@ -29,7 +29,7 @@
 /* Uses public domain code snippets from
  * http://graphics.stanford.edu/~seander/bithacks.html */
 
-static unsigned int ares__round_up_pow2_u32(unsigned int n)
+static unsigned int ares_round_up_pow2_u32(unsigned int n)
 {
   /* NOTE: if already a power of 2, will return itself, not the next */
   n--;
@@ -42,7 +42,7 @@ static unsigned int ares__round_up_pow2_u32(unsigned int n)
   return n;
 }
 
-static ares_int64_t ares__round_up_pow2_u64(ares_int64_t n)
+static ares_int64_t ares_round_up_pow2_u64(ares_int64_t n)
 {
   /* NOTE: if already a power of 2, will return itself, not the next */
   n--;
@@ -56,7 +56,7 @@ static ares_int64_t ares__round_up_pow2_u64(ares_int64_t n)
   return n;
 }
 
-ares_bool_t ares__is_64bit(void)
+ares_bool_t ares_is_64bit(void)
 {
 #ifdef _MSC_VER
 #  pragma warning(push)
@@ -70,16 +70,16 @@ ares_bool_t ares__is_64bit(void)
 #endif
 }
 
-size_t ares__round_up_pow2(size_t n)
+size_t ares_round_up_pow2(size_t n)
 {
-  if (ares__is_64bit()) {
-    return (size_t)ares__round_up_pow2_u64((ares_int64_t)n);
+  if (ares_is_64bit()) {
+    return (size_t)ares_round_up_pow2_u64((ares_int64_t)n);
   }
 
-  return (size_t)ares__round_up_pow2_u32((unsigned int)n);
+  return (size_t)ares_round_up_pow2_u32((unsigned int)n);
 }
 
-size_t ares__log2(size_t n)
+size_t ares_log2(size_t n)
 {
   static const unsigned char tab32[32] = { 0,  1,  28, 2,  29, 14, 24, 3,
                                            30, 22, 20, 15, 25, 17, 4,  8,
@@ -92,7 +92,7 @@ size_t ares__log2(size_t n)
     56, 45, 25, 31, 35, 16, 9,  12, 44, 24, 15, 8,  23, 7,  6,  5
   };
 
-  if (!ares__is_64bit()) {
+  if (!ares_is_64bit()) {
     return tab32[(n * 0x077CB531) >> 27];
   }
 
@@ -100,7 +100,7 @@ size_t ares__log2(size_t n)
 }
 
 /* x^y */
-size_t ares__pow(size_t x, size_t y)
+size_t ares_pow(size_t x, size_t y)
 {
   size_t res = 1;
 
@@ -118,7 +118,7 @@ size_t ares__pow(size_t x, size_t y)
   return res;
 }
 
-size_t ares__count_digits(size_t n)
+size_t ares_count_digits(size_t n)
 {
   size_t digits;
 
@@ -132,7 +132,7 @@ size_t ares__count_digits(size_t n)
   return digits;
 }
 
-size_t ares__count_hexdigits(size_t n)
+size_t ares_count_hexdigits(size_t n)
 {
   size_t digits;
 
@@ -146,7 +146,7 @@ size_t ares__count_hexdigits(size_t n)
   return digits;
 }
 
-unsigned char ares__count_bits_u8(unsigned char x)
+unsigned char ares_count_bits_u8(unsigned char x)
 {
   /* Implementation obtained from:
    * http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetTable */

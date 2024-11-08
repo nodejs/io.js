@@ -46,32 +46,30 @@
 
 
 static void          timeadd(ares_timeval_t *now, size_t millisecs);
-static void          write_tcp_data(ares_channel_t *channel, fd_set *write_fds,
-                                    ares_socket_t write_fd);
-static void          read_packets(ares_channel_t *channel, fd_set *read_fds,
-                                  ares_socket_t read_fd, const ares_timeval_t *now);
-static void          process_timeouts(ares_channel_t       *channel,
+static ares_status_t process_write(ares_channel_t *channel,
+                                   ares_socket_t   write_fd);
+static ares_status_t process_read(ares_channel_t       *channel,
+                                  ares_socket_t         read_fd,
+                                  const ares_timeval_t *now);
+static ares_status_t process_timeouts(ares_channel_t       *channel,
                                       const ares_timeval_t *now);
 static ares_status_t process_answer(ares_channel_t      *channel,
                                     const unsigned char *abuf, size_t alen,
-                                    ares_conn_t *conn, ares_bool_t tcp,
+                                    ares_conn_t          *conn,
                                     const ares_timeval_t *now);
 static void handle_conn_error(ares_conn_t *conn, ares_bool_t critical_failure,
                               ares_status_t failure_status);
-
 static ares_bool_t same_questions(const ares_query_t      *query,
                                   const ares_dns_record_t *arec);
-static ares_bool_t same_address(const struct sockaddr  *sa,
-                                const struct ares_addr *aa);
 static void        end_query(ares_channel_t *channel, ares_server_t *server,
                              ares_query_t *query, ares_status_t status,
                              const ares_dns_record_t *dnsrec);
 
-static void        ares__query_disassociate_from_conn(ares_query_t *query)
+static void        ares_query_remove_from_conn(ares_query_t *query)
 {
   /* If its not part of a connection, it can't be tracked for timeouts either */
-  ares__slist_node_destroy(query->node_queries_by_timeout);
-  ares__llist_node_destroy(query->node_queries_to_conn);
+  ares_slist_node_destroy(query->node_queries_by_timeout);
+  ares_llist_node_destroy(query->node_queries_to_conn);
   query->node_queries_by_timeout = NULL;
   query->node_queries_to_conn    = NULL;
   query->conn                    = NULL;
@@ -82,7 +80,7 @@ static void invoke_server_state_cb(const ares_server_t *server,
                                    ares_bool_t success, int flags)
 {
   const ares_channel_t *channel = server->channel;
-  ares__buf_t          *buf;
+  ares_buf_t           *buf;
   ares_status_t         status;
   char                 *server_string;
 
@@ -90,18 +88,18 @@ static void invoke_server_state_cb(const ares_server_t *server,
     return;
   }
 
-  buf = ares__buf_create();
+  buf = ares_buf_create();
   if (buf == NULL) {
     return; /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
   status = ares_get_server_addr(server, buf);
   if (status != ARES_SUCCESS) {
-    ares__buf_destroy(buf); /* LCOV_EXCL_LINE: OutOfMemory */
-    return;                 /* LCOV_EXCL_LINE: OutOfMemory */
+    ares_buf_destroy(buf); /* LCOV_EXCL_LINE: OutOfMemory */
+    return;                /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
-  server_string = ares__buf_finish_str(buf, NULL);
+  server_string = ares_buf_finish_str(buf, NULL);
   buf           = NULL;
   if (server_string == NULL) {
     return; /* LCOV_EXCL_LINE: OutOfMemory */
@@ -115,19 +113,19 @@ static void invoke_server_state_cb(const ares_server_t *server,
 static void server_increment_failures(ares_server_t *server,
                                       ares_bool_t    used_tcp)
 {
-  ares__slist_node_t   *node;
+  ares_slist_node_t    *node;
   const ares_channel_t *channel = server->channel;
   ares_timeval_t        next_retry_time;
 
-  node = ares__slist_node_find(channel->servers, server);
+  node = ares_slist_node_find(channel->servers, server);
   if (node == NULL) {
     return; /* LCOV_EXCL_LINE: DefensiveCoding */
   }
 
   server->consec_failures++;
-  ares__slist_node_reinsert(node);
+  ares_slist_node_reinsert(node);
 
-  ares__tvnow(&next_retry_time);
+  ares_tvnow(&next_retry_time);
   timeadd(&next_retry_time, channel->server_retry_delay);
   server->next_retry_time = next_retry_time;
 
@@ -138,17 +136,17 @@ static void server_increment_failures(ares_server_t *server,
 
 static void server_set_good(ares_server_t *server, ares_bool_t used_tcp)
 {
-  ares__slist_node_t   *node;
+  ares_slist_node_t    *node;
   const ares_channel_t *channel = server->channel;
 
-  node = ares__slist_node_find(channel->servers, server);
+  node = ares_slist_node_find(channel->servers, server);
   if (node == NULL) {
     return; /* LCOV_EXCL_LINE: DefensiveCoding */
   }
 
   if (server->consec_failures > 0) {
     server->consec_failures = 0;
-    ares__slist_node_reinsert(node);
+    ares_slist_node_reinsert(node);
   }
 
   server->next_retry_time.sec  = 0;
@@ -160,8 +158,8 @@ static void server_set_good(ares_server_t *server, ares_bool_t used_tcp)
 }
 
 /* return true if now is exactly check time or later */
-ares_bool_t ares__timedout(const ares_timeval_t *now,
-                           const ares_timeval_t *check)
+ares_bool_t ares_timedout(const ares_timeval_t *now,
+                          const ares_timeval_t *check)
 {
   ares_int64_t secs = (now->sec - check->sec);
 
@@ -190,30 +188,139 @@ static void timeadd(ares_timeval_t *now, size_t millisecs)
   }
 }
 
-/*
- * generic process function
- */
-static void processfds(ares_channel_t *channel, fd_set *read_fds,
-                       ares_socket_t read_fd, fd_set *write_fds,
-                       ares_socket_t write_fd)
+static ares_status_t ares_process_fds_nolock(ares_channel_t         *channel,
+                                             const ares_fd_events_t *events,
+                                             size_t nevents, unsigned int flags)
 {
   ares_timeval_t now;
+  size_t         i;
+  ares_status_t  status = ARES_SUCCESS;
 
-  if (channel == NULL) {
-    return; /* LCOV_EXCL_LINE: DefensiveCoding */
+  if (channel == NULL || (events == NULL && nevents != 0)) {
+    return ARES_EFORMERR; /* LCOV_EXCL_LINE: DefensiveCoding */
   }
 
-  ares__channel_lock(channel);
+  ares_tvnow(&now);
 
-  ares__tvnow(&now);
-  read_packets(channel, read_fds, read_fd, &now);
-  process_timeouts(channel, &now);
-  /* Write last as the other 2 operations might have triggered writes */
-  write_tcp_data(channel, write_fds, write_fd);
+  /* Process write events */
+  for (i = 0; i < nevents; i++) {
+    if (events[i].fd == ARES_SOCKET_BAD ||
+        !(events[i].events & ARES_FD_EVENT_WRITE)) {
+      continue;
+    }
+    status = process_write(channel, events[i].fd);
+    /* We only care about ENOMEM, anything else is handled via connection
+     * retries, etc */
+    if (status == ARES_ENOMEM) {
+      goto done;
+    }
+  }
 
-  /* See if any connections should be cleaned up */
-  ares__check_cleanup_conns(channel);
-  ares__channel_unlock(channel);
+  /* Process read events */
+  for (i = 0; i < nevents; i++) {
+    if (events[i].fd == ARES_SOCKET_BAD ||
+        !(events[i].events & ARES_FD_EVENT_READ)) {
+      continue;
+    }
+    status = process_read(channel, events[i].fd, &now);
+    if (status == ARES_ENOMEM) {
+      goto done;
+    }
+  }
+
+  if (!(flags & ARES_PROCESS_FLAG_SKIP_NON_FD)) {
+    ares_check_cleanup_conns(channel);
+    status = process_timeouts(channel, &now);
+    if (status == ARES_ENOMEM) {
+      goto done;
+    }
+  }
+
+done:
+  if (status == ARES_ENOMEM) {
+    return ARES_ENOMEM;
+  }
+  return ARES_SUCCESS;
+}
+
+ares_status_t ares_process_fds(ares_channel_t         *channel,
+                               const ares_fd_events_t *events, size_t nevents,
+                               unsigned int flags)
+{
+  ares_status_t status;
+
+  if (channel == NULL) {
+    return ARES_EFORMERR;
+  }
+
+  ares_channel_lock(channel);
+  status = ares_process_fds_nolock(channel, events, nevents, flags);
+  ares_channel_unlock(channel);
+  return status;
+}
+
+void ares_process_fd(ares_channel_t *channel, ares_socket_t read_fd,
+                     ares_socket_t write_fd)
+{
+  ares_fd_events_t events[2];
+  size_t           nevents = 0;
+
+  memset(events, 0, sizeof(events));
+
+  if (read_fd != ARES_SOCKET_BAD) {
+    nevents++;
+    events[nevents - 1].fd      = read_fd;
+    events[nevents - 1].events |= ARES_FD_EVENT_READ;
+  }
+
+  if (write_fd != ARES_SOCKET_BAD) {
+    if (write_fd != read_fd) {
+      nevents++;
+    }
+    events[nevents - 1].fd      = write_fd;
+    events[nevents - 1].events |= ARES_FD_EVENT_WRITE;
+  }
+
+  ares_process_fds(channel, events, nevents, ARES_PROCESS_FLAG_NONE);
+}
+
+static ares_socket_t *channel_socket_list(const ares_channel_t *channel,
+                                          size_t               *num)
+{
+  ares_slist_node_t *snode;
+  ares_array_t      *arr = ares_array_create(sizeof(ares_socket_t), NULL);
+
+  *num = 0;
+
+  if (arr == NULL) {
+    return NULL; /* LCOV_EXCL_LINE: OutOfMemory */
+  }
+
+  for (snode = ares_slist_node_first(channel->servers); snode != NULL;
+       snode = ares_slist_node_next(snode)) {
+    ares_server_t     *server = ares_slist_node_val(snode);
+    ares_llist_node_t *node;
+
+    for (node = ares_llist_node_first(server->connections); node != NULL;
+         node = ares_llist_node_next(node)) {
+      const ares_conn_t *conn = ares_llist_node_val(node);
+      ares_socket_t     *sptr;
+      ares_status_t      status;
+
+      if (conn->fd == ARES_SOCKET_BAD) {
+        continue;
+      }
+
+      status = ares_array_insert_last((void **)&sptr, arr);
+      if (status != ARES_SUCCESS) {
+        ares_array_destroy(arr); /* LCOV_EXCL_LINE: OutOfMemory */
+        return NULL;             /* LCOV_EXCL_LINE: OutOfMemory */
+      }
+      *sptr = conn->fd;
+    }
+  }
+
+  return ares_array_finish(arr, num);
 }
 
 /* Something interesting happened on the wire, or there was a timeout.
@@ -221,146 +328,220 @@ static void processfds(ares_channel_t *channel, fd_set *read_fds,
  */
 void ares_process(ares_channel_t *channel, fd_set *read_fds, fd_set *write_fds)
 {
-  processfds(channel, read_fds, ARES_SOCKET_BAD, write_fds, ARES_SOCKET_BAD);
-}
+  size_t            i;
+  size_t            num_sockets;
+  ares_socket_t    *socketlist;
+  ares_fd_events_t *events  = NULL;
+  size_t            nevents = 0;
 
-/* Something interesting happened on the wire, or there was a timeout.
- * See what's up and respond accordingly.
- */
-void ares_process_fd(ares_channel_t *channel,
-                     ares_socket_t   read_fd, /* use ARES_SOCKET_BAD or valid
-                                                 file descriptors */
-                     ares_socket_t   write_fd)
-{
-  processfds(channel, NULL, read_fd, NULL, write_fd);
-}
-
-/* If any TCP sockets select true for writing, write out queued data
- * we have for them.
- */
-static void write_tcp_data(ares_channel_t *channel, fd_set *write_fds,
-                           ares_socket_t write_fd)
-{
-  ares__slist_node_t *node;
-
-  if (!write_fds && (write_fd == ARES_SOCKET_BAD)) {
-    /* no possible action */
+  if (channel == NULL) {
     return;
   }
 
-  for (node = ares__slist_node_first(channel->servers); node != NULL;
-       node = ares__slist_node_next(node)) {
-    ares_server_t       *server = ares__slist_node_val(node);
-    const unsigned char *data;
-    size_t               data_len;
-    ares_ssize_t         count;
+  ares_channel_lock(channel);
 
-    /* Make sure server has data to send and is selected in write_fds or
-       write_fd. */
-    if (ares__buf_len(server->tcp_send) == 0 || server->tcp_conn == NULL) {
-      continue;
-    }
+  /* There is no good way to iterate across an fd_set, instead we must pull a
+   * list of all known fds, and iterate across that checking against the fd_set.
+   */
+  socketlist = channel_socket_list(channel, &num_sockets);
 
-    if (write_fds) {
-      if (!FD_ISSET(server->tcp_conn->fd, write_fds)) {
-        continue;
-      }
-    } else {
-      if (server->tcp_conn->fd != write_fd) {
-        continue;
-      }
-    }
-
-    if (write_fds) {
-      /* If there's an error and we close this socket, then open
-       * another with the same fd to talk to another server, then we
-       * don't want to think that it was the new socket that was
-       * ready. This is not disastrous, but is likely to result in
-       * extra system calls and confusion. */
-      FD_CLR(server->tcp_conn->fd, write_fds);
-    }
-
-    data  = ares__buf_peek(server->tcp_send, &data_len);
-    count = ares__conn_write(server->tcp_conn, data, data_len);
-    if (count <= 0) {
-      if (!ares__socket_try_again(SOCKERRNO)) {
-        handle_conn_error(server->tcp_conn, ARES_TRUE, ARES_ECONNREFUSED);
-      }
-      continue;
-    }
-
-    /* Strip data written from the buffer */
-    ares__buf_consume(server->tcp_send, (size_t)count);
-
-    /* Notify state callback all data is written */
-    if (ares__buf_len(server->tcp_send) == 0) {
-      SOCK_STATE_CALLBACK(channel, server->tcp_conn->fd, 1, 0);
+  /* Lets create an events array, maximum number is the number of sockets in
+   * the list, so we'll use that and just track entries with nevents */
+  if (num_sockets) {
+    events = ares_malloc_zero(sizeof(*events) * num_sockets);
+    if (events == NULL) {
+      goto done;
     }
   }
+
+  for (i = 0; i < num_sockets; i++) {
+    ares_bool_t had_read = ARES_FALSE;
+    if (read_fds && FD_ISSET(socketlist[i], read_fds)) {
+      nevents++;
+      events[nevents - 1].fd      = socketlist[i];
+      events[nevents - 1].events |= ARES_FD_EVENT_READ;
+      had_read                    = ARES_TRUE;
+    }
+    if (write_fds && FD_ISSET(socketlist[i], write_fds)) {
+      if (!had_read) {
+        nevents++;
+      }
+      events[nevents - 1].fd      = socketlist[i];
+      events[nevents - 1].events |= ARES_FD_EVENT_WRITE;
+    }
+  }
+
+done:
+  ares_process_fds_nolock(channel, events, nevents, ARES_PROCESS_FLAG_NONE);
+  ares_free(events);
+  ares_free(socketlist);
+  ares_channel_unlock(channel);
 }
 
-/* If any TCP socket selects true for reading, read some data,
- * allocate a buffer if we finish reading the length word, and process
- * a packet if we finish reading one.
- */
-static void read_tcp_data(ares_channel_t *channel, ares_conn_t *conn,
-                          const ares_timeval_t *now)
+static ares_status_t process_write(ares_channel_t *channel,
+                                   ares_socket_t   write_fd)
 {
-  ares_ssize_t   count;
-  ares_server_t *server = conn->server;
+  ares_conn_t  *conn = ares_conn_from_fd(channel, write_fd);
+  ares_status_t status;
 
-  /* Fetch buffer to store data we are reading */
-  size_t         ptr_len = 65535;
-  unsigned char *ptr;
-
-  ptr = ares__buf_append_start(server->tcp_parser, &ptr_len);
-
-  if (ptr == NULL) {
-    handle_conn_error(conn, ARES_FALSE /* not critical to connection */,
-                      ARES_SUCCESS);
-    return; /* bail out on malloc failure. TODO: make this
-               function return error codes */
+  if (conn == NULL) {
+    return ARES_SUCCESS;
   }
 
-  /* Read from socket */
-  count = ares__socket_recv(channel, conn->fd, ptr, ptr_len);
-  if (count <= 0) {
-    ares__buf_append_finish(server->tcp_parser, 0);
-    if (!(count == -1 && ares__socket_try_again(SOCKERRNO))) {
-      handle_conn_error(conn, ARES_TRUE, ARES_ECONNREFUSED);
-    }
+  /* Mark as connected if we got here and TFO Initial not set */
+  if (!(conn->flags & ARES_CONN_FLAG_TFO_INITIAL)) {
+    conn->state_flags |= ARES_CONN_STATE_CONNECTED;
+  }
+
+  status = ares_conn_flush(conn);
+  if (status != ARES_SUCCESS) {
+    handle_conn_error(conn, ARES_TRUE, status);
+  }
+  return status;
+}
+
+void ares_process_pending_write(ares_channel_t *channel)
+{
+  ares_slist_node_t *node;
+
+  if (channel == NULL) {
     return;
   }
 
-  /* Record amount of data read */
-  ares__buf_append_finish(server->tcp_parser, (size_t)count);
+  ares_channel_lock(channel);
+  if (!channel->notify_pending_write) {
+    ares_channel_unlock(channel);
+    return;
+  }
+
+  /* Set as untriggerd before calling into ares_conn_flush(), this is
+   * because its possible ares_conn_flush() might cause additional data to
+   * be enqueued if there is some form of exception so it will need to recurse.
+   */
+  channel->notify_pending_write = ARES_FALSE;
+
+  for (node = ares_slist_node_first(channel->servers); node != NULL;
+       node = ares_slist_node_next(node)) {
+    ares_server_t *server = ares_slist_node_val(node);
+    ares_conn_t   *conn   = server->tcp_conn;
+    ares_status_t  status;
+
+    if (conn == NULL) {
+      continue;
+    }
+
+    /* Enqueue any pending data if there is any */
+    status = ares_conn_flush(conn);
+    if (status != ARES_SUCCESS) {
+      handle_conn_error(conn, ARES_TRUE, status);
+    }
+  }
+
+  ares_channel_unlock(channel);
+}
+
+static ares_status_t read_conn_packets(ares_conn_t *conn)
+{
+  ares_bool_t           read_again;
+  ares_conn_err_t       err;
+  const ares_channel_t *channel = conn->server->channel;
+
+  do {
+    size_t         count;
+    size_t         len = 65535;
+    unsigned char *ptr;
+    size_t         start_len = ares_buf_len(conn->in_buf);
+
+    /* If UDP, lets write out a placeholder for the length indicator */
+    if (!(conn->flags & ARES_CONN_FLAG_TCP) &&
+        ares_buf_append_be16(conn->in_buf, 0) != ARES_SUCCESS) {
+      handle_conn_error(conn, ARES_FALSE /* not critical to connection */,
+                        ARES_SUCCESS);
+      return ARES_ENOMEM;
+    }
+
+    /* Get a buffer of sufficient size */
+    ptr = ares_buf_append_start(conn->in_buf, &len);
+
+    if (ptr == NULL) {
+      handle_conn_error(conn, ARES_FALSE /* not critical to connection */,
+                        ARES_SUCCESS);
+      return ARES_ENOMEM;
+    }
+
+    /* Read from socket */
+    err = ares_conn_read(conn, ptr, len, &count);
+
+    if (err != ARES_CONN_ERR_SUCCESS) {
+      ares_buf_append_finish(conn->in_buf, 0);
+      if (!(conn->flags & ARES_CONN_FLAG_TCP)) {
+        ares_buf_set_length(conn->in_buf, start_len);
+      }
+      break;
+    }
+
+    /* Record amount of data read */
+    ares_buf_append_finish(conn->in_buf, count);
+
+    /* Only loop if sockets support non-blocking operation, and are using UDP
+     * or are using TCP and read the maximum buffer size */
+    read_again = ARES_FALSE;
+    if (channel->sock_funcs.flags & ARES_SOCKFUNC_FLAG_NONBLOCKING &&
+        (!(conn->flags & ARES_CONN_FLAG_TCP) || count == len)) {
+      read_again = ARES_TRUE;
+    }
+
+    /* If UDP, overwrite length */
+    if (!(conn->flags & ARES_CONN_FLAG_TCP)) {
+      len = ares_buf_len(conn->in_buf);
+      ares_buf_set_length(conn->in_buf, start_len);
+      ares_buf_append_be16(conn->in_buf, (unsigned short)count);
+      ares_buf_set_length(conn->in_buf, len);
+    }
+    /* Try to read again only if *we* set up the socket, otherwise it may be
+     * a blocking socket and would cause recvfrom to hang. */
+  } while (read_again);
+
+  if (err != ARES_CONN_ERR_SUCCESS && err != ARES_CONN_ERR_WOULDBLOCK) {
+    handle_conn_error(conn, ARES_TRUE, ARES_ECONNREFUSED);
+    return ARES_ECONNREFUSED;
+  }
+
+  return ARES_SUCCESS;
+}
+
+static ares_status_t read_answers(ares_conn_t *conn, const ares_timeval_t *now)
+{
+  ares_status_t   status;
+  ares_channel_t *channel = conn->server->channel;
 
   /* Process all queued answers */
   while (1) {
     unsigned short       dns_len  = 0;
     const unsigned char *data     = NULL;
     size_t               data_len = 0;
-    ares_status_t        status;
 
     /* Tag so we can roll back */
-    ares__buf_tag(server->tcp_parser);
+    ares_buf_tag(conn->in_buf);
 
     /* Read length indicator */
-    if (ares__buf_fetch_be16(server->tcp_parser, &dns_len) != ARES_SUCCESS) {
-      ares__buf_tag_rollback(server->tcp_parser);
+    status = ares_buf_fetch_be16(conn->in_buf, &dns_len);
+    if (status != ARES_SUCCESS) {
+      ares_buf_tag_rollback(conn->in_buf);
       break;
     }
 
     /* Not enough data for a full response yet */
-    if (ares__buf_consume(server->tcp_parser, dns_len) != ARES_SUCCESS) {
-      ares__buf_tag_rollback(server->tcp_parser);
+    status = ares_buf_consume(conn->in_buf, dns_len);
+    if (status != ARES_SUCCESS) {
+      ares_buf_tag_rollback(conn->in_buf);
       break;
     }
 
     /* Can't fail except for misuse */
-    data = ares__buf_tag_fetch(server->tcp_parser, &data_len);
+    data = ares_buf_tag_fetch(conn->in_buf, &data_len);
     if (data == NULL || data_len < 2) {
-      ares__buf_tag_clear(server->tcp_parser);
+      ares_buf_tag_clear(conn->in_buf);
       break;
     }
 
@@ -369,201 +550,60 @@ static void read_tcp_data(ares_channel_t *channel, ares_conn_t *conn,
     data_len -= 2;
 
     /* We finished reading this answer; process it */
-    status = process_answer(channel, data, data_len, conn, ARES_TRUE, now);
+    status = process_answer(channel, data, data_len, conn, now);
     if (status != ARES_SUCCESS) {
       handle_conn_error(conn, ARES_TRUE, status);
-      return;
+      return status;
     }
 
     /* Since we processed the answer, clear the tag so space can be reclaimed */
-    ares__buf_tag_clear(server->tcp_parser);
+    ares_buf_tag_clear(conn->in_buf);
   }
+  return status;
 }
 
-static ares_socket_t *channel_socket_list(const ares_channel_t *channel,
-                                          size_t               *num)
+static ares_status_t process_read(ares_channel_t       *channel,
+                                  ares_socket_t         read_fd,
+                                  const ares_timeval_t *now)
 {
-  ares__slist_node_t *snode;
-  ares__array_t      *arr = ares__array_create(sizeof(ares_socket_t), NULL);
+  ares_conn_t  *conn = ares_conn_from_fd(channel, read_fd);
+  ares_status_t status;
 
-  *num = 0;
-
-  if (arr == NULL) {
-    return NULL; /* LCOV_EXCL_LINE: OutOfMemory */
+  if (conn == NULL) {
+    return ARES_SUCCESS;
   }
 
-  for (snode = ares__slist_node_first(channel->servers); snode != NULL;
-       snode = ares__slist_node_next(snode)) {
-    ares_server_t      *server = ares__slist_node_val(snode);
-    ares__llist_node_t *node;
+  /* TODO: There might be a potential issue here where there was a read that
+   *       read some data, then looped and read again and got a disconnect.
+   *       Right now, that would cause a resend instead of processing the data
+   *       we have.  This is fairly unlikely to occur due to only looping if
+   *       a full buffer of 65535 bytes was read. */
+  status = read_conn_packets(conn);
 
-    for (node = ares__llist_node_first(server->connections); node != NULL;
-         node = ares__llist_node_next(node)) {
-      const ares_conn_t *conn = ares__llist_node_val(node);
-      ares_socket_t     *sptr;
-      ares_status_t      status;
-
-      if (conn->fd == ARES_SOCKET_BAD) {
-        continue;
-      }
-
-      status = ares__array_insert_last((void **)&sptr, arr);
-      if (status != ARES_SUCCESS) {
-        ares__array_destroy(arr); /* LCOV_EXCL_LINE: OutOfMemory */
-        return NULL;              /* LCOV_EXCL_LINE: OutOfMemory */
-      }
-      *sptr = conn->fd;
-    }
+  if (status != ARES_SUCCESS) {
+    return status;
   }
 
-  return ares__array_finish(arr, num);
-}
-
-/* If any UDP sockets select true for reading, process them. */
-static void read_udp_packets_fd(ares_channel_t *channel, ares_conn_t *conn,
-                                const ares_timeval_t *now)
-{
-  ares_ssize_t  read_len;
-  unsigned char buf[MAXENDSSZ + 1];
-
-#ifdef HAVE_RECVFROM
-  ares_socklen_t fromlen;
-
-  union {
-    struct sockaddr     sa;
-    struct sockaddr_in  sa4;
-    struct sockaddr_in6 sa6;
-  } from;
-
-  memset(&from, 0, sizeof(from));
-#endif
-
-  /* To reduce event loop overhead, read and process as many
-   * packets as we can. */
-  do {
-    if (conn->fd == ARES_SOCKET_BAD) {
-      read_len = -1;
-    } else {
-      if (conn->server->addr.family == AF_INET) {
-        fromlen = sizeof(from.sa4);
-      } else {
-        fromlen = sizeof(from.sa6);
-      }
-      read_len = ares__socket_recvfrom(channel, conn->fd, (void *)buf,
-                                       sizeof(buf), 0, &from.sa, &fromlen);
-    }
-
-    if (read_len == 0) {
-      /* UDP is connectionless, so result code of 0 is a 0-length UDP
-       * packet, and not an indication the connection is closed like on
-       * tcp */
-      continue;
-    } else if (read_len < 0) {
-      if (ares__socket_try_again(SOCKERRNO)) {
-        break;
-      }
-
-      handle_conn_error(conn, ARES_TRUE, ARES_ECONNREFUSED);
-      return;
-#ifdef HAVE_RECVFROM
-    } else if (!same_address(&from.sa, &conn->server->addr)) {
-      /* The address the response comes from does not match the address we
-       * sent the request to. Someone may be attempting to perform a cache
-       * poisoning attack. */
-      continue;
-#endif
-
-    } else {
-      process_answer(channel, buf, (size_t)read_len, conn, ARES_FALSE, now);
-    }
-
-    /* Try to read again only if *we* set up the socket, otherwise it may be
-     * a blocking socket and would cause recvfrom to hang. */
-  } while (read_len >= 0 && channel->sock_funcs == NULL);
-}
-
-static void read_packets(ares_channel_t *channel, fd_set *read_fds,
-                         ares_socket_t read_fd, const ares_timeval_t *now)
-{
-  size_t              i;
-  ares_socket_t      *socketlist  = NULL;
-  size_t              num_sockets = 0;
-  ares_conn_t        *conn        = NULL;
-  ares__llist_node_t *node        = NULL;
-
-  if (!read_fds && (read_fd == ARES_SOCKET_BAD)) {
-    /* no possible action */
-    return;
-  }
-
-  /* Single socket specified */
-  if (!read_fds) {
-    node = ares__htable_asvp_get_direct(channel->connnode_by_socket, read_fd);
-    if (node == NULL) {
-      return;
-    }
-
-    conn = ares__llist_node_val(node);
-
-    if (conn->flags & ARES_CONN_FLAG_TCP) {
-      read_tcp_data(channel, conn, now);
-    } else {
-      read_udp_packets_fd(channel, conn, now);
-    }
-
-    return;
-  }
-
-  /* There is no good way to iterate across an fd_set, instead we must pull a
-   * list of all known fds, and iterate across that checking against the fd_set.
-   */
-  socketlist = channel_socket_list(channel, &num_sockets);
-
-  for (i = 0; i < num_sockets; i++) {
-    if (!FD_ISSET(socketlist[i], read_fds)) {
-      continue;
-    }
-
-    /* If there's an error and we close this socket, then open
-     * another with the same fd to talk to another server, then we
-     * don't want to think that it was the new socket that was
-     * ready. This is not disastrous, but is likely to result in
-     * extra system calls and confusion. */
-    FD_CLR(socketlist[i], read_fds);
-
-    node =
-      ares__htable_asvp_get_direct(channel->connnode_by_socket, socketlist[i]);
-    if (node == NULL) {
-      return;
-    }
-
-    conn = ares__llist_node_val(node);
-
-    if (conn->flags & ARES_CONN_FLAG_TCP) {
-      read_tcp_data(channel, conn, now);
-    } else {
-      read_udp_packets_fd(channel, conn, now);
-    }
-  }
-
-  ares_free(socketlist);
+  return read_answers(conn, now);
 }
 
 /* If any queries have timed out, note the timeout and move them on. */
-static void process_timeouts(ares_channel_t *channel, const ares_timeval_t *now)
+static ares_status_t process_timeouts(ares_channel_t       *channel,
+                                      const ares_timeval_t *now)
 {
-  ares__slist_node_t *node;
+  ares_slist_node_t *node;
+  ares_status_t      status = ARES_SUCCESS;
 
   /* Just keep popping off the first as this list will re-sort as things come
    * and go.  We don't want to try to rely on 'next' as some operation might
    * cause a cleanup of that pointer and would become invalid */
-  while ((node = ares__slist_node_first(channel->queries_by_timeout)) != NULL) {
-    ares_query_t *query = ares__slist_node_val(node);
+  while ((node = ares_slist_node_first(channel->queries_by_timeout)) != NULL) {
+    ares_query_t *query = ares_slist_node_val(node);
     ares_conn_t  *conn;
 
     /* Since this is sorted, as soon as we hit a query that isn't timed out,
      * break */
-    if (!ares__timedout(now, &query->timeout)) {
+    if (!ares_timedout(now, &query->timeout)) {
       break;
     }
 
@@ -571,8 +611,16 @@ static void process_timeouts(ares_channel_t *channel, const ares_timeval_t *now)
 
     conn = query->conn;
     server_increment_failures(conn->server, query->using_tcp);
-    ares__requeue_query(query, now, ARES_ETIMEOUT, ARES_TRUE, NULL);
+    status = ares_requeue_query(query, now, ARES_ETIMEOUT, ARES_TRUE, NULL);
+    if (status == ARES_ENOMEM) {
+      goto done;
+    }
   }
+done:
+  if (status == ARES_ENOMEM) {
+    return ARES_ENOMEM;
+  }
+  return ARES_SUCCESS;
 }
 
 static ares_status_t rewrite_without_edns(ares_query_t *query)
@@ -607,16 +655,21 @@ done:
  * the connection to be terminated after this call. */
 static ares_status_t process_answer(ares_channel_t      *channel,
                                     const unsigned char *abuf, size_t alen,
-                                    ares_conn_t *conn, ares_bool_t tcp,
+                                    ares_conn_t          *conn,
                                     const ares_timeval_t *now)
 {
   ares_query_t      *query;
-  /* Cache these as once ares__send_query() gets called, it may end up
+  /* Cache these as once ares_send_query() gets called, it may end up
    * invalidating the connection all-together */
   ares_server_t     *server  = conn->server;
   ares_dns_record_t *rdnsrec = NULL;
   ares_status_t      status;
   ares_bool_t        is_cached = ARES_FALSE;
+
+  /* UDP can have 0-byte messages, drop them to the ground */
+  if (alen == 0) {
+    return ARES_SUCCESS;
+  }
 
   /* Parse the response */
   status = ares_dns_parse(abuf, alen, 0, &rdnsrec);
@@ -629,8 +682,8 @@ static ares_status_t process_answer(ares_channel_t      *channel,
   /* Find the query corresponding to this packet. The queries are
    * hashed/bucketed by query id, so this lookup should be quick.
    */
-  query = ares__htable_szvp_get_direct(channel->queries_by_qid,
-                                       ares_dns_record_get_id(rdnsrec));
+  query = ares_htable_szvp_get_direct(channel->queries_by_qid,
+                                      ares_dns_record_get_id(rdnsrec));
   if (!query) {
     /* We may have stopped listening for this query, that's ok */
     status = ARES_SUCCESS;
@@ -657,7 +710,7 @@ static ares_status_t process_answer(ares_channel_t      *channel,
    * remove it from the connection's queue so we can possibly invalidate the
    * connection. Delay cleaning up the connection though as we may enqueue
    * something new.  */
-  ares__llist_node_destroy(query->node_queries_to_conn);
+  ares_llist_node_destroy(query->node_queries_to_conn);
   query->node_queries_to_conn = NULL;
 
   /* If we use EDNS and server answers with FORMERR without an OPT RR, the
@@ -672,7 +725,8 @@ static ares_status_t process_answer(ares_channel_t      *channel,
       goto cleanup;
     }
 
-    ares__send_query(query, now);
+    /* Send to same server */
+    ares_send_query(server, query, now);
     status = ARES_SUCCESS;
     goto cleanup;
   }
@@ -681,10 +735,11 @@ static ares_status_t process_answer(ares_channel_t      *channel,
    * don't accept the packet, and switch the query to TCP if we hadn't
    * done so already.
    */
-  if (ares_dns_record_get_flags(rdnsrec) & ARES_FLAG_TC && !tcp &&
+  if (ares_dns_record_get_flags(rdnsrec) & ARES_FLAG_TC &&
+      !(conn->flags & ARES_CONN_FLAG_TCP) &&
       !(channel->flags & ARES_FLAG_IGNTC)) {
     query->using_tcp = ARES_TRUE;
-    ares__send_query(query, now);
+    ares_send_query(NULL, query, now);
     status = ARES_SUCCESS; /* Switched to TCP is ok */
     goto cleanup;
   }
@@ -711,7 +766,7 @@ static ares_status_t process_answer(ares_channel_t      *channel,
       }
 
       server_increment_failures(server, query->using_tcp);
-      ares__requeue_query(query, now, status, ARES_TRUE, rdnsrec);
+      ares_requeue_query(query, now, status, ARES_TRUE, rdnsrec);
 
       /* Should any of these cause a connection termination?
        * Maybe SERVER_FAILURE? */
@@ -753,19 +808,18 @@ static void handle_conn_error(ares_conn_t *conn, ares_bool_t critical_failure,
   }
 
   /* This will requeue any connections automatically */
-  ares__close_connection(conn, failure_status);
+  ares_close_connection(conn, failure_status);
 }
 
-ares_status_t ares__requeue_query(ares_query_t            *query,
-                                  const ares_timeval_t    *now,
-                                  ares_status_t            status,
-                                  ares_bool_t              inc_try_count,
-                                  const ares_dns_record_t *dnsrec)
+ares_status_t ares_requeue_query(ares_query_t *query, const ares_timeval_t *now,
+                                 ares_status_t            status,
+                                 ares_bool_t              inc_try_count,
+                                 const ares_dns_record_t *dnsrec)
 {
-  ares_channel_t *channel = query->channel;
-  size_t max_tries        = ares__slist_len(channel->servers) * channel->tries;
+  ares_channel_t *channel   = query->channel;
+  size_t          max_tries = ares_slist_len(channel->servers) * channel->tries;
 
-  ares__query_disassociate_from_conn(query);
+  ares_query_remove_from_conn(query);
 
   if (status != ARES_SUCCESS) {
     query->error_status = status;
@@ -776,7 +830,7 @@ ares_status_t ares__requeue_query(ares_query_t            *query,
   }
 
   if (query->try_count < max_tries && !query->no_retries) {
-    return ares__send_query(query, now);
+    return ares_send_query(NULL, query, now);
   }
 
   /* If we are here, all attempts to perform query failed. */
@@ -788,32 +842,58 @@ ares_status_t ares__requeue_query(ares_query_t            *query,
   return ARES_ETIMEOUT;
 }
 
-/* Pick a random server from the list, we first get a random number in the
- * range of the number of servers, then scan until we find that server in
- * the list */
-static ares_server_t *ares__random_server(ares_channel_t *channel)
+/*! Count the number of servers that share the same highest priority (lowest
+ *  consecutive failures).  Since they are sorted in priority order, we just
+ *  stop when the consecutive failure count changes. Used for random selection
+ *  of good servers. */
+static size_t count_highest_prio_servers(const ares_channel_t *channel)
 {
-  unsigned char       c;
-  size_t              cnt;
-  size_t              idx;
-  ares__slist_node_t *node;
-  size_t              num_servers = ares__slist_len(channel->servers);
+  ares_slist_node_t *node;
+  size_t             cnt                  = 0;
+  size_t             last_consec_failures = SIZE_MAX;
+
+  for (node = ares_slist_node_first(channel->servers); node != NULL;
+       node = ares_slist_node_next(node)) {
+    const ares_server_t *server = ares_slist_node_val(node);
+
+    if (last_consec_failures != SIZE_MAX &&
+        last_consec_failures < server->consec_failures) {
+      break;
+    }
+
+    last_consec_failures = server->consec_failures;
+    cnt++;
+  }
+
+  return cnt;
+}
+
+/* Pick a random *best* server from the list, we first get a random number in
+ * the range of the number of *best* servers, then scan until we find that
+ * server in the list */
+static ares_server_t *ares_random_server(ares_channel_t *channel)
+{
+  unsigned char      c;
+  size_t             cnt;
+  size_t             idx;
+  ares_slist_node_t *node;
+  size_t             num_servers = count_highest_prio_servers(channel);
 
   /* Silence coverity, not possible */
   if (num_servers == 0) {
     return NULL;
   }
 
-  ares__rand_bytes(channel->rand_state, &c, 1);
+  ares_rand_bytes(channel->rand_state, &c, 1);
 
   cnt = c;
   idx = cnt % num_servers;
 
   cnt = 0;
-  for (node = ares__slist_node_first(channel->servers); node != NULL;
-       node = ares__slist_node_next(node)) {
+  for (node = ares_slist_node_first(channel->servers); node != NULL;
+       node = ares_slist_node_next(node)) {
     if (cnt == idx) {
-      return ares__slist_node_val(node);
+      return ares_slist_node_val(node);
     }
 
     cnt++;
@@ -822,40 +902,32 @@ static ares_server_t *ares__random_server(ares_channel_t *channel)
   return NULL;
 }
 
-/* Pick a server from the list with failover behavior.
- *
- * We default to using the first server in the sorted list of servers. That is
- * the server with the lowest number of consecutive failures and then the
- * highest priority server (by idx) if there is a draw.
- *
- * However, if a server temporarily goes down and hits some failures, then that
- * server will never be retried until all other servers hit the same number of
- * failures. This may prevent the server from being retried for a long time.
- *
- * To resolve this, with some probability we select a failed server to retry
- * instead.
- */
-static ares_server_t *ares__failover_server(ares_channel_t *channel)
+static void server_probe_cb(void *arg, ares_status_t status, size_t timeouts,
+                            const ares_dns_record_t *dnsrec)
 {
-  ares_server_t       *first_server = ares__slist_first_val(channel->servers);
-  const ares_server_t *last_server  = ares__slist_last_val(channel->servers);
+  (void)arg;
+  (void)status;
+  (void)timeouts;
+  (void)dnsrec;
+  /* Nothing to do, the logic internally will handle success/fail of this */
+}
+
+/* Determine if we should probe a downed server */
+static void ares_probe_failed_server(ares_channel_t      *channel,
+                                     const ares_server_t *server,
+                                     const ares_query_t  *query)
+{
+  const ares_server_t *last_server = ares_slist_last_val(channel->servers);
   unsigned short       r;
+  ares_timeval_t       now;
+  ares_slist_node_t   *node;
+  ares_server_t       *probe_server = NULL;
 
-  /* Defensive code against no servers being available on the channel. */
-  if (first_server == NULL) {
-    return NULL; /* LCOV_EXCL_LINE: DefensiveCoding */
-  }
-
-  /* If no servers have failures, then prefer the first server in the list. */
-  if (last_server != NULL && last_server->consec_failures == 0) {
-    return first_server;
-  }
-
-  /* If we are not configured with a server retry chance then return the first
-   * server.
-   */
-  if (channel->server_retry_chance == 0) {
-    return first_server;
+  /* If no servers have failures, or we're not configured with a server retry
+   * chance, then nothing to probe */
+  if ((last_server != NULL && last_server->consec_failures == 0) ||
+      channel->server_retry_chance == 0) {
+    return;
   }
 
   /* Generate a random value to decide whether to retry a failed server. The
@@ -863,36 +935,49 @@ static ares_server_t *ares__failover_server(ares_channel_t *channel)
    * precision of 1/2^B where B is the number of bits in the random value.
    * We use an unsigned short for the random value for increased precision.
    */
-  ares__rand_bytes(channel->rand_state, (unsigned char *)&r, sizeof(r));
-  if (r % channel->server_retry_chance == 0) {
-    /* Select a suitable failed server to retry. */
-    ares_timeval_t      now;
-    ares__slist_node_t *node;
+  ares_rand_bytes(channel->rand_state, (unsigned char *)&r, sizeof(r));
+  if (r % channel->server_retry_chance != 0) {
+    return;
+  }
 
-    ares__tvnow(&now);
-    for (node = ares__slist_node_first(channel->servers); node != NULL;
-         node = ares__slist_node_next(node)) {
-      ares_server_t *node_val = ares__slist_node_val(node);
-      if (node_val != NULL && node_val->consec_failures > 0 &&
-          ares__timedout(&now, &node_val->next_retry_time)) {
-        return node_val;
-      }
+  /* Select the first server with failures to retry that has passed the retry
+   * timeout and doesn't already have a pending probe */
+  ares_tvnow(&now);
+  for (node = ares_slist_node_first(channel->servers); node != NULL;
+       node = ares_slist_node_next(node)) {
+    ares_server_t *node_val = ares_slist_node_val(node);
+    if (node_val != NULL && node_val->consec_failures > 0 &&
+        !node_val->probe_pending &&
+        ares_timedout(&now, &node_val->next_retry_time)) {
+      probe_server = node_val;
+      break;
     }
   }
 
-  /* If we have not returned yet, then return the first server. */
-  return first_server;
+  /* Either nothing to probe or the query was enqueud to the same server
+   * we were going to probe. Do nothing. */
+  if (probe_server == NULL || server == probe_server) {
+    return;
+  }
+
+  /* Enqueue an identical query onto the specified server without honoring
+   * the cache or allowing retries.  We want to make sure it only attempts to
+   * use the server in question */
+  probe_server->probe_pending = ARES_TRUE;
+  ares_send_nolock(channel, probe_server,
+                   ARES_SEND_FLAG_NOCACHE | ARES_SEND_FLAG_NORETRY,
+                   query->query, server_probe_cb, NULL, NULL);
 }
 
-static size_t ares__calc_query_timeout(const ares_query_t   *query,
-                                       const ares_server_t  *server,
-                                       const ares_timeval_t *now)
+static size_t ares_calc_query_timeout(const ares_query_t   *query,
+                                      const ares_server_t  *server,
+                                      const ares_timeval_t *now)
 {
   const ares_channel_t *channel  = query->channel;
   size_t                timeout  = ares_metrics_server_timeout(server, now);
   size_t                timeplus = timeout;
   size_t                rounds;
-  size_t                num_servers = ares__slist_len(channel->servers);
+  size_t                num_servers = ares_slist_len(channel->servers);
 
   if (num_servers == 0) {
     return 0; /* LCOV_EXCL_LINE: DefensiveCoding */
@@ -922,7 +1007,7 @@ static size_t ares__calc_query_timeout(const ares_query_t   *query,
     unsigned short r;
     float          delta_multiplier;
 
-    ares__rand_bytes(channel->rand_state, (unsigned char *)&r, sizeof(r));
+    ares_rand_bytes(channel->rand_state, (unsigned char *)&r, sizeof(r));
     delta_multiplier  = ((float)r / USHRT_MAX) * 0.5f;
     timeplus         -= (size_t)((float)timeplus * delta_multiplier);
   }
@@ -936,24 +1021,24 @@ static size_t ares__calc_query_timeout(const ares_query_t   *query,
   return timeplus;
 }
 
-static ares_conn_t *ares__fetch_connection(const ares_channel_t *channel,
-                                           ares_server_t        *server,
-                                           const ares_query_t   *query)
+static ares_conn_t *ares_fetch_connection(const ares_channel_t *channel,
+                                          ares_server_t        *server,
+                                          const ares_query_t   *query)
 {
-  ares__llist_node_t *node;
-  ares_conn_t        *conn;
+  ares_llist_node_t *node;
+  ares_conn_t       *conn;
 
   if (query->using_tcp) {
     return server->tcp_conn;
   }
 
   /* Fetch existing UDP connection */
-  node = ares__llist_node_first(server->connections);
+  node = ares_llist_node_first(server->connections);
   if (node == NULL) {
     return NULL;
   }
 
-  conn = ares__llist_node_val(node);
+  conn = ares_llist_node_val(node);
   /* Not UDP, skip */
   if (conn->flags & ARES_CONN_FLAG_TCP) {
     return NULL;
@@ -968,13 +1053,10 @@ static ares_conn_t *ares__fetch_connection(const ares_channel_t *channel,
   return conn;
 }
 
-static ares_status_t ares__conn_query_write(ares_conn_t          *conn,
-                                            ares_query_t         *query,
-                                            const ares_timeval_t *now)
+static ares_status_t ares_conn_query_write(ares_conn_t          *conn,
+                                           ares_query_t         *query,
+                                           const ares_timeval_t *now)
 {
-  unsigned char  *qbuf     = NULL;
-  size_t          qbuf_len = 0;
-  ares_ssize_t    len;
   ares_server_t  *server  = conn->server;
   ares_channel_t *channel = server->channel;
   ares_status_t   status;
@@ -984,81 +1066,57 @@ static ares_status_t ares__conn_query_write(ares_conn_t          *conn,
     return status;
   }
 
-  if (conn->flags & ARES_CONN_FLAG_TCP) {
-    size_t prior_len = ares__buf_len(server->tcp_send);
-
-    status = ares_dns_write_buf_tcp(query->query, server->tcp_send);
-    if (status != ARES_SUCCESS) {
-      return status;
-    }
-
-    if (conn->flags & ARES_CONN_FLAG_TFO_INITIAL) {
-      /* When using TFO, we need to put it on the wire immediately. */
-      size_t               data_len;
-      const unsigned char *data = NULL;
-
-      data = ares__buf_peek(server->tcp_send, &data_len);
-      len  = ares__conn_write(conn, data, data_len);
-      if (len <= 0) {
-        if (ares__socket_try_again(SOCKERRNO)) {
-          /* This means we must not have qualified for TFO, keep the data
-           * buffered, wait on write signal. */
-          return ARES_SUCCESS;
-        }
-
-        /* TCP TFO might delay failure.  Reflect that here */
-        return ARES_ECONNREFUSED;
-      }
-
-      /* Consume what was written */
-      ares__buf_consume(server->tcp_send, (size_t)len);
-      return ARES_SUCCESS;
-    }
-
-    if (prior_len == 0) {
-      SOCK_STATE_CALLBACK(channel, conn->fd, 1, 1);
-    }
-
-    return ARES_SUCCESS;
-  }
-
-  /* UDP Here */
-  status = ares_dns_write(query->query, &qbuf, &qbuf_len);
+  /* We write using the TCP format even for UDP, we just strip the length
+   * before putting on the wire */
+  status = ares_dns_write_buf_tcp(query->query, conn->out_buf);
   if (status != ARES_SUCCESS) {
     return status;
   }
 
-  len = ares__conn_write(conn, qbuf, qbuf_len);
-  ares_free(qbuf);
-
-  if (len == -1) {
-    if (ares__socket_try_again(SOCKERRNO)) {
-      return ARES_ESERVFAIL;
-    }
-    /* UDP is connection-less, but we might receive an ICMP unreachable which
-     * means we can't talk to the remote host at all and that will be
-     * reflected here */
-    return ARES_ECONNREFUSED;
+  /* Not pending a TFO write and not connected, so we can't even try to
+   * write until we get a signal */
+  if (conn->flags & ARES_CONN_FLAG_TCP &&
+      !(conn->state_flags & ARES_CONN_STATE_CONNECTED) &&
+      !(conn->flags & ARES_CONN_FLAG_TFO_INITIAL)) {
+    return ARES_SUCCESS;
   }
 
-  return ARES_SUCCESS;
+  /* Delay actual write if possible (TCP only, and only if callback
+   * configured) */
+  if (channel->notify_pending_write_cb && !channel->notify_pending_write &&
+      conn->flags & ARES_CONN_FLAG_TCP) {
+    channel->notify_pending_write = ARES_TRUE;
+    channel->notify_pending_write_cb(channel->notify_pending_write_cb_data);
+    return ARES_SUCCESS;
+  }
+
+  /* Unfortunately we need to write right away and can't aggregate multiple
+   * queries into a single write. */
+  return ares_conn_flush(conn);
 }
 
-ares_status_t ares__send_query(ares_query_t *query, const ares_timeval_t *now)
+ares_status_t ares_send_query(ares_server_t *requested_server,
+                              ares_query_t *query, const ares_timeval_t *now)
 {
   ares_channel_t *channel = query->channel;
   ares_server_t  *server;
   ares_conn_t    *conn;
   size_t          timeplus;
   ares_status_t   status;
+  ares_bool_t     probe_downed_server = ARES_TRUE;
+
 
   /* Choose the server to send the query to */
-  if (channel->rotate) {
-    /* Pull random server */
-    server = ares__random_server(channel);
+  if (requested_server != NULL) {
+    server = requested_server;
   } else {
-    /* Pull server with failover behavior */
-    server = ares__failover_server(channel);
+    /* If rotate is turned on, do a random selection */
+    if (channel->rotate) {
+      server = ares_random_server(channel);
+    } else {
+      /* First server in list */
+      server = ares_slist_first_val(channel->servers);
+    }
   }
 
   if (server == NULL) {
@@ -1066,9 +1124,16 @@ ares_status_t ares__send_query(ares_query_t *query, const ares_timeval_t *now)
     return ARES_ENOSERVER;
   }
 
-  conn = ares__fetch_connection(channel, server, query);
+  /* If a query is directed to a specific query, or the server chosen has
+   * failures, or the query is being retried, don't probe for downed servers */
+  if (requested_server != NULL || server->consec_failures > 0 ||
+      query->try_count != 0) {
+    probe_downed_server = ARES_FALSE;
+  }
+
+  conn = ares_fetch_connection(channel, server, query);
   if (conn == NULL) {
-    status = ares__open_connection(&conn, channel, server, query->using_tcp);
+    status = ares_open_connection(&conn, channel, server, query->using_tcp);
     switch (status) {
       /* Good result, continue on */
       case ARES_SUCCESS:
@@ -1079,7 +1144,7 @@ ares_status_t ares__send_query(ares_query_t *query, const ares_timeval_t *now)
       case ARES_ECONNREFUSED:
       case ARES_EBADFAMILY:
         server_increment_failures(server, query->using_tcp);
-        return ares__requeue_query(query, now, status, ARES_TRUE, NULL);
+        return ares_requeue_query(query, now, status, ARES_TRUE, NULL);
 
       /* Anything else is not retryable, likely ENOMEM */
       default:
@@ -1089,7 +1154,7 @@ ares_status_t ares__send_query(ares_query_t *query, const ares_timeval_t *now)
   }
 
   /* Write the query */
-  status = ares__conn_query_write(conn, query, now);
+  status = ares_conn_query_write(conn, query, now);
   switch (status) {
     /* Good result, continue on */
     case ARES_SUCCESS:
@@ -1105,30 +1170,28 @@ ares_status_t ares__send_query(ares_query_t *query, const ares_timeval_t *now)
     case ARES_ECONNREFUSED:
     case ARES_EBADFAMILY:
       handle_conn_error(conn, ARES_TRUE, status);
-      status = ares__requeue_query(query, now, status, ARES_TRUE, NULL);
+      status = ares_requeue_query(query, now, status, ARES_TRUE, NULL);
       if (status == ARES_ETIMEOUT) {
         status = ARES_ECONNREFUSED;
       }
       return status;
 
-    /* FIXME: Handle EAGAIN here since it likely can happen. Right now we
-     * just requeue to a different server/connection. */
     default:
       server_increment_failures(server, query->using_tcp);
-      status = ares__requeue_query(query, now, status, ARES_TRUE, NULL);
+      status = ares_requeue_query(query, now, status, ARES_TRUE, NULL);
       return status;
   }
 
-  timeplus = ares__calc_query_timeout(query, server, now);
+  timeplus = ares_calc_query_timeout(query, server, now);
   /* Keep track of queries bucketed by timeout, so we can process
    * timeout events quickly.
    */
-  ares__slist_node_destroy(query->node_queries_by_timeout);
+  ares_slist_node_destroy(query->node_queries_by_timeout);
   query->ts      = *now;
   query->timeout = *now;
   timeadd(&query->timeout, timeplus);
   query->node_queries_by_timeout =
-    ares__slist_insert(channel->queries_by_timeout, query);
+    ares_slist_insert(channel->queries_by_timeout, query);
   if (!query->node_queries_by_timeout) {
     /* LCOV_EXCL_START: OutOfMemory */
     end_query(channel, server, query, ARES_ENOMEM, NULL);
@@ -1138,9 +1201,9 @@ ares_status_t ares__send_query(ares_query_t *query, const ares_timeval_t *now)
 
   /* Keep track of queries bucketed by connection, so we can process errors
    * quickly. */
-  ares__llist_node_destroy(query->node_queries_to_conn);
+  ares_llist_node_destroy(query->node_queries_to_conn);
   query->node_queries_to_conn =
-    ares__llist_insert_last(conn->queries_to_conn, query);
+    ares_llist_insert_last(conn->queries_to_conn, query);
 
   if (query->node_queries_to_conn == NULL) {
     /* LCOV_EXCL_START: OutOfMemory */
@@ -1151,6 +1214,13 @@ ares_status_t ares__send_query(ares_query_t *query, const ares_timeval_t *now)
 
   query->conn = conn;
   conn->total_queries++;
+
+  /* We just successfully enqueud a query, see if we should probe downed
+   * servers. */
+  if (probe_downed_server) {
+    ares_probe_failed_server(channel, server, query);
+  }
+
   return ARES_SUCCESS;
 }
 
@@ -1197,12 +1267,12 @@ static ares_bool_t same_questions(const ares_query_t      *query,
        *       server to preserve the case of the name in the response packet.
        *       https://datatracker.ietf.org/doc/html/draft-vixie-dnsext-dns0x20-00
        */
-      if (strcmp(qname, aname) != 0) {
+      if (!ares_streq(qname, aname)) {
         goto done;
       }
     } else {
       /* without DNS0x20 use case-insensitive matching */
-      if (strcasecmp(qname, aname) != 0) {
+      if (!ares_strcaseeq(qname, aname)) {
         goto done;
       }
     }
@@ -1214,42 +1284,12 @@ done:
   return rv;
 }
 
-static ares_bool_t same_address(const struct sockaddr  *sa,
-                                const struct ares_addr *aa)
-{
-  const void *addr1;
-  const void *addr2;
-
-  if (sa->sa_family == aa->family) {
-    switch (aa->family) {
-      case AF_INET:
-        addr1 = &aa->addr.addr4;
-        addr2 = &(CARES_INADDR_CAST(const struct sockaddr_in *, sa))->sin_addr;
-        if (memcmp(addr1, addr2, sizeof(aa->addr.addr4)) == 0) {
-          return ARES_TRUE; /* match */
-        }
-        break;
-      case AF_INET6:
-        addr1 = &aa->addr.addr6;
-        addr2 =
-          &(CARES_INADDR_CAST(const struct sockaddr_in6 *, sa))->sin6_addr;
-        if (memcmp(addr1, addr2, sizeof(aa->addr.addr6)) == 0) {
-          return ARES_TRUE; /* match */
-        }
-        break;
-      default:
-        break; /* LCOV_EXCL_LINE */
-    }
-  }
-  return ARES_FALSE; /* different */
-}
-
 static void ares_detach_query(ares_query_t *query)
 {
   /* Remove the query from all the lists in which it is linked */
-  ares__query_disassociate_from_conn(query);
-  ares__htable_szvp_remove(query->channel->queries_by_qid, query->qid);
-  ares__llist_node_destroy(query->node_all_queries);
+  ares_query_remove_from_conn(query);
+  ares_htable_szvp_remove(query->channel->queries_by_qid, query->qid);
+  ares_llist_node_destroy(query->node_all_queries);
   query->node_all_queries = NULL;
 }
 
@@ -1257,11 +1297,17 @@ static void end_query(ares_channel_t *channel, ares_server_t *server,
                       ares_query_t *query, ares_status_t status,
                       const ares_dns_record_t *dnsrec)
 {
+  /* If we were probing for the server to come back online, lets mark it as
+   * no longer being probed */
+  if (server != NULL) {
+    server->probe_pending = ARES_FALSE;
+  }
+
   ares_metrics_record(query, server, status, dnsrec);
 
   /* Invoke the callback. */
   query->callback(query->arg, status, query->timeouts, dnsrec);
-  ares__free_query(query);
+  ares_free_query(query);
 
   /* Check and notify if no other queries are enqueued on the channel.  This
    * must come after the callback and freeing the query for 2 reasons.
@@ -1271,7 +1317,7 @@ static void end_query(ares_channel_t *channel, ares_server_t *server,
   ares_queue_notify_empty(channel);
 }
 
-void ares__free_query(ares_query_t *query)
+void ares_free_query(ares_query_t *query)
 {
   ares_detach_query(query);
   /* Zero out some important stuff, to help catch bugs */

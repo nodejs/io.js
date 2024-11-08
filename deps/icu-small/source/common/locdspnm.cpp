@@ -336,10 +336,11 @@ LocaleDisplayNamesImpl::LocaleDisplayNamesImpl(const Locale& locale,
 {
     while (length-- > 0) {
         UDisplayContext value = *contexts++;
-        UDisplayContextType selector = (UDisplayContextType)((uint32_t)value >> 8);
+        UDisplayContextType selector =
+            static_cast<UDisplayContextType>(static_cast<uint32_t>(value) >> 8);
         switch (selector) {
             case UDISPCTX_TYPE_DIALECT_HANDLING:
-                dialectHandling = (UDialectHandling)value;
+                dialectHandling = static_cast<UDialectHandling>(value);
                 break;
             case UDISPCTX_TYPE_CAPITALIZATION:
                 capitalizationContext = value;
@@ -407,7 +408,7 @@ LocaleDisplayNamesImpl::CapitalizationContextSink::~CapitalizationContextSink() 
 
 void
 LocaleDisplayNamesImpl::initialize() {
-    LocaleDisplayNamesImpl *nonConstThis = (LocaleDisplayNamesImpl *)this;
+    LocaleDisplayNamesImpl* nonConstThis = this;
     nonConstThis->locale = langData.getLocale() == Locale::getRoot()
         ? regionData.getLocale()
         : langData.getLocale();
@@ -426,16 +427,16 @@ LocaleDisplayNamesImpl::initialize() {
         pattern = UnicodeString("{0} ({1})", -1, US_INV);
     }
     format.applyPatternMinMaxArguments(pattern, 2, 2, status);
-    if (pattern.indexOf((char16_t)0xFF08) >= 0) {
-        formatOpenParen.setTo((char16_t)0xFF08);         // fullwidth (
-        formatReplaceOpenParen.setTo((char16_t)0xFF3B);  // fullwidth [
-        formatCloseParen.setTo((char16_t)0xFF09);        // fullwidth )
-        formatReplaceCloseParen.setTo((char16_t)0xFF3D); // fullwidth ]
+    if (pattern.indexOf(static_cast<char16_t>(0xFF08)) >= 0) {
+        formatOpenParen.setTo(static_cast<char16_t>(0xFF08));         // fullwidth (
+        formatReplaceOpenParen.setTo(static_cast<char16_t>(0xFF3B));  // fullwidth [
+        formatCloseParen.setTo(static_cast<char16_t>(0xFF09));        // fullwidth )
+        formatReplaceCloseParen.setTo(static_cast<char16_t>(0xFF3D)); // fullwidth ]
     } else {
-        formatOpenParen.setTo((char16_t)0x0028);         // (
-        formatReplaceOpenParen.setTo((char16_t)0x005B);  // [
-        formatCloseParen.setTo((char16_t)0x0029);        // )
-        formatReplaceCloseParen.setTo((char16_t)0x005D); // ]
+        formatOpenParen.setTo(static_cast<char16_t>(0x0028));         // (
+        formatReplaceOpenParen.setTo(static_cast<char16_t>(0x005B));  // [
+        formatCloseParen.setTo(static_cast<char16_t>(0x0029));        // )
+        formatReplaceCloseParen.setTo(static_cast<char16_t>(0x005D)); // ]
     }
 
     UnicodeString ktPattern;
@@ -495,7 +496,7 @@ UDisplayContext
 LocaleDisplayNamesImpl::getContext(UDisplayContextType type) const {
     switch (type) {
         case UDISPCTX_TYPE_DIALECT_HANDLING:
-            return (UDisplayContext)dialectHandling;
+            return static_cast<UDisplayContext>(dialectHandling);
         case UDISPCTX_TYPE_CAPITALIZATION:
             return capitalizationContext;
         case UDISPCTX_TYPE_DISPLAY_LENGTH:
@@ -505,7 +506,7 @@ LocaleDisplayNamesImpl::getContext(UDisplayContextType type) const {
         default:
             break;
     }
-    return (UDisplayContext)0;
+    return static_cast<UDisplayContext>(0);
 }
 
 UnicodeString&
@@ -652,7 +653,7 @@ LocaleDisplayNamesImpl::localeDisplayName(const Locale& loc,
         appendWithSep(resultRemainder, temp3);
       } else {
         appendWithSep(resultRemainder, temp)
-          .append((char16_t)0x3d /* = */)
+          .append(static_cast<char16_t>(0x3d) /* = */)
           .append(temp2);
       }
     }

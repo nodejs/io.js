@@ -446,7 +446,7 @@ uprv_copyEbcdic(const UDataSwapper *ds,
     return length;
 }
 
-U_CFUNC UBool
+U_CAPI UBool
 uprv_isEbcdicAtSign(char c) {
     static const uint8_t ebcdicAtSigns[] = {
         0x7C, 0x44, 0x66, 0x80, 0xAC, 0xAE, 0xAF, 0xB5, 0xEC, 0xEF, 0x00 };

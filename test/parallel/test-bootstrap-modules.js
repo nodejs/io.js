@@ -104,6 +104,7 @@ expected.beforePreExec = new Set([
   'NativeModule diagnostics_channel',
   'Internal Binding wasm_web_api',
   'NativeModule internal/events/abort_listener',
+  'NativeModule internal/modules/typescript',
 ]);
 
 expected.atRunTime = new Set([

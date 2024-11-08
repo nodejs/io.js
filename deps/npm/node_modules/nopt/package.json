@@ -1,17 +1,18 @@
 {
   "name": "nopt",
-  "version": "7.2.1",
+  "version": "8.0.0",
   "description": "Option parsing for Node, supporting types, shorthands, etc. Used by npm.",
   "author": "GitHub Inc.",
   "main": "lib/nopt.js",
   "scripts": {
     "test": "tap",
-    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lint": "npm run eslint",
     "postlint": "template-oss-check",
     "template-oss-apply": "template-oss-apply --force",
-    "lintfix": "npm run lint -- --fix",
+    "lintfix": "npm run eslint -- --fix",
     "snap": "tap",
-    "posttest": "npm run lint"
+    "posttest": "npm run lint",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "repository": {
     "type": "git",
@@ -25,8 +26,8 @@
     "abbrev": "^2.0.0"
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.22.0",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "tap": "^16.3.0"
   },
   "tap": {
@@ -40,12 +41,12 @@
     "lib/"
   ],
   "engines": {
-    "node": "^14.17.0 || ^16.13.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
     "windowsCI": false,
-    "version": "4.22.0",
+    "version": "4.23.3",
     "publish": true
   }
 }

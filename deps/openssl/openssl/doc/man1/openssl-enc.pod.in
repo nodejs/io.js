@@ -97,13 +97,19 @@ Base64 process the data. This means that if encryption is taking place
 the data is base64 encoded after encryption. If decryption is set then
 the input data is base64 decoded before being decrypted.
 
+When the B<-A> option not given,
+on encoding a newline is inserted after each 64 characters, and
+on decoding a newline is expected among the first 1024 bytes of input.
+
 =item B<-base64>
 
 Same as B<-a>
 
 =item B<-A>
 
-If the B<-a> option is set then base64 process the data on one line.
+If the B<-a> option is set then base64 encoding produces output without any
+newline character, and base64 decoding does not require any newlines.
+Therefore it can be helpful to use the B<-A> option when decoding unknown input.
 
 =item B<-k> I<password>
 
@@ -434,6 +440,9 @@ Base64 decode a file then decrypt it using a password supplied in a file:
 =head1 BUGS
 
 The B<-A> option when used with large files doesn't work properly.
+On the other hand, when base64 decoding without the B<-A> option,
+if the first 1024 bytes of input do not include a newline character
+the first two lines of input are ignored.
 
 The B<openssl enc> command only supports a fixed number of algorithms with
 certain parameters. So if, for example, you want to use RC2 with a
@@ -449,7 +458,7 @@ The B<-ciphers> and B<-engine> options were deprecated in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

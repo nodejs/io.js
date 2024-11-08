@@ -3,7 +3,7 @@ HOW TO CONTRIBUTE TO OpenSSL
 
 Please visit our [Getting Started] page for other ideas about how to contribute.
 
-  [Getting Started]: <https://www.openssl.org/community/getting-started.html>
+  [Getting Started]: <https://openssl-library.org/community/getting-started>
 
 Development is done on GitHub in the [openssl/openssl] repository.
 
@@ -77,8 +77,8 @@ guidelines:
     Clean builds via GitHub Actions are required. They are started automatically
     whenever a PR is created or updated by committers.
 
-    [coding style]: https://www.openssl.org/policies/technical/coding-style.html
-    [documentation policy]: https://openssl.org/policies/technical/documentation-policy.html
+    [coding style]: https://openssl-library.org/policies/technical/coding-style/
+    [documentation policy]: https://openssl-library.org/policies/technical/documentation-policy/
 
  5. When at all possible, code contributions should include tests. These can
     either be added to an existing test, or completely new.  Please see

@@ -118,7 +118,7 @@ static const UVersionInfo gFormatVersions[4] = {  /* indexed by a major-formatVe
 
 static uint8_t calcPadding(uint32_t size) {
     /* returns space we need to pad */
-    return (uint8_t) ((size % sizeof(uint32_t)) ? (sizeof(uint32_t) - (size % sizeof(uint32_t))) : 0);
+    return static_cast<uint8_t>(size % sizeof(uint32_t) ? sizeof(uint32_t) - (size % sizeof(uint32_t)) : 0);
 
 }
 
@@ -416,7 +416,7 @@ StringResource::handlePreflightStrings(SRBRoot *bundle, UHashtable *stringSet,
         // This is a duplicate of a pool bundle string or of an earlier-visited string.
         if (++fSame->fNumCopies == 1) {
             assert(fSame->fWritten);
-            int32_t poolStringIndex = (int32_t)RES_GET_OFFSET(fSame->fRes);
+            int32_t poolStringIndex = static_cast<int32_t>(RES_GET_OFFSET(fSame->fRes));
             if (poolStringIndex >= bundle->fPoolStringIndexLimit) {
                 bundle->fPoolStringIndexLimit = poolStringIndex + 1;
             }
@@ -430,7 +430,7 @@ StringResource::handlePreflightStrings(SRBRoot *bundle, UHashtable *stringSet,
     if (bundle->fStringsForm != STRINGS_UTF16_V1) {
         int32_t len = length();
         if (len <= MAX_IMPLICIT_STRING_LENGTH &&
-                !U16_IS_TRAIL(fString[0]) && fString.indexOf((char16_t)0) < 0) {
+                !U16_IS_TRAIL(fString[0]) && fString.indexOf(static_cast<char16_t>(0)) < 0) {
             /*
              * This string will be stored without an explicit length.
              * Runtime will detect !U16_IS_TRAIL(s[0]) and call u_strlen().
@@ -483,7 +483,7 @@ SRBRoot::makeRes16(uint32_t resWord) const {
         return 0;  /* empty string */
     }
     uint32_t type = RES_GET_TYPE(resWord);
-    int32_t offset = (int32_t)RES_GET_OFFSET(resWord);
+    int32_t offset = static_cast<int32_t>(RES_GET_OFFSET(resWord));
     if (type == URES_STRING_V2) {
         assert(offset > 0);
         if (offset < fPoolStringIndexLimit) {
@@ -542,7 +542,7 @@ StringResource::handleWrite16(SRBRoot * /*bundle*/) {
 void
 ContainerResource::writeAllRes16(SRBRoot *bundle) {
     for (SResource *current = fFirst; current != nullptr; current = current->fNext) {
-        bundle->f16BitUnits.append((char16_t)current->fRes16);
+        bundle->f16BitUnits.append(static_cast<char16_t>(current->fRes16));
     }
     fWritten = true;
 }
@@ -562,7 +562,7 @@ ArrayResource::handleWrite16(SRBRoot *bundle) {
     }
     if (fCount <= 0xffff && res16 >= 0 && gFormatVersion > 1) {
         fRes = URES_MAKE_RESOURCE(URES_ARRAY16, bundle->f16BitUnits.length());
-        bundle->f16BitUnits.append((char16_t)fCount);
+        bundle->f16BitUnits.append(static_cast<char16_t>(fCount));
         writeAllRes16(bundle);
     }
 }
@@ -582,16 +582,16 @@ TableResource::handleWrite16(SRBRoot *bundle) {
         key16 |= current->fKey16;
         res16 |= current->fRes16;
     }
-    if(fCount > (uint32_t)bundle->fMaxTableLength) {
+    if (fCount > static_cast<uint32_t>(bundle->fMaxTableLength)) {
         bundle->fMaxTableLength = fCount;
     }
     if (fCount <= 0xffff && key16 >= 0) {
         if (res16 >= 0 && gFormatVersion > 1) {
             /* 16-bit count, key offsets and values */
             fRes = URES_MAKE_RESOURCE(URES_TABLE16, bundle->f16BitUnits.length());
-            bundle->f16BitUnits.append((char16_t)fCount);
+            bundle->f16BitUnits.append(static_cast<char16_t>(fCount));
             for (SResource *current = fFirst; current != nullptr; current = current->fNext) {
-                bundle->f16BitUnits.append((char16_t)current->fKey16);
+                bundle->f16BitUnits.append(static_cast<char16_t>(current->fKey16));
             }
             writeAllRes16(bundle);
         } else {
@@ -807,7 +807,7 @@ void
 TableResource::handleWrite(UNewDataMemory *mem, uint32_t *byteOffset) {
     writeAllRes(mem, byteOffset);
     if(fTableType == URES_TABLE) {
-        udata_write16(mem, (uint16_t)fCount);
+        udata_write16(mem, static_cast<uint16_t>(fCount));
         for (SResource *current = fFirst; current != nullptr; current = current->fNext) {
             udata_write16(mem, current->fKey16);
         }
@@ -820,7 +820,7 @@ TableResource::handleWrite(UNewDataMemory *mem, uint32_t *byteOffset) {
     } else /* URES_TABLE32 */ {
         udata_write32(mem, fCount);
         for (SResource *current = fFirst; current != nullptr; current = current->fNext) {
-            udata_write32(mem, (uint32_t)current->fKey);
+            udata_write32(mem, static_cast<uint32_t>(current->fKey));
         }
         *byteOffset += (1 + fCount)* 4;
     }
@@ -862,7 +862,7 @@ void SRBRoot::write(const char *outputDir, const char *outputPkg,
      * Safe because the capacity is a multiple of 4.
      */
     while (fKeysTop & 3) {
-        fKeys[fKeysTop++] = (char)0xaa;
+        fKeys[fKeysTop++] = static_cast<char>(0xaa);
     }
     /*
      * In URES_TABLE, use all local key offsets that fit into 16 bits,
@@ -921,8 +921,8 @@ void SRBRoot::write(const char *outputDir, const char *outputPkg,
         } else {
             // Set the pool index threshold so that 16-bit indexes work
             // for some pool strings and some local strings.
-            fPoolStringIndex16Limit = (int32_t)(
-                    ((int64_t)fPoolStringIndexLimit * 0xffff) / sum);
+            fPoolStringIndex16Limit = static_cast<int32_t>(
+                    (static_cast<int64_t>(fPoolStringIndexLimit) * 0xffff) / sum);
         }
     } else if (gIsDefaultFormatVersion && formatVersion == 3 && !fIsPoolBundle) {
         // If we just default to formatVersion 3
@@ -938,7 +938,7 @@ void SRBRoot::write(const char *outputDir, const char *outputPkg,
         return;
     }
     if (f16BitUnits.length() & 1) {
-        f16BitUnits.append((char16_t)0xaaaa);  /* pad to multiple of 4 bytes */
+        f16BitUnits.append(static_cast<char16_t>(0xaaaa)); /* pad to multiple of 4 bytes */
     }
 
     byteOffset = fKeysTop + f16BitUnits.length() * 2;
@@ -964,12 +964,12 @@ void SRBRoot::write(const char *outputDir, const char *outputPkg,
                if(outputPkg != nullptr)
                {
                    uprv_strcpy(writtenFilename+off, outputPkg);
-                   off += (int32_t)uprv_strlen(outputPkg);
+                   off += static_cast<int32_t>(uprv_strlen(outputPkg));
                    writtenFilename[off] = '_';
                    ++off;
                }
 
-               len = (int32_t)uprv_strlen(fLocale);
+               len = static_cast<int32_t>(uprv_strlen(fLocale));
                if (len > writtenFilenameLen) {
                    len = writtenFilenameLen;
                }
@@ -1012,7 +1012,7 @@ void SRBRoot::write(const char *outputDir, const char *outputPkg,
     uprv_memset(indexes, 0, sizeof(indexes));
     indexes[URES_INDEX_LENGTH]=             fIndexLength;
     indexes[URES_INDEX_KEYS_TOP]=           fKeysTop>>2;
-    indexes[URES_INDEX_RESOURCES_TOP]=      (int32_t)(top>>2);
+    indexes[URES_INDEX_RESOURCES_TOP] = static_cast<int32_t>(top >> 2);
     indexes[URES_INDEX_BUNDLE_TOP]=         indexes[URES_INDEX_RESOURCES_TOP];
     indexes[URES_INDEX_MAX_TABLE_LENGTH]=   fMaxTableLength;
 
@@ -1034,13 +1034,13 @@ void SRBRoot::write(const char *outputDir, const char *outputPkg,
     if (URES_INDEX_POOL_CHECKSUM < fIndexLength) {
         if (fIsPoolBundle) {
             indexes[URES_INDEX_ATTRIBUTES] |= URES_ATT_IS_POOL_BUNDLE | URES_ATT_NO_FALLBACK;
-            uint32_t checksum = computeCRC((const char *)(fKeys + fKeysBottom),
-                                           (uint32_t)(fKeysTop - fKeysBottom), 0);
+            uint32_t checksum = computeCRC(static_cast<const char*>(fKeys + fKeysBottom),
+                                           static_cast<uint32_t>(fKeysTop - fKeysBottom), 0);
             if (f16BitUnits.length() <= 1) {
                 // no pool strings to checksum
             } else if (U_IS_BIG_ENDIAN) {
                 checksum = computeCRC(reinterpret_cast<const char *>(f16BitUnits.getBuffer()),
-                                      (uint32_t)f16BitUnits.length() * 2, checksum);
+                                      static_cast<uint32_t>(f16BitUnits.length()) * 2, checksum);
             } else {
                 // Swap to big-endian so we get the same checksum on all platforms
                 // (except for charset family, due to the key strings).
@@ -1050,13 +1050,13 @@ void SRBRoot::write(const char *outputDir, const char *outputPkg,
                 char16_t* p = s.getBuffer(f16BitUnits.length());
                 for (int32_t count = f16BitUnits.length(); count > 0; --count) {
                     uint16_t x = *p;
-                    *p++ = (uint16_t)((x << 8) | (x >> 8));
+                    *p++ = static_cast<uint16_t>((x << 8) | (x >> 8));
                 }
                 s.releaseBuffer(f16BitUnits.length());
-                checksum = computeCRC((const char *)s.getBuffer(),
-                                      (uint32_t)f16BitUnits.length() * 2, checksum);
+                checksum = computeCRC(reinterpret_cast<const char*>(s.getBuffer()),
+                                      static_cast<uint32_t>(f16BitUnits.length()) * 2, checksum);
             }
-            indexes[URES_INDEX_POOL_CHECKSUM] = (int32_t)checksum;
+            indexes[URES_INDEX_POOL_CHECKSUM] = static_cast<int32_t>(checksum);
         } else if (gUsePoolBundle) {
             indexes[URES_INDEX_ATTRIBUTES] |= URES_ATT_USES_POOL_BUNDLE;
             indexes[URES_INDEX_POOL_CHECKSUM] = fUsePoolBundle->fChecksum;
@@ -1086,7 +1086,7 @@ void SRBRoot::write(const char *outputDir, const char *outputPkg,
     size = udata_finish(mem, &errorCode);
     if(top != size) {
         fprintf(stderr, "genrb error: wrote %u bytes but counted %u\n",
-                (int)size, (int)top);
+                static_cast<int>(size), static_cast<int>(top));
         errorCode = U_INTERNAL_PROGRAM_ERROR;
     }
 }
@@ -1149,10 +1149,10 @@ SRBRoot::SRBRoot(const UString *comment, UBool isPoolBundle, UErrorCode &errorCo
     if (gFormatVersion > 1) {
         // f16BitUnits must start with a zero for empty resources.
         // We might be able to omit it if there are no empty 16-bit resources.
-        f16BitUnits.append((char16_t)0);
+        f16BitUnits.append(static_cast<char16_t>(0));
     }
 
-    fKeys = (char *) uprv_malloc(sizeof(char) * KEY_SPACE_SIZE);
+    fKeys = static_cast<char*>(uprv_malloc(sizeof(char) * KEY_SPACE_SIZE));
     if (isPoolBundle) {
         fRoot = new PseudoListResource(this, errorCode);
     } else {
@@ -1206,7 +1206,7 @@ void SRBRoot::setLocale(char16_t *locale, UErrorCode &errorCode) {
     }
 
     uprv_free(fLocale);
-    fLocale = (char*) uprv_malloc(sizeof(char) * (u_strlen(locale)+1));
+    fLocale = static_cast<char*>(uprv_malloc(sizeof(char) * (u_strlen(locale) + 1)));
     if(fLocale == nullptr) {
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         return;
@@ -1286,7 +1286,7 @@ SRBRoot::addTag(const char *tag, UErrorCode &errorCode) {
         return -1;
     }
 
-    keypos = addKeyBytes(tag, (int32_t)(uprv_strlen(tag) + 1), errorCode);
+    keypos = addKeyBytes(tag, static_cast<int32_t>(uprv_strlen(tag) + 1), errorCode);
     if (U_SUCCESS(errorCode)) {
         ++fKeysCount;
     }
@@ -1310,9 +1310,9 @@ compareInt32(int32_t lPos, int32_t rPos) {
 
 static int32_t U_CALLCONV
 compareKeySuffixes(const void *context, const void *l, const void *r) {
-    const struct SRBRoot *bundle=(const struct SRBRoot *)context;
-    int32_t lPos = ((const KeyMapEntry *)l)->oldpos;
-    int32_t rPos = ((const KeyMapEntry *)r)->oldpos;
+    const struct SRBRoot* bundle = static_cast<const struct SRBRoot*>(context);
+    int32_t lPos = static_cast<const KeyMapEntry*>(l)->oldpos;
+    int32_t rPos = static_cast<const KeyMapEntry*>(r)->oldpos;
     const char *lStart = bundle->getKeyString(lPos);
     const char *lLimit = lStart;
     const char *rStart = bundle->getKeyString(rPos);
@@ -1322,13 +1322,13 @@ compareKeySuffixes(const void *context, const void *l, const void *r) {
     while (*rLimit != 0) { ++rLimit; }
     /* compare keys in reverse character order */
     while (lStart < lLimit && rStart < rLimit) {
-        diff = (int32_t)(uint8_t)*--lLimit - (int32_t)(uint8_t)*--rLimit;
+        diff = static_cast<int32_t>(static_cast<uint8_t>(*--lLimit)) - static_cast<int32_t>(static_cast<uint8_t>(*--rLimit));
         if (diff != 0) {
             return diff;
         }
     }
     /* sort equal suffixes by descending key length */
-    diff = (int32_t)(rLimit - rStart) - (int32_t)(lLimit - lStart);
+    diff = static_cast<int32_t>(rLimit - rStart) - static_cast<int32_t>(lLimit - lStart);
     if (diff != 0) {
         return diff;
     }
@@ -1338,12 +1338,14 @@ compareKeySuffixes(const void *context, const void *l, const void *r) {
 
 static int32_t U_CALLCONV
 compareKeyNewpos(const void * /*context*/, const void *l, const void *r) {
-    return compareInt32(((const KeyMapEntry *)l)->newpos, ((const KeyMapEntry *)r)->newpos);
+    return compareInt32(static_cast<const KeyMapEntry*>(l)->newpos,
+                        static_cast<const KeyMapEntry*>(r)->newpos);
 }
 
 static int32_t U_CALLCONV
 compareKeyOldpos(const void * /*context*/, const void *l, const void *r) {
-    return compareInt32(((const KeyMapEntry *)l)->oldpos, ((const KeyMapEntry *)r)->oldpos);
+    return compareInt32(static_cast<const KeyMapEntry*>(l)->oldpos,
+                        static_cast<const KeyMapEntry*>(r)->oldpos);
 }
 
 void SResource::collectKeys(std::function<void(int32_t)> collector) const {
@@ -1379,15 +1381,15 @@ SRBRoot::compactKeys(UErrorCode &errorCode) {
     if (U_FAILURE(errorCode) || fKeyMap != nullptr) {
         return;
     }
-    map = (KeyMapEntry *)uprv_malloc(keysCount * sizeof(KeyMapEntry));
+    map = static_cast<KeyMapEntry*>(uprv_malloc(keysCount * sizeof(KeyMapEntry)));
     if (map == nullptr) {
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         return;
     }
-    keys = (char *)fUsePoolBundle->fKeys;
+    keys = const_cast<char*>(fUsePoolBundle->fKeys);
     for (i = 0; i < fUsePoolBundle->fKeysCount; ++i) {
         map[i].oldpos =
-            (int32_t)(keys - fUsePoolBundle->fKeys) | 0x80000000;  /* negative oldpos */
+            static_cast<int32_t>(keys - fUsePoolBundle->fKeys) | 0x80000000; /* negative oldpos */
         map[i].newpos = 0;
         while (*keys != 0) { ++keys; }  /* skip the key */
         ++keys;  /* skip the NUL */
@@ -1412,7 +1414,7 @@ SRBRoot::compactKeys(UErrorCode &errorCode) {
         fKeysTop = static_cast<int32_t>(keys - fKeys);
     }
     /* Sort the keys so that each one is immediately followed by all of its suffixes. */
-    uprv_sortArray(map, keysCount, (int32_t)sizeof(KeyMapEntry),
+    uprv_sortArray(map, keysCount, static_cast<int32_t>(sizeof(KeyMapEntry)),
                    compareKeySuffixes, this, false, &errorCode);
     /*
      * Make suffixes point into earlier, longer strings that contain them
@@ -1465,7 +1467,7 @@ SRBRoot::compactKeys(UErrorCode &errorCode) {
          * Re-sort by newpos, then modify the key characters array in-place
          * to squeeze out unused bytes, and readjust the newpos offsets.
          */
-        uprv_sortArray(map, keysCount, (int32_t)sizeof(KeyMapEntry),
+        uprv_sortArray(map, keysCount, static_cast<int32_t>(sizeof(KeyMapEntry)),
                        compareKeyNewpos, nullptr, false, &errorCode);
         if (U_SUCCESS(errorCode)) {
             int32_t oldpos, newpos, limit;
@@ -1490,7 +1492,7 @@ SRBRoot::compactKeys(UErrorCode &errorCode) {
             }
             fKeysTop = newpos;
             /* Re-sort once more, by old offsets for binary searching. */
-            uprv_sortArray(map, keysCount, (int32_t)sizeof(KeyMapEntry),
+            uprv_sortArray(map, keysCount, static_cast<int32_t>(sizeof(KeyMapEntry)),
                            compareKeyOldpos, nullptr, false, &errorCode);
             if (U_SUCCESS(errorCode)) {
                 /* key size reduction by limit - newpos */
@@ -1504,8 +1506,8 @@ SRBRoot::compactKeys(UErrorCode &errorCode) {
 
 static int32_t U_CALLCONV
 compareStringSuffixes(const void * /*context*/, const void *l, const void *r) {
-    const StringResource *left = *((const StringResource **)l);
-    const StringResource *right = *((const StringResource **)r);
+    const StringResource *left = *static_cast<const StringResource* const*>(l);
+    const StringResource *right = *static_cast<const StringResource* const*>(r);
     const char16_t *lStart = left->getBuffer();
     const char16_t *lLimit = lStart + left->length();
     const char16_t *rStart = right->getBuffer();
@@ -1513,7 +1515,7 @@ compareStringSuffixes(const void * /*context*/, const void *l, const void *r) {
     int32_t diff;
     /* compare keys in reverse character order */
     while (lStart < lLimit && rStart < rLimit) {
-        diff = (int32_t)*--lLimit - (int32_t)*--rLimit;
+        diff = static_cast<int32_t>(*--lLimit) - static_cast<int32_t>(*--rLimit);
         if (diff != 0) {
             return diff;
         }
@@ -1524,11 +1526,11 @@ compareStringSuffixes(const void * /*context*/, const void *l, const void *r) {
 
 static int32_t U_CALLCONV
 compareStringLengths(const void * /*context*/, const void *l, const void *r) {
-    const StringResource *left = *((const StringResource **)l);
-    const StringResource *right = *((const StringResource **)r);
+    const StringResource *left = *static_cast<const StringResource* const*>(l);
+    const StringResource *right = *static_cast<const StringResource* const*>(r);
     int32_t diff;
     /* Make "is suffix of another string" compare greater than a non-suffix. */
-    diff = (int)(left->fSame != nullptr) - (int)(right->fSame != nullptr);
+    diff = static_cast<int>(left->fSame != nullptr) - static_cast<int>(right->fSame != nullptr);
     if (diff != 0) {
         return diff;
     }
@@ -1555,22 +1557,22 @@ StringResource::writeUTF16v2(int32_t base, UnicodeString &dest) {
     case 0:
         break;
     case 1:
-        dest.append((char16_t)(0xdc00 + len));
+        dest.append(static_cast<char16_t>(0xdc00 + len));
         break;
     case 2:
-        dest.append((char16_t)(0xdfef + (len >> 16)));
-        dest.append((char16_t)len);
+        dest.append(static_cast<char16_t>(0xdfef + (len >> 16)));
+        dest.append(static_cast<char16_t>(len));
         break;
     case 3:
-        dest.append((char16_t)0xdfff);
-        dest.append((char16_t)(len >> 16));
-        dest.append((char16_t)len);
+        dest.append(static_cast<char16_t>(0xdfff));
+        dest.append(static_cast<char16_t>(len >> 16));
+        dest.append(static_cast<char16_t>(len));
         break;
     default:
         break;  /* will not occur */
     }
     dest.append(fString);
-    dest.append((char16_t)0);
+    dest.append(static_cast<char16_t>(0));
 }
 
 void
@@ -1587,10 +1589,10 @@ SRBRoot::compactStringsV2(UHashtable *stringSet, UErrorCode &errorCode) {
         return;
     }
     for (int32_t pos = UHASH_FIRST, i = 0; i < count; ++i) {
-        array[i] = (StringResource *)uhash_nextElement(stringSet, &pos)->key.pointer;
+        array[i] = static_cast<StringResource*>(uhash_nextElement(stringSet, &pos)->key.pointer);
     }
     /* Sort the strings so that each one is immediately followed by all of its suffixes. */
-    uprv_sortArray(array.getAlias(), count, (int32_t)sizeof(struct SResource **),
+    uprv_sortArray(array.getAlias(), count, static_cast<int32_t>(sizeof(struct SResource**)),
                    compareStringSuffixes, nullptr, false, &errorCode);
     if (U_FAILURE(errorCode)) {
         return;
@@ -1627,7 +1629,7 @@ SRBRoot::compactStringsV2(UHashtable *stringSet, UErrorCode &errorCode) {
                         // Compute the resource word and collect the maximum.
                         suffixRes->fRes =
                                 res->fRes + res->fNumCharsForLength + suffixRes->fSuffixOffset;
-                        int32_t poolStringIndex = (int32_t)RES_GET_OFFSET(suffixRes->fRes);
+                        int32_t poolStringIndex = static_cast<int32_t>(RES_GET_OFFSET(suffixRes->fRes));
                         if (poolStringIndex >= fPoolStringIndexLimit) {
                             fPoolStringIndexLimit = poolStringIndex + 1;
                         }
@@ -1648,7 +1650,7 @@ SRBRoot::compactStringsV2(UHashtable *stringSet, UErrorCode &errorCode) {
      * to optimize for URES_TABLE16 and URES_ARRAY16:
      * Keep as many as possible within reach of 16-bit offsets.
      */
-    uprv_sortArray(array.getAlias(), count, (int32_t)sizeof(struct SResource **),
+    uprv_sortArray(array.getAlias(), count, static_cast<int32_t>(sizeof(struct SResource**)),
                    compareStringLengths, nullptr, false, &errorCode);
     if (U_FAILURE(errorCode)) {
         return;
@@ -1679,13 +1681,13 @@ SRBRoot::compactStringsV2(UHashtable *stringSet, UErrorCode &errorCode) {
             errorCode = U_MEMORY_ALLOCATION_ERROR;
         }
         if (getShowWarning()) {  // not quiet
-            printf("number of shared strings: %d\n", (int)numStringsWritten);
+            printf("number of shared strings: %d\n", static_cast<int>(numStringsWritten));
             printf("16-bit units for strings: %6d = %6d bytes\n",
-                   (int)f16BitUnits.length(), (int)f16BitUnits.length() * 2);
+                   static_cast<int>(f16BitUnits.length()), static_cast<int>(f16BitUnits.length()) * 2);
             printf("16-bit units saved:       %6d = %6d bytes\n",
-                   (int)numUnitsSaved, (int)numUnitsSaved * 2);
+                   static_cast<int>(numUnitsSaved), static_cast<int>(numUnitsSaved) * 2);
             printf("16-bit units not saved:   %6d = %6d bytes\n",
-                   (int)numUnitsNotSaved, (int)numUnitsNotSaved * 2);
+                   static_cast<int>(numUnitsNotSaved), static_cast<int>(numUnitsNotSaved) * 2);
         }
     } else {
         assert(fPoolStringIndexLimit <= fUsePoolBundle->fStringIndexLimit);
@@ -1728,7 +1730,7 @@ SRBRoot::compactStringsV2(UHashtable *stringSet, UErrorCode &errorCode) {
             StringResource *same = res->fSame;
             assert(res->length() != same->length());  // Set strings are unique.
             res->fRes = same->fRes + same->fNumCharsForLength + res->fSuffixOffset;
-            int32_t localStringIndex = (int32_t)RES_GET_OFFSET(res->fRes) - fPoolStringIndexLimit;
+            int32_t localStringIndex = static_cast<int32_t>(RES_GET_OFFSET(res->fRes)) - fPoolStringIndexLimit;
             // Suffixes of pool strings have been set already.
             assert(localStringIndex >= 0);
             if (localStringIndex >= fLocalStringIndexLimit) {

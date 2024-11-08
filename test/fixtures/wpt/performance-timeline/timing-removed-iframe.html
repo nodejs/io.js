@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<head>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+</head>
+<body>
+<script>
+test(() => {
+  const iframe = document.createElement('iframe');
+  iframe.src = "resources/empty.html"
+  document.body.appendChild(iframe);
+  const iframePerformance = iframe.contentWindow.performance;
+  iframe.parentNode.removeChild(iframe);
+  const timing = iframePerformance.timing;
+}, "Test that a removed iframe which timing is accessed does not crash the renderer.");
+</script>

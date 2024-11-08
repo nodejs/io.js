@@ -13,16 +13,15 @@
  * \brief C API: Locale ID functionality similar to C++ class Locale
  */
 
-#ifndef U_HIDE_DRAFT_API
 /**
  * Opaque C service object type for the locale API
- * @draft ICU 74
+ * @stable ICU 74
  */
 struct ULocale;
 
 /**
  * C typedef for struct ULocale.
- * @draft ICU 74
+ * @stable ICU 74
  */
 typedef struct ULocale ULocale;
 
@@ -37,7 +36,7 @@ typedef struct ULocale ULocale;
  * @param err the error code
  * @return the locale.
  *
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI ULocale* U_EXPORT2
 ulocale_openForLocaleID(const char* localeID, int32_t length, UErrorCode* err);
@@ -53,7 +52,7 @@ ulocale_openForLocaleID(const char* localeID, int32_t length, UErrorCode* err);
  * @param err the error code
  * @return the locale.
  *
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI ULocale* U_EXPORT2
 ulocale_openForLanguageTag(const char* tag, int32_t length, UErrorCode* err);
@@ -62,7 +61,7 @@ ulocale_openForLanguageTag(const char* tag, int32_t length, UErrorCode* err);
  * Close the locale and destroy it's internal states.
  *
  * @param locale the locale
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI void U_EXPORT2
 ulocale_close(ULocale* locale);
@@ -72,7 +71,7 @@ ulocale_close(ULocale* locale);
  *
  * @param locale the locale
  * @return      the language code of the locale.
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI const char* U_EXPORT2
 ulocale_getLanguage(const ULocale* locale);
@@ -82,7 +81,7 @@ ulocale_getLanguage(const ULocale* locale);
  *
  * @param locale the locale
  * @return      A pointer to the script.
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI const char* U_EXPORT2
 ulocale_getScript(const ULocale* locale);
@@ -92,7 +91,7 @@ ulocale_getScript(const ULocale* locale);
  *
  * @param locale the locale
  * @return      A pointer to the region.
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI const char* U_EXPORT2
 ulocale_getRegion(const ULocale* locale);
@@ -102,7 +101,7 @@ ulocale_getRegion(const ULocale* locale);
  *
  * @param locale the locale
  * @return      A pointer to the variant.
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI const char* U_EXPORT2
 ulocale_getVariant(const ULocale* locale);
@@ -115,7 +114,7 @@ ulocale_getVariant(const ULocale* locale);
  *
  * @param locale the locale
  * @return      A pointer to "name".
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI const char* U_EXPORT2
 ulocale_getLocaleID(const ULocale* locale);
@@ -126,7 +125,7 @@ ulocale_getLocaleID(const ULocale* locale);
  *
  * @param locale the locale
  * @return      A pointer to "base name".
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI const char* U_EXPORT2
 ulocale_getBaseName(const ULocale* locale);
@@ -136,7 +135,7 @@ ulocale_getBaseName(const ULocale* locale);
  *
  * @param locale the locale
  * @return false if it is a real locale, true if it is a bogus locale
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI bool U_EXPORT2
 ulocale_isBogus(const ULocale* locale);
@@ -148,7 +147,7 @@ ulocale_isBogus(const ULocale* locale);
  * @param err the error code
  * @return pointer to UEnumeration, or nullptr if there are no keywords.
  * Client must call uenum_close() to dispose the returned value.
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI UEnumeration* U_EXPORT2
 ulocale_getKeywords(const ULocale* locale, UErrorCode *err);
@@ -160,7 +159,7 @@ ulocale_getKeywords(const ULocale* locale, UErrorCode *err);
  * @param err the error code
  * @return pointer to UEnumeration, or nullptr if there are no keywords.
  * Client must call uenum_close() to dispose the returned value.
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI UEnumeration* U_EXPORT2
 ulocale_getUnicodeKeywords(const ULocale* locale, UErrorCode *err);
@@ -178,7 +177,7 @@ ulocale_getUnicodeKeywords(const ULocale* locale, UErrorCode *err);
  * @param valueBuffer The buffer to receive the value.
  * @param valueBufferCapacity The capacity of receiving valueBuffer.
  * @param err the error code
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI int32_t U_EXPORT2
 ulocale_getKeywordValue(
@@ -198,7 +197,7 @@ ulocale_getKeywordValue(
  * @param valueBuffer The buffer to receive the Unicode value.
  * @param valueBufferCapacity The capacity of receiving valueBuffer.
  * @param err the error code
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI int32_t U_EXPORT2
 ulocale_getUnicodeKeywordValue(
@@ -216,14 +215,12 @@ U_NAMESPACE_BEGIN
  *
  * @see LocalPointerBase
  * @see LocalPointer
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_DEFINE_LOCAL_OPEN_POINTER(LocalULocalePointer, ULocale, ulocale_close);
 
 U_NAMESPACE_END
 
 #endif  /* U_SHOW_CPLUSPLUS_API */
-
-#endif /* U_HIDE_DRAFT_API */
 
 #endif /*_ULOCALE */

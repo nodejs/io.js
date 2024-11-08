@@ -81,15 +81,20 @@ if(TSAN)
 endif()
 
 if(UBSAN)
+  cmake_minimum_required(VERSION 3.13)
   list(APPEND uv_defines __UBSAN__=1)
   if(CMAKE_C_COMPILER_ID MATCHES "AppleClang|GNU|Clang")
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -fsanitize=undefined")
-    set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fno-omit-frame-pointer -fsanitize=undefined")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fno-omit-frame-pointer -fsanitize=undefined")
-  elseif(MSVC)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=undefined")
+    add_compile_options("-fsanitize=undefined" "-fno-sanitize-recover=undefined")
+    if (NOT WIN32)
+      add_link_options("-fsanitize=undefined")
+    endif()
+    if(MSVC)
+      add_compile_options("/Oy-")
+    else()
+      add_compile_options("-fno-omit-frame-pointer")
+    endif()
   else()
-    message(SEND_ERROR "UndefinedBehaviorSanitizer support requires clang, gcc, or msvc. Try again with -DCMAKE_C_COMPILER.")
+    message(SEND_ERROR "UndefinedBehaviorSanitizer support requires clang or gcc. Try again with -DCMAKE_C_COMPILER.")
   endif()
 endif()
 
@@ -307,6 +312,7 @@ if(APPLE)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "GNU")
+  list(APPEND uv_defines _GNU_SOURCE _POSIX_C_SOURCE=200112 _XOPEN_SOURCE=500)
   list(APPEND uv_libraries dl)
   list(APPEND uv_sources
        src/unix/bsd-ifaddrs.c
@@ -566,6 +572,7 @@ if(LIBUV_BUILD_TESTS)
        test/test-hrtime.c
        test/test-idle.c
        test/test-idna.c
+       test/test-iouring-pollhup.c
        test/test-ip4-addr.c
        test/test-ip6-addr.c
        test/test-ip-name.c
@@ -643,6 +650,7 @@ if(LIBUV_BUILD_TESTS)
        test/test-tcp-oob.c
        test/test-tcp-open.c
        test/test-tcp-read-stop.c
+       test/test-tcp-reuseport.c
        test/test-tcp-read-stop-start.c
        test/test-tcp-rst.c
        test/test-tcp-shutdown-after-write.c
@@ -691,6 +699,7 @@ if(LIBUV_BUILD_TESTS)
        test/test-udp-send-unreachable.c
        test/test-udp-try-send.c
        test/test-udp-recv-in-a-row.c
+       test/test-udp-reuseport.c
        test/test-uname.c
        test/test-walk-handles.c
        test/test-watcher-cross-stop.c)
@@ -786,6 +795,14 @@ if(MSVC)
     file(INSTALL "${CMAKE_C_COMPILER_DIR}/clang_rt.asan_dbg_dynamic-x86_64.dll" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
   endif()
 endif()
+
+if(BUILD_SHARED_LIBS)
+  set(LIB_SELECTED uv)
+else()
+  set(LIB_SELECTED uv_a)
+endif()
+
+add_library(libuv::libuv ALIAS ${LIB_SELECTED})
 
 message(STATUS "summary of build options:
     Install prefix:  ${CMAKE_INSTALL_PREFIX}

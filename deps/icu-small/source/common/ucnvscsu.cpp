@@ -883,8 +883,8 @@ static int8_t
 getWindow(const uint32_t offsets[8], uint32_t c) {
     int i;
     for(i=0; i<8; ++i) {
-        if((uint32_t)(c-offsets[i])<=0x7f) {
-            return (int8_t)(i);
+        if (c - offsets[i] <= 0x7f) {
+            return static_cast<int8_t>(i);
         }
     }
     return -1;
@@ -893,9 +893,9 @@ getWindow(const uint32_t offsets[8], uint32_t c) {
 /* is the character in the dynamic window starting at the offset, or in the direct-encoded range? */
 static UBool
 isInOffsetWindowOrDirect(uint32_t offset, uint32_t c) {
-    return (UBool)(c<=offset+0x7f &&
+    return c<=offset+0x7f &&
           (c>=offset || (c<=0x7f &&
-                        (c>=0x20 || (1UL<<c)&0x2601))));
+                        (c>=0x20 || (1UL<<c)&0x2601)));
                                 /* binary 0010 0110 0000 0001,
                                    check for b==0xd || b==0xa || b==9 || b==0 */
 }
@@ -963,7 +963,7 @@ getDynamicOffset(uint32_t c, uint32_t *pOffset) {
     int i;
 
     for(i=0; i<7; ++i) {
-        if((uint32_t)(c-fixedOffsets[i])<=0x7f) {
+        if (c - fixedOffsets[i] <= 0x7f) {
             *pOffset=fixedOffsets[i];
             return 0xf9+i;
         }
@@ -973,16 +973,16 @@ getDynamicOffset(uint32_t c, uint32_t *pOffset) {
         /* No dynamic window for US-ASCII. */
         return -1;
     } else if(c<0x3400 ||
-              (uint32_t)(c-0x10000)<(0x14000-0x10000) ||
-              (uint32_t)(c-0x1d000)<=(0x1ffff-0x1d000)
+              c - 0x10000 < 0x14000 - 0x10000 ||
+              c - 0x1d000 <= 0x1ffff - 0x1d000
     ) {
         /* This character is in a code range for a "small", i.e., reasonably windowable, script. */
         *pOffset=c&0x7fffff80;
-        return (int)(c>>7);
+        return static_cast<int>(c >> 7);
     } else if(0xe000<=c && c!=0xfeff && c<0xfff0) {
         /* For these characters we need to take the gapOffset into account. */
         *pOffset=c&0x7fffff80;
-        return (int)((c-gapOffset)>>7);
+        return static_cast<int>((c - gapOffset) >> 7);
     } else {
         return -1;
     }
@@ -1208,8 +1208,8 @@ getTrailSingle:
                     c=((uint32_t)(SD0+dynamicWindow)<<16)|((uint32_t)code<<8)|(c-currentOffset)|0x80;
                     length=3;
                     goto outputBytes;
-                } else if((uint32_t)(c-0x3400)<(0xd800-0x3400) &&
-                          (source>=sourceLimit || (uint32_t)(*source-0x3400)<(0xd800-0x3400))
+                } else if ((c - 0x3400) < (0xd800 - 0x3400) &&
+                           (source >= sourceLimit || (uint32_t)(*source - 0x3400) < (0xd800 - 0x3400))
                 ) {
                     /*
                      * this character is not compressible (a BMP ideograph or similar);
@@ -1248,7 +1248,7 @@ getTrailSingle:
             c=*source++;
             ++nextSourceIndex;
 
-            if((uint32_t)(c-0x3400)<(0xd800-0x3400)) {
+            if ((c - 0x3400) < (0xd800 - 0x3400)) {
                 /* not compressible, write character directly */
                 if(targetCapacity>=2) {
                     *target++=(uint8_t)(c>>8);
@@ -1262,10 +1262,10 @@ getTrailSingle:
                     length=2;
                     goto outputBytes;
                 }
-            } else if((uint32_t)(c-0x3400)>=(0xf300-0x3400) /* c<0x3400 || c>=0xf300 */) {
+            } else if (c - 0x3400 >= 0xf300 - 0x3400 /* c<0x3400 || c>=0xf300 */) {
                 /* compress BMP character if the following one is not an uncompressible ideograph */
                 if(!(source<sourceLimit && (uint32_t)(*source-0x3400)<(0xd800-0x3400))) {
-                    if(((uint32_t)(c-0x30)<10 || (uint32_t)(c-0x61)<26 || (uint32_t)(c-0x41)<26)) {
+                    if (c - 0x30 < 10 || c - 0x61 < 26 || c - 0x41 < 26) {
                         /* ASCII digit or letter */
                         isSingleByteMode=true;
                         c|=((uint32_t)(UC0+dynamicWindow)<<8)|c;
@@ -1691,8 +1691,8 @@ getTrailSingle:
                     c=((uint32_t)(SD0+dynamicWindow)<<16)|((uint32_t)code<<8)|(c-currentOffset)|0x80;
                     length=3;
                     goto outputBytes;
-                } else if((uint32_t)(c-0x3400)<(0xd800-0x3400) &&
-                          (source>=sourceLimit || (uint32_t)(*source-0x3400)<(0xd800-0x3400))
+                } else if (c - 0x3400 < 0xd800 - 0x3400 &&
+                           (source >= sourceLimit || static_cast<uint32_t>(*source - 0x3400) < 0xd800 - 0x3400)
                 ) {
                     /*
                      * this character is not compressible (a BMP ideograph or similar);
@@ -1729,7 +1729,7 @@ getTrailSingle:
             }
             c=*source++;
 
-            if((uint32_t)(c-0x3400)<(0xd800-0x3400)) {
+            if (c - 0x3400 < 0xd800 - 0x3400) {
                 /* not compressible, write character directly */
                 if(targetCapacity>=2) {
                     *target++=(uint8_t)(c>>8);
@@ -1739,10 +1739,10 @@ getTrailSingle:
                     length=2;
                     goto outputBytes;
                 }
-            } else if((uint32_t)(c-0x3400)>=(0xf300-0x3400) /* c<0x3400 || c>=0xf300 */) {
+            } else if (c - 0x3400 >= 0xf300 - 0x3400 /* c<0x3400 || c>=0xf300 */) {
                 /* compress BMP character if the following one is not an uncompressible ideograph */
                 if(!(source<sourceLimit && (uint32_t)(*source-0x3400)<(0xd800-0x3400))) {
-                    if(((uint32_t)(c-0x30)<10 || (uint32_t)(c-0x61)<26 || (uint32_t)(c-0x41)<26)) {
+                    if (c - 0x30 < 10 || c - 0x61 < 26 || c - 0x41 < 26) {
                         /* ASCII digit or letter */
                         isSingleByteMode=true;
                         c|=((uint32_t)(UC0+dynamicWindow)<<8)|c;

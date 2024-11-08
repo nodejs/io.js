@@ -9,7 +9,7 @@ if "%~3"=="prerelease" set VSWHERE_WITH_PRERELEASE=1
 set "InstallerPath=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer"
 if not exist "%InstallerPath%" set "InstallerPath=%ProgramFiles%\Microsoft Visual Studio\Installer"
 if not exist "%InstallerPath%" goto :no-vswhere
-:: Manipulate %Path% for easier " handeling
+:: Manipulate %Path% for easier " handling
 set "Path=%Path%;%InstallerPath%"
 where vswhere 2> nul > nul
 if errorlevel 1 goto :no-vswhere

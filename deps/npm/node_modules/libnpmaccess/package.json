@@ -1,6 +1,6 @@
 {
   "name": "libnpmaccess",
-  "version": "8.0.6",
+  "version": "9.0.0",
   "description": "programmatic library for `npm access` commands",
   "author": "GitHub Inc.",
   "license": "ISC",
@@ -16,7 +16,7 @@
     "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/eslint-config": "^5.0.1",
     "@npmcli/mock-registry": "^1.0.0",
     "@npmcli/template-oss": "4.23.3",
     "nock": "^13.3.3",
@@ -30,11 +30,11 @@
   "bugs": "https://github.com/npm/libnpmaccess/issues",
   "homepage": "https://npmjs.com/package/libnpmaccess",
   "dependencies": {
-    "npm-package-arg": "^11.0.2",
-    "npm-registry-fetch": "^17.0.1"
+    "npm-package-arg": "^12.0.0",
+    "npm-registry-fetch": "^18.0.1"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "files": [
     "bin/",

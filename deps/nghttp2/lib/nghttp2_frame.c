@@ -492,7 +492,7 @@ int nghttp2_frame_pack_settings(nghttp2_bufs *bufs, nghttp2_settings *frame) {
   nghttp2_frame_pack_frame_hd(buf->pos, &frame->hd);
 
   buf->last +=
-      nghttp2_frame_pack_settings_payload(buf->last, frame->iv, frame->niv);
+    nghttp2_frame_pack_settings_payload(buf->last, frame->iv, frame->niv);
 
   return 0;
 }
@@ -537,7 +537,7 @@ int nghttp2_frame_unpack_settings_payload2(nghttp2_settings_entry **iv_ptr,
   }
 
   *iv_ptr =
-      nghttp2_mem_malloc(mem, (*niv_ptr) * sizeof(nghttp2_settings_entry));
+    nghttp2_mem_malloc(mem, (*niv_ptr) * sizeof(nghttp2_settings_entry));
 
   if (*iv_ptr == NULL) {
     return NGHTTP2_ERR_NOMEM;
@@ -589,7 +589,7 @@ int nghttp2_frame_pack_push_promise(nghttp2_bufs *bufs,
 void nghttp2_frame_unpack_push_promise_payload(nghttp2_push_promise *frame,
                                                const uint8_t *payload) {
   frame->promised_stream_id =
-      nghttp2_get_uint32(payload) & NGHTTP2_STREAM_ID_MASK;
+    nghttp2_get_uint32(payload) & NGHTTP2_STREAM_ID_MASK;
   frame->nva = NULL;
   frame->nvlen = 0;
 }
@@ -608,7 +608,7 @@ void nghttp2_frame_pack_ping(nghttp2_bufs *bufs, nghttp2_ping *frame) {
   nghttp2_frame_pack_frame_hd(buf->pos, &frame->hd);
 
   buf->last =
-      nghttp2_cpymem(buf->last, frame->opaque_data, sizeof(frame->opaque_data));
+    nghttp2_cpymem(buf->last, frame->opaque_data, sizeof(frame->opaque_data));
 }
 
 void nghttp2_frame_unpack_ping_payload(nghttp2_ping *frame,
@@ -709,7 +709,7 @@ void nghttp2_frame_pack_window_update(nghttp2_bufs *bufs,
 void nghttp2_frame_unpack_window_update_payload(nghttp2_window_update *frame,
                                                 const uint8_t *payload) {
   frame->window_size_increment =
-      nghttp2_get_uint32(payload) & NGHTTP2_WINDOW_SIZE_INCREMENT_MASK;
+    nghttp2_get_uint32(payload) & NGHTTP2_WINDOW_SIZE_INCREMENT_MASK;
 }
 
 void nghttp2_frame_pack_altsvc(nghttp2_bufs *bufs, nghttp2_extension *frame) {
@@ -926,7 +926,7 @@ void nghttp2_frame_unpack_priority_update_payload(nghttp2_extension *frame,
   priority_update = frame->payload;
 
   priority_update->stream_id =
-      nghttp2_get_uint32(payload) & NGHTTP2_STREAM_ID_MASK;
+    nghttp2_get_uint32(payload) & NGHTTP2_STREAM_ID_MASK;
 
   if (payloadlen > 4) {
     priority_update->field_value = payload + 4;

@@ -67,11 +67,11 @@ Maybe<void> HKDFTraits::AdditionalConfig(
   ArrayBufferOrViewContents<char> salt(args[offset + 2]);
   ArrayBufferOrViewContents<char> info(args[offset + 3]);
 
-  if (UNLIKELY(!salt.CheckSizeInt32())) {
+  if (!salt.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "salt is too big");
     return Nothing<void>();
   }
-  if (UNLIKELY(!info.CheckSizeInt32())) {
+  if (!info.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "info is too big");
     return Nothing<void>();
   }

@@ -82,7 +82,7 @@ to sign releases):
 
 ```bash
 gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 27EDEAF22F3ABCEB50DB9A125CC908FDB71E12C2 # Daniel Stenberg
-gpg --keyserver hkps://keys.openpgp.org --recv-keys DA7D64E4C82C6294CB73A20E22E3D13B5411B7CA     # Brad House
+gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys DA7D64E4C82C6294CB73A20E22E3D13B5411B7CA # Brad House
 ```
 
 ### Verifying signatures
@@ -109,8 +109,11 @@ gpg: binary signature, digest algorithm SHA512, key algorithm rsa2048
 ```
 
 ## Features
+
+See [Features](FEATURES.md)
+
 ### Supported RFCs and Proposals
-- [RFC1035](https://datatracker.ietf.org/doc/html/rfc7873).
+- [RFC1035](https://datatracker.ietf.org/doc/html/rfc1035).
   Initial/Base DNS RFC
 - [RFC2671](https://datatracker.ietf.org/doc/html/rfc2671),
   [RFC6891](https://datatracker.ietf.org/doc/html/rfc6891).
@@ -151,3 +154,5 @@ gpg: binary signature, digest algorithm SHA512, key algorithm rsa2048
   IPv6 address sorting as used by `ares_getaddrinfo()`.
 - [RFC7413](https://datatracker.ietf.org/doc/html/rfc7413).
   TCP FastOpen (TFO) for 0-RTT TCP Connection Resumption.
+- [RFC3986](https://datatracker.ietf.org/doc/html/rfc3986).
+  Uniform Resource Identifier (URI). Used for server configuration.

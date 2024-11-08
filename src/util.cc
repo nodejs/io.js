@@ -697,8 +697,9 @@ void SetConstructorFunction(Local<Context> context,
                             Local<String> name,
                             Local<FunctionTemplate> tmpl,
                             SetConstructorFunctionFlag flag) {
-  if (LIKELY(flag == SetConstructorFunctionFlag::SET_CLASS_NAME))
+  if (flag == SetConstructorFunctionFlag::SET_CLASS_NAME) [[likely]] {
     tmpl->SetClassName(name);
+  }
   that->Set(context, name, tmpl->GetFunction(context).ToLocalChecked()).Check();
 }
 
@@ -716,8 +717,9 @@ void SetConstructorFunction(Isolate* isolate,
                             Local<String> name,
                             Local<FunctionTemplate> tmpl,
                             SetConstructorFunctionFlag flag) {
-  if (LIKELY(flag == SetConstructorFunctionFlag::SET_CLASS_NAME))
+  if (flag == SetConstructorFunctionFlag::SET_CLASS_NAME) [[likely]] {
     tmpl->SetClassName(name);
+  }
   that->Set(name, tmpl);
 }
 

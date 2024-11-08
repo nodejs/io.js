@@ -689,12 +689,22 @@ class ArrayBufferOrViewContents {
     return std::move(buf).release(size());
   }
 
+  inline ncrypto::DataPointer ToDataPointer() const {
+    if (empty()) return {};
+    if (auto dp = ncrypto::DataPointer::Alloc(size())) {
+      memcpy(dp.get(), data(), size());
+      return dp;
+    }
+    return {};
+  }
+
   template <typename M>
   void CopyTo(M* dest, size_t len) const {
     static_assert(sizeof(M) == 1, "sizeof(M) must equal 1");
     len = std::min(len, size());
-    if (len > 0 && data() != nullptr)
+    if (len > 0 && data() != nullptr) {
       memcpy(dest, data(), len);
+    }
   }
 
  private:

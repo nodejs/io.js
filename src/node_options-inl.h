@@ -447,9 +447,14 @@ void OptionsParser<Options>::Parse(
       case kBoolean:
         *Lookup<bool>(info.field, options) = !is_negation;
         break;
-      case kInteger:
+      case kInteger: {
+        // Special case to pass --stack-trace-limit down to V8.
+        if (name == "--stack-trace-limit") {
+          v8_args->push_back(arg);
+        }
         *Lookup<int64_t>(info.field, options) = std::atoll(value.c_str());
         break;
+      }
       case kUInteger:
         *Lookup<uint64_t>(info.field, options) =
             std::strtoull(value.c_str(), nullptr, 10);

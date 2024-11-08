@@ -252,8 +252,8 @@ static UBool
 isPackageName(const char *filename) {
     int32_t len;
 
-    len=(int32_t)strlen(filename)-4; /* -4: subtract the length of ".dat" */
-    return (UBool)(len>0 && 0==strcmp(filename+len, ".dat"));
+    len = static_cast<int32_t>(strlen(filename)) - 4; /* -4: subtract the length of ".dat" */
+    return len > 0 && 0 == strcmp(filename + len, ".dat");
 }
 /*
 This line is required by MinGW because it incorrectly globs the arguments.
@@ -350,7 +350,7 @@ main(int argc, char *argv[]) {
         outFilename=nullptr;
     } else /* !isPackage */ {
         outFilename=inFilename;
-        isModified=(UBool)(sourcePath!=destPath);
+        isModified = static_cast<UBool>(sourcePath != destPath);
     }
 
     /* parse the output type option */
@@ -378,7 +378,7 @@ main(int argc, char *argv[]) {
          * If we swap a single file, just assume that we are modifying it.
          * The Package class does not give us access to the item and its type.
          */
-        isModified|=(UBool)(!isPackage || outType!=pkg->getInType());
+        isModified |= static_cast<UBool>(!isPackage || outType != pkg->getInType());
     } else if(isPackage) {
         outType=pkg->getInType(); // default to input type
     } else /* !isPackage: swap single file */ {

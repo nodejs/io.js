@@ -1,0 +1,1 @@
+require('./message.mjs');

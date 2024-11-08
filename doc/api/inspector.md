@@ -514,6 +514,7 @@ inspector.Network.requestWillBeSent({
 <!-- YAML
 added:
  - v22.6.0
+ - v20.18.0
 -->
 
 > Stability: 1 - Experimental
@@ -530,6 +531,7 @@ the application is about to send an HTTP request.
 <!-- YAML
 added:
  - v22.6.0
+ - v20.18.0
 -->
 
 > Stability: 1 - Experimental
@@ -546,6 +548,7 @@ HTTP response is available.
 <!-- YAML
 added:
  - v22.6.0
+ - v20.18.0
 -->
 
 > Stability: 1 - Experimental
@@ -562,6 +565,7 @@ HTTP request has finished loading.
 <!-- YAML
 added:
  - v22.7.0
+ - v20.18.0
 -->
 
 > Stability: 1 - Experimental

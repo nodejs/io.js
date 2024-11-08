@@ -242,12 +242,15 @@ inline void EinvalError() {}
 
 template <typename FT, FT F, typename R, typename... Args>
 R WASI::WasiFunction<FT, F, R, Args...>::FastCallback(
+    Local<Object> unused,
     Local<Object> receiver,
     Args... args,
     // NOLINTNEXTLINE(runtime/references) This is V8 api.
     FastApiCallbackOptions& options) {
   WASI* wasi = reinterpret_cast<WASI*>(BaseObject::FromJSObject(receiver));
-  if (UNLIKELY(wasi == nullptr)) return EinvalError<R>();
+  if (wasi == nullptr) [[unlikely]] {
+    return EinvalError<R>();
+  }
 
   Isolate* isolate = receiver->GetIsolate();
   HandleScope scope(isolate);

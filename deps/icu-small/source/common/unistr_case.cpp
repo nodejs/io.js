@@ -72,7 +72,7 @@ UnicodeString::doCaseCompare(int32_t start,
     int32_t result=u_strcmpFold(chars, length, srcChars, srcLength,
                                 options|U_COMPARE_IGNORE_CASE, &errorCode);
     if(result!=0) {
-      return (int8_t)(result >> 24 | 1);
+      return static_cast<int8_t>(result >> 24 | 1);
     }
   } else {
     // get the srcLength if necessary
@@ -80,7 +80,7 @@ UnicodeString::doCaseCompare(int32_t start,
       srcLength = u_strlen(srcChars + srcStart);
     }
     if(length != srcLength) {
-      return (int8_t)((length - srcLength) >> 24 | 1);
+      return static_cast<int8_t>((length - srcLength) >> 24 | 1);
     }
   }
   return 0;

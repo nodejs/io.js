@@ -48,12 +48,16 @@ sSetWinEventHook pSetWinEventHook;
 /* ws2_32.dll function pointer */
 uv_sGetHostNameW pGetHostNameW;
 
+/* api-ms-win-core-file-l2-1-4.dll function pointer */
+sGetFileInformationByName pGetFileInformationByName;
+
 void uv__winapi_init(void) {
   HMODULE ntdll_module;
   HMODULE powrprof_module;
   HMODULE user32_module;
   HMODULE kernel32_module;
   HMODULE ws2_32_module;
+  HMODULE api_win_core_file_module;
 
   ntdll_module = GetModuleHandleA("ntdll.dll");
   if (ntdll_module == NULL) {
@@ -99,7 +103,7 @@ void uv__winapi_init(void) {
 
   pNtQueryDirectoryFile = (sNtQueryDirectoryFile)
       GetProcAddress(ntdll_module, "NtQueryDirectoryFile");
-  if (pNtQueryVolumeInformationFile == NULL) {
+  if (pNtQueryDirectoryFile == NULL) {
     uv_fatal_error(GetLastError(), "GetProcAddress");
   }
 
@@ -143,5 +147,11 @@ void uv__winapi_init(void) {
     pGetHostNameW = (uv_sGetHostNameW) GetProcAddress(
         ws2_32_module,
         "GetHostNameW");
+  }
+
+  api_win_core_file_module = GetModuleHandleA("api-ms-win-core-file-l2-1-4.dll");
+  if (api_win_core_file_module != NULL) {
+    pGetFileInformationByName = (sGetFileInformationByName)GetProcAddress(
+        api_win_core_file_module, "GetFileInformationByName");
   }
 }

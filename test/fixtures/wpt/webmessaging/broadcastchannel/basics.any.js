@@ -1,3 +1,11 @@
+test(function() {
+  assert_throws_js(
+      TypeError,
+      () => BroadcastChannel(""),
+      "Calling BroadcastChannel constructor without 'new' must throw"
+    );
+}, "BroadcastChannel constructor called as normal function");
+
 async_test(t => {
     let c1 = new BroadcastChannel('eventType');
     let c2 = new BroadcastChannel('eventType');

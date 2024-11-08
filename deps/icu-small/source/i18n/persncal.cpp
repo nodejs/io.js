@@ -217,7 +217,8 @@ int32_t PersianCalendar::handleGetExtendedYear(UErrorCode& status) {
  * method is called.
  */
 void PersianCalendar::handleComputeFields(int32_t julianDay, UErrorCode& status) {
-    int64_t daysSinceEpoch = julianDay - PERSIAN_EPOCH;
+    int64_t daysSinceEpoch = julianDay;
+    daysSinceEpoch -= PERSIAN_EPOCH;
     int64_t year = ClockMath::floorDivideInt64(
         33LL * daysSinceEpoch + 3LL, 12053LL) + 1LL;
     if (year > INT32_MAX || year < INT32_MIN) {

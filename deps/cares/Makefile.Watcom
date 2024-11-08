@@ -43,7 +43,8 @@ CP = copy
 
 CFLAGS = -3r -mf -hc -zff -zgf -zq -zm -zc -s -fr=con -w2 -fpi -oilrtfm -aa   &
          -wcd=201 -bt=nt -d+ -dCARES_BUILDING_LIBRARY &
-         -dNTDDI_VERSION=0x06020000 -I. -I.\include -I.\src\lib $(SYS_INCL)
+         -dNTDDI_VERSION=0x06020000 -I. -I.\include -I.\src\lib -I.\src\lib\include &
+         $(SYS_INCL)
 
 LFLAGS = option quiet, map, caseexact, eliminate
 
@@ -124,7 +125,7 @@ $(LIBNAME).lib: $(OBJS_STAT) $(LIB_ARG)
 $(OBJ_BASE)\tools\ares_getopt.obj:
 	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\tools\ares_getopt.c -fo=$^@
 
-adig.exe: $(OBJ_BASE)\tools\ares_getopt.obj $(LIBNAME).lib
+adig.exe: $(LIBNAME).lib
 	$(CC) $(CFLAGS) src\tools\adig.c -fo=$(OBJ_BASE)\tools\adig.obj
 	$(LD) name $^@ system nt $(LFLAGS) file { $(OBJ_BASE)\tools\adig.obj $[@ } library $]@, ws2_32.lib, iphlpapi.lib
 

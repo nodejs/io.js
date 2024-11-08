@@ -113,7 +113,7 @@ declare namespace InternalFSBinding {
   function futimes(fd: number, atime: number, mtime: number): void;
   function futimes(fd: number, atime: number, mtime: number, usePromises: typeof kUsePromises): Promise<void>;
 
-  function internalModuleStat(path: string): number;
+  function internalModuleStat(receiver: unknown, path: string): number;
 
   function lchown(path: string, uid: number, gid: number, req: FSReqCallback): void;
   function lchown(path: string, uid: number, gid: number, req: undefined, ctx: FSSyncContext): void;

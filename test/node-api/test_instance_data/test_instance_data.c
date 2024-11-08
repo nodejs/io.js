@@ -139,7 +139,7 @@ static void FinalizeThreadsafeFunction(napi_env env, void* raw, void* hint) {
   data->tsfn = NULL;
 }
 
-// Ths function accepts two arguments: the JS callback, and the finalize
+// This function accepts two arguments: the JS callback, and the finalize
 // callback. The latter moves the test forward.
 static napi_value
 TestThreadsafeFunction(napi_env env, napi_callback_info info) {

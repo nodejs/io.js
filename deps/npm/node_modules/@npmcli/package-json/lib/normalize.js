@@ -127,13 +127,9 @@ function unixifyPath (ref) {
   return ref.replace(/\\|:/g, '/')
 }
 
-function securePath (ref) {
-  const secured = path.join('.', path.join('/', unixifyPath(ref)))
-  return secured.startsWith('.') ? '' : secured
-}
-
 function secureAndUnixifyPath (ref) {
-  return unixifyPath(securePath(ref))
+  const secured = unixifyPath(path.join('.', path.join('/', unixifyPath(ref))))
+  return secured.startsWith('./') ? '' : secured
 }
 
 // We don't want the `changes` array in here by default because this is a hot
@@ -376,7 +372,7 @@ const normalize = async (pkg, { strict, steps, root, changes, allowLegacyCase })
 
   // expand "directories.bin"
   if (steps.includes('binDir') && data.directories?.bin && !data.bin) {
-    const binsDir = path.resolve(pkg.path, securePath(data.directories.bin))
+    const binsDir = path.resolve(pkg.path, secureAndUnixifyPath(data.directories.bin))
     const bins = await lazyLoadGlob()('**', { cwd: binsDir })
     data.bin = bins.reduce((acc, binFile) => {
       if (binFile && !binFile.startsWith('.')) {

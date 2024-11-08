@@ -279,7 +279,7 @@ MaybeLocal<Uint8Array> New(Environment* env,
   CHECK(!env->buffer_prototype_object().IsEmpty());
   Local<Uint8Array> ui = Uint8Array::New(ab, byte_offset, length);
   Maybe<bool> mb =
-      ui->SetPrototype(env->context(), env->buffer_prototype_object());
+      ui->SetPrototypeV2(env->context(), env->buffer_prototype_object());
   if (mb.IsNothing())
     return MaybeLocal<Uint8Array>();
   return ui;
@@ -312,7 +312,7 @@ MaybeLocal<Object> New(Isolate* isolate,
   if (length > 0) {
     store = ArrayBuffer::NewBackingStore(isolate, length);
 
-    if (UNLIKELY(!store)) {
+    if (!store) [[unlikely]] {
       THROW_ERR_MEMORY_ALLOCATION_FAILED(isolate);
       return Local<Object>();
     }
@@ -325,7 +325,7 @@ MaybeLocal<Object> New(Isolate* isolate,
         enc);
     CHECK(actual <= length);
 
-    if (LIKELY(actual > 0)) {
+    if (actual > 0) [[likely]] {
       if (actual < length) {
         std::unique_ptr<BackingStore> old_store = std::move(store);
         store = ArrayBuffer::NewBackingStore(isolate, actual);
@@ -335,8 +335,9 @@ MaybeLocal<Object> New(Isolate* isolate,
       }
       Local<ArrayBuffer> buf = ArrayBuffer::New(isolate, std::move(store));
       Local<Object> obj;
-      if (UNLIKELY(!New(isolate, buf, 0, actual).ToLocal(&obj)))
-        return MaybeLocal<Object>();
+      if (!New(isolate, buf, 0, actual).ToLocal(&obj)) [[unlikely]] {
+        return {};
+      }
       return scope.Escape(obj);
     }
   }
@@ -964,11 +965,9 @@ void IndexOfString(const FunctionCallbackInfo<Value>& args) {
   size_t result = haystack_length;
 
   if (enc == UCS2) {
-    String::Value needle_value(isolate, needle);
-    if (*needle_value == nullptr)
-      return args.GetReturnValue().Set(-1);
+    TwoByteValue needle_buffer(isolate, needle);
 
-    if (haystack_length < 2 || needle_value.length() < 1) {
+    if (haystack_length < 2 || needle_buffer.length() < 1) {
       return args.GetReturnValue().Set(-1);
     }
 
@@ -988,13 +987,12 @@ void IndexOfString(const FunctionCallbackInfo<Value>& args) {
                                     offset / 2,
                                     is_forward);
     } else {
-      result =
-          nbytes::SearchString(reinterpret_cast<const uint16_t*>(haystack),
-                               haystack_length / 2,
-                               reinterpret_cast<const uint16_t*>(*needle_value),
-                               needle_value.length(),
-                               offset / 2,
-                               is_forward);
+      result = nbytes::SearchString(reinterpret_cast<const uint16_t*>(haystack),
+                                    haystack_length / 2,
+                                    needle_buffer.out(),
+                                    needle_buffer.length(),
+                                    offset / 2,
+                                    is_forward);
     }
     result *= 2;
   } else if (enc == UTF8) {
@@ -1294,10 +1292,10 @@ static void Btoa(const FunctionCallbackInfo<Value>& args) {
                                   input->Length(),
                                   buffer.out());
   } else {
-    String::Value value(env->isolate(), input);
+    String::ValueView value(env->isolate(), input);
     MaybeStackBuffer<char> stack_buf(value.length());
     size_t out_len = simdutf::convert_utf16_to_latin1(
-        reinterpret_cast<const char16_t*>(*value),
+        reinterpret_cast<const char16_t*>(value.data16()),
         value.length(),
         stack_buf.out());
     if (out_len == 0) {  // error
@@ -1354,8 +1352,8 @@ static void Atob(const FunctionCallbackInfo<Value>& args) {
     buffer.SetLength(expected_length);
     result = simdutf::base64_to_binary(data, input->Length(), buffer.out());
   } else {  // 16-bit case
-    String::Value value(env->isolate(), input);
-    auto data = reinterpret_cast<const char16_t*>(*value);
+    String::ValueView value(env->isolate(), input);
+    auto data = reinterpret_cast<const char16_t*>(value.data16());
     size_t expected_length =
         simdutf::maximal_binary_length_from_base64(data, value.length());
     buffer.AllocateSufficientStorage(expected_length);

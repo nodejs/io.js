@@ -23,6 +23,8 @@ function defaultFactory (origin, opts) {
   return new Pool(origin, opts)
 }
 
+const noop = () => {}
+
 class ProxyAgent extends DispatcherBase {
   constructor (opts) {
     super()
@@ -81,7 +83,7 @@ class ProxyAgent extends DispatcherBase {
             servername: this[kProxyTls]?.servername || proxyHostname
           })
           if (statusCode !== 200) {
-            socket.on('error', () => {}).destroy()
+            socket.on('error', noop).destroy()
             callback(new RequestAbortedError(`Proxy response (${statusCode}) !== 200 when HTTP Tunneling`))
           }
           if (opts.protocol !== 'https:') {

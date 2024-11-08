@@ -54,10 +54,10 @@ void UVector32::_init(int32_t initialCapacity, UErrorCode &status) {
     if (maxCapacity>0 && maxCapacity<initialCapacity) {
         initialCapacity = maxCapacity;
     }
-    if (initialCapacity > (int32_t)(INT32_MAX / sizeof(int32_t))) {
+    if (initialCapacity > static_cast<int32_t>(INT32_MAX / sizeof(int32_t))) {
         initialCapacity = uprv_min(DEFAULT_CAPACITY, maxCapacity);
     }
-    elements = (int32_t *)uprv_malloc(sizeof(int32_t)*initialCapacity);
+    elements = static_cast<int32_t*>(uprv_malloc(sizeof(int32_t) * initialCapacity));
     if (elements == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
     } else {
@@ -223,12 +223,12 @@ UBool UVector32::expandCapacity(int32_t minimumCapacity, UErrorCode &status) {
     if (maxCapacity > 0 && newCap > maxCapacity) {
         newCap = maxCapacity;
     }
-    if (newCap > (int32_t)(INT32_MAX / sizeof(int32_t))) {  // integer overflow check
+    if (newCap > static_cast<int32_t>(INT32_MAX / sizeof(int32_t))) { // integer overflow check
         // We keep the original memory contents on bad minimumCapacity/maxCapacity.
         status = U_ILLEGAL_ARGUMENT_ERROR;
         return false;
     }
-    int32_t* newElems = (int32_t *)uprv_realloc(elements, sizeof(int32_t)*newCap);
+    int32_t* newElems = static_cast<int32_t*>(uprv_realloc(elements, sizeof(int32_t) * newCap));
     if (newElems == nullptr) {
         // We keep the original contents on the memory failure on realloc.
         status = U_MEMORY_ALLOCATION_ERROR;
@@ -244,7 +244,7 @@ void UVector32::setMaxCapacity(int32_t limit) {
     if (limit < 0) {
         limit = 0;
     }
-    if (limit > (int32_t)(INT32_MAX / sizeof(int32_t))) {  // integer overflow check for realloc
+    if (limit > static_cast<int32_t>(INT32_MAX / sizeof(int32_t))) { // integer overflow check for realloc
         //  Something is very wrong, don't realloc, leave capacity and maxCapacity unchanged
         return;
     }
@@ -256,7 +256,7 @@ void UVector32::setMaxCapacity(int32_t limit) {
     
     // New maximum capacity is smaller than the current size.
     // Realloc the storage to the new, smaller size.
-    int32_t* newElems = (int32_t *)uprv_realloc(elements, sizeof(int32_t)*maxCapacity);
+    int32_t* newElems = static_cast<int32_t*>(uprv_realloc(elements, sizeof(int32_t) * maxCapacity));
     if (newElems == nullptr) {
         // Realloc to smaller failed.
         //   Just keep what we had.  No need to call it a failure.

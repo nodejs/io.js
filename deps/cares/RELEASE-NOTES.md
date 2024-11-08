@@ -1,65 +1,66 @@
-## c-ares version 1.33.1 - August 23 2024
+## c-ares version 1.34.2 - October 15 2024
 
-This is a bugfix release.
+This release contains a fix for downstream packages detecting the c-ares
+version based on the contents of the header file rather than the
+distributed pkgconf or cmake files.
 
-Bugfixes:
-* Work around systemd-resolved quirk that returns unexpected codes for single
-  label names.  Also adds test cases to validate the work around works and
-  will continue to work in future releases.
-  [PR #863](https://github.com/c-ares/c-ares/pull/863),
-  See Also https://github.com/systemd/systemd/issues/34101
-* Fix sysconfig ndots default value, also adds containerized test case to
-  prevent future regressions.
-  [PR #862](https://github.com/c-ares/c-ares/pull/862)
-* Fix blank DNS name returning error code rather than valid record for
-  commands like: `adig -t SOA .`.  Also adds test case to prevent future
-  regressions.
-  [9e574af](https://github.com/c-ares/c-ares/commit/9e574af)
-* Fix calculation of query times > 1s.
-  [2b2eae7](https://github.com/c-ares/c-ares/commit/2b2eae7)
-* Fix building on old Linux releases that don't have `TCP_FASTOPEN_CONNECT`.
-  [b7a89b9](https://github.com/c-ares/c-ares/commit/b7a89b9)
-* Fix minor Android build warnings.
-  [PR #848](https://github.com/c-ares/c-ares/pull/848)
+## c-ares version 1.34.1 - October 9 2024
 
-Thanks go to these friendly people for their efforts and contributions for this
-release:
-* Brad House (@bradh352)
-* Erik Lax (@eriklax)
-* Hans-Christian Egtvedt (@egtvedt)
-* Mikael Lindemann (@mikaellindemann)
-* Nodar Chkuaselidze (@nodech)
+This release fixes a packaging issue.
 
-## c-ares version 1.33.0 - August 2 2024
+
+## c-ares version 1.34.0 - October 9 2024
 
 This is a feature and bugfix release.
 
 Features:
-* Add DNS cookie support (RFC7873 + RFC9018) to help prevent off-path cache
-  poisoning attacks. [PR #833](https://github.com/c-ares/c-ares/pull/833)
-* Implement TCP FastOpen (TFO) RFC7413, which will make TCP reconnects 0-RTT
-  on supported systems. [PR #840](https://github.com/c-ares/c-ares/pull/840)
+* adig: read arguments from adigrc.
+  [PR #856](https://github.com/c-ares/c-ares/pull/856)
+* Add new pending write callback optimization via `ares_set_pending_write_cb`.
+  [PR #857](https://github.com/c-ares/c-ares/pull/857)
+* New function `ares_process_fds()`.
+  [PR #875](https://github.com/c-ares/c-ares/pull/875)
+* Failed servers should be probed rather than redirecting queries which could
+  cause unexpected latency.
+  [PR #877](https://github.com/c-ares/c-ares/pull/877)
+* adig: rework command line arguments to mimic dig from bind.
+  [PR #890](https://github.com/c-ares/c-ares/pull/890)
+* Add new method for overriding network functions
+  `ares_set_socket_function_ex()` to properly support all new functionality.
+  [PR #894](https://github.com/c-ares/c-ares/pull/894)
+* Fix regression with custom socket callbacks due to DNS cookie support.
+  [PR #895](https://github.com/c-ares/c-ares/pull/895)
+* ares_socket: set IP_BIND_ADDRESS_NO_PORT on ares_set_local_ip* tcp sockets
+  [PR #887](https://github.com/c-ares/c-ares/pull/887)
+* URI parser/writer for ares_set_servers_csv()/ares_get_servers_csv().
+  [PR #882](https://github.com/c-ares/c-ares/pull/882)
 
 Changes:
-* Reorganize source tree. [PR #822](https://github.com/c-ares/c-ares/pull/822)
-* Refactoring of connection handling to prevent code duplication.
-  [PR #839](https://github.com/c-ares/c-ares/pull/839)
-* New dynamic array data structure to prevent simple logic flaws in array
-  handling in various code paths.
-  [PR #841](https://github.com/c-ares/c-ares/pull/841)
+* Connection handling modularization.
+  [PR #857](https://github.com/c-ares/c-ares/pull/857),
+  [PR #876](https://github.com/c-ares/c-ares/pull/876)
+* Expose library/utility functions to tools.
+  [PR #860](https://github.com/c-ares/c-ares/pull/860)
+* Remove `ares__` prefix, just use `ares_` for internal functions.
+  [PR #872](https://github.com/c-ares/c-ares/pull/872)
+
 
 Bugfixes:
-* `ares_destroy()` race condition during shutdown due to missing lock.
-  [PR #831](https://github.com/c-ares/c-ares/pull/831)
-* Android: Preserve thread name after attaching it to JVM.
-  [PR #838](https://github.com/c-ares/c-ares/pull/838)
-* Windows UWP (Store) support fix.
-  [PR #845](https://github.com/c-ares/c-ares/pull/845)
+* fix: potential WIN32_LEAN_AND_MEAN redefinition.
+  [PR #869](https://github.com/c-ares/c-ares/pull/869)
+* Fix googletest v1.15 compatibility.
+  [PR #874](https://github.com/c-ares/c-ares/pull/874)
+* Fix pkgconfig thread dependencies.
+  [PR #884](https://github.com/c-ares/c-ares/pull/884)
 
 
 Thanks go to these friendly people for their efforts and contributions for this
 release:
 
 * Brad House (@bradh352)
-* Yauheni Khnykin (@Hsilgos)
+* Cristian Rodríguez (@crrodriguez)
+* Georg (@tacerus)
+* @lifenjoiner
+* Shelley Vohr (@codebytere)
+* 前进，前进，进 (@leleliu008)
 

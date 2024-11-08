@@ -166,7 +166,7 @@ StandardPlural::Form QuantityFormatter::selectPlural(
         } else if (number.getType() == Formattable::kLong) {
             pluralKeyword = rules.select(number.getLong());
         } else if (number.getType() == Formattable::kInt64) {
-            pluralKeyword = rules.select((double) number.getInt64());
+            pluralKeyword = rules.select(static_cast<double>(number.getInt64()));
         } else {
             status = U_ILLEGAL_ARGUMENT_ERROR;
             return StandardPlural::OTHER;

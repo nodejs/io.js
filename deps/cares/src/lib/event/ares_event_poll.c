@@ -67,7 +67,7 @@ static size_t ares_evsys_poll_wait(ares_event_thread_t *e,
                                    unsigned long        timeout_ms)
 {
   size_t         num_fds = 0;
-  ares_socket_t *fdlist  = ares__htable_asvp_keys(e->ev_sock_handles, &num_fds);
+  ares_socket_t *fdlist  = ares_htable_asvp_keys(e->ev_sock_handles, &num_fds);
   struct pollfd *pollfd  = NULL;
   int            rv;
   size_t         cnt = 0;
@@ -80,7 +80,7 @@ static size_t ares_evsys_poll_wait(ares_event_thread_t *e,
     }
     for (i = 0; i < num_fds; i++) {
       const ares_event_t *ev =
-        ares__htable_asvp_get_direct(e->ev_sock_handles, fdlist[i]);
+        ares_htable_asvp_get_direct(e->ev_sock_handles, fdlist[i]);
       pollfd[i].fd = ev->fd;
       if (ev->flags & ARES_EVENT_FLAG_READ) {
         pollfd[i].events |= POLLIN;
@@ -107,7 +107,7 @@ static size_t ares_evsys_poll_wait(ares_event_thread_t *e,
 
     cnt++;
 
-    ev = ares__htable_asvp_get_direct(e->ev_sock_handles, pollfd[i].fd);
+    ev = ares_htable_asvp_get_direct(e->ev_sock_handles, pollfd[i].fd);
     if (ev == NULL || ev->cb == NULL) {
       continue; /* LCOV_EXCL_LINE: DefensiveCoding */
     }

@@ -1,7 +1,7 @@
 'use strict';
 
 // This tests module.enableCompileCache() and module.getCompileCacheDir() work with
-// the TMPDIR environemnt variable override.
+// the TMPDIR environment variable override.
 
 require('../common');
 const { spawnSyncAndAssert } = require('../common/child_process');

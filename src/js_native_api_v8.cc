@@ -1577,7 +1577,7 @@ napi_status NAPI_CDECL napi_get_prototype(napi_env env,
   CHECK_TO_OBJECT(env, context, obj, object);
 
   // This doesn't invokes Proxy's [[GetPrototypeOf]] handler.
-  v8::Local<v8::Value> val = obj->GetPrototype();
+  v8::Local<v8::Value> val = obj->GetPrototypeV2();
   *result = v8impl::JsValueFromV8LocalValue(val);
   return GET_RETURN_STATUS(env);
 }

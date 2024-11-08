@@ -1556,6 +1556,8 @@ class PreParser : public ParserBase<PreParser> {
 
   V8_INLINE void ReindexArrowFunctionFormalParameters(
       PreParserFormalParameters* parameters) {}
+  V8_INLINE void ReindexComputedMemberName(
+      const PreParserExpression& expression) {}
   V8_INLINE void DeclareFormalParameters(
       const PreParserFormalParameters* parameters) {
     if (!parameters->is_simple) parameters->scope->SetHasNonSimpleParameters();

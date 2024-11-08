@@ -10,6 +10,7 @@ if (!common.hasCrypto) {
 
 const { internalBinding } = require('internal/test/binding');
 const assert = require('node:assert');
+const path = require('node:path');
 const fixtures = require('../common/fixtures');
 
 const blockedFile = fixtures.path('permission', 'deny', 'protected-file.md');
@@ -18,9 +19,10 @@ const internalFsBinding = internalBinding('fs');
 // Run this inside a for loop to trigger the fast API
 for (let i = 0; i < 10_000; i++) {
   assert.throws(() => {
-    internalFsBinding.internalModuleStat(blockedFile);
+    internalFsBinding.internalModuleStat(internalFsBinding, blockedFile);
   }, {
     code: 'ERR_ACCESS_DENIED',
     permission: 'FileSystemRead',
+    resource: path.toNamespacedPath(blockedFile),
   });
 }

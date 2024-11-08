@@ -142,14 +142,14 @@ If `cacheDir` is not specified, Node.js will either use the directory specified 
 [`NODE_COMPILE_CACHE=dir`][] environment variable if it's set, or use
 `path.join(os.tmpdir(), 'node-compile-cache')` otherwise. For general use cases, it's
 recommended to call `module.enableCompileCache()` without specifying the `cacheDir`,
-so that the directory can be overriden by the `NODE_COMPILE_CACHE` environment
+so that the directory can be overridden by the `NODE_COMPILE_CACHE` environment
 variable when necessary.
 
 Since compile cache is supposed to be a quiet optimization that is not required for the
 application to be functional, this method is designed to not throw any exception when the
 compile cache cannot be enabled. Instead, it will return an object containing an error
 message in the `message` field to aid debugging.
-If compile cache is enabled successefully, the `directory` field in the returned object
+If compile cache is enabled successfully, the `directory` field in the returned object
 contains the path to the directory where the compile cache is stored. The `status`
 field in the returned object would be one of the `module.constants.compileCacheStatus`
 values to indicate the result of the attempt to enable the [module compile cache][].
@@ -157,7 +157,7 @@ values to indicate the result of the attempt to enable the [module compile cache
 This method only affects the current Node.js instance. To enable it in child worker threads,
 either call this method in child worker threads too, or set the
 `process.env.NODE_COMPILE_CACHE` value to compile cache directory so the behavior can
-be inheritend into the child workers. The directory can be obtained either from the
+be inherited into the child workers. The directory can be obtained either from the
 `directory` field returned by this method, or with [`module.getCompileCacheDir()`][].
 
 #### Module compile cache
@@ -217,6 +217,88 @@ added: v22.8.0
 * Returns: {string|undefined} Path to the [module compile cache][] directory if it is enabled,
   or `undefined` otherwise.
 
+### `module.findPackageJSON(specifier[, base])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1.1 - Active Development
+
+* `specifier` {string|URL} The specifier for the module whose `package.json` to
+  retrieve. When passing a _bare specifier_, the `package.json` at the root of
+  the package is returned. When passing a _relative specifier_ or an _absolute specifier_,
+  the closest parent `package.json` is returned.
+* `base` {string|URL} The absolute location (`file:` URL string or FS path) of the
+  containing  module. For CJS, use `__filename` (not `__dirname`!); for ESM, use
+  `import.meta.url`. You do not need to pass it if `specifier` is an `absolute specifier`.
+* Returns: {string|undefined} A path if the `package.json` is found. When `startLocation`
+  is a package, the package's root `package.json`; when a relative or unresolved, the closest
+  `package.json` to the `startLocation`.
+
+> **Caveat**: Do not use this to try to determine module format. There are many things effecting
+> that determination; the `type` field of package.json is the _least_ definitive (ex file extension
+> superceeds it, and a loader hook superceeds that).
+
+```text
+/path/to/project
+  ├ packages/
+    ├ bar/
+      ├ bar.js
+      └ package.json // name = '@foo/bar'
+    └ qux/
+      ├ node_modules/
+        └ some-package/
+          └ package.json // name = 'some-package'
+      ├ qux.js
+      └ package.json // name = '@foo/qux'
+  ├ main.js
+  └ package.json // name = '@foo'
+```
+
+```mjs
+// /path/to/project/packages/bar/bar.js
+import { findPackageJSON } from 'node:module';
+
+findPackageJSON('..', import.meta.url);
+// '/path/to/project/package.json'
+// Same result when passing an absolute specifier instead:
+findPackageJSON(new URL('../', import.meta.url));
+findPackageJSON(import.meta.resolve('../'));
+
+findPackageJSON('some-package', import.meta.url);
+// '/path/to/project/packages/bar/node_modules/some-package/package.json'
+// When passing an absolute specifier, you might get a different result if the
+// resolved module is inside a subfolder that has nested `package.json`.
+findPackageJSON(import.meta.resolve('some-package'));
+// '/path/to/project/packages/bar/node_modules/some-package/some-subfolder/package.json'
+
+findPackageJSON('@foo/qux', import.meta.url);
+// '/path/to/project/packages/qux/package.json'
+```
+
+```cjs
+// /path/to/project/packages/bar/bar.js
+const { findPackageJSON } = require('node:module');
+const { pathToFileURL } = require('node:url');
+const path = require('node:path');
+
+findPackageJSON('..', __filename);
+// '/path/to/project/package.json'
+// Same result when passing an absolute specifier instead:
+findPackageJSON(pathToFileURL(path.join(__dirname, '..')));
+
+findPackageJSON('some-package', __filename);
+// '/path/to/project/packages/bar/node_modules/some-package/package.json'
+// When passing an absolute specifier, you might get a different result if the
+// resolved module is inside a subfolder that has nested `package.json`.
+findPackageJSON(pathToFileURL(require.resolve('some-package')));
+// '/path/to/project/packages/bar/node_modules/some-package/some-subfolder/package.json'
+
+findPackageJSON('@foo/qux', __filename);
+// '/path/to/project/packages/qux/package.json'
+```
+
 ### `module.isBuiltin(moduleName)`
 
 <!-- YAML
@@ -264,11 +346,110 @@ changes:
     **Default:** `'data:'`
   * `data` {any} Any arbitrary, cloneable JavaScript value to pass into the
     [`initialize`][] hook.
-  * `transferList` {Object\[]} [transferrable objects][] to be passed into the
+  * `transferList` {Object\[]} [transferable objects][] to be passed into the
     `initialize` hook.
 
 Register a module that exports [hooks][] that customize Node.js module
 resolution and loading behavior. See [Customization hooks][].
+
+## `module.stripTypeScriptTypes(code[, options])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1.1 - Active development
+
+* `code` {string} The code to strip type annotations from.
+* `options` {Object}
+  * `mode` {string} **Default:** `'strip'`. Possible values are:
+    * `'strip'` Only strip type annotations without performing the transformation of TypeScript features.
+    * `'transform'` Strip type annotations and transform TypeScript features to JavaScript.
+  * `sourceMap` {boolean} **Default:** `false`. Only when `mode` is `'transform'`, if `true`, a source map
+    will be generated for the transformed code.
+  * `sourceUrl` {string}  Specifies the source url used in the source map.
+* Returns: {string} The code with type annotations stripped.
+  `module.stripTypeScriptTypes()` removes type annotations from TypeScript code. It
+  can be used to strip type annotations from TypeScript code before running it
+  with `vm.runInContext()` or `vm.compileFunction()`.
+  By default, it will throw an error if the code contains TypeScript features
+  that require transformation such as `Enums`,
+  see [type-stripping][] for more information.
+  When mode is `'transform'`, it also transforms TypeScript features to JavaScript,
+  see [transform TypeScript features][] for more information.
+  When mode is `'strip'`, source maps are not generated, because locations are preserved.
+  If `sourceMap` is provided, when mode is `'strip'`, an error will be thrown.
+
+_WARNING_: The output of this function should not be considered stable across Node.js versions,
+due to changes in the TypeScript parser.
+
+```mjs
+import { stripTypeScriptTypes } from 'node:module';
+const code = 'const a: number = 1;';
+const strippedCode = stripTypeScriptTypes(code);
+console.log(strippedCode);
+// Prints: const a         = 1;
+```
+
+```cjs
+const { stripTypeScriptTypes } = require('node:module');
+const code = 'const a: number = 1;';
+const strippedCode = stripTypeScriptTypes(code);
+console.log(strippedCode);
+// Prints: const a         = 1;
+```
+
+If `sourceUrl` is provided, it will be used appended as a comment at the end of the output:
+
+```mjs
+import { stripTypeScriptTypes } from 'node:module';
+const code = 'const a: number = 1;';
+const strippedCode = stripTypeScriptTypes(code, { mode: 'strip', sourceUrl: 'source.ts' });
+console.log(strippedCode);
+// Prints: const a         = 1\n\n//# sourceURL=source.ts;
+```
+
+```cjs
+const { stripTypeScriptTypes } = require('node:module');
+const code = 'const a: number = 1;';
+const strippedCode = stripTypeScriptTypes(code, { mode: 'strip', sourceUrl: 'source.ts' });
+console.log(strippedCode);
+// Prints: const a         = 1\n\n//# sourceURL=source.ts;
+```
+
+When `mode` is `'transform'`, the code is transformed to JavaScript:
+
+```mjs
+import { stripTypeScriptTypes } from 'node:module';
+const code = `
+  namespace MathUtil {
+    export const add = (a: number, b: number) => a + b;
+  }`;
+const strippedCode = stripTypeScriptTypes(code, { mode: 'transform', sourceMap: true });
+console.log(strippedCode);
+// Prints:
+// var MathUtil;
+// (function(MathUtil) {
+//     MathUtil.add = (a, b)=>a + b;
+// })(MathUtil || (MathUtil = {}));
+// # sourceMappingURL=data:application/json;base64, ...
+```
+
+```cjs
+const { stripTypeScriptTypes } = require('node:module');
+const code = `
+  namespace MathUtil {
+    export const add = (a: number, b: number) => a + b;
+  }`;
+const strippedCode = stripTypeScriptTypes(code, { mode: 'transform', sourceMap: true });
+console.log(strippedCode);
+// Prints:
+// var MathUtil;
+// (function(MathUtil) {
+//     MathUtil.add = (a, b)=>a + b;
+// })(MathUtil || (MathUtil = {}));
+// # sourceMappingURL=data:application/json;base64, ...
+```
 
 ### `module.syncBuiltinESMExports()`
 
@@ -469,7 +650,7 @@ affect the other thread(s), and message channels must be used to communicate
 between the threads.
 
 The `register` method can be used to pass data to an [`initialize`][] hook. The
-data passed to the hook may include transferrable objects like ports.
+data passed to the hook may include transferable objects like ports.
 
 ```mjs
 import { register } from 'node:module';
@@ -567,7 +748,7 @@ the hooks thread when the hooks module is initialized. Initialization happens
 when the hooks module is registered via [`register`][].
 
 This hook can receive data from a [`register`][] invocation, including
-ports and other transferrable objects. The return value of `initialize` can be a
+ports and other transferable objects. The return value of `initialize` can be a
 {Promise}, in which case it will be awaited before the main application thread
 execution resumes.
 
@@ -869,9 +1050,6 @@ behaviors.
 
 #### Import from HTTPS
 
-In current Node.js, specifiers starting with `https://` are experimental (see
-\[HTTPS and HTTP imports]\[]).
-
 The hook below registers hooks to enable rudimentary support for such
 specifiers. While this may seem like a significant improvement to Node.js core
 functionality, there are substantial downsides to actually using these hooks:
@@ -1112,7 +1290,8 @@ should be fetched.
 
 <!-- YAML
 added:
- - REPLACEME
+ - v23.0.0
+ - v22.10.0
 -->
 
 > Stability: 1.1 - Active Development
@@ -1121,7 +1300,7 @@ Flush the [module compile cache][] accumulated from modules already loaded
 in the current Node.js instance to disk. This returns after all the flushing
 file system operations come to an end, no matter they succeed or not. If there
 are any errors, this will fail silently, since compile cache misses should not
-interfer with the actual operation of the application.
+interfere with the actual operation of the application.
 
 ### Class: `module.SourceMap`
 
@@ -1253,4 +1432,6 @@ returned object contains the following keys:
 [prefix-only modules]: modules.md#built-in-modules-with-mandatory-node-prefix
 [realm]: https://tc39.es/ecma262/#realm
 [source map include directives]: https://sourcemaps.info/spec.html#h.lmz475t4mvbx
-[transferrable objects]: worker_threads.md#portpostmessagevalue-transferlist
+[transferable objects]: worker_threads.md#portpostmessagevalue-transferlist
+[transform TypeScript features]: typescript.md#typescript-features
+[type-stripping]: typescript.md#type-stripping

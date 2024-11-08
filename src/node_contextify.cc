@@ -1271,10 +1271,10 @@ bool ContextifyScript::EvalMachine(Local<Context> context,
 
 #if HAVE_INSPECTOR
   if (break_on_first_line) {
-    if (UNLIKELY(!env->permission()->is_granted(
-            env,
-            permission::PermissionScope::kInspector,
-            "PauseOnNextJavascriptStatement"))) {
+    if (!env->permission()->is_granted(env,
+                                       permission::PermissionScope::kInspector,
+                                       "PauseOnNextJavascriptStatement"))
+        [[unlikely]] {
       node::permission::Permission::ThrowAccessDenied(
           env,
           permission::PermissionScope::kInspector,

@@ -1,4 +1,4 @@
-.TH "PACKAGE.JSON" "5" "August 2024" "NPM@10.8.3" ""
+.TH "PACKAGE.JSON" "5" "October 2024" "NPM@10.9.0" ""
 .SH "NAME"
 \fBpackage.json\fR - Specifics of npm's package.json handling
 .SS "Description"
@@ -338,6 +338,9 @@ Most of these ignored files can be included specifically if included in the \fBf
 
 .P
 These can not be included.
+.SS "exports"
+.P
+The "exports" provides a modern alternative to "main" allowing multiple entry points to be defined, conditional entry resolution support between environments, and preventing any other entry points besides those defined in "exports". This encapsulation allows module authors to clearly define the public interface for their package. For more details see the \fBnode.js documentation on package entry points\fR \fI\(lahttps://nodejs.org/api/packages.html#package-entry-points\(ra\fR
 .SS "main"
 .P
 The main field is a module ID that is the primary entry point to your program. That is, if your package is named \fBfoo\fR, and a user installs it, and then does \fBrequire("foo")\fR, then your main module's exports object will be returned.
@@ -1041,6 +1044,35 @@ Like the \fBos\fR option, you can also block architectures:
 .RE
 .P
 The host architecture is determined by \fBprocess.arch\fR
+.SS "devEngines"
+.P
+The \fBdevEngines\fR field aids engineers working on a codebase to all be using the same tooling.
+.P
+You can specify a \fBdevEngines\fR property in your \fBpackage.json\fR which will run before \fBinstall\fR, \fBci\fR, and \fBrun\fR commands.
+.RS 0
+.P
+Note: \fBengines\fR and \fBdevEngines\fR differ in object shape. They also function very differently. \fBengines\fR is designed to alert the user when a dependency uses a differening npm or node version that the project it's being used in, whereas \fBdevEngines\fR is used to alert people interacting with the source code of a project.
+.RE 0
+
+.P
+The supported keys under the \fBdevEngines\fR property are \fBcpu\fR, \fBos\fR, \fBlibc\fR, \fBruntime\fR, and \fBpackageManager\fR. Each property can be an object or an array of objects. Objects must contain \fBname\fR, and optionally can specify \fBversion\fR, and \fBonFail\fR. \fBonFail\fR can be \fBwarn\fR, \fBerror\fR, or \fBignore\fR, and if left undefined is of the same value as \fBerror\fR. \fBnpm\fR will assume that you're running with \fBnode\fR. Here's an example of a project that will fail if the environment is not \fBnode\fR and \fBnpm\fR. If you set \fBruntime.name\fR or \fBpackageManager.name\fR to any other string, it will fail within the npm CLI.
+.P
+.RS 2
+.nf
+{
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "onFail": "error"
+    }
+  }
+}
+.fi
+.RE
 .SS "private"
 .P
 If you set \fB"private": true\fR in your package.json, then npm will refuse to publish it.

@@ -1,5 +1,5 @@
 const sources = {
-// Virtual file. Dosen't exist on disk
+// Virtual file. Doesn't exist on disk
   "virtual.js": `
   import { test } from 'node:test';
   test('test', async () => {});

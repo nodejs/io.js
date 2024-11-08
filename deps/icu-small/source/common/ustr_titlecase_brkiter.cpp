@@ -93,7 +93,7 @@ void  WholeStringBreakIterator::setText(UText *text, UErrorCode &errorCode) {
     if (U_SUCCESS(errorCode)) {
         int64_t length64 = utext_nativeLength(text);
         if (length64 <= INT32_MAX) {
-            length = (int32_t)length64;
+            length = static_cast<int32_t>(length64);
         } else {
             errorCode = U_INDEX_OUTOFBOUNDS_ERROR;
         }

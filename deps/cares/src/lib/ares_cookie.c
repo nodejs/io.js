@@ -229,7 +229,7 @@ static ares_bool_t timeval_expired(const ares_timeval_t *tv,
 {
   ares_int64_t   tvdiff_ms;
   ares_timeval_t tvdiff;
-  ares__timeval_diff(&tvdiff, tv, now);
+  ares_timeval_diff(&tvdiff, tv, now);
 
   tvdiff_ms = tvdiff.sec * 1000 + tvdiff.usec / 1000;
   if (tvdiff_ms >= (ares_int64_t)millsecs) {
@@ -249,7 +249,7 @@ static void ares_cookie_generate(ares_cookie_t *cookie, ares_conn_t *conn,
 {
   ares_channel_t *channel = conn->server->channel;
 
-  ares__rand_bytes(channel->rand_state, cookie->client, sizeof(cookie->client));
+  ares_rand_bytes(channel->rand_state, cookie->client, sizeof(cookie->client));
   memcpy(&cookie->client_ts, now, sizeof(cookie->client_ts));
   memcpy(&cookie->client_ip, &conn->self_ip, sizeof(cookie->client_ip));
 }
@@ -426,9 +426,8 @@ ares_status_t ares_cookie_validate(ares_query_t            *query,
 
     /* Resend the request, hopefully it will work the next time as we should
      * have recorded a server cookie */
-    ares__requeue_query(query, now, ARES_SUCCESS,
-                        ARES_FALSE /* Don't increment try count */,
-                        NULL);
+    ares_requeue_query(query, now, ARES_SUCCESS,
+                       ARES_FALSE /* Don't increment try count */, NULL);
 
     /* Parent needs to drop this response */
     return ARES_EBADRESP;

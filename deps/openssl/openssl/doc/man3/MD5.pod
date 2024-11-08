@@ -7,11 +7,11 @@ MD4_Final, MD5_Init, MD5_Update, MD5_Final - MD2, MD4, and MD5 hash functions
 
 =head1 SYNOPSIS
 
- #include <openssl/md2.h>
-
 The following functions have been deprecated since OpenSSL 3.0, and can be
 hidden entirely by defining B<OPENSSL_API_COMPAT> with a suitable version value,
 see L<openssl_user_macros(7)>:
+
+ #include <openssl/md2.h>
 
  unsigned char *MD2(const unsigned char *d, unsigned long n, unsigned char *md);
 
@@ -20,11 +20,11 @@ see L<openssl_user_macros(7)>:
  int MD2_Final(unsigned char *md, MD2_CTX *c);
 
 
- #include <openssl/md4.h>
-
 The following functions have been deprecated since OpenSSL 3.0, and can be
 hidden entirely by defining B<OPENSSL_API_COMPAT> with a suitable version value,
 see L<openssl_user_macros(7)>:
+
+ #include <openssl/md4.h>
 
  unsigned char *MD4(const unsigned char *d, unsigned long n, unsigned char *md);
 
@@ -32,12 +32,11 @@ see L<openssl_user_macros(7)>:
  int MD4_Update(MD4_CTX *c, const void *data, unsigned long len);
  int MD4_Final(unsigned char *md, MD4_CTX *c);
 
-
- #include <openssl/md5.h>
-
 The following functions have been deprecated since OpenSSL 3.0, and can be
 hidden entirely by defining B<OPENSSL_API_COMPAT> with a suitable version value,
 see L<openssl_user_macros(7)>:
+
+ #include <openssl/md5.h>
 
  unsigned char *MD5(const unsigned char *d, unsigned long n, unsigned char *md);
 
@@ -105,7 +104,7 @@ All of these functions were deprecated in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

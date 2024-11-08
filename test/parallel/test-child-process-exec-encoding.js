@@ -13,7 +13,8 @@ if (process.argv[2] === 'child') {
   const expectedStdout = `${stdoutData}\n`;
   const expectedStderr = `${stderrData}\n`;
   function run(options, callback) {
-    const cmd = `"${process.execPath}" "${__filename}" child`;
+    const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" "${__filename}" child`;
+    options = { ...options, env: { ...opts?.env, ...options.env } };
 
     cp.exec(cmd, options, common.mustSucceed((stdout, stderr) => {
       callback(stdout, stderr);

@@ -43,7 +43,7 @@ ares_status_t ares_expand_string_ex(const unsigned char *encoded,
                                     unsigned char **s, size_t *enclen)
 {
   ares_status_t status;
-  ares__buf_t  *buf = NULL;
+  ares_buf_t   *buf = NULL;
   size_t        start_len;
   size_t        len = 0;
 
@@ -62,28 +62,28 @@ ares_status_t ares_expand_string_ex(const unsigned char *encoded,
     *s = NULL;
   }
 
-  buf = ares__buf_create_const(abuf, alen);
+  buf = ares_buf_create_const(abuf, alen);
 
   if (buf == NULL) {
     return ARES_ENOMEM;
   }
 
-  status = ares__buf_set_position(buf, (size_t)(encoded - abuf));
+  status = ares_buf_set_position(buf, (size_t)(encoded - abuf));
   if (status != ARES_SUCCESS) {
     goto done;
   }
 
-  start_len = ares__buf_len(buf);
-  status    = ares__buf_parse_dns_binstr(buf, ares__buf_len(buf), s, &len);
+  start_len = ares_buf_len(buf);
+  status    = ares_buf_parse_dns_binstr(buf, ares_buf_len(buf), s, &len);
   /* hrm, no way to pass back 'len' with the prototype */
   if (status != ARES_SUCCESS) {
     goto done;
   }
 
-  *enclen = start_len - ares__buf_len(buf);
+  *enclen = start_len - ares_buf_len(buf);
 
 done:
-  ares__buf_destroy(buf);
+  ares_buf_destroy(buf);
   if (status == ARES_EBADNAME || status == ARES_EBADRESP) {
     status = ARES_EBADSTR;
   }

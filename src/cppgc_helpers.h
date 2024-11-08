@@ -121,7 +121,7 @@ class CppgcMixin : public cppgc::GarbageCollectedMixin {
 
 /**
  * Helper macro the manage the cppgc-based wrapper hierarchy. This must
- * be used at the left-most postion - right after `:` in the class inheritance,
+ * be used at the left-most position - right after `:` in the class inheritance,
  * like this:
  * class Klass : CPPGC_MIXIN(Klass) ... {}
  *

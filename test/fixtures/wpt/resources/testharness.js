@@ -600,7 +600,7 @@
 
     /**
      * @callback TestFunction
-     * @param {Test} test - The test currnetly being run.
+     * @param {Test} test - The test currently being run.
      * @param {Any[]} args - Additional args to pass to function.
      *
      */

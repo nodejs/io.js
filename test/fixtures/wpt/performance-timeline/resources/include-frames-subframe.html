@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+
+<head>
+</head>
+<!--
+  This html is embedded as a sub-frame in include-frames-originA-B-A.html,
+  include-frames-originA-B-B.html and include-frames-originA-A-A.html. Once embedded,
+  this would take a url parameter named origin which is the origin of the child frame
+  this html is to load in step 3 listed below.
+  It does,
+  1, waits for load.
+  2, creates a single mark performance entry.
+  3, creates and loads a child frame, and waits for it to load.
+  4. verify entries obtained from this frame.
+-->
+
+<body>
+  <script>
+    (async () => {
+      // Wait for load.
+      await new Promise(resolve => window.addEventListener("load", resolve));
+
+      // Mark.
+      performance.mark("mark_subframe");
+
+      // Create and load an iframe and wait for load.
+      await new Promise(resolve => {
+        const childFrame = document.createElement('iframe');
+
+        childFrame.addEventListener('load', async () => {
+          window.parent.postMessage('Load completed', "*");
+          resolve();
+        });
+
+        childFrame.src = (new URL(document.location)).searchParams.get('origin')
+          + '/performance-timeline/resources/child-frame.html';
+
+        document.body.appendChild(childFrame);
+      }
+      );
+    })();
+  </script>
+</body>

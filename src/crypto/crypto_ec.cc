@@ -45,22 +45,6 @@ int GetCurveFromName(const char* name) {
   return nid;
 }
 
-int GetOKPCurveFromName(const char* name) {
-  int nid;
-  if (strcmp(name, "Ed25519") == 0) {
-    nid = EVP_PKEY_ED25519;
-  } else if (strcmp(name, "Ed448") == 0) {
-    nid = EVP_PKEY_ED448;
-  } else if (strcmp(name, "X25519") == 0) {
-    nid = EVP_PKEY_X25519;
-  } else if (strcmp(name, "X448") == 0) {
-    nid = EVP_PKEY_X448;
-  } else {
-    nid = NID_undef;
-  }
-  return nid;
-}
-
 void ECDH::Initialize(Environment* env, Local<Object> target) {
   Isolate* isolate = env->isolate();
   Local<Context> context = env->context();
@@ -174,7 +158,7 @@ ECPointPointer ECDH::BufferToPoint(Environment* env,
   }
 
   ArrayBufferOrViewContents<unsigned char> input(buf);
-  if (UNLIKELY(!input.CheckSizeInt32())) {
+  if (!input.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "buffer is too big");
     return ECPointPointer();
   }
@@ -293,7 +277,7 @@ void ECDH::SetPrivateKey(const FunctionCallbackInfo<Value>& args) {
   ASSIGN_OR_RETURN_UNWRAP(&ecdh, args.This());
 
   ArrayBufferOrViewContents<unsigned char> priv_buffer(args[0]);
-  if (UNLIKELY(!priv_buffer.CheckSizeInt32()))
+  if (!priv_buffer.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "key is too big");
 
   BignumPointer priv(priv_buffer.data(), priv_buffer.size());
@@ -396,7 +380,7 @@ void ECDH::ConvertKey(const FunctionCallbackInfo<Value>& args) {
   CHECK(IsAnyBufferSource(args[0]));
 
   ArrayBufferOrViewContents<char> args0(args[0]);
-  if (UNLIKELY(!args0.CheckSizeInt32()))
+  if (!args0.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "key is too big");
   if (args0.empty()) return args.GetReturnValue().SetEmptyString();
 
@@ -450,17 +434,14 @@ Maybe<void> ECDHBitsTraits::AdditionalConfig(
     ECDHBitsConfig* params) {
   Environment* env = Environment::GetCurrent(args);
 
-  CHECK(args[offset]->IsString());  // curve name
-  CHECK(args[offset + 1]->IsObject());  // public key
-  CHECK(args[offset + 2]->IsObject());  // private key
+  CHECK(args[offset]->IsObject());      // public key
+  CHECK(args[offset + 1]->IsObject());  // private key
 
   KeyObjectHandle* private_key;
   KeyObjectHandle* public_key;
 
-  Utf8Value name(env->isolate(), args[offset]);
-
-  ASSIGN_OR_RETURN_UNWRAP(&public_key, args[offset + 1], Nothing<void>());
-  ASSIGN_OR_RETURN_UNWRAP(&private_key, args[offset + 2], Nothing<void>());
+  ASSIGN_OR_RETURN_UNWRAP(&public_key, args[offset], Nothing<void>());
+  ASSIGN_OR_RETURN_UNWRAP(&private_key, args[offset + 1], Nothing<void>());
 
   if (private_key->Data().GetKeyType() != kKeyTypePrivate ||
       public_key->Data().GetKeyType() != kKeyTypePublic) {
@@ -468,7 +449,6 @@ Maybe<void> ECDHBitsTraits::AdditionalConfig(
     return Nothing<void>();
   }
 
-  params->id_ = GetOKPCurveFromName(*name);
   params->private_ = private_key->Data().addRef();
   params->public_ = public_key->Data().addRef();
 
@@ -482,7 +462,7 @@ bool ECDHBitsTraits::DeriveBits(Environment* env,
   const auto& m_privkey = params.private_.GetAsymmetricKey();
   const auto& m_pubkey = params.public_.GetAsymmetricKey();
 
-  switch (params.id_) {
+  switch (m_privkey.id()) {
     case EVP_PKEY_X25519:
       // Fall through
     case EVP_PKEY_X448: {

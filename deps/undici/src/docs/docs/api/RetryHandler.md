@@ -19,7 +19,7 @@ Extends: [`Dispatch.DispatchOptions`](Dispatcher.md#parameter-dispatchoptions).
 
 #### `RetryOptions`
 
-- **retry** `(err: Error, context: RetryContext, callback: (err?: Error | null) => void) => void` (optional) - Function to be called after every retry. It should pass error if no more retries should be performed.
+- **retry** `(err: Error, context: RetryContext, callback: (err?: Error | null) => void) => number | null` (optional) - Function to be called after every retry. It should pass error if no more retries should be performed.
 - **maxRetries** `number` (optional) - Maximum number of retries. Default: `5`
 - **maxTimeout** `number` (optional) - Maximum number of milliseconds to wait before retrying. Default: `30000` (30 seconds)
 - **minTimeout** `number` (optional) - Minimum number of milliseconds to wait before retrying. Default: `500` (half a second)

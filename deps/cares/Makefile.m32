@@ -19,7 +19,7 @@ RANLIB	= $(CROSSPREFIX)ranlib
 #RM	= rm -f
 CP	= cp -afv
 
-CFLAGS	= $(CARES_CFLAG_EXTRAS) -O2 -Wall -I./include -I./src/lib -D_WIN32_WINNT=0x0602
+CFLAGS	= $(CARES_CFLAG_EXTRAS) -O2 -Wall -I./include -I./src/lib -I./src/lib/include -D_WIN32_WINNT=0x0602
 CFLAGS	+= -DCARES_STATICLIB
 LDFLAGS	= $(CARES_LDFLAG_EXTRAS) -s
 LIBS	= -lws2_32 -liphlpapi

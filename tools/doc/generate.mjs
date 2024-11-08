@@ -72,7 +72,7 @@ async function main() {
     }
   }
 
-  nodeVersion = nodeVersion || process.version;
+  nodeVersion ||= process.version;
 
   if (!filename) {
     throw new Error('No input file specified');

@@ -94,7 +94,7 @@ int nghttp2_hd_huff_encode(nghttp2_bufs *bufs, const uint8_t *src,
 
   if (nbits) {
     rv = nghttp2_bufs_addb(
-        bufs, (uint8_t)((uint8_t)(code >> 56) | ((1 << (8 - nbits)) - 1)));
+      bufs, (uint8_t)((uint8_t)(code >> 56) | ((1 << (8 - nbits)) - 1)));
     if (rv != 0) {
       return rv;
     }

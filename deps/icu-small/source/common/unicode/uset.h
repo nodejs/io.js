@@ -33,7 +33,10 @@
 #include "unicode/uchar.h"
 
 #if U_SHOW_CPLUSPLUS_API
+#include <string_view>
+#include "unicode/char16ptr.h"
 #include "unicode/localpointer.h"
+#include "unicode/unistr.h"
 #endif   // U_SHOW_CPLUSPLUS_API
 
 #ifndef USET_DEFINED
@@ -955,7 +958,7 @@ uset_charAt(const USet* set, int32_t charIndex);
 
 /**
  * Returns the number of characters and strings contained in this set.
- * The last (uset_getItemCount() - uset_getRangeCount()) items are strings.
+ * The last uset_getStringCount() == (uset_getItemCount() - uset_getRangeCount()) items are strings.
  *
  * This is slower than uset_getRangeCount() and uset_getItemCount() because
  * it counts the code points of all ranges.
@@ -965,6 +968,8 @@ uset_charAt(const USet* set, int32_t charIndex);
  * contained in set
  * @stable ICU 2.4
  * @see uset_getRangeCount
+ * @see uset_getStringCount
+ * @see uset_getItemCount
  */
 U_CAPI int32_t U_EXPORT2
 uset_size(const USet* set);
@@ -975,10 +980,41 @@ uset_size(const USet* set);
  * @stable ICU 70
  * @see uset_getItemCount
  * @see uset_getItem
+ * @see uset_getStringCount
  * @see uset_size
  */
 U_CAPI int32_t U_EXPORT2
 uset_getRangeCount(const USet *set);
+
+#ifndef U_HIDE_DRAFT_API
+
+/**
+ * @param set the set
+ * @return the number of strings in this set.
+ * @draft ICU 76
+ * @see uset_getRangeCount
+ * @see uset_getItemCount
+ * @see uset_size
+ */
+U_CAPI int32_t U_EXPORT2
+uset_getStringCount(const USet *set);
+
+/**
+ * Returns the index-th string (empty or multi-character) in the set.
+ * The string may not be NUL-terminated.
+ * The output length must be used, and the caller must not read more than that many UChars.
+ *
+ * @param set the set
+ * @param index the string index, 0 .. uset_getStringCount() - 1
+ * @param pLength the output string length; must not be NULL
+ * @return the pointer to the string; NULL if the index is out of range or pLength is NULL
+ * @draft ICU 76
+ * @see uset_getStringCount
+ */
+U_CAPI const UChar* U_EXPORT2
+uset_getString(const USet *set, int32_t index, int32_t *pLength);
+
+#endif  // U_HIDE_DRAFT_API
 
 /**
  * Returns the number of items in this set.  An item is either a range
@@ -987,6 +1023,8 @@ uset_getRangeCount(const USet *set);
  * @return a non-negative integer counting the character ranges
  * and/or strings contained in set
  * @stable ICU 2.4
+ * @see uset_getRangeCount
+ * @see uset_getStringCount
  */
 U_CAPI int32_t U_EXPORT2
 uset_getItemCount(const USet* set);
@@ -1001,6 +1039,7 @@ uset_getItemCount(const USet* set);
  * If <code>itemIndex</code> is at least uset_getRangeCount() and less than uset_getItemCount(), then
  * this function copies the string into <code>str[strCapacity]</code> and
  * returns the length of the string (0 for the empty string).
+ * See uset_getString() for a function that does not copy the string contents.
  *
  * If <code>itemIndex</code> is out of range, then this function returns -1.
  *
@@ -1018,6 +1057,7 @@ uset_getItemCount(const USet* set);
  * @return the length of the string (0 or >= 2), or 0 if the item is a range,
  *         or -1 if the itemIndex is out of range
  * @stable ICU 2.4
+ * @see uset_getString
  */
 U_CAPI int32_t U_EXPORT2
 uset_getItem(const USet* set, int32_t itemIndex,
@@ -1285,4 +1325,574 @@ U_CAPI UBool U_EXPORT2
 uset_getSerializedRange(const USerializedSet* set, int32_t rangeIndex,
                         UChar32* pStart, UChar32* pEnd);
 
-#endif
+#if U_SHOW_CPLUSPLUS_API || U_SHOW_CPLUSPLUS_HEADER_API
+#ifndef U_HIDE_DRAFT_API
+
+namespace U_HEADER_ONLY_NAMESPACE {
+
+// Note: Not U_COMMON_API, and not a subclass of UMemory, because this is a header-only class,
+// not intended to be used via export from the ICU DLL.
+
+/**
+ * Iterator returned by USetCodePoints.
+ * @draft ICU 76
+ */
+class USetCodePointIterator {
+public:
+    /** @draft ICU 76 */
+    USetCodePointIterator(const USetCodePointIterator &other) = default;
+
+    /** @draft ICU 76 */
+    bool operator==(const USetCodePointIterator &other) const {
+        // No need to compare rangeCount & end given private constructor
+        // and assuming we don't compare iterators across the set being modified.
+        // And comparing rangeIndex is redundant with comparing c.
+        // We might even skip comparing uset.
+        // Unless we want operator==() to be "correct" for more than iteration.
+        return uset == other.uset && c == other.c;
+    }
+
+    /** @draft ICU 76 */
+    bool operator!=(const USetCodePointIterator &other) const { return !operator==(other); }
+
+    /** @draft ICU 76 */
+    UChar32 operator*() const { return c; }
+
+    /**
+     * Pre-increment.
+     * @draft ICU 76
+     */
+    USetCodePointIterator &operator++() {
+        if (c < end) {
+            ++c;
+        } else if (rangeIndex < rangeCount) {
+            UErrorCode errorCode = U_ZERO_ERROR;
+            int32_t result = uset_getItem(uset, rangeIndex, &c, &end, nullptr, 0, &errorCode);
+            if (U_SUCCESS(errorCode) && result == 0) {
+                ++rangeIndex;
+            } else {
+                c = end = U_SENTINEL;
+            }
+        } else {
+            c = end = U_SENTINEL;
+        }
+        return *this;
+    }
+
+    /**
+     * Post-increment.
+     * @draft ICU 76
+     */
+    USetCodePointIterator operator++(int) {
+        USetCodePointIterator result(*this);
+        operator++();
+        return result;
+    }
+
+private:
+    friend class USetCodePoints;
+
+    USetCodePointIterator(const USet *uset, int32_t rangeIndex, int32_t rangeCount)
+            : uset(uset), rangeIndex(rangeIndex), rangeCount(rangeCount),
+                c(U_SENTINEL), end(U_SENTINEL) {
+        // Fetch the first range.
+        operator++();
+    }
+
+    const USet *uset;
+    int32_t rangeIndex;
+    int32_t rangeCount;
+    UChar32 c, end;
+};
+
+/**
+ * C++ "range" for iterating over the code points of a USet.
+ *
+ * \code
+ * using U_HEADER_NESTED_NAMESPACE::USetCodePoints;
+ * LocalUSetPointer uset(uset_openPattern(u"[abcçカ🚴]", -1, &errorCode));
+ * for (UChar32 c : USetCodePoints(uset.getAlias())) {
+ *     printf("uset.codePoint U+%04lx\n", (long)c);
+ * }
+ * \endcode
+ *
+ * C++ UnicodeSet has member functions for iteration, including codePoints().
+ *
+ * @draft ICU 76
+ * @see USetRanges
+ * @see USetStrings
+ * @see USetElements
+ */
+class USetCodePoints {
+public:
+    /**
+     * Constructs a C++ "range" object over the code points of the USet.
+     * @draft ICU 76
+     */
+    USetCodePoints(const USet *uset) : uset(uset), rangeCount(uset_getRangeCount(uset)) {}
+
+    /** @draft ICU 76 */
+    USetCodePoints(const USetCodePoints &other) = default;
+
+    /** @draft ICU 76 */
+    USetCodePointIterator begin() const {
+        return USetCodePointIterator(uset, 0, rangeCount);
+    }
+
+    /** @draft ICU 76 */
+    USetCodePointIterator end() const {
+        return USetCodePointIterator(uset, rangeCount, rangeCount);
+    }
+
+private:
+    const USet *uset;
+    int32_t rangeCount;
+};
+
+/**
+ * A contiguous range of code points in a USet/UnicodeSet.
+ * Returned by USetRangeIterator which is returned by USetRanges.
+ * Both the rangeStart and rangeEnd are in the range.
+ * (end() returns an iterator corresponding to rangeEnd+1.)
+ * @draft ICU 76
+ */
+struct CodePointRange {
+    /** @draft ICU 76 */
+    struct iterator {
+        /** @draft ICU 76 */
+        iterator(UChar32 c) : c(c) {}
+
+        /** @draft ICU 76 */
+        bool operator==(const iterator &other) const { return c == other.c; }
+        /** @draft ICU 76 */
+        bool operator!=(const iterator &other) const { return !operator==(other); }
+
+        /** @draft ICU 76 */
+        UChar32 operator*() const { return c; }
+
+        /**
+         * Pre-increment.
+         * @draft ICU 76
+         */
+        iterator &operator++() {
+            ++c;
+            return *this;
+        }
+
+        /**
+         * Post-increment.
+         * @draft ICU 76
+         */
+        iterator operator++(int) {
+            return c++;
+        }
+
+        /**
+         * The current code point in the range.
+         * @draft ICU 76
+         */
+        UChar32 c;
+    };
+
+    /** @draft ICU 76 */
+    CodePointRange(UChar32 start, UChar32 end) : rangeStart(start), rangeEnd(end) {}
+    /** @draft ICU 76 */
+    CodePointRange(const CodePointRange &other) = default;
+    /** @draft ICU 76 */
+    size_t size() const { return (rangeEnd + 1) - rangeStart; }
+    /** @draft ICU 76 */
+    iterator begin() const { return rangeStart; }
+    /** @draft ICU 76 */
+    iterator end() const { return rangeEnd + 1; }
+
+    /**
+     * Start of a USet/UnicodeSet range of code points.
+     * @draft ICU 76
+     */
+    UChar32 rangeStart;
+    /**
+     * Inclusive end of a USet/UnicodeSet range of code points.
+     * @draft ICU 76
+     */
+    UChar32 rangeEnd;
+};
+
+/**
+ * Iterator returned by USetRanges.
+ * @draft ICU 76
+ */
+class USetRangeIterator {
+public:
+    /** @draft ICU 76 */
+    USetRangeIterator(const USetRangeIterator &other) = default;
+
+    /** @draft ICU 76 */
+    bool operator==(const USetRangeIterator &other) const {
+        // No need to compare rangeCount given private constructor
+        // and assuming we don't compare iterators across the set being modified.
+        // We might even skip comparing uset.
+        // Unless we want operator==() to be "correct" for more than iteration.
+        return uset == other.uset && rangeIndex == other.rangeIndex;
+    }
+
+    /** @draft ICU 76 */
+    bool operator!=(const USetRangeIterator &other) const { return !operator==(other); }
+
+    /** @draft ICU 76 */
+    CodePointRange operator*() const {
+        if (rangeIndex < rangeCount) {
+            UChar32 start, end;
+            UErrorCode errorCode = U_ZERO_ERROR;
+            int32_t result = uset_getItem(uset, rangeIndex, &start, &end, nullptr, 0, &errorCode);
+            if (U_SUCCESS(errorCode) && result == 0) {
+                return CodePointRange(start, end);
+            }
+        }
+        return CodePointRange(U_SENTINEL, U_SENTINEL);
+    }
+
+    /**
+     * Pre-increment.
+     * @draft ICU 76
+     */
+    USetRangeIterator &operator++() {
+        ++rangeIndex;
+        return *this;
+    }
+
+    /**
+     * Post-increment.
+     * @draft ICU 76
+     */
+    USetRangeIterator operator++(int) {
+        USetRangeIterator result(*this);
+        ++rangeIndex;
+        return result;
+    }
+
+private:
+    friend class USetRanges;
+
+    USetRangeIterator(const USet *uset, int32_t rangeIndex, int32_t rangeCount)
+            : uset(uset), rangeIndex(rangeIndex), rangeCount(rangeCount) {}
+
+    const USet *uset;
+    int32_t rangeIndex;
+    int32_t rangeCount;
+};
+
+/**
+ * C++ "range" for iterating over the code point ranges of a USet.
+ *
+ * \code
+ * using U_HEADER_NESTED_NAMESPACE::USetRanges;
+ * LocalUSetPointer uset(uset_openPattern(u"[abcçカ🚴]", -1, &errorCode));
+ * for (auto [start, end] : USetRanges(uset.getAlias())) {
+ *     printf("uset.range U+%04lx..U+%04lx\n", (long)start, (long)end);
+ * }
+ * for (auto range : USetRanges(uset.getAlias())) {
+ *     for (UChar32 c : range) {
+ *         printf("uset.range.c U+%04lx\n", (long)c);
+ *     }
+ * }
+ * \endcode
+ *
+ * C++ UnicodeSet has member functions for iteration, including ranges().
+ *
+ * @draft ICU 76
+ * @see USetCodePoints
+ * @see USetStrings
+ * @see USetElements
+ */
+class USetRanges {
+public:
+    /**
+     * Constructs a C++ "range" object over the code point ranges of the USet.
+     * @draft ICU 76
+     */
+    USetRanges(const USet *uset) : uset(uset), rangeCount(uset_getRangeCount(uset)) {}
+
+    /** @draft ICU 76 */
+    USetRanges(const USetRanges &other) = default;
+
+    /** @draft ICU 76 */
+    USetRangeIterator begin() const {
+        return USetRangeIterator(uset, 0, rangeCount);
+    }
+
+    /** @draft ICU 76 */
+    USetRangeIterator end() const {
+        return USetRangeIterator(uset, rangeCount, rangeCount);
+    }
+
+private:
+    const USet *uset;
+    int32_t rangeCount;
+};
+
+/**
+ * Iterator returned by USetStrings.
+ * @draft ICU 76
+ */
+class USetStringIterator {
+public:
+    /** @draft ICU 76 */
+    USetStringIterator(const USetStringIterator &other) = default;
+
+    /** @draft ICU 76 */
+    bool operator==(const USetStringIterator &other) const {
+        // No need to compare count given private constructor
+        // and assuming we don't compare iterators across the set being modified.
+        // We might even skip comparing uset.
+        // Unless we want operator==() to be "correct" for more than iteration.
+        return uset == other.uset && index == other.index;
+    }
+
+    /** @draft ICU 76 */
+    bool operator!=(const USetStringIterator &other) const { return !operator==(other); }
+
+    /** @draft ICU 76 */
+    std::u16string_view operator*() const {
+        if (index < count) {
+            int32_t length;
+            const UChar *uchars = uset_getString(uset, index, &length);
+            // assert uchars != nullptr;
+            return {ConstChar16Ptr(uchars), static_cast<uint32_t>(length)};
+        }
+        return {};
+    }
+
+    /**
+     * Pre-increment.
+     * @draft ICU 76
+     */
+    USetStringIterator &operator++() {
+        ++index;
+        return *this;
+    }
+
+    /**
+     * Post-increment.
+     * @draft ICU 76
+     */
+    USetStringIterator operator++(int) {
+        USetStringIterator result(*this);
+        ++index;
+        return result;
+    }
+
+private:
+    friend class USetStrings;
+
+    USetStringIterator(const USet *uset, int32_t index, int32_t count)
+            : uset(uset), index(index), count(count) {}
+
+    const USet *uset;
+    int32_t index;
+    int32_t count;
+};
+
+/**
+ * C++ "range" for iterating over the empty and multi-character strings of a USet.
+ *
+ * \code
+ * using U_HEADER_NESTED_NAMESPACE::USetStrings;
+ * LocalUSetPointer uset(uset_openPattern(u"[abcçカ🚴{}{abc}{de}]", -1, &errorCode));
+ * for (auto s : USetStrings(uset.getAlias())) {
+ *     UnicodeString us(s);
+ *     std::string u8;
+ *     printf("uset.string length %ld \"%s\"\n", (long)s.length(), us.toUTF8String(u8).c_str());
+ * }
+ * \endcode
+ *
+ * C++ UnicodeSet has member functions for iteration, including strings().
+ *
+ * @draft ICU 76
+ * @see USetCodePoints
+ * @see USetRanges
+ * @see USetElements
+ */
+class USetStrings {
+public:
+    /**
+     * Constructs a C++ "range" object over the strings of the USet.
+     * @draft ICU 76
+     */
+    USetStrings(const USet *uset) : uset(uset), count(uset_getStringCount(uset)) {}
+
+    /** @draft ICU 76 */
+    USetStrings(const USetStrings &other) = default;
+
+    /** @draft ICU 76 */
+    USetStringIterator begin() const {
+        return USetStringIterator(uset, 0, count);
+    }
+
+    /** @draft ICU 76 */
+    USetStringIterator end() const {
+        return USetStringIterator(uset, count, count);
+    }
+
+private:
+    const USet *uset;
+    int32_t count;
+};
+
+/**
+ * Iterator returned by USetElements.
+ * @draft ICU 76
+ */
+class USetElementIterator {
+public:
+    /** @draft ICU 76 */
+    USetElementIterator(const USetElementIterator &other) = default;
+
+    /** @draft ICU 76 */
+    bool operator==(const USetElementIterator &other) const {
+        // No need to compare rangeCount & end given private constructor
+        // and assuming we don't compare iterators across the set being modified.
+        // We might even skip comparing uset.
+        // Unless we want operator==() to be "correct" for more than iteration.
+        return uset == other.uset && c == other.c && index == other.index;
+    }
+
+    /** @draft ICU 76 */
+    bool operator!=(const USetElementIterator &other) const { return !operator==(other); }
+
+    /** @draft ICU 76 */
+    UnicodeString operator*() const {
+        if (c >= 0) {
+            return UnicodeString(c);
+        } else if (index < totalCount) {
+            int32_t length;
+            const UChar *uchars = uset_getString(uset, index - rangeCount, &length);
+            // assert uchars != nullptr;
+            return UnicodeString(uchars, length);
+        } else {
+            return UnicodeString();
+        }
+    }
+
+    /**
+     * Pre-increment.
+     * @draft ICU 76
+     */
+    USetElementIterator &operator++() {
+        if (c < end) {
+            ++c;
+        } else if (index < rangeCount) {
+            UErrorCode errorCode = U_ZERO_ERROR;
+            int32_t result = uset_getItem(uset, index, &c, &end, nullptr, 0, &errorCode);
+            if (U_SUCCESS(errorCode) && result == 0) {
+                ++index;
+            } else {
+                c = end = U_SENTINEL;
+            }
+        } else if (c >= 0) {
+            // assert index == rangeCount;
+            // Switch from the last range to the first string.
+            c = end = U_SENTINEL;
+        } else {
+            ++index;
+        }
+        return *this;
+    }
+
+    /**
+     * Post-increment.
+     * @draft ICU 76
+     */
+    USetElementIterator operator++(int) {
+        USetElementIterator result(*this);
+        operator++();
+        return result;
+    }
+
+private:
+    friend class USetElements;
+
+    USetElementIterator(const USet *uset, int32_t index, int32_t rangeCount, int32_t totalCount)
+            : uset(uset), index(index), rangeCount(rangeCount), totalCount(totalCount),
+                c(U_SENTINEL), end(U_SENTINEL) {
+        if (index < rangeCount) {
+            // Fetch the first range.
+            operator++();
+        }
+        // Otherwise don't move beyond the (index - rangeCount)-th string.
+    }
+
+    const USet *uset;
+    int32_t index;
+    /** Number of UnicodeSet/USet code point ranges. */
+    int32_t rangeCount;
+    /**
+     * Number of code point ranges plus number of strings.
+     * index starts from 0, counts ranges while less than rangeCount,
+     * then counts strings while at least rangeCount and less than totalCount.
+     *
+     * Note that totalCount is the same as uset_getItemCount(), but usually
+     * smaller than the number of elements returned by this iterator
+     * because we return each code point of each range.
+     */
+    int32_t totalCount;
+    UChar32 c, end;
+};
+
+/**
+ * A C++ "range" for iterating over all of the elements of a USet.
+ * Convenient all-in one iteration, but creates a UnicodeString for each
+ * code point or string.
+ *
+ * Code points are returned first, then empty and multi-character strings.
+ *
+ * \code
+ * using U_HEADER_NESTED_NAMESPACE::USetElements;
+ * LocalUSetPointer uset(uset_openPattern(u"[abcçカ🚴{}{abc}{de}]", -1, &errorCode));
+ * for (auto el : USetElements(uset.getAlias())) {
+ *     std::string u8;
+ *     printf("uset.string length %ld \"%s\"\n", (long)el.length(), el.toUTF8String(u8).c_str());
+ * }
+ * \endcode
+ *
+ * C++ UnicodeSet has member functions for iteration, including begin() and end().
+ *
+ * @return an all-elements iterator.
+ * @draft ICU 76
+ * @see USetCodePoints
+ * @see USetRanges
+ * @see USetStrings
+ */
+class USetElements {
+public:
+    /**
+     * Constructs a C++ "range" object over all of the elements of the USet.
+     * @draft ICU 76
+     */
+    USetElements(const USet *uset)
+        : uset(uset), rangeCount(uset_getRangeCount(uset)),
+            stringCount(uset_getStringCount(uset)) {}
+
+    /** @draft ICU 76 */
+    USetElements(const USetElements &other) = default;
+
+    /** @draft ICU 76 */
+    USetElementIterator begin() const {
+        return USetElementIterator(uset, 0, rangeCount, rangeCount + stringCount);
+    }
+
+    /** @draft ICU 76 */
+    USetElementIterator end() const {
+        return USetElementIterator(uset, rangeCount + stringCount, rangeCount, rangeCount + stringCount);
+    }
+
+private:
+    const USet *uset;
+    int32_t rangeCount, stringCount;
+};
+
+}  // namespace U_HEADER_ONLY_NAMESPACE
+
+#endif  // U_HIDE_DRAFT_API
+#endif  // U_SHOW_CPLUSPLUS_API || U_SHOW_CPLUSPLUS_HEADER_API
+
+#endif  // __USET_H__

@@ -281,7 +281,7 @@ class StringByteSink : public ByteSink {
    */
   StringByteSink(StringClass* dest, int32_t initialAppendCapacity) : dest_(dest) {
     if (initialAppendCapacity > 0 &&
-        (uint32_t)initialAppendCapacity > (dest->capacity() - dest->length())) {
+        static_cast<uint32_t>(initialAppendCapacity) > dest->capacity() - dest->length()) {
       dest->reserve(dest->length() + initialAppendCapacity);
     }
   }

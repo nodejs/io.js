@@ -317,7 +317,6 @@ DEFINE_BOOL(js_shipping, true, "enable all shipped JavaScript features")
   V(harmony_import_attributes, "harmony import attributes")
 
 #define JAVASCRIPT_SHIPPING_FEATURES_BASE(V)                           \
-  V(js_promise_withresolvers, "Promise.withResolvers")                 \
   V(js_regexp_duplicate_named_groups, "RegExp duplicate named groups") \
   V(js_regexp_modifiers, "RegExp modifiers")                           \
   V(js_promise_try, "Promise.try")
@@ -567,8 +566,8 @@ DEFINE_BOOL(maglev_inlining, true,
             "enable inlining in the maglev optimizing compiler")
 DEFINE_BOOL(maglev_loop_peeling, true,
             "enable loop peeling in the maglev optimizing compiler")
-DEFINE_BOOL(maglev_optimistic_peeled_loops, true,
-            "enable aggressive optimizations for loops (loop SPeeling) in the "
+DEFINE_BOOL(maglev_optimistic_peeled_loops, false,
+            "enable speculation on loop state using peeling as fallback in the "
             "maglev optimizing compiler")
 DEFINE_INT(maglev_loop_peeling_max_size, 200,
            "max loop size for loop peeling in the maglev optimizing compiler")
@@ -583,6 +582,7 @@ DEFINE_BOOL(maglev_destroy_on_background, true,
 DEFINE_BOOL(maglev_inline_api_calls, false,
             "Inline CallApiCallback builtin into generated code")
 DEFINE_EXPERIMENTAL_FEATURE(maglev_licm, "loop invariant code motion")
+DEFINE_WEAK_IMPLICATION(maglev_future, maglev_optimistic_peeled_loops)
 DEFINE_WEAK_IMPLICATION(maglev_future, maglev_speculative_hoist_phi_untagging)
 DEFINE_WEAK_IMPLICATION(maglev_future, maglev_inline_api_calls)
 DEFINE_WEAK_IMPLICATION(maglev_future, maglev_escape_analysis)
@@ -2500,7 +2500,7 @@ DEFINE_BOOL_READONLY(fast_map_update, false,
 DEFINE_INT(max_valid_polymorphic_map_count, 4,
            "maximum number of valid maps to track in POLYMORPHIC state")
 DEFINE_BOOL(
-    clone_object_sidestep_transitions, true,
+    clone_object_sidestep_transitions, false,
     "support sidestep transitions for dependency tracking object clone maps")
 DEFINE_WEAK_IMPLICATION(future, clone_object_sidestep_transitions)
 

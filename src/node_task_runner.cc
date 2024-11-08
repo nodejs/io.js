@@ -1,5 +1,5 @@
 #include "node_task_runner.h"
-#include "util.h"
+#include "util-inl.h"
 
 #include <regex>  // NOLINT(build/c++11)
 
@@ -69,7 +69,7 @@ ProcessRunner::ProcessRunner(std::shared_ptr<InitializationResultImpl> result,
     command_args_ = {
         options_.file, "/d", "/s", "/c", "\"" + command_str + "\""};
   } else {
-    // If the file is not cmd.exe, and it is unclear wich shell is being used,
+    // If the file is not cmd.exe, and it is unclear which shell is being used,
     // so assume -c is the correct syntax (Unix-like shells use -c for this
     // purpose).
     command_args_ = {options_.file, "-c", command_str};

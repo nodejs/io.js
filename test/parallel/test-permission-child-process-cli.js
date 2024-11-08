@@ -15,14 +15,6 @@ if (process.argv[2] === 'child') {
   assert.ok(!process.permission.has('child'));
 }
 
-// The execPath might contain chars that should be escaped in a shell context.
-// On non-Windows, we can pass the path via the env; `"` is not a valid char on
-// Windows, so we can simply pass the path.
-const execNode = (args) => [
-  `"${common.isWindows ? process.execPath : '$NODE'}" ${args}`,
-  common.isWindows ? undefined : { env: { ...process.env, NODE: process.execPath } },
-];
-
 // When a permission is set by cli, the process shouldn't be able
 // to spawn
 {
@@ -39,13 +31,13 @@ const execNode = (args) => [
     permission: 'ChildProcess',
   }));
   assert.throws(() => {
-    childProcess.exec(...execNode('--version'));
+    childProcess.exec(...common.escapePOSIXShell`"${process.execPath}" --version`);
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'ChildProcess',
   }));
   assert.throws(() => {
-    childProcess.execSync(...execNode('--version'));
+    childProcess.execSync(...common.escapePOSIXShell`"${process.execPath}" --version`);
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'ChildProcess',
@@ -57,13 +49,13 @@ const execNode = (args) => [
     permission: 'ChildProcess',
   }));
   assert.throws(() => {
-    childProcess.execFile(...execNode('--version'));
+    childProcess.execFile(...common.escapePOSIXShell`"${process.execPath}" --version`);
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'ChildProcess',
   }));
   assert.throws(() => {
-    childProcess.execFileSync(...execNode('--version'));
+    childProcess.execFileSync(...common.escapePOSIXShell`"${process.execPath}" --version`);
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'ChildProcess',

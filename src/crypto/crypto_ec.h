@@ -16,7 +16,6 @@
 namespace node {
 namespace crypto {
 int GetCurveFromName(const char* name);
-int GetOKPCurveFromName(const char* name);
 
 class ECDH final : public BaseObject {
  public:

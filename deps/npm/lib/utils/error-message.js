@@ -200,6 +200,13 @@ const errorMessage = (er, npm) => {
       ].join('\n')])
       break
 
+    case 'EBADDEVENGINES': {
+      const { current, required } = er
+      summary.push(['EBADDEVENGINES', er.message])
+      detail.push(['EBADDEVENGINES', { current, required }])
+      break
+    }
+
     case 'EBADPLATFORM': {
       const actual = er.current
       const expected = { ...er.required }

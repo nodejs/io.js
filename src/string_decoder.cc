@@ -114,7 +114,7 @@ MaybeLocal<String> StringDecoder::DecodeData(Isolate* isolate,
       state_[kMissingBytes] -= found_bytes;
       state_[kBufferedBytes] += found_bytes;
 
-      if (LIKELY(MissingBytes() == 0)) {
+      if (MissingBytes() == 0) [[likely]] {
         // If no more bytes are missing, create a small string that we
         // will later prepend.
         if (!MakeString(isolate,
@@ -132,7 +132,7 @@ MaybeLocal<String> StringDecoder::DecodeData(Isolate* isolate,
 
     // It could be that trying to finish the previous chunk already
     // consumed all data that we received in this chunk.
-    if (UNLIKELY(nread == 0)) {
+    if (nread == 0) [[unlikely]] {
       body = !prepend.IsEmpty() ? prepend : String::Empty(isolate);
       prepend = Local<String>();
     } else {

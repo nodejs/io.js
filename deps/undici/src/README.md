@@ -84,6 +84,7 @@ The `body` mixins are the most common way to format the request/response body. M
 
 - [`.arrayBuffer()`](https://fetch.spec.whatwg.org/#dom-body-arraybuffer)
 - [`.blob()`](https://fetch.spec.whatwg.org/#dom-body-blob)
+- [`.bytes()`](https://fetch.spec.whatwg.org/#dom-body-bytes)
 - [`.json()`](https://fetch.spec.whatwg.org/#dom-body-json)
 - [`.text()`](https://fetch.spec.whatwg.org/#dom-body-text)
 

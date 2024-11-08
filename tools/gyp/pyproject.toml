@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gyp-next"
-version = "0.18.1"
+version = "0.18.3"
 authors = [
   { name="Node.js contributors", email="ryzokuken@disroot.org" },
 ]
@@ -92,7 +92,6 @@ select = [
   # "TRY",  # tryceratops
 ]
 ignore = [
-  "E721",
   "PLC1901",
   "PLR0402",
   "PLR1714",

@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -409,7 +409,7 @@ int EVP_DigestUpdate(EVP_MD_CTX *ctx, const void *data, size_t count)
 
     /* Code below to be removed when legacy support is dropped. */
  legacy:
-    return ctx->update(ctx, data, count);
+    return ctx->update != NULL ? ctx->update(ctx, data, count) : 0;
 }
 
 /* The caller can assume that this removes any secret data from the context */

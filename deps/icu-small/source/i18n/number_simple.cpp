@@ -108,10 +108,6 @@ void SimpleNumber::setMaximumIntegerDigits(uint32_t position, UErrorCode& status
     fData->quantity.applyMaxInteger(position);
 }
 
-void SimpleNumber::truncateStart(uint32_t position, UErrorCode& status) {
-    setMaximumIntegerDigits(position, status);
-}
-
 void SimpleNumber::setSign(USimpleNumberSign sign, UErrorCode& status) {
     if (U_FAILURE(status)) {
         return;

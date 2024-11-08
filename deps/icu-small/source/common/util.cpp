@@ -37,12 +37,12 @@ UnicodeString& ICU_Utility::appendNumber(UnicodeString& result, int32_t n,
                                      int32_t radix, int32_t minDigits) {
     if (radix < 2 || radix > 36) {
         // Bogus radix
-        return result.append((char16_t)63/*?*/);
+        return result.append(static_cast<char16_t>(63)/*?*/);
     }
     // Handle negatives
     if (n < 0) {
         n = -n;
-        result.append((char16_t)45/*-*/);
+        result.append(static_cast<char16_t>(45)/*-*/);
     }
     // First determine the number of digits
     int32_t nn = n;
@@ -150,7 +150,7 @@ int32_t ICU_Utility::skipWhitespace(const UnicodeString& str, int32_t& pos,
                                     UBool advance) {
     int32_t p = pos;
     const char16_t* s = str.getBuffer();
-    p = (int32_t)(PatternProps::skipWhiteSpace(s + p, str.length() - p) - s);
+    p = static_cast<int32_t>(PatternProps::skipWhiteSpace(s + p, str.length() - p) - s);
     if (advance) {
         pos = p;
     }
@@ -361,7 +361,7 @@ void ICU_Utility::appendToRule(UnicodeString& rule,
                 rule.append(BACKSLASH).append(APOSTROPHE);
             }
         }
-        if (c != (UChar32)-1) {
+        if (c != static_cast<UChar32>(-1)) {
             /* Since spaces are ignored during parsing, they are
              * emitted only for readability.  We emit one here
              * only if there isn't already one at the end of the

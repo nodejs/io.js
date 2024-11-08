@@ -40,51 +40,55 @@ function runTests(algorithmName) {
 // Test importKey with a given key format and other parameters. If
 // extrable is true, export the key and verify that it matches the input.
 function testFormat(format, algorithm, keyData, keySize, usages, extractable) {
-    promise_test(function(test) {
-        return subtle.importKey(format, keyData[format], algorithm, extractable, usages).
-            then(function(key) {
-                assert_equals(key.constructor, CryptoKey, "Imported a CryptoKey object");
-                assert_goodCryptoKey(key, algorithm, extractable, usages, (format === 'pkcs8' || (format === 'jwk' && keyData[format].d)) ? 'private' : 'public');
-                if (!extractable) {
-                    return;
-                }
+    [algorithm, algorithm.name].forEach((alg) => {
+        promise_test(function(test) {
+            return subtle.importKey(format, keyData[format], alg, extractable, usages).
+                then(function(key) {
+                    assert_equals(key.constructor, CryptoKey, "Imported a CryptoKey object");
+                    assert_goodCryptoKey(key, algorithm, extractable, usages, (format === 'pkcs8' || (format === 'jwk' && keyData[format].d)) ? 'private' : 'public');
+                    if (!extractable) {
+                        return;
+                    }
 
-                return subtle.exportKey(format, key).
-                    then(function(result) {
-                        if (format !== "jwk") {
-                            assert_true(equalBuffers(keyData[format], result), "Round trip works");
-                        } else {
-                            assert_true(equalJwk(keyData[format], result), "Round trip works");
-                        }
-                    }, function(err) {
-                        assert_unreached("Threw an unexpected error: " + err.toString());
-                    });
-            }, function(err) {
-                assert_unreached("Threw an unexpected error: " + err.toString());
-            });
-    }, "Good parameters: " + keySize.toString() + " bits " + parameterString(format, keyData[format], algorithm, extractable, usages));
+                    return subtle.exportKey(format, key).
+                        then(function(result) {
+                            if (format !== "jwk") {
+                                assert_true(equalBuffers(keyData[format], result), "Round trip works");
+                            } else {
+                                assert_true(equalJwk(keyData[format], result), "Round trip works");
+                            }
+                        }, function(err) {
+                            assert_unreached("Threw an unexpected error: " + err.toString());
+                        });
+                }, function(err) {
+                    assert_unreached("Threw an unexpected error: " + err.toString());
+                });
+        }, "Good parameters: " + keySize.toString() + " bits " + parameterString(format, keyData[format], alg, extractable, usages));
+    });
 }
 
 // Test importKey/exportKey "alg" behaviours, alg is ignored upon import and alg is missing for Ed25519 and Ed448 JWK export
 // https://github.com/WICG/webcrypto-secure-curves/pull/24
 function testJwkAlgBehaviours(algorithm, keyData, crv, usages) {
-    promise_test(function(test) {
-        return subtle.importKey('jwk', { ...keyData, alg: 'this is ignored' }, algorithm, true, usages).
-            then(function(key) {
-                assert_equals(key.constructor, CryptoKey, "Imported a CryptoKey object");
+    [algorithm, algorithm.name].forEach((alg) => {
+        promise_test(function(test) {
+            return subtle.importKey('jwk', { ...keyData, alg: 'this is ignored' }, alg, true, usages).
+                then(function(key) {
+                    assert_equals(key.constructor, CryptoKey, "Imported a CryptoKey object");
 
-                return subtle.exportKey('jwk', key).
-                    then(function(result) {
-                        assert_equals(Object.keys(result).length, keyData.d ? 6 : 5, "Correct number of JWK members");
-                        assert_equals(result.alg, undefined, 'No JWK "alg" member is present');
-                        assert_true(equalJwk(keyData, result), "Round trip works");
-                    }, function(err) {
+                    return subtle.exportKey('jwk', key).
+                        then(function(result) {
+                            assert_equals(Object.keys(result).length, keyData.d ? 6 : 5, "Correct number of JWK members");
+                            assert_equals(result.alg, undefined, 'No JWK "alg" member is present');
+                            assert_true(equalJwk(keyData, result), "Round trip works");
+                        }, function(err) {
                         assert_unreached("Threw an unexpected error: " + err.toString());
-                    });
-            }, function(err) {
-                assert_unreached("Threw an unexpected error: " + err.toString());
-            });
-    }, "Good parameters with ignored JWK alg: " + crv.toString() + " " + parameterString('jwk', keyData, algorithm, true, usages));
+                        });
+                }, function(err) {
+                    assert_unreached("Threw an unexpected error: " + err.toString());
+                });
+        }, "Good parameters with ignored JWK alg: " + crv.toString() + " " + parameterString('jwk', keyData, alg, true, usages));
+    });
 }
 
 

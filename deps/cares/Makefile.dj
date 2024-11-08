@@ -23,7 +23,7 @@ VPATH = src/lib src/tools
 WATT32_ROOT = $(realpath $(WATT_ROOT))
 WATT32_LIB  = $(WATT32_ROOT)/lib/libwatt.a
 
-CFLAGS = -g -O2 -I./include -I./src/lib \
+CFLAGS = -g -O2 -I./include -I./src/lib -I./src/lib/include \
          -I$(WATT32_ROOT)/inc \
          -Wall \
          -Wextra \

@@ -196,7 +196,7 @@ void CompoundTransliterator::init(UVector& list,
     // Allocate array
     if (U_SUCCESS(status)) {
         count = list.size();
-        trans = (Transliterator **)uprv_malloc(count * sizeof(Transliterator *));
+        trans = static_cast<Transliterator**>(uprv_malloc(count * sizeof(Transliterator*)));
         /* test for nullptr */
         if (trans == nullptr) {
             status = U_MEMORY_ALLOCATION_ERROR;
@@ -214,7 +214,7 @@ void CompoundTransliterator::init(UVector& list,
     int32_t i;
     for (i=0; i<count; ++i) {
         int32_t j = (direction == UTRANS_FORWARD) ? i : count - 1 - i;
-        trans[i] = (Transliterator*) list.elementAt(j);
+        trans[i] = static_cast<Transliterator*>(list.elementAt(j));
     }
 
     // If the direction is UTRANS_REVERSE then we may need to fix the
@@ -296,7 +296,7 @@ CompoundTransliterator& CompoundTransliterator::operator=(
         if (trans != nullptr) {
             uprv_free(trans);
         }
-        trans = (Transliterator **)uprv_malloc(t.count * sizeof(Transliterator *));
+        trans = static_cast<Transliterator**>(uprv_malloc(t.count * sizeof(Transliterator*)));
     }
     count = t.count;
     if (trans != nullptr) {
@@ -347,7 +347,7 @@ const Transliterator& CompoundTransliterator::getTransliterator(int32_t index) c
 
 void CompoundTransliterator::setTransliterators(Transliterator* const transliterators[],
                                                 int32_t transCount) {
-    Transliterator** a = (Transliterator **)uprv_malloc(transCount * sizeof(Transliterator *));
+    Transliterator** a = static_cast<Transliterator**>(uprv_malloc(transCount * sizeof(Transliterator*)));
     if (a == nullptr) {
         return;
     }

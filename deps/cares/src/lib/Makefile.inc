@@ -1,15 +1,12 @@
 # Copyright (C) The c-ares project and its contributors
 # SPDX-License-Identifier: MIT
 
-CSOURCES = ares__addrinfo2hostent.c	\
-  ares__addrinfo_localhost.c		\
-  ares__close_sockets.c			\
-  ares__hosts_file.c			\
-  ares__parse_into_addrinfo.c		\
-  ares__socket.c			\
-  ares__sortaddrinfo.c			\
+CSOURCES = ares_addrinfo2hostent.c	\
+  ares_addrinfo_localhost.c		\
   ares_android.c			\
   ares_cancel.c				\
+  ares_close_sockets.c			\
+  ares_conn.c				\
   ares_cookie.c				\
   ares_data.c				\
   ares_destroy.c			\
@@ -21,16 +18,20 @@ CSOURCES = ares__addrinfo2hostent.c	\
   ares_gethostbyaddr.c			\
   ares_gethostbyname.c			\
   ares_getnameinfo.c			\
+  ares_hosts_file.c			\
   ares_init.c				\
   ares_library_init.c			\
   ares_metrics.c			\
   ares_options.c			\
-  ares_platform.c			\
+  ares_parse_into_addrinfo.c		\
   ares_process.c			\
   ares_qcache.c				\
   ares_query.c				\
   ares_search.c				\
   ares_send.c				\
+  ares_set_socket_functions.c		\
+  ares_socket.c				\
+  ares_sortaddrinfo.c			\
   ares_strerror.c			\
   ares_sysconfig.c			\
   ares_sysconfig_files.c		\
@@ -42,14 +43,16 @@ CSOURCES = ares__addrinfo2hostent.c	\
   inet_net_pton.c			\
   inet_ntop.c				\
   windows_port.c			\
-  dsa/ares__array.c			\
-  dsa/ares__htable.c			\
-  dsa/ares__htable_asvp.c		\
-  dsa/ares__htable_strvp.c		\
-  dsa/ares__htable_szvp.c		\
-  dsa/ares__htable_vpvp.c		\
-  dsa/ares__llist.c			\
-  dsa/ares__slist.c			\
+  dsa/ares_array.c			\
+  dsa/ares_htable.c			\
+  dsa/ares_htable_asvp.c		\
+  dsa/ares_htable_dict.c		\
+  dsa/ares_htable_strvp.c		\
+  dsa/ares_htable_szvp.c		\
+  dsa/ares_htable_vpstr.c		\
+  dsa/ares_htable_vpvp.c		\
+  dsa/ares_llist.c			\
+  dsa/ares_slist.c			\
   event/ares_event_configchg.c		\
   event/ares_event_epoll.c		\
   event/ares_event_kqueue.c		\
@@ -80,41 +83,47 @@ CSOURCES = ares__addrinfo2hostent.c	\
   record/ares_dns_parse.c		\
   record/ares_dns_record.c		\
   record/ares_dns_write.c		\
-  str/ares__buf.c			\
-  str/ares_strcasecmp.c			\
+  str/ares_buf.c			\
   str/ares_str.c			\
   str/ares_strsplit.c			\
-  util/ares__iface_ips.c		\
-  util/ares__threads.c			\
-  util/ares__timeval.c			\
+  util/ares_iface_ips.c			\
+  util/ares_threads.c			\
+  util/ares_timeval.c			\
   util/ares_math.c			\
-  util/ares_rand.c
+  util/ares_rand.c			\
+  util/ares_uri.c
 
 HHEADERS = ares_android.h			\
+  ares_conn.h				\
   ares_data.h				\
   ares_getenv.h				\
   ares_inet_net_pton.h			\
   ares_ipv6.h				\
-  ares_platform.h			\
   ares_private.h			\
   ares_setup.h				\
-  dsa/ares__array.h			\
-  dsa/ares__htable.h			\
-  dsa/ares__htable_asvp.h		\
-  dsa/ares__htable_strvp.h		\
-  dsa/ares__htable_szvp.h		\
-  dsa/ares__htable_vpvp.h		\
-  dsa/ares__llist.h			\
-  dsa/ares__slist.h			\
+  ares_socket.h				\
+  dsa/ares_htable.h			\
+  dsa/ares_slist.h			\
   event/ares_event.h			\
   event/ares_event_win32.h		\
+  include/ares_array.h			\
+  include/ares_buf.h			\
+  include/ares_htable_asvp.h		\
+  include/ares_htable_dict.h		\
+  include/ares_htable_strvp.h		\
+  include/ares_htable_szvp.h		\
+  include/ares_htable_vpstr.h		\
+  include/ares_htable_vpvp.h		\
+  include/ares_llist.h			\
+  include/ares_mem.h			\
+  include/ares_str.h			\
   record/ares_dns_multistring.h		\
   record/ares_dns_private.h		\
-  str/ares__buf.h			\
-  str/ares_strcasecmp.h			\
-  str/ares_str.h			\
   str/ares_strsplit.h			\
-  util/ares__iface_ips.h		\
-  util/ares__threads.h			\
+  util/ares_iface_ips.h			\
+  util/ares_math.h			\
+  util/ares_rand.h			\
+  util/ares_time.h			\
+  util/ares_threads.h			\
+  util/ares_uri.h			\
   thirdparty/apple/dnsinfo.h
-

@@ -19,7 +19,6 @@ const hashToSegments = require('./util/hash-to-segments')
 const indexV = require('../package.json')['cache-version'].index
 const { moveFile } = require('@npmcli/fs')
 
-const pMap = require('p-map')
 const lsStreamConcurrency = 5
 
 module.exports.NotFoundError = class NotFoundError extends Error {
@@ -184,6 +183,7 @@ function lsStream (cache) {
 
   // Set all this up to run on the stream and then just return the stream
   Promise.resolve().then(async () => {
+    const { default: pMap } = await import('p-map')
     const buckets = await readdirOrEmpty(indexDir)
     await pMap(buckets, async (bucket) => {
       const bucketPath = path.join(indexDir, bucket)

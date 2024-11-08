@@ -83,7 +83,7 @@ assert.strictEqual(Object.hasOwn(cycle(errorWithCyclicCause), 'cause'), true);
 assert.deepStrictEqual(cycle(new ErrorWithCause('Error with cause')).cause, new Error('err'));
 assert.strictEqual(cycle(new ErrorWithThowingCause('Error with cause')).cause, undefined);
 assert.strictEqual(Object.hasOwn(cycle(new ErrorWithThowingCause('Error with cause')), 'cause'), false);
-// When the cause is cyclic, it is serialized until Maxiumum call stack size is reached
+// When the cause is cyclic, it is serialized until Maximum call stack size is reached
 let depth = 0;
 let e = cycle(new ErrorWithCyclicCause('Error with cause'));
 while (e.cause) {

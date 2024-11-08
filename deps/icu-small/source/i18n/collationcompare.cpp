@@ -47,7 +47,7 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
         uint32_t leftPrimary;
         do {
             int64_t ce = left.nextCE(errorCode);
-            leftPrimary = (uint32_t)(ce >> 32);
+            leftPrimary = static_cast<uint32_t>(ce >> 32);
             if(leftPrimary < variableTop && leftPrimary > Collation::MERGE_SEPARATOR_PRIMARY) {
                 // Variable CE, shift it to quaternary level.
                 // Ignore all following primary ignorables, and shift further variable CEs.
@@ -57,7 +57,7 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
                     left.setCurrentCE(ce & INT64_C(0xffffffff00000000));
                     for(;;) {
                         ce = left.nextCE(errorCode);
-                        leftPrimary = (uint32_t)(ce >> 32);
+                        leftPrimary = static_cast<uint32_t>(ce >> 32);
                         if(leftPrimary == 0) {
                             left.setCurrentCE(0);
                         } else {
@@ -72,7 +72,7 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
         uint32_t rightPrimary;
         do {
             int64_t ce = right.nextCE(errorCode);
-            rightPrimary = (uint32_t)(ce >> 32);
+            rightPrimary = static_cast<uint32_t>(ce >> 32);
             if(rightPrimary < variableTop && rightPrimary > Collation::MERGE_SEPARATOR_PRIMARY) {
                 // Variable CE, shift it to quaternary level.
                 // Ignore all following primary ignorables, and shift further variable CEs.
@@ -82,7 +82,7 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
                     right.setCurrentCE(ce & INT64_C(0xffffffff00000000));
                     for(;;) {
                         ce = right.nextCE(errorCode);
-                        rightPrimary = (uint32_t)(ce >> 32);
+                        rightPrimary = static_cast<uint32_t>(ce >> 32);
                         if(rightPrimary == 0) {
                             right.setCurrentCE(0);
                         } else {
@@ -116,12 +116,12 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
             for(;;) {
                 uint32_t leftSecondary;
                 do {
-                    leftSecondary = ((uint32_t)left.getCE(leftIndex++)) >> 16;
+                    leftSecondary = static_cast<uint32_t>(left.getCE(leftIndex++)) >> 16;
                 } while(leftSecondary == 0);
 
                 uint32_t rightSecondary;
                 do {
-                    rightSecondary = ((uint32_t)right.getCE(rightIndex++)) >> 16;
+                    rightSecondary = static_cast<uint32_t>(right.getCE(rightIndex++)) >> 16;
                 } while(rightSecondary == 0);
 
                 if(leftSecondary != rightSecondary) {
@@ -138,13 +138,13 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
                 // Find the merge separator or the NO_CE terminator.
                 uint32_t p;
                 int32_t leftLimit = leftStart;
-                while((p = (uint32_t)(left.getCE(leftLimit) >> 32)) >
+                while ((p = static_cast<uint32_t>(left.getCE(leftLimit) >> 32)) >
                             Collation::MERGE_SEPARATOR_PRIMARY ||
                         p == 0) {
                     ++leftLimit;
                 }
                 int32_t rightLimit = rightStart;
-                while((p = (uint32_t)(right.getCE(rightLimit) >> 32)) >
+                while ((p = static_cast<uint32_t>(right.getCE(rightLimit) >> 32)) >
                             Collation::MERGE_SEPARATOR_PRIMARY ||
                         p == 0) {
                     ++rightLimit;
@@ -156,12 +156,12 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
                 for(;;) {
                     int32_t leftSecondary = 0;
                     while(leftSecondary == 0 && leftIndex > leftStart) {
-                        leftSecondary = ((uint32_t)left.getCE(--leftIndex)) >> 16;
+                        leftSecondary = static_cast<uint32_t>(left.getCE(--leftIndex)) >> 16;
                     }
 
                     int32_t rightSecondary = 0;
                     while(rightSecondary == 0 && rightIndex > rightStart) {
-                        rightSecondary = ((uint32_t)right.getCE(--rightIndex)) >> 16;
+                        rightSecondary = static_cast<uint32_t>(right.getCE(--rightIndex)) >> 16;
                     }
 
                     if(leftSecondary != rightSecondary) {
@@ -197,15 +197,15 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
                 int64_t ce;
                 do {
                     ce = left.getCE(leftIndex++);
-                    leftCase = (uint32_t)ce;
-                } while((uint32_t)(ce >> 32) == 0 || leftCase == 0);
+                    leftCase = static_cast<uint32_t>(ce);
+                } while (static_cast<uint32_t>(ce >> 32) == 0 || leftCase == 0);
                 leftLower32 = leftCase;
                 leftCase &= 0xc000;
 
                 do {
                     ce = right.getCE(rightIndex++);
-                    rightCase = (uint32_t)ce;
-                } while((uint32_t)(ce >> 32) == 0 || rightCase == 0);
+                    rightCase = static_cast<uint32_t>(ce);
+                } while (static_cast<uint32_t>(ce >> 32) == 0 || rightCase == 0);
                 rightCase &= 0xc000;
             } else {
                 // Secondary+caseLevel: By analogy with the above,
@@ -223,13 +223,13 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
                 // turning 0.0.ut into 0.0.0.t.
                 // (See LDML Collation, Case Parameters.)
                 do {
-                    leftCase = (uint32_t)left.getCE(leftIndex++);
+                    leftCase = static_cast<uint32_t>(left.getCE(leftIndex++));
                 } while(leftCase <= 0xffff);
                 leftLower32 = leftCase;
                 leftCase &= 0xc000;
 
                 do {
-                    rightCase = (uint32_t)right.getCE(rightIndex++);
+                    rightCase = static_cast<uint32_t>(right.getCE(rightIndex++));
                 } while(rightCase <= 0xffff);
                 rightCase &= 0xc000;
             }
@@ -257,7 +257,7 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
     for(;;) {
         uint32_t leftLower32, leftTertiary;
         do {
-            leftLower32 = (uint32_t)left.getCE(leftIndex++);
+            leftLower32 = static_cast<uint32_t>(left.getCE(leftIndex++));
             anyQuaternaries |= leftLower32;
             U_ASSERT((leftLower32 & Collation::ONLY_TERTIARY_MASK) != 0 ||
                      (leftLower32 & 0xc0c0) == 0);
@@ -266,7 +266,7 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
 
         uint32_t rightLower32, rightTertiary;
         do {
-            rightLower32 = (uint32_t)right.getCE(rightIndex++);
+            rightLower32 = static_cast<uint32_t>(right.getCE(rightIndex++));
             anyQuaternaries |= rightLower32;
             U_ASSERT((rightLower32 & Collation::ONLY_TERTIARY_MASK) != 0 ||
                      (rightLower32 & 0xc0c0) == 0);
@@ -313,10 +313,10 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
         uint32_t leftQuaternary;
         do {
             int64_t ce = left.getCE(leftIndex++);
-            leftQuaternary = (uint32_t)ce & 0xffff;
+            leftQuaternary = static_cast<uint32_t>(ce) & 0xffff;
             if(leftQuaternary <= Collation::NO_CE_WEIGHT16) {
                 // Variable primary or completely ignorable or NO_CE.
-                leftQuaternary = (uint32_t)(ce >> 32);
+                leftQuaternary = static_cast<uint32_t>(ce >> 32);
             } else {
                 // Regular CE, not tertiary ignorable.
                 // Preserve the quaternary weight in bits 7..6.
@@ -327,10 +327,10 @@ CollationCompare::compareUpToQuaternary(CollationIterator &left, CollationIterat
         uint32_t rightQuaternary;
         do {
             int64_t ce = right.getCE(rightIndex++);
-            rightQuaternary = (uint32_t)ce & 0xffff;
+            rightQuaternary = static_cast<uint32_t>(ce) & 0xffff;
             if(rightQuaternary <= Collation::NO_CE_WEIGHT16) {
                 // Variable primary or completely ignorable or NO_CE.
-                rightQuaternary = (uint32_t)(ce >> 32);
+                rightQuaternary = static_cast<uint32_t>(ce >> 32);
             } else {
                 // Regular CE, not tertiary ignorable.
                 // Preserve the quaternary weight in bits 7..6.

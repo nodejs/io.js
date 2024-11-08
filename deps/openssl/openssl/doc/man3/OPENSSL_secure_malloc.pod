@@ -82,13 +82,15 @@ If CRYPTO_secure_malloc_init() is not called, this is equivalent to
 calling OPENSSL_free().
 It exists for consistency with OPENSSL_secure_malloc() , and
 is a macro that expands to CRYPTO_secure_free() and adds the C<__FILE__>
-and C<__LINE__> parameters..
+and C<__LINE__> parameters..  If the argument to OPENSSL_secure_free()
+is NULL, nothing is done.
 
 OPENSSL_secure_clear_free() is similar to OPENSSL_secure_free() except
 that it has an additional C<num> parameter which is used to clear
 the memory if it was not allocated from the secure heap.
 If CRYPTO_secure_malloc_init() is not called, this is equivalent to
-calling OPENSSL_clear_free().
+calling OPENSSL_clear_free(). If the argument to OPENSSL_secure_clear_free()
+is NULL, nothing is done.
 
 OPENSSL_secure_actual_size() tells the actual size allocated to the
 pointer; implementations may allocate more space than initially
@@ -133,7 +135,7 @@ a B<size_t> in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2015-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2015-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

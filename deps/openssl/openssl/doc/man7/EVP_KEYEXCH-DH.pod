@@ -7,9 +7,14 @@ EVP_KEYEXCH-DH
 
 =head1 DESCRIPTION
 
-Key exchange support for the B<DH> key type.
+Key exchange support for the B<DH> and B<DHX> key types.
 
-=head2 DH key exchange parameters
+Please note that although both key types support the same key exchange
+operations, they cannot be used together in a single key exchange. It
+is not possible to use a private key of the B<DH> type in key exchange
+with the public key of B<DHX> type and vice versa.
+
+=head2 DH and DHX key exchange parameters
 
 =over 4
 
@@ -122,7 +127,7 @@ L<OSSL_PROVIDER-FIPS(7)>,
 
 =head1 COPYRIGHT
 
-Copyright 2020-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

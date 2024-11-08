@@ -1936,6 +1936,19 @@ added: v0.5.3
 
 A boolean value that is `true` if the current Node.js build includes support for IPv6.
 
+## `process.features.require_module`
+
+<!-- YAML
+added:
+ - v23.0.0
+ - v22.10.0
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build supports
+[loading ECMAScript modules using `require()`][].
+
 ## `process.features.tls`
 
 <!-- YAML
@@ -1956,8 +1969,6 @@ added: v4.8.0
 
 A boolean value that is `true` if the current Node.js build includes support for ALPN in TLS.
 
-***
-
 ## `process.features.tls_ocsp`
 
 <!-- YAML
@@ -1967,8 +1978,6 @@ added: v0.11.13
 * {boolean}
 
 A boolean value that is `true` if the current Node.js build includes support for OCSP in TLS.
-
-***
 
 ## `process.features.tls_sni`
 
@@ -1980,7 +1989,20 @@ added: v0.5.3
 
 A boolean value that is `true` if the current Node.js build includes support for SNI in TLS.
 
-***
+## `process.features.typescript`
+
+<!-- YAML
+added:
+ - v23.0.0
+ - v22.10.0
+-->
+
+> Stability: 1.1 - Active development
+
+* {boolean|string}
+
+A value that is `"strip"` if Node.js is run with `--experimental-strip-types`,
+`"transform"` if Node.js is run with `--experimental-transform-types`, and `false` otherwise.
 
 ## `process.features.uv`
 
@@ -2807,7 +2829,9 @@ console.log(memoryUsage.rss());
 <!-- YAML
 added: v0.1.26
 changes:
-  - version: v22.7.0
+  - version:
+    - v22.7.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/51280
     description: Changed stability to Legacy.
   - version: v18.0.0
@@ -4422,6 +4446,7 @@ cases:
 [built-in modules with mandatory `node:` prefix]: modules.md#built-in-modules-with-mandatory-node-prefix
 [debugger]: debugger.md
 [deprecation code]: deprecations.md
+[loading ECMAScript modules using `require()`]: modules.md#loading-ecmascript-modules-using-require
 [note on process I/O]: #a-note-on-process-io
 [process.cpuUsage]: #processcpuusagepreviousvalue
 [process_emit_warning]: #processemitwarningwarning-type-code-ctor

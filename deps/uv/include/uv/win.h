@@ -290,8 +290,8 @@ typedef struct {
 #define UV_ONCE_INIT { 0, NULL }
 
 typedef struct uv_once_s {
-  unsigned char ran;
-  HANDLE event;
+  unsigned char unused;
+  INIT_ONCE init_once;
 } uv_once_t;
 
 /* Platform-specific definitions for uv_spawn support. */

@@ -9,15 +9,14 @@
 #include <v8.h>
 #include <limits>
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 #define NGTCP2_SUCCESS 0
 #define NGTCP2_ERR(V) (V != NGTCP2_SUCCESS)
 #define NGTCP2_OK(V) (V == NGTCP2_SUCCESS)
 
 #define IF_QUIC_DEBUG(env)                                                     \
-  if (UNLIKELY(env->enabled_debug_list()->enabled(DebugCategory::QUIC)))
+  if (env->enabled_debug_list()->enabled(DebugCategory::QUIC)) [[unlikely]]
 
 #define DISALLOW_COPY(Name)                                                    \
   Name(const Name&) = delete;                                                  \
@@ -243,5 +242,4 @@ class DebugIndentScope {
   static int indent_;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic

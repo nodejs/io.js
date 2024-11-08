@@ -90,21 +90,23 @@ struct ares_event_thread {
    *  event before sleeping. */
   ares_bool_t             isup;
   /*! Handle to the thread for joining during shutdown */
-  ares__thread_t         *thread;
+  ares_thread_t          *thread;
   /*! Lock to protect the data contained within the event thread itself */
-  ares__thread_mutex_t   *mutex;
+  ares_thread_mutex_t    *mutex;
   /*! Reference to the ares channel, for being able to call things like
    *  ares_timeout() and ares_process_fd(). */
   ares_channel_t         *channel;
+  /*! Whether or not on the next loop we should process a pending write */
+  ares_bool_t             process_pending_write;
   /*! Not-yet-processed event handle updates.  These will get enqueued by a
    *  thread other than the event thread itself. The event thread will then
    *  be woken then process these updates itself */
-  ares__llist_t          *ev_updates;
+  ares_llist_t           *ev_updates;
   /*! Registered socket event handles */
-  ares__htable_asvp_t    *ev_sock_handles;
+  ares_htable_asvp_t     *ev_sock_handles;
   /*! Registered custom event handles. Typically used for external triggering.
    */
-  ares__htable_vpvp_t    *ev_cust_handles;
+  ares_htable_vpvp_t     *ev_cust_handles;
   /*! Pointer to the event handle which is used to signal and wake the event
    *  thread itself.  This is needed to be able to do things like update the
    *  file descriptors being waited on and to wake the event subsystem during

@@ -27,7 +27,7 @@ SearchIterator::SearchIterator(const SearchIterator &other)
 {   
     m_breakiterator_            = other.m_breakiterator_;
     m_text_                     = other.m_text_;
-    m_search_                   = (USearch *)uprv_malloc(sizeof(USearch));   
+    m_search_ = static_cast<USearch*>(uprv_malloc(sizeof(USearch)));
     m_search_->breakIter        = other.m_search_->breakIter;
     m_search_->isCanonicalMatch = other.m_search_->isCanonicalMatch;
     m_search_->isOverlap        = other.m_search_->isOverlap;
@@ -62,7 +62,7 @@ void SearchIterator::setAttribute(USearchAttribute       attribute,
             break;
         case USEARCH_ELEMENT_COMPARISON :
             if (value == USEARCH_PATTERN_BASE_WEIGHT_IS_WILDCARD || value == USEARCH_ANY_BASE_WEIGHT_IS_WILDCARD) {
-                m_search_->elementComparisonType = (int16_t)value;
+                m_search_->elementComparisonType = static_cast<int16_t>(value);
             } else {
                 m_search_->elementComparisonType = 0;
             }
@@ -88,7 +88,7 @@ USearchAttributeValue SearchIterator::getAttribute(
         {
             int16_t value = m_search_->elementComparisonType;
             if (value == USEARCH_PATTERN_BASE_WEIGHT_IS_WILDCARD || value == USEARCH_ANY_BASE_WEIGHT_IS_WILDCARD) {
-                return (USearchAttributeValue)value;
+                return static_cast<USearchAttributeValue>(value);
             } else {
                 return USEARCH_STANDARD_ELEMENT_COMPARISON;
             }
@@ -136,7 +136,7 @@ void SearchIterator::setBreakIterator(BreakIterator *breakiter,
         //
         // Besides, a UBreakIterator is a BreakIterator, so
         // any subclass of BreakIterator should work fine here...
-        m_search_->breakIter = (UBreakIterator *) breakiter;
+        m_search_->breakIter = reinterpret_cast<UBreakIterator*>(breakiter);
 #endif
         
         m_breakiterator_ = breakiter;
@@ -344,7 +344,7 @@ void SearchIterator::reset()
 
 SearchIterator::SearchIterator()
 {
-    m_search_                     = (USearch *)uprv_malloc(sizeof(USearch));
+    m_search_ = static_cast<USearch*>(uprv_malloc(sizeof(USearch)));
     m_search_->breakIter          = nullptr;
     m_search_->isOverlap          = false;
     m_search_->isCanonicalMatch   = false;
@@ -363,7 +363,7 @@ SearchIterator::SearchIterator(const UnicodeString &text,
                                      m_breakiterator_(breakiter),
                                      m_text_(text)
 {
-    m_search_                     = (USearch *)uprv_malloc(sizeof(USearch));
+    m_search_ = static_cast<USearch*>(uprv_malloc(sizeof(USearch)));
     m_search_->breakIter          = nullptr;
     m_search_->isOverlap          = false;
     m_search_->isCanonicalMatch   = false;
@@ -380,7 +380,7 @@ SearchIterator::SearchIterator(CharacterIterator &text,
                                BreakIterator     *breakiter) :
                                m_breakiterator_(breakiter)
 {
-    m_search_                     = (USearch *)uprv_malloc(sizeof(USearch));
+    m_search_ = static_cast<USearch*>(uprv_malloc(sizeof(USearch)));
     m_search_->breakIter          = nullptr;
     m_search_->isOverlap          = false;
     m_search_->isCanonicalMatch   = false;

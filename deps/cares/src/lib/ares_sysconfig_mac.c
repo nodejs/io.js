@@ -154,14 +154,15 @@ static ares_bool_t search_is_duplicate(const ares_sysconfig_t *sysconfig,
 {
   size_t i;
   for (i = 0; i < sysconfig->ndomains; i++) {
-    if (strcasecmp(sysconfig->domains[i], name) == 0) {
+    if (ares_strcaseeq(sysconfig->domains[i], name)) {
       return ARES_TRUE;
     }
   }
   return ARES_FALSE;
 }
 
-static ares_status_t read_resolver(const dns_resolver_t *resolver,
+static ares_status_t read_resolver(const ares_channel_t *channel,
+                                   const dns_resolver_t *resolver,
                                    ares_sysconfig_t     *sysconfig)
 {
   int            i;
@@ -243,7 +244,7 @@ static ares_status_t read_resolver(const dns_resolver_t *resolver,
 #  endif
 
   if (resolver->options != NULL) {
-    status = ares__sysconfig_set_options(sysconfig, resolver->options);
+    status = ares_sysconfig_set_options(sysconfig, resolver->options);
     if (status != ARES_SUCCESS) {
       return status;
     }
@@ -269,7 +270,7 @@ static ares_status_t read_resolver(const dns_resolver_t *resolver,
     unsigned short         addrport;
     const struct sockaddr *sockaddr;
     char                   if_name_str[256] = "";
-    const char            *if_name;
+    const char            *if_name          = NULL;
 
     /* UBSAN alignment workaround to fetch memory address */
     memcpy(&sockaddr, resolver->nameserver + i, sizeof(sockaddr));
@@ -282,10 +283,14 @@ static ares_status_t read_resolver(const dns_resolver_t *resolver,
       addrport = port;
     }
 
-    if_name = ares__if_indextoname(resolver->if_index, if_name_str,
-                                   sizeof(if_name_str));
-    status  = ares__sconfig_append(&sysconfig->sconfig, &addr, addrport,
-                                   addrport, if_name);
+    if (channel->sock_funcs.aif_indextoname != NULL) {
+      if_name = channel->sock_funcs.aif_indextoname(
+        resolver->if_index, if_name_str, sizeof(if_name_str),
+        channel->sock_func_cb_data);
+    }
+
+    status = ares_sconfig_append(channel, &sysconfig->sconfig, &addr, addrport,
+                                 addrport, if_name);
     if (status != ARES_SUCCESS) {
       return status;
     }
@@ -294,7 +299,8 @@ static ares_status_t read_resolver(const dns_resolver_t *resolver,
   return status;
 }
 
-static ares_status_t read_resolvers(dns_resolver_t **resolvers, int nresolvers,
+static ares_status_t read_resolvers(const ares_channel_t *channel,
+                                    dns_resolver_t **resolvers, int nresolvers,
                                     ares_sysconfig_t *sysconfig)
 {
   ares_status_t status = ARES_SUCCESS;
@@ -309,13 +315,14 @@ static ares_status_t read_resolvers(dns_resolver_t **resolvers, int nresolvers,
      */
     memcpy(&resolver_ptr, resolvers + i, sizeof(resolver_ptr));
 
-    status = read_resolver(resolver_ptr, sysconfig);
+    status = read_resolver(channel, resolver_ptr, sysconfig);
   }
 
   return status;
 }
 
-ares_status_t ares__init_sysconfig_macos(ares_sysconfig_t *sysconfig)
+ares_status_t ares_init_sysconfig_macos(const ares_channel_t *channel,
+                                        ares_sysconfig_t     *sysconfig)
 {
   dnsinfo_t    *dnsinfo = NULL;
   dns_config_t *sc_dns  = NULL;
@@ -343,7 +350,8 @@ ares_status_t ares__init_sysconfig_macos(ares_sysconfig_t *sysconfig)
    * Likely this wasn't available via `/etc/resolv.conf` nor `libresolv` anyhow
    * so its not worse to prior configuration methods, worst case. */
 
-  status = read_resolvers(sc_dns->resolver, sc_dns->n_resolver, sysconfig);
+  status =
+    read_resolvers(channel, sc_dns->resolver, sc_dns->n_resolver, sysconfig);
 
 done:
   if (dnsinfo) {

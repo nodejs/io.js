@@ -35,7 +35,8 @@ file a new issue.
   * [Windows](#windows)
     * [Windows Prerequisites](#windows-prerequisites)
       * [Option 1: Manual install](#option-1-manual-install)
-      * [Option 2: Automated install with Boxstarter](#option-2-automated-install-with-boxstarter)
+      * [Option 2: Automated install with WinGet](#option-2-automated-install-with-winget)
+      * [Option 3: Automated install with Boxstarter](#option-3-automated-install-with-boxstarter)
     * [Building Node.js](#building-nodejs-2)
   * [Android](#android)
 * [`Intl` (ECMA-402) support](#intl-ecma-402-support)
@@ -666,7 +667,34 @@ Optional requirements for compiling with ClangCL:
 
 NOTE: Currently we only support compiling with Clang that comes from Visual Studio.
 
-##### Option 2: Automated install with Boxstarter
+##### Option 2: Automated install with WinGet
+
+[WinGet configuration files](https://github.com/nodejs/node/tree/main/.configurations)
+can be used to install all the required prerequisites for Node.js development
+easily. These files will install the following
+[WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/) packages:
+
+* Git for Windows with the `git` and Unix tools added to the `PATH`
+* `Python 3.12`
+* `Visual Studio 2022` (Community, Enterprise or Professional)
+* `Visual Studio 2022 Build Tools` with Visual C++ workload, Clang and ClangToolset
+* `NetWide Assembler`
+
+To install Node.js prerequisites from Powershell Terminal:
+
+```powershell
+winget configure .\configuration.dsc.yaml
+```
+
+Alternatively, you can use [Dev Home](https://learn.microsoft.com/en-us/windows/dev-home/)
+to install the prerequisites:
+
+* Switch to `Machine Configuration` tab
+* Click on `Configuration File`
+* Choose the corresponding WinGet configuration file
+* Click on `Set up as admin`
+
+##### Option 3: Automated install with Boxstarter
 
 A [Boxstarter](https://boxstarter.org/) script can be used for easy setup of
 Windows systems with all the required prerequisites for Node.js development.

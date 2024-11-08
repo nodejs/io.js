@@ -1,6 +1,6 @@
 {
   "name": "npm-bundled",
-  "version": "3.0.1",
+  "version": "4.0.0",
   "description": "list things in node_modules that are bundledDependencies, or transitive dependencies thereof",
   "main": "lib/index.js",
   "repository": {
@@ -10,33 +10,34 @@
   "author": "GitHub Inc.",
   "license": "ISC",
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.22.0",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "mutate-fs": "^2.1.1",
     "tap": "^16.3.0"
   },
   "scripts": {
     "test": "tap",
-    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lint": "npm run eslint",
     "postlint": "template-oss-check",
     "template-oss-apply": "template-oss-apply --force",
-    "lintfix": "npm run lint -- --fix",
+    "lintfix": "npm run eslint -- --fix",
     "snap": "tap",
-    "posttest": "npm run lint"
+    "posttest": "npm run lint",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "files": [
     "bin/",
     "lib/"
   ],
   "dependencies": {
-    "npm-normalize-package-bin": "^3.0.0"
+    "npm-normalize-package-bin": "^4.0.0"
   },
   "engines": {
-    "node": "^14.17.0 || ^16.13.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.22.0",
+    "version": "4.23.3",
     "publish": true
   },
   "tap": {

@@ -46,8 +46,8 @@ Maybe<bool> EmitProcessBeforeExit(Environment* env) {
   Local<Integer> exit_code = Integer::New(
       isolate, static_cast<int32_t>(env->exit_code(ExitCode::kNoFailure)));
 
-  return ProcessEmit(env, "beforeExit", exit_code).IsEmpty() ?
-      Nothing<bool>() : Just(true);
+  return ProcessEmit(env, "beforeExit", exit_code).IsEmpty() ? Nothing<bool>()
+                                                             : Just(true);
 }
 
 static ExitCode EmitExitInternal(Environment* env) {

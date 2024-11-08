@@ -501,7 +501,10 @@ ubidi_writeReordered(UBiDi *pBiDi,
                     destSize-=runLength;
 
                     if((pBiDi->isInverse) &&
-                       (/*run<runCount-1 &&*/ dirProps[logicalStart+runLength-1]!=L)) {
+                           (/*run<runCount-1 &&*/
+                            runLength > 0 && // doWriteForward may return 0 if src
+                                             // only include bidi control chars
+                            dirProps[logicalStart+runLength-1]!=L)) {
                         markFlag |= LRM_AFTER;
                     }
                     if (markFlag & LRM_AFTER) {
@@ -632,7 +635,10 @@ ubidi_writeReordered(UBiDi *pBiDi,
                     }
                     destSize-=runLength;
 
-                    if(/*run>0 &&*/ !(MASK_R_AL&DIRPROP_FLAG(dirProps[logicalStart+runLength-1]))) {
+                    if(/*run>0 &&*/
+                            runLength > 0 && // doWriteForward may return 0 if src
+                                             // only include bidi control chars
+                            !(MASK_R_AL&DIRPROP_FLAG(dirProps[logicalStart+runLength-1]))) {
                         if(destSize>0) {
                             *dest++=RLM_CHAR;
                         }

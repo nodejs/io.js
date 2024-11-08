@@ -177,6 +177,9 @@
 /* Define to 1 if you have the <malloc.h> header file. */
 #undef HAVE_MALLOC_H
 
+/* Define to 1 if you have `memmem` */
+#undef HAVE_MEMMEM
+
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
 
@@ -248,6 +251,9 @@
 
 /* Define to 1 if you have `send` */
 #undef HAVE_SEND
+
+/* Define to 1 if you have `sendto` */
+#undef HAVE_SENDTO
 
 /* Define to 1 if you have `setsockopt` */
 #undef HAVE_SETSOCKOPT

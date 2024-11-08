@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -32,6 +32,7 @@
 #include "crypto/ecx.h"
 #include "crypto/rsa.h"
 #include "crypto/x509.h"
+#include "openssl/obj_mac.h"
 #include "prov/bio.h"
 #include "prov/implementations.h"
 #include "endecoder_local.h"
@@ -107,7 +108,10 @@ static void *der2key_decode_p8(const unsigned char **input_der,
 
     if ((p8inf = d2i_PKCS8_PRIV_KEY_INFO(NULL, input_der, input_der_len)) != NULL
         && PKCS8_pkey_get0(NULL, NULL, NULL, &alg, p8inf)
-        && OBJ_obj2nid(alg->algorithm) == ctx->desc->evp_type)
+        && (OBJ_obj2nid(alg->algorithm) == ctx->desc->evp_type
+            /* Allow decoding sm2 private key with id_ecPublicKey */
+            || (OBJ_obj2nid(alg->algorithm) == NID_X9_62_id_ecPublicKey
+                && ctx->desc->evp_type == NID_sm2)))
         key = key_from_pkcs8(p8inf, PROV_LIBCTX_OF(ctx->provctx), NULL);
     PKCS8_PRIV_KEY_INFO_free(p8inf);
 
@@ -286,10 +290,19 @@ static int der2key_decode(void *vctx, OSSL_CORE_BIO *cin, int selection,
 
         params[0] =
             OSSL_PARAM_construct_int(OSSL_OBJECT_PARAM_TYPE, &object_type);
-        params[1] =
-            OSSL_PARAM_construct_utf8_string(OSSL_OBJECT_PARAM_DATA_TYPE,
-                                             (char *)ctx->desc->keytype_name,
-                                             0);
+
+#ifndef OPENSSL_NO_SM2
+        if (strcmp(ctx->desc->keytype_name, "EC") == 0
+            && (EC_KEY_get_flags(key) & EC_FLAG_SM2_RANGE) != 0)
+            params[1] =
+                OSSL_PARAM_construct_utf8_string(OSSL_OBJECT_PARAM_DATA_TYPE,
+                                                 "SM2", 0);
+        else
+#endif
+            params[1] =
+                OSSL_PARAM_construct_utf8_string(OSSL_OBJECT_PARAM_DATA_TYPE,
+                                                 (char *)ctx->desc->keytype_name,
+                                                 0);
         /* The address of the key becomes the octet string */
         params[2] =
             OSSL_PARAM_construct_octet_string(OSSL_OBJECT_PARAM_REFERENCE,
@@ -409,10 +422,16 @@ static void *ec_d2i_PKCS8(void **key, const unsigned char **der, long der_len,
 static int ec_check(void *key, struct der2key_ctx_st *ctx)
 {
     /* We're trying to be clever by comparing two truths */
-
+    int ret = 0;
     int sm2 = (EC_KEY_get_flags(key) & EC_FLAG_SM2_RANGE) != 0;
 
-    return sm2 == (ctx->desc->evp_type == EVP_PKEY_SM2);
+    if (sm2)
+        ret = ctx->desc->evp_type == EVP_PKEY_SM2
+            || ctx->desc->evp_type == NID_X9_62_id_ecPublicKey;
+    else
+        ret = ctx->desc->evp_type != EVP_PKEY_SM2;
+
+    return ret;
 }
 
 static void ec_adjust(void *key, struct der2key_ctx_st *ctx)

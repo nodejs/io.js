@@ -83,8 +83,8 @@ void
 EmojiProps::load(UErrorCode &errorCode) {
     memory = udata_openChoice(nullptr, "icu", "uemoji", isAcceptable, this, &errorCode);
     if (U_FAILURE(errorCode)) { return; }
-    const uint8_t *inBytes = (const uint8_t *)udata_getMemory(memory);
-    const int32_t *inIndexes = (const int32_t *)inBytes;
+    const uint8_t* inBytes = static_cast<const uint8_t*>(udata_getMemory(memory));
+    const int32_t* inIndexes = reinterpret_cast<const int32_t*>(inBytes);
     int32_t indexesLength = inIndexes[IX_CPTRIE_OFFSET] / 4;
     if (indexesLength <= IX_RGI_EMOJI_ZWJ_SEQUENCE_TRIE_OFFSET) {
         errorCode = U_INVALID_FORMAT_ERROR;  // Not enough indexes.
@@ -104,7 +104,7 @@ EmojiProps::load(UErrorCode &errorCode) {
         offset = inIndexes[i];
         nextOffset = inIndexes[i + 1];
         // Set/leave nullptr if there is no UCharsTrie.
-        const char16_t *p = nextOffset > offset ? (const char16_t *)(inBytes + offset) : nullptr;
+        const char16_t* p = nextOffset > offset ? reinterpret_cast<const char16_t*>(inBytes + offset) : nullptr;
         stringTries[getStringTrieIndex(i)] = p;
     }
 }

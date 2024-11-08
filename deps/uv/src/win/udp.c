@@ -200,6 +200,12 @@ static int uv__udp_maybe_bind(uv_udp_t* handle,
   if (handle->flags & UV_HANDLE_BOUND)
     return 0;
 
+  /* There is no SO_REUSEPORT on Windows, Windows only knows SO_REUSEADDR.
+   * so we just return an error directly when UV_UDP_REUSEPORT is requested
+   * for binding the socket. */
+  if (flags & UV_UDP_REUSEPORT)
+    return ERROR_NOT_SUPPORTED;
+
   if ((flags & UV_UDP_IPV6ONLY) && addr->sa_family != AF_INET6) {
     /* UV_UDP_IPV6ONLY is supported only for IPV6 sockets */
     return ERROR_INVALID_PARAMETER;
@@ -376,7 +382,7 @@ static int uv__send(uv_udp_send_t* req,
     handle->reqs_pending++;
     handle->send_queue_size += req->u.io.queued_bytes;
     handle->send_queue_count++;
-    REGISTER_HANDLE_REQ(loop, handle, req);
+    REGISTER_HANDLE_REQ(loop, handle);
     uv__insert_pending_req(loop, (uv_req_t*)req);
   } else if (UV_SUCCEEDED_WITH_IOCP(result == 0)) {
     /* Request queued by the kernel. */
@@ -384,7 +390,7 @@ static int uv__send(uv_udp_send_t* req,
     handle->reqs_pending++;
     handle->send_queue_size += req->u.io.queued_bytes;
     handle->send_queue_count++;
-    REGISTER_HANDLE_REQ(loop, handle, req);
+    REGISTER_HANDLE_REQ(loop, handle);
   } else {
     /* Send failed due to an error. */
     return WSAGetLastError();
@@ -527,7 +533,7 @@ void uv__process_udp_send_req(uv_loop_t* loop, uv_udp_t* handle,
   handle->send_queue_size -= req->u.io.queued_bytes;
   handle->send_queue_count--;
 
-  UNREGISTER_HANDLE_REQ(loop, handle, req);
+  UNREGISTER_HANDLE_REQ(loop, handle);
 
   if (req->cb) {
     err = 0;

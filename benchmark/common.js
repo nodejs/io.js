@@ -113,8 +113,7 @@ class Benchmark {
       }
       const [, key, value] = match;
       if (configs[key] !== undefined) {
-        if (!cliOptions[key])
-          cliOptions[key] = [];
+        cliOptions[key] ||= [];
         cliOptions[key].push(
           // Infer the type from the config object and parse accordingly
           typeof configs[key][0] === 'number' ? +value : value,
@@ -177,10 +176,9 @@ class Benchmark {
 
   http(options, cb) {
     const http_options = { ...options };
-    http_options.benchmarker = http_options.benchmarker ||
-                               this.config.benchmarker ||
-                               this.extra_options.benchmarker ||
-                               http_benchmarkers.default_http_benchmarker;
+    http_options.benchmarker ||= this.config.benchmarker ||
+                                 this.extra_options.benchmarker ||
+                                 http_benchmarkers.default_http_benchmarker;
     http_benchmarkers.run(
       http_options, (error, code, used_benchmarker, result, elapsed) => {
         if (cb) {

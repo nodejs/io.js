@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+
+<head>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+  <script src=/common/get-host-info.sub.js></script>
+  <script src="../resources/include-frames-helper.js"></script>
+</head>
+
+<body>
+  <script>
+    const verifyMainFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('include-frames-originA-B-B', 'navigation', 1, 'Main Frame'),
+        createFilterOption('include-frames-subframe', 'resource', 1, 'Main Frame'),
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    const verifyChildFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('include-frames-subframe', 'navigation', 0, 'Child Frame'),
+        createFilterOption('child-frame.html', 'resource', 0, 'Child Frame'),
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    const verifyGrandchildFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('child-frame.html', 'navigation', 0, 'Grandchild Frame'),
+        createFilterOption('mark_child_frame', 'mark', 0, 'Grandchild frame')
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    promise_test(async () => {
+      performance.clearResourceTimings();
+
+      // Load a origin child frame. The child frame upon loading would load a child frame of its own.
+      await loadChildFrameAndGrandchildFrame(get_host_info().REMOTE_ORIGIN
+        + '/performance-timeline/resources/include-frames-subframe.html?origin='
+        + get_host_info().REMOTE_ORIGIN);
+
+      const entries = performance.getEntries({ includeChildFrames: true });
+
+      verifyMainFrameEntries(entries);
+
+      verifyChildFrameEntries(entries);
+
+      verifyGrandchildFrameEntries(entries);
+    }, 'GetEntries of a document of origin A, its child frame of origin B and \
+    its grandchild frame of origin B.');
+  </script>
+</body>

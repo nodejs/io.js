@@ -1206,7 +1206,6 @@ class WasmGraphBuildingInterface {
 
   void BrOnNonNull(FullDecoder* decoder, const Value& ref_object, Value* result,
                    uint32_t depth, bool /* drop_null_on_fallthrough */) {
-    result->node = ref_object.node;
     SsaEnv* false_env = ssa_env_;
     SsaEnv* true_env = Split(decoder->zone(), false_env);
     false_env->SetNotMerged();
@@ -1214,6 +1213,8 @@ class WasmGraphBuildingInterface {
         builder_->BrOnNull(ref_object.node, ref_object.type);
     builder_->SetControl(false_env->control);
     ScopedSsaEnv scoped_env(this, true_env);
+    // Make sure the TypeGuard has the right Control dependency.
+    SetAndTypeNode(result, builder_->TypeGuard(ref_object.node, result->type));
     BrOrRet(decoder, depth);
   }
 

@@ -345,7 +345,8 @@ Configure server failover retry behavior.  When a DNS server fails to
 respond to a query, c-ares will deprioritize the server.  On subsequent
 queries, servers with fewer consecutive failures will be selected in
 preference.  However, in order to detect when such a server has recovered,
-c-ares will occasionally retry failed servers.  The
+c-ares will occasionally retry failed servers by probing with a copy of
+the query, without affecting the latency of the actual requested query.  The
 \fIares_server_failover_options\fP structure contains options to control this
 behavior.
 The \fIretry_chance\fP field gives the probability (1/N) of retrying a
@@ -367,7 +368,9 @@ for each resolution.
 .TP 23
 .B ARES_OPT_NOROTATE
 Do not perform round-robin nameserver selection; always use the list of
-nameservers in the same order.
+nameservers in the same order.  The default is not to rotate servers, however
+the system configuration can specify the desire to rotate and this
+configuration value can negate such a system configuration.
 .PP
 
 .SH RETURN VALUES

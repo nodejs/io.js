@@ -33,7 +33,8 @@ TEST_IMPL(tcp_flags) {
 
   loop = uv_default_loop();
 
-  r = uv_tcp_init(loop, &handle);
+  /* Use _ex to make sure the socket is created. */
+  r = uv_tcp_init_ex(loop, &handle, AF_INET);
   ASSERT_OK(r);
 
   r = uv_tcp_nodelay(&handle, 1);
@@ -41,6 +42,12 @@ TEST_IMPL(tcp_flags) {
 
   r = uv_tcp_keepalive(&handle, 1, 60);
   ASSERT_OK(r);
+
+  r = uv_tcp_keepalive(&handle, 0, 0);
+  ASSERT_OK(r);
+
+  r = uv_tcp_keepalive(&handle, 1, 0);
+  ASSERT_EQ(r, UV_EINVAL);
 
   uv_close((uv_handle_t*)&handle, NULL);
 

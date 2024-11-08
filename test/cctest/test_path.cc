@@ -25,14 +25,16 @@ TEST_F(PathTest, PathResolve) {
             "d:\\e.exe");
   EXPECT_EQ(PathResolve(*env, {"c:/ignore", "c:/some/file"}), "c:\\some\\file");
   EXPECT_EQ(PathResolve(*env, {"d:/ignore", "d:some/dir//"}),
-            "d:\\ignore\\some\\dir\\");
+            "d:\\ignore\\some\\dir");
   EXPECT_EQ(PathResolve(*env, {"."}), cwd);
   EXPECT_EQ(PathResolve(*env, {"//server/share", "..", "relative\\"}),
-            "\\\\server\\share\\relative\\");
+            "\\\\server\\share\\relative");
   EXPECT_EQ(PathResolve(*env, {"c:/", "//"}), "c:\\");
   EXPECT_EQ(PathResolve(*env, {"c:/", "//dir"}), "c:\\dir");
-  EXPECT_EQ(PathResolve(*env, {"c:/", "//server/share"}), "\\\\server\\share");
-  EXPECT_EQ(PathResolve(*env, {"c:/", "//server//share"}), "\\\\server\\share");
+  EXPECT_EQ(PathResolve(*env, {"c:/", "//server/share"}),
+            "\\\\server\\share\\");
+  EXPECT_EQ(PathResolve(*env, {"c:/", "//server//share"}),
+            "\\\\server\\share\\");
   EXPECT_EQ(PathResolve(*env, {"c:/", "///some//dir"}), "c:\\some\\dir");
   EXPECT_EQ(
       PathResolve(*env, {"C:\\foo\\tmp.3\\", "..\\tmp.3\\cycles\\root.js"}),
@@ -42,11 +44,11 @@ TEST_F(PathTest, PathResolve) {
   EXPECT_EQ(PathResolve(*env, {"\\\\?\\PHYSICALDRIVE0"}),
             "\\\\?\\PHYSICALDRIVE0");
 #else
-  EXPECT_EQ(PathResolve(*env, {"/var/lib", "../", "file/"}), "/var/file/");
-  EXPECT_EQ(PathResolve(*env, {"/var/lib", "/../", "file/"}), "/file/");
+  EXPECT_EQ(PathResolve(*env, {"/var/lib", "../", "file/"}), "/var/file");
+  EXPECT_EQ(PathResolve(*env, {"/var/lib", "/../", "file/"}), "/file");
   EXPECT_EQ(PathResolve(*env, {"a/b/c/", "../../.."}), cwd);
   EXPECT_EQ(PathResolve(*env, {"."}), cwd);
-  EXPECT_EQ(PathResolve(*env, {"/some/dir", ".", "/absolute/"}), "/absolute/");
+  EXPECT_EQ(PathResolve(*env, {"/some/dir", ".", "/absolute/"}), "/absolute");
   EXPECT_EQ(PathResolve(*env, {"/foo/tmp.3/", "../tmp.3/cycles/root.js"}),
             "/foo/tmp.3/cycles/root.js");
 #endif

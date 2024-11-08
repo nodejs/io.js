@@ -192,6 +192,11 @@ TEST_IMPL(udp_multicast_join6) {
 
   ASSERT_OK(r);
 
+#if defined(__ANDROID__)
+  /* It returns an ENOSYS error */
+  RETURN_SKIP("Test does not currently work in ANDROID");
+#endif
+
 /* TODO(gengjiawen): Fix test on QEMU. */
 #if defined(__QEMU__)
   RETURN_SKIP("Test does not currently work in QEMU");

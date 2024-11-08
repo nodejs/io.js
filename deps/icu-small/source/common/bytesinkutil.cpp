@@ -64,7 +64,7 @@ ByteSinkUtil::appendChange(const uint8_t *s, const uint8_t *limit,
         errorCode = U_INDEX_OUTOFBOUNDS_ERROR;
         return false;
     }
-    return appendChange((int32_t)(limit - s), s16, s16Length, sink, edits, errorCode);
+    return appendChange(static_cast<int32_t>(limit - s), s16, s16Length, sink, edits, errorCode);
 }
 
 void
@@ -81,15 +81,15 @@ ByteSinkUtil::appendCodePoint(int32_t length, UChar32 c, ByteSink &sink, Edits *
 namespace {
 
 // See unicode/utf8.h U8_APPEND_UNSAFE().
-inline uint8_t getTwoByteLead(UChar32 c) { return (uint8_t)((c >> 6) | 0xc0); }
-inline uint8_t getTwoByteTrail(UChar32 c) { return (uint8_t)((c & 0x3f) | 0x80); }
+inline uint8_t getTwoByteLead(UChar32 c) { return static_cast<uint8_t>((c >> 6) | 0xc0); }
+inline uint8_t getTwoByteTrail(UChar32 c) { return static_cast<uint8_t>((c & 0x3f) | 0x80); }
 
 }  // namespace
 
 void
 ByteSinkUtil::appendTwoBytes(UChar32 c, ByteSink &sink) {
     U_ASSERT(0x80 <= c && c <= 0x7ff);  // 2-byte UTF-8
-    char s8[2] = { (char)getTwoByteLead(c), (char)getTwoByteTrail(c) };
+    char s8[2] = {static_cast<char>(getTwoByteLead(c)), static_cast<char>(getTwoByteTrail(c))};
     sink.Append(s8, 2);
 }
 
@@ -114,7 +114,7 @@ ByteSinkUtil::appendUnchanged(const uint8_t *s, const uint8_t *limit,
         errorCode = U_INDEX_OUTOFBOUNDS_ERROR;
         return false;
     }
-    int32_t length = (int32_t)(limit - s);
+    int32_t length = static_cast<int32_t>(limit - s);
     if (length > 0) {
         appendNonEmptyUnchanged(s, length, sink, options, edits);
     }

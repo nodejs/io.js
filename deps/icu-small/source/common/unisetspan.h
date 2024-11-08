@@ -141,11 +141,11 @@ private:
 };
 
 UBool UnicodeSetStringSpan::needsStringSpanUTF16() {
-    return (UBool)(maxLength16!=0);
+    return maxLength16 != 0;
 }
 
 UBool UnicodeSetStringSpan::needsStringSpanUTF8() {
-    return (UBool)(maxLength8!=0);
+    return maxLength8 != 0;
 }
 
 UBool UnicodeSetStringSpan::contains(UChar32 c) const {

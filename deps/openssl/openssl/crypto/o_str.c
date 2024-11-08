@@ -229,12 +229,14 @@ static int buf2hexstr_sep(char *str, size_t str_n, size_t *strlength,
     int has_sep = (sep != CH_ZERO);
     size_t len = has_sep ? buflen * 3 : 1 + buflen * 2;
 
+    if (len == 0)
+        ++len;
     if (strlength != NULL)
         *strlength = len;
     if (str == NULL)
         return 1;
 
-    if (str_n < (unsigned long)len) {
+    if (str_n < len) {
         ERR_raise(ERR_LIB_CRYPTO, CRYPTO_R_TOO_SMALL_BUFFER);
         return 0;
     }
@@ -246,7 +248,7 @@ static int buf2hexstr_sep(char *str, size_t str_n, size_t *strlength,
         if (has_sep)
             *q++ = sep;
     }
-    if (has_sep)
+    if (has_sep && buflen > 0)
         --q;
     *q = CH_ZERO;
 

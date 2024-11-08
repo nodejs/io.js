@@ -959,7 +959,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
         #         would-be additional inputs are newer than the output.  Modifying
         #         the source tree - even just modification times - feels dirty.
         # 6564240 Xcode "custom script" build rules always dump all environment
-        #         variables.  This is a low-prioroty problem and is not a
+        #         variables.  This is a low-priority problem and is not a
         #         show-stopper.
         rules_by_ext = {}
         for rule in spec_rules:

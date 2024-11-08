@@ -50,12 +50,6 @@ describe('ESM type field errors', { concurrency: true }, () => {
       true,
     );
   });
-
-  it('--input-type=module disallowed for directories', () => {
-    assert.throws(() => require('../fixtures/es-modules/package-type-module/index.js'), {
-      code: 'ERR_REQUIRE_ESM'
-    });
-  });
 });
 
 function expect(opt = '', inputFile, want, wantsError = false) {

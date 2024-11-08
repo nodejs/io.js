@@ -31,14 +31,17 @@
 #define ARES_COPYRIGHT "2004 - 2024 Daniel Stenberg, <daniel@haxx.se>."
 
 #define ARES_VERSION_MAJOR 1
-#define ARES_VERSION_MINOR 33
-#define ARES_VERSION_PATCH 1
+#define ARES_VERSION_MINOR 34
+#define ARES_VERSION_PATCH 2
+#define ARES_VERSION_STR "1.34.2"
+
+/* NOTE: We cannot make the version string a C preprocessor stringify operation
+ *       due to assumptions made by integrators that aren't properly using
+ *       pkgconf or cmake and are doing their own detection based on parsing
+ *       this header */
+
 #define ARES_VERSION                                        \
   ((ARES_VERSION_MAJOR << 16) | (ARES_VERSION_MINOR << 8) | \
    (ARES_VERSION_PATCH))
-#define ARES_VERSION_STR "1.33.1"
-
-#define CARES_HAVE_ARES_LIBRARY_INIT    1
-#define CARES_HAVE_ARES_LIBRARY_CLEANUP 1
 
 #endif

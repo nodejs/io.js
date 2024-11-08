@@ -74,13 +74,13 @@ int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
     goto fail;
   }
 
-  status = ares__parse_into_addrinfo(dnsrec, 0, 0, &ai);
+  status = ares_parse_into_addrinfo(dnsrec, 0, 0, &ai);
   if (status != ARES_SUCCESS && status != ARES_ENODATA) {
     goto fail;
   }
 
   if (host != NULL) {
-    status = ares__addrinfo2hostent(&ai, AF_INET6, host);
+    status = ares_addrinfo2hostent(&ai, AF_INET6, host);
     if (status != ARES_SUCCESS && status != ARES_ENODATA) {
       goto fail; /* LCOV_EXCL_LINE: DefensiveCoding */
     }
@@ -88,14 +88,14 @@ int ares_parse_aaaa_reply(const unsigned char *abuf, int alen,
 
   if (addrttls != NULL && req_naddrttls) {
     size_t temp_naddrttls = 0;
-    ares__addrinfo2addrttl(&ai, AF_INET6, req_naddrttls, NULL, addrttls,
-                           &temp_naddrttls);
+    ares_addrinfo2addrttl(&ai, AF_INET6, req_naddrttls, NULL, addrttls,
+                          &temp_naddrttls);
     *naddrttls = (int)temp_naddrttls;
   }
 
 fail:
-  ares__freeaddrinfo_cnames(ai.cnames);
-  ares__freeaddrinfo_nodes(ai.nodes);
+  ares_freeaddrinfo_cnames(ai.cnames);
+  ares_freeaddrinfo_nodes(ai.nodes);
   ares_free(question_hostname);
   ares_free(ai.name);
   ares_dns_record_destroy(dnsrec);

@@ -2082,8 +2082,8 @@ Handle<WasmTagObject> WasmTagObject::New(
 }
 
 bool WasmTagObject::MatchesSignature(uint32_t expected_canonical_type_index) {
-  return wasm::GetWasmEngine()->type_canonicalizer()->IsCanonicalSubtype(
-      this->canonical_type_index(), expected_canonical_type_index);
+  return static_cast<uint32_t>(this->canonical_type_index()) ==
+         expected_canonical_type_index;
 }
 
 const wasm::FunctionSig* WasmCapiFunction::GetSignature(Zone* zone) const {

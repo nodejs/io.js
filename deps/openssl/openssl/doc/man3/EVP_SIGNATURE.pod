@@ -49,7 +49,7 @@ The returned value must eventually be freed with EVP_SIGNATURE_free().
 EVP_SIGNATURE_free() decrements the reference count for the B<EVP_SIGNATURE>
 structure. Typically this structure will have been obtained from an earlier call
 to EVP_SIGNATURE_fetch(). If the reference count drops to 0 then the
-structure is freed.
+structure is freed. If the argument is NULL, nothing is done.
 
 EVP_SIGNATURE_up_ref() increments the reference count for an B<EVP_SIGNATURE>
 structure.
@@ -106,7 +106,7 @@ The functions described here were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

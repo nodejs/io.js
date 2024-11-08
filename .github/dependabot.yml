@@ -22,3 +22,16 @@ updates:
         applies-to: version-updates
         patterns:
           - '*'
+
+  - package-ecosystem: npm
+    directory: /tools/lint-md
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: tools
+    open-pull-requests-limit: 10
+    groups:
+      lint-md:
+        applies-to: version-updates
+        patterns:
+          - '*'

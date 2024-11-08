@@ -160,12 +160,12 @@ appendResult(int32_t cpLength, int32_t result, const char16_t *s,
 }
 
 // See unicode/utf8.h U8_APPEND_UNSAFE().
-inline uint8_t getTwoByteLead(UChar32 c) { return (uint8_t)((c >> 6) | 0xc0); }
-inline uint8_t getTwoByteTrail(UChar32 c) { return (uint8_t)((c & 0x3f) | 0x80); }
+inline uint8_t getTwoByteLead(UChar32 c) { return static_cast<uint8_t>((c >> 6) | 0xc0); }
+inline uint8_t getTwoByteTrail(UChar32 c) { return static_cast<uint8_t>((c & 0x3f) | 0x80); }
 
 UChar32 U_CALLCONV
 utf8_caseContextIterator(void *context, int8_t dir) {
-    UCaseContext *csc=(UCaseContext *)context;
+    UCaseContext* csc = static_cast<UCaseContext*>(context);
     UChar32 c;
 
     if(dir<0) {
@@ -234,7 +234,7 @@ void toLower(int32_t caseLocale, uint32_t options,
                 if (d == 0) { continue; }
                 ByteSinkUtil::appendUnchanged(src + prev, srcIndex - 1 - prev,
                                               sink, options, edits, errorCode);
-                char ascii = (char)(lead + d);
+                char ascii = static_cast<char>(lead + d);
                 sink.Append(&ascii, 1);
                 if (edits != nullptr) {
                     edits->addReplace(1, 1);
@@ -342,7 +342,7 @@ void toUpper(int32_t caseLocale, uint32_t options,
                 if (d == 0) { continue; }
                 ByteSinkUtil::appendUnchanged(src + prev, srcIndex - 1 - prev,
                                               sink, options, edits, errorCode);
-                char ascii = (char)(lead + d);
+                char ascii = static_cast<char>(lead + d);
                 sink.Append(&ascii, 1);
                 if (edits != nullptr) {
                     edits->addReplace(1, 1);
@@ -747,14 +747,14 @@ void toUpper(uint32_t options,
                 int32_t i2 = i + 2;
                 if ((data & HAS_EITHER_DIALYTIKA) != 0) {
                     change |= (i2 + 2) > nextIndex ||
-                            src[i2] != (uint8_t)u8"\u0308"[0] ||
-                            src[i2 + 1] != (uint8_t)u8"\u0308"[1];
+                            src[i2] != static_cast<uint8_t>(u8"\u0308"[0]) ||
+                            src[i2 + 1] != static_cast<uint8_t>(u8"\u0308"[1]);
                     i2 += 2;
                 }
                 if (addTonos) {
                     change |= (i2 + 2) > nextIndex ||
-                            src[i2] != (uint8_t)u8"\u0301"[0] ||
-                            src[i2 + 1] != (uint8_t)u8"\u0301"[1];
+                            src[i2] != static_cast<uint8_t>(u8"\u0301"[0]) ||
+                            src[i2 + 1] != static_cast<uint8_t>(u8"\u0301"[1]);
                     i2 += 2;
                 }
                 int32_t oldLength = nextIndex - i;
@@ -867,14 +867,14 @@ ucasemap_mapUTF8(int32_t caseLocale, uint32_t options, UCASEMAP_BREAK_ITERATOR_P
 
     // Get the string length.
     if (srcLength == -1) {
-        srcLength = (int32_t)uprv_strlen((const char *)src);
+        srcLength = static_cast<int32_t>(uprv_strlen(src));
     }
 
     if (edits != nullptr && (options & U_EDITS_NO_RESET) == 0) {
         edits->reset();
     }
     stringCaseMapper(caseLocale, options, UCASEMAP_BREAK_ITERATOR
-                     (const uint8_t *)src, srcLength, sink, edits, errorCode);
+                     reinterpret_cast<const uint8_t*>(src), srcLength, sink, edits, errorCode);
     sink.Flush();
     if (U_SUCCESS(errorCode)) {
         if (edits != nullptr) {
@@ -904,7 +904,7 @@ ucasemap_mapUTF8(int32_t caseLocale, uint32_t options, UCASEMAP_BREAK_ITERATOR_P
 
     /* get the string length */
     if(srcLength==-1) {
-        srcLength=(int32_t)uprv_strlen((const char *)src);
+        srcLength = static_cast<int32_t>(uprv_strlen(src));
     }
 
     /* check for overlapping source and destination */
@@ -923,7 +923,7 @@ ucasemap_mapUTF8(int32_t caseLocale, uint32_t options, UCASEMAP_BREAK_ITERATOR_P
         dest, destCapacity,
         [&](ByteSink& sink, UErrorCode& status) {
             stringCaseMapper(caseLocale, options, UCASEMAP_BREAK_ITERATOR
-                             (const uint8_t *)src, srcLength, sink, edits, status);
+                             reinterpret_cast<const uint8_t*>(src), srcLength, sink, edits, status);
         },
         errorCode);
     if (U_SUCCESS(errorCode) && edits != nullptr) {

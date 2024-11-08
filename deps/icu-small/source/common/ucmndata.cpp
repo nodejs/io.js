@@ -108,8 +108,8 @@ strcmpAfterPrefix(const char *s1, const char *s2, int32_t *pPrefixLength) {
     s1+=pl;
     s2+=pl;
     for(;;) {
-        int32_t c1=(uint8_t)*s1++;
-        int32_t c2=(uint8_t)*s2++;
+        int32_t c1 = static_cast<uint8_t>(*s1++);
+        int32_t c2 = static_cast<uint8_t>(*s2++);
         cmp=c1-c2;
         if(cmp!=0 || c1==0) {  /* different or done */
             break;
@@ -271,7 +271,7 @@ offsetTOCLookupFn(const UDataMemory *pData,
 
 static uint32_t U_CALLCONV pointerTOCEntryCount(const UDataMemory *pData) {
     const PointerTOC *toc = (PointerTOC *)pData->toc;
-    return (uint32_t)((toc != nullptr) ? (toc->count) : 0);
+    return toc != nullptr ? toc->count : 0;
 }
 
 static const DataHeader * U_CALLCONV pointerTOCLookupFn(const UDataMemory *pData,

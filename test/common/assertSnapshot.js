@@ -25,7 +25,7 @@ function replaceWindowsPaths(str) {
 }
 
 function replaceFullPaths(str) {
-  return str.replaceAll(path.resolve(__dirname, '../..'), '');
+  return str.replaceAll('\\\'', "'").replaceAll(path.resolve(__dirname, '../..'), '');
 }
 
 function transform(...args) {

@@ -1,6 +1,6 @@
 {
   "name": "libnpmversion",
-  "version": "6.0.3",
+  "version": "7.0.0",
   "main": "lib/index.js",
   "files": [
     "bin/",
@@ -32,20 +32,20 @@
     ]
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/eslint-config": "^5.0.1",
     "@npmcli/template-oss": "4.23.3",
     "require-inject": "^1.4.4",
     "tap": "^16.3.8"
   },
   "dependencies": {
-    "@npmcli/git": "^5.0.7",
-    "@npmcli/run-script": "^8.1.0",
-    "json-parse-even-better-errors": "^3.0.2",
-    "proc-log": "^4.2.0",
+    "@npmcli/git": "^6.0.1",
+    "@npmcli/run-script": "^9.0.1",
+    "json-parse-even-better-errors": "^4.0.0",
+    "proc-log": "^5.0.0",
     "semver": "^7.3.7"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",

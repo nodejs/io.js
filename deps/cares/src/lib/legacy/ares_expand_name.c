@@ -33,13 +33,13 @@
 
 #include "ares_nameser.h"
 
-ares_status_t ares__expand_name_validated(const unsigned char *encoded,
-                                          const unsigned char *abuf,
-                                          size_t alen, char **s, size_t *enclen,
-                                          ares_bool_t is_hostname)
+ares_status_t ares_expand_name_validated(const unsigned char *encoded,
+                                         const unsigned char *abuf, size_t alen,
+                                         char **s, size_t *enclen,
+                                         ares_bool_t is_hostname)
 {
   ares_status_t status;
-  ares__buf_t  *buf = NULL;
+  ares_buf_t   *buf = NULL;
   size_t        start_len;
 
   if (encoded == NULL || abuf == NULL || alen == 0 || enclen == NULL) {
@@ -57,27 +57,27 @@ ares_status_t ares__expand_name_validated(const unsigned char *encoded,
     *s = NULL;
   }
 
-  buf = ares__buf_create_const(abuf, alen);
+  buf = ares_buf_create_const(abuf, alen);
 
   if (buf == NULL) {
     return ARES_ENOMEM;
   }
 
-  status = ares__buf_set_position(buf, (size_t)(encoded - abuf));
+  status = ares_buf_set_position(buf, (size_t)(encoded - abuf));
   if (status != ARES_SUCCESS) {
     goto done;
   }
 
-  start_len = ares__buf_len(buf);
-  status    = ares__dns_name_parse(buf, s, is_hostname);
+  start_len = ares_buf_len(buf);
+  status    = ares_dns_name_parse(buf, s, is_hostname);
   if (status != ARES_SUCCESS) {
     goto done;
   }
 
-  *enclen = start_len - ares__buf_len(buf);
+  *enclen = start_len - ares_buf_len(buf);
 
 done:
-  ares__buf_destroy(buf);
+  ares_buf_destroy(buf);
   return status;
 }
 
@@ -92,8 +92,8 @@ int ares_expand_name(const unsigned char *encoded, const unsigned char *abuf,
     return ARES_EBADNAME;
   }
 
-  status  = ares__expand_name_validated(encoded, abuf, (size_t)alen, s,
-                                        &enclen_temp, ARES_FALSE);
+  status  = ares_expand_name_validated(encoded, abuf, (size_t)alen, s,
+                                       &enclen_temp, ARES_FALSE);
   *enclen = (long)enclen_temp;
   return (int)status;
 }

@@ -31,7 +31,7 @@ class Init extends BaseCommand {
 
   static name = 'init'
   static usage = [
-    '<package-spec> (same as `npx <package-spec>`)',
+    '<package-spec> (same as `npx create-<package-spec>`)',
     '<@scope> (same as `npx <@scope>/create`)',
   ]
 

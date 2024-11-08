@@ -204,14 +204,14 @@ typedef struct {
   NtCancelIoFileEx_t      NtCancelIoFileEx;
 
   /* Implementation details */
-  ares__slist_t          *afd_handles;
+  ares_slist_t           *afd_handles;
   HANDLE                  iocp_handle;
 
   /* IO_STATUS_BLOCK * -> ares_evsys_win32_eventdata_t * mapping.  There is
    * no completion key passed to IOCP with this method so we have to look
    * up based on the lpOverlapped returned (which is mapped to IO_STATUS_BLOCK)
    */
-  ares__htable_vpvp_t    *sockets;
+  ares_htable_vpvp_t     *sockets;
 
   /* Flag about whether or not we are shutting down */
   ares_bool_t             is_shutdown;
@@ -226,24 +226,24 @@ typedef enum {
 
 typedef struct {
   /*! Pointer to parent event container */
-  ares_event_t         *event;
+  ares_event_t        *event;
   /*! Socket passed in to monitor */
-  SOCKET                socket;
+  SOCKET               socket;
   /*! Base socket derived from provided socket */
-  SOCKET                base_socket;
+  SOCKET               base_socket;
   /*! Structure for submitting AFD POLL requests (Internals!) */
-  AFD_POLL_INFO         afd_poll_info;
+  AFD_POLL_INFO        afd_poll_info;
   /*! Status of current polling operation */
-  poll_status_t         poll_status;
+  poll_status_t        poll_status;
   /*! IO Status Block structure submitted with AFD POLL requests and returned
    *  with IOCP results as lpOverlapped (even though its a different structure)
    */
-  IO_STATUS_BLOCK       iosb;
+  IO_STATUS_BLOCK      iosb;
   /*! AFD handle node an outstanding poll request is associated with */
-  ares__slist_node_t   *afd_handle_node;
+  ares_slist_node_t   *afd_handle_node;
   /* Lock is only for PostQueuedCompletionStatus() to prevent multiple
    * signals. Tracking via POLL_STATUS_PENDING/POLL_STATUS_NONE */
-  ares__thread_mutex_t *lock;
+  ares_thread_mutex_t *lock;
 } ares_evsys_win32_eventdata_t;
 
 static size_t ares_evsys_win32_wait(ares_event_thread_t *e,
@@ -256,12 +256,12 @@ static void   ares_iocpevent_signal(const ares_event_t *event)
   ares_evsys_win32_eventdata_t *ed          = event->data;
   ares_bool_t                   queue_event = ARES_FALSE;
 
-  ares__thread_mutex_lock(ed->lock);
+  ares_thread_mutex_lock(ed->lock);
   if (ed->poll_status != POLL_STATUS_PENDING) {
     ed->poll_status = POLL_STATUS_PENDING;
     queue_event     = ARES_TRUE;
   }
-  ares__thread_mutex_unlock(ed->lock);
+  ares_thread_mutex_unlock(ed->lock);
 
   if (!queue_event) {
     return;
@@ -277,9 +277,9 @@ static void ares_iocpevent_cb(ares_event_thread_t *e, ares_socket_t fd,
   (void)e;
   (void)fd;
   (void)flags;
-  ares__thread_mutex_lock(ed->lock);
+  ares_thread_mutex_lock(ed->lock);
   ed->poll_status = POLL_STATUS_NONE;
-  ares__thread_mutex_unlock(ed->lock);
+  ares_thread_mutex_unlock(ed->lock);
 }
 
 static ares_event_t *ares_iocpevent_create(ares_event_thread_t *e)
@@ -314,8 +314,8 @@ static void ares_evsys_win32_destroy(ares_event_thread_t *e)
 
   ew->is_shutdown = ARES_TRUE;
   CARES_DEBUG_LOG("  ** waiting on %lu remaining sockets to be destroyed\n",
-                  (unsigned long)ares__htable_vpvp_num_keys(ew->sockets));
-  while (ares__htable_vpvp_num_keys(ew->sockets)) {
+                  (unsigned long)ares_htable_vpvp_num_keys(ew->sockets));
+  while (ares_htable_vpvp_num_keys(ew->sockets)) {
     ares_evsys_win32_wait(e, 0);
   }
   CARES_DEBUG_LOG("  ** all sockets cleaned up\n");
@@ -325,9 +325,9 @@ static void ares_evsys_win32_destroy(ares_event_thread_t *e)
     CloseHandle(ew->iocp_handle);
   }
 
-  ares__slist_destroy(ew->afd_handles);
+  ares_slist_destroy(ew->afd_handles);
 
-  ares__htable_vpvp_destroy(ew->sockets);
+  ares_htable_vpvp_destroy(ew->sockets);
 
   ares_free(ew);
   e->ev_sys_data = NULL;
@@ -373,14 +373,14 @@ static void fill_object_attributes(OBJECT_ATTRIBUTES *attr,
 #  define UNICODE_STRING_CONSTANT(s) \
     { (sizeof(s) - 1) * sizeof(wchar_t), sizeof(s) * sizeof(wchar_t), L##s }
 
-static ares__slist_node_t *ares_afd_handle_create(ares_evsys_win32_t *ew)
+static ares_slist_node_t *ares_afd_handle_create(ares_evsys_win32_t *ew)
 {
   UNICODE_STRING     afd_device_name = UNICODE_STRING_CONSTANT("\\Device\\Afd");
   OBJECT_ATTRIBUTES  afd_attributes;
   NTSTATUS           status;
   IO_STATUS_BLOCK    iosb;
-  ares_afd_handle_t *afd   = ares_malloc_zero(sizeof(*afd));
-  ares__slist_node_t *node = NULL;
+  ares_afd_handle_t *afd  = ares_malloc_zero(sizeof(*afd));
+  ares_slist_node_t *node = NULL;
   if (afd == NULL) {
     goto fail;
   }
@@ -407,7 +407,7 @@ static ares__slist_node_t *ares_afd_handle_create(ares_evsys_win32_t *ew)
     goto fail;
   }
 
-  node = ares__slist_insert(ew->afd_handles, afd);
+  node = ares_slist_insert(ew->afd_handles, afd);
   if (node == NULL) {
     goto fail;
   }
@@ -422,10 +422,10 @@ fail:
 
 /* Fetch the lowest poll count entry, but if it exceeds the limit, create a
  * new one and return that */
-static ares__slist_node_t *ares_afd_handle_fetch(ares_evsys_win32_t *ew)
+static ares_slist_node_t *ares_afd_handle_fetch(ares_evsys_win32_t *ew)
 {
-  ares__slist_node_t *node = ares__slist_node_first(ew->afd_handles);
-  ares_afd_handle_t  *afd  = ares__slist_node_val(node);
+  ares_slist_node_t *node = ares_slist_node_first(ew->afd_handles);
+  ares_afd_handle_t *afd  = ares_slist_node_val(node);
 
   if (afd != NULL && afd->poll_cnt < AFD_POLL_PER_HANDLE) {
     return node;
@@ -488,7 +488,7 @@ static ares_bool_t ares_evsys_win32_init(ares_event_thread_t *e)
     goto fail;
   }
 
-  ew->afd_handles = ares__slist_create(
+  ew->afd_handles = ares_slist_create(
     e->channel->rand_state, ares_afd_handle_cmp, ares_afd_handle_destroy);
   if (ew->afd_handles == NULL) {
     goto fail;
@@ -505,7 +505,7 @@ static ares_bool_t ares_evsys_win32_init(ares_event_thread_t *e)
     goto fail;
   }
 
-  ew->sockets = ares__htable_vpvp_create(NULL, NULL);
+  ew->sockets = ares_htable_vpvp_create(NULL, NULL);
   if (ew->sockets == NULL) {
     goto fail;
   }
@@ -582,7 +582,7 @@ static ares_bool_t ares_evsys_win32_afd_enqueue(ares_event_t      *event,
     return ARES_FALSE;
   }
 
-  afd = ares__slist_node_val(ed->afd_handle_node);
+  afd = ares_slist_node_val(ed->afd_handle_node);
 
   /* Enqueue AFD Poll */
   ed->afd_poll_info.Exclusive         = FALSE;
@@ -621,7 +621,7 @@ static ares_bool_t ares_evsys_win32_afd_enqueue(ares_event_t      *event,
   /* Record that we submitted a poll request to this handle and tell it to
    * re-sort the node since we changed its sort value */
   afd->poll_cnt++;
-  ares__slist_node_reinsert(ed->afd_handle_node);
+  ares_slist_node_reinsert(ed->afd_handle_node);
 
   ed->poll_status = POLL_STATUS_PENDING;
   CARES_DEBUG_LOG("++ afd_enqueue ed=%p flags=%X\n", (void *)ed,
@@ -643,7 +643,7 @@ static ares_bool_t ares_evsys_win32_afd_cancel(ares_evsys_win32_eventdata_t *ed)
     return ARES_FALSE;
   }
 
-  afd = ares__slist_node_val(ed->afd_handle_node);
+  afd = ares_slist_node_val(ed->afd_handle_node);
 
   /* Misuse */
   if (afd == NULL) {
@@ -685,10 +685,10 @@ static void ares_evsys_win32_eventdata_destroy(ares_evsys_win32_t           *ew,
                   (ed->socket == ARES_SOCKET_BAD) ? "data" : "socket");
   /* These type of handles are deferred destroy. Update tracking. */
   if (ed->socket != ARES_SOCKET_BAD) {
-    ares__htable_vpvp_remove(ew->sockets, &ed->iosb);
+    ares_htable_vpvp_remove(ew->sockets, &ed->iosb);
   }
 
-  ares__thread_mutex_destroy(ed->lock);
+  ares_thread_mutex_destroy(ed->lock);
 
   if (ed->event != NULL) {
     ed->event->data = NULL;
@@ -718,7 +718,7 @@ static ares_bool_t ares_evsys_win32_event_add(ares_event_t *event)
    * the ares_evsys_win32_eventdata_t as the placeholder to use as the
    * IOCP Completion Key */
   if (ed->socket == ARES_SOCKET_BAD) {
-    ed->lock = ares__thread_mutex_create();
+    ed->lock = ares_thread_mutex_create();
     if (ed->lock == NULL) {
       goto done;
     }
@@ -731,7 +731,7 @@ static ares_bool_t ares_evsys_win32_event_add(ares_event_t *event)
     goto done;
   }
 
-  if (!ares__htable_vpvp_insert(ew->sockets, &ed->iosb, ed)) {
+  if (!ares_htable_vpvp_insert(ew->sockets, &ed->iosb, ed)) {
     goto done;
   }
 
@@ -859,9 +859,9 @@ static ares_bool_t ares_evsys_win32_process_socket_event(
 
   /* Decrement poll count for AFD handle then resort, also disassociate
    * with socket */
-  afd = ares__slist_node_val(ed->afd_handle_node);
+  afd = ares_slist_node_val(ed->afd_handle_node);
   afd->poll_cnt--;
-  ares__slist_node_reinsert(ed->afd_handle_node);
+  ares_slist_node_reinsert(ed->afd_handle_node);
   ed->afd_handle_node = NULL;
 
   /* Pending destroy, go ahead and kill it */
@@ -946,7 +946,7 @@ static size_t ares_evsys_win32_wait(ares_event_thread_t *e,
         ed = (ares_evsys_win32_eventdata_t *)entries[i].lpCompletionKey;
         rc = ares_evsys_win32_process_other_event(ew, ed, i);
       } else {
-        ed = ares__htable_vpvp_get_direct(ew->sockets, entries[i].lpOverlapped);
+        ed = ares_htable_vpvp_get_direct(ew->sockets, entries[i].lpOverlapped);
         rc = ares_evsys_win32_process_socket_event(ew, ed, i);
       }
 

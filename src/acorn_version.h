@@ -2,5 +2,5 @@
 // Refer to tools/dep_updaters/update-acorn.sh
 #ifndef SRC_ACORN_VERSION_H_
 #define SRC_ACORN_VERSION_H_
-#define ACORN_VERSION "8.12.1"
+#define ACORN_VERSION "8.14.0"
 #endif  // SRC_ACORN_VERSION_H_

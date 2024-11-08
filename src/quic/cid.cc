@@ -8,8 +8,7 @@
 #include "ncrypto.h"
 #include "quic/defs.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 // ============================================================================
 // CID
@@ -150,6 +149,5 @@ const CID::Factory& CID::Factory::random() {
   return instance;
 }
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC

@@ -50,6 +50,103 @@ suite('DatabaseSync() constructor', () => {
       message: /The "options\.open" argument must be a boolean/,
     });
   });
+
+  test('throws if options.readOnly is provided but is not a boolean', (t) => {
+    t.assert.throws(() => {
+      new DatabaseSync('foo', { readOnly: 5 });
+    }, {
+      code: 'ERR_INVALID_ARG_TYPE',
+      message: /The "options\.readOnly" argument must be a boolean/,
+    });
+  });
+
+  test('is not read-only by default', (t) => {
+    const dbPath = nextDb();
+    const db = new DatabaseSync(dbPath);
+    db.exec('CREATE TABLE foo (id INTEGER PRIMARY KEY)');
+  });
+
+  test('is read-only if readOnly is set', (t) => {
+    const dbPath = nextDb();
+    {
+      const db = new DatabaseSync(dbPath);
+      db.exec('CREATE TABLE foo (id INTEGER PRIMARY KEY)');
+      db.close();
+    }
+    {
+      const db = new DatabaseSync(dbPath, { readOnly: true });
+      t.assert.throws(() => {
+        db.exec('CREATE TABLE bar (id INTEGER PRIMARY KEY)');
+      }, {
+        code: 'ERR_SQLITE_ERROR',
+        message: /attempt to write a readonly database/,
+      });
+    }
+  });
+
+  test('throws if options.enableForeignKeyConstraints is provided but is not a boolean', (t) => {
+    t.assert.throws(() => {
+      new DatabaseSync('foo', { enableForeignKeyConstraints: 5 });
+    }, {
+      code: 'ERR_INVALID_ARG_TYPE',
+      message: /The "options\.enableForeignKeyConstraints" argument must be a boolean/,
+    });
+  });
+
+  test('enables foreign key constraints by default', (t) => {
+    const dbPath = nextDb();
+    const db = new DatabaseSync(dbPath);
+    db.exec(`
+      CREATE TABLE foo (id INTEGER PRIMARY KEY);
+      CREATE TABLE bar (foo_id INTEGER REFERENCES foo(id));
+    `);
+    t.after(() => { db.close(); });
+    t.assert.throws(() => {
+      db.exec('INSERT INTO bar (foo_id) VALUES (1)');
+    }, {
+      code: 'ERR_SQLITE_ERROR',
+      message: 'FOREIGN KEY constraint failed',
+    });
+  });
+
+  test('allows disabling foreign key constraints', (t) => {
+    const dbPath = nextDb();
+    const db = new DatabaseSync(dbPath, { enableForeignKeyConstraints: false });
+    db.exec(`
+      CREATE TABLE foo (id INTEGER PRIMARY KEY);
+      CREATE TABLE bar (foo_id INTEGER REFERENCES foo(id));
+    `);
+    t.after(() => { db.close(); });
+    db.exec('INSERT INTO bar (foo_id) VALUES (1)');
+  });
+
+  test('throws if options.enableDoubleQuotedStringLiterals is provided but is not a boolean', (t) => {
+    t.assert.throws(() => {
+      new DatabaseSync('foo', { enableDoubleQuotedStringLiterals: 5 });
+    }, {
+      code: 'ERR_INVALID_ARG_TYPE',
+      message: /The "options\.enableDoubleQuotedStringLiterals" argument must be a boolean/,
+    });
+  });
+
+  test('disables double-quoted string literals by default', (t) => {
+    const dbPath = nextDb();
+    const db = new DatabaseSync(dbPath);
+    t.after(() => { db.close(); });
+    t.assert.throws(() => {
+      db.exec('SELECT "foo";');
+    }, {
+      code: 'ERR_SQLITE_ERROR',
+      message: /no such column: "foo"/,
+    });
+  });
+
+  test('allows enabling double-quoted string literals', (t) => {
+    const dbPath = nextDb();
+    const db = new DatabaseSync(dbPath, { enableDoubleQuotedStringLiterals: true });
+    t.after(() => { db.close(); });
+    db.exec('SELECT "foo";');
+  });
 });
 
 suite('DatabaseSync.prototype.open()', () => {

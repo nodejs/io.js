@@ -780,7 +780,7 @@ int32_t acceptLanguage(UEnumeration &supportedLocales, Locale::Iterator &desired
                 ULOC_ACCEPT_VALID : ULOC_ACCEPT_FALLBACK;
         }
         const char *bestStr = result.getSupportedLocale()->getName();
-        int32_t bestLength = (int32_t)uprv_strlen(bestStr);
+        int32_t bestLength = static_cast<int32_t>(uprv_strlen(bestStr));
         if (bestLength <= capacity) {
             uprv_memcpy(dest, bestStr, bestLength);
         }

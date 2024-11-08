@@ -649,7 +649,7 @@ void msg_cb(int write_p, int version, int content_type, const void *buf,
     (void)BIO_flush(bio);
 }
 
-static STRINT_PAIR tlsext_types[] = {
+static const STRINT_PAIR tlsext_types[] = {
     {"server name", TLSEXT_TYPE_server_name},
     {"max fragment length", TLSEXT_TYPE_max_fragment_length},
     {"client certificate URL", TLSEXT_TYPE_client_certificate_url},
@@ -688,6 +688,7 @@ static STRINT_PAIR tlsext_types[] = {
     {"psk kex modes", TLSEXT_TYPE_psk_kex_modes},
     {"certificate authorities", TLSEXT_TYPE_certificate_authorities},
     {"post handshake auth", TLSEXT_TYPE_post_handshake_auth},
+    {"early_data", TLSEXT_TYPE_early_data},
     {NULL}
 };
 

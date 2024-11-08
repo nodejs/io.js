@@ -58,12 +58,18 @@
 
 #if !UCONFIG_NO_COLLATION
 
+#include <functional>
+#include <string_view>
+#include <type_traits>
+
+#include "unicode/char16ptr.h"
 #include "unicode/uobject.h"
 #include "unicode/ucol.h"
 #include "unicode/unorm.h"
 #include "unicode/locid.h"
 #include "unicode/uniset.h"
 #include "unicode/umisc.h"
+#include "unicode/unistr.h"
 #include "unicode/uiter.h"
 #include "unicode/stringpiece.h"
 
@@ -587,6 +593,52 @@ public:
      * @stable ICU 2.0
      */
     UBool equals(const UnicodeString& source, const UnicodeString& target) const;
+
+#ifndef U_HIDE_DRAFT_API
+
+    /**
+     * Creates a comparison function object that uses this collator.
+     * Like <code>std::equal_to</code> but uses the collator instead of <code>operator==</code>.
+     * @draft ICU 76
+     */
+    inline auto equal_to() const { return Predicate<std::equal_to, UCOL_EQUAL>(*this); }
+
+    /**
+     * Creates a comparison function object that uses this collator.
+     * Like <code>std::greater</code> but uses the collator instead of <code>operator&gt;</code>.
+     * @draft ICU 76
+     */
+    inline auto greater() const { return Predicate<std::equal_to, UCOL_GREATER>(*this); }
+
+    /**
+     * Creates a comparison function object that uses this collator.
+     * Like <code>std::less</code> but uses the collator instead of <code>operator&lt;</code>.
+     * @draft ICU 76
+     */
+    inline auto less() const { return Predicate<std::equal_to, UCOL_LESS>(*this); }
+
+    /**
+     * Creates a comparison function object that uses this collator.
+     * Like <code>std::not_equal_to</code> but uses the collator instead of <code>operator!=</code>.
+     * @draft ICU 76
+     */
+    inline auto not_equal_to() const { return Predicate<std::not_equal_to, UCOL_EQUAL>(*this); }
+
+    /**
+     * Creates a comparison function object that uses this collator.
+     * Like <code>std::greater_equal</code> but uses the collator instead of <code>operator&gt;=</code>.
+     * @draft ICU 76
+     */
+    inline auto greater_equal() const { return Predicate<std::not_equal_to, UCOL_LESS>(*this); }
+
+    /**
+     * Creates a comparison function object that uses this collator.
+     * Like <code>std::less_equal</code> but uses the collator instead of <code>operator&lt;=</code>.
+     * @draft ICU 76
+     */
+    inline auto less_equal() const { return Predicate<std::not_equal_to, UCOL_GREATER>(*this); }
+
+#endif  // U_HIDE_DRAFT_API
 
 #ifndef U_FORCE_HIDE_DEPRECATED_API
     /**
@@ -1210,6 +1262,47 @@ private:
     friend class ICUCollatorService;
     static Collator* makeInstance(const Locale& desiredLocale,
                                   UErrorCode& status);
+
+#ifndef U_HIDE_DRAFT_API
+    /**
+     * Function object for performing comparisons using a Collator.
+     * @internal
+     */
+    template <template <typename...> typename Compare, UCollationResult result>
+    class Predicate {
+      public:
+        explicit Predicate(const Collator& parent) : collator(parent) {}
+
+        template <
+            typename T, typename U,
+            typename = std::enable_if_t<ConvertibleToU16StringView<T> && ConvertibleToU16StringView<U>>>
+        bool operator()(const T& lhs, const U& rhs) const {
+            UErrorCode status = U_ZERO_ERROR;
+            return compare(
+                collator.compare(
+                    UnicodeString::readOnlyAlias(lhs),
+                    UnicodeString::readOnlyAlias(rhs),
+                    status),
+                result);
+        }
+
+        bool operator()(std::string_view lhs, std::string_view rhs) const {
+            UErrorCode status = U_ZERO_ERROR;
+            return compare(collator.compareUTF8(lhs, rhs, status), result);
+        }
+
+#if defined(__cpp_char8_t)
+        bool operator()(std::u8string_view lhs, std::u8string_view rhs) const {
+            UErrorCode status = U_ZERO_ERROR;
+            return compare(collator.compareUTF8(lhs, rhs, status), result);
+        }
+#endif
+
+      private:
+        const Collator& collator;
+        static constexpr Compare<UCollationResult> compare{};
+    };
+#endif  // U_HIDE_DRAFT_API
 };
 
 #if !UCONFIG_NO_SERVICE

@@ -10,8 +10,7 @@
 #include "nbytes.h"
 #include "ncrypto.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 // ============================================================================
 // TokenSecret
@@ -300,7 +299,6 @@ RegularToken::operator const char*() const {
   return reinterpret_cast<const char*>(ptr_.base);
 }
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC

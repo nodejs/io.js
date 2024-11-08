@@ -52,7 +52,8 @@ SSL_select_next_proto, SSL_get0_alpn_selected, SSL_get0_next_proto_negotiated
 SSL_CTX_set_alpn_protos() and SSL_set_alpn_protos() are used by the client to
 set the list of protocols available to be negotiated. The B<protos> must be in
 protocol-list format, described below. The length of B<protos> is specified in
-B<protos_len>.
+B<protos_len>. Setting B<protos_len> to 0 clears any existing list of ALPN
+protocols and no ALPN extension will be sent to the server.
 
 SSL_CTX_set_alpn_select_cb() sets the application callback B<cb> used by a
 server to select which protocol to use for the incoming connection. When B<cb>
@@ -73,9 +74,16 @@ B<server_len> and B<client>, B<client_len> must be in the protocol-list format
 described below. The first item in the B<server>, B<server_len> list that
 matches an item in the B<client>, B<client_len> list is selected, and returned
 in B<out>, B<outlen>. The B<out> value will point into either B<server> or
-B<client>, so it should be copied immediately. If no match is found, the first
-item in B<client>, B<client_len> is returned in B<out>, B<outlen>. This
-function can also be used in the NPN callback.
+B<client>, so it should be copied immediately. The client list must include at
+least one valid (nonempty) protocol entry in the list.
+
+The SSL_select_next_proto() helper function can be useful from either the ALPN
+callback or the NPN callback (described below). If no match is found, the first
+item in B<client>, B<client_len> is returned in B<out>, B<outlen> and
+B<OPENSSL_NPN_NO_OVERLAP> is returned. This can be useful when implementing
+the NPN callback. In the ALPN case, the value returned in B<out> and B<outlen>
+must be ignored if B<OPENSSL_NPN_NO_OVERLAP> has been returned from
+SSL_select_next_proto().
 
 SSL_CTX_set_next_proto_select_cb() sets a callback B<cb> that is called when a
 client needs to select a protocol from the server's provided list, and a
@@ -85,9 +93,10 @@ must be set to point to the selected protocol (which may be within B<in>).
 The length of the protocol name must be written into B<outlen>. The
 server's advertised protocols are provided in B<in> and B<inlen>. The
 callback can assume that B<in> is syntactically valid. The client must
-select a protocol. It is fatal to the connection if this callback returns
-a value other than B<SSL_TLSEXT_ERR_OK>. The B<arg> parameter is the pointer
-set via SSL_CTX_set_next_proto_select_cb().
+select a protocol (although it may be an empty, zero length protocol). It is
+fatal to the connection if this callback returns a value other than
+B<SSL_TLSEXT_ERR_OK> or if the zero length protocol is selected. The B<arg>
+parameter is the pointer set via SSL_CTX_set_next_proto_select_cb().
 
 SSL_CTX_set_next_protos_advertised_cb() sets a callback B<cb> that is called
 when a TLS server needs a list of supported protocols for Next Protocol
@@ -149,7 +158,8 @@ A match was found and is returned in B<out>, B<outlen>.
 =item OPENSSL_NPN_NO_OVERLAP
 
 No match was found. The first item in B<client>, B<client_len> is returned in
-B<out>, B<outlen>.
+B<out>, B<outlen> (or B<NULL> and 0 in the case where the first entry in
+B<client> is invalid).
 
 =back
 
@@ -187,7 +197,7 @@ L<SSL_CTX_set_tlsext_servername_arg(3)>
 
 =head1 COPYRIGHT
 
-Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

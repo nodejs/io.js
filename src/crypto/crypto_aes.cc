@@ -339,7 +339,7 @@ bool ValidateIV(
     Local<Value> value,
     AESCipherConfig* params) {
   ArrayBufferOrViewContents<char> iv(value);
-  if (UNLIKELY(!iv.CheckSizeInt32())) {
+  if (!iv.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "iv is too big");
     return false;
   }
@@ -377,7 +377,7 @@ bool ValidateAuthTag(
         return false;
       }
       ArrayBufferOrViewContents<char> tag_contents(value);
-      if (UNLIKELY(!tag_contents.CheckSizeInt32())) {
+      if (!tag_contents.CheckSizeInt32()) [[unlikely]] {
         THROW_ERR_OUT_OF_RANGE(env, "tagLength is too big");
         return false;
       }
@@ -412,7 +412,7 @@ bool ValidateAdditionalData(
   // Additional Data
   if (IsAnyBufferSource(value)) {
     ArrayBufferOrViewContents<char> additional(value);
-    if (UNLIKELY(!additional.CheckSizeInt32())) {
+    if (!additional.CheckSizeInt32()) [[unlikely]] {
       THROW_ERR_OUT_OF_RANGE(env, "additionalData is too big");
       return false;
     }

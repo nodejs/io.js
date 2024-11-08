@@ -162,14 +162,14 @@ void ares_metrics_record(const ares_query_t *query, ares_server_t *server,
     return;
   }
 
-  ares__tvnow(&now);
+  ares_tvnow(&now);
 
   rcode = ares_dns_record_get_rcode(dnsrec);
   if (rcode != ARES_RCODE_NOERROR && rcode != ARES_RCODE_NXDOMAIN) {
     return;
   }
 
-  ares__timeval_diff(&tvdiff, &query->ts, &now);
+  ares_timeval_diff(&tvdiff, &query->ts, &now);
   query_ms = (unsigned int)((tvdiff.sec * 1000) + (tvdiff.usec / 1000));
   if (query_ms == 0) {
     query_ms = 1;

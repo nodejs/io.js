@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -213,16 +213,19 @@ PKCS12_SAFEBAG *PKCS12_add_key_ex(STACK_OF(PKCS12_SAFEBAG) **pbags,
     if (key_usage && !PKCS8_add_keyusage(p8, key_usage))
         goto err;
     if (nid_key != -1) {
+        /* This call does not take ownership of p8 */
         bag = PKCS12_SAFEBAG_create_pkcs8_encrypt_ex(nid_key, pass, -1, NULL, 0,
                                                      iter, p8, ctx, propq);
-        PKCS8_PRIV_KEY_INFO_free(p8);
-    } else
+    } else {
         bag = PKCS12_SAFEBAG_create0_p8inf(p8);
+        if (bag != NULL)
+           p8 = NULL; /* bag takes ownership of p8 */
+    }
+    /* This does not need to be in the error path */
+    if (p8 != NULL)
+        PKCS8_PRIV_KEY_INFO_free(p8);
 
-    if (!bag)
-        goto err;
-
-    if (!pkcs12_add_bag(pbags, bag))
+    if (bag == NULL || !pkcs12_add_bag(pbags, bag))
         goto err;
 
     return bag;

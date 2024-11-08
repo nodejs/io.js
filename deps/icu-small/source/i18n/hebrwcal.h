@@ -329,6 +329,7 @@ public:
      * @stable ICU 2.0
      */
     virtual int32_t handleGetYearLength(int32_t eyear) const override;
+
     /**
      * Subclasses may override this method to compute several fields
      * specific to each calendar system.  These are:
@@ -427,44 +428,6 @@ public:
 
  protected:
    virtual int32_t internalGetMonth(UErrorCode& status) const override;
-
- private: // Calendar-specific implementation
-    /**
-     * Finds the day # of the first day in the given Hebrew year.
-     * To do this, we want to calculate the time of the Tishri 1 new moon
-     * in that year.
-     * <p>
-     * The algorithm here is similar to ones described in a number of
-     * references, including:
-     * <ul>
-     * <li>"Calendrical Calculations", by Nachum Dershowitz & Edward Reingold,
-     *     Cambridge University Press, 1997, pages 85-91.
-     *
-     * <li>Hebrew Calendar Science and Myths,
-     *     <a href="http://www.geocities.com/Athens/1584/">
-     *     http://www.geocities.com/Athens/1584/</a>
-     *
-     * <li>The Calendar FAQ,
-     *      <a href="http://www.faqs.org/faqs/calendars/faq/">
-     *      http://www.faqs.org/faqs/calendars/faq/</a>
-     * </ul>
-     * @param year extended year
-     * @return day number (JD)
-     * @internal
-     */
-    static int32_t startOfYear(int32_t year, UErrorCode& status);
-
-    static int32_t absoluteDayToDayOfWeek(int32_t day) ;
-    
-    /**
-     * @internal 
-     */
-    int32_t yearType(int32_t year) const;
-
-    /**
-     * @internal 
-     */
-    static int32_t monthsInYear(int32_t year) ;
 };
 
 U_NAMESPACE_END

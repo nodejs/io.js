@@ -93,8 +93,7 @@ class ParagraphParser extends Stream {
 
     // Strip comments around block
     if (this.blockIsLicenseBlock) {
-      if (!this.blockHasCStyleComment)
-        this.blockHasCStyleComment = /^\s*(\/\*)/.test(line);
+      this.blockHasCStyleComment ||= /^\s*(\/\*)/.test(line);
       if (this.blockHasCStyleComment) {
         const prev = line;
         line = line.replace(/^(\s*?)(?:\s?\*\/|\/\*\s|\s\*\s?)/, '$1');

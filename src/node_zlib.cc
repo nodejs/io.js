@@ -496,7 +496,9 @@ class CompressionStream : public AsyncWrap, public ThreadPoolWork {
     size += sizeof(size_t);
     CompressionStream* ctx = static_cast<CompressionStream*>(data);
     char* memory = UncheckedMalloc(size);
-    if (UNLIKELY(memory == nullptr)) return nullptr;
+    if (memory == nullptr) [[unlikely]] {
+      return nullptr;
+    }
     *reinterpret_cast<size_t*>(memory) = size;
     ctx->unreported_allocations_.fetch_add(size,
                                            std::memory_order_relaxed);
@@ -504,7 +506,9 @@ class CompressionStream : public AsyncWrap, public ThreadPoolWork {
   }
 
   static void FreeForZlib(void* data, void* pointer) {
-    if (UNLIKELY(pointer == nullptr)) return;
+    if (pointer == nullptr) [[unlikely]] {
+      return;
+    }
     CompressionStream* ctx = static_cast<CompressionStream*>(data);
     char* real_pointer = static_cast<char*>(pointer) - sizeof(size_t);
     size_t real_size = *reinterpret_cast<size_t*>(real_pointer);

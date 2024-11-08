@@ -123,6 +123,7 @@ void TCPWrap::Initialize(Local<Object> target,
   NODE_DEFINE_CONSTANT(constants, SOCKET);
   NODE_DEFINE_CONSTANT(constants, SERVER);
   NODE_DEFINE_CONSTANT(constants, UV_TCP_IPV6ONLY);
+  NODE_DEFINE_CONSTANT(constants, UV_TCP_REUSEPORT);
   target->Set(context,
               env->constants_string(),
               constants).Check();
@@ -246,9 +247,12 @@ void TCPWrap::Bind(
   int port;
   unsigned int flags = 0;
   if (!args[1]->Int32Value(env->context()).To(&port)) return;
-  if (family == AF_INET6 &&
-      !args[2]->Uint32Value(env->context()).To(&flags)) {
-    return;
+  if (args.Length() >= 3 && args[2]->IsUint32()) {
+    if (!args[2]->Uint32Value(env->context()).To(&flags)) return;
+    // Can not set IPV6 flags on IPV4 socket
+    if (family == AF_INET) {
+      flags &= ~UV_TCP_IPV6ONLY;
+    }
   }
 
   T addr;

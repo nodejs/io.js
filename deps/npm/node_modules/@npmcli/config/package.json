@@ -1,6 +1,6 @@
 {
   "name": "@npmcli/config",
-  "version": "8.3.4",
+  "version": "9.0.0",
   "files": [
     "bin/",
     "lib/"
@@ -31,23 +31,23 @@
     ]
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/eslint-config": "^5.0.1",
     "@npmcli/mock-globals": "^1.0.0",
     "@npmcli/template-oss": "4.23.3",
     "tap": "^16.3.8"
   },
   "dependencies": {
-    "@npmcli/map-workspaces": "^3.0.2",
-    "@npmcli/package-json": "^5.1.1",
+    "@npmcli/map-workspaces": "^4.0.1",
+    "@npmcli/package-json": "^6.0.1",
     "ci-info": "^4.0.0",
-    "ini": "^4.1.2",
-    "nopt": "^7.2.1",
-    "proc-log": "^4.2.0",
+    "ini": "^5.0.0",
+    "nopt": "^8.0.0",
+    "proc-log": "^5.0.0",
     "semver": "^7.3.5",
     "walk-up-path": "^3.0.1"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",

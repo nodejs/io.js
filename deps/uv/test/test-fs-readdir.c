@@ -29,6 +29,7 @@ static uv_fs_t readdir_req;
 static uv_fs_t closedir_req;
 
 static uv_dirent_t dirents[1];
+static uv_dirent_t symlink_dirents[2];
 
 static int empty_opendir_cb_count;
 static int empty_closedir_cb_count;
@@ -460,3 +461,88 @@ TEST_IMPL(fs_readdir_non_empty_dir) {
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
  }
+
+static void readdir_symlink_readdir_cb(uv_fs_t* req) {
+  uv_dir_t* dir;
+
+  ASSERT_PTR_EQ(req, &readdir_req);
+  ASSERT_EQ(req->fs_type, UV_FS_READDIR);
+  dir = req->ptr;
+
+  if (req->result == 0) {
+    uv_fs_req_cleanup(req);
+    ASSERT_EQ(3, non_empty_readdir_cb_count);
+    uv_fs_closedir(uv_default_loop(),
+                   &closedir_req,
+                   dir,
+                   non_empty_closedir_cb);
+  } else {
+    if (strcmp(symlink_dirents[0].name, "test_symlink") == 0) {
+      ASSERT_EQ(symlink_dirents[0].type, UV_DIRENT_LINK);
+    } else {
+      ASSERT_EQ(symlink_dirents[1].type, UV_DIRENT_LINK);
+    }
+    uv_fs_req_cleanup(req);
+  }
+}
+
+static void readdir_symlink_opendir_cb(uv_fs_t* req) {
+  uv_dir_t* dir;
+  int r;
+
+  ASSERT_PTR_EQ(req, &opendir_req);
+  ASSERT_EQ(req->fs_type, UV_FS_OPENDIR);
+  ASSERT_OK(req->result);
+  ASSERT_NOT_NULL(req->ptr);
+
+  dir = req->ptr;
+  dir->dirents = symlink_dirents;
+  dir->nentries = ARRAY_SIZE(symlink_dirents);
+
+  r = uv_fs_readdir(uv_default_loop(),
+                    &readdir_req,
+                    dir,
+                    readdir_symlink_readdir_cb);
+  ASSERT_OK(r);
+  uv_fs_req_cleanup(req);
+}
+
+static void cleanup_symlink_test_files(void) {
+  uv_fs_t req;
+
+  uv_fs_rmdir(NULL, &req, "test_symlink_dir/test_subdir", NULL);
+  uv_fs_req_cleanup(&req);
+  uv_fs_unlink(NULL, &req, "test_symlink_dir/test_symlink", NULL);
+  uv_fs_req_cleanup(&req);
+  uv_fs_rmdir(NULL, &req, "test_symlink_dir", NULL);
+  uv_fs_req_cleanup(&req);
+}
+
+TEST_IMPL(fs_readdir_symlink) {
+
+  uv_fs_t mkdir_req;
+  uv_fs_t symlink_req;
+  int r;
+
+  cleanup_symlink_test_files();
+
+  r = uv_fs_mkdir(uv_default_loop(), &mkdir_req, "test_symlink_dir", 0755, NULL);
+  ASSERT_OK(r);
+
+  r = uv_fs_mkdir(uv_default_loop(), &mkdir_req, "test_symlink_dir/test_subdir", 0755, NULL);
+  ASSERT_OK(r);
+
+  r = uv_fs_symlink(uv_default_loop(), &symlink_req, "test_symlink_dir/test_subdir", "test_symlink_dir/test_symlink", UV_FS_SYMLINK_DIR, NULL);
+  ASSERT_OK(r);
+
+  r = uv_fs_opendir(uv_default_loop(), &opendir_req, "test_symlink_dir", readdir_symlink_opendir_cb);
+  ASSERT_OK(r);
+
+  r = uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+  ASSERT_OK(r);
+
+  cleanup_symlink_test_files();
+
+  MAKE_VALGRIND_HAPPY(uv_default_loop());
+  return 0;
+}

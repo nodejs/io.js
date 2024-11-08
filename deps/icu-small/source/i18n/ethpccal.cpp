@@ -80,10 +80,11 @@ EthiopicCalendar::handleGetExtendedYear(UErrorCode& status)
 }
 
 void
-EthiopicCalendar::handleComputeFields(int32_t julianDay, UErrorCode &/*status*/)
+EthiopicCalendar::handleComputeFields(int32_t julianDay, UErrorCode& status)
 {
     int32_t eyear, month, day;
-    jdToCE(julianDay, getJDEpochOffset(), eyear, month, day);
+    jdToCE(julianDay, getJDEpochOffset(), eyear, month, day, status);
+    if (U_FAILURE(status)) return;
 
     internalSet(UCAL_EXTENDED_YEAR, eyear);
     internalSet(UCAL_ERA, (eyear > 0) ? AMETE_MIHRET : AMETE_ALEM);
@@ -171,10 +172,11 @@ EthiopicAmeteAlemCalendar::handleGetExtendedYear(UErrorCode& status)
 }
 
 void
-EthiopicAmeteAlemCalendar::handleComputeFields(int32_t julianDay, UErrorCode &/*status*/)
+EthiopicAmeteAlemCalendar::handleComputeFields(int32_t julianDay, UErrorCode& status)
 {
     int32_t eyear, month, day;
-    jdToCE(julianDay, getJDEpochOffset(), eyear, month, day);
+    jdToCE(julianDay, getJDEpochOffset(), eyear, month, day, status);
+    if (U_FAILURE(status)) return;
 
     internalSet(UCAL_EXTENDED_YEAR, eyear);
     internalSet(UCAL_ERA, AMETE_ALEM);

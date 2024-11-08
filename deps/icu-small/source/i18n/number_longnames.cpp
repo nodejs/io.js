@@ -9,6 +9,8 @@
 
 #include "unicode/simpleformatter.h"
 #include "unicode/ures.h"
+#include "unicode/plurrule.h"
+#include "unicode/strenum.h"
 #include "ureslocs.h"
 #include "charstr.h"
 #include "uresimp.h"
@@ -18,6 +20,7 @@
 #include <algorithm>
 #include "cstring.h"
 #include "util.h"
+#include "sharedpluralrules.h"
 
 using namespace icu;
 using namespace icu::number;
@@ -519,10 +522,35 @@ void getCurrencyLongNameData(const Locale &locale, const CurrencyUnit &currency,
     // In ICU4J, this method gets a CurrencyData from CurrencyData.provider.
     // TODO(ICU4J): Implement this without going through CurrencyData, like in ICU4C?
     PluralTableSink sink(outArray);
+    // Here all outArray entries are bogus.
     LocalUResourceBundlePointer unitsBundle(ures_open(U_ICUDATA_CURR, locale.getName(), &status));
     if (U_FAILURE(status)) { return; }
     ures_getAllChildrenWithFallback(unitsBundle.getAlias(), "CurrencyUnitPatterns", sink, status);
     if (U_FAILURE(status)) { return; }
+    // Here the outArray[] entries are filled in with any CurrencyUnitPatterns data for locale,
+    // or if there is no CurrencyUnitPatterns data for locale since the patterns all inherited
+    // from the "other" pattern in root (which is true for many locales in CLDR 46), then only
+    // the "other" entry has a currency pattern. So now what we do is: For all valid plural keywords
+    // for the locale, if the corresponding outArray[] entry is bogus, fill it in from the "other"
+    // entry. In the longer run, clients of this should instead consider using CurrencyPluralInfo
+    // (see i18n/unicode/currpinf.h).
+    UErrorCode localStatus = U_ZERO_ERROR;
+    const SharedPluralRules *pr = PluralRules::createSharedInstance(
+            locale, UPLURAL_TYPE_CARDINAL, localStatus);
+    if (U_SUCCESS(localStatus)) {
+        LocalPointer<StringEnumeration> keywords((*pr)->getKeywords(localStatus), localStatus);
+        if (U_SUCCESS(localStatus)) {
+            const char* keyword;
+            while (((keyword = keywords->next(nullptr, localStatus)) != nullptr) && U_SUCCESS(localStatus)) {
+                int32_t index = StandardPlural::indexOrOtherIndexFromString(keyword);
+                if (index != StandardPlural::Form::OTHER && outArray[index].isBogus()) {
+                    outArray[index].setTo(outArray[StandardPlural::Form::OTHER]);
+                }
+            }
+        }
+        pr->removeRef();
+    }
+
     for (int32_t i = 0; i < StandardPlural::Form::COUNT; i++) {
         UnicodeString &pattern = outArray[i];
         if (pattern.isBogus()) {
@@ -1481,9 +1509,8 @@ LongNameHandler* LongNameHandler::forCurrencyLongNames(const Locale &loc, const 
                                                       const PluralRules *rules,
                                                       const MicroPropsGenerator *parent,
                                                       UErrorCode &status) {
-    auto* result = new LongNameHandler(rules, parent);
-    if (result == nullptr) {
-        status = U_MEMORY_ALLOCATION_ERROR;
+    LocalPointer<LongNameHandler> result(new LongNameHandler(rules, parent), status);
+    if (U_FAILURE(status)) {
         return nullptr;
     }
     UnicodeString simpleFormats[ARRAY_LENGTH];
@@ -1491,7 +1518,7 @@ LongNameHandler* LongNameHandler::forCurrencyLongNames(const Locale &loc, const 
     if (U_FAILURE(status)) { return nullptr; }
     result->simpleFormatsToModifiers(simpleFormats, {UFIELD_CATEGORY_NUMBER, UNUM_CURRENCY_FIELD}, status);
     // TODO(icu-units#28): currency gender?
-    return result;
+    return result.orphan();
 }
 
 void LongNameHandler::simpleFormatsToModifiers(const UnicodeString *simpleFormats, Field field,

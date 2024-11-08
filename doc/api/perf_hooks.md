@@ -22,18 +22,18 @@ const { PerformanceObserver, performance } = require('node:perf_hooks');
 
 const obs = new PerformanceObserver((items) => {
   console.log(items.getEntries()[0].duration);
-  performance.clearMarks();
 });
 obs.observe({ type: 'measure' });
 performance.measure('Start to Now');
 
 performance.mark('A');
-doSomeLongRunningProcess(() => {
+(async function doSomeLongRunningProcess() {
+  await new Promise(r => setTimeout(r, 5000));
   performance.measure('A to Now', 'A');
 
   performance.mark('B');
   performance.measure('A to B', 'A', 'B');
-});
+})();
 ```
 
 ## `perf_hooks.performance`
@@ -890,7 +890,9 @@ initialized.
 ### `performanceNodeTiming.uvMetricsInfo`
 
 <!-- YAML
-added: v22.8.0
+added:
+  - v22.8.0
+  - v20.18.0
 -->
 
 * Returns: {Object}

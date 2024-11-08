@@ -1,0 +1,49 @@
+<!DOCTYPE HTML>
+<meta name="timeout" content="long">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<!--
+Navigation timing, LCP and paint timing entries are only emitted during initial
+load, not after a bfcache navigation. Therefore we only verify the existence of
+navigation id, not the increment.
+-->
+
+<body>
+  <p>This text is to trigger a LCP entry emission.</p>
+  <script>
+    async function NavigationIdsFromLCP() {
+      return new Promise(resolve => {
+        new PerformanceObserver((entryList) => {
+          resolve(entryList.getEntries());
+        }).observe({ type: 'largest-contentful-paint', buffered: true });
+      })
+    }
+
+    promise_test(async t => {
+      // Assert navigation id exists in LCP entries and and are all the same.
+      const navigationIdsOfLCP = (await NavigationIdsFromLCP()).map(e => e.navigationId);
+      assert_true(navigationIdsOfLCP.every(e => e == navigationIdsOfLCP[0]),
+        'Navigation Ids of LCP entries should be the same at initial navigation');
+
+      // Assert navigation id exists in a NavigationTiming entry.
+      const navigationIdOfNavigationTiming =
+        performance.getEntriesByType('navigation')[0].navigationId;
+      assert_true(!!navigationIdOfNavigationTiming,
+        'Navigation Id of a navigation timing entry should exist at initial navigation');
+
+      // Assert navigation id exists in PaintTiming entries and are all the same.
+      const navigationIdsOfPaintTiming =
+        performance.getEntriesByType('paint').map(e => e.navigationId);
+      assert_true(navigationIdsOfPaintTiming.every(e =>
+        e == navigationIdsOfPaintTiming[0]),
+        'Navigation Id of PaintTiming entries should be the same as the initial navigation.');
+
+      // Assert navigation ids are all the same.
+      const navigationIdsOfAll =
+        navigationIdsOfLCP.concat(navigationIdsOfPaintTiming, navigationIdOfNavigationTiming);
+      assert_true(navigationIdsOfAll.every(e => e == navigationIdsOfAll[0]),
+        'Navigation Id of all entries should be the same as the initial navigation.');
+
+    }, 'Navigation Ids should exist and are all the same as the initial navigation.');
+  </script>
+</body>

@@ -40,7 +40,7 @@ Data types
     will indicate the exit status and the signal that caused the process to
     terminate, if any.
 
-.. c:type:: uv_process_flags
+.. c:enum:: uv_process_flags
 
     Flags to be set on the flags field of :c:type:`uv_process_options_t`.
 
@@ -190,7 +190,7 @@ Public members
     Command line arguments. args[0] should be the path to the program. On
     Windows this uses `CreateProcess` which concatenates the arguments into a
     string this can cause some strange errors. See the
-    ``UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS`` flag on :c:type:`uv_process_flags`.
+    ``UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS`` flag on :c:enum:`uv_process_flags`.
 
 .. c:member:: char** uv_process_options_t.env
 
@@ -203,7 +203,7 @@ Public members
 .. c:member:: unsigned int uv_process_options_t.flags
 
     Various flags that control how :c:func:`uv_spawn` behaves. See
-    :c:type:`uv_process_flags`.
+    :c:enum:`uv_process_flags`.
 
 .. c:member:: int uv_process_options_t.stdio_count
 .. c:member:: uv_stdio_container_t* uv_process_options_t.stdio

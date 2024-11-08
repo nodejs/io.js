@@ -85,35 +85,35 @@ async function lazyllhttp () {
         return 0
       },
       wasm_on_status: (p, at, len) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         const start = at - currentBufferPtr + currentBufferRef.byteOffset
         return currentParser.onStatus(new FastBuffer(currentBufferRef.buffer, start, len)) || 0
       },
       wasm_on_message_begin: (p) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         return currentParser.onMessageBegin() || 0
       },
       wasm_on_header_field: (p, at, len) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         const start = at - currentBufferPtr + currentBufferRef.byteOffset
         return currentParser.onHeaderField(new FastBuffer(currentBufferRef.buffer, start, len)) || 0
       },
       wasm_on_header_value: (p, at, len) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         const start = at - currentBufferPtr + currentBufferRef.byteOffset
         return currentParser.onHeaderValue(new FastBuffer(currentBufferRef.buffer, start, len)) || 0
       },
       wasm_on_headers_complete: (p, statusCode, upgrade, shouldKeepAlive) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         return currentParser.onHeadersComplete(statusCode, Boolean(upgrade), Boolean(shouldKeepAlive)) || 0
       },
       wasm_on_body: (p, at, len) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         const start = at - currentBufferPtr + currentBufferRef.byteOffset
         return currentParser.onBody(new FastBuffer(currentBufferRef.buffer, start, len)) || 0
       },
       wasm_on_message_complete: (p) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         return currentParser.onMessageComplete() || 0
       }
 
@@ -131,9 +131,17 @@ let currentBufferRef = null
 let currentBufferSize = 0
 let currentBufferPtr = null
 
-const TIMEOUT_HEADERS = 1
-const TIMEOUT_BODY = 2
-const TIMEOUT_IDLE = 3
+const USE_NATIVE_TIMER = 0
+const USE_FAST_TIMER = 1
+
+// Use fast timers for headers and body to take eventual event loop
+// latency into account.
+const TIMEOUT_HEADERS = 2 | USE_FAST_TIMER
+const TIMEOUT_BODY = 4 | USE_FAST_TIMER
+
+// Use native timers to ignore event loop latency for keep-alive
+// handling.
+const TIMEOUT_KEEP_ALIVE = 8 | USE_NATIVE_TIMER
 
 class Parser {
   constructor (client, socket, { exports }) {
@@ -164,26 +172,39 @@ class Parser {
     this.maxResponseSize = client[kMaxResponseSize]
   }
 
-  setTimeout (value, type) {
-    this.timeoutType = type
-    if (value !== this.timeoutValue) {
-      timers.clearTimeout(this.timeout)
-      if (value) {
-        this.timeout = timers.setTimeout(onParserTimeout, value, this)
-        // istanbul ignore else: only for jest
-        if (this.timeout.unref) {
-          this.timeout.unref()
-        }
-      } else {
+  setTimeout (delay, type) {
+    // If the existing timer and the new timer are of different timer type
+    // (fast or native) or have different delay, we need to clear the existing
+    // timer and set a new one.
+    if (
+      delay !== this.timeoutValue ||
+      (type & USE_FAST_TIMER) ^ (this.timeoutType & USE_FAST_TIMER)
+    ) {
+      // If a timeout is already set, clear it with clearTimeout of the fast
+      // timer implementation, as it can clear fast and native timers.
+      if (this.timeout) {
+        timers.clearTimeout(this.timeout)
         this.timeout = null
       }
-      this.timeoutValue = value
+
+      if (delay) {
+        if (type & USE_FAST_TIMER) {
+          this.timeout = timers.setFastTimeout(onParserTimeout, delay, new WeakRef(this))
+        } else {
+          this.timeout = setTimeout(onParserTimeout, delay, new WeakRef(this))
+          this.timeout.unref()
+        }
+      }
+
+      this.timeoutValue = delay
     } else if (this.timeout) {
       // istanbul ignore else: only for jest
       if (this.timeout.refresh) {
         this.timeout.refresh()
       }
     }
+
+    this.timeoutType = type
   }
 
   resume () {
@@ -288,7 +309,7 @@ class Parser {
     this.llhttp.llhttp_free(this.ptr)
     this.ptr = null
 
-    timers.clearTimeout(this.timeout)
+    this.timeout && timers.clearTimeout(this.timeout)
     this.timeout = null
     this.timeoutValue = null
     this.timeoutType = null
@@ -363,20 +384,19 @@ class Parser {
     const { upgrade, client, socket, headers, statusCode } = this
 
     assert(upgrade)
+    assert(client[kSocket] === socket)
+    assert(!socket.destroyed)
+    assert(!this.paused)
+    assert((headers.length & 1) === 0)
 
     const request = client[kQueue][client[kRunningIdx]]
     assert(request)
-
-    assert(!socket.destroyed)
-    assert(socket === client[kSocket])
-    assert(!this.paused)
     assert(request.upgrade || request.method === 'CONNECT')
 
     this.statusCode = null
     this.statusText = ''
     this.shouldKeepAlive = null
 
-    assert(this.headers.length % 2 === 0)
     this.headers = []
     this.headersSize = 0
 
@@ -433,7 +453,7 @@ class Parser {
       return -1
     }
 
-    assert.strictEqual(this.timeoutType, TIMEOUT_HEADERS)
+    assert(this.timeoutType === TIMEOUT_HEADERS)
 
     this.statusCode = statusCode
     this.shouldKeepAlive = (
@@ -466,7 +486,7 @@ class Parser {
       return 2
     }
 
-    assert(this.headers.length % 2 === 0)
+    assert((this.headers.length & 1) === 0)
     this.headers = []
     this.headersSize = 0
 
@@ -523,7 +543,7 @@ class Parser {
     const request = client[kQueue][client[kRunningIdx]]
     assert(request)
 
-    assert.strictEqual(this.timeoutType, TIMEOUT_BODY)
+    assert(this.timeoutType === TIMEOUT_BODY)
     if (this.timeout) {
       // istanbul ignore else: only for jest
       if (this.timeout.refresh) {
@@ -556,10 +576,11 @@ class Parser {
       return
     }
 
+    assert(statusCode >= 100)
+    assert((this.headers.length & 1) === 0)
+
     const request = client[kQueue][client[kRunningIdx]]
     assert(request)
-
-    assert(statusCode >= 100)
 
     this.statusCode = null
     this.statusText = ''
@@ -568,7 +589,6 @@ class Parser {
     this.keepAlive = ''
     this.connection = ''
 
-    assert(this.headers.length % 2 === 0)
     this.headers = []
     this.headersSize = 0
 
@@ -587,7 +607,7 @@ class Parser {
     client[kQueue][client[kRunningIdx]++] = null
 
     if (socket[kWriting]) {
-      assert.strictEqual(client[kRunning], 0)
+      assert(client[kRunning] === 0)
       // Response completed before request.
       util.destroy(socket, new InformationalError('reset'))
       return constants.ERROR.PAUSED
@@ -613,19 +633,19 @@ class Parser {
 }
 
 function onParserTimeout (parser) {
-  const { socket, timeoutType, client } = parser
+  const { socket, timeoutType, client, paused } = parser.deref()
 
   /* istanbul ignore else */
   if (timeoutType === TIMEOUT_HEADERS) {
     if (!socket[kWriting] || socket.writableNeedDrain || client[kRunning] > 1) {
-      assert(!parser.paused, 'cannot be paused while waiting for headers')
+      assert(!paused, 'cannot be paused while waiting for headers')
       util.destroy(socket, new HeadersTimeoutError())
     }
   } else if (timeoutType === TIMEOUT_BODY) {
-    if (!parser.paused) {
+    if (!paused) {
       util.destroy(socket, new BodyTimeoutError())
     }
-  } else if (timeoutType === TIMEOUT_IDLE) {
+  } else if (timeoutType === TIMEOUT_KEEP_ALIVE) {
     assert(client[kRunning] === 0 && client[kKeepAliveTimeoutValue])
     util.destroy(socket, new InformationalError('socket idle timeout'))
   }
@@ -646,9 +666,9 @@ async function connectH1 (client, socket) {
   socket[kParser] = new Parser(client, socket, llhttpInstance)
 
   addListener(socket, 'error', function (err) {
-    const parser = this[kParser]
-
     assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
+
+    const parser = this[kParser]
 
     // On Mac OS, we get an ECONNRESET even if there is a full body to be forwarded
     // to the user.
@@ -803,8 +823,8 @@ function resumeH1 (client) {
     }
 
     if (client[kSize] === 0) {
-      if (socket[kParser].timeoutType !== TIMEOUT_IDLE) {
-        socket[kParser].setTimeout(client[kKeepAliveTimeoutValue], TIMEOUT_IDLE)
+      if (socket[kParser].timeoutType !== TIMEOUT_KEEP_ALIVE) {
+        socket[kParser].setTimeout(client[kKeepAliveTimeoutValue], TIMEOUT_KEEP_ALIVE)
       }
     } else if (client[kRunning] > 0 && socket[kParser].statusCode < 200) {
       if (socket[kParser].timeoutType !== TIMEOUT_HEADERS) {
@@ -840,7 +860,10 @@ function writeH1 (client, request) {
   const expectsPayload = (
     method === 'PUT' ||
     method === 'POST' ||
-    method === 'PATCH'
+    method === 'PATCH' ||
+    method === 'QUERY' ||
+    method === 'PROPFIND' ||
+    method === 'PROPPATCH'
   )
 
   if (util.isFormDataLike(body)) {
@@ -1119,7 +1142,7 @@ function writeBuffer (abort, body, client, request, socket, contentLength, heade
       socket.uncork()
       request.onBodySent(body)
 
-      if (!expectsPayload) {
+      if (!expectsPayload && request.reset !== false) {
         socket[kReset] = true
       }
     }
@@ -1149,7 +1172,7 @@ async function writeBlob (abort, body, client, request, socket, contentLength, h
     request.onBodySent(buffer)
     request.onRequestSent()
 
-    if (!expectsPayload) {
+    if (!expectsPayload && request.reset !== false) {
       socket[kReset] = true
     }
 
@@ -1250,7 +1273,7 @@ class AsyncWriter {
     socket.cork()
 
     if (bytesWritten === 0) {
-      if (!expectsPayload) {
+      if (!expectsPayload && request.reset !== false) {
         socket[kReset] = true
       }
 

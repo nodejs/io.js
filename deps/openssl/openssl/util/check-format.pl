@@ -1,6 +1,6 @@
 #! /usr/bin/env perl
 #
-# Copyright 2020-2023 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
 # Copyright Siemens AG 2019-2022
 #
 # Licensed under the Apache License 2.0 (the "License").
@@ -167,7 +167,7 @@ my $local_offset;          # current extra indent due to label, switch case/defa
 my $line_body_start;       # number of line where last function body started, or 0
 my $line_function_start;   # number of line where last function definition started, used for $line_body_start
 my $last_function_header;  # header containing name of last function defined, used if $line_body_start != 0
-my $line_opening_brace;    # number of previous line with opening brace after do/while/for, optionally for if/else
+my $line_opening_brace;    # number of previous line with opening brace after if/do/while/for, optionally for 'else'
 
 my $keyword_opening_brace; # name of previous keyword, used if $line_opening_brace != 0
 my $block_indent;          # currently required normal indentation at block/statement level
@@ -972,9 +972,12 @@ while (<>) { # loop over all lines of all input files
     # check for code block containing a single line/statement
     if ($line_before2 > 0 && !$outermost_level && # within function body
         $in_typedecl == 0 && @nested_indents == 0 && # neither within type declaration nor inside stmt/expr
-        m/^[\s@]*\}/) { # leading closing brace '}', any preceding blinded comment must not be matched
+        m/^[\s@]*\}\s*(\w*)/) { # leading closing brace '}', any preceding blinded comment must not be matched
         # TODO extend detection from single-line to potentially multi-line statement
+        my $next_word = $1;
         if ($line_opening_brace > 0 &&
+            ($keyword_opening_brace ne "if" ||
+             $extended_1_stmt || $next_word ne "else") &&
             ($line_opening_brace == $line_before2 ||
              $line_opening_brace == $line_before)
             && $contents_before =~ m/;/) { # there is at least one terminator ';', so there is some stmt
@@ -1132,9 +1135,9 @@ while (<>) { # loop over all lines of all input files
                     $line_body_start = $contents =~ m/LONG BODY/ ? 0 : $line if $line_function_start != 0;
                 }
             } else {
-                $line_opening_brace = $line if $keyword_opening_brace =~ m/do|while|for/;
+                $line_opening_brace = $line if $keyword_opening_brace =~ m/if|do|while|for/;
                 # using, not assigning, $keyword_opening_brace here because it could be on an earlier line
-                $line_opening_brace = $line if $keyword_opening_brace =~ m/if|else/ && $extended_1_stmt &&
+                $line_opening_brace = $line if $keyword_opening_brace eq "else" && $extended_1_stmt &&
                 # TODO prevent false positives for if/else where braces around single-statement branches
                 # should be avoided but only if all branches have just single statements
                 # The following helps detecting the exception when handling multiple 'if ... else' branches:

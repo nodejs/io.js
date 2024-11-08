@@ -1,6 +1,6 @@
 {
 	"name": "amaro",
-	"version": "0.1.8",
+	"version": "0.2.0",
 	"description": "Node.js TypeScript wrapper",
 	"license": "MIT",
 	"type": "commonjs",
@@ -21,14 +21,14 @@
 		"ci:fix": "biome check --write",
 		"prepack": "npm run build",
 		"postpack": "npm run clean",
-		"build": "node esbuild.config.js",
+		"build": "node esbuild.config.mjs",
 		"typecheck": "tsc --noEmit",
 		"test": "node --test --experimental-test-snapshots \"**/*.test.js\"",
 		"test:regenerate": "node --test --experimental-test-snapshots --test-update-snapshots \"**/*.test.js\""
 	},
 	"devDependencies": {
 		"@biomejs/biome": "1.8.3",
-		"@types/node": "^20.14.11",
+		"@types/node": "^22.0.0",
 		"esbuild": "^0.23.0",
 		"esbuild-plugin-copy": "^2.1.1",
 		"rimraf": "^6.0.1",
@@ -36,7 +36,12 @@
 	},
 	"exports": {
 		".": "./dist/index.js",
-		"./register": "./dist/register.mjs"
+		"./register": "./dist/register-strip.mjs",
+		"./strip": "./dist/register-strip.mjs",
+		"./transform": "./dist/register-transform.mjs"
 	},
-	"files": ["dist", "LICENSE.md"]
+	"files": ["dist", "LICENSE.md"],
+	"engines": {
+		"node": ">=22"
+	}
 }

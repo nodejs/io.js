@@ -121,3 +121,16 @@ assert.throws(() => {
 }, common.expectsError({
   code: 'ERR_BUFFER_OUT_OF_BOUNDS',
 }));
+
+
+assert.throws(() => {
+  Buffer.alloc(1).asciiWrite('ww', 0, 2);
+}, common.expectsError({
+  code: 'ERR_BUFFER_OUT_OF_BOUNDS',
+}));
+
+assert.throws(() => {
+  Buffer.alloc(1).asciiWrite('ww', 1, 1);
+}, common.expectsError({
+  code: 'ERR_BUFFER_OUT_OF_BOUNDS',
+}));

@@ -19,7 +19,6 @@ using v8::HandleScope;
 using v8::Integer;
 using v8::Intercepted;
 using v8::Isolate;
-using v8::Just;
 using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
@@ -320,7 +319,7 @@ Maybe<void> KVStore::AssignFromObject(Local<Context> context,
 
 // TODO(bnoordhuis) Not super efficient but called infrequently. Not worth
 // the trouble yet of specializing for RealEnvStore and MapKVStore.
-Maybe<bool> KVStore::AssignToObject(v8::Isolate* isolate,
+Maybe<void> KVStore::AssignToObject(v8::Isolate* isolate,
                                     v8::Local<v8::Context> context,
                                     v8::Local<v8::Object> object) {
   HandleScope scope(isolate);
@@ -333,9 +332,9 @@ Maybe<bool> KVStore::AssignToObject(v8::Isolate* isolate,
     ok = ok && key->IsString();
     ok = ok && Get(isolate, key.As<String>()).ToLocal(&value);
     ok = ok && object->Set(context, key, value).To(&ok);
-    if (!ok) return Nothing<bool>();
+    if (!ok) return Nothing<void>();
   }
-  return Just(true);
+  return JustVoid();
 }
 
 static Intercepted EnvGetter(Local<Name> property,

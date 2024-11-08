@@ -1217,8 +1217,14 @@ the releaser, these must be kept in sync with `main`.
 The `vN.x` and `vN.x-staging` branches must be kept in sync with one another
 up until the date of the release.
 
-The TSC should be informed of any `SEMVER-MAJOR` commits that land within one
-month of the release.
+If a `SEMVER-MAJOR` pull request lands on the default branch within one month
+prior to the major release date, it must not be included on the new major
+staging branch, unless there is consensus from the Node.js releasers team to
+do so. This measure aims to ensure better stability for the release candidate
+(RC) phase, which begins approximately two weeks prior to the official release.
+By restricting `SEMVER-MAJOR` commits in this period, we provide more time for
+thorough testing and reduce the potential for major breakages, especially in
+LTS lines.
 
 ### Create release labels
 

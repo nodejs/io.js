@@ -101,14 +101,30 @@ ares_bool_t ares_str_isnum(const char *str)
   }
 
   for (i = 0; str[i] != 0; i++) {
-    if (str[i] < '0' || str[i] > '9') {
+    if (!ares_isdigit(str[i])) {
       return ARES_FALSE;
     }
   }
   return ARES_TRUE;
 }
 
-void ares__str_rtrim(char *str)
+ares_bool_t ares_str_isalnum(const char *str)
+{
+  size_t i;
+
+  if (str == NULL || *str == 0) {
+    return ARES_FALSE;
+  }
+
+  for (i = 0; str[i] != 0; i++) {
+    if (!ares_isdigit(str[i]) && !ares_isalpha(str[i])) {
+      return ARES_FALSE;
+    }
+  }
+  return ARES_TRUE;
+}
+
+void ares_str_rtrim(char *str)
 {
   size_t len;
   size_t i;
@@ -119,14 +135,14 @@ void ares__str_rtrim(char *str)
 
   len = ares_strlen(str);
   for (i = len; i > 0; i--) {
-    if (!ares__isspace(str[i - 1])) {
+    if (!ares_isspace(str[i - 1])) {
       break;
     }
   }
   str[i] = 0;
 }
 
-void ares__str_ltrim(char *str)
+void ares_str_ltrim(char *str)
 {
   size_t i;
   size_t len;
@@ -135,7 +151,7 @@ void ares__str_ltrim(char *str)
     return; /* LCOV_EXCL_LINE: DefensiveCoding */
   }
 
-  for (i = 0; str[i] != 0 && ares__isspace(str[i]); i++) {
+  for (i = 0; str[i] != 0 && ares_isspace(str[i]); i++) {
     /* Do nothing */
   }
 
@@ -150,15 +166,15 @@ void ares__str_ltrim(char *str)
   str[len - i] = 0;
 }
 
-void ares__str_trim(char *str)
+void ares_str_trim(char *str)
 {
-  ares__str_ltrim(str);
-  ares__str_rtrim(str);
+  ares_str_ltrim(str);
+  ares_str_rtrim(str);
 }
 
 /* tolower() is locale-specific.  Use a lookup table fast conversion that only
  * operates on ASCII */
-static const unsigned char ares__tolower_lookup[] = {
+static const unsigned char ares_tolower_lookup[] = {
   0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
   0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
   0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26,
@@ -181,81 +197,80 @@ static const unsigned char ares__tolower_lookup[] = {
   0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF
 };
 
-unsigned char ares__tolower(unsigned char c)
+unsigned char ares_tolower(unsigned char c)
 {
-  return ares__tolower_lookup[c];
+  return ares_tolower_lookup[c];
 }
 
-ares_bool_t ares__memeq_ci(const unsigned char *ptr, const unsigned char *val,
-                           size_t len)
+void ares_str_lower(char *str)
+{
+  size_t i;
+
+  if (str == NULL) {
+    return;
+  }
+
+  for (i = 0; str[i] != 0; i++) {
+    str[i] = (char)ares_tolower((unsigned char)str[i]);
+  }
+}
+
+unsigned char *ares_memmem(const unsigned char *big, size_t big_len,
+                           const unsigned char *little, size_t little_len)
+{
+  unsigned char *ptr;
+
+  if (big == NULL || little == NULL || big_len == 0 || little_len == 0) {
+    return NULL;
+  }
+
+#ifdef HAVE_MEMMEM
+  ptr = memmem(big, big_len, little, little_len);
+  return ptr;
+#else
+  while (1) {
+    ptr = memchr(big, little[0], big_len);
+    if (ptr == NULL) {
+      break;
+    }
+
+    big_len -= (size_t)(ptr - big);
+    big      = ptr;
+    if (big_len < little_len) {
+      break;
+    }
+
+    if (memcmp(big, little, little_len) == 0) {
+      return ptr;
+    }
+
+    big++;
+    big_len--;
+  }
+
+  return NULL;
+#endif
+}
+
+ares_bool_t ares_memeq(const unsigned char *ptr, const unsigned char *val,
+                       size_t len)
+{
+  return memcmp(ptr, val, len) == 0 ? ARES_TRUE : ARES_FALSE;
+}
+
+ares_bool_t ares_memeq_ci(const unsigned char *ptr, const unsigned char *val,
+                          size_t len)
 {
   size_t i;
   for (i = 0; i < len; i++) {
-    if (ares__tolower_lookup[ptr[i]] != ares__tolower_lookup[val[i]]) {
+    if (ares_tolower_lookup[ptr[i]] != ares_tolower_lookup[val[i]]) {
       return ARES_FALSE;
     }
   }
   return ARES_TRUE;
 }
 
-ares_bool_t ares__isspace(int ch)
-{
-  switch (ch) {
-    case '\r':
-    case '\t':
-    case ' ':
-    case '\v':
-    case '\f':
-    case '\n':
-      return ARES_TRUE;
-    default:
-      break;
-  }
-  return ARES_FALSE;
-}
-
-ares_bool_t ares__isprint(int ch)
-{
-  if (ch >= 0x20 && ch <= 0x7E) {
-    return ARES_TRUE;
-  }
-  return ARES_FALSE;
-}
-
-/* Character set allowed by hostnames.  This is to include the normal
- * domain name character set plus:
- *  - underscores which are used in SRV records.
- *  - Forward slashes such as are used for classless in-addr.arpa
- *    delegation (CNAMEs)
- *  - Asterisks may be used for wildcard domains in CNAMEs as seen in the
- *    real world.
- * While RFC 2181 section 11 does state not to do validation,
- * that applies to servers, not clients.  Vulnerabilities have been
- * reported when this validation is not performed.  Security is more
- * important than edge-case compatibility (which is probably invalid
- * anyhow). */
-ares_bool_t ares__is_hostnamech(int ch)
-{
-  /* [A-Za-z0-9-*._/]
-   * Don't use isalnum() as it is locale-specific
-   */
-  if (ch >= 'A' && ch <= 'Z') {
-    return ARES_TRUE;
-  }
-  if (ch >= 'a' && ch <= 'z') {
-    return ARES_TRUE;
-  }
-  if (ch >= '0' && ch <= '9') {
-    return ARES_TRUE;
-  }
-  if (ch == '-' || ch == '.' || ch == '_' || ch == '/' || ch == '*') {
-    return ARES_TRUE;
-  }
-
-  return ARES_FALSE;
-}
-
-ares_bool_t ares__is_hostname(const char *str)
+ares_bool_t ares_is_hostname(const char *str)
 {
   size_t i;
 
@@ -264,14 +279,14 @@ ares_bool_t ares__is_hostname(const char *str)
   }
 
   for (i = 0; str[i] != 0; i++) {
-    if (!ares__is_hostnamech(str[i])) {
+    if (!ares_is_hostnamech(str[i])) {
       return ARES_FALSE;
     }
   }
   return ARES_TRUE;
 }
 
-ares_bool_t ares__str_isprint(const char *str, size_t len)
+ares_bool_t ares_str_isprint(const char *str, size_t len)
 {
   size_t i;
 
@@ -280,9 +295,197 @@ ares_bool_t ares__str_isprint(const char *str, size_t len)
   }
 
   for (i = 0; i < len; i++) {
-    if (!ares__isprint(str[i])) {
+    if (!ares_isprint(str[i])) {
       return ARES_FALSE;
     }
   }
   return ARES_TRUE;
+}
+
+int ares_strcmp(const char *a, const char *b)
+{
+  if (a == NULL && b == NULL) {
+    return 0;
+  }
+
+  if (a != NULL && b == NULL) {
+    if (*a == 0) {
+      return 0;
+    }
+    return 1;
+  }
+
+  if (a == NULL && b != NULL) {
+    if (*b == 0) {
+      return 0;
+    }
+    return -1;
+  }
+
+  return strcmp(a, b);
+}
+
+int ares_strncmp(const char *a, const char *b, size_t n)
+{
+  if (n == 0) {
+    return 0;
+  }
+
+  if (a == NULL && b == NULL) {
+    return 0;
+  }
+
+  if (a != NULL && b == NULL) {
+    if (*a == 0) {
+      return 0;
+    }
+    return 1;
+  }
+
+  if (a == NULL && b != NULL) {
+    if (*b == 0) {
+      return 0;
+    }
+    return -1;
+  }
+
+  return strncmp(a, b, n);
+}
+
+int ares_strcasecmp(const char *a, const char *b)
+{
+  if (a == NULL && b == NULL) {
+    return 0;
+  }
+
+  if (a != NULL && b == NULL) {
+    if (*a == 0) {
+      return 0;
+    }
+    return 1;
+  }
+
+  if (a == NULL && b != NULL) {
+    if (*b == 0) {
+      return 0;
+    }
+    return -1;
+  }
+
+#if defined(HAVE_STRCASECMP)
+  return strcasecmp(a, b);
+#elif defined(HAVE_STRCMPI)
+  return strcmpi(a, b);
+#elif defined(HAVE_STRICMP)
+  return stricmp(a, b);
+#else
+  {
+    size_t i;
+
+    for (i = 0; i < (size_t)-1; i++) {
+      int c1 = ares_tolower(a[i]);
+      int c2 = ares_tolower(b[i]);
+      if (c1 != c2) {
+        return c1 - c2;
+      }
+      if (!c1) {
+        break;
+      }
+    }
+  }
+  return 0;
+#endif
+}
+
+int ares_strncasecmp(const char *a, const char *b, size_t n)
+{
+  if (n == 0) {
+    return 0;
+  }
+
+  if (a == NULL && b == NULL) {
+    return 0;
+  }
+
+  if (a != NULL && b == NULL) {
+    if (*a == 0) {
+      return 0;
+    }
+    return 1;
+  }
+
+  if (a == NULL && b != NULL) {
+    if (*b == 0) {
+      return 0;
+    }
+    return -1;
+  }
+
+#if defined(HAVE_STRNCASECMP)
+  return strncasecmp(a, b, n);
+#elif defined(HAVE_STRNCMPI)
+  return strncmpi(a, b, n);
+#elif defined(HAVE_STRNICMP)
+  return strnicmp(a, b, n);
+#else
+  {
+    size_t i;
+
+    for (i = 0; i < n; i++) {
+      int c1 = ares_tolower(a[i]);
+      int c2 = ares_tolower(b[i]);
+      if (c1 != c2) {
+        return c1 - c2;
+      }
+      if (!c1) {
+        break;
+      }
+    }
+  }
+  return 0;
+#endif
+}
+
+ares_bool_t ares_strcaseeq(const char *a, const char *b)
+{
+  return ares_strcasecmp(a, b) == 0 ? ARES_TRUE : ARES_FALSE;
+}
+
+ares_bool_t ares_strcaseeq_max(const char *a, const char *b, size_t n)
+{
+  return ares_strncasecmp(a, b, n) == 0 ? ARES_TRUE : ARES_FALSE;
+}
+
+ares_bool_t ares_streq(const char *a, const char *b)
+{
+  return ares_strcmp(a, b) == 0 ? ARES_TRUE : ARES_FALSE;
+}
+
+ares_bool_t ares_streq_max(const char *a, const char *b, size_t n)
+{
+  return ares_strncmp(a, b, n) == 0 ? ARES_TRUE : ARES_FALSE;
+}
+
+void ares_free_array(void *arrp, size_t nmembers, void (*freefunc)(void *))
+{
+  size_t i;
+  void **arr = arrp;
+
+  if (arr == NULL) {
+    return;
+  }
+
+  if (freefunc != NULL) {
+    if (nmembers == SIZE_MAX) {
+      for (i = 0; arr[i] != NULL; i++) {
+        freefunc(arr[i]);
+      }
+    } else {
+      for (i = 0; i < nmembers; i++) {
+        freefunc(arr[i]);
+      }
+    }
+  }
+
+  ares_free(arr);
 }

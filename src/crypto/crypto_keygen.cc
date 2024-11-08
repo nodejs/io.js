@@ -48,8 +48,7 @@ Maybe<void> NidKeyPairGenTraits::AdditionalConfig(
 EVPKeyCtxPointer NidKeyPairGenTraits::Setup(NidKeyPairGenConfig* params) {
   EVPKeyCtxPointer ctx =
       EVPKeyCtxPointer(EVP_PKEY_CTX_new_id(params->params.id, nullptr));
-  if (!ctx || EVP_PKEY_keygen_init(ctx.get()) <= 0)
-    return EVPKeyCtxPointer();
+  if (!ctx || EVP_PKEY_keygen_init(ctx.get()) <= 0) return {};
 
   return ctx;
 }

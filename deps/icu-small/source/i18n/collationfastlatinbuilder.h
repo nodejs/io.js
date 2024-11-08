@@ -63,7 +63,7 @@ private:
     uint32_t encodeTwoCEs(int64_t first, int64_t second) const;
 
     static UBool isContractionCharCE(int64_t ce) {
-        return (uint32_t)(ce >> 32) == Collation::NO_CE_PRIMARY && ce != Collation::NO_CE;
+        return static_cast<uint32_t>(ce >> 32) == Collation::NO_CE_PRIMARY && ce != Collation::NO_CE;
     }
 
     static const uint32_t CONTRACTION_FLAG = 0x80000000;

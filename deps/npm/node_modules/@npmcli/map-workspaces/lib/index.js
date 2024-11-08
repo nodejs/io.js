@@ -2,7 +2,7 @@ const path = require('path')
 
 const getName = require('@npmcli/name-from-folder')
 const { minimatch } = require('minimatch')
-const rpj = require('read-package-json-fast')
+const pkgJson = require('@npmcli/package-json')
 const { glob } = require('glob')
 
 function appendNegatedPatterns (allPatterns) {
@@ -67,15 +67,7 @@ function getPatterns (workspaces) {
 }
 
 function getPackageName (pkg, pathname) {
-  const { name } = pkg
-  return name || getName(pathname)
-}
-
-function pkgPathmame (opts) {
-  return (...args) => {
-    const cwd = opts.cwd ? opts.cwd : process.cwd()
-    return path.join.apply(null, [cwd, ...args])
-  }
+  return pkg.name || getName(pathname)
 }
 
 // make sure glob pattern only matches folders
@@ -101,16 +93,19 @@ async function mapWorkspaces (opts = {}) {
       code: 'EMAPWORKSPACESPKG',
     })
   }
+  if (!opts.cwd) {
+    opts.cwd = process.cwd()
+  }
 
   const { workspaces = [] } = opts.pkg
   const { patterns, negatedPatterns } = getPatterns(workspaces)
   const results = new Map()
-  const seen = new Map()
 
   if (!patterns.length && !negatedPatterns.length) {
     return results
   }
 
+  const seen = new Map()
   const getGlobOpts = () => ({
     ...opts,
     ignore: [
@@ -120,8 +115,6 @@ async function mapWorkspaces (opts = {}) {
       ...negatedPatterns,
     ],
   })
-
-  const getPackagePathname = pkgPathmame(opts)
 
   let matches = await glob(patterns.map((p) => getGlobPattern(p)), getGlobOpts())
   // preserves glob@8 behavior
@@ -138,10 +131,8 @@ async function mapWorkspaces (opts = {}) {
 
   for (const match of orderedMatches) {
     let pkg
-    const packageJsonPathname = getPackagePathname(match, 'package.json')
-
     try {
-      pkg = await rpj(packageJsonPathname)
+      pkg = await pkgJson.normalize(path.join(opts.cwd, match))
     } catch (err) {
       if (err.code === 'ENOENT') {
         continue
@@ -150,15 +141,14 @@ async function mapWorkspaces (opts = {}) {
       }
     }
 
-    const packagePathname = path.dirname(packageJsonPathname)
-    const name = getPackageName(pkg, packagePathname)
+    const name = getPackageName(pkg.content, pkg.path)
 
     let seenPackagePathnames = seen.get(name)
     if (!seenPackagePathnames) {
       seenPackagePathnames = new Set()
       seen.set(name, seenPackagePathnames)
     }
-    seenPackagePathnames.add(packagePathname)
+    seenPackagePathnames.add(pkg.path)
   }
 
   const errorMessageArray = ['must not have multiple workspaces with the same name']
@@ -200,6 +190,9 @@ mapWorkspaces.virtual = function (opts = {}) {
       code: 'EMAPWORKSPACESLOCKFILE',
     })
   }
+  if (!opts.cwd) {
+    opts.cwd = process.cwd()
+  }
 
   const { packages = {} } = opts.lockfile
   const { workspaces = [] } = packages[''] || {}
@@ -218,10 +211,9 @@ mapWorkspaces.virtual = function (opts = {}) {
     }
   }
 
-  const getPackagePathname = pkgPathmame(opts)
   for (const pattern of patterns) {
     for (const packageKey of minimatch.match(packageKeys, pattern)) {
-      const packagePathname = getPackagePathname(packageKey)
+      const packagePathname = path.join(opts.cwd, packageKey)
       const name = getPackageName(packages[packageKey], packagePathname)
       results.set(packagePathname, name)
     }

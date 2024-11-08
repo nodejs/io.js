@@ -76,8 +76,13 @@ int uv_pipe_bind2(uv_pipe_t* handle,
   if (name == NULL)
     return UV_EINVAL;
 
+  /* namelen==0 on Linux means autobind the listen socket in the abstract
+   * socket namespace, see `man 7 unix` for details.
+   */
+#if !defined(__linux__)
   if (namelen == 0)
     return UV_EINVAL;
+#endif
 
   if (includes_nul(name, namelen))
     return UV_EINVAL;
@@ -344,8 +349,15 @@ static int uv__pipe_getsockpeername(const uv_pipe_t* handle,
                                     uv__peersockfunc func,
                                     char* buffer,
                                     size_t* size) {
+#if defined(__linux__)
+  static const int is_linux = 1;
+#else
+  static const int is_linux = 0;
+#endif
   struct sockaddr_un sa;
   socklen_t addrlen;
+  size_t slop;
+  char* p;
   int err;
 
   addrlen = sizeof(sa);
@@ -359,17 +371,20 @@ static int uv__pipe_getsockpeername(const uv_pipe_t* handle,
     return err;
   }
 
-#if defined(__linux__)
-  if (sa.sun_path[0] == 0)
-    /* Linux abstract namespace */
+  slop = 1;
+  if (is_linux && sa.sun_path[0] == '\0') {
+    /* Linux abstract namespace. Not zero-terminated. */
+    slop = 0;
     addrlen -= offsetof(struct sockaddr_un, sun_path);
-  else
-#endif
-    addrlen = strlen(sa.sun_path);
+  } else {
+    p = memchr(sa.sun_path, '\0', sizeof(sa.sun_path));
+    if (p == NULL)
+      p = ARRAY_END(sa.sun_path);
+    addrlen = p - sa.sun_path;
+  }
 
-
-  if ((size_t)addrlen >= *size) {
-    *size = addrlen + 1;
+  if ((size_t)addrlen + slop > *size) {
+    *size = addrlen + slop;
     return UV_ENOBUFS;
   }
 
@@ -487,7 +502,11 @@ int uv_pipe_chmod(uv_pipe_t* handle, int mode) {
 int uv_pipe(uv_os_fd_t fds[2], int read_flags, int write_flags) {
   uv_os_fd_t temp[2];
   int err;
-#if defined(__FreeBSD__) || defined(__linux__)
+#if defined(__linux__) || \
+    defined(__FreeBSD__) || \
+    defined(__OpenBSD__) || \
+    defined(__DragonFly__) || \
+    defined(__NetBSD__)
   int flags = O_CLOEXEC;
 
   if ((read_flags & UV_NONBLOCK_PIPE) && (write_flags & UV_NONBLOCK_PIPE))

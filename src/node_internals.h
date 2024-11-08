@@ -110,10 +110,10 @@ void SignalExit(int signal, siginfo_t* info, void* ucontext);
 std::string GetProcessTitle(const char* default_title);
 std::string GetHumanReadableProcessName();
 
-v8::Maybe<bool> InitializeBaseContextForSnapshot(
+v8::Maybe<void> InitializeBaseContextForSnapshot(
     v8::Local<v8::Context> context);
-v8::Maybe<bool> InitializeContextRuntime(v8::Local<v8::Context> context);
-v8::Maybe<bool> InitializePrimordials(v8::Local<v8::Context> context);
+v8::Maybe<void> InitializeContextRuntime(v8::Local<v8::Context> context);
+v8::Maybe<void> InitializePrimordials(v8::Local<v8::Context> context);
 
 class NodeArrayBufferAllocator : public ArrayBufferAllocator {
  public:

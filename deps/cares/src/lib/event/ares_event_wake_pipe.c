@@ -92,9 +92,9 @@ static ares_pipeevent_t *ares_pipeevent_init(void)
   }
 #    endif
 
-#    ifdef O_CLOEXEC
-  fcntl(p->filedes[0], F_SETFD, O_CLOEXEC);
-  fcntl(p->filedes[1], F_SETFD, O_CLOEXEC);
+#    ifdef FD_CLOEXEC
+  fcntl(p->filedes[0], F_SETFD, FD_CLOEXEC);
+  fcntl(p->filedes[1], F_SETFD, FD_CLOEXEC);
 #    endif
 #  endif
 

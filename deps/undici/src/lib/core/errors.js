@@ -195,6 +195,18 @@ class RequestRetryError extends UndiciError {
   }
 }
 
+class ResponseError extends UndiciError {
+  constructor (message, code, { headers, data }) {
+    super(message)
+    this.name = 'ResponseError'
+    this.message = message || 'Response error'
+    this.code = 'UND_ERR_RESPONSE'
+    this.statusCode = code
+    this.data = data
+    this.headers = headers
+  }
+}
+
 class SecureProxyConnectionError extends UndiciError {
   constructor (cause, message, options) {
     super(message, { cause, ...(options ?? {}) })
@@ -227,5 +239,6 @@ module.exports = {
   BalancedPoolMissingUpstreamError,
   ResponseExceededMaxSizeError,
   RequestRetryError,
+  ResponseError,
   SecureProxyConnectionError
 }

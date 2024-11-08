@@ -1387,7 +1387,6 @@ U_CAPI int32_t U_EXPORT2
 ucal_getCanonicalTimeZoneID(const UChar* id, int32_t len,
                             UChar* result, int32_t resultCapacity, UBool *isSystemID, UErrorCode* status);
 
-#ifndef U_HIDE_DRAFT_API
 /**
  * Returns the preferred time zone ID in the IANA time zone database for the given time zone ID.
  * There are two types of preferred IDs. The first type is the one defined in zone.tab file,
@@ -1411,12 +1410,11 @@ ucal_getCanonicalTimeZoneID(const UChar* id, int32_t len,
  * @param status    Receives the status.  When the given time zone ID is not a known system time zone
  *                  ID, U_ILLEGAL_ARGUMENT_ERROR is set.
  * @return          The result string length, not including the terminating null.
- * @draft ICU 74
+ * @stable ICU 74
  */
 U_CAPI int32_t U_EXPORT2
 ucal_getIanaTimeZoneID(const UChar* id, int32_t len,
                         UChar* result, int32_t resultCapacity, UErrorCode* status);
-#endif // U_HIDE_DRAFT_API
 
 /**
  * Get the resource keyword value string designating the calendar type for the UCalendar.

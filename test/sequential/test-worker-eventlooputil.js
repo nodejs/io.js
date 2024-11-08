@@ -62,7 +62,7 @@ let workerELU;
   metricsCh.port2.once('message', mustCall(checkWorkerIdle));
   metricsCh.port2.postMessage({ cmd: 'elu' });
   // Make sure it's still safe to call eventLoopUtilization() after the worker
-  // hass been closed.
+  // has been closed.
   worker.on('exit', mustCall(() => {
     assert.deepStrictEqual(worker.performance.eventLoopUtilization(),
                            { idle: 0, active: 0, utilization: 0 });

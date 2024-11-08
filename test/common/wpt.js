@@ -878,22 +878,16 @@ class WPTRunner {
 
   addTestResult(spec, item) {
     let result = this.results[spec.filename];
-    if (!result) {
-      result = this.results[spec.filename] = {};
-    }
+    result ||= this.results[spec.filename] = {};
     if (item.status === kSkip) {
       // { filename: { skip: 'reason' } }
       result[kSkip] = item.reason;
     } else {
       // { filename: { fail: { expected: [ ... ],
       //                      unexpected: [ ... ] } }}
-      if (!result[item.status]) {
-        result[item.status] = {};
-      }
+      result[item.status] ||= {};
       const key = item.expected ? 'expected' : 'unexpected';
-      if (!result[item.status][key]) {
-        result[item.status][key] = [];
-      }
+      result[item.status][key] ||= [];
       const hasName = result[item.status][key].includes(item.name);
       if (!hasName) {
         result[item.status][key].push(item.name);

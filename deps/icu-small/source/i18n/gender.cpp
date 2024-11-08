@@ -107,7 +107,7 @@ const GenderInfo* GenderInfo::getInstance(const Locale& locale, UErrorCode& stat
   const char* key = locale.getName();
   {
     Mutex lock(&gGenderMetaLock);
-    result = (const GenderInfo*) uhash_get(gGenderInfoCache, key);
+    result = static_cast<const GenderInfo*>(uhash_get(gGenderInfoCache, key));
   }
   if (result) {
     return result;
@@ -123,7 +123,7 @@ const GenderInfo* GenderInfo::getInstance(const Locale& locale, UErrorCode& stat
   // favor the GenderInfo object that is already in the cache.
   {
     Mutex lock(&gGenderMetaLock);
-    GenderInfo* temp = (GenderInfo*) uhash_get(gGenderInfoCache, key);
+    GenderInfo* temp = static_cast<GenderInfo*>(uhash_get(gGenderInfoCache, key));
     if (temp) {
       result = temp;
     } else {

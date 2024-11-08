@@ -118,6 +118,10 @@ function matchKey (mockDispatch, { path, method, body, headers }) {
 function getResponseData (data) {
   if (Buffer.isBuffer(data)) {
     return data
+  } else if (data instanceof Uint8Array) {
+    return data
+  } else if (data instanceof ArrayBuffer) {
+    return data
   } else if (typeof data === 'object') {
     return JSON.stringify(data)
   } else {

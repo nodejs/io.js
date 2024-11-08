@@ -66,13 +66,6 @@
   "streams/decode-utf8.any.js": {
     "requires": ["small-icu"]
   },
-  "streams/decode-bad-chunks.any.js": {
-    "fail": {
-      "expected": [
-        "chunk of type undefined should error the stream"
-      ]
-    }
-  },
   "streams/decode-non-utf8.any.js": {
     "requires": ["full-icu"]
   },

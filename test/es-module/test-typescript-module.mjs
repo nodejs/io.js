@@ -67,6 +67,7 @@ test('execute an .mts file importing a .cts file', async () => {
 test('execute an .mts file with wrong default module', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--experimental-strip-types',
+    '--no-experimental-require-module',
     '--experimental-default-type=commonjs',
     fixtures.path('typescript/mts/test-import-module.mts'),
   ]);
@@ -74,6 +75,18 @@ test('execute an .mts file with wrong default module', async () => {
   strictEqual(result.stdout, '');
   match(result.stderr, /Error \[ERR_REQUIRE_ESM\]: require\(\) of ES Module/);
   strictEqual(result.code, 1);
+});
+
+test('execute an .mts file with wrong default module', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--experimental-strip-types',
+    '--experimental-require-module',
+    '--experimental-default-type=commonjs',
+    fixtures.path('typescript/mts/test-import-module.mts'),
+  ]);
+
+  match(result.stdout, /Hello, TypeScript!/);
+  strictEqual(result.code, 0);
 });
 
 test('execute an .mts file from node_modules', async () => {

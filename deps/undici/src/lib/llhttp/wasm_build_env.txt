@@ -1,12 +1,12 @@
 
-> undici@6.19.8 prebuild:wasm
+> undici@6.20.1 prebuild:wasm
 > node build/wasm.js --prebuild
 
 > docker build --platform=linux/x86_64 -t llhttp_wasm_builder -f /home/runner/work/node/node/deps/undici/src/build/Dockerfile /home/runner/work/node/node/deps/undici/src
 
 
 
-> undici@6.19.8 build:wasm
+> undici@6.20.1 build:wasm
 > node build/wasm.js --docker
 
 > docker run --rm -t --platform=linux/x86_64 --user 1001:127 --mount type=bind,source=/home/runner/work/node/node/deps/undici/src/lib/llhttp,target=/home/node/undici/lib/llhttp llhttp_wasm_builder node build/wasm.js

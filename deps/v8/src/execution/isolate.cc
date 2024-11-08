@@ -2650,6 +2650,13 @@ HandlerTable::CatchPrediction PredictExceptionFromBytecode(
 
 HandlerTable::CatchPrediction PredictException(const FrameSummary& summary,
                                                Isolate* isolate) {
+  if (!summary.IsJavaScript()) {
+    // This can happen when WASM is inlined by TurboFan. For now we ignore
+    // frames that are not JavaScript.
+    // TODO(https://crbug.com/349588762): We should also check Wasm code
+    // for exception handling.
+    return HandlerTable::UNCAUGHT;
+  }
   PtrComprCageBase cage_base(isolate);
   DirectHandle<AbstractCode> code = summary.AsJavaScript().abstract_code();
   if (code->kind(cage_base) == CodeKind::BUILTIN) {

@@ -180,7 +180,7 @@ const formPostFileUploadTest = ({
 
     // Used to verify that the browser agrees with the test about
     // field value replacement and encoding independently of file system
-    // idiosyncracies.
+    // idiosyncrasies.
     form.append(Object.assign(document.createElement('input'), {
       type: 'hidden',
       name: 'filename',

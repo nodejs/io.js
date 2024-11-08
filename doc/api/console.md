@@ -19,7 +19,11 @@ The module exports two specific components:
 
 _**Warning**_: The global console object's methods are neither consistently
 synchronous like the browser APIs they resemble, nor are they consistently
-asynchronous like all other Node.js streams. See the [note on process I/O][] for
+asynchronous like all other Node.js streams. Programs that desire to depend
+on the synchronous / asynchronous behavior of the console functions should
+first figure out the nature of console's backing stream. This is because the
+stream is dependent on the underlying platform and standard stream
+configuration of the current process. See the [note on process I/O][] for
 more information.
 
 Example using the global `console`:

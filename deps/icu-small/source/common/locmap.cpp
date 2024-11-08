@@ -979,7 +979,7 @@ getHostID(const ILcidPosixMap *this_0, const char* posixID, UErrorCode& status)
     if (U_FAILURE(status)) { return locmap_root->hostID; }
     int32_t bestIdx = 0;
     int32_t bestIdxDiff = 0;
-    int32_t posixIDlen = (int32_t)uprv_strlen(posixID);
+    int32_t posixIDlen = static_cast<int32_t>(uprv_strlen(posixID));
     uint32_t idx;
 
     for (idx = 0; idx < this_0->numRegions; idx++ ) {

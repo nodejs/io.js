@@ -14,6 +14,7 @@ const options = {
     '--experimental-permission',
     `--allow-fs-read=${rootPath}`,
     '--allow-child-process',
+    '--no-warnings',
   ],
 };
 

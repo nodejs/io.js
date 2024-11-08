@@ -37,8 +37,8 @@ static unsigned short generate_unique_qid(ares_channel_t *channel)
   unsigned short id;
 
   do {
-    id = ares__generate_new_id(channel->rand_state);
-  } while (ares__htable_szvp_get(channel->queries_by_qid, id, NULL));
+    id = ares_generate_new_id(channel->rand_state);
+  } while (ares_htable_szvp_get(channel->queries_by_qid, id, NULL));
 
   return id;
 }
@@ -77,14 +77,14 @@ static ares_status_t ares_apply_dns0x20(ares_channel_t    *channel,
    * is 1 bit per byte */
   total_bits     = ((len + 7) / 8) * 8;
   remaining_bits = total_bits;
-  ares__rand_bytes(channel->rand_state, randdata, total_bits / 8);
+  ares_rand_bytes(channel->rand_state, randdata, total_bits / 8);
 
   /* Randomly apply 0x20 to name */
   for (i = 0; i < len; i++) {
     size_t bit;
 
     /* Only apply 0x20 to alpha characters */
-    if (!ares__isalpha(name[i])) {
+    if (!ares_isalpha(name[i])) {
       dns0x20name[i] = name[i];
       continue;
     }
@@ -105,7 +105,8 @@ done:
   return status;
 }
 
-ares_status_t ares_send_nolock(ares_channel_t          *channel,
+ares_status_t ares_send_nolock(ares_channel_t *channel, ares_server_t *server,
+                               ares_send_flags_t        flags,
                                const ares_dns_record_t *dnsrec,
                                ares_callback_dnsrec callback, void *arg,
                                unsigned short *qid)
@@ -116,20 +117,22 @@ ares_status_t ares_send_nolock(ares_channel_t          *channel,
   unsigned short           id          = generate_unique_qid(channel);
   const ares_dns_record_t *dnsrec_resp = NULL;
 
-  ares__tvnow(&now);
+  ares_tvnow(&now);
 
-  if (ares__slist_len(channel->servers) == 0) {
+  if (ares_slist_len(channel->servers) == 0) {
     callback(arg, ARES_ENOSERVER, 0, NULL);
     return ARES_ENOSERVER;
   }
 
-  /* Check query cache */
-  status = ares_qcache_fetch(channel, &now, dnsrec, &dnsrec_resp);
-  if (status != ARES_ENOTFOUND) {
-    /* ARES_SUCCESS means we retrieved the cache, anything else is a critical
-     * failure, all result in termination */
-    callback(arg, status, 0, dnsrec_resp);
-    return status;
+  if (!(flags & ARES_SEND_FLAG_NOCACHE)) {
+    /* Check query cache */
+    status = ares_qcache_fetch(channel, &now, dnsrec, &dnsrec_resp);
+    if (status != ARES_ENOTFOUND) {
+      /* ARES_SUCCESS means we retrieved the cache, anything else is a critical
+       * failure, all result in termination */
+      callback(arg, status, 0, dnsrec_resp);
+      return status;
+    }
   }
 
   /* Allocate space for query and allocated fields. */
@@ -162,7 +165,7 @@ ares_status_t ares_send_nolock(ares_channel_t          *channel,
     if (status != ARES_SUCCESS) {
       /* LCOV_EXCL_START: OutOfMemory */
       callback(arg, status, 0, NULL);
-      ares__free_query(query);
+      ares_free_query(query);
       return status;
       /* LCOV_EXCL_STOP */
     }
@@ -175,6 +178,9 @@ ares_status_t ares_send_nolock(ares_channel_t          *channel,
   /* Initialize query status. */
   query->try_count = 0;
 
+  if (flags & ARES_SEND_FLAG_NORETRY) {
+    query->no_retries = ARES_TRUE;
+  }
 
   query->error_status = ARES_SUCCESS;
   query->timeouts     = 0;
@@ -184,12 +190,11 @@ ares_status_t ares_send_nolock(ares_channel_t          *channel,
   query->node_queries_to_conn    = NULL;
 
   /* Chain the query into the list of all queries. */
-  query->node_all_queries =
-    ares__llist_insert_last(channel->all_queries, query);
+  query->node_all_queries = ares_llist_insert_last(channel->all_queries, query);
   if (query->node_all_queries == NULL) {
     /* LCOV_EXCL_START: OutOfMemory */
     callback(arg, ARES_ENOMEM, 0, NULL);
-    ares__free_query(query);
+    ares_free_query(query);
     return ARES_ENOMEM;
     /* LCOV_EXCL_STOP */
   }
@@ -197,17 +202,17 @@ ares_status_t ares_send_nolock(ares_channel_t          *channel,
   /* Keep track of queries bucketed by qid, so we can process DNS
    * responses quickly.
    */
-  if (!ares__htable_szvp_insert(channel->queries_by_qid, query->qid, query)) {
+  if (!ares_htable_szvp_insert(channel->queries_by_qid, query->qid, query)) {
     /* LCOV_EXCL_START: OutOfMemory */
     callback(arg, ARES_ENOMEM, 0, NULL);
-    ares__free_query(query);
+    ares_free_query(query);
     return ARES_ENOMEM;
     /* LCOV_EXCL_STOP */
   }
 
   /* Perform the first query action. */
 
-  status = ares__send_query(query, &now);
+  status = ares_send_query(server, query, &now);
   if (status == ARES_SUCCESS && qid) {
     *qid = id;
   }
@@ -225,11 +230,11 @@ ares_status_t ares_send_dnsrec(ares_channel_t          *channel,
     return ARES_EFORMERR; /* LCOV_EXCL_LINE: DefensiveCoding */
   }
 
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
 
-  status = ares_send_nolock(channel, dnsrec, callback, arg, qid);
+  status = ares_send_nolock(channel, NULL, 0, dnsrec, callback, arg, qid);
 
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
 
   return status;
 }
@@ -257,7 +262,7 @@ void ares_send(ares_channel_t *channel, const unsigned char *qbuf, int qlen,
     return;
   }
 
-  carg = ares__dnsrec_convert_arg(callback, arg);
+  carg = ares_dnsrec_convert_arg(callback, arg);
   if (carg == NULL) {
     /* LCOV_EXCL_START: OutOfMemory */
     status = ARES_ENOMEM;
@@ -267,7 +272,7 @@ void ares_send(ares_channel_t *channel, const unsigned char *qbuf, int qlen,
     /* LCOV_EXCL_STOP */
   }
 
-  ares_send_dnsrec(channel, dnsrec, ares__dnsrec_convert_cb, carg, NULL);
+  ares_send_dnsrec(channel, dnsrec, ares_dnsrec_convert_cb, carg, NULL);
 
   ares_dns_record_destroy(dnsrec);
 }
@@ -280,11 +285,11 @@ size_t ares_queue_active_queries(const ares_channel_t *channel)
     return 0;
   }
 
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
 
-  len = ares__llist_len(channel->all_queries);
+  len = ares_llist_len(channel->all_queries);
 
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
 
   return len;
 }

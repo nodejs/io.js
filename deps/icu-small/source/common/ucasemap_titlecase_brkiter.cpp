@@ -107,7 +107,7 @@ ucasemap_utf8ToTitle(UCaseMap *csm,
         return 0;
     }
     UText utext=UTEXT_INITIALIZER;
-    utext_openUTF8(&utext, (const char *)src, srcLength, pErrorCode);
+    utext_openUTF8(&utext, src, srcLength, pErrorCode);
     if (U_FAILURE(*pErrorCode)) {
         return 0;
     }

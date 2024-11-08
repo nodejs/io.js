@@ -3401,6 +3401,8 @@ int SSL_set_tlsext_max_fragment_length(SSL *ssl, uint8_t mode)
 
 uint8_t SSL_SESSION_get_max_fragment_length(const SSL_SESSION *session)
 {
+    if (session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)
+        return TLSEXT_max_fragment_length_DISABLED;
     return session->ext.max_fragment_len_mode;
 }
 

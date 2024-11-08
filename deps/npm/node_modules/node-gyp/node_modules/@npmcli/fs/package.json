@@ -1,0 +1,52 @@
+{
+  "name": "@npmcli/fs",
+  "version": "3.1.1",
+  "description": "filesystem utilities for the npm cli",
+  "main": "lib/index.js",
+  "files": [
+    "bin/",
+    "lib/"
+  ],
+  "scripts": {
+    "snap": "tap",
+    "test": "tap",
+    "npmclilint": "npmcli-lint",
+    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lintfix": "npm run lint -- --fix",
+    "posttest": "npm run lint",
+    "postsnap": "npm run lintfix --",
+    "postlint": "template-oss-check",
+    "template-oss-apply": "template-oss-apply --force"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/npm/fs.git"
+  },
+  "keywords": [
+    "npm",
+    "oss"
+  ],
+  "author": "GitHub Inc.",
+  "license": "ISC",
+  "devDependencies": {
+    "@npmcli/eslint-config": "^4.0.0",
+    "@npmcli/template-oss": "4.22.0",
+    "tap": "^16.0.1"
+  },
+  "dependencies": {
+    "semver": "^7.3.5"
+  },
+  "engines": {
+    "node": "^14.17.0 || ^16.13.0 || >=18.0.0"
+  },
+  "templateOSS": {
+    "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
+    "version": "4.22.0"
+  },
+  "tap": {
+    "nyc-arg": [
+      "--exclude",
+      "tap-snapshots/**"
+    ]
+  }
+}

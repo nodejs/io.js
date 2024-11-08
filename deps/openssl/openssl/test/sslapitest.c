@@ -3938,7 +3938,7 @@ static int early_data_skip_helper(int testtype, int cipher, int idx)
         if (!TEST_true(SSL_set1_groups_list(serverssl, "ffdhe3072")))
             goto end;
 #else
-        if (!TEST_true(SSL_set1_groups_list(serverssl, "P-256")))
+        if (!TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
             goto end;
 #endif
     } else if (idx == 2) {
@@ -5553,7 +5553,7 @@ static int test_tls13_psk(int idx)
     if (!TEST_true(SSL_set1_groups_list(serverssl, "ffdhe3072")))
         goto end;
 #else
-    if (!TEST_true(SSL_set1_groups_list(serverssl, "P-256")))
+    if (!TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
         goto end;
 #endif
 
@@ -11123,6 +11123,367 @@ static int test_quic_early_data(int tst)
 # endif /* OSSL_NO_USABLE_TLS1_3 */
 #endif /* OPENSSL_NO_QUIC */
 
+static struct next_proto_st {
+    int serverlen;
+    unsigned char server[40];
+    int clientlen;
+    unsigned char client[40];
+    int expected_ret;
+    size_t selectedlen;
+    unsigned char selected[40];
+} next_proto_tests[] = {
+    {
+        4, { 3, 'a', 'b', 'c' },
+        4, { 3, 'a', 'b', 'c' },
+        OPENSSL_NPN_NEGOTIATED,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        7, { 3, 'a', 'b', 'c', 2, 'a', 'b' },
+        4, { 3, 'a', 'b', 'c' },
+        OPENSSL_NPN_NEGOTIATED,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        7, { 2, 'a', 'b', 3, 'a', 'b', 'c', },
+        4, { 3, 'a', 'b', 'c' },
+        OPENSSL_NPN_NEGOTIATED,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        4, { 3, 'a', 'b', 'c' },
+        7, { 3, 'a', 'b', 'c', 2, 'a', 'b', },
+        OPENSSL_NPN_NEGOTIATED,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        4, { 3, 'a', 'b', 'c' },
+        7, { 2, 'a', 'b', 3, 'a', 'b', 'c'},
+        OPENSSL_NPN_NEGOTIATED,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        7, { 2, 'b', 'c', 3, 'a', 'b', 'c' },
+        7, { 2, 'a', 'b', 3, 'a', 'b', 'c'},
+        OPENSSL_NPN_NEGOTIATED,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        10, { 2, 'b', 'c', 3, 'a', 'b', 'c', 2, 'a', 'b' },
+        7, { 2, 'a', 'b', 3, 'a', 'b', 'c'},
+        OPENSSL_NPN_NEGOTIATED,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        4, { 3, 'b', 'c', 'd' },
+        4, { 3, 'a', 'b', 'c' },
+        OPENSSL_NPN_NO_OVERLAP,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        0, { 0 },
+        4, { 3, 'a', 'b', 'c' },
+        OPENSSL_NPN_NO_OVERLAP,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        -1, { 0 },
+        4, { 3, 'a', 'b', 'c' },
+        OPENSSL_NPN_NO_OVERLAP,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        4, { 3, 'a', 'b', 'c' },
+        0, { 0 },
+        OPENSSL_NPN_NO_OVERLAP,
+        0, { 0 }
+    },
+    {
+        4, { 3, 'a', 'b', 'c' },
+        -1, { 0 },
+        OPENSSL_NPN_NO_OVERLAP,
+        0, { 0 }
+    },
+    {
+        3, { 3, 'a', 'b', 'c' },
+        4, { 3, 'a', 'b', 'c' },
+        OPENSSL_NPN_NO_OVERLAP,
+        3, { 'a', 'b', 'c' }
+    },
+    {
+        4, { 3, 'a', 'b', 'c' },
+        3, { 3, 'a', 'b', 'c' },
+        OPENSSL_NPN_NO_OVERLAP,
+        0, { 0 }
+    }
+};
+
+static int test_select_next_proto(int idx)
+{
+    struct next_proto_st *np = &next_proto_tests[idx];
+    int ret = 0;
+    unsigned char *out, *client, *server;
+    unsigned char outlen;
+    unsigned int clientlen, serverlen;
+
+    if (np->clientlen == -1) {
+        client = NULL;
+        clientlen = 0;
+    } else {
+        client = np->client;
+        clientlen = (unsigned int)np->clientlen;
+    }
+    if (np->serverlen == -1) {
+        server = NULL;
+        serverlen = 0;
+    } else {
+        server = np->server;
+        serverlen = (unsigned int)np->serverlen;
+    }
+
+    if (!TEST_int_eq(SSL_select_next_proto(&out, &outlen, server, serverlen,
+                                           client, clientlen),
+                     np->expected_ret))
+        goto err;
+
+    if (np->selectedlen == 0) {
+        if (!TEST_ptr_null(out) || !TEST_uchar_eq(outlen, 0))
+            goto err;
+    } else {
+        if (!TEST_mem_eq(out, outlen, np->selected, np->selectedlen))
+            goto err;
+    }
+
+    ret = 1;
+ err:
+    return ret;
+}
+
+static const unsigned char fooprot[] = {3, 'f', 'o', 'o' };
+static const unsigned char barprot[] = {3, 'b', 'a', 'r' };
+
+#if !defined(OPENSSL_NO_TLS1_2) && !defined(OPENSSL_NO_NEXTPROTONEG)
+static int npn_advert_cb(SSL *ssl, const unsigned char **out,
+                         unsigned int *outlen, void *arg)
+{
+    int *idx = (int *)arg;
+
+    switch (*idx) {
+    default:
+    case 0:
+        *out = fooprot;
+        *outlen = sizeof(fooprot);
+        return SSL_TLSEXT_ERR_OK;
+
+    case 1:
+        *outlen = 0;
+        return SSL_TLSEXT_ERR_OK;
+
+    case 2:
+        return SSL_TLSEXT_ERR_NOACK;
+    }
+}
+
+static int npn_select_cb(SSL *s, unsigned char **out, unsigned char *outlen,
+                         const unsigned char *in, unsigned int inlen, void *arg)
+{
+    int *idx = (int *)arg;
+
+    switch (*idx) {
+    case 0:
+    case 1:
+        *out = (unsigned char *)(fooprot + 1);
+        *outlen = *fooprot;
+        return SSL_TLSEXT_ERR_OK;
+
+    case 3:
+        *out = (unsigned char *)(barprot + 1);
+        *outlen = *barprot;
+        return SSL_TLSEXT_ERR_OK;
+
+    case 4:
+        *outlen = 0;
+        return SSL_TLSEXT_ERR_OK;
+
+    default:
+    case 2:
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
+    }
+}
+
+/*
+ * Test the NPN callbacks
+ * Test 0: advert = foo, select = foo
+ * Test 1: advert = <empty>, select = foo
+ * Test 2: no advert
+ * Test 3: advert = foo, select = bar
+ * Test 4: advert = foo, select = <empty> (should fail)
+ */
+static int test_npn(int idx)
+{
+    SSL_CTX *sctx = NULL, *cctx = NULL;
+    SSL *serverssl = NULL, *clientssl = NULL;
+    int testresult = 0;
+
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(), 0, TLS1_2_VERSION,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+
+    SSL_CTX_set_next_protos_advertised_cb(sctx, npn_advert_cb, &idx);
+    SSL_CTX_set_next_proto_select_cb(cctx, npn_select_cb, &idx);
+
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl, &clientssl, NULL,
+                                      NULL)))
+        goto end;
+
+    if (idx == 4) {
+        /* We don't allow empty selection of NPN, so this should fail */
+        if (!TEST_false(create_ssl_connection(serverssl, clientssl,
+                                              SSL_ERROR_NONE)))
+            goto end;
+    } else {
+        const unsigned char *prot;
+        unsigned int protlen;
+
+        if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                             SSL_ERROR_NONE)))
+            goto end;
+
+        SSL_get0_next_proto_negotiated(serverssl, &prot, &protlen);
+        switch (idx) {
+        case 0:
+        case 1:
+            if (!TEST_mem_eq(prot, protlen, fooprot + 1, *fooprot))
+                goto end;
+            break;
+        case 2:
+            if (!TEST_uint_eq(protlen, 0))
+                goto end;
+            break;
+        case 3:
+            if (!TEST_mem_eq(prot, protlen, barprot + 1, *barprot))
+                goto end;
+            break;
+        default:
+            TEST_error("Should not get here");
+            goto end;
+        }
+    }
+
+    testresult = 1;
+ end:
+    SSL_free(serverssl);
+    SSL_free(clientssl);
+    SSL_CTX_free(sctx);
+    SSL_CTX_free(cctx);
+
+    return testresult;
+}
+#endif /* !defined(OPENSSL_NO_TLS1_2) && !defined(OPENSSL_NO_NEXTPROTONEG) */
+
+static int alpn_select_cb2(SSL *ssl, const unsigned char **out,
+                           unsigned char *outlen, const unsigned char *in,
+                           unsigned int inlen, void *arg)
+{
+    int *idx = (int *)arg;
+
+    switch (*idx) {
+    case 0:
+        *out = (unsigned char *)(fooprot + 1);
+        *outlen = *fooprot;
+        return SSL_TLSEXT_ERR_OK;
+
+    case 2:
+        *out = (unsigned char *)(barprot + 1);
+        *outlen = *barprot;
+        return SSL_TLSEXT_ERR_OK;
+
+    case 3:
+        *outlen = 0;
+        return SSL_TLSEXT_ERR_OK;
+
+    default:
+    case 1:
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
+    }
+    return 0;
+}
+
+/*
+ * Test the ALPN callbacks
+ * Test 0: client = foo, select = foo
+ * Test 1: client = <empty>, select = none
+ * Test 2: client = foo, select = bar (should fail)
+ * Test 3: client = foo, select = <empty> (should fail)
+ */
+static int test_alpn(int idx)
+{
+    SSL_CTX *sctx = NULL, *cctx = NULL;
+    SSL *serverssl = NULL, *clientssl = NULL;
+    int testresult = 0;
+    const unsigned char *prots = fooprot;
+    unsigned int protslen = sizeof(fooprot);
+
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(), 0, 0,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+
+    SSL_CTX_set_alpn_select_cb(sctx, alpn_select_cb2, &idx);
+
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl, &clientssl, NULL,
+                                      NULL)))
+        goto end;
+
+    if (idx == 1) {
+        prots = NULL;
+        protslen = 0;
+    }
+
+    /* SSL_set_alpn_protos returns 0 for success! */
+    if (!TEST_false(SSL_set_alpn_protos(clientssl, prots, protslen)))
+        goto end;
+
+    if (idx == 2 || idx == 3) {
+        /* We don't allow empty selection of NPN, so this should fail */
+        if (!TEST_false(create_ssl_connection(serverssl, clientssl,
+                                              SSL_ERROR_NONE)))
+            goto end;
+    } else {
+        const unsigned char *prot;
+        unsigned int protlen;
+
+        if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                             SSL_ERROR_NONE)))
+            goto end;
+
+        SSL_get0_alpn_selected(clientssl, &prot, &protlen);
+        switch (idx) {
+        case 0:
+            if (!TEST_mem_eq(prot, protlen, fooprot + 1, *fooprot))
+                goto end;
+            break;
+        case 1:
+            if (!TEST_uint_eq(protlen, 0))
+                goto end;
+            break;
+        default:
+            TEST_error("Should not get here");
+            goto end;
+        }
+    }
+
+    testresult = 1;
+ end:
+    SSL_free(serverssl);
+    SSL_free(clientssl);
+    SSL_CTX_free(sctx);
+    SSL_CTX_free(cctx);
+
+    return testresult;
+}
+
 OPT_TEST_DECLARE_USAGE("certfile privkeyfile srpvfile tmpfile provider config dhfile\n")
 
 int setup_tests(void)
@@ -11399,6 +11760,11 @@ int setup_tests(void)
 #endif
     ADD_ALL_TESTS(test_handshake_retry, 16);
     ADD_ALL_TESTS(test_multi_resume, 5);
+    ADD_ALL_TESTS(test_select_next_proto, OSSL_NELEM(next_proto_tests));
+#if !defined(OPENSSL_NO_TLS1_2) && !defined(OPENSSL_NO_NEXTPROTONEG)
+    ADD_ALL_TESTS(test_npn, 5);
+#endif
+    ADD_ALL_TESTS(test_alpn, 4);
 #ifndef OPENSSL_NO_QUIC
     ADD_ALL_TESTS(test_quic_api, 9);
 # ifndef OSSL_NO_USABLE_TLS1_3

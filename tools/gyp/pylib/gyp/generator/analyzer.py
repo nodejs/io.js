@@ -699,7 +699,7 @@ class TargetCalculator:
         ) & set(self._root_targets)
         if matching_test_targets_contains_all:
             # Remove any of the targets for all that were not explicitly supplied,
-            # 'all' is subsequentely added to the matching names below.
+            # 'all' is subsequently added to the matching names below.
             matching_test_targets = list(
                 set(matching_test_targets) & set(test_targets_no_all)
             )

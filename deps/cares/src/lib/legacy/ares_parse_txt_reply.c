@@ -27,8 +27,8 @@
 #include "ares_private.h"
 #include "ares_data.h"
 
-static int ares__parse_txt_reply(const unsigned char *abuf, size_t alen,
-                                 ares_bool_t ex, void **txt_out)
+static int ares_parse_txt_reply_int(const unsigned char *abuf, size_t alen,
+                                    ares_bool_t ex, void **txt_out)
 {
   ares_status_t        status;
   struct ares_txt_ext *txt_head = NULL;
@@ -129,8 +129,8 @@ int ares_parse_txt_reply(const unsigned char *abuf, int alen,
   if (alen < 0) {
     return ARES_EBADRESP;
   }
-  return ares__parse_txt_reply(abuf, (size_t)alen, ARES_FALSE,
-                               (void **)txt_out);
+  return ares_parse_txt_reply_int(abuf, (size_t)alen, ARES_FALSE,
+                                  (void **)txt_out);
 }
 
 int ares_parse_txt_reply_ext(const unsigned char *abuf, int alen,
@@ -139,5 +139,6 @@ int ares_parse_txt_reply_ext(const unsigned char *abuf, int alen,
   if (alen < 0) {
     return ARES_EBADRESP;
   }
-  return ares__parse_txt_reply(abuf, (size_t)alen, ARES_TRUE, (void **)txt_out);
+  return ares_parse_txt_reply_int(abuf, (size_t)alen, ARES_TRUE,
+                                  (void **)txt_out);
 }

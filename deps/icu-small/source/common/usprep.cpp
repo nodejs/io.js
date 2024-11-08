@@ -126,8 +126,7 @@ compareEntries(const UHashTok p1, const UHashTok p2) {
     name2.pointer = b2->name;
     path1.pointer = b1->path;
     path2.pointer = b2->path;
-    return ((UBool)(uhash_compareChars(name1, name2) & 
-        uhash_compareChars(path1, path2)));
+    return uhash_compareChars(name1, name2) & uhash_compareChars(path1, path2);
 }
 
 static void 
@@ -246,8 +245,8 @@ loadData(UStringPrepProfile* profile,
         return false;
     }
 
-    p=(const int32_t *)udata_getMemory(dataMemory);
-    pb=(const uint8_t *)(p+_SPREP_INDEX_TOP);
+    p = static_cast<const int32_t*>(udata_getMemory(dataMemory));
+    pb = reinterpret_cast<const uint8_t*>(p + _SPREP_INDEX_TOP);
     utrie_unserialize(&_sprepTrie, pb, p[_SPREP_INDEX_TRIE_SIZE], errorCode);
     _sprepTrie.getFoldingOffset=getSPrepFoldingOffset;
 
@@ -265,11 +264,11 @@ loadData(UStringPrepProfile* profile,
         uprv_memcpy(&profile->indexes, p, sizeof(profile->indexes));
         uprv_memcpy(&profile->sprepTrie, &_sprepTrie, sizeof(UTrie));
     } else {
-        p=(const int32_t *)udata_getMemory(profile->sprepData);
+        p = static_cast<const int32_t*>(udata_getMemory(profile->sprepData));
     }
     umtx_unlock(&usprepMutex);
     /* initialize some variables */
-    profile->mappingData=(uint16_t *)((uint8_t *)(p+_SPREP_INDEX_TOP)+profile->indexes[_SPREP_INDEX_TRIE_SIZE]);
+    profile->mappingData = reinterpret_cast<const uint16_t*>(reinterpret_cast<const uint8_t*>(p + _SPREP_INDEX_TOP) + profile->indexes[_SPREP_INDEX_TRIE_SIZE]);
     
     u_getUnicodeVersion(normUnicodeVersion);
     normUniVer = (normUnicodeVersion[0] << 24) + (normUnicodeVersion[1] << 16) + 
@@ -320,12 +319,12 @@ usprep_getProfile(const char* path,
      * we use the passed in pointers for fetching the data from the 
      * hash table which is safe
      */
-    stackKey.name = (char*) name;
-    stackKey.path = (char*) path;
+    stackKey.name = const_cast<char*>(name);
+    stackKey.path = const_cast<char*>(path);
 
     /* fetch the data from the cache */
     umtx_lock(&usprepMutex);
-    profile = (UStringPrepProfile*) (uhash_get(SHARED_DATA_HASHTABLE,&stackKey));
+    profile = static_cast<UStringPrepProfile*>(uhash_get(SHARED_DATA_HASHTABLE, &stackKey));
     if(profile != nullptr) {
         profile->refCount++;
     }
@@ -345,8 +344,8 @@ usprep_getProfile(const char* path,
         }
 
         /* get the options */
-        newProfile->doNFKC = (UBool)((newProfile->indexes[_SPREP_OPTIONS] & _SPREP_NORMALIZATION_ON) > 0);
-        newProfile->checkBiDi = (UBool)((newProfile->indexes[_SPREP_OPTIONS] & _SPREP_CHECK_BIDI_ON) > 0);
+        newProfile->doNFKC = static_cast<UBool>((newProfile->indexes[_SPREP_OPTIONS] & _SPREP_NORMALIZATION_ON) > 0);
+        newProfile->checkBiDi = static_cast<UBool>((newProfile->indexes[_SPREP_OPTIONS] & _SPREP_CHECK_BIDI_ON) > 0);
 
         LocalMemory<UStringPrepKey> key;
         LocalMemory<char> keyName;
@@ -363,7 +362,7 @@ usprep_getProfile(const char* path,
 
         umtx_lock(&usprepMutex);
         // If another thread already inserted the same key/value, refcount and cleanup our thread data
-        profile = (UStringPrepProfile*) (uhash_get(SHARED_DATA_HASHTABLE,&stackKey));
+        profile = static_cast<UStringPrepProfile*>(uhash_get(SHARED_DATA_HASHTABLE, &stackKey));
         if(profile != nullptr) {
             profile->refCount++;
             usprep_unload(newProfile.getAlias());
@@ -477,7 +476,7 @@ getValues(uint16_t trieWord, int16_t& value, UBool& isIndex){
         isIndex =false;
         value = 0;
     }else if(trieWord >= _SPREP_TYPE_THRESHOLD){
-        type = (UStringPrepType) (trieWord - _SPREP_TYPE_THRESHOLD);
+        type = static_cast<UStringPrepType>(trieWord - _SPREP_TYPE_THRESHOLD);
         isIndex =false;
         value = 0;
     }else{
@@ -489,7 +488,7 @@ getValues(uint16_t trieWord, int16_t& value, UBool& isIndex){
             value = trieWord  >> 2; //mask off the lower 2 bits and shift
         }else{
             isIndex = false;
-            value = (int16_t)trieWord;
+            value = static_cast<int16_t>(trieWord);
             value =  (value >> 2);
         }
  
@@ -514,7 +513,7 @@ usprep_map(  const UStringPrepProfile* profile,
     uint16_t result;
     int32_t destIndex=0;
     int32_t srcIndex;
-    UBool allowUnassigned = (UBool) ((options & USPREP_ALLOW_UNASSIGNED)>0);
+    UBool allowUnassigned = static_cast<UBool>((options & USPREP_ALLOW_UNASSIGNED) > 0);
     UStringPrepType type;
     int16_t value;
     UBool isIndex;
@@ -581,7 +580,7 @@ usprep_map(  const UStringPrepProfile* profile,
         //copy the code point into destination
         if(ch <= 0xFFFF){
             if(destIndex < destCapacity ){
-                dest[destIndex] = (char16_t)ch;
+                dest[destIndex] = static_cast<char16_t>(ch);
             }
             destIndex++;
         }else{

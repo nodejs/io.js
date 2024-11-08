@@ -111,7 +111,7 @@ class AliasedBufferBase : public MemoryRetainer {
   };
 
   /**
-   *  Get the underlying v8 TypedArray overlayed on top of the native buffer
+   *  Get the underlying v8 TypedArray overlaid on top of the native buffer
    */
   v8::Local<V8T> GetJSArray() const;
 
