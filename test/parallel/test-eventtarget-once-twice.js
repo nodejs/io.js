@@ -18,7 +18,7 @@ test('should resolve `once` twice', async () => {
       et.dispatchEvent(new Event('foo'));
       await setImmediate();
       et.dispatchEvent(new Event('foo'));
-    })()
+    })(),
   ]);
 
 });
